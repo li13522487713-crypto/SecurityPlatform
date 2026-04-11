@@ -527,6 +527,9 @@ importers:
       '@flowgram.ai/minimap-plugin':
         specifier: ^1.0.8
         version: 1.0.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@flowgram.ai/playground-react':
+        specifier: ^1.0.8
+        version: 1.0.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@monaco-editor/react':
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

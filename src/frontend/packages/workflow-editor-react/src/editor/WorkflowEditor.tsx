@@ -4,8 +4,11 @@ import { useTranslation } from "react-i18next";
 import { CanvasToolbar } from "../components/CanvasToolbar";
 import { NodeCard } from "../components/NodeCard";
 import { NodePanelPopover } from "../components/NodePanelPopover";
+import { NodeDebugPanel } from "../components/NodeDebugPanel";
 import { PropertiesPanel } from "../components/PropertiesPanel";
 import { TestRunPanel } from "../components/TestRunPanel";
+import { MinimapPanel } from "../components/MinimapPanel";
+import { VariablePanel } from "../components/VariablePanel";
 import { WorkflowHeader } from "../components/WorkflowHeader";
 import { WORKFLOW_NODE_CATALOG, type WorkflowNodeCatalogItem } from "../constants/node-catalog";
 import { ensureWorkflowI18n } from "../i18n";
@@ -26,8 +29,10 @@ import {
   type PortRuntime,
   validateConnectionCandidate
 } from "./connection-rules";
+import { resolveNodePorts } from "./dynamic-port-resolver";
 import { validateCanvas, type CanvasValidationResult } from "./editor-validation";
 import { buildVariableSuggestions } from "./smoke-utils";
+import { WorkflowRenderProvider } from "../flowgram/workflow-render-provider";
 import "./workflow-editor.css";
 
 interface WorkflowApiClient {
@@ -56,6 +61,11 @@ interface WorkflowApiClient {
     }
   ) => { abort: () => void; done: Promise<void> };
   getProcess?: (executionId: string) => Promise<{ data?: { nodeExecutions?: Array<{ nodeKey: string; status: number; errorMessage?: string }> } }>;
+  debugNode?: (
+    workflowId: string,
+    nodeKey: string,
+    req: { nodeKey: string; inputsJson?: string; inputs?: Record<string, unknown> }
+  ) => Promise<{ data?: { outputsJson?: string; status: number; executionId?: string } }>;
 }
 
 export interface WorkflowEditorReactProps {
@@ -110,6 +120,7 @@ type CanvasOperation = DragNodeOperation | PanCanvasOperation | ConnectOperation
 const nodeRegistry = new NodeRegistry();
 const NODE_WIDTH = 360;
 const NODE_HEIGHT = 160;
+const USE_FLOWGRAM_CANVAS = true;
 
 const INITIAL_NODES: CanvasNode[] = [
   {
@@ -329,45 +340,6 @@ function normalizeConnectionsByPorts(
   return { connections: normalized, migratedCount };
 }
 
-function asObjectRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function deriveSelectorDynamicPorts(node: CanvasNode, current: NodePortsRuntime): NodePortsRuntime {
-  if (node.type !== "Selector") {
-    return current;
-  }
-
-  const configs = asObjectRecord(node.configs);
-  const conditionsRaw = configs.conditions;
-  const conditions = Array.isArray(conditionsRaw) ? conditionsRaw : [];
-  const elsePort = current.outputs.find((port) => port.key === "false" || port.key === "else");
-  const templatePort = current.outputs[0] ?? {
-    key: "true",
-    name: "true",
-    direction: "output" as const,
-    dataType: "any",
-    isRequired: false,
-    maxConnections: 99
-  };
-  const truePorts = conditions.length > 0 ? conditions.map((_, index) => (index === 0 ? "true" : `true_${index}`)) : ["true"];
-  const dynamicOutputs: PortRuntime[] = truePorts.map((key) => ({
-    ...templatePort,
-    key,
-    name: key
-  }));
-  dynamicOutputs.push({
-    ...(elsePort ?? templatePort),
-    key: "false",
-    name: "false"
-  });
-
-  return {
-    inputs: current.inputs,
-    outputs: dynamicOutputs
-  };
-}
-
 export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   ensureWorkflowI18n(props.locale ?? "zh-CN");
   const { t } = useTranslation();
@@ -385,6 +357,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [selectedNodeKey, setSelectedNodeKey] = useState<string>("llm_1");
   const [showNodePanel, setShowNodePanel] = useState(false);
   const [showTestPanel, setShowTestPanel] = useState(false);
+  const [showMinimap, setShowMinimap] = useState(false);
+  const [showVariablePanel, setShowVariablePanel] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<"mouse" | "trackpad">("mouse");
   const [logs, setLogs] = useState<string[]>([]);
   const [canvasNodes, setCanvasNodes] = useState<CanvasNode[]>(INITIAL_NODES);
   const [canvasConnections, setCanvasConnections] = useState<CanvasConnection[]>(INITIAL_CONNECTIONS);
@@ -409,6 +385,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [testRunMode, setTestRunMode] = useState<"stream" | "sync">("stream");
   const [testRunSource, setTestRunSource] = useState<"published" | "draft">("published");
   const [testRunning, setTestRunning] = useState(false);
+  const [debugNodeKey, setDebugNodeKey] = useState("");
+  const [debugInputJson, setDebugInputJson] = useState('{"input":"hello"}');
+  const [debugOutput, setDebugOutput] = useState("");
+  const [debugRunning, setDebugRunning] = useState(false);
   const streamAbortRef = useRef<null | (() => void)>(null);
 
   const scale = zoom / 100;
@@ -468,6 +448,12 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     return node ?? null;
   }, [canvasNodes, selectedNodeKey]);
 
+  useEffect(() => {
+    if (!debugNodeKey && selectedNode) {
+      setDebugNodeKey(selectedNode.key);
+    }
+  }, [debugNodeKey, selectedNode]);
+
   const nodeMap = useMemo(() => {
     const result = new Map<string, WorkflowNodeCatalogItem>();
     for (const item of WORKFLOW_NODE_CATALOG) {
@@ -499,7 +485,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     const map = new Map<string, NodePortsRuntime>();
     for (const node of canvasNodes) {
       const basePorts = buildNodePortsRuntime(metadataBundle.nodeTypesMap.get(node.type));
-      map.set(node.key, deriveSelectorDynamicPorts(node, basePorts));
+      map.set(node.key, resolveNodePorts(node, basePorts));
     }
     return map;
   }, [canvasNodes, metadataBundle.nodeTypesMap]);
@@ -511,6 +497,23 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         selectedNodeKey
       ),
     [canvasNodes, selectedNodeKey]
+  );
+  const variablePanelItems = useMemo(
+    () =>
+      variableSuggestions.map((item) => ({
+        key: item.value.replace(/^\{\{|\}\}$/g, ""),
+        label: item.label ?? item.value,
+        source: item.value.replace(/^\{\{|\}\}$/g, "").split(".")[0] ?? "vars"
+      })),
+    [variableSuggestions]
+  );
+  const debugNodeOptions = useMemo(
+    () =>
+      canvasNodes.map((node) => ({
+        value: node.key,
+        label: `${node.title || node.key} (${node.type})`
+      })),
+    [canvasNodes]
   );
 
   const renderConnections = useMemo(
@@ -822,6 +825,28 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const hasCanvasValidationErrors = Boolean(
     canvasValidation && (!canvasValidation.ok || canvasValidation.canvasIssues.length > 0 || canvasValidation.nodeResults.some((item) => item.issues.length > 0))
   );
+  const flowgramCanvasSchema: CanvasSchema = {
+    nodes: canvasNodes.map((node) => ({
+      key: node.key,
+      type: node.type,
+      title: node.title,
+      layout: { x: node.x, y: node.y, width: NODE_WIDTH, height: NODE_HEIGHT },
+      configs: node.configs,
+      inputMappings: node.inputMappings,
+      childCanvas: node.childCanvas,
+      inputTypes: node.inputTypes,
+      outputTypes: node.outputTypes,
+      inputSources: node.inputSources,
+      outputSources: node.outputSources
+    })),
+    connections: canvasConnections.map((line) => ({
+      fromNode: line.fromNode,
+      fromPort: line.fromPort,
+      toNode: line.toNode,
+      toPort: line.toPort,
+      condition: line.condition
+    }))
+  };
 
   function appendLog(line: string) {
     setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()} ${line}`]);
@@ -942,6 +967,48 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     setTestRunning(false);
   }
 
+  function handleAutoLayout() {
+    const xStart = 80;
+    const yStart = 80;
+    const colGap = 420;
+    const rowGap = 220;
+    setCanvasNodes((prev) =>
+      prev.map((node, index) => ({
+        ...node,
+        x: xStart + (index % 4) * colGap,
+        y: yStart + Math.floor(index / 4) * rowGap
+      }))
+    );
+    setIsDirty(true);
+  }
+
+  async function handleDebugNode() {
+    if (!props.apiClient.debugNode || !debugNodeKey) {
+      message.warning("当前环境未启用单节点调试接口。");
+      return;
+    }
+    let parsed: unknown = {};
+    if (debugInputJson.trim()) {
+      try {
+        parsed = JSON.parse(debugInputJson);
+      } catch {
+        message.error("调试输入 JSON 不合法。");
+        return;
+      }
+    }
+
+    setDebugRunning(true);
+    try {
+      const response = await props.apiClient.debugNode(props.workflowId, debugNodeKey, {
+        nodeKey: debugNodeKey,
+        inputsJson: JSON.stringify(parsed)
+      });
+      setDebugOutput(JSON.stringify(response.data ?? {}, null, 2));
+    } finally {
+      setDebugRunning(false);
+    }
+  }
+
   return (
     <div className="wf-react-editor-page">
       <WorkflowHeader
@@ -976,7 +1043,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       <div
         ref={canvasShellRef}
         className="wf-react-canvas-shell"
-        onPointerDown={startPanCanvas}
+        onPointerDown={USE_FLOWGRAM_CANVAS ? undefined : startPanCanvas}
         onDragOver={(event) => {
           if (draggingCatalogNodeType) {
             event.preventDefault();
@@ -1011,50 +1078,87 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           });
         }}
       >
-        <div className="wf-react-dot-grid" />
-        <div className="wf-react-scene" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}>
-          <svg className="wf-react-edge-layer" width="100%" height="100%">
-            {renderConnections.map((item) => (
-              <path key={item.id} d={item.d} className={`wf-react-edge-path${item.running ? " wf-react-edge-path-running" : ""}`} />
-            ))}
-            {connectingPreview ? (
-              <path
-                d={connectionPath(connectingPreview.startX, connectingPreview.startY, connectingPreview.currentX, connectingPreview.currentY)}
-                className="wf-react-edge-path wf-react-edge-preview"
-              />
-            ) : null}
-          </svg>
-          <div className="wf-react-node-layer">
-            {canvasNodes.map((node: CanvasNode) => {
-              const meta = nodeMap.get(node.type);
-              if (!meta) {
-                return null;
-              }
-              const nodePorts = nodePortsByNodeKey.get(node.key) ?? buildNodePortsRuntime(undefined);
-              return (
-                <div key={node.key} className="wf-react-node-wrap" style={{ left: node.x, top: node.y }}>
-                  <NodeCard
-                    nodeKey={node.key}
-                    title={node.title || t(meta.titleKey)}
-                    color={meta.color}
-                    iconText={meta.iconText}
-                    selected={selectedNodeKey === node.key}
-                    subtitle={node.type}
-                    inputPorts={nodePorts.inputs}
-                    outputPorts={nodePorts.outputs}
-                    connectableInputPortKeys={connectableInputPortKeysByNode[node.key]}
-                    connectingFromNodeKey={connectingPreview?.fromNode}
-                    onClick={() => setSelectedNodeKey(node.key)}
-                    onPointerDown={(event) => startNodeDrag(node, event)}
-                    onPortPointerDown={(event, port) => startConnection(node, port, event)}
-                    executionState={executionStateByNodeKey[node.key]?.state}
-                    executionHint={executionStateByNodeKey[node.key]?.hint}
+        {USE_FLOWGRAM_CANVAS ? (
+          <WorkflowRenderProvider
+            canvas={flowgramCanvasSchema}
+            nodeTypesMeta={nodeTypesMeta}
+            onCanvasChange={(next) => {
+              const nextNodes: CanvasNode[] = next.nodes.map((node) => ({
+                key: node.key,
+                type: node.type,
+                title: node.title,
+                x: node.layout?.x ?? 0,
+                y: node.layout?.y ?? 0,
+                configs: node.configs,
+                inputMappings: node.inputMappings,
+                childCanvas: node.childCanvas,
+                inputTypes: node.inputTypes,
+                outputTypes: node.outputTypes,
+                inputSources: node.inputSources,
+                outputSources: node.outputSources
+              }));
+              const nextConnections: CanvasConnection[] = next.connections.map((line, index) => ({
+                id: `conn_${line.fromNode}_${line.fromPort}_${line.toNode}_${line.toPort}_${index}`,
+                fromNode: line.fromNode,
+                fromPort: line.fromPort,
+                toNode: line.toNode,
+                toPort: line.toPort,
+                condition: line.condition
+              }));
+
+              setCanvasNodes(nextNodes);
+              setCanvasConnections(nextConnections);
+              setIsDirty(true);
+            }}
+          />
+        ) : (
+          <>
+            <div className="wf-react-dot-grid" />
+            <div className="wf-react-scene" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}>
+              <svg className="wf-react-edge-layer" width="100%" height="100%">
+                {renderConnections.map((item) => (
+                  <path key={item.id} d={item.d} className={`wf-react-edge-path${item.running ? " wf-react-edge-path-running" : ""}`} />
+                ))}
+                {connectingPreview ? (
+                  <path
+                    d={connectionPath(connectingPreview.startX, connectingPreview.startY, connectingPreview.currentX, connectingPreview.currentY)}
+                    className="wf-react-edge-path wf-react-edge-preview"
                   />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                ) : null}
+              </svg>
+              <div className="wf-react-node-layer">
+                {canvasNodes.map((node: CanvasNode) => {
+                  const meta = nodeMap.get(node.type);
+                  if (!meta) {
+                    return null;
+                  }
+                  const nodePorts = nodePortsByNodeKey.get(node.key) ?? buildNodePortsRuntime(undefined);
+                  return (
+                    <div key={node.key} className="wf-react-node-wrap" style={{ left: node.x, top: node.y }}>
+                      <NodeCard
+                        nodeKey={node.key}
+                        title={node.title || t(meta.titleKey)}
+                        color={meta.color}
+                        iconText={meta.iconText}
+                        selected={selectedNodeKey === node.key}
+                        subtitle={node.type}
+                        inputPorts={nodePorts.inputs}
+                        outputPorts={nodePorts.outputs}
+                        connectableInputPortKeys={connectableInputPortKeysByNode[node.key]}
+                        connectingFromNodeKey={connectingPreview?.fromNode}
+                        onClick={() => setSelectedNodeKey(node.key)}
+                        onPointerDown={(event) => startNodeDrag(node, event)}
+                        onPortPointerDown={(event, port) => startConnection(node, port, event)}
+                        executionState={executionStateByNodeKey[node.key]?.state}
+                        executionHint={executionStateByNodeKey[node.key]?.hint}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
 
         <NodePanelPopover
           visible={showNodePanel}
@@ -1102,10 +1206,34 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           onRun={() => void handleRunTest()}
         />
 
+        <NodeDebugPanel
+          visible={showDebugPanel}
+          running={debugRunning}
+          nodeOptions={debugNodeOptions}
+          selectedNodeKey={debugNodeKey}
+          inputJson={debugInputJson}
+          output={debugOutput}
+          onNodeChange={setDebugNodeKey}
+          onInputJsonChange={setDebugInputJson}
+          onRun={() => void handleDebugNode()}
+          onClose={() => setShowDebugPanel(false)}
+        />
+
+        <VariablePanel visible={showVariablePanel} variables={variablePanelItems} onClose={() => setShowVariablePanel(false)} />
+
+        <MinimapPanel visible={showMinimap} nodes={canvasNodes.map((node) => ({ key: node.key, x: node.x, y: node.y }))} selectedNodeKey={selectedNodeKey} />
+
         <CanvasToolbar
           zoom={zoom}
+          mode={interactionMode}
+          minimapVisible={showMinimap}
           onZoomChange={(value: number) => setZoom(value)}
+          onModeChange={setInteractionMode}
           onToggleNodePanel={() => setShowNodePanel((value: boolean) => !value)}
+          onToggleMinimap={() => setShowMinimap((value) => !value)}
+          onAutoLayout={handleAutoLayout}
+          onToggleVariables={() => setShowVariablePanel((value) => !value)}
+          onToggleDebug={() => setShowDebugPanel((value) => !value)}
           onRun={() => setShowTestPanel((value: boolean) => !value)}
         />
       </div>

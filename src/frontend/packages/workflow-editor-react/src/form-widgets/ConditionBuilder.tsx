@@ -1,15 +1,15 @@
 import { Button, Input, Select, Space } from "antd";
-
-interface ConditionItem {
-  left: string;
-  op: string;
-  right: string;
-  logic?: "and" | "or";
-}
+import {
+  addSelectorCondition,
+  normalizeSelectorConditions,
+  removeSelectorCondition,
+  reorderSelectorCondition,
+  type SelectorCondition
+} from "../editor/selector-branches";
 
 interface ConditionBuilderProps {
   value: unknown;
-  onChange: (next: ConditionItem[]) => void;
+  onChange: (next: SelectorCondition[]) => void;
 }
 
 const OPERATOR_OPTIONS = [
@@ -25,23 +25,8 @@ const OPERATOR_OPTIONS = [
   { value: "is_not_empty", label: "is not empty" }
 ];
 
-function normalizeState(value: unknown): ConditionItem[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.map((item) => {
-    const row = item as Record<string, unknown>;
-    return {
-      left: typeof row.left === "string" ? row.left : "",
-      op: typeof row.op === "string" ? row.op : "eq",
-      right: typeof row.right === "string" ? row.right : "",
-      logic: row.logic === "or" ? "or" : "and"
-    };
-  });
-}
-
 export function ConditionBuilder(props: ConditionBuilderProps) {
-  const conditions = normalizeState(props.value);
+  const conditions = normalizeSelectorConditions(props.value);
 
   return (
     <Space direction="vertical" style={{ width: "100%" }} size={8}>
@@ -93,8 +78,25 @@ export function ConditionBuilder(props: ConditionBuilderProps) {
           <Button
             size="small"
             onClick={() => {
-              const nextConditions = conditions.filter((_, rowIndex) => rowIndex !== index);
-              props.onChange(nextConditions);
+              props.onChange(reorderSelectorCondition(conditions, index, index - 1));
+            }}
+            disabled={index === 0}
+          >
+            上移
+          </Button>
+          <Button
+            size="small"
+            onClick={() => {
+              props.onChange(reorderSelectorCondition(conditions, index, index + 1));
+            }}
+            disabled={index === conditions.length - 1}
+          >
+            下移
+          </Button>
+          <Button
+            size="small"
+            onClick={() => {
+              props.onChange(removeSelectorCondition(conditions, index));
             }}
           >
             删除
@@ -106,7 +108,7 @@ export function ConditionBuilder(props: ConditionBuilderProps) {
         size="small"
         type="dashed"
         onClick={() => {
-          props.onChange([...conditions, { left: "", op: "eq", right: "", logic: "and" }]);
+          props.onChange(addSelectorCondition(conditions));
         }}
       >
         添加条件

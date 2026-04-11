@@ -1,4 +1,5 @@
-import { Alert, Button, Collapse, Input } from "antd";
+import { Alert, Button, Collapse, Input, Space } from "antd";
+import { CompressOutlined, ExpandOutlined } from "@ant-design/icons";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { validateConfigBySchema } from "../editor/schema-validation";
@@ -49,6 +50,8 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
   const { t } = useTranslation();
   const [draftTitle, setDraftTitle] = useState("");
   const [draftConfig, setDraftConfig] = useState<Record<string, unknown>>({});
+  const [panelWidth, setPanelWidth] = useState(420);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const definition = useMemo(() => {
     if (!props.selectedNode) {
@@ -193,15 +196,23 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
   }
 
   return (
-    <div className="wf-react-properties-panel">
+    <div
+      className={`wf-react-properties-panel${fullscreen ? " wf-react-properties-panel-fullscreen" : ""}`}
+      style={fullscreen ? undefined : { width: panelWidth }}
+    >
       <div className="wf-react-properties-header">
         <div>
           <div className="wf-react-properties-title">{t("wfUi.properties.title")}</div>
           <div className="wf-react-properties-subtitle">{props.selectedNodeLabel}</div>
         </div>
-        <Button size="small" onClick={props.onClose}>
-          关闭
-        </Button>
+        <Space size={6}>
+          <Button size="small" icon={fullscreen ? <CompressOutlined /> : <ExpandOutlined />} onClick={() => setFullscreen((value) => !value)}>
+            {fullscreen ? "退出全屏" : "全屏"}
+          </Button>
+          <Button size="small" onClick={props.onClose}>
+            关闭
+          </Button>
+        </Space>
       </div>
       {panelErrors.length > 0 ? (
         <Alert
@@ -219,6 +230,27 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
         />
       ) : null}
       <Collapse size="small" bordered={false} items={items} defaultActiveKey={["basic", "advanced"]} />
+      {!fullscreen ? (
+        <div
+          className="wf-react-properties-resizer"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            const startX = event.clientX;
+            const startWidth = panelWidth;
+            const move = (pointerEvent: PointerEvent) => {
+              const delta = startX - pointerEvent.clientX;
+              const next = Math.max(360, Math.min(760, startWidth + delta));
+              setPanelWidth(next);
+            };
+            const up = () => {
+              window.removeEventListener("pointermove", move);
+              window.removeEventListener("pointerup", up);
+            };
+            window.addEventListener("pointermove", move);
+            window.addEventListener("pointerup", up, { once: true });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

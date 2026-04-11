@@ -1,0 +1,89 @@
+import { useMemo } from "react";
+import { FreeLayoutEditor, type WorkflowJSON, type WorkflowContentChangeEvent, type WorkflowNodeRegistry } from "@flowgram.ai/free-layout-editor";
+import type { CanvasSchema, NodeTypeMetadata } from "../types";
+import { toEditorCanvasSchema, toFlowgramWorkflowJSON } from "./workflow-json-bridge";
+import { WorkflowNodeRender } from "../node-render/node-render";
+import { buildNodePortsRuntime, validateConnectionCandidate } from "../editor/connection-rules";
+
+interface WorkflowLoaderProps {
+  canvas: CanvasSchema;
+  readonly?: boolean;
+  nodeTypesMeta: NodeTypeMetadata[];
+  onCanvasChange: (next: CanvasSchema) => void;
+}
+
+export function WorkflowLoader(props: WorkflowLoaderProps) {
+  const nodeTypesMap = useMemo(
+    () => new Map<string, NodeTypeMetadata>(props.nodeTypesMeta.map((item) => [String(item.key), item])),
+    [props.nodeTypesMeta]
+  );
+
+  const initialData = useMemo<WorkflowJSON>(() => toFlowgramWorkflowJSON(props.canvas, nodeTypesMap), [props.canvas, nodeTypesMap]);
+  const nodeRegistries = useMemo<WorkflowNodeRegistry[]>(
+    () =>
+      props.nodeTypesMeta.map((meta) => ({
+        type: String(meta.key),
+        render: WorkflowNodeRender,
+        meta: {
+          draggable: true,
+          selectable: true,
+          size: { width: 360, height: 160 },
+          useDynamicPort: String(meta.key) === "Selector",
+          defaultPorts:
+            meta.ports?.map((port) => ({
+              type: port.direction === "Input" || port.direction === 1 ? "input" : "output",
+              portID: port.key
+            })) ?? []
+        }
+      })),
+    [props.nodeTypesMeta]
+  );
+
+  return (
+    <FreeLayoutEditor
+      initialData={initialData}
+      nodeRegistries={nodeRegistries}
+      readonly={props.readonly}
+      selectBox={{}}
+      history={{ disableShortcuts: false }}
+      setLineRenderType={() => 0}
+      setLineClassName={(_ctx, line) => {
+        const lineData = line.lineData as { processing?: boolean } | undefined;
+        return lineData?.processing || line.flowing ? "wf-react-edge-path-running" : undefined;
+      }}
+      canAddLine={(ctx, fromPort, toPort, lines) => {
+        const fromNodeType = String(fromPort.node.flowNodeType);
+        const toNodeType = String(toPort.node.flowNodeType);
+        const fromMeta = nodeTypesMap.get(fromNodeType);
+        const toMeta = nodeTypesMap.get(toNodeType);
+        const fromPorts = buildNodePortsRuntime(fromMeta);
+        const toPorts = buildNodePortsRuntime(toMeta);
+        const existing = lines.getAllAvailableLines().map((item) => ({
+          id: item.id,
+          fromNode: item.from?.id ?? "",
+          fromPort: String(item.fromPort?.portID ?? "output"),
+          toNode: item.to?.id ?? "",
+          toPort: String(item.toPort?.portID ?? "input"),
+          condition: ((item.lineData ?? {}) as { condition?: string | null }).condition ?? null
+        }));
+        const validation = validateConnectionCandidate(
+          {
+            fromNode: fromPort.node.id,
+            fromPort: String(fromPort.portID ?? "output"),
+            toNode: toPort.node.id,
+            toPort: String(toPort.portID ?? "input")
+          },
+          existing,
+          fromPorts.outputs,
+          toPorts.inputs
+        );
+
+        return validation.ok;
+      }}
+      onContentChange={(ctx, _event: WorkflowContentChangeEvent) => {
+        const latest = ctx.document.toJSON() as WorkflowJSON;
+        props.onCanvasChange(toEditorCanvasSchema(latest, props.canvas));
+      }}
+    />
+  );
+}
