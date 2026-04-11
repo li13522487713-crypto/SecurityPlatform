@@ -5,6 +5,7 @@ interface CanvasToolbarProps {
   zoom: number;
   mode: "mouse" | "trackpad";
   minimapVisible: boolean;
+  readOnly?: boolean;
   onZoomChange: (value: number) => void;
   onModeChange: (value: "mouse" | "trackpad") => void;
   onToggleNodePanel: () => void;
@@ -23,6 +24,8 @@ const ZOOM_OPTIONS = [50, 75, 100, 125, 150, 200].map((value) => ({
 }));
 
 export function CanvasToolbar(props: CanvasToolbarProps) {
+  const isReadOnly = Boolean(props.readOnly);
+
   return (
     <div className="wf-react-toolbar">
       <div className="wf-react-toolbar-wrap">
@@ -44,12 +47,16 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
           <Button size="small" type={props.minimapVisible ? "primary" : "default"} icon={<BorderOutlined />} onClick={props.onToggleMinimap}>
             小地图
           </Button>
-          <Button size="small" icon={<AlignCenterOutlined />} onClick={props.onAutoLayout}>
-            自动布局
-          </Button>
-          <Button type="primary" size="small" icon={<PlusOutlined />} onClick={props.onToggleNodePanel}>
-            添加节点
-          </Button>
+          {!isReadOnly ? (
+            <>
+              <Button size="small" icon={<AlignCenterOutlined />} onClick={props.onAutoLayout}>
+                自动布局
+              </Button>
+              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={props.onToggleNodePanel}>
+                添加节点
+              </Button>
+            </>
+          ) : null}
         </div>
         <div className="wf-react-tools-section">
           <Space size={8}>

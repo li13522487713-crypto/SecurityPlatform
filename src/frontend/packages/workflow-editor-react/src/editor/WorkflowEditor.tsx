@@ -461,6 +461,20 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   }, [zoom]);
 
   useEffect(() => {
+    if (isReadOnly || !isDirty) {
+      return;
+    }
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [isDirty, isReadOnly]);
+
+  useEffect(() => {
     let disposed = false;
     const load = async () => {
       const apiClient = props.apiClient;
@@ -1821,6 +1835,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           zoom={zoom}
           mode={interactionMode}
           minimapVisible={showMinimap}
+          readOnly={isReadOnly}
           onZoomChange={(value: number) => setZoom(value)}
           onModeChange={setInteractionMode}
           onToggleNodePanel={() => setShowNodePanel((value: boolean) => !value)}
