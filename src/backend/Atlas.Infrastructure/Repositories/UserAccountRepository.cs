@@ -9,6 +9,41 @@ public sealed class UserAccountRepository : RepositoryBase<UserAccount>, IUserAc
 {
     public UserAccountRepository(ISqlSugarClient db) : base(db) { }
 
+    public async Task<IReadOnlyList<UserAccount>> QueryByUsernamesAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> usernames,
+        CancellationToken cancellationToken)
+    {
+        if (usernames.Count == 0)
+        {
+            return Array.Empty<UserAccount>();
+        }
+
+        var normalized = usernames
+            .Where(static username => !string.IsNullOrWhiteSpace(username))
+            .Select(static username => username.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalized.Length == 0)
+        {
+            return Array.Empty<UserAccount>();
+        }
+
+        return await Db.Queryable<UserAccount>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(normalized, x.Username))
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task AddRangeAsync(IReadOnlyList<UserAccount> accounts, CancellationToken cancellationToken)
+    {
+        if (accounts.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Db.Insertable(accounts.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task UpdateRangeAsync(IReadOnlyList<UserAccount> accounts, CancellationToken cancellationToken)
     {
         if (accounts.Count == 0)

@@ -124,13 +124,20 @@ public sealed class TeamAgentPublicationRepository : RepositoryBase<TeamAgentPub
         var items = await Db.Queryable<TeamAgentPublication>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.TeamAgentId == teamAgentId && x.IsActive)
             .ToListAsync(cancellationToken);
+        if (items.Count == 0)
+        {
+            return 0;
+        }
+
         foreach (var item in items)
         {
             item.Deactivate();
-            await Db.Updateable(item)
-                .Where(x => x.TenantIdValue == item.TenantIdValue && x.Id == item.Id)
-                .ExecuteCommandAsync(cancellationToken);
         }
+
+        await Db.Updateable(items)
+            .WhereColumns(x => new { x.TenantIdValue, x.Id })
+            .ExecuteCommandAsync(cancellationToken);
+
         return items.Count;
     }
 }

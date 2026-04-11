@@ -9,6 +9,8 @@ using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Atlas.AppHost.Controllers;
 
@@ -19,42 +21,44 @@ namespace Atlas.AppHost.Controllers;
 [Route("api/v2/workflows")]
 public sealed class WorkflowV2Controller : ControllerBase
 {
-    private readonly IWorkflowV2CommandService _commandService;
-    private readonly IWorkflowV2QueryService _queryService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly IWorkflowV2ExecutionService _executionService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
-    private readonly IValidator<WorkflowV2CreateRequest> _createValidator;
-    private readonly IValidator<WorkflowV2SaveDraftRequest> _saveDraftValidator;
-    private readonly IValidator<WorkflowV2UpdateMetaRequest> _updateMetaValidator;
-    private readonly IValidator<WorkflowV2PublishRequest> _publishValidator;
-    private readonly IValidator<WorkflowV2RunRequest> _runValidator;
-    private readonly IValidator<WorkflowV2NodeDebugRequest> _nodeDebugValidator;
+    private readonly ILogger<WorkflowV2Controller> _logger;
 
     public WorkflowV2Controller(
-        IWorkflowV2CommandService commandService,
-        IWorkflowV2QueryService queryService,
+        IServiceProvider serviceProvider,
         IWorkflowV2ExecutionService executionService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
-        IValidator<WorkflowV2CreateRequest> createValidator,
-        IValidator<WorkflowV2SaveDraftRequest> saveDraftValidator,
-        IValidator<WorkflowV2UpdateMetaRequest> updateMetaValidator,
-        IValidator<WorkflowV2PublishRequest> publishValidator,
-        IValidator<WorkflowV2RunRequest> runValidator,
-        IValidator<WorkflowV2NodeDebugRequest> nodeDebugValidator)
+        ILogger<WorkflowV2Controller> logger)
     {
-        _commandService = commandService;
-        _queryService = queryService;
+        _serviceProvider = serviceProvider;
         _executionService = executionService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
-        _createValidator = createValidator;
-        _saveDraftValidator = saveDraftValidator;
-        _updateMetaValidator = updateMetaValidator;
-        _publishValidator = publishValidator;
-        _runValidator = runValidator;
-        _nodeDebugValidator = nodeDebugValidator;
+        _logger = logger;
+    }
+
+    private IWorkflowV2CommandService GetCommandService()
+    {
+        return _serviceProvider.GetRequiredService<IWorkflowV2CommandService>();
+    }
+
+    private IWorkflowV2QueryService GetQueryService()
+    {
+        return _serviceProvider.GetRequiredService<IWorkflowV2QueryService>();
+    }
+
+    private IWorkflowV2ExecutionService GetExecutionService()
+    {
+        return _executionService;
+    }
+
+    private IValidator<TRequest> GetValidator<TRequest>()
+    {
+        return _serviceProvider.GetRequiredService<IValidator<TRequest>>();
     }
 
     // ── 写操作 ──────────────────────────────────────────────
@@ -64,10 +68,10 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] WorkflowV2CreateRequest request, CancellationToken cancellationToken)
     {
-        _createValidator.ValidateAndThrow(request);
+        GetValidator<WorkflowV2CreateRequest>().ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        var id = await _commandService.CreateAsync(tenantId, userId, request, cancellationToken);
+        var id = await GetCommandService().CreateAsync(tenantId, userId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -76,9 +80,9 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> SaveDraft(
         long id, [FromBody] WorkflowV2SaveDraftRequest request, CancellationToken cancellationToken)
     {
-        _saveDraftValidator.ValidateAndThrow(request);
+        GetValidator<WorkflowV2SaveDraftRequest>().ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.SaveDraftAsync(tenantId, id, request, cancellationToken);
+        await GetCommandService().SaveDraftAsync(tenantId, id, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -87,9 +91,9 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> UpdateMeta(
         long id, [FromBody] WorkflowV2UpdateMetaRequest request, CancellationToken cancellationToken)
     {
-        _updateMetaValidator.ValidateAndThrow(request);
+        GetValidator<WorkflowV2UpdateMetaRequest>().ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.UpdateMetaAsync(tenantId, id, request, cancellationToken);
+        await GetCommandService().UpdateMetaAsync(tenantId, id, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -98,10 +102,10 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Publish(
         long id, [FromBody] WorkflowV2PublishRequest request, CancellationToken cancellationToken)
     {
-        _publishValidator.ValidateAndThrow(request);
+        GetValidator<WorkflowV2PublishRequest>().ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        await _commandService.PublishAsync(tenantId, id, userId, request, cancellationToken);
+        await GetCommandService().PublishAsync(tenantId, id, userId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -110,7 +114,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.DeleteAsync(tenantId, id, cancellationToken);
+        await GetCommandService().DeleteAsync(tenantId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -120,7 +124,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        var copiedId = await _commandService.CopyAsync(tenantId, userId, id, cancellationToken);
+        var copiedId = await GetCommandService().CopyAsync(tenantId, userId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = copiedId.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -132,7 +136,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         [FromQuery] PagedRequest request, [FromQuery] string? keyword = null, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.ListAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
+        var result = await GetQueryService().ListAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<WorkflowV2ListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -142,7 +146,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         [FromQuery] PagedRequest request, [FromQuery] string? keyword = null, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.ListPublishedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
+        var result = await GetQueryService().ListPublishedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<WorkflowV2ListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -151,7 +155,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<WorkflowV2DetailDto>>> GetById(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetAsync(tenantId, id, cancellationToken);
+        var result = await GetQueryService().GetAsync(tenantId, id, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowV2DetailDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"), HttpContext.TraceIdentifier));
@@ -166,7 +170,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.ListVersionsAsync(tenantId, id, cancellationToken);
+        var result = await GetQueryService().ListVersionsAsync(tenantId, id, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<WorkflowV2VersionDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -176,7 +180,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         long id, long fromId, long toId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetVersionDiffAsync(tenantId, id, fromId, toId, cancellationToken);
+        var result = await GetQueryService().GetVersionDiffAsync(tenantId, id, fromId, toId, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowVersionDiff>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowVersionNotInWorkflow"), HttpContext.TraceIdentifier));
@@ -192,7 +196,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        var result = await _commandService.RollbackToVersionAsync(tenantId, id, versionId, userId, cancellationToken);
+        var result = await GetCommandService().RollbackToVersionAsync(tenantId, id, versionId, userId, cancellationToken);
         return Ok(ApiResponse<WorkflowVersionRollbackResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -201,7 +205,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkflowV2NodeTypeDto>>>> GetNodeTypes(
         CancellationToken cancellationToken)
     {
-        var result = await _queryService.GetNodeTypesAsync(cancellationToken);
+        var result = await GetQueryService().GetNodeTypesAsync(cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<WorkflowV2NodeTypeDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -210,7 +214,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkflowV2NodeTemplateDto>>>> GetNodeTemplates(
         CancellationToken cancellationToken)
     {
-        var result = await _queryService.GetNodeTemplatesAsync(cancellationToken);
+        var result = await GetQueryService().GetNodeTemplatesAsync(cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<WorkflowV2NodeTemplateDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -221,11 +225,25 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> Run(
         long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
     {
+        Console.WriteLine($"[diag] AppHost Run entered workflowId={id}");
+        _logger.LogWarning("WorkflowV2 Run received: WorkflowId={WorkflowId}", id);
         var safeRequest = request ?? new WorkflowV2RunRequest(null);
-        _runValidator.ValidateAndThrow(safeRequest);
+        GetValidator<WorkflowV2RunRequest>().ValidateAndThrow(safeRequest);
+        Console.WriteLine($"[diag] AppHost Run validated workflowId={id}");
+        _logger.LogWarning("WorkflowV2 Run validated: WorkflowId={WorkflowId}", id);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        var result = await _executionService.SyncRunAsync(tenantId, id, userId, safeRequest, cancellationToken);
+        var executionService = GetExecutionService();
+        Console.WriteLine($"[diag] AppHost Run calling SyncRunAsync workflowId={id}");
+        _logger.LogWarning("WorkflowV2 Run invoking execution service: WorkflowId={WorkflowId}", id);
+        var result = await executionService.SyncRunAsync(tenantId, id, userId, safeRequest, cancellationToken);
+        Console.WriteLine($"[diag] AppHost Run returned executionId={result.ExecutionId} status={result.Status}");
+        _logger.LogWarning(
+            "WorkflowV2 Run completed: WorkflowId={WorkflowId} ExecutionId={ExecutionId} Status={Status} Error={Error}",
+            id,
+            result.ExecutionId,
+            result.Status,
+            result.ErrorMessage);
         return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -234,21 +252,38 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task StreamRun(
         long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
     {
+        Console.WriteLine($"[diag] AppHost StreamRun entered workflowId={id}");
+        _logger.LogWarning("WorkflowV2 StreamRun received: WorkflowId={WorkflowId}", id);
         var safeRequest = request ?? new WorkflowV2RunRequest(null);
-        _runValidator.ValidateAndThrow(safeRequest);
+        Console.WriteLine($"[diag] AppHost StreamRun before validate workflowId={id}");
+        GetValidator<WorkflowV2RunRequest>().ValidateAndThrow(safeRequest);
+        Console.WriteLine($"[diag] AppHost StreamRun validated workflowId={id}");
 
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
+        Console.WriteLine($"[diag] AppHost StreamRun headers-set workflowId={id}");
 
+        Console.WriteLine($"[diag] AppHost StreamRun before tenant workflowId={id}");
         var tenantId = _tenantProvider.GetTenantId();
+        Console.WriteLine($"[diag] AppHost StreamRun tenant={tenantId.Value} workflowId={id}");
+        Console.WriteLine($"[diag] AppHost StreamRun before user workflowId={id}");
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        Console.WriteLine($"[diag] AppHost StreamRun user={userId} workflowId={id}");
+        Console.WriteLine($"[diag] AppHost StreamRun before resolve execution service workflowId={id}");
+        var executionService = GetExecutionService();
+        Console.WriteLine($"[diag] AppHost StreamRun resolved execution service workflowId={id}");
+        Console.WriteLine($"[diag] AppHost StreamRun enumerating workflowId={id}");
+        _logger.LogWarning("WorkflowV2 StreamRun start enumerating events: WorkflowId={WorkflowId}", id);
 
-        await foreach (var evt in _executionService.StreamRunAsync(tenantId, id, userId, safeRequest, cancellationToken))
+        await foreach (var evt in executionService.StreamRunAsync(tenantId, id, userId, safeRequest, cancellationToken))
         {
+            Console.WriteLine($"[diag] AppHost StreamRun event workflowId={id} event={evt.Event}");
             await Response.WriteAsync($"event: {evt.Event}\ndata: {evt.Data}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }
+
+        Console.WriteLine($"[diag] AppHost StreamRun completed workflowId={id}");
     }
 
     [HttpPost("executions/{execId:long}/cancel")]
@@ -256,16 +291,21 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Cancel(long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        await _executionService.CancelAsync(tenantId, execId, cancellationToken);
+        var executionService = GetExecutionService();
+        await executionService.CancelAsync(tenantId, execId, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = execId.ToString() }, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("executions/{execId:long}/resume")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
-    public async Task<ActionResult<ApiResponse<object>>> Resume(long execId, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Resume(
+        long execId,
+        [FromBody] WorkflowV2ResumeRequest? request,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        await _executionService.ResumeAsync(tenantId, execId, cancellationToken);
+        var executionService = GetExecutionService();
+        await executionService.ResumeAsync(tenantId, execId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = execId.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -278,7 +318,8 @@ public sealed class WorkflowV2Controller : ControllerBase
         Response.Headers.Connection = "keep-alive";
 
         var tenantId = _tenantProvider.GetTenantId();
-        await foreach (var evt in _executionService.StreamResumeAsync(tenantId, execId, cancellationToken))
+        var executionService = GetExecutionService();
+        await foreach (var evt in executionService.StreamResumeAsync(tenantId, execId, cancellationToken))
         {
             await Response.WriteAsync($"event: {evt.Event}\ndata: {evt.Data}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
@@ -291,7 +332,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetExecutionProcessAsync(tenantId, execId, cancellationToken);
+        var result = await GetQueryService().GetExecutionProcessAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowV2ExecutionDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
@@ -306,7 +347,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetExecutionCheckpointAsync(tenantId, execId, cancellationToken);
+        var result = await GetQueryService().GetExecutionCheckpointAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowV2ExecutionCheckpointDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
@@ -321,7 +362,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var checkpoint = await _queryService.GetExecutionCheckpointAsync(tenantId, execId, cancellationToken);
+        var checkpoint = await GetQueryService().GetExecutionCheckpointAsync(tenantId, execId, cancellationToken);
         if (checkpoint is null)
         {
             return NotFound(ApiResponse<WorkflowV2RunResult>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
@@ -336,7 +377,8 @@ public sealed class WorkflowV2Controller : ControllerBase
         }
 
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        var result = await _executionService.AsyncRunAsync(
+        var executionService = GetExecutionService();
+        var result = await executionService.AsyncRunAsync(
             tenantId,
             checkpoint.WorkflowId,
             userId,
@@ -351,7 +393,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetExecutionDebugViewAsync(tenantId, execId, cancellationToken);
+        var result = await GetQueryService().GetExecutionDebugViewAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowV2ExecutionDebugViewDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
@@ -366,7 +408,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         long execId, string nodeKey, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetNodeExecutionDetailAsync(tenantId, execId, nodeKey, cancellationToken);
+        var result = await GetQueryService().GetNodeExecutionDetailAsync(tenantId, execId, nodeKey, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowV2NodeExecutionDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowNodeExecutionNotFound"), HttpContext.TraceIdentifier));
@@ -380,10 +422,11 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> DebugNode(
         long id, [FromBody] WorkflowV2NodeDebugRequest request, CancellationToken cancellationToken)
     {
-        _nodeDebugValidator.ValidateAndThrow(request);
+        GetValidator<WorkflowV2NodeDebugRequest>().ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        var result = await _executionService.DebugNodeAsync(tenantId, id, userId, request, cancellationToken);
+        var executionService = GetExecutionService();
+        var result = await executionService.DebugNodeAsync(tenantId, id, userId, request, cancellationToken);
         return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 }

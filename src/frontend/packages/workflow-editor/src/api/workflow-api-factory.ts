@@ -154,8 +154,13 @@ export function createWorkflowV2Api(options: WorkflowApiFactoryOptions) {
       );
     },
     resume(executionId: IdLike, req: WorkflowResumeRequest): Promise<ApiResponse<boolean>> {
-      void req;
-      return requestFn<ApiResponse<boolean>>(`${EXEC_BASE}/${executionId}/resume`, { method: "POST" });
+      return requestFn<ApiResponse<boolean>>(`${EXEC_BASE}/${executionId}/resume`, {
+        method: "POST",
+        body: JSON.stringify({
+          inputsJson: req.inputsJson,
+          data: req.data
+        })
+      });
     },
     streamResume(executionId: IdLike, callbacks: StreamCallbacks): StreamRunHandle {
       return createStreamRunHandle(`${EXEC_BASE}/${executionId}/stream-resume`, undefined, callbacks, options);
@@ -269,6 +274,7 @@ function buildStreamHeaders(resolveAppId?: () => string | null): Headers {
     "Content-Type": "application/json",
     Accept: "text/event-stream"
   });
+  headers.set("Idempotency-Key", generateIdempotencyKey());
   const token = getAccessToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -287,6 +293,14 @@ function buildStreamHeaders(resolveAppId?: () => string | null): Headers {
     headers.set("X-App-Workspace", "1");
   }
   return headers;
+}
+
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function buildRunPayload(req: WorkflowRunRequest): { inputsJson?: string } {

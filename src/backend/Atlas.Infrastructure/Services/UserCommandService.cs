@@ -140,6 +140,153 @@ public sealed class UserCommandService : IUserCommandService
         return user.Id;
     }
 
+    public async Task<IReadOnlyDictionary<string, long>> CreateBatchAsync(
+        TenantId tenantId,
+        IReadOnlyList<UserBatchCreateItem> items,
+        CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+        {
+            return new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var normalizedItems = items
+            .Select(item => new
+            {
+                Item = item,
+                Username = item.Request.Username.Trim()
+            })
+            .ToArray();
+
+        var duplicateUsernames = normalizedItems
+            .GroupBy(item => item.Username, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+        if (duplicateUsernames.Length > 0)
+        {
+            throw new BusinessException($"Username already exists in import file: {duplicateUsernames[0]}", ErrorCodes.ValidationError);
+        }
+
+        var usernames = normalizedItems
+            .Select(item => item.Username)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var existingUsers = await _userRepository.QueryByUsernamesAsync(tenantId, usernames, cancellationToken);
+        if (existingUsers.Count > 0)
+        {
+            throw new BusinessException($"Username already exists: {existingUsers[0].Username}", ErrorCodes.ValidationError);
+        }
+
+        var passwordPolicy = _passwordPolicyMonitor.CurrentValue;
+        foreach (var item in normalizedItems)
+        {
+            if (!PasswordPolicy.IsCompliant(item.Item.Request.Password, passwordPolicy, out _))
+            {
+                throw new BusinessException($"Password policy violation: {item.Username}", ErrorCodes.ValidationError);
+            }
+        }
+
+        var allRoleIds = normalizedItems
+            .SelectMany(item => item.Item.Request.RoleIds ?? Array.Empty<long>())
+            .Distinct()
+            .ToArray();
+        var allDepartmentIds = normalizedItems
+            .SelectMany(item => item.Item.Request.DepartmentIds ?? Array.Empty<long>())
+            .Distinct()
+            .ToArray();
+        var allPositionIds = normalizedItems
+            .SelectMany(item => item.Item.Request.PositionIds ?? Array.Empty<long>())
+            .Distinct()
+            .ToArray();
+
+        var allRoles = allRoleIds.Length == 0
+            ? Array.Empty<Role>()
+            : (await _roleRepository.QueryByIdsAsync(tenantId, allRoleIds, cancellationToken)).ToArray();
+        if (allRoles.Length != allRoleIds.Length)
+        {
+            throw new BusinessException("Role not found.", ErrorCodes.ValidationError);
+        }
+
+        if (allDepartmentIds.Length > 0)
+        {
+            var departments = await _departmentRepository.QueryByIdsAsync(tenantId, allDepartmentIds, cancellationToken);
+            if (departments.Count != allDepartmentIds.Length)
+            {
+                throw new BusinessException("Department not found.", ErrorCodes.ValidationError);
+            }
+        }
+
+        if (allPositionIds.Length > 0)
+        {
+            var positions = await _positionRepository.QueryByIdsAsync(tenantId, allPositionIds, cancellationToken);
+            if (positions.Count != allPositionIds.Length)
+            {
+                throw new BusinessException("Position not found.", ErrorCodes.ValidationError);
+            }
+        }
+
+        var roleMap = allRoles.ToDictionary(role => role.Id);
+        var users = new List<UserAccount>(normalizedItems.Length);
+        var userRoles = new List<UserRole>();
+        var userDepartments = new List<UserDepartment>();
+        var userPositions = new List<UserPosition>();
+        var createdUserIdsByUsername = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in normalizedItems)
+        {
+            var request = item.Item.Request;
+            var passwordHash = _passwordHasher.HashPassword(request.Password);
+            var user = new UserAccount(tenantId, item.Username, request.DisplayName, passwordHash, item.Item.Id);
+            user.UpdateProfile(request.DisplayName, request.Email, request.PhoneNumber);
+            if (!request.IsActive)
+            {
+                user.Deactivate();
+            }
+
+            var roleIds = (request.RoleIds ?? Array.Empty<long>()).Distinct().ToArray();
+            var selectedRoles = roleIds.Select(roleId => roleMap[roleId]).ToArray();
+            user.UpdateRoles(string.Join(',', selectedRoles.Select(role => role.Code)));
+
+            users.Add(user);
+            createdUserIdsByUsername[item.Username] = user.Id;
+
+            userRoles.AddRange(selectedRoles.Select(role => new UserRole(tenantId, user.Id, role.Id, _idGeneratorAccessor.NextId())));
+            userDepartments.AddRange((request.DepartmentIds ?? Array.Empty<long>())
+                .Distinct()
+                .Select(depId => new UserDepartment(tenantId, user.Id, depId, _idGeneratorAccessor.NextId(), false)));
+            userPositions.AddRange((request.PositionIds ?? Array.Empty<long>())
+                .Distinct()
+                .Select(posId => new UserPosition(tenantId, user.Id, posId, _idGeneratorAccessor.NextId(), false)));
+        }
+
+        var projectContext = _projectContextAccessor.GetCurrent();
+        var projectUsers = projectContext.IsEnabled && projectContext.ProjectId.HasValue
+            ? users
+                .Select(user => new ProjectUser(tenantId, projectContext.ProjectId.Value, user.Id, _idGeneratorAccessor.NextId()))
+                .ToArray()
+            : Array.Empty<ProjectUser>();
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await _userRepository.AddRangeAsync(users, cancellationToken);
+            await _userRoleRepository.AddRangeAsync(userRoles, cancellationToken);
+            await _userDepartmentRepository.AddRangeAsync(userDepartments, cancellationToken);
+            await _userPositionRepository.AddRangeAsync(userPositions, cancellationToken);
+            if (projectUsers.Length > 0)
+            {
+                await _projectUserRepository.AddRangeAsync(projectUsers, cancellationToken);
+            }
+        }, cancellationToken);
+
+        foreach (var user in users)
+        {
+            await _permissionDecisionService.InvalidateUserAsync(tenantId, user.Id, cancellationToken);
+        }
+
+        return createdUserIdsByUsername;
+    }
+
     public async Task UpdateAsync(
         TenantId tenantId,
         long userId,

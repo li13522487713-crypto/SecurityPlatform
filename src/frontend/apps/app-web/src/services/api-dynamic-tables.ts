@@ -97,7 +97,7 @@ export async function alterDynamicTablePreview(
   appId?: string
 ): Promise<DynamicTableAlterPreviewResponse> {
   const response = await requestApi<ApiResponse<DynamicTableAlterPreviewResponse>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/schema/alter-preview`,
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/schema/alter/preview`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", ...buildAppIdHeaders(appId) },

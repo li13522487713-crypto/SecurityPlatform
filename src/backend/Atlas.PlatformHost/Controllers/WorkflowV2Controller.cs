@@ -221,11 +221,14 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> Run(
         long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
     {
+        Console.WriteLine($"[diag] PlatformHost Run entered workflowId={id}");
         var safeRequest = request ?? new WorkflowV2RunRequest(null);
         _runValidator.ValidateAndThrow(safeRequest);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        Console.WriteLine($"[diag] PlatformHost Run calling SyncRunAsync workflowId={id}");
         var result = await _executionService.SyncRunAsync(tenantId, id, userId, safeRequest, cancellationToken);
+        Console.WriteLine($"[diag] PlatformHost Run returned executionId={result.ExecutionId} status={result.Status}");
         return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -234,6 +237,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task StreamRun(
         long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
     {
+        Console.WriteLine($"[diag] PlatformHost StreamRun entered workflowId={id}");
         var safeRequest = request ?? new WorkflowV2RunRequest(null);
         _runValidator.ValidateAndThrow(safeRequest);
 
@@ -243,6 +247,7 @@ public sealed class WorkflowV2Controller : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        Console.WriteLine($"[diag] PlatformHost StreamRun enumerating workflowId={id}");
 
         await foreach (var evt in _executionService.StreamRunAsync(tenantId, id, userId, safeRequest, cancellationToken))
         {
@@ -262,10 +267,13 @@ public sealed class WorkflowV2Controller : ControllerBase
 
     [HttpPost("executions/{execId:long}/resume")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
-    public async Task<ActionResult<ApiResponse<object>>> Resume(long execId, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Resume(
+        long execId,
+        [FromBody] WorkflowV2ResumeRequest? request,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        await _executionService.ResumeAsync(tenantId, execId, cancellationToken);
+        await _executionService.ResumeAsync(tenantId, execId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = execId.ToString() }, HttpContext.TraceIdentifier));
     }
 

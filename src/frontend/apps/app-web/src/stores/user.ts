@@ -51,8 +51,8 @@ export const useAppUserStore = defineStore("app-user", {
       }
     },
 
-    async login(tenantId: string, username: string, password: string) {
-      await loginByAppEntry(tenantId, username, password);
+    async login(tenantId: string, username: string, password: string, totpCode?: string) {
+      await loginByAppEntry(tenantId, username, password, totpCode);
       this.isAuthenticated = true;
     },
 

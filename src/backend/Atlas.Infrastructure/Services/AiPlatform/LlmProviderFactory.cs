@@ -138,6 +138,9 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
             {
                 return exact;
             }
+
+            // 显式指定 provider 时，不应回退到任意启用模型配置，避免请求被错误路由到非预期 provider。
+            return null;
         }
 
         var preferred = ResolveProviderName(requestedProviderName, options.DefaultProvider, options.Embedding.Provider);

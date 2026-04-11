@@ -17,7 +17,7 @@ export async function getLowCodeRuntimePageSchemaByKey(
   }
   const queryText = query.toString();
   const response = await requestApi<ApiResponse<LowCodePageRuntimeSchema>>(
-    `/runtime/apps/${encodeURIComponent(appKey)}/pages/${encodeURIComponent(pageKey)}/schema${
+    `/api/v1/runtime/apps/${encodeURIComponent(appKey)}/pages/${encodeURIComponent(pageKey)}/schema${
       queryText ? `?${queryText}` : ""
     }`
   );
@@ -29,7 +29,7 @@ export async function getLowCodeRuntimePageSchemaByKey(
 
 export async function getLowCodeAppByKey(appKey: string): Promise<LowCodeAppDetail> {
   const response = await requestApi<ApiResponse<LowCodeAppDetail>>(
-    `/lowcode-apps/by-key/${encodeURIComponent(appKey)}`
+    `/api/v1/lowcode-apps/by-key/${encodeURIComponent(appKey)}`
   );
   if (!response.data) {
     throw new Error(response.message || "Query failed");

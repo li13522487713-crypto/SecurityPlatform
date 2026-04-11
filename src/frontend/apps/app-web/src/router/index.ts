@@ -1,14 +1,16 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { getAccessToken } from "@atlas/shared-core";
+import { getAccessToken, getRefreshToken } from "@atlas/shared-core";
 import { useAppUserStore } from "@/stores/user";
 import { APP_PERMISSIONS } from "@/constants/permissions";
 import { getSetupState } from "@/services/api-setup";
+import { refreshToken as refreshAccessToken } from "@/services/api-auth";
 
 let setupChecked = false;
 let platformReady = true;
 let appReady = true;
 let configuredAppKey = "";
 const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
+let refreshTokenInflight: Promise<boolean> | null = null;
 
 export function markAppSetupComplete() {
   appReady = true;
@@ -36,6 +38,26 @@ function rememberConfiguredAppKey(appKey?: string | null) {
 
 function normalizeAppRoutePath(path: string, appKey: string): string {
   return path.replace(/^\/apps\/[^/]+/, `/apps/${encodeURIComponent(appKey)}`);
+}
+
+async function ensureAccessToken(): Promise<string | null> {
+  const token = getAccessToken();
+  if (token) {
+    return token;
+  }
+
+  if (!getRefreshToken()) {
+    return null;
+  }
+
+  if (!refreshTokenInflight) {
+    refreshTokenInflight = refreshAccessToken().finally(() => {
+      refreshTokenInflight = null;
+    });
+  }
+
+  const refreshed = await refreshTokenInflight;
+  return refreshed ? getAccessToken() : null;
 }
 
 export const router = createRouter({
@@ -383,7 +405,7 @@ router.beforeEach(async (to, _from, next) => {
     return;
   }
 
-  const token = getAccessToken();
+  const token = await ensureAccessToken();
   if (!token) {
     const appKey = typeof to.params.appKey === "string" ? to.params.appKey : "";
     if (appKey) {

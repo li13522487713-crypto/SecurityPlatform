@@ -155,7 +155,7 @@ export function syncRunWorkflow(id: IdLike, req: WorkflowRunRequest): Promise<Ap
   return workflowV2Api.runSync(id, req);
 }
 
-export function asyncRunWorkflow(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<string>> {
+export function runWorkflowAndReturnExecutionId(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<string>> {
   return workflowV2Api.runSync(id, req).then((res) => ({
     ...res,
     data: res.data?.executionId

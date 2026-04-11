@@ -334,7 +334,8 @@ export interface WorkflowExecutionDebugViewResponse {
 }
 
 export interface WorkflowResumeRequest {
-  data: Record<string, unknown>
+  inputsJson?: string
+  data?: Record<string, unknown>
 }
 
 export interface NodeDebugRequest {

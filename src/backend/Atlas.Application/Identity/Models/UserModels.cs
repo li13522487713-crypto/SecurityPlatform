@@ -33,6 +33,10 @@ public sealed record UserCreateRequest(
     IReadOnlyList<long> DepartmentIds,
     IReadOnlyList<long> PositionIds);
 
+public sealed record UserBatchCreateItem(
+    UserCreateRequest Request,
+    long Id);
+
 public sealed record UserUpdateRequest(
     string DisplayName,
     string? Email,

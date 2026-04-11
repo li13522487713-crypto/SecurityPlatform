@@ -15,15 +15,18 @@ namespace Atlas.Infrastructure.Services.Platform;
 public sealed class AppOrgQueryService : IAppOrgQueryService
 {
     private readonly IAppDepartmentRepository _deptRepo;
+    private readonly IAppMemberDepartmentRepository _memberDeptRepo;
     private readonly IAppPositionRepository _posRepo;
     private readonly IAppProjectRepository _projRepo;
 
     public AppOrgQueryService(
         IAppDepartmentRepository deptRepo,
+        IAppMemberDepartmentRepository memberDeptRepo,
         IAppPositionRepository posRepo,
         IAppProjectRepository projRepo)
     {
         _deptRepo = deptRepo;
+        _memberDeptRepo = memberDeptRepo;
         _posRepo = posRepo;
         _projRepo = projRepo;
     }
@@ -33,14 +36,40 @@ public sealed class AppOrgQueryService : IAppOrgQueryService
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
         var (items, total) = await _deptRepo.QueryPageAsync(tenantId, appId, pageIndex, pageSize, request.Keyword, cancellationToken);
-        var result = items.Select(x => new AppDepartmentListItem(x.Id.ToString(), x.Name, x.Code, x.ParentId?.ToString(), x.SortOrder)).ToArray();
+        var memberMappings = await _memberDeptRepo.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var memberCountByDeptId = memberMappings
+            .GroupBy(x => x.DepartmentId)
+            .ToDictionary(group => group.Key, group => group.Select(x => x.UserId).Distinct().Count());
+        var result = items
+            .Select(x => new AppDepartmentListItem(
+                x.Id.ToString(),
+                x.Name,
+                x.Code,
+                x.ParentId?.ToString(),
+                x.SortOrder,
+                memberCountByDeptId.GetValueOrDefault(x.Id, 0),
+                null))
+            .ToArray();
         return new PagedResult<AppDepartmentListItem>(result, total, pageIndex, pageSize);
     }
 
     public async Task<IReadOnlyList<AppDepartmentListItem>> GetAllDepartmentsAsync(TenantId tenantId, long appId, CancellationToken cancellationToken = default)
     {
         var items = await _deptRepo.QueryByAppIdAsync(tenantId, appId, cancellationToken);
-        return items.Select(x => new AppDepartmentListItem(x.Id.ToString(), x.Name, x.Code, x.ParentId?.ToString(), x.SortOrder)).ToArray();
+        var memberMappings = await _memberDeptRepo.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var memberCountByDeptId = memberMappings
+            .GroupBy(x => x.DepartmentId)
+            .ToDictionary(group => group.Key, group => group.Select(x => x.UserId).Distinct().Count());
+        return items
+            .Select(x => new AppDepartmentListItem(
+                x.Id.ToString(),
+                x.Name,
+                x.Code,
+                x.ParentId?.ToString(),
+                x.SortOrder,
+                memberCountByDeptId.GetValueOrDefault(x.Id, 0),
+                null))
+            .ToArray();
     }
 
     public async Task<AppDepartmentDetail?> GetDepartmentByIdAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default)

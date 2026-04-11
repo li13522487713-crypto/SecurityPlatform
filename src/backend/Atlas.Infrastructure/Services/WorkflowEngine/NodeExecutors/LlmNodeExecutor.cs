@@ -53,9 +53,9 @@ public sealed class LlmNodeExecutor : INodeExecutor
                 provider);
 
             var result = await llmProvider.ChatAsync(request, cancellationToken);
-            outputs[outputKey] = VariableResolver.CreateStringElement(result.Content);
+            outputs[outputKey] = VariableResolver.CreateStringElement(result.Content ?? string.Empty);
 
-            await context.EmitEventAsync("llm_output", result.Content, cancellationToken);
+            await context.EmitEventAsync("llm_output", result.Content ?? string.Empty, cancellationToken);
 
             return new NodeExecutionResult(true, outputs);
         }

@@ -56,6 +56,8 @@ export interface AppDepartmentListItem {
   code: string;
   parentId: string | null;
   sortOrder: number;
+  memberCount: number;
+  managerName: string | null;
 }
 
 export interface AppPositionListItem {

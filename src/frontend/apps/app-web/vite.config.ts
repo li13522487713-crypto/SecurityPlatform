@@ -11,6 +11,7 @@ function normalizeRuntimeMode(rawMode: string | undefined, mode: string): "platf
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const runtimeMode = normalizeRuntimeMode(env.VITE_APP_RUNTIME_MODE, mode);
+  const appWebPort = runtimeMode === "direct" ? 5182 : 5181;
   const platformHostTarget = env.VITE_PLATFORM_HOST_TARGET || "http://127.0.0.1:5001";
   const appHostTarget = env.VITE_APP_HOST_TARGET || "http://127.0.0.1:5002";
   const apiTarget = runtimeMode === "direct" ? appHostTarget : platformHostTarget;
@@ -30,7 +31,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: "0.0.0.0",
-      port: 5181,
+      port: appWebPort,
       open: process.env.PLAYWRIGHT_E2E !== "1",
       proxy: {
         "/api/v1/setup": {

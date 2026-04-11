@@ -136,6 +136,20 @@
               </a-input-password>
             </a-form-item>
 
+            <a-form-item
+              v-if="mfaRequired"
+              :label="t('appLogin.mfaCodeLabel')"
+              name="totpCode"
+              :rules="[{ required: true, message: t('appLogin.mfaCodeRequired') }]"
+            >
+              <a-input
+                v-model:value="form.totpCode"
+                size="large"
+                data-testid="app-login-totp"
+                :placeholder="t('appLogin.mfaCodePlaceholder')"
+              />
+            </a-form-item>
+
             <a-button
               type="primary"
               html-type="submit"
@@ -180,6 +194,7 @@ const router = useRouter();
 const userStore = useAppUserStore();
 const submitting = ref(false);
 const errorMessage = ref("");
+const mfaRequired = ref(false);
 const appKey = String(route.params.appKey ?? "");
 
 const isMounted = ref(false);
@@ -199,11 +214,16 @@ function resolveInitialTenantId(): string {
 const form = reactive({
   tenantId: resolveInitialTenantId(),
   username: isDev && defaultUsername ? defaultUsername : "",
-  password: ""
+  password: "",
+  totpCode: ""
 });
 
 function normalizeError(error: unknown): string {
   if (!(error instanceof Error)) return t("auth.loginFailed");
+  const loginError = error as Error & { code?: string };
+  if (loginError.code === "MFA_REQUIRED" || msgIncludesMfa(error.message)) {
+    return t("appLogin.mfaRequired");
+  }
   const msg = error.message;
   if (msg.includes("ACCOUNT_LOCKED") || msg.includes("账户已锁定")) {
     return t("appLogin.accountLocked");
@@ -217,12 +237,23 @@ function normalizeError(error: unknown): string {
   return msg || t("auth.loginFailed");
 }
 
+function msgIncludesMfa(message: string): boolean {
+  return (
+    message.includes("MFA_REQUIRED") ||
+    message.includes("MfaCodeRequired") ||
+    message.includes("多因素认证") ||
+    message.includes("Multi-factor authentication")
+  );
+}
+
 async function handleSubmit() {
   submitting.value = true;
   errorMessage.value = "";
   try {
     clearAuthStorage();
-    await userStore.login(form.tenantId.trim(), form.username.trim(), form.password);
+    await userStore.login(form.tenantId.trim(), form.username.trim(), form.password, form.totpCode.trim() || undefined);
+    mfaRequired.value = false;
+    form.totpCode = "";
     if (!isMounted.value) return;
 
     await userStore.getInfo();
@@ -241,6 +272,8 @@ async function handleSubmit() {
     await router.replace(targetPath);
   } catch (error) {
     if (!isMounted.value) return;
+    const err = error as Error & { code?: string };
+    mfaRequired.value = err.code === "MFA_REQUIRED" || (error instanceof Error && msgIncludesMfa(error.message));
     errorMessage.value = normalizeError(error);
   } finally {
     submitting.value = false;

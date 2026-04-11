@@ -16,6 +16,9 @@ const platformHostDll = path.resolve(platformHostBuildDir, "Atlas.PlatformHost.d
 const appHostDll = path.resolve(appHostBuildDir, "Atlas.AppHost.dll");
 const isWindows = process.platform === "win32";
 const playwrightArgs = ["test", "-c", "playwright.app.config.ts", ...process.argv.slice(2)];
+const appWebMode = process.env.PLAYWRIGHT_APP_WEB_MODE === "direct" ? "direct" : "platform";
+const appWebPort = appWebMode === "direct" ? 5182 : 5181;
+const appWebScript = appWebMode === "direct" ? "dev:app-web:direct" : "dev:app-web";
 const platformApiBase = "http://127.0.0.1:5001";
 const appApiBase = "http://127.0.0.1:5002";
 const platformDatabasePath = "Data Source=atlas.app.e2e.db";
@@ -73,11 +76,13 @@ const services = [
   {
     name: "AppWeb",
     command: isWindows ? "cmd.exe" : "pnpm",
-    args: isWindows ? ["/d", "/s", "/c", "pnpm run dev:app-web"] : ["run", "dev:app-web"],
+    args: isWindows ? ["/d", "/s", "/c", `pnpm run ${appWebScript}`] : ["run", appWebScript],
     cwd: frontendRoot,
-    url: "http://127.0.0.1:5181",
+    url: `http://127.0.0.1:${appWebPort}`,
     env: {
-      PLAYWRIGHT_E2E: "1"
+      PLAYWRIGHT_E2E: "1",
+      PLAYWRIGHT_APP_WEB_MODE: appWebMode,
+      PLAYWRIGHT_APP_WEB_PORT: String(appWebPort)
     }
   }
 ];
@@ -390,7 +395,9 @@ async function runPlaywright() {
         cwd: frontendRoot,
         env: {
           ...process.env,
-          PLAYWRIGHT_MANAGED_WEBSERVERS: "0"
+          PLAYWRIGHT_MANAGED_WEBSERVERS: "0",
+          PLAYWRIGHT_APP_WEB_MODE: appWebMode,
+          PLAYWRIGHT_APP_WEB_PORT: String(appWebPort)
         },
         stdio: "inherit"
       }
@@ -406,6 +413,7 @@ async function runPlaywright() {
 }
 
 async function main() {
+  log(`应用前端模式: ${appWebMode} (http://127.0.0.1:${appWebPort})`);
   ensureBuildDirectories();
 
   await runCommand(

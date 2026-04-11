@@ -2,7 +2,10 @@ import path from "node:path";
 import { expect, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
 
 export const platformBaseUrl = "http://127.0.0.1:5180";
-export const appBaseUrl = "http://127.0.0.1:5181";
+const appWebPort =
+  process.env.PLAYWRIGHT_APP_WEB_PORT ??
+  (process.env.PLAYWRIGHT_APP_WEB_MODE === "direct" ? "5182" : "5181");
+export const appBaseUrl = `http://127.0.0.1:${appWebPort}`;
 export const platformApiBase = "http://127.0.0.1:5001";
 export const appApiBase = "http://127.0.0.1:5002";
 

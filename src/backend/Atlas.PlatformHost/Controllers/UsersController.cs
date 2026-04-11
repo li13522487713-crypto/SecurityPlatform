@@ -87,6 +87,7 @@ public sealed class UsersController : UsersControllerBase
         var tenantId = TenantProvider.GetTenantId();
         var errors = new List<object>();
         int successCount = 0, failureCount = 0, totalRows = 0;
+        var batchItems = new List<(int RowNum, UserBatchCreateItem Item)>();
 
         await using var stream = file.OpenReadStream();
         using var workbook = new XLWorkbook(stream);
@@ -116,27 +117,53 @@ public sealed class UsersController : UsersControllerBase
                 continue;
             }
 
+            var createRequest = new UserCreateRequest(
+                username,
+                $"Import@{Guid.NewGuid():N8}!", // 临时随机密码，用户需重置
+                displayName,
+                string.IsNullOrWhiteSpace(email) ? null : email,
+                string.IsNullOrWhiteSpace(phone) ? null : phone,
+                true,
+                [],
+                [],
+                []);
+
+            batchItems.Add((rowNum, new UserBatchCreateItem(createRequest, IdGeneratorAccessor.NextId())));
+        }
+
+        var duplicateRows = batchItems
+            .GroupBy(item => item.Item.Request.Username, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .SelectMany(group => group)
+            .Select(item => item.RowNum)
+            .ToHashSet();
+        if (duplicateRows.Count > 0)
+        {
+            foreach (var rowNum in duplicateRows.OrderBy(row => row))
+            {
+                errors.Add(new { row = rowNum, field = "用户名", message = "导入文件中用户名重复" });
+                failureCount++;
+            }
+            batchItems = batchItems.Where(item => !duplicateRows.Contains(item.RowNum)).ToList();
+        }
+
+        if (batchItems.Count > 0)
+        {
             try
             {
-                var createRequest = new UserCreateRequest(
-                    username,
-                    $"Import@{Guid.NewGuid():N8}!", // 临时随机密码，用户需重置
-                    displayName,
-                    string.IsNullOrWhiteSpace(email) ? null : email,
-                    string.IsNullOrWhiteSpace(phone) ? null : phone,
-                    true,
-                    [],
-                    [],
-                    []);
-
-                var newId = IdGeneratorAccessor.NextId();
-                await UserCommandService.CreateAsync(tenantId, createRequest, newId, cancellationToken);
-                successCount++;
+                var created = await UserCommandService.CreateBatchAsync(
+                    tenantId,
+                    batchItems.Select(item => item.Item).ToArray(),
+                    cancellationToken);
+                successCount += created.Count;
             }
             catch (Exception ex)
             {
-                errors.Add(new { row = rowNum, field = "用户名", message = ex.Message });
-                failureCount++;
+                foreach (var item in batchItems)
+                {
+                    errors.Add(new { row = item.RowNum, field = "用户名", message = ex.Message });
+                    failureCount++;
+                }
             }
         }
 

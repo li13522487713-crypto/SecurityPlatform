@@ -21,7 +21,8 @@ function assertTenantId(tenantId: string): void {
 export async function loginByAppEntry(
   tenantId: string,
   username: string,
-  password: string
+  password: string,
+  totpCode?: string
 ): Promise<void> {
   const normalizedTenantId = tenantId.trim();
   assertTenantId(normalizedTenantId);
@@ -34,12 +35,14 @@ export async function loginByAppEntry(
       "X-Tenant-Id": normalizedTenantId
     },
     credentials: "include",
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, password, totpCode: totpCode?.trim() || undefined })
   });
 
   const payload = await parseApiResponse<AuthTokenResult>(response);
   if (!response.ok || !payload.data) {
-    throw new Error(payload.message || `Login failed (HTTP ${response.status})`);
+    const error = new Error(payload.message || `Login failed (HTTP ${response.status})`) as Error & { code?: string };
+    error.code = payload.code;
+    throw error;
   }
 
   setTenantId(normalizedTenantId);

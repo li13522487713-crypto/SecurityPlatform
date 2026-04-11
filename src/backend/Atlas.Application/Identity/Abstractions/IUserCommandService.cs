@@ -11,6 +11,11 @@ public interface IUserCommandService
         long id,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyDictionary<string, long>> CreateBatchAsync(
+        TenantId tenantId,
+        IReadOnlyList<UserBatchCreateItem> items,
+        CancellationToken cancellationToken);
+
     Task UpdateAsync(
         TenantId tenantId,
         long userId,

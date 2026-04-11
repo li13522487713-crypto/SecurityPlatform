@@ -17,6 +17,7 @@ public interface IWorkflowV2ExecutionService
     Task CancelAsync(TenantId tenantId, long executionId, CancellationToken cancellationToken);
 
     Task ResumeAsync(TenantId tenantId, long executionId, CancellationToken cancellationToken);
+    Task ResumeAsync(TenantId tenantId, long executionId, WorkflowV2ResumeRequest? request, CancellationToken cancellationToken);
 
     Task<WorkflowV2RunResult> DebugNodeAsync(
         TenantId tenantId, long workflowId, long userId, WorkflowV2NodeDebugRequest request, CancellationToken cancellationToken);

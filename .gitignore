@@ -412,3 +412,5 @@ SecurityPlatform.zip
 **/dist-ssr/
 src/frontend/playwright-report/
 src/frontend/test-results/
+src/frontend/tmp/
+tmp/

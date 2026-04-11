@@ -54,10 +54,10 @@
                 <a-tag color="default" class="app-departments-code-tag">{{ record.code }}</a-tag>
               </template>
               <template v-else-if="column.key === 'manager'">
-                <span class="app-departments-placeholder-cell">{{ placeholderDash }}</span>
+                <span class="app-departments-placeholder-cell">{{ record.managerName || placeholderDash }}</span>
               </template>
               <template v-else-if="column.key === 'memberCount'">
-                <span class="app-departments-placeholder-cell">{{ placeholderDash }}</span>
+                <span class="app-departments-placeholder-cell">{{ record.memberCount ?? 0 }}</span>
               </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space>

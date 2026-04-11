@@ -53,9 +53,10 @@
             </template>
             <template v-else-if="column.key === 'displayName'">
               <a-input
-                v-if="!record.isPrimaryKey && isFieldModified(record.name)"
+                v-if="!record.isPrimaryKey"
                 v-model:value="record.displayName"
                 size="small"
+                @change="markFieldModified(record.name)"
               />
               <span v-else>{{ record.displayName ?? '-' }}</span>
             </template>
@@ -193,7 +194,11 @@ const hasChanges = computed(() =>
   addedFields.length > 0 || removedFields.length > 0 || modifiedFieldNames.size > 0
 );
 
-const isFieldModified = (name: string) => modifiedFieldNames.has(name);
+const markFieldModified = (name: string) => {
+  if (name) {
+    modifiedFieldNames.add(name);
+  }
+};
 
 const fieldColumns = computed(() => [
   { title: t("dynamicTable.fieldName"), dataIndex: "name", key: "name", width: 180 },

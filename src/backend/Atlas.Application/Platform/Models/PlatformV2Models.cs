@@ -650,7 +650,9 @@ public sealed record AppDepartmentListItem(
     string Name,
     string Code,
     string? ParentId,
-    int SortOrder);
+    int SortOrder,
+    int MemberCount,
+    string? ManagerName);
 
 public sealed record AppDepartmentDetail(
     string Id,

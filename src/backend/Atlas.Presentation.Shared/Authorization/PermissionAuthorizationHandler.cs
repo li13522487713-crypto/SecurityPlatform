@@ -1,6 +1,7 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Core.Identity;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 
 namespace Atlas.Presentation.Shared.Authorization;
 
@@ -27,11 +28,19 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
             return;
         }
 
+        // 对受信任签名令牌中的平台管理员声明走快速放行，避免每个请求都触发数据库权限决策。
+        if (currentUser.IsPlatformAdmin)
+        {
+            context.Succeed(requirement);
+            return;
+        }
+
+        var cancellationToken = (context.Resource as HttpContext)?.RequestAborted ?? CancellationToken.None;
         var hasPermission = await _permissionDecisionService.HasPermissionAsync(
             currentUser.TenantId,
             currentUser.UserId,
             requirement.PermissionCode,
-            CancellationToken.None);
+            cancellationToken);
         if (hasPermission)
         {
             context.Succeed(requirement);

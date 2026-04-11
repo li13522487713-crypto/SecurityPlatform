@@ -24,6 +24,10 @@ public sealed record WorkflowV2PublishRequest(
 public sealed record WorkflowV2RunRequest(
     string? InputsJson);
 
+public sealed record WorkflowV2ResumeRequest(
+    string? InputsJson,
+    Dictionary<string, JsonElement>? Data);
+
 public sealed record WorkflowV2NodeDebugRequest(
     string NodeKey,
     string? InputsJson);

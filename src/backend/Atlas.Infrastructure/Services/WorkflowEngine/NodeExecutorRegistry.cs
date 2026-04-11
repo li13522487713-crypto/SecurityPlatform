@@ -1,6 +1,9 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Concurrent;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine;
 
@@ -9,13 +12,59 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine;
 /// </summary>
 public sealed class NodeExecutorRegistry
 {
-    private readonly Dictionary<WorkflowNodeType, INodeExecutor> _executors;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ConcurrentDictionary<WorkflowNodeType, INodeExecutor> _executors;
+    private readonly Dictionary<WorkflowNodeType, Type> _executorTypes;
     private readonly List<NodeTypeMetadata> _metadata;
     private readonly Dictionary<WorkflowNodeType, IWorkflowNodeDeclaration> _declarations;
 
-    public NodeExecutorRegistry(IEnumerable<INodeExecutor> executors)
+    public NodeExecutorRegistry(IServiceProvider serviceProvider)
     {
-        _executors = new Dictionary<WorkflowNodeType, INodeExecutor>();
+        _serviceProvider = serviceProvider;
+        _executors = new ConcurrentDictionary<WorkflowNodeType, INodeExecutor>();
+        _executorTypes = new Dictionary<WorkflowNodeType, Type>
+        {
+            [WorkflowNodeType.Entry] = typeof(EntryNodeExecutor),
+            [WorkflowNodeType.Exit] = typeof(ExitNodeExecutor),
+            [WorkflowNodeType.Selector] = typeof(SelectorNodeExecutor),
+            [WorkflowNodeType.Llm] = typeof(LlmNodeExecutor),
+            [WorkflowNodeType.IntentDetector] = typeof(IntentDetectorNodeExecutor),
+            [WorkflowNodeType.QuestionAnswer] = typeof(QuestionAnswerNodeExecutor),
+            [WorkflowNodeType.Agent] = typeof(AgentNodeExecutor),
+            [WorkflowNodeType.Plugin] = typeof(PluginNodeExecutor),
+            [WorkflowNodeType.SubWorkflow] = typeof(SubWorkflowNodeExecutor),
+            [WorkflowNodeType.Loop] = typeof(LoopNodeExecutor),
+            [WorkflowNodeType.Batch] = typeof(BatchNodeExecutor),
+            [WorkflowNodeType.Break] = typeof(BreakNodeExecutor),
+            [WorkflowNodeType.Continue] = typeof(ContinueNodeExecutor),
+            [WorkflowNodeType.CodeRunner] = typeof(CodeRunnerNodeExecutor),
+            [WorkflowNodeType.HttpRequester] = typeof(HttpRequesterNodeExecutor),
+            [WorkflowNodeType.TextProcessor] = typeof(TextProcessorNodeExecutor),
+            [WorkflowNodeType.KnowledgeRetriever] = typeof(KnowledgeRetrieverNodeExecutor),
+            [WorkflowNodeType.KnowledgeIndexer] = typeof(KnowledgeIndexerNodeExecutor),
+            [WorkflowNodeType.Ltm] = typeof(LtmNodeExecutor),
+            [WorkflowNodeType.DatabaseQuery] = typeof(DatabaseQueryNodeExecutor),
+            [WorkflowNodeType.DatabaseInsert] = typeof(DatabaseInsertNodeExecutor),
+            [WorkflowNodeType.DatabaseUpdate] = typeof(DatabaseUpdateNodeExecutor),
+            [WorkflowNodeType.DatabaseDelete] = typeof(DatabaseDeleteNodeExecutor),
+            [WorkflowNodeType.DatabaseCustomSql] = typeof(DatabaseCustomSqlNodeExecutor),
+            [WorkflowNodeType.CreateConversation] = typeof(CreateConversationNodeExecutor),
+            [WorkflowNodeType.ConversationList] = typeof(ConversationListNodeExecutor),
+            [WorkflowNodeType.ConversationUpdate] = typeof(ConversationUpdateNodeExecutor),
+            [WorkflowNodeType.ConversationDelete] = typeof(ConversationDeleteNodeExecutor),
+            [WorkflowNodeType.ClearConversationHistory] = typeof(ClearConversationHistoryNodeExecutor),
+            [WorkflowNodeType.ConversationHistory] = typeof(ConversationHistoryNodeExecutor),
+            [WorkflowNodeType.MessageList] = typeof(MessageListNodeExecutor),
+            [WorkflowNodeType.CreateMessage] = typeof(CreateMessageNodeExecutor),
+            [WorkflowNodeType.EditMessage] = typeof(EditMessageNodeExecutor),
+            [WorkflowNodeType.DeleteMessage] = typeof(DeleteMessageNodeExecutor),
+            [WorkflowNodeType.OutputEmitter] = typeof(OutputEmitterNodeExecutor),
+            [WorkflowNodeType.InputReceiver] = typeof(InputReceiverNodeExecutor),
+            [WorkflowNodeType.AssignVariable] = typeof(AssignVariableNodeExecutor),
+            [WorkflowNodeType.VariableAggregator] = typeof(VariableAggregatorNodeExecutor),
+            [WorkflowNodeType.JsonSerialization] = typeof(JsonSerializationNodeExecutor),
+            [WorkflowNodeType.JsonDeserialization] = typeof(JsonDeserializationNodeExecutor)
+        };
         _metadata = new List<NodeTypeMetadata>();
         _declarations = BuiltInWorkflowNodeDeclarations.All
             .GroupBy(x => x.Type)
@@ -27,19 +76,32 @@ public sealed class NodeExecutorRegistry
             _metadata.Add(ToMetadata(declaration));
         }
 
-        foreach (var executor in executors)
+        foreach (var registeredType in _executorTypes.Keys)
         {
-            _executors[executor.NodeType] = executor;
-            if (!_declarations.ContainsKey(executor.NodeType))
+            if (!_declarations.ContainsKey(registeredType))
             {
-                _metadata.Add(BuildMetadata(executor.NodeType));
+                _metadata.Add(BuildMetadata(registeredType));
             }
         }
     }
 
     public INodeExecutor? GetExecutor(WorkflowNodeType type)
     {
-        return _executors.GetValueOrDefault(type);
+        if (!_executorTypes.TryGetValue(type, out var executorType))
+        {
+            return null;
+        }
+
+        return _executors.GetOrAdd(type, static (_, state) =>
+        {
+            var instance = ActivatorUtilities.CreateInstance(state.Provider, state.ExecutorType);
+            if (instance is not INodeExecutor executor)
+            {
+                throw new InvalidOperationException($"节点执行器类型 {state.ExecutorType.FullName} 未实现 INodeExecutor。");
+            }
+
+            return executor;
+        }, (Provider: _serviceProvider, ExecutorType: executorType));
     }
 
     public IReadOnlyList<NodeTypeMetadata> GetAllTypes() => _metadata;

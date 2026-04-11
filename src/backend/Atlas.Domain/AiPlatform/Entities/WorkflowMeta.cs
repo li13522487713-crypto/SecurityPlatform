@@ -27,7 +27,7 @@ public sealed class WorkflowMeta : TenantEntity
     {
         Id = id;
         Name = name;
-        Description = description;
+        Description = NormalizeDescription(description);
         Mode = mode;
         Status = WorkflowLifecycleStatus.Draft;
         LatestVersionNumber = 0;
@@ -52,8 +52,13 @@ public sealed class WorkflowMeta : TenantEntity
     public void UpdateMeta(string name, string? description)
     {
         Name = name;
-        Description = description;
+        Description = NormalizeDescription(description);
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static string NormalizeDescription(string? description)
+    {
+        return string.IsNullOrWhiteSpace(description) ? string.Empty : description.Trim();
     }
 
     public void MarkPublished(int versionNumber)

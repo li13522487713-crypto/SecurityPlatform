@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Models;
@@ -22,6 +21,7 @@ public sealed class AuthController : ControllerBase
     private readonly IAuthTokenService authTokenService;
     private readonly IUserCommandService userCommandService;
     private readonly IUserAccountRepository userAccountRepository;
+    private readonly IAuthProfileService authProfileService;
     private readonly IValidator<ChangePasswordViewModel> changePasswordValidator;
     private readonly IValidator<UserProfileUpdateViewModel> profileUpdateValidator;
     private readonly ITenantProvider tenantProvider;
@@ -32,6 +32,7 @@ public sealed class AuthController : ControllerBase
         IAuthTokenService authTokenService,
         IUserCommandService userCommandService,
         IUserAccountRepository userAccountRepository,
+        IAuthProfileService authProfileService,
         IValidator<ChangePasswordViewModel> changePasswordValidator,
         IValidator<UserProfileUpdateViewModel> profileUpdateValidator,
         ITenantProvider tenantProvider)
@@ -41,6 +42,7 @@ public sealed class AuthController : ControllerBase
         this.authTokenService = authTokenService;
         this.userCommandService = userCommandService;
         this.userAccountRepository = userAccountRepository;
+        this.authProfileService = authProfileService;
         this.changePasswordValidator = changePasswordValidator;
         this.profileUpdateValidator = profileUpdateValidator;
         this.tenantProvider = tenantProvider;
@@ -78,29 +80,16 @@ public sealed class AuthController : ControllerBase
 
     [HttpGet("me")]
     [Authorize(Policy = PermissionPolicies.AppUser)]
-    public ActionResult<ApiResponse<object>> Me()
+    public async Task<ActionResult<ApiResponse<AuthProfileResult>>> Me(CancellationToken cancellationToken)
     {
         var user = currentUserAccessor.GetCurrentUserOrThrow();
-        var roles = User.Claims
-            .Where(claim => claim.Type == ClaimTypes.Role)
-            .Select(claim => claim.Value)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var permissions = User.Claims
-            .Where(claim => claim.Type is "permission" or "perm")
-            .Select(claim => claim.Value)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return Ok(ApiResponse<object>.Ok(new
+        var profile = await authProfileService.GetProfileAsync(user.UserId, user.TenantId, cancellationToken);
+        if (profile is null)
         {
-            userId = user.UserId,
-            username = user.Username,
-            tenantId = user.TenantId.ToString(),
-            sessionId = user.SessionId,
-            roles,
-            permissions
-        }, HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<AuthProfileResult>.Fail(ErrorCodes.NotFound, "User not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<AuthProfileResult>.Ok(profile, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("profile")]

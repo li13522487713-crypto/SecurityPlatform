@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
@@ -30,15 +31,18 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
     private readonly IServiceProvider _serviceProvider;
     private readonly IdempotencyOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger<IdempotencyFilter> _logger;
 
     public IdempotencyFilter(
         IServiceProvider serviceProvider,
         IOptions<IdempotencyOptions> options,
-        IOptions<JsonOptions> jsonOptions)
+        IOptions<JsonOptions> jsonOptions,
+        ILogger<IdempotencyFilter> logger)
     {
         _serviceProvider = serviceProvider;
         _options = options.Value;
         _jsonOptions = jsonOptions.Value.JsonSerializerOptions;
+        _logger = logger;
     }
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
@@ -164,7 +168,23 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
             ActionExecutedContext? executedContext = null;
             try
             {
+                if (IsWorkflowRunLikeRequest(context.HttpContext))
+                {
+                    _logger.LogWarning(
+                        "Idempotency before next: Method={Method} Path={Path} Key={Key}",
+                        context.HttpContext.Request.Method,
+                        context.HttpContext.Request.Path.Value,
+                        idempotencyKey);
+                }
                 executedContext = await next();
+                if (IsWorkflowRunLikeRequest(context.HttpContext))
+                {
+                    _logger.LogWarning(
+                        "Idempotency after next: Method={Method} Path={Path} HasResult={HasResult}",
+                        context.HttpContext.Request.Method,
+                        context.HttpContext.Request.Path.Value,
+                        executedContext.Result is not null);
+                }
             }
             catch
             {
@@ -334,5 +354,17 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
         {
             StatusCode = statusCode
         };
+    }
+
+    private static bool IsWorkflowRunLikeRequest(HttpContext context)
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        if (!path.Contains("/api/v2/workflows/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return path.EndsWith("/run", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith("/stream", StringComparison.OrdinalIgnoreCase);
     }
 }

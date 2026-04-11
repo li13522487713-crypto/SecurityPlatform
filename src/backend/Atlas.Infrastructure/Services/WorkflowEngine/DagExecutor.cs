@@ -32,12 +32,14 @@ public sealed class DagExecutor
         IServiceProvider serviceProvider,
         ILogger<DagExecutor> logger)
     {
+        Console.WriteLine("[diag] DagExecutor ctor-enter");
         _registry = registry;
         _nodeExecutionRepo = nodeExecutionRepo;
         _executionRepo = executionRepo;
         _idGenerator = idGenerator;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        Console.WriteLine("[diag] DagExecutor ctor-exit");
     }
 
     /// <summary>
@@ -53,6 +55,7 @@ public sealed class DagExecutor
         IReadOnlyList<long>? workflowCallStack = null,
         IReadOnlySet<string>? preCompletedNodeKeys = null)
     {
+        Console.WriteLine($"[diag] DagExecutor RunAsync start executionId={execution.Id} nodes={canvas.Nodes.Count} connections={canvas.Connections.Count}");
         execution.Start();
         await _executionRepo.UpdateAsync(execution, cancellationToken);
 
@@ -318,6 +321,13 @@ public sealed class DagExecutor
             return NodeRunResult.SuccessResult(nodeKey, null, EmptyOutputs);
         }
 
+        _logger.LogWarning(
+            "DagExecutor node start: ExecutionId={ExecutionId} NodeKey={NodeKey} NodeType={NodeType}",
+            executionId,
+            nodeKey,
+            node.Type);
+        Console.WriteLine($"[diag] DagExecutor node start executionId={executionId} node={nodeKey} type={node.Type}");
+
         var executor = _registry.GetExecutor(node.Type);
         if (executor is null)
         {
@@ -359,6 +369,12 @@ public sealed class DagExecutor
 
             if (result.Success)
             {
+                _logger.LogWarning(
+                    "DagExecutor node success: ExecutionId={ExecutionId} NodeKey={NodeKey} OutputCount={OutputCount}",
+                    executionId,
+                    nodeKey,
+                    result.Outputs.Count);
+                Console.WriteLine($"[diag] DagExecutor node success executionId={executionId} node={nodeKey} outputs={result.Outputs.Count}");
                 nodeExec.Complete(JsonSerializer.Serialize(result.Outputs), sw.ElapsedMilliseconds);
                 await _nodeExecutionRepo.UpdateAsync(nodeExec, cancellationToken);
 
@@ -388,6 +404,11 @@ public sealed class DagExecutor
                 return NodeRunResult.SuccessResult(nodeKey, node.Type, result.Outputs);
             }
 
+            _logger.LogWarning(
+                "DagExecutor node failed: ExecutionId={ExecutionId} NodeKey={NodeKey} Error={Error}",
+                executionId,
+                nodeKey,
+                result.ErrorMessage ?? "节点执行失败");
             nodeExec.Fail(result.ErrorMessage ?? "节点执行失败");
             await _nodeExecutionRepo.UpdateAsync(nodeExec, cancellationToken);
             if (eventChannel is not null)
@@ -410,6 +431,10 @@ public sealed class DagExecutor
         catch (OperationCanceledException)
         {
             sw.Stop();
+            _logger.LogWarning(
+                "DagExecutor node canceled: ExecutionId={ExecutionId} NodeKey={NodeKey}",
+                executionId,
+                nodeKey);
             nodeExec.Fail("执行已取消");
             await _nodeExecutionRepo.UpdateAsync(nodeExec, cancellationToken);
             throw;
