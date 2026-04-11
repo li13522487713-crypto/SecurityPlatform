@@ -1,4 +1,5 @@
-import { Button, Form, Input, InputNumber, Select, Switch, Space } from "antd";
+import { AutoComplete, Button, Form, Input, InputNumber, Select, Switch, Space } from "antd";
+import MonacoEditor from "@monaco-editor/react";
 import { useMemo } from "react";
 import type { FormFieldSchema, FormSectionSchema } from "../node-registry";
 import { getValueByPath, setValueByPath } from "./path-utils";
@@ -7,6 +8,7 @@ interface SchemaFormProps {
   sections: FormSectionSchema[];
   config: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
+  variableSuggestions?: Array<{ value: string; label?: string }>;
 }
 
 function asString(value: unknown): string {
@@ -48,6 +50,7 @@ function KeyValueEditor(props: {
   onChange: (next: Record<string, string>) => void;
   keyPlaceholder?: string;
   valuePlaceholder?: string;
+  valueSuggestions?: Array<{ value: string; label?: string }>;
 }) {
   const rows = useMemo(() => toKeyValueRows(props.value), [props.value]);
   return (
@@ -64,14 +67,19 @@ function KeyValueEditor(props: {
               props.onChange(fromKeyValueRows(nextRows));
             }}
           />
-          <Input
-            size="small"
+          <AutoComplete
+            style={{ width: 260 }}
+            options={props.valueSuggestions ?? []}
             value={row.value}
             placeholder={props.valuePlaceholder ?? "value"}
-            onChange={(event) => {
+            onChange={(value) => {
               const nextRows = [...rows];
-              nextRows[index] = { ...nextRows[index], value: event.target.value };
+              nextRows[index] = { ...nextRows[index], value };
               props.onChange(fromKeyValueRows(nextRows));
+            }}
+            filterOption={(inputValue, option) => {
+              const target = String(option?.value ?? "").toLowerCase();
+              return target.includes(inputValue.toLowerCase());
             }}
           />
           <Button
@@ -102,7 +110,8 @@ function KeyValueEditor(props: {
 function renderField(
   field: FormFieldSchema,
   config: Record<string, unknown>,
-  onChange: (next: Record<string, unknown>) => void
+  onChange: (next: Record<string, unknown>) => void,
+  variableSuggestions: Array<{ value: string; label?: string }>
 ) {
   const current = getValueByPath(config, field.path);
   const updatePath = (nextValue: unknown) => onChange(setValueByPath(config, field.path, nextValue));
@@ -130,21 +139,41 @@ function renderField(
     return <Select value={current as string | number | boolean | undefined} options={field.options} onChange={(value) => updatePath(value)} />;
   }
   if (field.kind === "keyValue") {
-    return <KeyValueEditor value={current} onChange={(next) => updatePath(next)} />;
+    return <KeyValueEditor value={current} onChange={(next) => updatePath(next)} valueSuggestions={variableSuggestions} />;
   }
   if (field.kind === "json") {
+    const editorValue = typeof current === "string" ? current : JSON.stringify(current ?? {}, null, 2);
     return (
-      <Input.TextArea
-        rows={field.rows ?? 8}
-        value={typeof current === "string" ? current : JSON.stringify(current ?? {}, null, 2)}
-        onChange={(event) => updatePath(event.target.value)}
-      />
+      <div style={{ border: "1px solid #d9d9d9", borderRadius: 6, overflow: "hidden" }}>
+        <MonacoEditor
+          language="json"
+          height={`${Math.max((field.rows ?? 8) * 22, 150)}px`}
+          value={editorValue}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 12,
+            lineNumbers: "on",
+            scrollBeyondLastLine: false,
+            automaticLayout: true
+          }}
+          onChange={(value) => {
+            const raw = value ?? "";
+            try {
+              const parsed = JSON.parse(raw);
+              updatePath(parsed);
+            } catch {
+              updatePath(raw);
+            }
+          }}
+        />
+      </div>
     );
   }
   return <Input size="small" value={asString(current)} onChange={(event) => updatePath(event.target.value)} />;
 }
 
 export function SchemaForm(props: SchemaFormProps) {
+  const suggestions = props.variableSuggestions ?? [];
   return (
     <Form layout="vertical" size="small">
       {props.sections.map((section) => (
@@ -152,7 +181,7 @@ export function SchemaForm(props: SchemaFormProps) {
           {section.fields.length > 0 ? <div className="wf-react-section-title">{section.title}</div> : null}
           {section.fields.map((field) => (
             <Form.Item key={field.key} label={field.label} required={field.required}>
-              {renderField(field, props.config, props.onChange)}
+              {renderField(field, props.config, props.onChange, suggestions)}
             </Form.Item>
           ))}
         </div>

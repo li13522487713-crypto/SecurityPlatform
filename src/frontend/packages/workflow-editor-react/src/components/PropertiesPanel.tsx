@@ -15,6 +15,7 @@ interface PropertiesPanelProps {
   selectedNodeLabel: string;
   template?: NodeTemplateMetadata;
   nodeTypeMeta?: NodeTypeMetadata;
+  variableSuggestions?: Array<{ value: string; label?: string }>;
   visible: boolean;
   onChangeNode: (next: { title: string; configs: Record<string, unknown> }) => void;
   onClose: () => void;
@@ -90,6 +91,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             <SchemaForm
               sections={basicSections}
               config={draftConfig}
+              variableSuggestions={props.variableSuggestions}
               onChange={(next) => {
                 setDraftConfig(next);
                 props.onChangeNode({ title: draftTitle, configs: next });
@@ -106,6 +108,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             <SchemaForm
               sections={advancedSections}
               config={draftConfig}
+              variableSuggestions={props.variableSuggestions}
               onChange={(next) => {
                 setDraftConfig(next);
                 props.onChangeNode({ title: draftTitle, configs: next });

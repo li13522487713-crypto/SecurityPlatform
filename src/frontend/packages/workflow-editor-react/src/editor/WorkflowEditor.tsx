@@ -25,6 +25,7 @@ import { NodePanelPopover } from "../components/NodePanelPopover";
 import { NodeCard } from "../components/NodeCard";
 import { PropertiesPanel } from "../components/PropertiesPanel";
 import { TestRunPanel } from "../components/TestRunPanel";
+import { buildVariableSuggestions } from "./smoke-utils";
 import "./workflow-editor.css";
 
 interface WorkflowApiClient {
@@ -230,6 +231,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   }, []);
 
   const scale = zoom / 100;
+  const variableSuggestions = useMemo(
+    () => buildVariableSuggestions(canvasNodes.map((node) => ({ key: node.key, type: node.type, configs: node.configs })), selectedNodeKey),
+    [canvasNodes, selectedNodeKey]
+  );
 
   return (
     <div className="wf-react-editor-page">
@@ -310,6 +315,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           selectedNodeLabel={selectedNode ? selectedNode.title || t(nodeMap.get(selectedNode.type)?.titleKey ?? selectedNode.type) : ""}
           template={selectedNode ? metadataBundle.templatesMap.get(selectedNode.type) : undefined}
           nodeTypeMeta={selectedNode ? metadataBundle.nodeTypesMap.get(selectedNode.type) : undefined}
+          variableSuggestions={variableSuggestions}
           onChangeNode={(next) => {
             if (!selectedNode) {
               return;
