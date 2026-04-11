@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   FreeLayoutEditor,
   type WorkflowJSON,
@@ -10,6 +10,7 @@ import type { CanvasSchema, NodeTypeMetadata } from "../types";
 import { toEditorCanvasSchema, toFlowgramWorkflowJSON } from "./workflow-json-bridge";
 import { WorkflowNodeRender } from "../node-render/node-render";
 import { buildNodePortsRuntime, validateConnectionCandidate } from "../editor/connection-rules";
+import { FlowgramSelectionBridgeContext } from "./selection-bridge";
 
 interface WorkflowLoaderProps {
   canvas: CanvasSchema;
@@ -17,9 +18,34 @@ interface WorkflowLoaderProps {
   nodeTypesMeta: NodeTypeMetadata[];
   edgeStateByKey?: Record<string, "idle" | "running" | "success" | "failed" | "skipped">;
   onCanvasChange: (next: CanvasSchema) => void;
+  onSelectionChange?: (nodeKeys: string[]) => void;
 }
 
 export function WorkflowLoader(props: WorkflowLoaderProps) {
+  const selectionMapRef = useRef<Record<string, boolean>>({});
+
+  const reportNodeSelection = useCallback(
+    (nodeKey: string, selected: boolean) => {
+      if (!nodeKey) {
+        return;
+      }
+      if (selectionMapRef.current[nodeKey] === selected) {
+        return;
+      }
+      selectionMapRef.current = {
+        ...selectionMapRef.current,
+        [nodeKey]: selected
+      };
+      if (props.onSelectionChange) {
+        const selectedNodeKeys = Object.entries(selectionMapRef.current)
+          .filter(([, value]) => value)
+          .map(([key]) => key);
+        props.onSelectionChange(selectedNodeKeys);
+      }
+    },
+    [props.onSelectionChange]
+  );
+
   const buildEdgeRuntimeKey = (sourceNode: string, sourcePort: string, targetNode: string, targetPort: string) =>
     `${sourceNode}:${sourcePort}->${targetNode}:${targetPort}`;
 
@@ -59,14 +85,15 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
   );
 
   return (
-    <FreeLayoutEditor
-      initialData={initialData}
-      nodeRegistries={nodeRegistries}
-      readonly={props.readonly}
-      selectBox={{}}
-      history={{ disableShortcuts: false }}
-      setLineRenderType={() => 0}
-      setLineClassName={(_ctx, line) => {
+    <FlowgramSelectionBridgeContext.Provider value={{ reportNodeSelection }}>
+      <FreeLayoutEditor
+        initialData={initialData}
+        nodeRegistries={nodeRegistries}
+        readonly={props.readonly}
+        selectBox={{}}
+        history={{ disableShortcuts: false }}
+        setLineRenderType={() => 0}
+        setLineClassName={(_ctx, line) => {
         const lineData = line.lineData as { processing?: boolean } | undefined;
         const fromNode = line.from?.id ?? "";
         const fromPort = String(line.fromPort?.portID ?? "output");
@@ -88,7 +115,7 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
         }
         return undefined;
       }}
-      canAddLine={(ctx, fromPort, toPort, lines) => {
+        canAddLine={(ctx, fromPort, toPort, lines) => {
         const fromNodeType = String(fromPort.node.flowNodeType);
         const toNodeType = String(toPort.node.flowNodeType);
         const fromMeta = nodeTypesMap.get(fromNodeType);
@@ -119,10 +146,11 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
 
         return validation.ok;
       }}
-      onContentChange={(ctx, _event: WorkflowContentChangeEvent) => {
-        const latest = ctx.document.toJSON() as WorkflowJSON;
-        props.onCanvasChange(toEditorCanvasSchema(latest, props.canvas));
-      }}
-    />
+        onContentChange={(ctx, _event: WorkflowContentChangeEvent) => {
+          const latest = ctx.document.toJSON() as WorkflowJSON;
+          props.onCanvasChange(toEditorCanvasSchema(latest, props.canvas));
+        }}
+      />
+    </FlowgramSelectionBridgeContext.Provider>
   );
 }

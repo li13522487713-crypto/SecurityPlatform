@@ -227,6 +227,14 @@
   animation: wf-edge-dash 0.7s linear infinite;
 }
 
+.wf-react-selection-box {
+  position: absolute;
+  border: 1px solid #4f46e5;
+  background: rgba(79, 70, 229, 0.12);
+  pointer-events: none;
+  z-index: 1080;
+}
+
 .wf-react-node-layer {
   position: absolute;
   inset: 0;

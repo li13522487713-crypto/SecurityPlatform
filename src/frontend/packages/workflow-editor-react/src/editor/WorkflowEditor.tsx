@@ -110,11 +110,10 @@ type EdgeRuntimeState = "idle" | "running" | "success" | "failed" | "skipped";
 
 interface DragNodeOperation {
   kind: "drag-node";
-  nodeKey: string;
+  nodeKeys: string[];
   startClientX: number;
   startClientY: number;
-  startX: number;
-  startY: number;
+  startPositions: Record<string, { x: number; y: number }>;
 }
 
 interface PanCanvasOperation {
@@ -131,7 +130,21 @@ interface ConnectOperation {
   fromPort: string;
 }
 
-type CanvasOperation = DragNodeOperation | PanCanvasOperation | ConnectOperation;
+interface BoxSelectOperation {
+  kind: "box-select";
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  additive: boolean;
+}
+
+type CanvasOperation = DragNodeOperation | PanCanvasOperation | ConnectOperation | BoxSelectOperation;
+
+interface ClipboardSnapshot {
+  nodes: CanvasNode[];
+  connections: CanvasConnection[];
+}
 
 const nodeRegistry = new NodeRegistry();
 const NODE_WIDTH = 360;
@@ -383,12 +396,13 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const pointerIdRef = useRef<number | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
   const zoomRef = useRef(100);
+  const spacePressedRef = useRef(false);
 
   const [workflowName, setWorkflowName] = useState(`Workflow_${props.workflowId}`);
   const [isDirty, setIsDirty] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [selectedNodeKey, setSelectedNodeKey] = useState<string>("llm_1");
+  const [selectedNodeKeys, setSelectedNodeKeys] = useState<string[]>(["llm_1"]);
   const [showNodePanel, setShowNodePanel] = useState(false);
   const [showTestPanel, setShowTestPanel] = useState(false);
   const [showProblemPanel, setShowProblemPanel] = useState(false);
@@ -414,6 +428,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     currentY: number;
   } | null>(null);
   const [connectableInputPortKeysByNode, setConnectableInputPortKeysByNode] = useState<Record<string, Set<string>>>({});
+  const [selectionBoxRect, setSelectionBoxRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [draggingCatalogNodeType, setDraggingCatalogNodeType] = useState<string | null>(null);
   const [executionStateByNodeKey, setExecutionStateByNodeKey] = useState<
     Record<string, { state: "idle" | "running" | "success" | "failed" | "skipped"; hint?: string }>
@@ -428,13 +443,14 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [debugOutput, setDebugOutput] = useState("");
   const [debugRunning, setDebugRunning] = useState(false);
   const streamAbortRef = useRef<null | (() => void)>(null);
-  const clipboardNodeRef = useRef<CanvasNode | null>(null);
+  const clipboardRef = useRef<ClipboardSnapshot | null>(null);
 
   function buildEdgeRuntimeKey(connection: Pick<CanvasConnection, "fromNode" | "fromPort" | "toNode" | "toPort">): string {
     return `${connection.fromNode}:${connection.fromPort}->${connection.toNode}:${connection.toPort}`;
   }
 
   const scale = zoom / 100;
+  const selectedNodeKey = selectedNodeKeys[0] ?? "";
 
   useEffect(() => {
     panRef.current = pan;
@@ -479,7 +495,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             message.info(`已迁移 ${normalized.migratedCount} 条历史连线到默认端口。`);
           }
           if (parsed.nodes.length > 0) {
-            setSelectedNodeKey(parsed.nodes[0]?.key ?? "");
+            setSelectedNodeKeys([parsed.nodes[0]?.key ?? ""]);
           }
         }
       }
@@ -555,6 +571,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     }
     return map;
   }, [canvasNodes]);
+
+  useEffect(() => {
+    setSelectedNodeKeys((prev) => prev.filter((key) => nodeByKey.has(key)));
+  }, [nodeByKey]);
 
   const nodePortsByNodeKey = useMemo(() => {
     const map = new Map<string, NodePortsRuntime>();
@@ -634,6 +654,73 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     setConnectableInputPortKeysByNode({});
   }
 
+  function setSingleSelection(nodeKey: string) {
+    setSelectedNodeKeys(nodeKey ? [nodeKey] : []);
+  }
+
+  function buildClipboardSnapshot(): ClipboardSnapshot | null {
+    if (selectedNodeKeys.length === 0) {
+      return null;
+    }
+    const selectedSet = new Set(selectedNodeKeys);
+    const nodes = canvasNodes.filter((node) => selectedSet.has(node.key));
+    if (nodes.length === 0) {
+      return null;
+    }
+    const connections = canvasConnections.filter((line) => selectedSet.has(line.fromNode) && selectedSet.has(line.toNode));
+    return {
+      nodes: structuredClone(nodes),
+      connections: structuredClone(connections)
+    };
+  }
+
+  function pasteClipboardSnapshot(snapshot: ClipboardSnapshot): string[] {
+    const usedKeys = new Set(canvasNodes.map((node) => node.key));
+    const keyMap = new Map<string, string>();
+    const buildNextKey = (baseType: string) => {
+      let candidate = `${baseType.toLowerCase()}_${Date.now().toString(36)}`;
+      let cursor = 1;
+      while (usedKeys.has(candidate)) {
+        candidate = `${baseType.toLowerCase()}_${Date.now().toString(36)}_${cursor}`;
+        cursor += 1;
+      }
+      usedKeys.add(candidate);
+      return candidate;
+    };
+    const createdNodes = snapshot.nodes.map((node) => {
+      const nextKey = buildNextKey(node.type);
+      keyMap.set(node.key, nextKey);
+      return {
+        ...structuredClone(node),
+        key: nextKey,
+        title: `${node.title}-副本`,
+        x: node.x + 48,
+        y: node.y + 48
+      };
+    });
+    const createdConnections = snapshot.connections
+      .map((line, index) => {
+        const fromNode = keyMap.get(line.fromNode);
+        const toNode = keyMap.get(line.toNode);
+        if (!fromNode || !toNode) {
+          return null;
+        }
+        return {
+          ...structuredClone(line),
+          id: `conn_${fromNode}_${line.fromPort}_${toNode}_${line.toPort}_${Date.now().toString(36)}_${index}`,
+          fromNode,
+          toNode
+        };
+      })
+      .filter((item): item is CanvasConnection => item !== null);
+
+    setCanvasNodes((prev) => [...prev, ...createdNodes]);
+    setCanvasConnections((prev) => [...prev, ...createdConnections]);
+    setIsDirty(true);
+    setCanvasValidation(null);
+    return createdNodes.map((node) => node.key);
+  }
+
   function startNodeDrag(node: CanvasNode, event: React.PointerEvent<HTMLButtonElement>) {
     if (isReadOnly) {
       return;
@@ -644,16 +731,23 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     if ((event.target as HTMLElement).closest("[data-wf-port='true']")) {
       return;
     }
+    const dragNodeKeys = selectedNodeKeys.includes(node.key) ? selectedNodeKeys : [node.key];
+    const startPositions: Record<string, { x: number; y: number }> = {};
+    for (const key of dragNodeKeys) {
+      const current = nodeByKey.get(key);
+      if (current) {
+        startPositions[key] = { x: current.x, y: current.y };
+      }
+    }
     operationRef.current = {
       kind: "drag-node",
-      nodeKey: node.key,
+      nodeKeys: dragNodeKeys,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      startX: node.x,
-      startY: node.y
+      startPositions
     };
     pointerIdRef.current = event.pointerId;
-    setSelectedNodeKey(node.key);
+    setSelectedNodeKeys(dragNodeKeys);
     event.preventDefault();
     event.stopPropagation();
   }
@@ -724,12 +818,29 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     if (target.closest(".wf-react-node") || target.closest(".wf-react-properties-panel") || target.closest(".wf-react-node-panel")) {
       return;
     }
+    if (event.button === 1 || spacePressedRef.current) {
+      operationRef.current = {
+        kind: "pan-canvas",
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: panRef.current.x,
+        startY: panRef.current.y
+      };
+      pointerIdRef.current = event.pointerId;
+      event.preventDefault();
+      return;
+    }
+    const world = resolveWorldPoint(event.clientX, event.clientY);
+    if (!world) {
+      return;
+    }
     operationRef.current = {
-      kind: "pan-canvas",
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: panRef.current.x,
-      startY: panRef.current.y
+      kind: "box-select",
+      startX: world.x,
+      startY: world.y,
+      currentX: world.x,
+      currentY: world.y,
+      additive: event.shiftKey
     };
     pointerIdRef.current = event.pointerId;
     event.preventDefault();
@@ -750,11 +861,11 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         const dy = (event.clientY - operation.startClientY) / (zoomRef.current / 100);
         setCanvasNodes((prev) =>
           prev.map((node) =>
-            node.key === operation.nodeKey
+            operation.nodeKeys.includes(node.key)
               ? {
                   ...node,
-                  x: Math.round((operation.startX + dx) * 10) / 10,
-                  y: Math.round((operation.startY + dy) * 10) / 10
+                  x: Math.round(((operation.startPositions[node.key]?.x ?? node.x) + dx) * 10) / 10,
+                  y: Math.round(((operation.startPositions[node.key]?.y ?? node.y) + dy) * 10) / 10
                 }
               : node
           )
@@ -769,6 +880,25 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           x: operation.startX + dx,
           y: operation.startY + dy
         });
+        return;
+      }
+
+      if (operation.kind === "box-select") {
+        const world = resolveWorldPoint(event.clientX, event.clientY);
+        if (!world) {
+          return;
+        }
+        const nextOp: BoxSelectOperation = {
+          ...operation,
+          currentX: world.x,
+          currentY: world.y
+        };
+        operationRef.current = nextOp;
+        const left = Math.min(nextOp.startX, nextOp.currentX) * (zoomRef.current / 100) + panRef.current.x;
+        const top = Math.min(nextOp.startY, nextOp.currentY) * (zoomRef.current / 100) + panRef.current.y;
+        const width = Math.abs(nextOp.currentX - nextOp.startX) * (zoomRef.current / 100);
+        const height = Math.abs(nextOp.currentY - nextOp.startY) * (zoomRef.current / 100);
+        setSelectionBoxRect({ left, top, width, height });
         return;
       }
 
@@ -799,6 +929,26 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       if (operation.kind === "drag-node") {
         setIsDirty(true);
         setCanvasValidation(null);
+      } else if (operation.kind === "box-select") {
+        const minX = Math.min(operation.startX, operation.currentX);
+        const maxX = Math.max(operation.startX, operation.currentX);
+        const minY = Math.min(operation.startY, operation.currentY);
+        const maxY = Math.max(operation.startY, operation.currentY);
+        const width = Math.abs(operation.currentX - operation.startX);
+        const height = Math.abs(operation.currentY - operation.startY);
+        const selectedByBox = canvasNodes
+          .filter((node) => node.x < maxX && node.x + NODE_WIDTH > minX && node.y < maxY && node.y + NODE_HEIGHT > minY)
+          .map((node) => node.key);
+        if (width < 2 && height < 2) {
+          if (!operation.additive) {
+            setSelectedNodeKeys([]);
+          }
+        } else if (operation.additive) {
+          setSelectedNodeKeys((prev) => Array.from(new Set([...prev, ...selectedByBox])));
+        } else {
+          setSelectedNodeKeys(selectedByBox);
+        }
+        setSelectionBoxRect(null);
       } else if (operation.kind === "connect") {
         const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
         const portElement = target?.closest("[data-wf-port='true']") as HTMLElement | null;
@@ -843,6 +993,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           }
         }
         clearConnectingState();
+        setSelectionBoxRect(null);
+      } else if (operation.kind === "pan-canvas") {
+        setSelectionBoxRect(null);
       }
 
       operationRef.current = null;
@@ -892,7 +1045,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         inputMappings: {}
       }
     ]);
-    setSelectedNodeKey(key);
+    setSingleSelection(key);
     setIsDirty(true);
     setCanvasValidation(null);
     return key;
@@ -946,6 +1099,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         return;
       }
 
+      if (event.key === " ") {
+        spacePressedRef.current = true;
+      }
+
       const isMeta = event.ctrlKey || event.metaKey;
       const lowerKey = event.key.toLowerCase();
 
@@ -953,10 +1110,11 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         if (isReadOnly) {
           return;
         }
-        if (!selectedNode) {
+        const snapshot = buildClipboardSnapshot();
+        if (!snapshot) {
           return;
         }
-        clipboardNodeRef.current = structuredClone(selectedNode);
+        clipboardRef.current = snapshot;
         event.preventDefault();
         return;
       }
@@ -965,40 +1123,53 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         if (isReadOnly) {
           return;
         }
-        if (!clipboardNodeRef.current) {
+        if (!clipboardRef.current) {
           return;
         }
-        const sourceNode = clipboardNodeRef.current;
-        const nextKey = buildUniqueNodeKey(sourceNode.type, canvasNodes);
-        const pastedNode: CanvasNode = {
-          ...structuredClone(sourceNode),
-          key: nextKey,
-          title: `${sourceNode.title}-副本`,
-          x: sourceNode.x + 48,
-          y: sourceNode.y + 48
-        };
-        setCanvasNodes((prev) => [...prev, pastedNode]);
-        setSelectedNodeKey(nextKey);
-        setIsDirty(true);
+        const createdNodeKeys = pasteClipboardSnapshot(clipboardRef.current);
+        setSelectedNodeKeys(createdNodeKeys);
         event.preventDefault();
         return;
       }
 
-      if (event.key === "Delete") {
+      if (isMeta && lowerKey === "d") {
         if (isReadOnly) {
           return;
         }
-        if (!selectedNodeKey) {
+        const snapshot = buildClipboardSnapshot();
+        if (!snapshot) {
           return;
         }
-        const remainingNodes = canvasNodes.filter((node) => node.key !== selectedNodeKey);
+        clipboardRef.current = snapshot;
+        const createdNodeKeys = pasteClipboardSnapshot(snapshot);
+        setSelectedNodeKeys(createdNodeKeys);
+        event.preventDefault();
+        return;
+      }
+
+      if (isMeta && lowerKey === "a") {
+        setSelectedNodeKeys(canvasNodes.map((node) => node.key));
+        event.preventDefault();
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        if (isReadOnly) {
+          return;
+        }
+        if (selectedNodeKeys.length === 0) {
+          return;
+        }
+        const selectedSet = new Set(selectedNodeKeys);
+        const remainingNodes = canvasNodes.filter((node) => !selectedSet.has(node.key));
         if (remainingNodes.length === canvasNodes.length) {
           return;
         }
         setCanvasNodes(remainingNodes);
-        setCanvasConnections((prev) => prev.filter((line) => line.fromNode !== selectedNodeKey && line.toNode !== selectedNodeKey));
-        setSelectedNodeKey(remainingNodes[0]?.key ?? "");
+        setCanvasConnections((prev) => prev.filter((line) => !selectedSet.has(line.fromNode) && !selectedSet.has(line.toNode)));
+        setSelectedNodeKeys(remainingNodes.length > 0 ? [remainingNodes[0]?.key ?? ""] : []);
         setIsDirty(true);
+        setCanvasValidation(null);
         event.preventDefault();
         return;
       }
@@ -1022,11 +1193,19 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       }
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === " ") {
+        spacePressedRef.current = false;
+      }
+    };
+
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
     };
-  }, [canvasConnections, canvasGlobals, canvasNodes, isReadOnly, pan.x, pan.y, props.apiClient, props.workflowId, selectedNode, selectedNodeKey, zoom]);
+  }, [canvasConnections, canvasGlobals, canvasNodes, isReadOnly, pan.x, pan.y, props.apiClient, props.workflowId, selectedNodeKeys, zoom]);
 
   function appendLog(line: string) {
     setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()} ${line}`]);
@@ -1426,8 +1605,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         {USE_FLOWGRAM_CANVAS ? (
           <WorkflowRenderProvider
             canvas={flowgramCanvasSchema}
+            readonly={isReadOnly}
             nodeTypesMeta={nodeTypesMeta}
             edgeStateByKey={edgeStateByConnectionKey}
+            onSelectionChange={(nodeKeys) => setSelectedNodeKeys(nodeKeys)}
             onCanvasChange={(next) => {
               if (isReadOnly) {
                 return;
@@ -1504,13 +1685,21 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
                         title={node.title || t(meta.titleKey)}
                         color={meta.color}
                         iconText={meta.iconText}
-                        selected={selectedNodeKey === node.key}
+                        selected={selectedNodeKeys.includes(node.key)}
                         subtitle={node.type}
                         inputPorts={nodePorts.inputs}
                         outputPorts={nodePorts.outputs}
                         connectableInputPortKeys={connectableInputPortKeysByNode[node.key]}
                         connectingFromNodeKey={connectingPreview?.fromNode}
-                        onClick={() => setSelectedNodeKey(node.key)}
+                        onClick={(event) => {
+                          if (event.shiftKey) {
+                            setSelectedNodeKeys((prev) =>
+                              prev.includes(node.key) ? prev.filter((key) => key !== node.key) : [...prev, node.key]
+                            );
+                            return;
+                          }
+                          setSingleSelection(node.key);
+                        }}
                         onPointerDown={(event) => startNodeDrag(node, event)}
                         onPortPointerDown={(event, port) => startConnection(node, port, event)}
                         executionState={executionStateByNodeKey[node.key]?.state}
@@ -1523,6 +1712,17 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             </div>
           </>
         )}
+        {selectionBoxRect && !USE_FLOWGRAM_CANVAS ? (
+          <div
+            className="wf-react-selection-box"
+            style={{
+              left: selectionBoxRect.left,
+              top: selectionBoxRect.top,
+              width: selectionBoxRect.width,
+              height: selectionBoxRect.height
+            }}
+          />
+        ) : null}
 
         <NodePanelPopover
           visible={showNodePanel}
@@ -1559,7 +1759,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             setIsDirty(true);
             setCanvasValidation(null);
           }}
-          onClose={() => setSelectedNodeKey("")}
+          onClose={() => setSingleSelection("")}
         />
 
         <TestRunPanel
@@ -1583,7 +1783,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           validation={canvasValidation}
           onClose={() => setShowProblemPanel(false)}
           onSelectNode={(nodeKey) => {
-            setSelectedNodeKey(nodeKey);
+            setSingleSelection(nodeKey);
             setShowProblemPanel(false);
           }}
         />

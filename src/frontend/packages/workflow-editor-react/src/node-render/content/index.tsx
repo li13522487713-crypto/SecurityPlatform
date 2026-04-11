@@ -2,10 +2,13 @@ import { AssignVariableContent } from "./assign-variable-content";
 import { BatchContent } from "./batch-content";
 import { CodeContent } from "./code-content";
 import { CommonContent } from "./common-content";
+import { ConversationContent } from "./conversation-content";
+import { DatabaseContent } from "./database-content";
 import { EndContent } from "./end-content";
 import { HttpContent } from "./http-content";
 import { IfContent } from "./if-content";
 import { IntentContent } from "./intent-content";
+import { JsonContent } from "./json-content";
 import { KnowledgeContent } from "./knowledge-content";
 import { LlmContent } from "./llm-content";
 import { LoopContent } from "./loop-content";
@@ -13,6 +16,7 @@ import { PluginContent } from "./plugin-content";
 import { QaContent } from "./qa-content";
 import { StartContent } from "./start-content";
 import { SubWorkflowContent } from "./subworkflow-content";
+import { VariableAggregatorContent } from "./variable-aggregator-content";
 
 interface ContentProps {
   type: string;
@@ -36,6 +40,7 @@ export function NodeContentMap(props: ContentProps) {
   const selectorConditions = Array.isArray(configs.conditions) ? configs.conditions : [];
   const intents = Array.isArray(configs.intents) ? configs.intents.map((item) => String(item)) : [];
   const knowledgeIds = Array.isArray(configs.knowledgeIds) ? configs.knowledgeIds : [];
+  const variableKeys = Array.isArray(configs.variableKeys) ? configs.variableKeys.map((item) => String(item)) : [];
 
   const readText = (...candidates: unknown[]): string => {
     for (const candidate of candidates) {
@@ -123,6 +128,67 @@ export function NodeContentMap(props: ContentProps) {
     );
   }
 
+  if (
+    props.type === "DatabaseQuery" ||
+    props.type === "DatabaseInsert" ||
+    props.type === "DatabaseUpdate" ||
+    props.type === "DatabaseDelete" ||
+    props.type === "DatabaseCustomSql"
+  ) {
+    return (
+      <DatabaseContent
+        operation={props.type}
+        databaseInfoId={readNumber(configs.databaseInfoId)}
+        outputKey={readText(configs.outputKey)}
+      />
+    );
+  }
+
+  if (
+    props.type === "CreateConversation" ||
+    props.type === "ConversationList" ||
+    props.type === "ConversationUpdate" ||
+    props.type === "ConversationDelete" ||
+    props.type === "ConversationHistory" ||
+    props.type === "ClearConversationHistory" ||
+    props.type === "MessageList" ||
+    props.type === "CreateMessage"
+  ) {
+    return (
+      <ConversationContent
+        operation={props.type}
+        userId={readNumber(configs.userId)}
+        conversationId={readNumber(configs.conversationId)}
+      />
+    );
+  }
+
+  if (props.type === "JsonSerialization") {
+    return (
+      <JsonContent
+        mode="serialize"
+        variableKeys={variableKeys}
+        outputKey={readText(configs.outputKey)}
+      />
+    );
+  }
+
+  if (props.type === "JsonDeserialization") {
+    return <JsonContent mode="deserialize" inputVariable={readText(configs.inputVariable)} />;
+  }
+
+  if (props.type === "VariableAggregator") {
+    return (
+      <VariableAggregatorContent
+        variableKeys={variableKeys}
+        outputKey={readText(configs.outputKey)}
+        strategy={readText(configs.strategy, configs.mergeStrategy)}
+        groupSize={readNumber(configs.groupSize, configs.groupLength)}
+        order={readText(configs.order)}
+      />
+    );
+  }
+
   if (props.type === "KnowledgeRetriever") {
     return (
       <KnowledgeContent
@@ -137,7 +203,7 @@ export function NodeContentMap(props: ContentProps) {
     return (
       <AssignVariableContent
         variableName={readText(configs.variableName, configs.target)}
-        expression={readText(configs.expression, assign.expression)}
+        expression={readText(configs.assignments, configs.expression, assign.assignments, assign.expression)}
       />
     );
   }

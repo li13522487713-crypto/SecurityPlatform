@@ -13,7 +13,7 @@ interface NodeCardProps {
   outputPorts: PortRuntime[];
   connectableInputPortKeys?: Set<string>;
   connectingFromNodeKey?: string;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
   onPortPointerDown: (event: React.PointerEvent<HTMLSpanElement>, port: PortRuntime) => void;
   executionState?: "idle" | "running" | "success" | "failed" | "skipped";
@@ -80,7 +80,7 @@ export function NodeCard(props: NodeCardProps) {
     <button
       type="button"
       className={clsx("wf-react-node", props.selected && "wf-react-node-selected")}
-      onClick={props.onClick}
+      onClick={(event) => props.onClick(event)}
       onPointerDown={props.onPointerDown}
     >
       <div className="wf-react-node-header" style={{ background: `linear-gradient(${props.color}14 0%, #ffffff 100%)` }}>

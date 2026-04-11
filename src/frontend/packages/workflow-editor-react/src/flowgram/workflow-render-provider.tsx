@@ -13,6 +13,7 @@ interface WorkflowRenderProviderProps {
   readonly?: boolean;
   edgeStateByKey?: Record<string, "idle" | "running" | "success" | "failed" | "skipped">;
   onCanvasChange: (next: CanvasSchema) => void;
+  onSelectionChange?: (nodeKeys: string[]) => void;
 }
 
 export function WorkflowRenderProvider(props: WorkflowRenderProviderProps) {
@@ -28,6 +29,7 @@ export function WorkflowRenderProvider(props: WorkflowRenderProviderProps) {
           nodeTypesMeta={props.nodeTypesMeta}
           edgeStateByKey={props.edgeStateByKey}
           onCanvasChange={props.onCanvasChange}
+          onSelectionChange={props.onSelectionChange}
         />
       </PlaygroundReact>
       <FlowgramHoverLayer />
