@@ -715,6 +715,11 @@ const temperatureValue = ref(20);
 const topPValue = ref(100);
 const frequencyPenaltyValue = ref(0);
 const presencePenaltyValue = ref(0);
+const defaultModelTemperature = 0.2;
+const defaultModelMaxTokens = 2048;
+const defaultModelTopP = 1;
+const defaultModelFrequencyPenalty = 0;
+const defaultModelPresencePenalty = 0;
 
 function loadModelForm(model: ModelConfigDto) {
   modelForm.name = model.name;
@@ -729,10 +734,10 @@ function loadModelForm(model: ModelConfigDto) {
   modelForm.enableVision = model.enableVision;
   modelForm.enableJsonMode = model.enableJsonMode;
   modelForm.maxTokens = model.maxTokens ?? undefined;
-  temperatureValue.value = Math.round((model.temperature ?? 0.2) * 100);
-  topPValue.value = Math.round((model.topP ?? 1) * 100);
-  frequencyPenaltyValue.value = Math.round((model.frequencyPenalty ?? 0) * 100);
-  presencePenaltyValue.value = Math.round((model.presencePenalty ?? 0) * 100);
+  temperatureValue.value = Math.round((model.temperature ?? defaultModelTemperature) * 100);
+  topPValue.value = Math.round((model.topP ?? defaultModelTopP) * 100);
+  frequencyPenaltyValue.value = Math.round((model.frequencyPenalty ?? defaultModelFrequencyPenalty) * 100);
+  presencePenaltyValue.value = Math.round((model.presencePenalty ?? defaultModelPresencePenalty) * 100);
 }
 
 const modelSaving = ref(false);
@@ -749,14 +754,14 @@ async function saveModelConfig() {
       isEnabled: modelForm.isEnabled,
       supportsEmbedding: modelForm.supportsEmbedding,
       modelId: modelForm.modelId,
-      systemPrompt: modelForm.systemPrompt || undefined,
+      systemPrompt: modelForm.systemPrompt || "",
       enableStreaming: modelForm.enableStreaming,
       enableReasoning: modelForm.enableReasoning,
       enableTools: modelForm.enableTools,
       enableVision: modelForm.enableVision,
       enableJsonMode: modelForm.enableJsonMode,
       temperature: temperatureValue.value / 100,
-      maxTokens: modelForm.maxTokens ?? undefined,
+      maxTokens: modelForm.maxTokens ?? defaultModelMaxTokens,
       topP: topPValue.value / 100,
       frequencyPenalty: frequencyPenaltyValue.value / 100,
       presencePenalty: presencePenaltyValue.value / 100
@@ -844,7 +849,17 @@ async function handleCreateSubmit() {
       defaultModel: createForm.defaultModel,
       supportsEmbedding: true,
       modelId: createForm.defaultModel,
-      enableStreaming: true
+      systemPrompt: "",
+      enableStreaming: true,
+      enableReasoning: false,
+      enableTools: false,
+      enableVision: false,
+      enableJsonMode: false,
+      temperature: defaultModelTemperature,
+      maxTokens: defaultModelMaxTokens,
+      topP: defaultModelTopP,
+      frequencyPenalty: defaultModelFrequencyPenalty,
+      presencePenalty: defaultModelPresencePenalty
     };
     await createModelConfig(payload);
     message.success(t("crud.createSuccess"));

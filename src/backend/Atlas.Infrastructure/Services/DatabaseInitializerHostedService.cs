@@ -165,6 +165,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         // 关键兼容迁移：平台管理员标记字段缺失会导致登录链路失败，需始终检查并补齐。
         await EnsureUserAccountSchemaAsync(db, cancellationToken);
+        await EnsureModelConfigSchemaAsync(db, cancellationToken);
         var appMembershipAlignment = await EnsureAppMembershipSchemaAsync(db, cancellationToken);
         if (appMembershipAlignment is not null)
         {
@@ -1966,6 +1967,42 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         return null;
     }
 
+    private static async Task EnsureModelConfigSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("ModelConfig", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<ModelConfig>(
+                db,
+                "SystemPrompt",
+                "Temperature",
+                "MaxTokens",
+                "TopP",
+                "FrequencyPenalty",
+                "PresencePenalty")
+            && !RequiresMissingColumnFix<ModelConfig>(
+                db,
+                "ModelId",
+                "SystemPrompt",
+                "EnableStreaming",
+                "EnableReasoning",
+                "EnableTools",
+                "EnableVision",
+                "EnableJsonMode",
+                "Temperature",
+                "MaxTokens",
+                "TopP",
+                "FrequencyPenalty",
+                "PresencePenalty"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<ModelConfig>(db, cancellationToken);
+    }
+
     private static async Task EnsureAssetSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("Asset", false))
@@ -2898,7 +2935,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         bool IsSystem,
         int SortOrder);
 }
-
 
 
 

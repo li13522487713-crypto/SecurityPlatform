@@ -1,0 +1,48 @@
+{
+  "name": "@atlas/workflow-editor-react",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/api/index.ts",
+    "./types": "./src/types/index.ts",
+    "./i18n": "./src/i18n/index.ts"
+  },
+  "scripts": {
+    "lint": "echo 'workflow-editor-react: no lint configured yet'",
+    "build": "echo 'workflow-editor-react: source-only package, no build step'"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vue": "^3.5.0"
+  },
+  "dependencies": {
+    "@atlas/shared-core": "workspace:*",
+    "@atlas/shared-kernel": "workspace:*",
+    "@flowgram.ai/free-layout-editor": "^1.0.8",
+    "@flowgram.ai/free-lines-plugin": "^1.0.8",
+    "@flowgram.ai/free-history-plugin": "^1.0.8",
+    "@flowgram.ai/free-snap-plugin": "^1.0.8",
+    "@flowgram.ai/free-auto-layout-plugin": "^1.0.8",
+    "@flowgram.ai/free-node-panel-plugin": "^1.0.8",
+    "@flowgram.ai/free-container-plugin": "^1.0.8",
+    "@flowgram.ai/minimap-plugin": "^1.0.8",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@ant-design/icons": "^6.1.0",
+    "@monaco-editor/react": "^4.7.0",
+    "antd": "^5.28.0",
+    "classnames": "^2.5.1",
+    "dayjs": "^1.11.13",
+    "i18next": "^25.6.0",
+    "inversify": "^7.10.1",
+    "lodash-es": "^4.17.21",
+    "react-i18next": "^15.7.3",
+    "reflect-metadata": "^0.2.2",
+    "zustand": "^5.0.8"
+  }
+}

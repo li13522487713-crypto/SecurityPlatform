@@ -1,5 +1,5 @@
 import type { ApiResponse, PagedResult } from "@atlas/shared-core";
-import { createWorkflowApiFromRequest } from "@atlas/workflow-editor/api";
+import { createWorkflowApiFromRequest } from "@atlas/workflow-editor-react/api";
 import type {
   NodeDebugRequest,
   NodeDebugResponse,
@@ -19,14 +19,14 @@ import type {
   WorkflowSaveRequest,
   WorkflowUpdateMetaRequest,
   WorkflowVersionItem
-} from "@atlas/workflow-editor/types";
+} from "@atlas/workflow-editor-react/types";
 import { API_BASE, requestApi } from "@/services/api-core";
 import { getCurrentAppIdFromStorage } from "@/utils/app-context";
 
 type IdLike = string | number;
 
-export type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor/api";
-import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor/api";
+export type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor-react/api";
+import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor-react/api";
 
 export const workflowV2Api = createWorkflowApiFromRequest(requestApi, {
   resolveAbsoluteUrl: (path) => {

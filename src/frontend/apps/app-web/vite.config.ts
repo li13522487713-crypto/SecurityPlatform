@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import vue from "@vitejs/plugin-vue";
+import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 function normalizeRuntimeMode(rawMode: string | undefined, mode: string): "platform" | "direct" {
@@ -18,7 +19,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     logLevel: "error",
-    plugins: [vue()],
+    plugins: [vue(), react()],
     css: {
       lightningcss: {
         errorRecovery: true

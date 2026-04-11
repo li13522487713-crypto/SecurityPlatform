@@ -1,5 +1,5 @@
 import type { ApiResponse, PagedResult } from "@atlas/shared-core";
-import { createWorkflowApiFromRequest } from "@atlas/workflow-editor/api";
+import { createWorkflowApiFromRequest } from "@atlas/workflow-editor-react/api";
 import type {
   NodeDebugRequest,
   NodeDebugResponse,
@@ -19,7 +19,7 @@ import type {
   WorkflowSaveRequest,
   WorkflowUpdateMetaRequest,
   WorkflowVersionItem
-} from "@atlas/workflow-editor/types";
+} from "@atlas/workflow-editor-react/types";
 import { API_BASE, requestApi } from "@/services/api-core";
 import { getLowCodeAppByKey } from "@/services/api-lowcode-runtime";
 import {
@@ -30,8 +30,8 @@ import {
 
 type IdLike = string | number;
 
-export type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor/api";
-import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor/api";
+export type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor-react/api";
+import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor-react/api";
 
 const APP_ID_REGEX = /^[1-9]\d*$/;
 let appIdResolvingPromise: Promise<string | null> | null = null;

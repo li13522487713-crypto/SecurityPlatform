@@ -1,1 +1,1 @@
-export * from "@atlas/workflow-editor/types";
+export * from "@atlas/workflow-editor-react/types";

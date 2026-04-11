@@ -1,0 +1,313 @@
+.wf-react-editor-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #f2f3f5;
+}
+
+.wf-react-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.wf-react-name {
+  width: 260px;
+}
+
+.wf-react-canvas-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #f2f3f5;
+}
+
+.wf-react-dot-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, #d9dde4 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.wf-react-flowgram-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+}
+
+.wf-react-flowgram-surface {
+  width: 100%;
+  height: 100%;
+}
+
+.wf-react-node-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.wf-react-node-wrap {
+  position: absolute;
+}
+
+.wf-react-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  text-align: left;
+  background-color: #ffffff;
+  border: 1px solid rgba(6, 7, 9, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+  cursor: pointer;
+}
+
+.wf-react-node-selected {
+  border-color: #4e40e5;
+}
+
+.wf-react-node-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 7px 7px 0 0;
+}
+
+.wf-react-node-icon {
+  width: 24px;
+  height: 24px;
+  border: 1px solid;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ffffff;
+}
+
+.wf-react-node-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.wf-react-node-content {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  width: 100%;
+  padding: 0 12px 12px;
+}
+
+.wf-react-node-row {
+  display: contents;
+}
+
+.wf-react-node-label {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.wf-react-node-value {
+  color: #111827;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-react-port {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #9197f1;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px rgba(78, 64, 229, 0.35);
+}
+
+.wf-react-port-left {
+  left: -6px;
+}
+
+.wf-react-port-right {
+  right: -6px;
+  background: #4d53e8;
+}
+
+.wf-react-node-panel {
+  position: absolute;
+  left: 24px;
+  bottom: 76px;
+  width: 268px;
+  max-height: 580px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  z-index: 1200;
+}
+
+.wf-react-node-panel-search {
+  padding: 12px;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.wf-react-node-panel-list {
+  max-height: 500px;
+  overflow: auto;
+}
+
+.wf-react-node-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wf-react-node-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 204px;
+  height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wf-react-node-item:hover {
+  background: #f4f6ff;
+}
+
+.wf-react-node-item-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wf-react-node-item-title {
+  font-size: 13px;
+  color: #111827;
+}
+
+.wf-react-properties-panel {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 420px;
+  min-width: 360px;
+  max-width: 546px;
+  height: calc(100% - 16px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  z-index: 1100;
+  overflow: auto;
+  padding: 12px;
+}
+
+.wf-react-properties-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.wf-react-properties-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.wf-react-properties-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.wf-react-test-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 76px;
+  width: 460px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  padding: 12px;
+  z-index: 1150;
+}
+
+.wf-react-test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.wf-react-test-log {
+  margin-top: 8px;
+  padding: 8px;
+  height: 160px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #0b1220;
+  color: #d1d5db;
+  font-size: 12px;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.wf-react-test-empty {
+  color: #94a3b8;
+}
+
+.wf-react-toolbar {
+  pointer-events: none;
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.wf-react-toolbar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wf-react-tools-section {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px;
+  background: #ffffff;
+  border: 1px solid #d9deea;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+

@@ -363,10 +363,9 @@ public sealed class ChatClientFactory : IChatClientFactory
             modelConfig = await _modelConfigRepository.FindByIdAsync(tenantId, modelConfigId.Value, cancellationToken);
         }
 
-        // 优先按数据库模型配置名称精确命中，避免同 providerType 下选错 API Key。
-        var providerName = !string.IsNullOrWhiteSpace(modelConfig?.Name)
-            ? modelConfig.Name
-            : modelConfig?.ProviderType;
+        // 运行时 provider 需要稳定使用 providerType（openai/deepseek/...），
+        // 不能使用用户自定义的模型配置名称（例如 deepseek-chat），否则会被当成 provider key 查找失败。
+        var providerName = modelConfig?.ProviderType;
         var provider = _llmProviderFactory.GetLlmProvider(providerName);
         var resolvedModel = !string.IsNullOrWhiteSpace(modelName)
             ? modelName.Trim()

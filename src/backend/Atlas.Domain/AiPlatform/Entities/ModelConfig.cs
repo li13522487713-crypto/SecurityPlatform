@@ -14,6 +14,7 @@ public sealed class ModelConfig : TenantEntity
         BaseUrl = string.Empty;
         DefaultModel = string.Empty;
         ModelId = string.Empty;
+        SystemPrompt = string.Empty;
     }
 
     public ModelConfig(
@@ -33,6 +34,7 @@ public sealed class ModelConfig : TenantEntity
         BaseUrl = baseUrl;
         DefaultModel = defaultModel;
         ModelId = defaultModel;
+        SystemPrompt = string.Empty;
         IsEnabled = true;
         SupportsEmbedding = true;
         EnableStreaming = true;
@@ -90,7 +92,7 @@ public sealed class ModelConfig : TenantEntity
 
         if (modelId is not null)
             ModelId = modelId;
-        SystemPrompt = systemPrompt;
+        SystemPrompt = systemPrompt ?? string.Empty;
         if (enableStreaming.HasValue)
             EnableStreaming = enableStreaming.Value;
         if (enableReasoning.HasValue)

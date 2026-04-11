@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --mode platform",
-    "dev:platform": "vite --mode platform",
-    "dev:direct": "vite --mode direct",
+    "dev": "vite --host 0.0.0.0 --mode platform",
+    "dev:platform": "vite --host 0.0.0.0 --mode platform",
+    "dev:direct": "vite --host 0.0.0.0 --mode direct",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,vue}\""
@@ -25,7 +25,7 @@
     "@atlas/shared-core": "workspace:*",
     "@atlas/shared-kernel": "workspace:*",
     "@atlas/shared-ui": "workspace:*",
-    "@atlas/workflow-editor": "workspace:*",
+    "@atlas/workflow-editor-react": "workspace:*",
     "@vue-flow/controls": "^1.1.2",
     "@vue-flow/core": "^1.47.0",
     "@vue-flow/minimap": "^1.5.3",
@@ -40,12 +40,14 @@
     "vue": "^3.5.30",
     "vue-echarts": "^8.0.1",
     "vue-i18n": "^9.14.5",
+    "veaury": "^2.6.3",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "typescript": "~5.9.3",
     "vite": "^8.0.0",
