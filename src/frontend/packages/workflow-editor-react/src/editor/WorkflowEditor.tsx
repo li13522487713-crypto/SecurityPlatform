@@ -66,6 +66,13 @@ interface WorkflowApiClient {
           status?: number;
         };
       }) => void;
+      onBranchDecision?: (ev: {
+        executionId?: string;
+        nodeKey: string;
+        nodeType?: string;
+        selectedBranch?: string;
+        candidates?: string[];
+      }) => void;
       onExecutionCompleted?: (ev: { outputsJson?: string }) => void;
       onExecutionFailed?: (ev: { errorMessage: string }) => void;
       onExecutionCancelled?: (ev: { errorMessage?: string }) => void;
@@ -1383,6 +1390,15 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           },
           onEdgeStatusChanged: (ev) => {
             markEdgeStateByRuntimeEdge(ev.edge ?? {}, ev.edge?.status);
+          },
+          onBranchDecision: (ev) => {
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: ev.nodeKey,
+              status: "success",
+              detail: `branch=${ev.selectedBranch ?? "-"}`
+            });
+            appendLog(`branch_decision ${ev.nodeKey} ${ev.selectedBranch ?? "-"}`);
           },
           onExecutionCompleted: () => {
             setTestRunning(false);

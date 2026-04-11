@@ -1,17 +1,22 @@
+import { AgentContent } from "./agent-content";
 import { AssignVariableContent } from "./assign-variable-content";
 import { BatchContent } from "./batch-content";
 import { CodeContent } from "./code-content";
+import { CommentContent } from "./comment-content";
 import { CommonContent } from "./common-content";
 import { ConversationContent } from "./conversation-content";
 import { DatabaseContent } from "./database-content";
 import { EndContent } from "./end-content";
 import { HttpContent } from "./http-content";
 import { IfContent } from "./if-content";
+import { IoContent } from "./io-content";
 import { IntentContent } from "./intent-content";
 import { JsonContent } from "./json-content";
+import { KnowledgeMaintainContent } from "./knowledge-maintain-content";
 import { KnowledgeContent } from "./knowledge-content";
 import { LlmContent } from "./llm-content";
 import { LoopContent } from "./loop-content";
+import { MessageContent } from "./message-content";
 import { PluginContent } from "./plugin-content";
 import { QaContent } from "./qa-content";
 import { StartContent } from "./start-content";
@@ -90,6 +95,10 @@ export function NodeContentMap(props: ContentProps) {
     return <LlmContent provider={readText(configs.provider, llm.provider)} model={readText(configs.model, llm.model)} />;
   }
 
+  if (props.type === "Agent") {
+    return <AgentContent agentId={readText(configs.agentId)} message={readText(configs.message)} />;
+  }
+
   if (props.type === "IntentDetector") {
     return <IntentContent model={readText(configs.model)} intents={intents} />;
   }
@@ -128,6 +137,14 @@ export function NodeContentMap(props: ContentProps) {
     );
   }
 
+  if (props.type === "InputReceiver") {
+    return <IoContent mode="input" pathOrKey={readText(configs.inputPath)} />;
+  }
+
+  if (props.type === "OutputEmitter") {
+    return <IoContent mode="output" pathOrKey={readText(configs.outputKey)} />;
+  }
+
   if (
     props.type === "DatabaseQuery" ||
     props.type === "DatabaseInsert" ||
@@ -151,8 +168,7 @@ export function NodeContentMap(props: ContentProps) {
     props.type === "ConversationDelete" ||
     props.type === "ConversationHistory" ||
     props.type === "ClearConversationHistory" ||
-    props.type === "MessageList" ||
-    props.type === "CreateMessage"
+    props.type === "MessageList"
   ) {
     return (
       <ConversationContent
@@ -197,6 +213,32 @@ export function NodeContentMap(props: ContentProps) {
         knowledgeCount={knowledgeIds.length}
       />
     );
+  }
+
+  if (props.type === "KnowledgeIndexer") {
+    return <KnowledgeMaintainContent mode="index" knowledgeId={readNumber(configs.knowledgeId)} />;
+  }
+
+  if (props.type === "KnowledgeDeleter") {
+    return <KnowledgeMaintainContent mode="delete" knowledgeId={readNumber(configs.knowledgeId)} />;
+  }
+
+  if (props.type === "Ltm") {
+    return <KnowledgeMaintainContent mode="ltm" action={readText(configs.action)} />;
+  }
+
+  if (props.type === "CreateMessage" || props.type === "EditMessage" || props.type === "DeleteMessage") {
+    return (
+      <MessageContent
+        operation={props.type}
+        conversationId={readNumber(configs.conversationId)}
+        messageId={readNumber(configs.messageId)}
+      />
+    );
+  }
+
+  if (props.type === "Comment") {
+    return <CommentContent content={readText(configs.content)} />;
   }
 
   if (props.type === "AssignVariable" || props.type === "VariableAssignerWithinLoop") {

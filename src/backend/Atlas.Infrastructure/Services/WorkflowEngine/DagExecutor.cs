@@ -455,6 +455,12 @@ public sealed class DagExecutor
                             outputs = result.Outputs
                         })),
                         cancellationToken);
+                    await EmitBranchDecisionAsync(
+                        executionId,
+                        node,
+                        result.Outputs,
+                        eventChannel,
+                        cancellationToken);
 
                     await eventChannel.Writer.WriteAsync(
                         new SseEvent("node_complete", JsonSerializer.Serialize(new
@@ -544,6 +550,78 @@ public sealed class DagExecutor
 
             return NodeRunResult.FailedResult(nodeKey, node.Type, $"节点 {nodeKey} 执行异常: {ex.Message}", InterruptType.None);
         }
+    }
+
+    private static async Task EmitBranchDecisionAsync(
+        long executionId,
+        NodeSchema node,
+        IReadOnlyDictionary<string, JsonElement> outputs,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
+        if (eventChannel is null)
+        {
+            return;
+        }
+
+        if (node.Type == WorkflowNodeType.Selector)
+        {
+            var selectedBranch = ResolveSelectedSelectorBranch(outputs);
+            if (selectedBranch is null)
+            {
+                return;
+            }
+
+            await eventChannel.Writer.WriteAsync(
+                new SseEvent("branch_decision", JsonSerializer.Serialize(new
+                {
+                    executionId = executionId.ToString(),
+                    nodeKey = node.Key,
+                    nodeType = node.Type.ToString(),
+                    selectedBranch = selectedBranch == SelectorBranch.True ? "true_branch" : "false_branch",
+                    candidates = new[] { "true_branch", "false_branch" }
+                })),
+                cancellationToken);
+            return;
+        }
+
+        if (node.Type != WorkflowNodeType.IntentDetector)
+        {
+            return;
+        }
+
+        if (!outputs.TryGetValue("detected_intent", out var detectedIntentRaw))
+        {
+            return;
+        }
+
+        var selectedIntent = VariableResolver.ToDisplayText(detectedIntentRaw);
+        if (string.IsNullOrWhiteSpace(selectedIntent))
+        {
+            return;
+        }
+
+        List<string>? candidates = null;
+        if (node.Config.TryGetValue("intents", out var intentsRaw) && intentsRaw.ValueKind == JsonValueKind.Array)
+        {
+            candidates = intentsRaw
+                .EnumerateArray()
+                .Select(VariableResolver.ToDisplayText)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        await eventChannel.Writer.WriteAsync(
+            new SseEvent("branch_decision", JsonSerializer.Serialize(new
+            {
+                executionId = executionId.ToString(),
+                nodeKey = node.Key,
+                nodeType = node.Type.ToString(),
+                selectedBranch = selectedIntent,
+                candidates
+            })),
+            cancellationToken);
     }
 
     private async Task<LoopIterationResult> ExecuteLoopIterationsAsync(
@@ -1055,7 +1133,7 @@ public sealed class DagExecutor
         return unselectedNodes.ToList();
     }
 
-    private static SelectorBranch? ResolveSelectedSelectorBranch(Dictionary<string, JsonElement> outputs)
+    private static SelectorBranch? ResolveSelectedSelectorBranch(IReadOnlyDictionary<string, JsonElement> outputs)
     {
         if (outputs.TryGetValue("selected_branch", out var selectedBranchRaw))
         {
