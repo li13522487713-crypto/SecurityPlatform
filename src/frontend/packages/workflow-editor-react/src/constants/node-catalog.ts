@@ -34,6 +34,7 @@ export const WORKFLOW_NODE_CATALOG: WorkflowNodeCatalogItem[] = [
   { type: "Break", titleKey: "wfUi.nodeTypes.Break", category: "flowControl", color: "#6366F1", iconText: "BK" },
   { type: "Continue", titleKey: "wfUi.nodeTypes.Continue", category: "flowControl", color: "#6366F1", iconText: "CT" },
   { type: "Llm", titleKey: "wfUi.nodeTypes.Llm", category: "ai", color: "#8B5CF6", iconText: "AI" },
+  { type: "Agent", titleKey: "wfUi.nodeTypes.Agent", category: "ai", color: "#8B5CF6", iconText: "AG" },
   { type: "IntentDetector", titleKey: "wfUi.nodeTypes.IntentDetector", category: "ai", color: "#8B5CF6", iconText: "ID" },
   { type: "QuestionAnswer", titleKey: "wfUi.nodeTypes.QuestionAnswer", category: "ai", color: "#8B5CF6", iconText: "QA" },
   { type: "CodeRunner", titleKey: "wfUi.nodeTypes.CodeRunner", category: "dataProcess", color: "#06B6D4", iconText: "CD" },
@@ -42,6 +43,13 @@ export const WORKFLOW_NODE_CATALOG: WorkflowNodeCatalogItem[] = [
   { type: "JsonDeserialization", titleKey: "wfUi.nodeTypes.JsonDeserialization", category: "dataProcess", color: "#06B6D4", iconText: "JD" },
   { type: "VariableAggregator", titleKey: "wfUi.nodeTypes.VariableAggregator", category: "dataProcess", color: "#06B6D4", iconText: "VA" },
   { type: "AssignVariable", titleKey: "wfUi.nodeTypes.AssignVariable", category: "dataProcess", color: "#06B6D4", iconText: "AS" },
+  {
+    type: "VariableAssignerWithinLoop",
+    titleKey: "wfUi.nodeTypes.VariableAssignerWithinLoop",
+    category: "dataProcess",
+    color: "#06B6D4",
+    iconText: "AL"
+  },
   { type: "Plugin", titleKey: "wfUi.nodeTypes.Plugin", category: "external", color: "#F59E0B", iconText: "PL" },
   { type: "HttpRequester", titleKey: "wfUi.nodeTypes.HttpRequester", category: "external", color: "#F59E0B", iconText: "HT" },
   { type: "SubWorkflow", titleKey: "wfUi.nodeTypes.SubWorkflow", category: "external", color: "#F59E0B", iconText: "SW" },
@@ -49,6 +57,7 @@ export const WORKFLOW_NODE_CATALOG: WorkflowNodeCatalogItem[] = [
   { type: "OutputEmitter", titleKey: "wfUi.nodeTypes.OutputEmitter", category: "external", color: "#F59E0B", iconText: "OT" },
   { type: "KnowledgeRetriever", titleKey: "wfUi.nodeTypes.KnowledgeRetriever", category: "knowledge", color: "#10B981", iconText: "KR" },
   { type: "KnowledgeIndexer", titleKey: "wfUi.nodeTypes.KnowledgeIndexer", category: "knowledge", color: "#10B981", iconText: "KW" },
+  { type: "KnowledgeDeleter", titleKey: "wfUi.nodeTypes.KnowledgeDeleter", category: "knowledge", color: "#10B981", iconText: "KD" },
   { type: "Ltm", titleKey: "wfUi.nodeTypes.Ltm", category: "knowledge", color: "#10B981", iconText: "LT" },
   { type: "DatabaseQuery", titleKey: "wfUi.nodeTypes.DatabaseQuery", category: "database", color: "#3B82F6", iconText: "DQ" },
   { type: "DatabaseInsert", titleKey: "wfUi.nodeTypes.DatabaseInsert", category: "database", color: "#3B82F6", iconText: "DI" },
@@ -64,6 +73,7 @@ export const WORKFLOW_NODE_CATALOG: WorkflowNodeCatalogItem[] = [
   { type: "MessageList", titleKey: "wfUi.nodeTypes.MessageList", category: "conversation", color: "#EC4899", iconText: "ML" },
   { type: "CreateMessage", titleKey: "wfUi.nodeTypes.CreateMessage", category: "conversation", color: "#EC4899", iconText: "CM" },
   { type: "EditMessage", titleKey: "wfUi.nodeTypes.EditMessage", category: "conversation", color: "#EC4899", iconText: "EM" },
-  { type: "DeleteMessage", titleKey: "wfUi.nodeTypes.DeleteMessage", category: "conversation", color: "#EC4899", iconText: "DM" }
+  { type: "DeleteMessage", titleKey: "wfUi.nodeTypes.DeleteMessage", category: "conversation", color: "#EC4899", iconText: "DM" },
+  { type: "Comment", titleKey: "wfUi.nodeTypes.Comment", category: "conversation", color: "#64748B", iconText: "CM" }
 ];
 

@@ -18,6 +18,7 @@ export const workflowZhCN = {
     },
     properties: {
       title: "节点属性",
+      basic: "基础设置",
       labelTitle: "标题",
       labelType: "节点类型"
     },
@@ -30,6 +31,7 @@ export const workflowZhCN = {
       Break: "中断循环",
       Continue: "继续循环",
       Llm: "大模型",
+      Agent: "智能体",
       IntentDetector: "意图识别",
       QuestionAnswer: "问答",
       CodeRunner: "代码执行",
@@ -38,6 +40,7 @@ export const workflowZhCN = {
       JsonDeserialization: "JSON反序列化",
       VariableAggregator: "变量聚合",
       AssignVariable: "变量赋值",
+      VariableAssignerWithinLoop: "循环变量赋值",
       Plugin: "插件",
       HttpRequester: "HTTP请求",
       SubWorkflow: "子工作流",
@@ -45,6 +48,7 @@ export const workflowZhCN = {
       OutputEmitter: "中间输出",
       KnowledgeRetriever: "知识检索",
       KnowledgeIndexer: "知识写入",
+      KnowledgeDeleter: "知识删除",
       Ltm: "长期记忆",
       DatabaseQuery: "数据库查询",
       DatabaseInsert: "数据库新增",
@@ -60,7 +64,8 @@ export const workflowZhCN = {
       MessageList: "消息列表",
       CreateMessage: "创建消息",
       EditMessage: "编辑消息",
-      DeleteMessage: "删除消息"
+      DeleteMessage: "删除消息",
+      Comment: "注释"
     }
   }
 };
@@ -85,6 +90,7 @@ export const workflowEnUS = {
     },
     properties: {
       title: "Node Properties",
+      basic: "Basic",
       labelTitle: "Title",
       labelType: "Node Type"
     },
@@ -97,6 +103,7 @@ export const workflowEnUS = {
       Break: "Break",
       Continue: "Continue",
       Llm: "LLM",
+      Agent: "Agent",
       IntentDetector: "Intent Detector",
       QuestionAnswer: "Q&A",
       CodeRunner: "Code Runner",
@@ -105,6 +112,7 @@ export const workflowEnUS = {
       JsonDeserialization: "JSON Deserialization",
       VariableAggregator: "Variable Aggregator",
       AssignVariable: "Assign Variable",
+      VariableAssignerWithinLoop: "Loop Variable Assign",
       Plugin: "Plugin",
       HttpRequester: "HTTP Requester",
       SubWorkflow: "Sub Workflow",
@@ -112,6 +120,7 @@ export const workflowEnUS = {
       OutputEmitter: "Output Emitter",
       KnowledgeRetriever: "Knowledge Search",
       KnowledgeIndexer: "Knowledge Write",
+      KnowledgeDeleter: "Knowledge Delete",
       Ltm: "Long-term Memory",
       DatabaseQuery: "Database Query",
       DatabaseInsert: "Database Insert",
@@ -127,7 +136,8 @@ export const workflowEnUS = {
       MessageList: "Message List",
       CreateMessage: "Create Message",
       EditMessage: "Edit Message",
-      DeleteMessage: "Delete Message"
+      DeleteMessage: "Delete Message",
+      Comment: "Comment"
     }
   }
 };

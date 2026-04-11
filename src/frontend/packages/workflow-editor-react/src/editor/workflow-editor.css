@@ -245,6 +245,29 @@
   color: #6b7280;
 }
 
+.wf-react-section {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.wf-react-section:last-child {
+  border-bottom: 0;
+}
+
+.wf-react-section-title {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #374151;
+  font-weight: 600;
+}
+
+.wf-react-field-label {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
 .wf-react-test-panel {
   position: absolute;
   right: 16px;

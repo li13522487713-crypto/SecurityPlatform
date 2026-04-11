@@ -1,123 +1,130 @@
-import { Button, Collapse, Form, Input, Select, Switch } from "antd";
-import { useMemo } from "react";
+import { Alert, Button, Collapse, Input } from "antd";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { WorkflowNodeCatalogItem } from "../constants/node-catalog";
+import type { NodeTemplateMetadata, NodeTypeMetadata, WorkflowNodeTypeKey } from "../types";
+import { NodeRegistry, mergeNodeDefaults } from "../node-registry";
+import { SchemaForm } from "../form-widgets";
 
 interface PropertiesPanelProps {
-  selectedNode: WorkflowNodeCatalogItem | null;
+  selectedNode: {
+    key: string;
+    type: WorkflowNodeTypeKey;
+    title: string;
+    configs: Record<string, unknown>;
+  } | null;
+  selectedNodeLabel: string;
+  template?: NodeTemplateMetadata;
+  nodeTypeMeta?: NodeTypeMetadata;
   visible: boolean;
+  onChangeNode: (next: { title: string; configs: Record<string, unknown> }) => void;
   onClose: () => void;
 }
 
-function renderNodeSpecificFields(nodeType: string) {
-  switch (nodeType) {
-    case "Entry":
-      return (
-        <>
-          <Form.Item label="会话变量">
-            <Input placeholder="USER_INPUT" />
-          </Form.Item>
-          <Form.Item label="自动保存历史" valuePropName="checked">
-            <Switch defaultChecked />
-          </Form.Item>
-        </>
-      );
-    case "Exit":
-      return (
-        <>
-          <Form.Item label="终止策略">
-            <Select options={[{ value: "return", label: "返回输出" }, { value: "interrupt", label: "中断" }]} />
-          </Form.Item>
-          <Form.Item label="输出模板">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-        </>
-      );
-    case "Llm":
-      return (
-        <>
-          <Form.Item label="模型">
-            <Select options={[{ value: "qwen-max", label: "qwen-max" }, { value: "llama3", label: "llama3" }]} />
-          </Form.Item>
-          <Form.Item label="系统提示词">
-            <Input.TextArea rows={4} />
-          </Form.Item>
-        </>
-      );
-    case "CodeRunner":
-      return (
-        <>
-          <Form.Item label="运行时">
-            <Select options={[{ value: "javascript", label: "JavaScript" }, { value: "python", label: "Python" }]} />
-          </Form.Item>
-          <Form.Item label="代码">
-            <Input.TextArea rows={8} />
-          </Form.Item>
-        </>
-      );
-    case "Selector":
-      return (
-        <>
-          <Form.Item label="条件表达式">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item label="默认分支">
-            <Select options={[{ value: "true", label: "true" }, { value: "false", label: "false" }]} />
-          </Form.Item>
-        </>
-      );
-    default:
-      return (
-        <>
-          <Form.Item label="配置 JSON">
-            <Input.TextArea rows={6} />
-          </Form.Item>
-          <Form.Item label="启用">
-            <Switch defaultChecked />
-          </Form.Item>
-        </>
-      );
-  }
-}
+const nodeRegistry = new NodeRegistry();
 
 export function PropertiesPanel(props: PropertiesPanelProps) {
   const { t } = useTranslation();
-  const items = useMemo(() => {
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftConfig, setDraftConfig] = useState<Record<string, unknown>>({});
+
+  const definition = useMemo(() => {
     if (!props.selectedNode) {
+      return null;
+    }
+    return nodeRegistry.resolve(props.selectedNode.type);
+  }, [props.selectedNode]);
+
+  useEffect(() => {
+    if (!props.selectedNode || !definition) {
+      return;
+    }
+    setDraftTitle(props.selectedNode.title);
+    setDraftConfig(mergeNodeDefaults(definition, props.template, props.selectedNode.configs));
+  }, [definition, props.selectedNode, props.template]);
+
+  const errors = useMemo(() => {
+    if (!definition || !props.selectedNode) {
       return [];
     }
+    return definition.validate?.({ type: props.selectedNode.type, config: draftConfig }) ?? [];
+  }, [definition, draftConfig, props.selectedNode]);
+
+  const items = useMemo(() => {
+    if (!props.selectedNode || !definition) {
+      return [];
+    }
+    const basicSections = definition.sections.filter((section) => !section.advanced);
+    const advancedSections = definition.sections.filter((section) => section.advanced);
+
     return [
       {
         key: "basic",
         label: "基础配置",
         children: (
-          <Form layout="vertical" size="small">
-            <Form.Item label={t("wfUi.properties.labelTitle")}>
-              <Input defaultValue={t(props.selectedNode.titleKey)} />
-            </Form.Item>
-            <Form.Item label={t("wfUi.properties.labelType")}>
-              <Input value={props.selectedNode.type} readOnly />
-            </Form.Item>
-            {renderNodeSpecificFields(props.selectedNode.type)}
-          </Form>
+          <div>
+            <div className="wf-react-section">
+              <div className="wf-react-section-title">{t("wfUi.properties.basic")}</div>
+              <div style={{ marginBottom: 8 }}>
+                <div className="wf-react-field-label">{t("wfUi.properties.labelTitle")}</div>
+                <Input
+                  size="small"
+                  value={draftTitle}
+                  onChange={(event) => {
+                    const nextTitle = event.target.value;
+                    setDraftTitle(nextTitle);
+                    props.onChangeNode({ title: nextTitle, configs: draftConfig });
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <div className="wf-react-field-label">{t("wfUi.properties.labelType")}</div>
+                <Input size="small" value={props.selectedNode.type} readOnly />
+              </div>
+              {props.nodeTypeMeta?.description ? (
+                <div style={{ marginBottom: 8 }}>
+                  <div className="wf-react-field-label">描述</div>
+                  <Input.TextArea rows={2} value={props.nodeTypeMeta.description} readOnly />
+                </div>
+              ) : null}
+            </div>
+            <SchemaForm
+              sections={basicSections}
+              config={draftConfig}
+              onChange={(next) => {
+                setDraftConfig(next);
+                props.onChangeNode({ title: draftTitle, configs: next });
+              }}
+            />
+          </div>
         )
       },
       {
         key: "advanced",
         label: "高级",
-        children: (
-          <Form layout="vertical" size="small">
-            <Form.Item label="输入映射">
-              <Input.TextArea rows={4} placeholder="input.user = {{entry.user}}" />
-            </Form.Item>
-            <Form.Item label="元信息">
-              <Input.TextArea rows={4} placeholder='{"retry":3}' />
-            </Form.Item>
-          </Form>
-        )
+        children:
+          advancedSections.length > 0 ? (
+            <SchemaForm
+              sections={advancedSections}
+              config={draftConfig}
+              onChange={(next) => {
+                setDraftConfig(next);
+                props.onChangeNode({ title: draftTitle, configs: next });
+              }}
+            />
+          ) : (
+            <Input.TextArea rows={4} value={JSON.stringify(draftConfig, null, 2)} readOnly />
+          )
       }
     ];
-  }, [props.selectedNode, t]);
+  }, [
+    definition,
+    draftConfig,
+    draftTitle,
+    props.nodeTypeMeta?.description,
+    props.onChangeNode,
+    props.selectedNode,
+    t
+  ]);
 
   if (!props.visible || !props.selectedNode) {
     return null;
@@ -128,12 +135,27 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
       <div className="wf-react-properties-header">
         <div>
           <div className="wf-react-properties-title">{t("wfUi.properties.title")}</div>
-          <div className="wf-react-properties-subtitle">{t(props.selectedNode.titleKey)}</div>
+          <div className="wf-react-properties-subtitle">{props.selectedNodeLabel}</div>
         </div>
         <Button size="small" onClick={props.onClose}>
           关闭
         </Button>
       </div>
+      {errors.length > 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          message="配置校验"
+          description={
+            <ul style={{ margin: 0, paddingInlineStart: 16 }}>
+              {errors.map((error) => (
+                <li key={error}>{error}</li>
+              ))}
+            </ul>
+          }
+          style={{ marginBottom: 10 }}
+        />
+      ) : null}
       <Collapse size="small" bordered={false} items={items} defaultActiveKey={["basic", "advanced"]} />
     </div>
   );
