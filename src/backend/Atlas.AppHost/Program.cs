@@ -281,6 +281,36 @@ builder.Services.AddAuthentication()
                     context.Token = accessToken;
                 }
                 return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                var principal = context.Principal;
+                if (principal is null)
+                {
+                    context.Fail("Invalid token.");
+                    return Task.CompletedTask;
+                }
+
+                var tenantIdRaw = principal.FindFirstValue("tenant_id");
+                if (!Guid.TryParse(tenantIdRaw, out var tenantGuid))
+                {
+                    context.Fail("Token is missing a valid tenant claim.");
+                    return Task.CompletedTask;
+                }
+
+                var tenancyOptions = context.HttpContext.RequestServices
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<TenancyOptions>>()
+                    .Value;
+                if (context.HttpContext.Request.Headers.TryGetValue(tenancyOptions.HeaderName, out var tenantHeaderRaw)
+                    && Guid.TryParse(tenantHeaderRaw.ToString(), out var headerTenantGuid)
+                    && headerTenantGuid != tenantGuid)
+                {
+                    context.HttpContext.Items[AuthorizationContextKeys.AuthErrorCodeItemKey] = ErrorCodes.CrossTenantForbidden;
+                    context.Fail("租户标识不一致");
+                    return Task.CompletedTask;
+                }
+
+                return Task.CompletedTask;
             }
         };
     })

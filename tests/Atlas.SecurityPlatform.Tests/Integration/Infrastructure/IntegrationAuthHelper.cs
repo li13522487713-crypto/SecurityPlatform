@@ -33,7 +33,12 @@ public static class IntegrationAuthHelper
         };
 
         using var response = await client.PostAsJsonAsync("/api/v1/auth/token", payload, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"Login failed with HTTP {(int)response.StatusCode} {response.StatusCode}. Body: {errorBody}");
+        }
 
         var result = await response.Content.ReadFromJsonAsync<ApiResponse<JsonElement>>(cancellationToken);
         Assert.NotNull(result);

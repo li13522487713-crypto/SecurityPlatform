@@ -81,7 +81,7 @@ public sealed class AuthSecurityIntegrationTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
 
         var payload = await ApiResponseAssert.ReadFailureAsync(response);
-        Assert.Equal(ErrorCodes.Forbidden, payload.Code);
-        Assert.Equal("租户标识不一致", payload.Message);
+        Assert.Equal(ErrorCodes.CrossTenantForbidden, payload.Code);
+        Assert.Equal("禁止跨租户操作。", payload.Message);
     }
 }

@@ -38,7 +38,10 @@ public sealed class WorkflowDraftRepository : RepositoryBase<WorkflowDraft>, IWo
 
     public override async Task UpdateAsync(WorkflowDraft entity, CancellationToken cancellationToken)
     {
-        await _mainDb.Updateable(entity)
+        await _mainDb.Updateable<WorkflowDraft>()
+            .SetColumns(x => x.CanvasJson == entity.CanvasJson)
+            .SetColumns(x => x.CommitId == entity.CommitId)
+            .SetColumns(x => x.UpdatedAt == entity.UpdatedAt)
             .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
             .ExecuteCommandAsync(cancellationToken);
     }

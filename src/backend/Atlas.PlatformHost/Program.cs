@@ -412,6 +412,18 @@ builder.Services.AddAuthentication()
                     return;
                 }
 
+                var tenancyOptions = context.HttpContext.RequestServices
+                    .GetRequiredService<Microsoft.Extensions.Options.IOptions<TenancyOptions>>()
+                    .Value;
+                if (context.HttpContext.Request.Headers.TryGetValue(tenancyOptions.HeaderName, out var tenantHeaderRaw)
+                    && Guid.TryParse(tenantHeaderRaw.ToString(), out var headerTenantGuid)
+                    && headerTenantGuid != tenantGuid)
+                {
+                    context.HttpContext.Items[AuthorizationContextKeys.AuthErrorCodeItemKey] = ErrorCodes.CrossTenantForbidden;
+                    context.Fail("租户标识不一致");
+                    return;
+                }
+
                 var userIdRaw = principal.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (!long.TryParse(userIdRaw, out var userId))
                 {

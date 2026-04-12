@@ -75,17 +75,18 @@ public sealed class WorkflowV2IntegrationTests
 
         var publishedCanvas = BuildTextWorkflowCanvas("已发布版本");
         await SaveDraftAsync(accessToken, csrfToken, workflowId, publishedCanvas);
+        var savedDraftDetail = await GetWorkflowDetailAsync(accessToken, workflowId, "?source=draft");
+        Assert.Equal("已发布版本", GetTextProcessorTemplate(savedDraftDetail));
         await PublishAsync(accessToken, csrfToken, workflowId, "发布初版");
 
         var draftCanvas = BuildTextWorkflowCanvas("草稿新内容");
         await SaveDraftAsync(accessToken, csrfToken, workflowId, draftCanvas);
 
         var publishedDetail = await GetWorkflowDetailAsync(accessToken, workflowId, "?source=published");
-        Assert.Contains("已发布版本", publishedDetail);
-        Assert.DoesNotContain("草稿新内容", publishedDetail);
+        Assert.Equal("已发布版本", GetTextProcessorTemplate(publishedDetail));
 
         var draftDetail = await GetWorkflowDetailAsync(accessToken, workflowId, "?source=draft");
-        Assert.Contains("草稿新内容", draftDetail);
+        Assert.Equal("草稿新内容", GetTextProcessorTemplate(draftDetail));
     }
 
     [Fact]
@@ -229,5 +230,16 @@ public sealed class WorkflowV2IntegrationTests
           ]
         }
         """;
+    }
+
+    private static string GetTextProcessorTemplate(string canvasJson)
+    {
+        using var document = JsonDocument.Parse(canvasJson);
+        var textNode = document.RootElement
+            .GetProperty("nodes")
+            .EnumerateArray()
+            .First(node => node.GetProperty("key").GetString() == "text_1");
+
+        return textNode.GetProperty("config").GetProperty("template").GetString() ?? string.Empty;
     }
 }

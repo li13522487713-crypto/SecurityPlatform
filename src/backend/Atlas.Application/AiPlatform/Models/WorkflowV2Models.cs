@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AiPlatform.ValueObjects;
 
@@ -22,9 +23,24 @@ public sealed record WorkflowV2UpdateMetaRequest(
 public sealed record WorkflowV2PublishRequest(
     string? ChangeLog);
 
-public sealed record WorkflowV2RunRequest(
-    string? InputsJson,
-    string? Source = null);
+public sealed record WorkflowV2RunRequest
+{
+    public WorkflowV2RunRequest()
+    {
+    }
+
+    public WorkflowV2RunRequest(string? inputsJson, string? source = null)
+    {
+        InputsJson = inputsJson;
+        Source = source;
+    }
+
+    [JsonPropertyName("inputsJson")]
+    public string? InputsJson { get; init; }
+
+    [JsonPropertyName("source")]
+    public string? Source { get; init; }
+}
 
 public sealed record WorkflowV2ResumeRequest(
     string? InputsJson,

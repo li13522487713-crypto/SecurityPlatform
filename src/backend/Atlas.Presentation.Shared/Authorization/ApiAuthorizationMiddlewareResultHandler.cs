@@ -42,12 +42,18 @@ public sealed class ApiAuthorizationMiddlewareResultHandler : IAuthorizationMidd
         if (authorizeResult.Challenged)
         {
             var code = ResolveAuthErrorCode(context);
-            var fallback = code == ErrorCodes.TokenExpired
-                ? "Access token expired."
-                : "Authentication failed.";
+            var fallback = code switch
+            {
+                ErrorCodes.TokenExpired => "Access token expired.",
+                ErrorCodes.CrossTenantForbidden => "租户标识不一致",
+                _ => "Authentication failed."
+            };
+            var statusCode = code == ErrorCodes.CrossTenantForbidden
+                ? StatusCodes.Status403Forbidden
+                : StatusCodes.Status401Unauthorized;
             await WriteErrorAsync(
                 context,
-                StatusCodes.Status401Unauthorized,
+                statusCode,
                 code,
                 ResolveLocalizedMessage(code, fallback));
             return;
@@ -90,6 +96,7 @@ public sealed class ApiAuthorizationMiddlewareResultHandler : IAuthorizationMidd
         {
             ErrorCodes.TokenExpired => "TokenExpired",
             ErrorCodes.Forbidden => "Forbidden",
+            ErrorCodes.CrossTenantForbidden => "CrossTenantForbidden",
             ErrorCodes.Unauthorized => "Unauthorized",
             _ => "AuthenticationFailed"
         };

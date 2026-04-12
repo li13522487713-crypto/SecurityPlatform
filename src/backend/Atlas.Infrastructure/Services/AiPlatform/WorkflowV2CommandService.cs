@@ -21,14 +21,13 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
                 new
                 {
                     key = "entry_1",
-                    type = "Entry",
-                    title = "开始",
-                    configs = new
+                    type = (int)WorkflowNodeType.Entry,
+                    label = "开始",
+                    config = new
                     {
                         entryVariable = "USER_INPUT",
                         entryAutoSaveHistory = true
                     },
-                    inputMappings = new { },
                     layout = new
                     {
                         x = 160,
@@ -39,17 +38,14 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
                 },
                 new
                 {
-                    key = "llm_1",
-                    type = "Llm",
-                    title = "大模型",
-                    configs = new
+                    key = "text_1",
+                    type = (int)WorkflowNodeType.TextProcessor,
+                    label = "文本处理",
+                    config = new
                     {
-                        provider = "qwen",
-                        model = "qwen-max",
-                        prompt = "{{entry_1.output}}",
-                        outputKey = "result"
+                        template = "Atlas Workflow Ready",
+                        outputKey = "text_output"
                     },
-                    inputMappings = new { },
                     layout = new
                     {
                         x = 620,
@@ -61,14 +57,13 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
                 new
                 {
                     key = "exit_1",
-                    type = "Exit",
-                    title = "结束",
-                    configs = new
+                    type = (int)WorkflowNodeType.Exit,
+                    label = "结束",
+                    config = new
                     {
                         exitTerminateMode = "return",
-                        exitTemplate = "{{llm_1.result}}"
+                        exitTemplate = "{{text_1.text_output}}"
                     },
-                    inputMappings = new { },
                     layout = new
                     {
                         x = 1080,
@@ -82,18 +77,18 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
             {
                 new
                 {
-                    fromNode = "entry_1",
-                    fromPort = "output",
-                    toNode = "llm_1",
-                    toPort = "input",
+                    sourceNodeKey = "entry_1",
+                    sourcePort = "output",
+                    targetNodeKey = "text_1",
+                    targetPort = "input",
                     condition = (string?)null
                 },
                 new
                 {
-                    fromNode = "llm_1",
-                    fromPort = "output",
-                    toNode = "exit_1",
-                    toPort = "input",
+                    sourceNodeKey = "text_1",
+                    sourcePort = "output",
+                    targetNodeKey = "exit_1",
+                    targetPort = "input",
                     condition = (string?)null
                 }
             },

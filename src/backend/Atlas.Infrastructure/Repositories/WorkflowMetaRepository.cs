@@ -82,7 +82,14 @@ public sealed class WorkflowMetaRepository : RepositoryBase<WorkflowMeta>, IWork
 
     public override async Task UpdateAsync(WorkflowMeta entity, CancellationToken cancellationToken)
     {
-        await _mainDb.Updateable(entity)
+        await _mainDb.Updateable<WorkflowMeta>()
+            .SetColumns(x => x.Name == entity.Name)
+            .SetColumns(x => x.Description == entity.Description)
+            .SetColumns(x => x.Status == entity.Status)
+            .SetColumns(x => x.LatestVersionNumber == entity.LatestVersionNumber)
+            .SetColumns(x => x.UpdatedAt == entity.UpdatedAt)
+            .SetColumns(x => x.PublishedAt == entity.PublishedAt)
+            .SetColumns(x => x.IsDeleted == entity.IsDeleted)
             .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
             .ExecuteCommandAsync(cancellationToken);
     }

@@ -997,9 +997,14 @@ public sealed class CanvasValidator : ICanvasValidator
         switch (value.ValueKind)
         {
             case JsonValueKind.String:
-                foreach (var item in EnumerateVariablePaths(value.GetString() ?? string.Empty))
+                var rawText = value.GetString() ?? string.Empty;
+                foreach (Match match in VariablePlaceholderRegex.Matches(rawText))
                 {
-                    collector.Add(item);
+                    var candidate = match.Groups["path"].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(candidate))
+                    {
+                        collector.Add(candidate);
+                    }
                 }
 
                 break;
