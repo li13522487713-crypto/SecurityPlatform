@@ -40,16 +40,19 @@ export class WorkflowSaveService {
   async loadDocument(): Promise<void> {
     const state = useWorkflowEditorStore.getState();
     state.resetEditorState();
-    const [nodeTypesResp, templatesResp, detailResp] = await Promise.all([
+    const [nodeTypesResp, templatesResp, modelCatalogResp, detailResp] = await Promise.all([
       this.operationService.apiClient?.getNodeTypes?.(),
       this.operationService.apiClient?.getNodeTemplates?.(),
-      this.operationService.apiClient?.getDetail?.(this.operationService.workflowId)
+      this.operationService.apiClient?.getModelCatalog?.(),
+      this.operationService.apiClient?.getDetail?.(this.operationService.workflowId, this.operationService.detailQuery)
     ]);
 
     const nodeTypesMeta = nodeTypesResp?.data ?? [];
     const nodeTemplates = templatesResp?.data ?? [];
+    const modelCatalog = modelCatalogResp?.data ?? [];
     state.setNodeTypesMeta(nodeTypesMeta);
     state.setNodeTemplates(nodeTemplates);
+    state.setModelCatalog(modelCatalog);
 
     if (detailResp?.data) {
       const parsed = parseCanvasJson(detailResp.data.canvasJson);

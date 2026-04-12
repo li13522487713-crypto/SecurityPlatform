@@ -8,13 +8,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
 import {
   WorkflowEditor,
-  type WorkflowApiClient
+  type WorkflowApiClient,
+  type WorkflowDetailQuery
 } from "@atlas/workflow-editor-react";
 
 interface Props {
   workflowId: string;
   locale?: string;
   readOnly?: boolean;
+  detailQuery?: WorkflowDetailQuery;
   apiClient: WorkflowApiClient;
   onBack?: () => void;
 }
@@ -40,6 +42,7 @@ function renderEditor() {
       workflowId: props.workflowId,
       locale: props.locale,
       readOnly: props.readOnly,
+      detailQuery: props.detailQuery,
       apiClient: toRaw(props.apiClient),
       onBack: props.onBack
     })

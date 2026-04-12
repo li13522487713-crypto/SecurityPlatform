@@ -346,6 +346,7 @@ export default {
     aiAssistant: "AI Assistant",
     multiAgent: "Multi-Agent",
     workflows: "Workflows",
+    workflowDatabases: "Workflow Databases",
     logicFlow: "Logic & Batch",
     groupKnowledge: "Knowledge & Assets",
     knowledgeBases: "Knowledge Bases",
@@ -1172,6 +1173,92 @@ export default {
     appKeyPlaceholder: "Enter a unique app key, e.g. my-app",
     restartRequired: "AppHost Restart Required",
     restartRequiredDesc: "Application initialization is complete, but the AppHost service must be restarted to load all business services. Login and full functionality will be available after the restart."
+  },
+  workflowDatabase: {
+    badge: "Workflow Runtime",
+    pageTitle: "Workflow Data & Runtime Resources",
+    pageDesc: "This workspace centralizes the model, table, and logic resources that real workflow execution depends on. Configure an available model first, then move into the workflow editor for drag-and-drop, node debugging, execution, and publishing with Coze-style behavior.",
+    openWorkflows: "Open workflow list",
+    openModelConfigs: "Configure model catalog",
+    recommended: "Recommended first",
+    guideTitle: "Suggested setup order",
+    cards: {
+      models: {
+        title: "Model Catalog",
+        desc: "Manage enabled providers, default models, system prompts, streaming, and reasoning switches for real model-node selection.",
+        action: "Go to model configs"
+      },
+      workflows: {
+        title: "Workflow Editor",
+        desc: "Enter the Coze-style workflow editor to drag nodes, edit properties, debug a single node, and inspect published workflows.",
+        action: "Manage workflows"
+      },
+      tables: {
+        title: "Tables & Variables",
+        desc: "Maintain dynamic tables and business data that back knowledge, database queries, and structured variable writes.",
+        action: "Open data management"
+      },
+      logic: {
+        title: "Logic & Batch",
+        desc: "Open logic orchestration and batch-processing entry points that support Loop, Batch, and Selector style flow control.",
+        action: "View logic capability"
+      }
+    },
+    guides: {
+      provider: {
+        title: "Calibrate providers first",
+        desc: "Enable at least one working model config, otherwise model-node save validation and debug execution will fail clearly."
+      },
+      draft: {
+        title: "Then edit workflow drafts",
+        desc: "Use the workflow page to complete node drag-and-drop, property editing, variable mapping, and version saving before publishing or read-only review."
+      },
+      verify: {
+        title: "Finally verify the real execution path",
+        desc: "Use single-node debug, streaming execution, and resume flows to confirm the model node is calling the backend provider instead of a placeholder UI."
+      }
+    }
+  },
+  workflowList: {
+    pageTitle: "Workflow Management",
+    create: "Create Workflow",
+    createSuccess: "Workflow created",
+    loadFailed: "Failed to load workflows",
+    deleteConfirmTitle: "Confirm delete",
+    deleteConfirmContent: "This workflow cannot be restored after deletion. Continue?",
+    deleteSuccess: "Workflow deleted",
+    newWorkflowNamePrefix: "Workflow",
+    columns: {
+      name: "Name",
+      mode: "Mode",
+      version: "Version",
+      updatedAt: "Updated At",
+      actions: "Actions"
+    },
+    modes: {
+      standard: "Standard",
+      chatflow: "ChatFlow"
+    },
+    actions: {
+      edit: "Edit",
+      viewPublished: "View Published",
+      versionHistory: "Version History",
+      delete: "Delete"
+    },
+    versionDrawer: {
+      title: "Version History for {name}",
+      fallbackTitle: "Version History",
+      empty: "No published versions yet",
+      publisher: "Published by: ",
+      noChangeLog: "No change log provided",
+      loadFailed: "Failed to load version history",
+      viewVersion: "Open this version",
+      viewLatest: "Open latest published",
+      rollback: "Rollback to this version",
+      rollbackConfirmTitle: "Confirm rollback",
+      rollbackConfirmContent: "Rollback the current workflow to v{version}? This will create a new draft/version change.",
+      rollbackSuccess: "Rollback completed"
+    }
   },
   dynamicTable: {
     workbenchTitle: "Data Management",

@@ -20,6 +20,7 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @token = {{login.response.body.data.accessToken}}
+@publishedVersionId = 1
 
 ### ═══════════════════════════════════════════════
 ### CRUD Operations
@@ -53,6 +54,16 @@ X-Tenant-Id: {{tenantId}}
 
 ### ── Get Workflow Detail ──
 GET {{host}}/api/v2/workflows/{{workflowId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### ── Get Workflow Detail (Published Source) ──
+GET {{host}}/api/v2/workflows/{{workflowId}}?source=published
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### ── Get Workflow Detail (Specific Version) ──
+GET {{host}}/api/v2/workflows/{{workflowId}}?source=published&versionId={{publishedVersionId}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
@@ -189,7 +200,7 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### ── Get Execution Trace (API-02) ──
-# 返回结构化步骤列表（Steps[]），包含每个节点的输入/输出/耗时，用于前端时间线回放
+# 返回结构化步骤列表（Steps[]）与 edgeStatuses，用于前端时间线和边状态回放
 GET {{host}}/api/v2/workflows/executions/{{executionId}}/trace
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
@@ -209,7 +220,9 @@ X-Tenant-Id: {{tenantId}}
 
 {
   "nodeKey": "text_1",
-  "inputsJson": "{\"scan_target\":\"example.com\"}"
+  "inputsJson": "{\"scan_target\":\"example.com\"}",
+  "source": "published",
+  "versionId": {{publishedVersionId}}
 }
 
 ### ═══════════════════════════════════════════════
@@ -217,11 +230,16 @@ X-Tenant-Id: {{tenantId}}
 ### ═══════════════════════════════════════════════
 
 ### ── Validate Canvas JSON ──
-# 对已保存草稿进行结构校验，返回 data.isValid + data.errors[]
+# 支持直接提交未保存的 canvasJson / canvas 进行结构校验，返回 data.isValid + data.errors[]
 # 每个 error：{ code, message, nodeKey?, sourcePort?, targetPort? }
 POST {{host}}/api/v2/workflows/{{workflowId}}/validate
+Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+
+{
+  "canvasJson": "{\"nodes\":[{\"key\":\"entry_1\",\"type\":1,\"label\":\"开始\",\"config\":{},\"layout\":{\"x\":100,\"y\":100,\"width\":120,\"height\":60}},{\"key\":\"exit_1\",\"type\":2,\"label\":\"结束\",\"config\":{},\"layout\":{\"x\":360,\"y\":100,\"width\":120,\"height\":60}}],\"connections\":[{\"sourceNodeKey\":\"entry_1\",\"sourcePort\":\"output\",\"targetNodeKey\":\"exit_1\",\"targetPort\":\"input\",\"condition\":null}]}"
+}
 
 ### ═══════════════════════════════════════════════
 ### Node Types

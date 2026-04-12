@@ -2,6 +2,18 @@
 
 ## Workflow V2 API（Coze 40+ 节点复刻）
 
+### 工作流详情读取语义
+
+- `GET /api/v2/workflows/{id}`
+- 查询参数：
+  - `source=draft|published`
+  - `versionId=<WorkflowVersion.Id>`
+- 语义：
+  - 默认读取当前草稿。
+  - `source=published` 读取最新发布版本。
+  - `versionId` 优先级高于 `source`，用于只读查看指定版本。
+  - 请求发布态但工作流尚未发布时，返回 `404 NotFound`。
+
 ### 节点元数据目录
 
 - `GET /api/v2/workflows/node-types`
@@ -14,7 +26,29 @@
 ### 节点模板列表
 
 - `GET /api/v2/workflows/node-templates`
-- 返回每个节点的默认配置模板（用于前端动态表单初始化）
+- 返回每个节点的真实默认配置模板（用于前端动态表单初始化）
+- `Llm` 默认配置至少包含：
+  - `provider`
+  - `model`
+  - `prompt`
+  - `systemPrompt`
+  - `temperature`
+  - `maxTokens`
+  - `stream`
+  - `outputKey`
+
+### 模型目录来源
+
+- 工作流模型节点前端候选源固定复用 `GET /model-configs/enabled`。
+- 返回项映射为：
+  - `provider`
+  - `providerType`
+  - `model`
+  - `label`
+  - `systemPrompt`
+  - `temperature`
+  - `maxTokens`
+  - `enableStreaming`
 
 ### 执行恢复（流式）
 
@@ -37,6 +71,17 @@
   - `published`：按最新发布版本运行（默认）
   - `draft`：按当前草稿运行
 - `source=published` 且 workflow 尚未发布时，返回 `VALIDATION_ERROR`。
+
+### 单节点调试语义
+
+- `POST /api/v2/workflows/{id}/debug-node`
+- 请求体新增可选字段：
+  - `source=draft|published`
+  - `versionId=<WorkflowVersion.Id>`
+- 语义：
+  - 默认调试当前草稿。
+  - `source=published` 调试最新发布版本。
+  - `versionId` 用于指定历史发布版本的只读调试。
 
 ### 画布模型（CanvasSchema）
 
@@ -76,6 +121,32 @@
   - 类型兼容
 - 画布级：
   - 指向不存在节点的悬空连接拦截
+
+### 未保存画布校验
+
+- `POST /api/v2/workflows/{id}/validate`
+- 请求体支持两种形式：
+  - `canvasJson`
+  - `canvas`（结构化 `CanvasSchema`）
+- 若请求体未提供画布，则回退校验已保存草稿。
+- 返回：
+  - `isValid`
+  - `errors[]`
+  - `errors[].code/message/nodeKey/sourcePort/targetPort`
+
+### 执行 Trace
+
+- `GET /api/v2/workflows/executions/{executionId}/trace`
+- 返回：
+  - `steps[]`：节点级执行时间线
+  - `edgeStatuses[]`：边级运行状态回放
+- `edgeStatuses[]` 字段：
+  - `sourceNodeKey`
+  - `sourcePort`
+  - `targetNodeKey`
+  - `targetPort`
+  - `status`
+  - `reason`
 
 ### 历史草稿兼容策略
 

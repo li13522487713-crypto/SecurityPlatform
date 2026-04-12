@@ -14,6 +14,10 @@ function isBenignResizeObserverMessage(message: unknown): boolean {
   return typeof message === "string" && RESIZE_OBSERVER_MESSAGES.some((item) => message.includes(item));
 }
 
+type ResizeObserverWithTakeRecords = ResizeObserver & {
+  takeRecords?: () => ResizeObserverEntry[];
+};
+
 function patchResizeObserver(): void {
   if (typeof window === "undefined" || window.__atlasResizeObserverPatched__) {
     return;
@@ -57,7 +61,8 @@ function patchResizeObserver(): void {
     }
 
     takeRecords(): ResizeObserverEntry[] {
-      return this.observer.takeRecords();
+      const observer = this.observer as ResizeObserverWithTakeRecords;
+      return typeof observer.takeRecords === "function" ? observer.takeRecords() : [];
     }
 
     unobserve(target: Element): void {

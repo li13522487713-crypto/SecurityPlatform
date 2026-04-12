@@ -86,6 +86,10 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   }, [operationService, props]);
 
   useEffect(() => {
+    store.setReadOnlyMode(isReadOnly);
+  }, [isReadOnly, store]);
+
+  useEffect(() => {
     if (props.workflowId) {
       void saveService.loadDocument();
     }

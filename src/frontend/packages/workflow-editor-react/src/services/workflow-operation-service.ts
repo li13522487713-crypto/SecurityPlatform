@@ -23,6 +23,10 @@ export class WorkflowOperationService {
     return this.props?.apiClient;
   }
 
+  get detailQuery() {
+    return this.props?.detailQuery;
+  }
+
   async publish(changeLog?: string): Promise<void> {
     if (this.readonly) {
       return;
@@ -91,7 +95,8 @@ export class WorkflowOperationService {
     }
     return this.apiClient.debugNode(this.workflowId, nodeKey, {
       nodeKey,
-      inputsJson
+      inputsJson,
+      source: this.readonly ? "published" : "draft"
     });
   }
 }

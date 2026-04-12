@@ -31,6 +31,11 @@ public interface IWorkflowVersionRepository
     Task<IReadOnlyList<WorkflowVersion>> ListByWorkflowIdAsync(TenantId tenantId, long workflowId, CancellationToken cancellationToken);
     Task<WorkflowVersion?> GetLatestAsync(TenantId tenantId, long workflowId, CancellationToken cancellationToken);
     Task<WorkflowVersion?> FindByIdAsync(TenantId tenantId, long versionId, CancellationToken cancellationToken);
+    Task<WorkflowVersion?> FindByWorkflowAndVersionNumberAsync(
+        TenantId tenantId,
+        long workflowId,
+        int versionNumber,
+        CancellationToken cancellationToken);
     Task AddAsync(WorkflowVersion entity, CancellationToken cancellationToken);
 }
 

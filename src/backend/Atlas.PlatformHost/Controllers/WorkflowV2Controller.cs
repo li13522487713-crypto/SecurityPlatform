@@ -155,10 +155,14 @@ public sealed class WorkflowV2Controller : ControllerBase
 
     [HttpGet("{id:long}")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2DetailDto>>> GetById(long id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<WorkflowV2DetailDto>>> GetById(
+        long id,
+        [FromQuery] string? source,
+        [FromQuery] long? versionId,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetAsync(tenantId, id, cancellationToken);
+        var result = await _queryService.GetAsync(tenantId, id, cancellationToken, source, versionId);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowV2DetailDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"), HttpContext.TraceIdentifier));
@@ -442,7 +446,9 @@ public sealed class WorkflowV2Controller : ControllerBase
     [HttpPost("{id:long}/validate")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
     public async Task<ActionResult<ApiResponse<CanvasValidationResult>>> ValidateCanvas(
-        long id, CancellationToken cancellationToken)
+        long id,
+        [FromBody] WorkflowV2ValidateRequest? request,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var detail = await _queryService.GetAsync(tenantId, id, cancellationToken);
@@ -454,11 +460,29 @@ public sealed class WorkflowV2Controller : ControllerBase
                 HttpContext.TraceIdentifier));
         }
 
-        var result = _canvasValidator.ValidateCanvas(detail.CanvasJson);
+        var canvasJson = ResolveCanvasJsonForValidation(detail.CanvasJson, request);
+        var result = _canvasValidator.ValidateCanvas(canvasJson);
         _logger.LogInformation(
             "ValidateCanvas: WorkflowId={WorkflowId} IsValid={IsValid} ErrorCount={ErrorCount}",
             id, result.IsValid, result.Errors.Count);
 
         return Ok(ApiResponse<CanvasValidationResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    private static string ResolveCanvasJsonForValidation(
+        string persistedCanvasJson,
+        WorkflowV2ValidateRequest? request)
+    {
+        if (!string.IsNullOrWhiteSpace(request?.CanvasJson))
+        {
+            return request.CanvasJson;
+        }
+
+        if (request?.Canvas is not null)
+        {
+            return JsonSerializer.Serialize(request.Canvas);
+        }
+
+        return persistedCanvasJson;
     }
 }

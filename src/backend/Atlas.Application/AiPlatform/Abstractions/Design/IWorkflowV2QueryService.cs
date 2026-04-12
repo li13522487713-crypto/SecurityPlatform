@@ -15,7 +15,12 @@ public interface IWorkflowV2QueryService
     Task<PagedResult<WorkflowV2ListItem>> ListPublishedAsync(
         TenantId tenantId, string? keyword, int pageIndex, int pageSize, CancellationToken cancellationToken);
 
-    Task<WorkflowV2DetailDto?> GetAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
+    Task<WorkflowV2DetailDto?> GetAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken,
+        string? source = null,
+        long? versionId = null);
 
     Task<IReadOnlyList<WorkflowV2VersionDto>> ListVersionsAsync(
         TenantId tenantId, long workflowId, CancellationToken cancellationToken);

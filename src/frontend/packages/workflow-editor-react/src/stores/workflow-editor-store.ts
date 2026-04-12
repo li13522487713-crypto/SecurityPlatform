@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { TraceStepItem } from "../components/TracePanel";
-import type { NodeTemplateMetadata, NodeTypeMetadata } from "../types";
+import type { NodeTemplateMetadata, NodeTypeMetadata, WorkflowModelCatalogItem } from "../types";
 import type { CanvasConnection, CanvasNode, EdgeRuntimeState, WorkflowViewportState } from "../editor/workflow-editor-state";
 import { INITIAL_CONNECTIONS, INITIAL_NODES } from "../editor/workflow-editor-state";
 
@@ -21,6 +21,8 @@ export interface WorkflowEditorState {
   canvasGlobals: Record<string, unknown>;
   nodeTypesMeta: NodeTypeMetadata[];
   nodeTemplates: NodeTemplateMetadata[];
+  modelCatalog: WorkflowModelCatalogItem[];
+  readOnlyMode: boolean;
   logs: string[];
   traceSteps: TraceStepItem[];
   executionStateByNodeKey: Record<string, NodeExecutionState>;
@@ -46,6 +48,8 @@ export interface WorkflowEditorState {
   setCanvasGlobals: (globals: Record<string, unknown>) => void;
   setNodeTypesMeta: (meta: NodeTypeMetadata[]) => void;
   setNodeTemplates: (templates: NodeTemplateMetadata[]) => void;
+  setModelCatalog: (catalog: WorkflowModelCatalogItem[]) => void;
+  setReadOnlyMode: (readOnly: boolean) => void;
   setSaving: (saving: boolean) => void;
   setTestRunning: (running: boolean) => void;
   setDebugRunning: (running: boolean) => void;
@@ -103,6 +107,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
   canvasGlobals: {},
   nodeTypesMeta: [],
   nodeTemplates: [],
+  modelCatalog: [],
+  readOnlyMode: false,
   logs: [],
   traceSteps: [],
   executionStateByNodeKey: {},
@@ -129,6 +135,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
   setCanvasGlobals: (canvasGlobals) => set({ canvasGlobals }),
   setNodeTypesMeta: (nodeTypesMeta) => set({ nodeTypesMeta }),
   setNodeTemplates: (nodeTemplates) => set({ nodeTemplates }),
+  setModelCatalog: (modelCatalog) => set({ modelCatalog }),
+  setReadOnlyMode: (readOnlyMode) => set({ readOnlyMode }),
   setSaving: (saving) => set({ saving }),
   setTestRunning: (testRunning) => set({ testRunning }),
   setDebugRunning: (debugRunning) => set({ debugRunning }),
@@ -193,6 +201,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
       canvasGlobals: {},
       nodeTypesMeta: [],
       nodeTemplates: [],
+      modelCatalog: [],
+      readOnlyMode: false,
       logs: [],
       traceSteps: [],
       executionStateByNodeKey: {},

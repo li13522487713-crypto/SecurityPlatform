@@ -57,10 +57,39 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return new PagedResult<WorkflowV2ListItem>(dtos, total, pageIndex, pageSize);
     }
 
-    public async Task<WorkflowV2DetailDto?> GetAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
+    public async Task<WorkflowV2DetailDto?> GetAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken,
+        string? source = null,
+        long? versionId = null)
     {
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, id, cancellationToken);
         if (meta is null) return null;
+
+        if (string.Equals(source, "published", StringComparison.OrdinalIgnoreCase) || versionId.HasValue)
+        {
+            WorkflowVersion? version = null;
+            if (versionId.HasValue)
+            {
+                version = await _versionRepo.FindByIdAsync(tenantId, versionId.Value, cancellationToken);
+                if (version is null || version.WorkflowId != meta.Id)
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                version = await _versionRepo.GetLatestAsync(tenantId, meta.Id, cancellationToken);
+            }
+
+            if (version is null)
+            {
+                return null;
+            }
+
+            return MapDetail(meta, version);
+        }
 
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken);
         return MapDetail(meta, draft);
@@ -169,10 +198,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         var templates = _registry.GetAllTypes()
             .Select(metadata =>
             {
-                var declaration = _registry.GetDeclaration(metadata.Type);
-                var defaultConfig = declaration is null
-                    ? new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
-                    : ResolveDefaultConfig(declaration.ConfigSchemaJson);
+                var defaultConfig = BuiltInWorkflowNodeDeclarations.GetDefaultConfig(metadata.Type);
                 return new WorkflowV2NodeTemplateDto(
                     metadata.Key,
                     metadata.Name,
@@ -211,6 +237,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         var durationMs = execution.CompletedAt.HasValue
             ? (long)(execution.CompletedAt.Value - execution.StartedAt).TotalMilliseconds
             : null as long?;
+        var edgeStatuses = await ResolveEdgeStatusesAsync(tenantId, execution, nodeExecutions, cancellationToken);
 
         return new WorkflowV2RunTraceDto(
             executionId.ToString(),
@@ -220,7 +247,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             execution.CompletedAt,
             durationMs,
             steps,
-            EdgeStatuses: null);
+            edgeStatuses);
     }
 
     private static Dictionary<string, JsonElement>? TryParseJsonDict(string? json)
@@ -241,6 +268,246 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         {
             return null;
         }
+    }
+
+    private async Task<IReadOnlyList<WorkflowV2EdgeRuntimeStatusDto>> ResolveEdgeStatusesAsync(
+        TenantId tenantId,
+        WorkflowExecution execution,
+        IReadOnlyList<WorkflowNodeExecution> nodeExecutions,
+        CancellationToken cancellationToken)
+    {
+        var canvas = await ResolveExecutionCanvasAsync(tenantId, execution, cancellationToken);
+        if (canvas is null || canvas.Connections.Count == 0)
+        {
+            return Array.Empty<WorkflowV2EdgeRuntimeStatusDto>();
+        }
+
+        var nodeExecutionMap = nodeExecutions
+            .GroupBy(node => node.NodeKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.CompletedAt ?? item.StartedAt ?? DateTime.MinValue)
+                    .First(),
+                StringComparer.OrdinalIgnoreCase);
+        var nodeMap = canvas.Nodes.ToDictionary(node => node.Key, StringComparer.OrdinalIgnoreCase);
+        var statuses = new List<WorkflowV2EdgeRuntimeStatusDto>(canvas.Connections.Count);
+
+        foreach (var connection in canvas.Connections)
+        {
+            nodeExecutionMap.TryGetValue(connection.SourceNodeKey, out var sourceExecution);
+            nodeExecutionMap.TryGetValue(connection.TargetNodeKey, out var targetExecution);
+            nodeMap.TryGetValue(connection.SourceNodeKey, out var sourceNode);
+
+            var (status, reason) = ResolveEdgeStatus(
+                execution.Status,
+                connection,
+                sourceNode,
+                sourceExecution,
+                targetExecution);
+            statuses.Add(new WorkflowV2EdgeRuntimeStatusDto(
+                connection.SourceNodeKey,
+                connection.SourcePort,
+                connection.TargetNodeKey,
+                connection.TargetPort,
+                status,
+                reason));
+        }
+
+        return statuses;
+    }
+
+    private async Task<Domain.AiPlatform.ValueObjects.CanvasSchema?> ResolveExecutionCanvasAsync(
+        TenantId tenantId,
+        WorkflowExecution execution,
+        CancellationToken cancellationToken)
+    {
+        string? canvasJson = null;
+        if (execution.VersionNumber > 0)
+        {
+            var version = await _versionRepo.FindByWorkflowAndVersionNumberAsync(
+                tenantId,
+                execution.WorkflowId,
+                execution.VersionNumber,
+                cancellationToken);
+            canvasJson = version?.CanvasJson;
+        }
+
+        if (string.IsNullOrWhiteSpace(canvasJson))
+        {
+            var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, execution.WorkflowId, cancellationToken);
+            canvasJson = draft?.CanvasJson;
+        }
+
+        return string.IsNullOrWhiteSpace(canvasJson)
+            ? null
+            : DagExecutor.ParseCanvas(canvasJson);
+    }
+
+    private static (EdgeExecutionStatus Status, string? Reason) ResolveEdgeStatus(
+        ExecutionStatus executionStatus,
+        Domain.AiPlatform.ValueObjects.ConnectionSchema connection,
+        Domain.AiPlatform.ValueObjects.NodeSchema? sourceNode,
+        WorkflowNodeExecution? sourceExecution,
+        WorkflowNodeExecution? targetExecution)
+    {
+        if (sourceExecution is null)
+        {
+            return (EdgeExecutionStatus.Idle, null);
+        }
+
+        if (sourceExecution.Status == ExecutionStatus.Completed &&
+            sourceNode?.Type == WorkflowNodeType.Selector &&
+            TryResolveSelectorSkipReason(connection, sourceExecution.OutputsJson, out var selectorReason))
+        {
+            return (EdgeExecutionStatus.Skipped, selectorReason);
+        }
+
+        return sourceExecution.Status switch
+        {
+            ExecutionStatus.Failed => (EdgeExecutionStatus.Failed, "source_failed"),
+            ExecutionStatus.Blocked => (EdgeExecutionStatus.Failed, "source_blocked"),
+            ExecutionStatus.Skipped => (EdgeExecutionStatus.Skipped, "source_skipped"),
+            ExecutionStatus.Completed => ResolveCompletedSourceEdgeStatus(executionStatus, targetExecution),
+            _ => (EdgeExecutionStatus.Idle, null)
+        };
+    }
+
+    private static (EdgeExecutionStatus Status, string? Reason) ResolveCompletedSourceEdgeStatus(
+        ExecutionStatus executionStatus,
+        WorkflowNodeExecution? targetExecution)
+    {
+        if (targetExecution is null)
+        {
+            return executionStatus switch
+            {
+                ExecutionStatus.Completed => (EdgeExecutionStatus.Success, null),
+                ExecutionStatus.Failed or ExecutionStatus.Cancelled or ExecutionStatus.Interrupted => (EdgeExecutionStatus.Failed, "target_not_reached"),
+                _ => (EdgeExecutionStatus.Idle, null)
+            };
+        }
+
+        return targetExecution.Status switch
+        {
+            ExecutionStatus.Completed or ExecutionStatus.Running or ExecutionStatus.Interrupted => (EdgeExecutionStatus.Success, null),
+            ExecutionStatus.Skipped => (EdgeExecutionStatus.Skipped, targetExecution.ErrorMessage),
+            ExecutionStatus.Blocked => (EdgeExecutionStatus.Failed, targetExecution.ErrorMessage ?? "target_blocked"),
+            ExecutionStatus.Failed => (EdgeExecutionStatus.Failed, targetExecution.ErrorMessage ?? "target_failed"),
+            _ => (EdgeExecutionStatus.Idle, null)
+        };
+    }
+
+    private static bool TryResolveSelectorSkipReason(
+        Domain.AiPlatform.ValueObjects.ConnectionSchema connection,
+        string? outputsJson,
+        out string reason)
+    {
+        reason = string.Empty;
+        var outputs = TryParseJsonDict(outputsJson);
+        if (outputs is null)
+        {
+            return false;
+        }
+
+        var selectedBranch = ResolveSelectedSelectorBranch(outputs);
+        if (selectedBranch == SelectorBranch.True && IsSelectorFalseConnection(connection))
+        {
+            reason = "selector_unselected_branch";
+            return true;
+        }
+
+        if (selectedBranch == SelectorBranch.False && IsSelectorTrueConnection(connection))
+        {
+            reason = "selector_unselected_branch";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static SelectorBranch? ResolveSelectedSelectorBranch(IReadOnlyDictionary<string, JsonElement> outputs)
+    {
+        if (outputs.TryGetValue("selected_branch", out var selectedBranchRaw))
+        {
+            var selectedBranchText = VariableResolver.ToDisplayText(selectedBranchRaw);
+            if (selectedBranchText.Contains("true", StringComparison.OrdinalIgnoreCase))
+            {
+                return SelectorBranch.True;
+            }
+
+            if (selectedBranchText.Contains("false", StringComparison.OrdinalIgnoreCase))
+            {
+                return SelectorBranch.False;
+            }
+        }
+
+        if (outputs.TryGetValue("selector_result", out var selectorResultRaw) &&
+            VariableResolver.TryGetBoolean(selectorResultRaw, out var boolResult))
+        {
+            return boolResult ? SelectorBranch.True : SelectorBranch.False;
+        }
+
+        return null;
+    }
+
+    private static bool IsSelectorTrueConnection(Domain.AiPlatform.ValueObjects.ConnectionSchema connection)
+    {
+        var condition = connection.Condition ?? string.Empty;
+        if (condition.Contains("selector_result", StringComparison.OrdinalIgnoreCase) &&
+            condition.Contains("true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (condition.Contains("selected_branch", StringComparison.OrdinalIgnoreCase) &&
+            condition.Contains("true_branch", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(condition, "true", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(condition, "1", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return connection.SourcePort.Contains("true", StringComparison.OrdinalIgnoreCase) ||
+               connection.TargetPort.Contains("true", StringComparison.OrdinalIgnoreCase) ||
+               connection.SourcePort.Contains("yes", StringComparison.OrdinalIgnoreCase) ||
+               connection.TargetPort.Contains("yes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSelectorFalseConnection(Domain.AiPlatform.ValueObjects.ConnectionSchema connection)
+    {
+        var condition = connection.Condition ?? string.Empty;
+        if (condition.Contains("selector_result", StringComparison.OrdinalIgnoreCase) &&
+            condition.Contains("false", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (condition.Contains("selected_branch", StringComparison.OrdinalIgnoreCase) &&
+            condition.Contains("false_branch", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(condition, "false", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(condition, "0", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return connection.SourcePort.Contains("false", StringComparison.OrdinalIgnoreCase) ||
+               connection.TargetPort.Contains("false", StringComparison.OrdinalIgnoreCase) ||
+               connection.SourcePort.Contains("no", StringComparison.OrdinalIgnoreCase) ||
+               connection.TargetPort.Contains("no", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private enum SelectorBranch
+    {
+        True = 1,
+        False = 2
     }
 
     public async Task<WorkflowVersionDiff?> GetVersionDiffAsync(
@@ -340,36 +607,6 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return 0;
     }
 
-    private static Dictionary<string, JsonElement> ResolveDefaultConfig(string? schemaJson)
-    {
-        if (string.IsNullOrWhiteSpace(schemaJson))
-        {
-            return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(schemaJson);
-            if (doc.RootElement.TryGetProperty("default", out var defaultConfig) &&
-                defaultConfig.ValueKind == JsonValueKind.Object)
-            {
-                var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-                foreach (var p in defaultConfig.EnumerateObject())
-                {
-                    result[p.Name] = p.Value.Clone();
-                }
-
-                return result;
-            }
-        }
-        catch
-        {
-            // Ignore invalid config schema json.
-        }
-
-        return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-    }
-
     private static WorkflowV2ListItem MapListItem(WorkflowMeta meta)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
             meta.LatestVersionNumber, meta.CreatorId, meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
@@ -379,6 +616,13 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             meta.LatestVersionNumber, meta.CreatorId,
             draft?.CanvasJson ?? "{}",
             draft?.CommitId,
+            meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
+
+    private static WorkflowV2DetailDto MapDetail(WorkflowMeta meta, WorkflowVersion version)
+        => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
+            meta.LatestVersionNumber, meta.CreatorId,
+            version.CanvasJson,
+            null,
             meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
 
     private static WorkflowV2VersionDto MapVersion(WorkflowVersion v)

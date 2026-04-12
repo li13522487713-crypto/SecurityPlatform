@@ -17,6 +17,7 @@ interface SchemaFormProps {
   onChange: (next: Record<string, unknown>) => void;
   fieldErrors?: Record<string, string[]>;
   variableSuggestions?: Array<{ value: string; label?: string }>;
+  disabled?: boolean;
 }
 
 function asString(value: unknown): string {
@@ -51,6 +52,24 @@ function fromKeyValueRows(rows: Array<{ key: string; value: string }>): Record<s
     result[key] = row.value;
   }
   return result;
+}
+
+function formatReadonlyValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function KeyValueEditor(props: {
@@ -119,17 +138,32 @@ function renderField(
   field: FormFieldSchema,
   config: Record<string, unknown>,
   onChange: (next: Record<string, unknown>) => void,
-  variableSuggestions: Array<{ value: string; label?: string }>
+  variableSuggestions: Array<{ value: string; label?: string }>,
+  disabled: boolean
 ) {
   const current = getValueByPath(config, field.path);
   const updatePath = (nextValue: unknown) => onChange(setValueByPath(config, field.path, nextValue));
+  const readonlyRows = field.rows ?? (field.kind === "json" || field.kind === "code" || field.kind === "codeEditor" ? 8 : 4);
+
+  if (disabled && ["variableRefPicker", "expression", "keyValue", "objectEditor", "tagInput", "arrayEditor", "conditionBuilder"].includes(field.kind)) {
+    return <Input.TextArea rows={readonlyRows} value={formatReadonlyValue(current)} readOnly />;
+  }
 
   if (field.kind === "text") {
-    return <Input size="small" value={asString(current)} placeholder={field.placeholder} onChange={(event) => updatePath(event.target.value)} />;
+    return (
+      <Input
+        size="small"
+        disabled={disabled}
+        value={asString(current)}
+        placeholder={field.placeholder}
+        onChange={(event) => updatePath(event.target.value)}
+      />
+    );
   }
   if (field.kind === "textarea") {
     return (
       <Input.TextArea
+        disabled={disabled}
         rows={field.rows ?? 4}
         value={asString(current)}
         placeholder={field.placeholder}
@@ -138,11 +172,12 @@ function renderField(
     );
   }
   if (field.kind === "number") {
-    return <InputNumber min={field.min} max={field.max} value={asNumber(current)} style={{ width: "100%" }} onChange={(value) => updatePath(value)} />;
+    return <InputNumber disabled={disabled} min={field.min} max={field.max} value={asNumber(current)} style={{ width: "100%" }} onChange={(value) => updatePath(value)} />;
   }
   if (field.kind === "slider") {
     return (
       <Slider
+        disabled={disabled}
         min={field.min ?? 0}
         max={field.max ?? 1}
         step={field.step ?? 0.1}
@@ -152,13 +187,29 @@ function renderField(
     );
   }
   if (field.kind === "switch") {
-    return <Switch checked={asBoolean(current)} onChange={(checked) => updatePath(checked)} />;
+    return <Switch disabled={disabled} checked={asBoolean(current)} onChange={(checked) => updatePath(checked)} />;
   }
   if (field.kind === "select") {
-    return <Select value={current as string | number | boolean | undefined} options={field.options} onChange={(value) => updatePath(value)} />;
+    return (
+      <Select
+        disabled={disabled}
+        showSearch
+        optionFilterProp="label"
+        value={current as string | number | boolean | undefined}
+        options={field.options}
+        onChange={(value) => updatePath(value)}
+      />
+    );
   }
   if (field.kind === "radioGroup") {
-    return <Radio.Group options={field.options} value={current as string | number | boolean | undefined} onChange={(event) => updatePath(event.target.value)} />;
+    return (
+      <Radio.Group
+        disabled={disabled}
+        options={field.options}
+        value={current as string | number | boolean | undefined}
+        onChange={(event) => updatePath(event.target.value)}
+      />
+    );
   }
   if (field.kind === "keyValue") {
     return <KeyValueEditor value={current} onChange={(next) => updatePath(next)} valueSuggestions={variableSuggestions} />;
@@ -211,9 +262,13 @@ function renderField(
             fontSize: 12,
             lineNumbers: "on",
             scrollBeyondLastLine: false,
-            automaticLayout: true
+            automaticLayout: true,
+            readOnly: disabled
           }}
           onChange={(value) => {
+            if (disabled) {
+              return;
+            }
             const raw = value ?? "";
             try {
               const parsed = JSON.parse(raw);
@@ -240,16 +295,20 @@ function renderField(
             fontSize: 12,
             lineNumbers: "on",
             scrollBeyondLastLine: false,
-            automaticLayout: true
+            automaticLayout: true,
+            readOnly: disabled
           }}
           onChange={(value) => {
+            if (disabled) {
+              return;
+            }
             updatePath(value ?? "");
           }}
         />
       </div>
     );
   }
-  return <Input size="small" value={asString(current)} onChange={(event) => updatePath(event.target.value)} />;
+  return <Input size="small" disabled={disabled} value={asString(current)} onChange={(event) => updatePath(event.target.value)} />;
 }
 
 export function SchemaForm(props: SchemaFormProps) {
@@ -267,7 +326,7 @@ export function SchemaForm(props: SchemaFormProps) {
               validateStatus={props.fieldErrors?.[field.path]?.length ? "error" : undefined}
               help={props.fieldErrors?.[field.path]?.join(" ")}
             >
-              {renderField(field, props.config, props.onChange, suggestions)}
+              {renderField(field, props.config, props.onChange, suggestions, Boolean(props.disabled))}
             </Form.Item>
           ))}
         </div>

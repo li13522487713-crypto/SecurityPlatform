@@ -48,6 +48,20 @@ public sealed class WorkflowVersionRepository : RepositoryBase<WorkflowVersion>,
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<WorkflowVersion?> FindByWorkflowAndVersionNumberAsync(
+        TenantId tenantId,
+        long workflowId,
+        int versionNumber,
+        CancellationToken cancellationToken)
+    {
+        return await _mainDb.Queryable<WorkflowVersion>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value &&
+                x.WorkflowId == workflowId &&
+                x.VersionNumber == versionNumber)
+            .FirstAsync(cancellationToken);
+    }
+
     public override async Task AddAsync(WorkflowVersion entity, CancellationToken cancellationToken)
     {
         await _mainDb.Insertable(entity).ExecuteCommandAsync(cancellationToken);

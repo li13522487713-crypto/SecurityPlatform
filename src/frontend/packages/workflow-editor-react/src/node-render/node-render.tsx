@@ -22,11 +22,6 @@ export function WorkflowNodeRender() {
     <WorkflowNodeRenderer
       node={render.node}
       className="wf-node-render-shell"
-      onClick={() => {
-        if (nodeKey) {
-          selectNode(nodeKey);
-        }
-      }}
       onPortClick={(port, event) => {
         if (event && typeof (event as { stopPropagation?: () => void }).stopPropagation === "function") {
           (event as { stopPropagation: () => void }).stopPropagation();
@@ -40,7 +35,14 @@ export function WorkflowNodeRender() {
         });
       }}
     >
-      <NodeRenderWrapper selected={render.selected}>
+      <NodeRenderWrapper
+        selected={render.selected}
+        onClick={() => {
+          if (nodeKey) {
+            selectNode(nodeKey);
+          }
+        }}
+      >
         <NodeRenderHeader title={title} type={String(render.type)} />
         <ExecuteStatusBar status={status} />
         <NodeContentMap type={String(render.type)} data={data} />

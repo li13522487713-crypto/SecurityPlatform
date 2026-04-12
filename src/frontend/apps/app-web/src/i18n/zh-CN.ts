@@ -346,6 +346,7 @@ export default {
     aiAssistant: "AI 助手",
     multiAgent: "多 Agent 编排",
     workflows: "工作流管理",
+    workflowDatabases: "工作流数据库",
     logicFlow: "逻辑与批处理",
     groupKnowledge: "知识与资产",
     knowledgeBases: "知识库配置",
@@ -1169,6 +1170,92 @@ export default {
     appKeyPlaceholder: "请输入唯一的应用标识，例如 my-app",
     restartRequired: "需要重启应用服务",
     restartRequiredDesc: "应用初始化已完成，但需要重启 AppHost 服务以加载全量业务功能。重启后方可正常登录和使用应用。"
+  },
+  workflowDatabase: {
+    badge: "Workflow Runtime",
+    pageTitle: "工作流数据库与运行资源",
+    pageDesc: "这里集中承载工作流运行真正依赖的模型、数据表和逻辑资源。先配置可用模型，再进入工作流编辑器拖拽节点、调试执行和发布版本，能更稳定地复刻 Coze 的真实交互闭环。",
+    openWorkflows: "打开工作流列表",
+    openModelConfigs: "配置模型目录",
+    recommended: "推荐先完成",
+    guideTitle: "接入顺序建议",
+    cards: {
+      models: {
+        title: "模型目录",
+        desc: "维护启用中的 provider、默认模型、system prompt、流式输出与推理开关，供模型节点真实下拉选择。",
+        action: "前往模型配置"
+      },
+      workflows: {
+        title: "工作流编辑器",
+        desc: "进入 Coze 风格工作流编辑器，拖拽节点、配置属性、调试单节点并查看发布态工作流。",
+        action: "管理工作流"
+      },
+      tables: {
+        title: "数据表与变量",
+        desc: "维护动态数据表和业务数据，为知识、数据库查询与结构化变量写入提供落点。",
+        action: "打开数据管理"
+      },
+      logic: {
+        title: "逻辑与批处理",
+        desc: "查看逻辑编排与批处理入口，适配 Loop、Batch、Selector 这类流程控制型能力。",
+        action: "查看逻辑能力"
+      }
+    },
+    guides: {
+      provider: {
+        title: "先校准模型提供方",
+        desc: "至少启用一个可用模型配置，否则模型节点保存校验和调试执行都会明确失败。"
+      },
+      draft: {
+        title: "再编辑草稿工作流",
+        desc: "在工作流页完成节点拖拽、属性配置、变量映射和版本保存，再进入发布或只读查看。"
+      },
+      verify: {
+        title: "最后验证真实运行链路",
+        desc: "使用单节点调试、流式运行和恢复能力确认模型节点确实走后端 provider，而不是占位 UI。"
+      }
+    }
+  },
+  workflowList: {
+    pageTitle: "工作流管理",
+    create: "新建工作流",
+    createSuccess: "创建成功",
+    loadFailed: "工作流加载失败",
+    deleteConfirmTitle: "确认删除",
+    deleteConfirmContent: "删除后不可恢复，是否继续？",
+    deleteSuccess: "删除成功",
+    newWorkflowNamePrefix: "工作流",
+    columns: {
+      name: "名称",
+      mode: "模式",
+      version: "版本",
+      updatedAt: "更新时间",
+      actions: "操作"
+    },
+    modes: {
+      standard: "标准",
+      chatflow: "对话流"
+    },
+    actions: {
+      edit: "编辑",
+      viewPublished: "发布态查看",
+      versionHistory: "版本历史",
+      delete: "删除"
+    },
+    versionDrawer: {
+      title: "{name} 的版本历史",
+      fallbackTitle: "版本历史",
+      empty: "暂无发布版本",
+      publisher: "发布人：",
+      noChangeLog: "未填写变更说明",
+      loadFailed: "版本历史加载失败",
+      viewVersion: "查看此版本",
+      viewLatest: "查看最新发布态",
+      rollback: "回滚到此版本",
+      rollbackConfirmTitle: "确认回滚版本",
+      rollbackConfirmContent: "确认将当前工作流回滚到 v{version} 吗？系统会生成一个新的草稿/版本变更。",
+      rollbackSuccess: "版本回滚成功"
+    }
   },
   dynamicTable: {
     workbenchTitle: "数据管理",

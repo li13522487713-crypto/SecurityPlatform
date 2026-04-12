@@ -298,10 +298,13 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
 
-        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
-            ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
-
-        var fullCanvas = DagExecutor.ParseCanvas(draft.CanvasJson)
+        var resolvedCanvas = await ResolveWorkflowCanvasAsync(
+            tenantId,
+            meta.Id,
+            request.Source ?? "draft",
+            request.VersionId,
+            cancellationToken);
+        var fullCanvas = DagExecutor.ParseCanvas(resolvedCanvas.CanvasJson)
             ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
 
         // 提取目标节点，构建 Entry → Target → Exit 最小子图
@@ -350,7 +353,15 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
 
         var inputs = MergeWithCanvasGlobals(fullCanvas, ParseInputs(request.InputsJson));
         var appId = _appContextAccessor.ResolveAppId();
-        var execution = new WorkflowExecution(tenantId, workflowId, 0, userId, request.InputsJson, _idGenerator.NextId(), appId);
+        var execution = new WorkflowExecution(
+            tenantId,
+            workflowId,
+            resolvedCanvas.VersionNumber,
+            userId,
+            request.InputsJson,
+            _idGenerator.NextId(),
+            appId,
+            isDebug: true);
         await _executionRepo.AddAsync(execution, cancellationToken);
 
         await _dagExecutor.RunAsync(tenantId, execution, debugCanvas, inputs, eventChannel: null, cancellationToken);
@@ -477,43 +488,68 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
 
-        var runSource = ResolveRunSource(request.Source);
-        var canvasJson = await ResolveRunCanvasJsonAsync(tenantId, meta.Id, runSource, cancellationToken);
-        var canvas = DagExecutor.ParseCanvas(canvasJson)
+        var resolvedCanvas = await ResolveWorkflowCanvasAsync(tenantId, meta.Id, request.Source, null, cancellationToken);
+        var canvas = DagExecutor.ParseCanvas(resolvedCanvas.CanvasJson)
             ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
 
         var inputs = MergeWithCanvasGlobals(canvas, ParseInputs(request.InputsJson));
         var appId = _appContextAccessor.ResolveAppId();
-        var execution = new WorkflowExecution(tenantId, workflowId, meta.LatestVersionNumber, userId, request.InputsJson, _idGenerator.NextId(), appId);
+        var execution = new WorkflowExecution(
+            tenantId,
+            workflowId,
+            resolvedCanvas.VersionNumber,
+            userId,
+            request.InputsJson,
+            _idGenerator.NextId(),
+            appId);
         await _executionRepo.AddAsync(execution, cancellationToken);
 
         return (execution, canvas, inputs);
     }
 
-    private async Task<string> ResolveRunCanvasJsonAsync(
+    private async Task<ResolvedWorkflowCanvas> ResolveWorkflowCanvasAsync(
         TenantId tenantId,
         long workflowId,
-        WorkflowRunSource runSource,
+        string? source,
+        long? versionId,
         CancellationToken cancellationToken)
     {
+        var runSource = ResolveRunSource(source, versionId);
         if (runSource == WorkflowRunSource.Published)
         {
-            var latestVersion = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
-            if (latestVersion is null)
+            WorkflowVersion? version;
+            if (versionId.HasValue)
             {
-                throw new BusinessException("工作流尚未发布，无法按 published 方式运行。", ErrorCodes.ValidationError);
+                version = await _versionRepo.FindByIdAsync(tenantId, versionId.Value, cancellationToken);
+                if (version is null || version.WorkflowId != workflowId)
+                {
+                    throw new BusinessException("指定的工作流版本不存在。", ErrorCodes.NotFound);
+                }
+            }
+            else
+            {
+                version = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
+                if (version is null)
+                {
+                    throw new BusinessException("工作流尚未发布，无法按 published 方式运行。", ErrorCodes.ValidationError);
+                }
             }
 
-            return latestVersion.CanvasJson;
+            return new ResolvedWorkflowCanvas(version.CanvasJson, version.VersionNumber);
         }
 
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
-        return draft.CanvasJson;
+        return new ResolvedWorkflowCanvas(draft.CanvasJson, 0);
     }
 
-    private static WorkflowRunSource ResolveRunSource(string? source)
+    private static WorkflowRunSource ResolveRunSource(string? source, long? versionId)
     {
+        if (versionId.HasValue)
+        {
+            return WorkflowRunSource.Published;
+        }
+
         if (string.Equals(source, "draft", StringComparison.OrdinalIgnoreCase))
         {
             return WorkflowRunSource.Draft;
@@ -527,6 +563,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         Published = 1,
         Draft = 2
     }
+
+    private sealed record ResolvedWorkflowCanvas(string CanvasJson, int VersionNumber);
 
     private static Dictionary<string, JsonElement> ParseInputs(string? inputsJson)
     {

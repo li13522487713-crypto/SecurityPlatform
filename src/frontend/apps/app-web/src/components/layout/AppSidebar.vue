@@ -113,6 +113,7 @@ const currentKey = computed(() => {
   if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`) || path.startsWith(`${base}/ai/assistant`)) return "agents";
   if (path.startsWith(`${base}/multi-agent`)) return "multi-agent";
   if (path.startsWith(`${base}/workflows`)) return "workflows";
+  if (path.startsWith(`${base}/workflow-databases`)) return "workflow-databases";
   if (path.startsWith(`${base}/logic-flow`)) return "logic-flow";
   if (path.startsWith(`${base}/knowledge-bases`)) return "knowledge-bases";
   if (path.startsWith(`${base}/prompts`)) return "prompts";
@@ -150,6 +151,7 @@ function localizeProjectionItemTitle(itemKey: string, fallbackTitle: string) {
 
 function normalizeProjectionItemKey(itemKey: string, path: string) {
   if (path.includes("/workflows")) return "workflows";
+  if (path.includes("/workflow-databases")) return "workflow-databases";
   if (path.includes("/logic-flow")) return "logic-flow";
   if (path.includes("/knowledge-bases")) return "knowledge-bases";
   if (path.includes("/model-configs")) return "model-configs";
@@ -240,12 +242,43 @@ const directNavGroups = computed<SidebarGroup[]>(() => {
     {
       title: t("sidebar.usersOrg"),
       items: organizationItems
+    },
+    {
+      title: t("sidebar.groupAI"),
+      items: [
+        {
+          key: "workflows",
+          name: t("sidebar.workflows"),
+          path: `${basePath.value}/workflows`,
+          icon: PartitionOutlined
+        },
+        {
+          key: "workflow-databases",
+          name: t("sidebar.workflowDatabases"),
+          path: `${basePath.value}/workflow-databases`,
+          icon: DatabaseOutlined
+        },
+        {
+          key: "logic-flow",
+          name: t("sidebar.logicFlow"),
+          path: `${basePath.value}/logic-flow`,
+          icon: ControlOutlined
+        }
+      ]
     }
   ].filter((group) => group.items.length > 0);
 });
 
 const navGroups = computed<SidebarGroup[]>(() =>
-  [...directNavGroups.value, ...projectedNavGroups.value.filter((group) => group.items.length > 0)]
+  [
+    ...directNavGroups.value,
+    ...projectedNavGroups.value
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !["workflows", "workflow-databases", "logic-flow"].includes(item.key))
+      }))
+      .filter((group) => group.items.length > 0)
+  ]
 );
 </script>
 

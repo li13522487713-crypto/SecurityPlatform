@@ -283,6 +283,11 @@ export interface WorkflowDetailResponse extends WorkflowListItem {
   commitId?: string;
 }
 
+export interface WorkflowDetailQuery {
+  source?: "published" | "draft";
+  versionId?: string;
+}
+
 export interface WorkflowVersionItem {
   id: string;
   workflowId: string;
@@ -327,6 +332,22 @@ export interface NodeTemplateMetadata {
   name: string;
   category: string;
   defaultConfig: Record<string, unknown>;
+}
+
+export interface WorkflowValidateRequest {
+  canvasJson?: string;
+  canvas?: CanvasSchema;
+}
+
+export interface WorkflowModelCatalogItem {
+  provider: string;
+  providerType: string;
+  model: string;
+  label: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  enableStreaming: boolean;
 }
 
 // ============ 执行相关 ============
@@ -442,6 +463,26 @@ export interface EdgeRuntimeStatus {
   targetPort: string;
   status: EdgeExecutionStatus;
   reason?: string;
+}
+
+export interface WorkflowVersionDiff {
+  workflowId: string;
+  fromVersionId: string;
+  fromVersionNumber: number;
+  toVersionId: string;
+  toVersionNumber: number;
+  addedNodeKeys: string[];
+  removedNodeKeys: string[];
+  modifiedNodeKeys: string[];
+  addedConnectionCount: number;
+  removedConnectionCount: number;
+  hasChanges: boolean;
+}
+
+export interface WorkflowVersionRollbackResult {
+  workflowId: string;
+  rolledBackToVersionId: string;
+  newVersionNumber: number;
 }
 
 // ============ SSE 事件 ============

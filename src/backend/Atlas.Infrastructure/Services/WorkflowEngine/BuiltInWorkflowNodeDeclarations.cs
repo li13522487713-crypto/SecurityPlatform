@@ -2,6 +2,7 @@ using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
 using System.Text;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine;
 
@@ -101,6 +102,202 @@ internal static class BuiltInWorkflowNodeDeclarations
     {
         var port = GetPorts(type).FirstOrDefault(x => x.Direction == WorkflowNodePortDirection.Output);
         return port?.Key ?? fallback;
+    }
+
+    public static Dictionary<string, JsonElement> GetDefaultConfig(WorkflowNodeType type)
+    {
+        return type switch
+        {
+            WorkflowNodeType.Entry => CreateConfig(
+                ("entryVariable", "USER_INPUT"),
+                ("entryDescription", string.Empty),
+                ("entryAutoSaveHistory", true)),
+            WorkflowNodeType.Exit => CreateConfig(
+                ("exitTerminateMode", "return"),
+                ("exitTemplate", "{{llm_output}}"),
+                ("exitStreaming", false)),
+            WorkflowNodeType.Selector => CreateConfig(
+                ("condition", string.Empty),
+                ("logic", "and"),
+                ("conditions", Array.Empty<object>())),
+            WorkflowNodeType.Loop => CreateConfig(
+                ("mode", "forEach"),
+                ("maxIterations", 10),
+                ("collectionPath", "{{items}}"),
+                ("condition", string.Empty),
+                ("itemVariable", "loop_item"),
+                ("itemIndexVariable", "loop_index"),
+                ("bodyNodeKeys", string.Empty)),
+            WorkflowNodeType.Batch => CreateConfig(
+                ("concurrentSize", 4),
+                ("batchSize", 10),
+                ("inputArrayPath", "{{items}}"),
+                ("itemVariable", "batch_item"),
+                ("itemIndexVariable", "batch_item_index"),
+                ("outputKey", "batch_results")),
+            WorkflowNodeType.Break => CreateConfig(("reason", "manual_break")),
+            WorkflowNodeType.Continue => CreateConfig(("remark", string.Empty)),
+            WorkflowNodeType.Llm => CreateConfig(
+                ("provider", string.Empty),
+                ("model", string.Empty),
+                ("prompt", "{{input.message}}"),
+                ("systemPrompt", string.Empty),
+                ("temperature", 0.7),
+                ("maxTokens", 2048),
+                ("stream", true),
+                ("outputKey", "llm_output")),
+            WorkflowNodeType.Agent => CreateConfig(
+                ("agentId", string.Empty),
+                ("message", "{{input.message}}"),
+                ("conversationId", string.Empty),
+                ("userId", string.Empty),
+                ("enableRag", true),
+                ("outputKey", "agent_output")),
+            WorkflowNodeType.IntentDetector => CreateConfig(
+                ("input", "{{input.message}}"),
+                ("provider", string.Empty),
+                ("model", string.Empty),
+                ("systemPrompt", string.Empty),
+                ("temperature", 0.2),
+                ("intents", Array.Empty<object>())),
+            WorkflowNodeType.QuestionAnswer => CreateConfig(
+                ("question", string.Empty),
+                ("answerType", "free_text"),
+                ("fixedChoices", Array.Empty<object>()),
+                ("maxAnswerCount", 1),
+                ("answerPath", "answer")),
+            WorkflowNodeType.CodeRunner => CreateConfig(
+                ("language", "javascript"),
+                ("code", string.Empty),
+                ("outputKey", "code_output")),
+            WorkflowNodeType.TextProcessor => CreateConfig(
+                ("template", string.Empty),
+                ("outputKey", "text_output")),
+            WorkflowNodeType.JsonSerialization => CreateConfig(
+                ("variableKeys", Array.Empty<object>()),
+                ("outputKey", "json_output")),
+            WorkflowNodeType.JsonDeserialization => CreateConfig(("inputVariable", string.Empty)),
+            WorkflowNodeType.VariableAggregator => CreateConfig(
+                ("variableKeys", Array.Empty<object>()),
+                ("outputKey", "aggregated")),
+            WorkflowNodeType.AssignVariable => CreateConfig(("assignments", string.Empty)),
+            WorkflowNodeType.VariableAssignerWithinLoop => CreateConfig(("assignments", string.Empty)),
+            WorkflowNodeType.Plugin => CreateConfig(
+                ("pluginId", string.Empty),
+                ("apiId", string.Empty),
+                ("inputJson", new Dictionary<string, object?>()),
+                ("outputKey", "plugin_output")),
+            WorkflowNodeType.HttpRequester => CreateConfig(
+                ("url", string.Empty),
+                ("method", "GET"),
+                ("headers", new Dictionary<string, string>()),
+                ("body", new Dictionary<string, object?>()),
+                ("timeout", 30),
+                ("retryTimes", 1)),
+            WorkflowNodeType.SubWorkflow => CreateConfig(
+                ("workflowId", string.Empty),
+                ("maxDepth", 5),
+                ("inheritVariables", true),
+                ("mergeOutputs", true),
+                ("inputsVariable", string.Empty),
+                ("outputKey", "sub_workflow_output")),
+            WorkflowNodeType.InputReceiver => CreateConfig(
+                ("inputPath", "input.message"),
+                ("outputSchema", new Dictionary<string, object?>())),
+            WorkflowNodeType.OutputEmitter => CreateConfig(
+                ("outputKey", "output"),
+                ("template", string.Empty)),
+            WorkflowNodeType.KnowledgeRetriever => CreateConfig(
+                ("knowledgeIds", Array.Empty<object>()),
+                ("query", "{{input.message}}"),
+                ("topK", 5),
+                ("minScore", 0.2)),
+            WorkflowNodeType.KnowledgeIndexer => CreateConfig(
+                ("knowledgeId", 0),
+                ("fileId", 0),
+                ("fileName", string.Empty),
+                ("contentType", string.Empty),
+                ("fileSizeBytes", 0),
+                ("chunkSize", 500),
+                ("overlap", 50)),
+            WorkflowNodeType.KnowledgeDeleter => CreateConfig(
+                ("knowledgeId", 0),
+                ("documentId", 0)),
+            WorkflowNodeType.Ltm => CreateConfig(
+                ("action", "query"),
+                ("userId", 0),
+                ("agentId", 0),
+                ("conversationId", 0),
+                ("memoryKey", string.Empty),
+                ("content", string.Empty),
+                ("source", "workflow"),
+                ("limit", 10),
+                ("memoryId", 0)),
+            WorkflowNodeType.DatabaseQuery => CreateConfig(
+                ("databaseInfoId", 0),
+                ("queryFields", Array.Empty<object>()),
+                ("clauseGroup", Array.Empty<object>()),
+                ("limit", 100),
+                ("outputKey", "db_rows")),
+            WorkflowNodeType.DatabaseInsert => CreateConfig(
+                ("databaseInfoId", 0),
+                ("rows", Array.Empty<object>())),
+            WorkflowNodeType.DatabaseUpdate => CreateConfig(
+                ("databaseInfoId", 0),
+                ("updateFields", new Dictionary<string, object?>()),
+                ("clauseGroup", Array.Empty<object>())),
+            WorkflowNodeType.DatabaseDelete => CreateConfig(
+                ("databaseInfoId", 0),
+                ("clauseGroup", Array.Empty<object>())),
+            WorkflowNodeType.DatabaseCustomSql => CreateConfig(
+                ("databaseInfoId", 0),
+                ("sqlTemplate", string.Empty)),
+            WorkflowNodeType.CreateConversation => CreateConfig(
+                ("title", string.Empty),
+                ("userId", 0),
+                ("agentId", 0)),
+            WorkflowNodeType.ConversationList => CreateConfig(
+                ("userId", 0),
+                ("agentId", 0),
+                ("pageIndex", 1),
+                ("pageSize", 20)),
+            WorkflowNodeType.ConversationUpdate => CreateConfig(
+                ("userId", 0),
+                ("conversationId", 0),
+                ("title", string.Empty)),
+            WorkflowNodeType.ConversationDelete => CreateConfig(
+                ("userId", 0),
+                ("conversationId", 0)),
+            WorkflowNodeType.ConversationHistory => CreateConfig(
+                ("userId", 0),
+                ("conversationId", 0),
+                ("limit", 20),
+                ("includeContextMarkers", false)),
+            WorkflowNodeType.ClearConversationHistory => CreateConfig(
+                ("userId", 0),
+                ("conversationId", 0)),
+            WorkflowNodeType.MessageList => CreateConfig(
+                ("userId", 0),
+                ("conversationId", 0),
+                ("pageIndex", 1),
+                ("pageSize", 20)),
+            WorkflowNodeType.CreateMessage => CreateConfig(
+                ("conversationId", 0),
+                ("role", "user"),
+                ("content", "{{input.message}}"),
+                ("metadata", new Dictionary<string, object?>())),
+            WorkflowNodeType.EditMessage => CreateConfig(
+                ("conversationId", 0),
+                ("messageId", 0),
+                ("content", "{{input.message}}"),
+                ("metadata", new Dictionary<string, object?>())),
+            WorkflowNodeType.DeleteMessage => CreateConfig(
+                ("userId", 0),
+                ("conversationId", 0),
+                ("messageId", 0)),
+            WorkflowNodeType.Comment => CreateConfig(("content", string.Empty)),
+            _ => CreateConfig(("enabled", true))
+        };
     }
 
     private static IWorkflowNodeDeclaration Create(
@@ -428,6 +625,17 @@ internal static class BuiltInWorkflowNodeDeclarations
                    "additionalProperties": true
                  }
                  """;
+    }
+
+    private static Dictionary<string, JsonElement> CreateConfig(params (string Key, object? Value)[] items)
+    {
+        var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in items)
+        {
+            result[key] = JsonSerializer.SerializeToElement(value);
+        }
+
+        return result;
     }
 
     private static WorkflowNodePortMetadata In(string key, string dataType = "any", bool required = false, int maxConnections = 1)

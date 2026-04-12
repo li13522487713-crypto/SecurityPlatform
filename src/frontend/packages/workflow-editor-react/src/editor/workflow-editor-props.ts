@@ -1,12 +1,29 @@
-import type { WorkflowDetailResponse, NodeTypeMetadata, NodeTemplateMetadata, WorkflowSaveRequest } from "../types";
+import type {
+  NodeTemplateMetadata,
+  NodeTypeMetadata,
+  RunTrace,
+  WorkflowDetailQuery,
+  WorkflowDetailResponse,
+  WorkflowModelCatalogItem,
+  WorkflowSaveRequest,
+  WorkflowValidateRequest,
+  WorkflowVersionDiff,
+  WorkflowVersionRollbackResult,
+  WorkflowVersionItem
+} from "../types";
 
 export interface WorkflowApiClient {
-  getDetail?: (id: string) => Promise<{ data?: WorkflowDetailResponse }>;
+  getDetail?: (id: string, query?: WorkflowDetailQuery) => Promise<{ data?: WorkflowDetailResponse }>;
   saveDraft?: (id: string, req: WorkflowSaveRequest & { saveVersion?: number; ignoreStatusTransfer?: boolean }) => Promise<unknown>;
   publish?: (id: string, req: { changeLog?: string }) => Promise<unknown>;
   copy?: (id: string) => Promise<{ data?: { id?: string } }>;
+  getVersions?: (id: string) => Promise<{ data?: WorkflowVersionItem[] }>;
+  getVersionDiff?: (id: string, fromVersionId: string, toVersionId: string) => Promise<{ data?: WorkflowVersionDiff }>;
+  rollbackVersion?: (id: string, versionId: string) => Promise<{ data?: WorkflowVersionRollbackResult }>;
   getNodeTypes?: () => Promise<{ data?: NodeTypeMetadata[] }>;
   getNodeTemplates?: () => Promise<{ data?: NodeTemplateMetadata[] }>;
+  getModelCatalog?: () => Promise<{ data?: WorkflowModelCatalogItem[] }>;
+  validate?: (id: string, req: WorkflowValidateRequest) => Promise<{ data?: { isValid?: boolean; errors?: string[] } }>;
   runSync?: (
     id: string,
     req: { inputsJson?: string; source?: "published" | "draft" }
@@ -48,18 +65,26 @@ export interface WorkflowApiClient {
   getProcess?: (
     executionId: string
   ) => Promise<{ data?: { status?: number; nodeExecutions?: Array<{ nodeKey: string; status: number; errorMessage?: string }> } }>;
+  getTrace?: (executionId: string) => Promise<{ data?: RunTrace }>;
   cancel?: (executionId: string) => Promise<unknown>;
   debugNode?: (
     workflowId: string,
     nodeKey: string,
-    req: { nodeKey: string; inputsJson?: string; inputs?: Record<string, unknown> }
-  ) => Promise<{ data?: { outputsJson?: string; status: number; executionId?: string } }>;
+    req: {
+      nodeKey: string;
+      inputsJson?: string;
+      inputs?: Record<string, unknown>;
+      source?: "published" | "draft";
+      versionId?: string;
+    }
+  ) => Promise<{ data?: { outputsJson?: string; status?: number; executionId?: string } }>;
 }
 
 export interface WorkflowEditorReactProps {
   workflowId: string;
   locale?: string;
   readOnly?: boolean;
+  detailQuery?: WorkflowDetailQuery;
   apiClient: WorkflowApiClient;
   onBack?: () => void;
 }

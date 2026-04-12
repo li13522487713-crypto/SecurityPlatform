@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Domain.AiPlatform.ValueObjects;
 
 namespace Atlas.Application.AiPlatform.Models;
 
@@ -35,6 +36,10 @@ public sealed record WorkflowV2NodeDebugRequest(
     string? InputsJson,
     string? Source = null,
     long? VersionId = null);
+
+public sealed record WorkflowV2ValidateRequest(
+    string? CanvasJson = null,
+    CanvasSchema? Canvas = null);
 
 // ── 响应模型 ──────────────────────────────────────────────
 

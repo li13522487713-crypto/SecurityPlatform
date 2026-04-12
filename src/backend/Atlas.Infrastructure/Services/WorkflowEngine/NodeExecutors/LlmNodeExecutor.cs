@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
@@ -26,12 +27,15 @@ public sealed class LlmNodeExecutor : INodeExecutor
         var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         var promptTemplate = context.GetConfigString("prompt");
+        var systemPromptTemplate = context.GetConfigString("systemPrompt");
         var model = context.GetConfigString("model", "gpt-4o-mini");
         var provider = context.GetConfigString("provider");
         var outputKey = context.GetConfigString("outputKey", "llm_output");
+        var stream = context.GetConfigBoolean("stream");
 
         // 变量替换
         var prompt = context.ReplaceVariables(promptTemplate);
+        var systemPrompt = context.ReplaceVariables(systemPromptTemplate);
         if (string.IsNullOrWhiteSpace(prompt))
         {
             outputs[outputKey] = VariableResolver.CreateStringElement(string.Empty);
@@ -45,17 +49,45 @@ public sealed class LlmNodeExecutor : INodeExecutor
             float.TryParse(context.GetConfigString("temperature"), NumberStyles.Float, CultureInfo.InvariantCulture, out var temperature);
             int.TryParse(context.GetConfigString("maxTokens"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxTokens);
 
+            var messages = new List<ChatMessage>();
+            if (!string.IsNullOrWhiteSpace(systemPrompt))
+            {
+                messages.Add(new ChatMessage("system", systemPrompt));
+            }
+
+            messages.Add(new ChatMessage("user", prompt));
             var request = new ChatCompletionRequest(
                 model,
-                [new ChatMessage("user", prompt)],
+                messages,
                 temperature > 0 ? temperature : null,
                 maxTokens > 0 ? maxTokens : null,
                 provider);
 
-            var result = await llmProvider.ChatAsync(request, cancellationToken);
-            outputs[outputKey] = VariableResolver.CreateStringElement(result.Content ?? string.Empty);
+            string content;
+            if (stream && context.EventChannel is not null)
+            {
+                var builder = new StringBuilder();
+                await foreach (var chunk in llmProvider.ChatStreamAsync(request, cancellationToken))
+                {
+                    if (string.IsNullOrEmpty(chunk.ContentDelta))
+                    {
+                        continue;
+                    }
 
-            await context.EmitEventAsync("llm_output", result.Content ?? string.Empty, cancellationToken);
+                    builder.Append(chunk.ContentDelta);
+                    await context.EmitEventAsync("llm_output", chunk.ContentDelta, cancellationToken);
+                }
+
+                content = builder.ToString();
+            }
+            else
+            {
+                var result = await llmProvider.ChatAsync(request, cancellationToken);
+                content = result.Content ?? string.Empty;
+                await context.EmitEventAsync("llm_output", content, cancellationToken);
+            }
+
+            outputs[outputKey] = VariableResolver.CreateStringElement(content);
 
             return new NodeExecutionResult(true, outputs);
         }

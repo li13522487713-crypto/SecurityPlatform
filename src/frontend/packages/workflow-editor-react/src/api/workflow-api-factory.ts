@@ -25,8 +25,10 @@ import {
   type NodeStartEvent,
   type NodeTemplateMetadata,
   type NodeTypeMetadata,
+  type RunTrace,
   type WorkflowCanvasPayload,
   type WorkflowCreateRequest,
+  type WorkflowDetailQuery,
   type WorkflowDetailResponse,
   type WorkflowExecutionCheckpointResponse,
   type WorkflowExecutionDebugViewResponse,
@@ -37,7 +39,10 @@ import {
   type WorkflowRunRequest,
   type WorkflowRunResponse,
   type WorkflowSaveRequest,
+  type WorkflowValidateRequest,
   type WorkflowUpdateMetaRequest,
+  type WorkflowVersionDiff,
+  type WorkflowVersionRollbackResult,
   type WorkflowVersionItem
 } from "../types";
 
@@ -97,8 +102,8 @@ export function createWorkflowV2Api(options: WorkflowApiFactoryOptions) {
       }
       return requestFn<ApiResponse<PagedResult<WorkflowListItem>>>(`${BASE}/published?${params.toString()}`);
     },
-    getDetail(id: IdLike): Promise<ApiResponse<WorkflowDetailResponse>> {
-      return requestFn<ApiResponse<WorkflowDetailResponse>>(`${BASE}/${id}`).then((res) => {
+    getDetail(id: IdLike, query?: WorkflowDetailQuery): Promise<ApiResponse<WorkflowDetailResponse>> {
+      return requestFn<ApiResponse<WorkflowDetailResponse>>(`${BASE}/${id}${buildDetailQuery(query)}`).then((res) => {
         if (res.data?.canvasJson) {
           return { ...res, data: { ...res.data, canvasJson: toEditorCanvasJson(res.data.canvasJson) } };
         }
@@ -132,11 +137,29 @@ export function createWorkflowV2Api(options: WorkflowApiFactoryOptions) {
     getVersions(id: IdLike): Promise<ApiResponse<WorkflowVersionItem[]>> {
       return requestFn<ApiResponse<WorkflowVersionItem[]>>(`${BASE}/${id}/versions`);
     },
+    getVersionDiff(id: IdLike, fromVersionId: IdLike, toVersionId: IdLike): Promise<ApiResponse<WorkflowVersionDiff>> {
+      return requestFn<ApiResponse<WorkflowVersionDiff>>(`${BASE}/${id}/versions/${fromVersionId}/diff/${toVersionId}`);
+    },
+    rollbackVersion(id: IdLike, versionId: IdLike): Promise<ApiResponse<WorkflowVersionRollbackResult>> {
+      return requestFn<ApiResponse<WorkflowVersionRollbackResult>>(
+        `${BASE}/${id}/versions/${versionId}/rollback`,
+        { method: "POST" }
+      );
+    },
     getNodeTypes(): Promise<ApiResponse<NodeTypeMetadata[]>> {
       return requestFn<ApiResponse<NodeTypeMetadata[]>>(`${BASE}/node-types`);
     },
     getNodeTemplates(): Promise<ApiResponse<NodeTemplateMetadata[]>> {
       return requestFn<ApiResponse<NodeTemplateMetadata[]>>(`${BASE}/node-templates`);
+    },
+    validate(id: IdLike, req: WorkflowValidateRequest): Promise<ApiResponse<{ isValid?: boolean; errors?: string[] }>> {
+      const canvasJson = req.canvasJson ?? (req.canvas ? JSON.stringify(req.canvas) : undefined);
+      return requestFn<ApiResponse<{ isValid?: boolean; errors?: string[] }>>(`${BASE}/${id}/validate`, {
+        method: "POST",
+        body: JSON.stringify({
+          canvasJson: canvasJson ? toBackendCanvasJson(canvasJson) : undefined
+        })
+      });
     },
     runSync(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {
       return requestFn<ApiResponse<WorkflowRunResponse>>(`${BASE}/${id}/run`, {
@@ -152,6 +175,9 @@ export function createWorkflowV2Api(options: WorkflowApiFactoryOptions) {
     },
     getProcess(executionId: IdLike): Promise<ApiResponse<WorkflowProcessResponse>> {
       return requestFn<ApiResponse<WorkflowProcessResponse>>(`${EXEC_BASE}/${executionId}/process`);
+    },
+    getTrace(executionId: IdLike): Promise<ApiResponse<RunTrace>> {
+      return requestFn<ApiResponse<RunTrace>>(`${EXEC_BASE}/${executionId}/trace`);
     },
     getCheckpoint(executionId: IdLike): Promise<ApiResponse<WorkflowExecutionCheckpointResponse>> {
       return requestFn<ApiResponse<WorkflowExecutionCheckpointResponse>>(`${EXEC_BASE}/${executionId}/checkpoint`);
@@ -325,6 +351,22 @@ function buildRunPayload(req: WorkflowRunRequest): { inputsJson?: string; source
     payload.source = req.source;
   }
   return payload;
+}
+
+function buildDetailQuery(query?: WorkflowDetailQuery): string {
+  if (!query) {
+    return "";
+  }
+
+  const params = new URLSearchParams();
+  if (query.source) {
+    params.set("source", query.source);
+  }
+  if (query.versionId) {
+    params.set("versionId", query.versionId);
+  }
+  const queryText = params.toString();
+  return queryText ? `?${queryText}` : "";
 }
 
 function handleStreamEvent(eventName: string, dataText: string, callbacks: StreamCallbacks) {

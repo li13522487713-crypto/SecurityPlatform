@@ -6,6 +6,9 @@ import type {
   NodeExecutionDetailResponse,
   NodeTemplateMetadata,
   NodeTypeMetadata,
+  RunTrace,
+  WorkflowDetailQuery,
+  WorkflowModelCatalogItem,
   WorkflowCreateRequest,
   WorkflowDetailResponse,
   WorkflowExecutionCheckpointResponse,
@@ -17,7 +20,10 @@ import type {
   WorkflowRunRequest,
   WorkflowRunResponse,
   WorkflowSaveRequest,
+  WorkflowValidateRequest,
   WorkflowUpdateMetaRequest,
+  WorkflowVersionDiff,
+  WorkflowVersionRollbackResult,
   WorkflowVersionItem
 } from "@atlas/workflow-editor-react/types";
 import { API_BASE, requestApi } from "@/services/api-core";
@@ -83,7 +89,7 @@ const workflowRequest = async <T>(path: string, init?: RequestInit) => {
   });
 };
 
-export const workflowV2Api = createWorkflowApiFromRequest(workflowRequest, {
+const baseWorkflowV2Api = createWorkflowApiFromRequest(workflowRequest, {
   resolveAbsoluteUrl: (path) => {
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;
@@ -96,6 +102,38 @@ export const workflowV2Api = createWorkflowApiFromRequest(workflowRequest, {
   },
   resolveAppId: () => getCurrentAppIdFromStorage()
 });
+
+export async function getWorkflowModelCatalog(): Promise<ApiResponse<WorkflowModelCatalogItem[]>> {
+  const response = await workflowRequest<ApiResponse<Array<{
+    name: string;
+    providerType: string;
+    defaultModel: string;
+    modelId?: string;
+    systemPrompt?: string;
+    enableStreaming: boolean;
+    temperature?: number;
+    maxTokens?: number;
+  }>>>("/model-configs/enabled");
+
+  return {
+    ...response,
+    data: (response.data ?? []).map((item) => ({
+      provider: item.name,
+      providerType: item.providerType,
+      model: item.modelId || item.defaultModel,
+      label: item.defaultModel || item.modelId || item.name,
+      systemPrompt: item.systemPrompt,
+      temperature: item.temperature,
+      maxTokens: item.maxTokens,
+      enableStreaming: item.enableStreaming
+    }))
+  };
+}
+
+export const workflowV2Api = {
+  ...baseWorkflowV2Api,
+  getModelCatalog: getWorkflowModelCatalog
+};
 
 export function createWorkflow(req: WorkflowCreateRequest): Promise<ApiResponse<string>> {
   return workflowV2Api.create(req).then((res) => ({
@@ -114,6 +152,13 @@ export function listWorkflows(
 
 export function getWorkflowCanvas(id: IdLike): Promise<ApiResponse<WorkflowDetailResponse>> {
   return workflowV2Api.getDetail(id);
+}
+
+export function getWorkflowCanvasByQuery(
+  id: IdLike,
+  query?: WorkflowDetailQuery
+): Promise<ApiResponse<WorkflowDetailResponse>> {
+  return workflowV2Api.getDetail(id, query);
 }
 
 export function saveWorkflowDraft(id: IdLike, req: WorkflowSaveRequest): Promise<ApiResponse<boolean>> {
@@ -143,6 +188,21 @@ export function listWorkflowVersions(id: IdLike): Promise<ApiResponse<WorkflowVe
   return workflowV2Api.getVersions(id);
 }
 
+export function getWorkflowVersionDiff(
+  id: IdLike,
+  fromVersionId: IdLike,
+  toVersionId: IdLike
+): Promise<ApiResponse<WorkflowVersionDiff>> {
+  return workflowV2Api.getVersionDiff(id, fromVersionId, toVersionId);
+}
+
+export function rollbackWorkflowVersion(
+  id: IdLike,
+  versionId: IdLike
+): Promise<ApiResponse<WorkflowVersionRollbackResult>> {
+  return workflowV2Api.rollbackVersion(id, versionId);
+}
+
 export function getNodeTypes(): Promise<ApiResponse<NodeTypeMetadata[]>> {
   return workflowV2Api.getNodeTypes();
 }
@@ -170,8 +230,19 @@ export function getExecutionProcess(executionId: IdLike): Promise<ApiResponse<Wo
   return workflowV2Api.getProcess(executionId);
 }
 
+export function getExecutionTrace(executionId: IdLike): Promise<ApiResponse<RunTrace>> {
+  return workflowV2Api.getTrace(executionId);
+}
+
 export function getExecutionCheckpoint(executionId: IdLike): Promise<ApiResponse<WorkflowExecutionCheckpointResponse>> {
   return workflowV2Api.getCheckpoint(executionId);
+}
+
+export function validateWorkflowCanvas(
+  id: IdLike,
+  req: WorkflowValidateRequest
+): Promise<ApiResponse<{ isValid?: boolean; errors?: string[] }>> {
+  return workflowV2Api.validate(id, req);
 }
 
 export function getNodeExecutionDetail(
