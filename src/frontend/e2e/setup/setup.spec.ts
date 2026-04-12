@@ -1,5 +1,5 @@
 import path from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "../fixtures/single-session";
 
 test.describe.serial("真实浏览器 setup E2E", () => {
   const platformDatabasePath = "Data Source=atlas.e2e.db";
@@ -294,7 +294,7 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     expect(appPositionsCreated).toBeGreaterThan(0);
 
     await page.getByTestId("app-setup-enter-workspace").click();
-    await page.waitForURL("http://127.0.0.1:5181/");
+    await page.waitForURL(/http:\/\/127\.0\.0\.1:5181\/apps\/[^/]+\/login/);
 
     await expect
       .poll(async () => {
@@ -338,3 +338,4 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     expect(payload?.code).toBe("ALREADY_CONFIGURED");
   });
 });
+

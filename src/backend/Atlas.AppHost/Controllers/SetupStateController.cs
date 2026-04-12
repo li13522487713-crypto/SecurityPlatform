@@ -1,4 +1,6 @@
 using Atlas.Application.System.Models;
+using Atlas.Application.Abstractions;
+using Atlas.Application.Options;
 using Atlas.AppHost.Sdk.Hosting;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Enums;
@@ -16,6 +18,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using SqlSugar;
 using System.Text.Json;
 
@@ -39,6 +42,8 @@ public sealed class SetupStateController : ControllerBase
     private readonly IHostEnvironment _environment;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IAppContextAccessor _appContextAccessor;
+    private readonly IPasswordHasher _passwordHasher;
+    private readonly BootstrapAdminOptions _bootstrapAdminOptions;
     private readonly ILogger<SetupStateController> _logger;
 
     public SetupStateController(
@@ -49,6 +54,8 @@ public sealed class SetupStateController : ControllerBase
         IHostEnvironment environment,
         IIdGeneratorAccessor idGeneratorAccessor,
         IAppContextAccessor appContextAccessor,
+        IPasswordHasher passwordHasher,
+        IOptions<BootstrapAdminOptions> bootstrapAdminOptions,
         ILogger<SetupStateController> logger)
     {
         _platformSetupStateProvider = platformSetupStateProvider;
@@ -58,6 +65,8 @@ public sealed class SetupStateController : ControllerBase
         _environment = environment;
         _idGeneratorAccessor = idGeneratorAccessor;
         _appContextAccessor = appContextAccessor;
+        _passwordHasher = passwordHasher;
+        _bootstrapAdminOptions = bootstrapAdminOptions.Value;
         _logger = logger;
     }
 
@@ -362,6 +371,10 @@ public sealed class SetupStateController : ControllerBase
                         typeof(AppUserRole),
                         typeof(AppMemberDepartment),
                         typeof(AppMemberPosition));
+                    db.CodeFirst.InitTables(
+                        typeof(UserAccount),
+                        typeof(Role),
+                        typeof(UserRole));
                     _logger.LogInformation("[AppSetup] 应用核心表初始化完成");
                 }
                 catch (Exception appSchemaEx)
@@ -385,13 +398,13 @@ public sealed class SetupStateController : ControllerBase
             {
                 try
                 {
-                    var tables = platformDb.DbMaintenance.GetTableInfoList();
+                    var tables = db.DbMaintenance.GetTableInfoList();
                     var tableNames = tables
                         .Select(t => t.Name)
                         .Where(name => !string.IsNullOrWhiteSpace(name))
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var userTableName = platformDb.EntityMaintenance.GetTableName<UserAccount>();
-                    var roleTableName = platformDb.EntityMaintenance.GetTableName<Role>();
+                    var userTableName = db.EntityMaintenance.GetTableName<UserAccount>();
+                    var roleTableName = db.EntityMaintenance.GetTableName<Role>();
                     coreTablesVerified =
                         tableNames.Contains(userTableName) &&
                         tableNames.Contains(roleTableName);
@@ -399,17 +412,17 @@ public sealed class SetupStateController : ControllerBase
                     if (!coreTablesVerified)
                     {
                         verificationErrors.Add(
-                            $"Core tables ({userTableName}, {roleTableName}) not found in platform database. Platform initialization may be incomplete.");
+                            $"Core tables ({userTableName}, {roleTableName}) not found in application database. Application initialization may be incomplete.");
                     }
                     else
                     {
-                        _logger.LogInformation("[AppSetup] 平台核心表验证通过，共 {Count} 张表", tables.Count);
+                        _logger.LogInformation("[AppSetup] 应用核心身份表验证通过，共 {Count} 张表", tables.Count);
                     }
                 }
                 catch (Exception tableEx)
                 {
-                    verificationErrors.Add($"Platform table verification failed: {tableEx.Message}");
-                    _logger.LogError(tableEx, "[AppSetup] 平台核心表验证失败");
+                    verificationErrors.Add($"Application table verification failed: {tableEx.Message}");
+                    _logger.LogError(tableEx, "[AppSetup] 应用核心身份表验证失败");
                 }
             }
 
@@ -432,20 +445,6 @@ public sealed class SetupStateController : ControllerBase
                 ? request.Admin.AppKey.Trim()
                 : ResolveSetupAppKey();
 
-            var adminUser = await platformDb.Queryable<UserAccount>()
-                .FirstAsync(
-                    user => user.TenantIdValue == tenantId.Value && user.Username == adminUsername,
-                    cancellationToken);
-            if (adminUser is null)
-            {
-                var missingAdminMessage = $"App admin user '{adminUsername}' was not found in platform users.";
-                await _appSetupStateProvider.TransitionAsync(AppSetupState.Failed, missingAdminMessage, cancellationToken);
-                return BadRequest(ApiResponse<AppSetupInitializeResponse>.Fail(
-                    "APP_ADMIN_NOT_FOUND",
-                    missingAdminMessage,
-                    HttpContext.TraceIdentifier));
-            }
-
             var selectedRoleCodes = BuildAppRoleCodes(request.Roles?.SelectedRoleCodes);
             var departments = SanitizeDepartments(request.Organization?.Departments);
             var positions = SanitizePositions(request.Organization?.Positions);
@@ -454,6 +453,17 @@ public sealed class SetupStateController : ControllerBase
             LowCodeApp app;
             using (BeginSetupScope(tenantId, appKey))
             {
+                var adminUser = await EnsureAppAdminUserAsync(db, tenantId, adminUsername, cancellationToken);
+                if (adminUser is null)
+                {
+                    var missingAdminMessage = $"App admin user '{adminUsername}' was not found in application users.";
+                    await _appSetupStateProvider.TransitionAsync(AppSetupState.Failed, missingAdminMessage, cancellationToken);
+                    return BadRequest(ApiResponse<AppSetupInitializeResponse>.Fail(
+                        "APP_ADMIN_NOT_FOUND",
+                        missingAdminMessage,
+                        HttpContext.TraceIdentifier));
+                }
+
                 app = await EnsureAppInstanceAsync(db, tenantId, appKey, appName, adminUser.Id, cancellationToken);
                 await EnsureMainOnlyRoutePolicyAsync(db, tenantId, app.Id, adminUser.Id, cancellationToken);
 
@@ -462,6 +472,7 @@ public sealed class SetupStateController : ControllerBase
                 // 会因找不到 MainOnly 策略而尝试查找 TenantAppDataSourceBinding，导致 "未绑定可用数据源" 异常。
                 if (!AreSameDatabase(runtimeConnectionString, platformConnectionString))
                 {
+                    EnsurePlatformRoutingTables(platformDb);
                     await SyncAppInstanceToPlatformDbAsync(platformDb, tenantId, app, cancellationToken);
                     await EnsureMainOnlyRoutePolicyAsync(platformDb, tenantId, app.Id, adminUser.Id, cancellationToken);
                     _logger.LogInformation(
@@ -522,6 +533,150 @@ public sealed class SetupStateController : ControllerBase
             return StatusCode(500, ApiResponse<AppSetupInitializeResponse>.Fail(
                 "APP_SETUP_FAILED", ex.Message, HttpContext.TraceIdentifier));
         }
+    }
+
+    private async Task<UserAccount?> EnsureAppAdminUserAsync(
+        ISqlSugarClient db,
+        TenantId tenantId,
+        string adminUsername,
+        CancellationToken cancellationToken)
+    {
+        var existing = await db.Queryable<UserAccount>()
+            .FirstAsync(
+                user => user.TenantIdValue == tenantId.Value && user.Username == adminUsername,
+                cancellationToken);
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var bootstrapUsername = string.IsNullOrWhiteSpace(_bootstrapAdminOptions.Username)
+            ? "admin"
+            : _bootstrapAdminOptions.Username.Trim();
+        if (!string.Equals(adminUsername, bootstrapUsername, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "[AppSetup] 应用管理员 {Username} 在应用库中不存在，且与 BootstrapAdmin 用户名 {BootstrapUsername} 不一致，跳过自动创建。",
+                adminUsername,
+                bootstrapUsername);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(_bootstrapAdminOptions.Password))
+        {
+            _logger.LogWarning("[AppSetup] Security:BootstrapAdmin:Password 未配置，无法自动创建应用管理员账号。");
+            return null;
+        }
+
+        var roleCodes = NormalizeRoleCodes(_bootstrapAdminOptions.Roles);
+        var hashedPassword = _passwordHasher.HashPassword(_bootstrapAdminOptions.Password);
+        var account = new UserAccount(
+            tenantId,
+            adminUsername,
+            adminUsername,
+            hashedPassword,
+            _idGeneratorAccessor.NextId());
+        account.UpdateRoles(string.Join(',', roleCodes));
+        account.MarkSystemAccount();
+        if (_bootstrapAdminOptions.IsPlatformAdmin)
+        {
+            account.MarkPlatformAdmin();
+        }
+
+        await db.Insertable(account).ExecuteCommandAsync(cancellationToken);
+        await EnsureCoreRoleBindingsAsync(db, tenantId, account, roleCodes, cancellationToken);
+        _logger.LogInformation(
+            "[AppSetup] 应用管理员 {Username} 不存在，已根据 BootstrapAdmin 配置自动创建。",
+            adminUsername);
+        return account;
+    }
+
+    private async Task EnsureCoreRoleBindingsAsync(
+        ISqlSugarClient db,
+        TenantId tenantId,
+        UserAccount account,
+        IReadOnlyList<string> roleCodes,
+        CancellationToken cancellationToken)
+    {
+        if (roleCodes.Count == 0)
+        {
+            return;
+        }
+
+        var roleCodeArray = roleCodes.ToArray();
+        var existingRoles = await db.Queryable<Role>()
+            .Where(role =>
+                role.TenantIdValue == tenantId.Value
+                && SqlFunc.ContainsArray(roleCodeArray, role.Code))
+            .ToListAsync(cancellationToken);
+
+        var roleByCode = existingRoles.ToDictionary(role => role.Code, StringComparer.OrdinalIgnoreCase);
+        var rolesToInsert = new List<Role>();
+        foreach (var roleCode in roleCodes)
+        {
+            if (roleByCode.ContainsKey(roleCode))
+            {
+                continue;
+            }
+
+            var role = new Role(tenantId, roleCode, roleCode, _idGeneratorAccessor.NextId());
+            if (string.Equals(roleCode, "Admin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(roleCode, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+            {
+                role.MarkSystemRole();
+            }
+
+            rolesToInsert.Add(role);
+            roleByCode[role.Code] = role;
+        }
+
+        if (rolesToInsert.Count > 0)
+        {
+            await db.Insertable(rolesToInsert).ExecuteCommandAsync(cancellationToken);
+        }
+
+        var roleIds = roleByCode.Values
+            .Select(role => role.Id)
+            .Distinct()
+            .ToArray();
+        if (roleIds.Length == 0)
+        {
+            return;
+        }
+
+        var existingMappings = await db.Queryable<UserRole>()
+            .Where(item =>
+                item.TenantIdValue == tenantId.Value
+                && item.UserId == account.Id
+                && SqlFunc.ContainsArray(roleIds, item.RoleId))
+            .ToListAsync(cancellationToken);
+        var existingRoleIds = existingMappings
+            .Select(item => item.RoleId)
+            .ToHashSet();
+
+        var mappingsToInsert = roleIds
+            .Where(roleId => !existingRoleIds.Contains(roleId))
+            .Select(roleId => new UserRole(tenantId, account.Id, roleId, _idGeneratorAccessor.NextId()))
+            .ToList();
+        if (mappingsToInsert.Count > 0)
+        {
+            await db.Insertable(mappingsToInsert).ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
+    private static IReadOnlyList<string> NormalizeRoleCodes(string? rawRoleCodes)
+    {
+        if (string.IsNullOrWhiteSpace(rawRoleCodes))
+        {
+            return new[] { "Admin" };
+        }
+
+        var normalized = rawRoleCodes
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(role => !string.IsNullOrWhiteSpace(role))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return normalized.Length == 0 ? new[] { "Admin" } : normalized;
     }
 
     private async Task<LowCodeApp> EnsureAppInstanceAsync(
@@ -630,6 +785,13 @@ public sealed class SetupStateController : ControllerBase
             connectionStringA?.Trim(),
             connectionStringB?.Trim(),
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void EnsurePlatformRoutingTables(ISqlSugarClient platformDb)
+    {
+        platformDb.CodeFirst.InitTables(
+            typeof(LowCodeApp),
+            typeof(AppDataRoutePolicy));
     }
 
     private IDisposable BeginSetupScope(TenantId tenantId, string appId)

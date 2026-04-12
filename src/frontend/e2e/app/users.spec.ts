@@ -1,22 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import {
   captureEvidenceScreenshot,
-  clearAuthStorage,
   ensureAppSetup,
-  loginApp,
   uniqueName
 } from "./helpers";
 
 test.describe.serial("App Users CRUD", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
+    await ensureLoggedInSession(appKey);
   });
 
   test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
     await page.goto(`/apps/${encodeURIComponent(appKey)}/users`);
     await expect(page.getByTestId("app-users-page")).toBeVisible();
   });
@@ -55,3 +52,4 @@ test.describe.serial("App Users CRUD", () => {
     await captureEvidenceScreenshot(page, testInfo, "users-deleted");
   });
 });
+

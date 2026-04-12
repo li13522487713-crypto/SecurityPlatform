@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import { createWorkflowSession } from "./workflow-e2e-helpers";
 
 test.describe.serial("Workflow Publish E2E", () => {
@@ -28,3 +28,4 @@ test.describe.serial("Workflow Publish E2E", () => {
     expect([200, 400]).toContain(publishStatus);
   });
 });
+

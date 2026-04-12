@@ -1,20 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import {
-  clearAuthStorage,
-  ensureAppSetup,
-  loginApp
+  ensureAppSetup
 } from "./helpers";
 
 test.describe.serial("App Settings And Maintenance", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
+    await ensureLoggedInSession(appKey);
   });
 
   test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
     await page.goto(`/apps/${encodeURIComponent(appKey)}/settings`);
     await expect(page.getByTestId("app-settings-page")).toBeVisible();
   });
@@ -30,3 +27,4 @@ test.describe.serial("App Settings And Maintenance", () => {
     await expect(page.getByTestId("app-settings-db-backup-table")).toBeVisible();
   });
 });
+

@@ -11,7 +11,7 @@
  * 使用 API 请求方式（无 UI 交互）验证核心工作流生命周期。
  */
 
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "../fixtures/single-session";
 import { platformApiBase, defaultTenantId, defaultUsername, defaultPassword } from "./helpers";
 
 const API_BASE = platformApiBase;
@@ -219,3 +219,4 @@ test("TS-16~20 auth guard: 所有工作流 V2 端点在无 token 时返回 401",
     expect(resp.status(), `${method} ${url} should return 401`).toBe(401);
   }
 });
+

@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "../fixtures/single-session";
 import { createWorkflowSession } from "./workflow-e2e-helpers";
 import { defaultPassword, defaultTenantId, defaultUsername, platformApiBase } from "./helpers";
 
@@ -86,3 +86,4 @@ test.describe.serial("Workflow Run E2E", () => {
     expect([400, 404]).toContain(resp.status());
   });
 });
+

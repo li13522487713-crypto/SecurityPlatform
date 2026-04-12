@@ -1,16 +1,12 @@
-import { expect, test } from "@playwright/test";
-import { appBaseUrl, clearAuthStorage, ensureAppSetup, loginApp } from "./helpers";
+import { expect, test } from "../fixtures/single-session";
+import { appBaseUrl, ensureAppSetup } from "./helpers";
 
 test.describe.serial("@smoke Workflow Orchestration", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
+    await ensureLoggedInSession(appKey);
   });
 
   test("应可进入工作流列表页并看到列表区域", async ({ page }) => {
@@ -19,3 +15,4 @@ test.describe.serial("@smoke Workflow Orchestration", () => {
     await expect(page.locator("body")).toContainText(/工作流|Workflow/);
   });
 });
+

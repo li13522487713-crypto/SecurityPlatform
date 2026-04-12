@@ -1,22 +1,16 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import {
   captureEvidenceScreenshot,
-  clearAuthStorage,
   ensureAppSetup,
-  loginApp,
   uniqueName
 } from "./helpers";
 
 test.describe.serial("App Reports And Dashboards CRUD", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
+    await ensureLoggedInSession(appKey);
   });
 
   test("report and dashboard full crud should work", async ({ page }, testInfo) => {
@@ -112,3 +106,4 @@ test.describe.serial("App Reports And Dashboards CRUD", () => {
     await captureEvidenceScreenshot(page, testInfo, "dashboards-deleted");
   });
 });
+

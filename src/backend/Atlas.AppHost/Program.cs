@@ -77,15 +77,9 @@ var appRuntimeConfigPath = Path.Combine(builder.Environment.ContentRootPath, "ap
 builder.Configuration.AddJsonFile(appRuntimeConfigPath, optional: true, reloadOnChange: false);
 
 var platformSetupStatePath = Path.Combine(platformConfigRoot, "setup-state.json");
-var platformSetupReadyForRegistration = File.Exists(platformSetupStatePath) &&
-    File.ReadAllText(platformSetupStatePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
-var appSetupStatePath = Path.Combine(builder.Environment.ContentRootPath, "app-setup-state.json");
-var appSetupReadyForRegistration = File.Exists(appSetupStatePath) &&
-    File.ReadAllText(appSetupStatePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
-var runtimeReadyForRegistration = platformSetupReadyForRegistration && appSetupReadyForRegistration;
 
-// 供中间件检测：启动时是否完整注册了全量业务服务
-builder.Services.AddSingleton(new AppRuntimeRegistrationMarker(runtimeReadyForRegistration));
+// 运行时能力始终注册，setup 访问门禁由 AppSetupModeMiddleware 按当前状态动态控制。
+builder.Services.AddSingleton(new AppRuntimeRegistrationMarker(true));
 
 // 仅当运行时配置未提供数据库连接串时才使用默认路径
 if (string.IsNullOrWhiteSpace(builder.Configuration["Database:ConnectionString"]))
@@ -216,17 +210,10 @@ var appServices = builder.Services.AddAtlasApplicationShared(
     typeof(Atlas.Application.BatchProcess.Mappings.BatchProcessMappingProfile).Assembly,
     typeof(WebApiMappingProfile).Assembly)
     .AddAtlasApplicationPlatform();
-if (runtimeReadyForRegistration)
-{
-    appServices.AddAtlasApplicationRuntime();
-    builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
-        .AddAtlasInfrastructurePlatform(builder.Configuration)
-        .AddAtlasInfrastructureAppRuntime(builder.Configuration);
-}
-else
-{
-    builder.Services.AddAtlasInfrastructureShared(builder.Configuration, includeAppRuntimeServices: false);
-}
+appServices.AddAtlasApplicationRuntime();
+builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
+    .AddAtlasInfrastructurePlatform(builder.Configuration)
+    .AddAtlasInfrastructureAppRuntime(builder.Configuration);
 
 // ─── DI：AppHost-specific context accessors ───
 builder.Services.AddScoped<ITenantProvider, AppHostTenantProvider>();
@@ -263,68 +250,60 @@ builder.Services.AddAntiforgery(options =>
 });
 
 // ─── Authentication / Authorization ───
-if (runtimeReadyForRegistration)
-{
-    builder.Services.AddAuthentication()
-        .AddJwtBearer(options =>
-        {
-            options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
-            options.MapInboundClaims = false;
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateIssuerSigningKey = true,
-                ValidateLifetime = true,
-                ValidIssuer = jwtOptions.Issuer,
-                ValidAudience = jwtOptions.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-                    string.Equals(signingKey, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
-                        ? "temp-dev-signing-key-please-replace-at-runtime-in-production"
-                        : signingKey)),
-                NameClaimType = JwtRegisteredClaimNames.Sub,
-                RoleClaimType = ClaimTypes.Role,
-                ClockSkew = TimeSpan.FromMinutes(1)
-            };
-            options.Events = new JwtBearerEvents
-            {
-                OnMessageReceived = context =>
-                {
-                    var accessToken = context.Request.Cookies["access_token"];
-                    if (!string.IsNullOrEmpty(accessToken))
-                    {
-                        context.Token = accessToken;
-                    }
-                    return Task.CompletedTask;
-                }
-            };
-        })
-        .AddCertificate(options =>
-        {
-            options.AllowedCertificateTypes = CertificateTypes.All;
-        })
-        .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, _ => { })
-        .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, _ => { });
-    builder.Services.AddAuthorization(options =>
+builder.Services.AddAuthentication()
+    .AddJwtBearer(options =>
     {
-        var bearerPolicy = new AuthorizationPolicyBuilder(
-                JwtBearerDefaults.AuthenticationScheme,
-                CertificateAuthenticationDefaults.AuthenticationScheme,
-                PatAuthenticationHandler.SchemeName)
-            .RequireAuthenticatedUser()
-            .Build();
-        options.DefaultPolicy = bearerPolicy;
-        options.FallbackPolicy = bearerPolicy;
-    });
-    builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-    builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
-    builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
-}
-else
+        options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                string.Equals(signingKey, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
+                    ? "temp-dev-signing-key-please-replace-at-runtime-in-production"
+                    : signingKey)),
+            NameClaimType = JwtRegisteredClaimNames.Sub,
+            RoleClaimType = ClaimTypes.Role,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Cookies["access_token"];
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    })
+    .AddCertificate(options =>
+    {
+        options.AllowedCertificateTypes = CertificateTypes.All;
+    })
+    .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, _ => { })
+    .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, _ => { });
+builder.Services.AddAuthorization(options =>
 {
-    builder.Services.AddAuthentication();
-    builder.Services.AddAuthorization();
-}
+    var bearerPolicy = new AuthorizationPolicyBuilder(
+            JwtBearerDefaults.AuthenticationScheme,
+            CertificateAuthenticationDefaults.AuthenticationScheme,
+            PatAuthenticationHandler.SchemeName)
+        .RequireAuthenticatedUser()
+        .Build();
+    options.DefaultPolicy = bearerPolicy;
+    options.FallbackPolicy = bearerPolicy;
+});
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
 
 builder.Services.AddSingleton<Atlas.Presentation.Shared.Services.MigrationGovernanceMetricsStore>();
 
@@ -342,29 +321,19 @@ builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.
 builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 
 // ─── Hangfire (client only, no server in AppHost; gated by setup state) ───
-if (runtimeReadyForRegistration)
-{
-    builder.Services.AddHangfire(config =>
-        config.UseSQLiteStorage("hangfire-apphost.db", new SQLiteStorageOptions
-        {
-            JournalMode = SQLiteStorageOptions.JournalModes.WAL
-        }));
-}
-else
-{
-    builder.Services.AddHangfire(config => { });
-}
+builder.Services.AddHangfire(config =>
+    config.UseSQLiteStorage("hangfire-apphost.db", new SQLiteStorageOptions
+    {
+        JournalMode = SQLiteStorageOptions.JournalModes.WAL
+    }));
 
 // ─── WorkflowCore ───
-if (runtimeReadyForRegistration)
+builder.Services.AddWorkflowCore();
+builder.Services.AddWorkflowCoreDsl(options =>
 {
-    builder.Services.AddWorkflowCore();
-    builder.Services.AddWorkflowCoreDsl(options =>
-    {
-        options.AddNamespace("Atlas.WorkflowCore.Primitives");
-    });
-    builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
-}
+    options.AddNamespace("Atlas.WorkflowCore.Primitives");
+});
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
 
 // ─── OpenTelemetry ───
 var serviceName = "Atlas.AppHost";
@@ -426,13 +395,10 @@ app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
 
-if (runtimeReadyForRegistration)
-{
-    app.UseMiddleware<AppContextMiddleware>();
-    app.UseMiddleware<AntiforgeryValidationMiddleware>();
-    app.UseMiddleware<TenantContextMiddleware>();
-    app.UseMiddleware<ApiVersionRewriteMiddleware>();
-}
+app.UseMiddleware<AppContextMiddleware>();
+app.UseMiddleware<AntiforgeryValidationMiddleware>();
+app.UseMiddleware<TenantContextMiddleware>();
+app.UseMiddleware<ApiVersionRewriteMiddleware>();
 
 app.UseAuthorization();
 

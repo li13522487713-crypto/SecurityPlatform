@@ -1,17 +1,28 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { appBaseUrl, clearAuthStorage, ensureAppSetup, loginApp } from "./helpers";
+import { appBaseUrl, ensureAppSetup, loginApp } from "./helpers";
 
 export interface WorkflowSessionContext {
   appKey: string;
   workflowId: string;
 }
 
+async function ensureWorkflowListReady(page: Page, appKey: string): Promise<void> {
+  const workflowsUrl = `${appBaseUrl}/apps/${encodeURIComponent(appKey)}/workflows`;
+  const workflowsRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`);
+  const loginRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/login(?:\\?.*)?$`);
+
+  await page.goto(workflowsUrl);
+  if (loginRegex.test(page.url())) {
+    await loginApp(page, appKey);
+    await page.goto(workflowsUrl);
+  }
+
+  await page.waitForURL(workflowsRegex, { timeout: 30_000 });
+}
+
 export async function loginToWorkflowList(page: Page, request: APIRequestContext): Promise<string> {
   const appKey = await ensureAppSetup(request);
-  await clearAuthStorage(page);
-  await loginApp(page, appKey);
-  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/workflows`);
-  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`), { timeout: 30_000 });
+  await ensureWorkflowListReady(page, appKey);
   return appKey;
 }
 

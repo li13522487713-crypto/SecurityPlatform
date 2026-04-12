@@ -1,20 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import {
-  clearAuthStorage,
-  ensureAppSetup,
-  loginApp
+  ensureAppSetup
 } from "./helpers";
 
 test.describe.serial("App Approval Workspace", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
+    await ensureLoggedInSession(appKey);
   });
 
   test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
     await page.goto(`/apps/${encodeURIComponent(appKey)}/approval`);
     await expect(page.getByTestId("app-approval-page")).toBeVisible();
   });
@@ -29,3 +26,4 @@ test.describe.serial("App Approval Workspace", () => {
     await expect(page.getByTestId("app-approval-cc-table")).toBeVisible();
   });
 });
+

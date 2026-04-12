@@ -1,21 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import {
   captureEvidenceScreenshot,
-  clearAuthStorage,
-  ensureAppSetup,
-  loginApp
+  ensureAppSetup
 } from "./helpers";
 
 test.describe.serial("App Screenshot E2E", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
+    await ensureLoggedInSession(appKey);
   });
 
   test("should capture dashboard and users page screenshots in real browser", async ({ page }, testInfo) => {
@@ -28,3 +22,4 @@ test.describe.serial("App Screenshot E2E", () => {
     await captureEvidenceScreenshot(page, testInfo, "users-fullpage");
   });
 });
+

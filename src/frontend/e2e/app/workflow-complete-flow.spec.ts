@@ -1,18 +1,17 @@
-import { expect, test } from "@playwright/test";
-import { appBaseUrl, clearAuthStorage, ensureAppSetup, loginApp } from "./helpers";
+import { expect, test } from "../fixtures/single-session";
+import { appBaseUrl, ensureAppSetup } from "./helpers";
 
 test.describe.serial("Workflow Complete Flow", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
+    await ensureLoggedInSession(appKey);
   });
 
   test("应完成工作流端到端链路（拖拽、拉线、模型回复）", async ({ page }) => {
     test.setTimeout(360_000);
 
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/workflows`);
     await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows`), { timeout: 30_000 });
 
@@ -48,3 +47,4 @@ test.describe.serial("Workflow Complete Flow", () => {
     await expect(testRunPanel).toBeVisible();
   });
 });
+

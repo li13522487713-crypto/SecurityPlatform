@@ -1,9 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "../fixtures/single-session";
 import {
-  clearAuthStorage,
   ensureAppSetup,
   expectNoI18nKeyLeak,
-  loginApp
 } from "./helpers";
 
 async function clickSidebarAndAssertPage(
@@ -21,13 +19,13 @@ async function clickSidebarAndAssertPage(
 test.describe.serial("@smoke App Navigation", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
+    await ensureLoggedInSession(appKey);
   });
 
   test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
+    await page.goto(`/apps/${encodeURIComponent(appKey)}/dashboard`);
     await expect(page.getByTestId("app-sidebar")).toBeVisible();
   });
 
@@ -47,3 +45,4 @@ test.describe.serial("@smoke App Navigation", () => {
     await expectNoI18nKeyLeak(page, "app-profile-page");
   });
 });
+

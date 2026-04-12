@@ -83,8 +83,13 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
 
   useEffect(() => {
     operationService.bindProps(props);
-    void saveService.loadDocument();
-  }, [operationService, props, saveService]);
+  }, [operationService, props]);
+
+  useEffect(() => {
+    if (props.workflowId) {
+      void saveService.loadDocument();
+    }
+  }, [saveService, props.workflowId]);
 
   useEffect(() => {
     panRef.current = store.pan;
@@ -102,7 +107,8 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     }
     sideSheetStore.openSideSheet(selectedNodeKey);
     layoutService.open("NodeForm", { nodeKey: selectedNodeKey });
-  }, [layoutService, sideSheetStore, store.selectedNodeKeys]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.selectedNodeKeys]);
 
   const selectedNodeKey = store.selectedNodeKeys[0] ?? "";
   const selectedNode = useMemo(() => store.canvasNodes.find((item) => item.key === selectedNodeKey) ?? null, [selectedNodeKey, store.canvasNodes]);
@@ -111,7 +117,8 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     if (!store.debugNodeKey && selectedNode) {
       store.setDebugNodeKey(selectedNode.key);
     }
-  }, [selectedNode, store]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNode]);
 
   const variableSuggestions = useMemo(
     () =>
@@ -378,7 +385,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     };
   }, [editService, isReadOnly, store]);
 
-  const flowgramCanvasSchema: CanvasSchema = {
+  const flowgramCanvasSchema: CanvasSchema = useMemo(() => ({
     nodes: store.canvasNodes.map((node) => ({
       key: node.key,
       type: node.type,
@@ -403,7 +410,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     schemaVersion: 2,
     globals: store.canvasGlobals,
     viewport: { x: store.pan.x, y: store.pan.y, zoom: store.zoom }
-  };
+  }), [store.canvasNodes, store.canvasConnections, store.canvasGlobals, store.pan, store.zoom]);
 
   const hasCanvasValidationErrors = Boolean(
     canvasValidation &&

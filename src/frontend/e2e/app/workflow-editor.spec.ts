@@ -1,8 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import { createWorkflowSession, openWorkflowEditor } from "./workflow-e2e-helpers";
 
 test.describe.serial("Workflow Editor E2E", () => {
   test("should open workflow editor and show core controls", async ({ page, request }) => {
+    page.on("console", (msg) => console.log("BROWSER CONSOLE:", msg.type(), msg.text()));
+    page.on("pageerror", (error) => console.log("BROWSER PAGE ERROR:", error.message));
     await createWorkflowSession(page, request);
 
     await expect(page.getByTestId("workflow.detail.toolbar.add-node")).toBeVisible();
@@ -58,6 +60,11 @@ test.describe.serial("Workflow Editor E2E", () => {
 
   test("should insert node from output port click", async ({ page, request }) => {
     await createWorkflowSession(page, request);
+
+    // Insert a node first so we have something to click
+    await page.getByTestId("workflow.detail.toolbar.add-node").click();
+    await page.locator(".wf-react-node-item").first().click();
+    await expect(page.getByTestId("workflow.detail.node-panel")).toBeHidden();
 
     const nodeCards = page.locator(".wf-node-render-shell");
     const beforeNodeCount = await nodeCards.count();

@@ -1,12 +1,12 @@
 import path from "node:path";
-import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "../fixtures/single-session";
 
 const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 const defaultUsername = "admin";
 const defaultPassword = "P@ssw0rd!";
 const platformDatabasePath = "Data Source=atlas.e2e.db";
 const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.e2e.db")}`;
-const appKey = process.env.PLAYWRIGHT_APP_KEY ?? "dev-app";
+const fallbackAppKey = process.env.PLAYWRIGHT_APP_KEY ?? "dev-app";
 
 const platformBaseUrl = "http://127.0.0.1:5180";
 const appBaseUrl = "http://127.0.0.1:5181";
@@ -104,13 +104,13 @@ async function ensurePlatformSetup(request: APIRequestContext) {
     .toBe("Ready");
 }
 
-async function ensureAppSetup(request: APIRequestContext) {
+async function ensureAppSetup(request: APIRequestContext): Promise<string> {
   await ensurePlatformSetup(request);
 
   const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
   const payload = await state.json();
   if (payload?.success && payload?.data?.appSetupCompleted === true) {
-    return;
+    return String(payload?.data?.appKey ?? fallbackAppKey);
   }
 
   const initializeResponse = await request.post("http://127.0.0.1:5002/api/v1/setup/initialize", {
@@ -147,6 +147,10 @@ async function ensureAppSetup(request: APIRequestContext) {
       return statePayload?.data?.appSetupCompleted;
     }, { timeout: 45_000 })
     .toBeTruthy();
+
+  const latestState = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
+  const latestPayload = await latestState.json();
+  return String(latestPayload?.data?.appKey ?? fallbackAppKey);
 }
 
 async function resolvePlatformLoginMode(page: Page): Promise<"form" | "license-gated"> {
@@ -256,23 +260,17 @@ async function fillAppLoginForm(page: Page, password: string) {
 test.describe.serial("安装后认证到主页回归 E2E", () => {
   test.setTimeout(180_000);
 
-  let context: BrowserContext;
   let page: Page;
+  let resolvedAppKey = fallbackAppKey;
 
-  test.beforeAll(async ({ browser }) => {
-    context = await browser.newContext();
-    page = await context.newPage();
+  test.beforeAll(async ({ page: sharedPage }) => {
+    page = sharedPage;
     await page.goto(platformBaseUrl);
     await page.evaluate(() => {
       window.localStorage.clear();
       window.sessionStorage.clear();
       window.localStorage.setItem("atlas_locale", "zh-CN");
     });
-  });
-
-  test.afterAll(async () => {
-    await page.close();
-    await context.close();
   });
 
   test("[app][platform-auth] login happy path to console menu home", async ({ request }) => {
@@ -370,21 +368,21 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
   });
 
   test("[app] login happy path to dashboard menu home", async ({ request }) => {
-    await ensureAppSetup(request);
+    resolvedAppKey = await ensureAppSetup(request);
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, appBaseUrl, "zh-CN");
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/login`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
     await fillAppLoginForm(page, defaultPassword);
     await page.locator('.app-login-card button[type="submit"]').click();
 
-    await page.waitForURL(new RegExp(`/apps/${appKey}/dashboard$`), { timeout: 45_000 });
+    await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`), { timeout: 45_000 });
     await expect(page.locator(".workspace-sider .ant-menu").first()).toBeVisible();
     await expect(page.locator(".workspace-header .user-label")).toBeVisible();
     await expect(page.locator(".ant-page-header-heading-title")).toContainText("应用仪表盘");
 
     await page.reload();
-    await page.waitForURL(new RegExp(`/apps/${appKey}/dashboard$`), { timeout: 45_000 });
+    await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`), { timeout: 45_000 });
     await expect(page.locator(".workspace-sider .ant-menu").first()).toBeVisible();
 
     const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
@@ -394,24 +392,24 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
   });
 
   test("[app] wrong password should stay on app login", async ({ request }) => {
-    await ensureAppSetup(request);
+    resolvedAppKey = await ensureAppSetup(request);
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, appBaseUrl, "zh-CN");
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/login`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
     await fillAppLoginForm(page, "WrongPassword#123");
     await page.locator('.app-login-card button[type="submit"]').click();
 
-    await expect(page).toHaveURL(new RegExp(`/apps/${appKey}/login`));
+    await expect(page).toHaveURL(new RegExp(`/apps/${resolvedAppKey}/login`));
     await expect(page.locator(".app-login-error")).toBeVisible();
   });
 
   test("[app] unauthenticated dashboard access redirects to app login", async ({ request }) => {
-    await ensureAppSetup(request);
+    resolvedAppKey = await ensureAppSetup(request);
     await clearAuthStorage(page);
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboard`);
-    await expect(page).toHaveURL(new RegExp(`/apps/${appKey}/login`));
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/dashboard`);
+    await expect(page).toHaveURL(new RegExp(`/apps/${resolvedAppKey}/login`));
 
     const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
     const payload = await state.json();
@@ -420,16 +418,16 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
   });
 
   test("[app][i18n] en-US login to dashboard should remain english after reload", async ({ request }) => {
-    await ensureAppSetup(request);
+    resolvedAppKey = await ensureAppSetup(request);
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, appBaseUrl, "en-US");
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/login`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
     await expect(page.locator('.app-login-card button[type="submit"]')).toContainText("Login & Enter App");
     await fillAppLoginForm(page, defaultPassword);
     await page.locator('.app-login-card button[type="submit"]').click();
 
-    await page.waitForURL(new RegExp(`/apps/${appKey}/dashboard$`));
+    await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`));
     await expect(page.locator(".header-title")).toContainText("App Workspace");
     await expect(page.locator(".ant-page-header-heading-title")).toContainText("App Dashboard");
 
@@ -437,4 +435,5 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     await expect(page.locator(".header-title")).toContainText("App Workspace");
   });
 });
+
 

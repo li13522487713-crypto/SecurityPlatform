@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import { createWorkflowSession } from "./workflow-e2e-helpers";
 import { appBaseUrl } from "./helpers";
 
@@ -18,3 +18,4 @@ test.describe.serial("Workflow Collaboration E2E", () => {
     await secondTab.close();
   });
 });
+

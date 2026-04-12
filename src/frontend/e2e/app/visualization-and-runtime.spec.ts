@@ -1,20 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../fixtures/single-session";
 import {
-  clearAuthStorage,
-  ensureAppSetup,
-  loginApp
+  ensureAppSetup
 } from "./helpers";
 
 test.describe.serial("App Visualization And Runtime", () => {
   let appKey = "";
 
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await clearAuthStorage(page);
-    await loginApp(page, appKey);
+    await ensureLoggedInSession(appKey);
   });
 
   test("visualization page should load", async ({ page }) => {
@@ -50,3 +44,4 @@ test.describe.serial("App Visualization And Runtime", () => {
     }
   });
 });
+

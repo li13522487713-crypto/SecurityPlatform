@@ -52,9 +52,8 @@ if (string.IsNullOrWhiteSpace(setupStateFilePath))
 {
     setupStateFilePath = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
 }
-var setupReadyForRegistration = File.Exists(setupStateFilePath) &&
-    File.ReadAllText(setupStateFilePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
-builder.Services.AddSingleton(new PlatformRuntimeRegistrationMarker(setupReadyForRegistration));
+// 运行时能力始终注册，setup 访问门禁由 SetupModeMiddleware 按当前状态动态控制。
+builder.Services.AddSingleton(new PlatformRuntimeRegistrationMarker(true));
 
 // ─── 配置来源 ───
 // 优先加载 setup 完成后持久化的运行时配置（包含用户选定的数据库连接信息）
@@ -354,161 +353,153 @@ builder.Services.AddAntiforgery(options =>
 builder.Services.AddSingleton<Atlas.Presentation.Shared.Services.MigrationGovernanceMetricsStore>();
 
 // ─── Authentication / Authorization ───
-if (setupReadyForRegistration)
-{
-    builder.Services.AddAuthentication()
-        .AddJwtBearer(options =>
+builder.Services.AddAuthentication()
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
-            options.MapInboundClaims = false;
-            options.TokenValidationParameters = new TokenValidationParameters
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(
+                    string.Equals(jwt.SigningKey, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
+                        ? "temp-dev-signing-key-please-replace-at-runtime-in-production"
+                        : jwt.SigningKey)),
+            NameClaimType = JwtRegisteredClaimNames.Sub,
+            RoleClaimType = ClaimTypes.Role,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
             {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateIssuerSigningKey = true,
-                ValidateLifetime = true,
-                ValidIssuer = jwt.Issuer,
-                ValidAudience = jwt.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(
-                        string.Equals(jwt.SigningKey, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
-                            ? "temp-dev-signing-key-please-replace-at-runtime-in-production"
-                            : jwt.SigningKey)),
-                NameClaimType = JwtRegisteredClaimNames.Sub,
-                RoleClaimType = ClaimTypes.Role,
-                ClockSkew = TimeSpan.FromMinutes(1)
-            };
-            options.Events = new JwtBearerEvents
+                var accessToken = context.Request.Cookies["access_token"];
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
+            OnAuthenticationFailed = context =>
             {
-                OnMessageReceived = context =>
+                if (context.Exception is SecurityTokenExpiredException)
                 {
-                    var accessToken = context.Request.Cookies["access_token"];
-                    if (!string.IsNullOrEmpty(accessToken))
-                    {
-                        context.Token = accessToken;
-                    }
-                    return Task.CompletedTask;
-                },
-                OnAuthenticationFailed = context =>
+                    context.HttpContext.Items[AuthorizationContextKeys.AuthErrorCodeItemKey] = ErrorCodes.TokenExpired;
+                }
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                if (principal is null)
                 {
-                    if (context.Exception is SecurityTokenExpiredException)
-                    {
-                        context.HttpContext.Items[AuthorizationContextKeys.AuthErrorCodeItemKey] = ErrorCodes.TokenExpired;
-                    }
-                    return Task.CompletedTask;
-                },
-                OnTokenValidated = async context =>
+                    var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+                    context.Fail(loc?["InvalidToken"].Value ?? "Invalid token.");
+                    return;
+                }
+
+                var tenantIdRaw = principal.FindFirstValue("tenant_id");
+                if (!Guid.TryParse(tenantIdRaw, out var tenantGuid))
                 {
-                    var principal = context.Principal;
-                    if (principal is null)
-                    {
-                        var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
-                        context.Fail(loc?["InvalidToken"].Value ?? "Invalid token.");
-                        return;
-                    }
+                    var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+                    context.Fail(loc?["TokenMissingTenant"].Value ?? "Token is missing a valid tenant claim.");
+                    return;
+                }
 
-                    var tenantIdRaw = principal.FindFirstValue("tenant_id");
-                    if (!Guid.TryParse(tenantIdRaw, out var tenantGuid))
-                    {
-                        var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
-                        context.Fail(loc?["TokenMissingTenant"].Value ?? "Token is missing a valid tenant claim.");
-                        return;
-                    }
+                var userIdRaw = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!long.TryParse(userIdRaw, out var userId))
+                {
+                    var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+                    context.Fail(loc?["TokenMissingUser"].Value ?? "Token is missing a valid user identifier.");
+                    return;
+                }
 
-                    var userIdRaw = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-                    if (!long.TryParse(userIdRaw, out var userId))
-                    {
-                        var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
-                        context.Fail(loc?["TokenMissingUser"].Value ?? "Token is missing a valid user identifier.");
-                        return;
-                    }
+                var sessionIdRaw = principal.FindFirstValue("sid");
+                if (!long.TryParse(sessionIdRaw, out var sessionId))
+                {
+                    var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+                    context.Fail(loc?["TokenMissingSession"].Value ?? "Token is missing a valid session identifier.");
+                    return;
+                }
 
-                    var sessionIdRaw = principal.FindFirstValue("sid");
-                    if (!long.TryParse(sessionIdRaw, out var sessionId))
-                    {
-                        var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
-                        context.Fail(loc?["TokenMissingSession"].Value ?? "Token is missing a valid session identifier.");
-                        return;
-                    }
+                var tenantId = new TenantId(tenantGuid);
 
-                    var tenantId = new TenantId(tenantGuid);
+                var authCache = context.HttpContext.RequestServices
+                    .GetRequiredService<Atlas.Application.Identity.Abstractions.IAuthCacheService>();
+                var cached = await authCache.GetAsync(tenantId, userId, sessionId);
 
-                    var authCache = context.HttpContext.RequestServices
-                        .GetRequiredService<Atlas.Application.Identity.Abstractions.IAuthCacheService>();
-                    var cached = await authCache.GetAsync(tenantId, userId, sessionId);
-
-                    if (cached is not null)
-                    {
-                        if (!cached.IsUserActive)
-                        {
-                            var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
-                            context.Fail(loc?["UserDisabledOrNotExist"].Value ?? "User is disabled or does not exist.");
-                            return;
-                        }
-
-                        if (cached.IsSessionRevoked || cached.SessionExpiresAt <= DateTimeOffset.UtcNow)
-                        {
-                            var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
-                            context.Fail(loc?["SessionRevoked"].Value ?? "Session has expired or been revoked.");
-                            return;
-                        }
-                        return;
-                    }
-
-                    var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserAccountRepository>();
-                    var account = await userRepository.FindByIdAsync(tenantId, userId, context.HttpContext.RequestAborted);
-                    if (account is null || !account.IsActive)
+                if (cached is not null)
+                {
+                    if (!cached.IsUserActive)
                     {
                         var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
                         context.Fail(loc?["UserDisabledOrNotExist"].Value ?? "User is disabled or does not exist.");
                         return;
                     }
 
-                    var sessionRepository = context.HttpContext.RequestServices.GetRequiredService<IAuthSessionRepository>();
-                    var session = await sessionRepository.FindByIdAsync(tenantId, sessionId, context.HttpContext.RequestAborted);
-                    if (session is null || session.UserId != userId || session.RevokedAt.HasValue || session.ExpiresAt <= DateTimeOffset.UtcNow)
+                    if (cached.IsSessionRevoked || cached.SessionExpiresAt <= DateTimeOffset.UtcNow)
                     {
                         var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
                         context.Fail(loc?["SessionRevoked"].Value ?? "Session has expired or been revoked.");
                         return;
                     }
-
-                    await authCache.SetAsync(tenantId, userId, sessionId, new Atlas.Application.Identity.Abstractions.AuthValidationCacheEntry(
-                        IsUserActive: account.IsActive,
-                        UserId: userId,
-                        SessionId: sessionId,
-                        SessionExpiresAt: session.ExpiresAt,
-                        IsSessionRevoked: session.RevokedAt.HasValue));
+                    return;
                 }
-            };
-        })
-        .AddCertificate(options =>
-        {
-            options.AllowedCertificateTypes = CertificateTypes.All;
-        })
-        .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, _ => { })
-        .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, _ => { });
 
-    builder.Services.AddAuthorization(options =>
+                var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserAccountRepository>();
+                var account = await userRepository.FindByIdAsync(tenantId, userId, context.HttpContext.RequestAborted);
+                if (account is null || !account.IsActive)
+                {
+                    var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+                    context.Fail(loc?["UserDisabledOrNotExist"].Value ?? "User is disabled or does not exist.");
+                    return;
+                }
+
+                var sessionRepository = context.HttpContext.RequestServices.GetRequiredService<IAuthSessionRepository>();
+                var session = await sessionRepository.FindByIdAsync(tenantId, sessionId, context.HttpContext.RequestAborted);
+                if (session is null || session.UserId != userId || session.RevokedAt.HasValue || session.ExpiresAt <= DateTimeOffset.UtcNow)
+                {
+                    var loc = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+                    context.Fail(loc?["SessionRevoked"].Value ?? "Session has expired or been revoked.");
+                    return;
+                }
+
+                await authCache.SetAsync(tenantId, userId, sessionId, new Atlas.Application.Identity.Abstractions.AuthValidationCacheEntry(
+                    IsUserActive: account.IsActive,
+                    UserId: userId,
+                    SessionId: sessionId,
+                    SessionExpiresAt: session.ExpiresAt,
+                    IsSessionRevoked: session.RevokedAt.HasValue));
+            }
+        };
+    })
+    .AddCertificate(options =>
     {
-        var bearerPolicy = new AuthorizationPolicyBuilder(
-                JwtBearerDefaults.AuthenticationScheme,
-                CertificateAuthenticationDefaults.AuthenticationScheme,
-                PatAuthenticationHandler.SchemeName)
-            .RequireAuthenticatedUser()
-            .Build();
-        options.DefaultPolicy = bearerPolicy;
-        options.FallbackPolicy = bearerPolicy;
-    });
-    builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-    builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
-    builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
-}
-else
+        options.AllowedCertificateTypes = CertificateTypes.All;
+    })
+    .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, _ => { })
+    .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, _ => { });
+
+builder.Services.AddAuthorization(options =>
 {
-    builder.Services.AddAuthentication();
-    builder.Services.AddAuthorization();
-}
+    var bearerPolicy = new AuthorizationPolicyBuilder(
+            JwtBearerDefaults.AuthenticationScheme,
+            CertificateAuthenticationDefaults.AuthenticationScheme,
+            PatAuthenticationHandler.SchemeName)
+        .RequireAuthenticatedUser()
+        .Build();
+    options.DefaultPolicy = bearerPolicy;
+    options.FallbackPolicy = bearerPolicy;
+});
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
 
 // ─── Rate Limiter ───
 builder.Services.AddRateLimiter(options =>
@@ -572,17 +563,10 @@ var appServices = builder.Services.AddAtlasApplicationShared(
     typeof(Atlas.Application.BatchProcess.Mappings.BatchProcessMappingProfile).Assembly,
     typeof(WebApiMappingProfile).Assembly)
     .AddAtlasApplicationPlatform();
-if (setupReadyForRegistration)
-{
-    appServices.AddAtlasApplicationRuntime();
-    builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
-        .AddAtlasInfrastructurePlatform(builder.Configuration)
-        .AddAtlasInfrastructureAppRuntime(builder.Configuration);
-}
-else
-{
-    builder.Services.AddAtlasInfrastructureShared(builder.Configuration, includeAppRuntimeServices: false);
-}
+appServices.AddAtlasApplicationRuntime();
+builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
+    .AddAtlasInfrastructurePlatform(builder.Configuration)
+    .AddAtlasInfrastructureAppRuntime(builder.Configuration);
 
 // ─── i18n ───
 builder.Services.AddScoped<Atlas.Application.System.Abstractions.ITenantService, Atlas.Infrastructure.Services.TenantService>();
@@ -597,47 +581,34 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptio
 });
 
 // ─── Hangfire (only register when setup is completed to avoid premature DB creation) ───
-if (setupReadyForRegistration)
-{
-    builder.Services.AddHangfire(config =>
-        config.UseSQLiteStorage("hangfire-platformhost.db", new SQLiteStorageOptions
-        {
-            JournalMode = SQLiteStorageOptions.JournalModes.WAL,
-            QueuePollInterval = TimeSpan.FromSeconds(hangfireQueuePollIntervalSeconds),
-            JobExpirationCheckInterval = TimeSpan.FromMinutes(hangfireJobExpirationCheckIntervalMinutes)
-        }));
-    if (runHangfireServer)
+builder.Services.AddHangfire(config =>
+    config.UseSQLiteStorage("hangfire-platformhost.db", new SQLiteStorageOptions
     {
-        builder.Services.AddHangfireServer(options =>
-        {
-            options.WorkerCount = hangfireWorkerCount;
-            options.SchedulePollingInterval = TimeSpan.FromSeconds(hangfireSchedulePollingIntervalSeconds);
-        });
-    }
-}
-else
+        JournalMode = SQLiteStorageOptions.JournalModes.WAL,
+        QueuePollInterval = TimeSpan.FromSeconds(hangfireQueuePollIntervalSeconds),
+        JobExpirationCheckInterval = TimeSpan.FromMinutes(hangfireJobExpirationCheckIntervalMinutes)
+    }));
+if (runHangfireServer)
 {
-    builder.Services.AddHangfire(config => { });
+    builder.Services.AddHangfireServer(options =>
+    {
+        options.WorkerCount = hangfireWorkerCount;
+        options.SchedulePollingInterval = TimeSpan.FromSeconds(hangfireSchedulePollingIntervalSeconds);
+    });
 }
 
 // ─── WorkflowCore ───
-if (setupReadyForRegistration)
+builder.Services.AddWorkflowCore();
+builder.Services.AddWorkflowCoreDsl(options =>
 {
-    builder.Services.AddWorkflowCore();
-    builder.Services.AddWorkflowCoreDsl(options =>
-    {
-        options.AddNamespace("Atlas.WorkflowCore.Primitives");
-    });
-    builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
-}
+    options.AddNamespace("Atlas.WorkflowCore.Primitives");
+});
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
 
 // ─── YARP Reverse Proxy ───
-if (setupReadyForRegistration)
-{
-    builder.Services.AddSingleton<AppHostProxyConfigProvider>();
-    builder.Services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<AppHostProxyConfigProvider>());
-    builder.Services.AddReverseProxy();
-}
+builder.Services.AddSingleton<AppHostProxyConfigProvider>();
+builder.Services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<AppHostProxyConfigProvider>());
+builder.Services.AddReverseProxy();
 
 // ─── Health Checks ───
 builder.Services.AddHealthChecks();
@@ -696,28 +667,22 @@ app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
 
-if (setupReadyForRegistration)
-{
-    app.UseMiddleware<TenantContextMiddleware>();
-}
+app.UseMiddleware<TenantContextMiddleware>();
 
 app.UseAuthorization();
 
-if (setupReadyForRegistration)
-{
-    app.UseMiddleware<AppContextMiddleware>();
-    app.UseMiddleware<AntiforgeryValidationMiddleware>();
-    app.UseMiddleware<AppMembershipMiddleware>();
-    app.UseMiddleware<ProjectContextMiddleware>();
-    app.UseMiddleware<LicenseEnforcementMiddleware>();
-    app.UseMiddleware<OpenApiGovernanceMiddleware>();
-}
+app.UseMiddleware<AppContextMiddleware>();
+app.UseMiddleware<AntiforgeryValidationMiddleware>();
+app.UseMiddleware<AppMembershipMiddleware>();
+app.UseMiddleware<ProjectContextMiddleware>();
+app.UseMiddleware<LicenseEnforcementMiddleware>();
+app.UseMiddleware<OpenApiGovernanceMiddleware>();
 
 app.MapHealthChecks("/internal/health/live");
 app.MapHealthChecks("/internal/health/ready");
 app.MapControllers();
 
-if (setupReadyForRegistration && runHangfireServer)
+if (runHangfireServer)
 {
     var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
     recurringJobs.AddOrUpdate<Atlas.Infrastructure.Services.AiPlatform.WorkflowExecutionCleanupJob>(
@@ -726,10 +691,7 @@ if (setupReadyForRegistration && runHangfireServer)
         Cron.Daily(3, 0));
 }
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
-if (setupReadyForRegistration)
-{
-    app.MapReverseProxy();
-}
+app.MapReverseProxy();
 app.MapGet("/", () => Results.Ok(new
 {
     host = "PlatformHost",
