@@ -39,6 +39,7 @@ export class WorkflowSaveService {
 
   async loadDocument(): Promise<void> {
     const state = useWorkflowEditorStore.getState();
+    state.resetEditorState();
     const [nodeTypesResp, templatesResp, detailResp] = await Promise.all([
       this.operationService.apiClient?.getNodeTypes?.(),
       this.operationService.apiClient?.getNodeTemplates?.(),
@@ -65,7 +66,11 @@ export class WorkflowSaveService {
       if (normalized.migratedCount > 0) {
         message.info(`已迁移 ${normalized.migratedCount} 条历史连线到默认端口。`);
       }
+      return;
     }
+
+    state.setWorkflowName(`Workflow_${this.operationService.workflowId}`);
+    state.setLastSavedAt(null);
   }
 
   async save(ignoreStatusTransfer: boolean): Promise<void> {
@@ -84,6 +89,7 @@ export class WorkflowSaveService {
       state.setCanvasNodes(preparedNodes);
       await this.operationService.save(ignoreStatusTransfer);
       state.setDirty(false);
+      state.setLastSavedAt(Date.now());
       state.appendLog("save_draft");
     } finally {
       state.setSaving(false);

@@ -2,8 +2,8 @@ import { expect, test } from "../fixtures/single-session";
 import { createWorkflowSession } from "./workflow-e2e-helpers";
 
 test.describe.serial("Workflow Publish E2E", () => {
-  test("should trigger publish request from editor header", async ({ page, request }) => {
-    await createWorkflowSession(page, request);
+  test("should trigger publish request from editor header", async ({ page, request, ensureLoggedInSession }) => {
+    await createWorkflowSession(page, request, ensureLoggedInSession);
 
     let publishStatus = -1;
     const publishResponsePromise = page

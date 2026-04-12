@@ -6,23 +6,65 @@ export interface WorkflowSessionContext {
   workflowId: string;
 }
 
-async function ensureWorkflowListReady(page: Page, appKey: string): Promise<void> {
+const workflowCanvasSelector = ".wf-react-canvas-shell";
+const workflowNodeSelector = ".gedit-flow-activity-node, .wf-react-node";
+
+async function ensureWorkflowListReady(
+  page: Page,
+  appKey: string,
+  ensureLoggedInSession?: (appKey: string) => Promise<void>
+): Promise<void> {
   const workflowsUrl = `${appBaseUrl}/apps/${encodeURIComponent(appKey)}/workflows`;
   const workflowsRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`);
   const loginRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/login(?:\\?.*)?$`);
+  const createButton = page.getByRole("button", { name: /新建工作流|Create Workflow/ });
 
-  await page.goto(workflowsUrl);
-  if (loginRegex.test(page.url())) {
-    await loginApp(page, appKey);
-    await page.goto(workflowsUrl);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto(workflowsUrl, { waitUntil: "domcontentloaded" });
+
+    if (loginRegex.test(page.url()) || (await page.getByTestId("app-login-page").isVisible().catch(() => false))) {
+      if (ensureLoggedInSession) {
+        await ensureLoggedInSession(appKey);
+      } else {
+        await loginApp(page, appKey);
+      }
+      continue;
+    }
+
+    await page.waitForURL(workflowsRegex, { timeout: 30_000 });
+    try {
+      await expect(createButton).toBeVisible({ timeout: 8_000 });
+      return;
+    } catch {
+      if (ensureLoggedInSession) {
+        await ensureLoggedInSession(appKey);
+      }
+      if (attempt === 2) {
+        throw new Error(`工作流列表页未稳定进入可操作状态，当前 URL: ${page.url()}`);
+      }
+    }
   }
-
-  await page.waitForURL(workflowsRegex, { timeout: 30_000 });
 }
 
-export async function loginToWorkflowList(page: Page, request: APIRequestContext): Promise<string> {
+export async function expectWorkflowEditorReady(page: Page): Promise<void> {
+  await expect(page.locator(workflowCanvasSelector)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(workflowNodeSelector).first()).toBeVisible({ timeout: 15_000 });
+}
+
+export function workflowNodeLocator(page: Page) {
+  return page.locator(workflowNodeSelector);
+}
+
+export async function loginToWorkflowList(
+  page: Page,
+  request: APIRequestContext,
+  ensureLoggedInSession?: (appKey: string) => Promise<void>
+): Promise<string> {
   const appKey = await ensureAppSetup(request);
-  await ensureWorkflowListReady(page, appKey);
+  if (ensureLoggedInSession) {
+    await ensureLoggedInSession(appKey);
+  }
+  await ensureWorkflowListReady(page, appKey, ensureLoggedInSession);
   return appKey;
 }
 
@@ -52,15 +94,16 @@ export async function createWorkflowAndOpenEditor(page: Page, appKey: string): P
   await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows/[^/]+/editor(?:\\?.*)?$`), {
     timeout: 30_000
   });
-  await expect(page.locator(".wf-react-canvas-shell")).toBeVisible();
+  await expectWorkflowEditorReady(page);
   return createdWorkflowId;
 }
 
 export async function createWorkflowSession(
   page: Page,
-  request: APIRequestContext
+  request: APIRequestContext,
+  ensureLoggedInSession?: (appKey: string) => Promise<void>
 ): Promise<WorkflowSessionContext> {
-  const appKey = await loginToWorkflowList(page, request);
+  const appKey = await loginToWorkflowList(page, request, ensureLoggedInSession);
   const workflowId = await createWorkflowAndOpenEditor(page, appKey);
   return { appKey, workflowId };
 }
@@ -72,5 +115,5 @@ export async function openWorkflowEditor(page: Page, appKey: string, workflowId:
   await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`), {
     timeout: 30_000
   });
-  await expect(page.locator(".wf-react-canvas-shell")).toBeVisible();
+  await expectWorkflowEditorReady(page);
 }

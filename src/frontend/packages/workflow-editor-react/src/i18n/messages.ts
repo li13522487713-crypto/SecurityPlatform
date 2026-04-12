@@ -3,9 +3,33 @@ export const workflowZhCN = {
     editorUnsaved: "未保存",
     saveDraft: "保存草稿",
     publish: "发布",
-    autosaveAt: "已保存 {time}"
+    autosaveAt: "已保存 {time}",
+    title: "应用工作流编辑器",
+    subtitle: "单窗口持续编辑、调试与发布",
+    duplicate: "复制",
+    back: "返回列表"
   },
   wfUi: {
+    toolbar: {
+      mouse: "鼠标",
+      trackpad: "触控板",
+      minimap: "小地图",
+      autoLayout: "自动布局",
+      addNode: "添加节点",
+      variables: "变量",
+      debug: "单节点调试",
+      trace: "执行轨迹",
+      problems: "问题",
+      testRun: "测试运行"
+    },
+    status: {
+      ready: "就绪",
+      running: "运行中",
+      success: "成功",
+      failed: "失败",
+      skipped: "跳过",
+      blocked: "阻塞"
+    },
     nodePanel: {
       phSearch: "搜索节点",
       catFlowControl: "流程控制",
@@ -14,13 +38,56 @@ export const workflowZhCN = {
       catExternal: "外部交互",
       catKnowledge: "知识库",
       catDatabase: "数据库",
-      catConversation: "会话管理"
+      catConversation: "会话管理",
+      resultCount: "{count} 个节点",
+      empty: "没有找到匹配的节点，请换个关键词试试"
     },
     properties: {
       title: "节点属性",
       basic: "基础设置",
       labelTitle: "标题",
       labelType: "节点类型"
+    },
+    node: {
+      input: "输入",
+      output: "输出",
+      type: "类型"
+    },
+    testRun: {
+      title: "测试运行",
+      stream: "流式",
+      sync: "同步",
+      published: "已发布版本",
+      draft: "草稿版本",
+      run: "执行",
+      running: "执行中",
+      close: "关闭",
+      inputPlaceholder: "{\"input\":\"hello\"}",
+      emptyLog: "暂无执行日志"
+    },
+    trace: {
+      title: "执行轨迹",
+      time: "时间",
+      node: "节点",
+      status: "状态",
+      detail: "详情",
+      close: "关闭"
+    },
+    problem: {
+      title: "问题列表",
+      locate: "定位",
+      close: "关闭",
+      canvas: "画布"
+    },
+    variables: {
+      title: "变量面板",
+      globals: "全局变量",
+      emptyGlobals: "暂无全局变量",
+      add: "添加",
+      remove: "删除",
+      close: "关闭",
+      keyPlaceholder: "变量名",
+      valuePlaceholder: "变量值"
     },
     nodeTypes: {
       Entry: "开始",
@@ -75,9 +142,33 @@ export const workflowEnUS = {
     editorUnsaved: "Unsaved",
     saveDraft: "Save Draft",
     publish: "Publish",
-    autosaveAt: "Saved at {time}"
+    autosaveAt: "Saved at {time}",
+    title: "App Workflow Editor",
+    subtitle: "Edit, debug and publish in one continuous session",
+    duplicate: "Duplicate",
+    back: "Back to list"
   },
   wfUi: {
+    toolbar: {
+      mouse: "Mouse",
+      trackpad: "Trackpad",
+      minimap: "Minimap",
+      autoLayout: "Auto Layout",
+      addNode: "Add Node",
+      variables: "Variables",
+      debug: "Node Debug",
+      trace: "Trace",
+      problems: "Problems",
+      testRun: "Test Run"
+    },
+    status: {
+      ready: "Ready",
+      running: "Running",
+      success: "Success",
+      failed: "Failed",
+      skipped: "Skipped",
+      blocked: "Blocked"
+    },
     nodePanel: {
       phSearch: "Search nodes",
       catFlowControl: "Flow Control",
@@ -86,13 +177,56 @@ export const workflowEnUS = {
       catExternal: "External",
       catKnowledge: "Knowledge",
       catDatabase: "Database",
-      catConversation: "Conversation"
+      catConversation: "Conversation",
+      resultCount: "{count} nodes",
+      empty: "No matching nodes found"
     },
     properties: {
       title: "Node Properties",
       basic: "Basic",
       labelTitle: "Title",
       labelType: "Node Type"
+    },
+    node: {
+      input: "Input",
+      output: "Output",
+      type: "Type"
+    },
+    testRun: {
+      title: "Test Run",
+      stream: "Stream",
+      sync: "Sync",
+      published: "Published",
+      draft: "Draft",
+      run: "Run",
+      running: "Running",
+      close: "Close",
+      inputPlaceholder: "{\"input\":\"hello\"}",
+      emptyLog: "No execution logs yet"
+    },
+    trace: {
+      title: "Trace",
+      time: "Time",
+      node: "Node",
+      status: "Status",
+      detail: "Detail",
+      close: "Close"
+    },
+    problem: {
+      title: "Problems",
+      locate: "Locate",
+      close: "Close",
+      canvas: "Canvas"
+    },
+    variables: {
+      title: "Variables",
+      globals: "Global Variables",
+      emptyGlobals: "No global variables",
+      add: "Add",
+      remove: "Delete",
+      close: "Close",
+      keyPlaceholder: "Key",
+      valuePlaceholder: "Value"
     },
     nodeTypes: {
       Entry: "Start",

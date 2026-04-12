@@ -1,4 +1,5 @@
 import { Button, List } from "antd";
+import { useTranslation } from "react-i18next";
 import type { CanvasValidationResult } from "../editor/editor-validation";
 
 interface ProblemPanelProps {
@@ -9,6 +10,7 @@ interface ProblemPanelProps {
 }
 
 export function ProblemPanel(props: ProblemPanelProps) {
+  const { t } = useTranslation();
   if (!props.visible) {
     return null;
   }
@@ -19,15 +21,15 @@ export function ProblemPanel(props: ProblemPanelProps) {
   return (
     <div className="wf-react-problem-panel">
       <div className="wf-react-test-header">
-        <div>问题列表</div>
+        <div className="wf-react-panel-title">{t("wfUi.problem.title")}</div>
         <Button size="small" onClick={props.onClose}>
-          关闭
+          {t("wfUi.problem.close")}
         </Button>
       </div>
       <List
         size="small"
         dataSource={[
-          ...canvasIssues.map((issue) => ({ key: `canvas-${issue}`, label: `画布: ${issue}`, nodeKey: "" })),
+          ...canvasIssues.map((issue) => ({ key: `canvas-${issue}`, label: `${t("wfUi.problem.canvas")}: ${issue}`, nodeKey: "" })),
           ...nodeIssues.map((item) => ({ key: item.nodeKey, label: `${item.nodeKey}: ${item.issues[0]}`, nodeKey: item.nodeKey }))
         ]}
         renderItem={(item) => (
@@ -36,7 +38,7 @@ export function ProblemPanel(props: ProblemPanelProps) {
               item.nodeKey
                 ? [
                     <Button key="goto" type="link" size="small" onClick={() => props.onSelectNode(item.nodeKey)}>
-                      定位
+                      {t("wfUi.problem.locate")}
                     </Button>
                   ]
                 : undefined

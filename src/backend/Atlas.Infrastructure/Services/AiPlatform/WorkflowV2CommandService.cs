@@ -7,11 +7,106 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
 {
+    private static readonly string StarterCanvasJson = JsonSerializer.Serialize(
+        new
+        {
+            nodes = new object[]
+            {
+                new
+                {
+                    key = "entry_1",
+                    type = "Entry",
+                    title = "开始",
+                    configs = new
+                    {
+                        entryVariable = "USER_INPUT",
+                        entryAutoSaveHistory = true
+                    },
+                    inputMappings = new { },
+                    layout = new
+                    {
+                        x = 160,
+                        y = 120,
+                        width = 360,
+                        height = 160
+                    }
+                },
+                new
+                {
+                    key = "llm_1",
+                    type = "Llm",
+                    title = "大模型",
+                    configs = new
+                    {
+                        provider = "qwen",
+                        model = "qwen-max",
+                        prompt = "{{entry_1.output}}",
+                        outputKey = "result"
+                    },
+                    inputMappings = new { },
+                    layout = new
+                    {
+                        x = 620,
+                        y = 120,
+                        width = 360,
+                        height = 160
+                    }
+                },
+                new
+                {
+                    key = "exit_1",
+                    type = "Exit",
+                    title = "结束",
+                    configs = new
+                    {
+                        exitTerminateMode = "return",
+                        exitTemplate = "{{llm_1.result}}"
+                    },
+                    inputMappings = new { },
+                    layout = new
+                    {
+                        x = 1080,
+                        y = 120,
+                        width = 360,
+                        height = 160
+                    }
+                }
+            },
+            connections = new object[]
+            {
+                new
+                {
+                    fromNode = "entry_1",
+                    fromPort = "output",
+                    toNode = "llm_1",
+                    toPort = "input",
+                    condition = (string?)null
+                },
+                new
+                {
+                    fromNode = "llm_1",
+                    fromPort = "output",
+                    toNode = "exit_1",
+                    toPort = "input",
+                    condition = (string?)null
+                }
+            },
+            schemaVersion = 2,
+            viewport = new
+            {
+                x = 0,
+                y = 0,
+                zoom = 100
+            },
+            globals = new { }
+        });
+
     private readonly IWorkflowMetaRepository _metaRepo;
     private readonly IWorkflowDraftRepository _draftRepo;
     private readonly IWorkflowVersionRepository _versionRepo;
@@ -39,8 +134,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         var meta = new WorkflowMeta(tenantId, request.Name.Trim(), request.Description?.Trim(), request.Mode, creatorId, metaId);
         await _metaRepo.AddAsync(meta, cancellationToken);
 
-        var defaultCanvas = """{"nodes":[],"connections":[]}""";
-        var draft = new WorkflowDraft(tenantId, metaId, defaultCanvas, _idGenerator.NextId());
+        var draft = new WorkflowDraft(tenantId, metaId, StarterCanvasJson, _idGenerator.NextId());
         await _draftRepo.AddAsync(draft, cancellationToken);
 
         return metaId;
@@ -54,13 +148,6 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
 
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
-
-        var canvasValidation = _canvasValidator.ValidateCanvas(request.CanvasJson);
-        if (!canvasValidation.IsValid)
-        {
-            var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));
-            throw new BusinessException($"工作流画布校验失败，无法保存：{validationMessage}", ErrorCodes.ValidationError);
-        }
 
         draft.Save(request.CanvasJson, request.CommitId);
         await _draftRepo.UpdateAsync(draft, cancellationToken);
@@ -122,7 +209,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         var newMeta = new WorkflowMeta(tenantId, $"{meta.Name}-副本", meta.Description, meta.Mode, creatorId, newMetaId);
         await _metaRepo.AddAsync(newMeta, cancellationToken);
 
-        var canvasJson = draft?.CanvasJson ?? """{"nodes":[],"connections":[]}""";
+        var canvasJson = draft?.CanvasJson ?? StarterCanvasJson;
         var newDraft = new WorkflowDraft(tenantId, newMetaId, canvasJson, _idGenerator.NextId());
         await _draftRepo.AddAsync(newDraft, cancellationToken);
 

@@ -1,4 +1,5 @@
 import { Button, Table, Tag } from "antd";
+import { useTranslation } from "react-i18next";
 
 export interface TraceStepItem {
   timestamp: string;
@@ -22,6 +23,7 @@ const STATUS_COLOR: Record<TraceStepItem["status"], string> = {
 };
 
 export function TracePanel(props: TracePanelProps) {
+  const { t } = useTranslation();
   if (!props.visible) {
     return null;
   }
@@ -29,9 +31,9 @@ export function TracePanel(props: TracePanelProps) {
   return (
     <div className="wf-react-trace-panel">
       <div className="wf-react-test-header">
-        <div>Trace</div>
+        <div className="wf-react-panel-title">{t("wfUi.trace.title")}</div>
         <Button size="small" onClick={props.onClose}>
-          关闭
+          {t("wfUi.trace.close")}
         </Button>
       </div>
       <Table
@@ -40,15 +42,15 @@ export function TracePanel(props: TracePanelProps) {
         dataSource={props.steps}
         pagination={false}
         columns={[
-          { title: "时间", dataIndex: "timestamp", width: 90 },
-          { title: "节点", dataIndex: "nodeKey", width: 180, ellipsis: true },
+          { title: t("wfUi.trace.time"), dataIndex: "timestamp", width: 90 },
+          { title: t("wfUi.trace.node"), dataIndex: "nodeKey", width: 180, ellipsis: true },
           {
-            title: "状态",
+            title: t("wfUi.trace.status"),
             dataIndex: "status",
             width: 100,
-            render: (value: TraceStepItem["status"]) => <Tag color={STATUS_COLOR[value]}>{value}</Tag>
+            render: (value: TraceStepItem["status"]) => <Tag color={STATUS_COLOR[value]}>{t(`wfUi.status.${value}`)}</Tag>
           },
-          { title: "详情", dataIndex: "detail", ellipsis: true }
+          { title: t("wfUi.trace.detail"), dataIndex: "detail", ellipsis: true }
         ]}
       />
     </div>

@@ -37,7 +37,7 @@ export const INITIAL_NODES: CanvasNode[] = [
     title: "开始",
     x: 160,
     y: 120,
-    configs: { entry: { variable: "USER_INPUT", autoSaveHistory: true } },
+    configs: { entryVariable: "USER_INPUT", entryAutoSaveHistory: true },
     inputMappings: {}
   },
   {
@@ -46,7 +46,7 @@ export const INITIAL_NODES: CanvasNode[] = [
     title: "大模型",
     x: 620,
     y: 120,
-    configs: { llm: { provider: "qwen", model: "qwen-max", userPrompt: "{{entry_1.output}}" } },
+    configs: { provider: "qwen", model: "qwen-max", prompt: "{{entry_1.output}}", outputKey: "result" },
     inputMappings: {}
   },
   {
@@ -55,7 +55,7 @@ export const INITIAL_NODES: CanvasNode[] = [
     title: "结束",
     x: 1080,
     y: 120,
-    configs: { exit: { terminateMode: "return", template: "{{llm_1.result}}" } },
+    configs: { exitTerminateMode: "return", exitTemplate: "{{llm_1.result}}" },
     inputMappings: {}
   }
 ];

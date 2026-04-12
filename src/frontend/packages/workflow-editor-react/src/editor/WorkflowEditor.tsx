@@ -228,16 +228,52 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     return result;
   }
 
+  function extractErrorMessage(error: unknown, fallbackMessage: string): string {
+    if (typeof error === "string" && error.trim()) {
+      return error;
+    }
+    if (error instanceof Error && error.message.trim()) {
+      return error.message;
+    }
+    if (typeof error === "object" && error !== null) {
+      const candidate = error as {
+        message?: string;
+        response?: {
+          data?: {
+            message?: string;
+            errorMessage?: string;
+          };
+        };
+        data?: {
+          message?: string;
+          errorMessage?: string;
+        };
+      };
+      const nestedMessage =
+        candidate.response?.data?.message ??
+        candidate.response?.data?.errorMessage ??
+        candidate.data?.message ??
+        candidate.data?.errorMessage ??
+        candidate.message;
+      if (typeof nestedMessage === "string" && nestedMessage.trim()) {
+        return nestedMessage;
+      }
+    }
+    return fallbackMessage;
+  }
+
   async function handleSave(): Promise<void> {
     if (isReadOnly) {
       message.warning("只读模式下不可保存。");
       return;
     }
-    const result = runCanvasValidationAndReport();
-    if (!result.ok) {
-      return;
+    try {
+      await saveService.save(false);
+      setCanvasValidation(null);
+      message.success("草稿已保存。");
+    } catch (error) {
+      message.error(extractErrorMessage(error, "保存草稿失败，请稍后重试。"));
     }
-    await saveService.save(false);
   }
 
   async function handlePublish(): Promise<void> {
@@ -249,12 +285,16 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     if (!result.ok) {
       return;
     }
-    if (store.isDirty) {
-      await saveService.save(false);
+    try {
+      if (store.isDirty) {
+        await saveService.save(false);
+      }
+      await operationService.publish();
+      message.success("工作流已发布。");
+      store.setDirty(false);
+    } catch (error) {
+      message.error(extractErrorMessage(error, "发布失败，请先检查工作流配置后重试。"));
     }
-    await operationService.publish();
-    message.success("工作流已发布。");
-    store.setDirty(false);
   }
 
   async function handleDuplicate(): Promise<void> {
@@ -262,14 +302,18 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
       message.warning("只读模式下不可复制。");
       return;
     }
-    const duplicatedId = await operationService.copy();
-    if (!duplicatedId) {
-      message.warning("当前环境未启用复制接口。");
-      return;
+    try {
+      const duplicatedId = await operationService.copy();
+      if (!duplicatedId) {
+        message.warning("当前环境未启用复制接口。");
+        return;
+      }
+      const nextUrl = buildEditorUrlByWorkflowId(duplicatedId);
+      window.open(nextUrl, "_blank", "noopener,noreferrer");
+      message.success("已在新标签页打开复制后的工作流。");
+    } catch (error) {
+      message.error(extractErrorMessage(error, "复制工作流失败，请稍后重试。"));
     }
-    const nextUrl = buildEditorUrlByWorkflowId(duplicatedId);
-    window.open(nextUrl, "_blank", "noopener,noreferrer");
-    message.success("已在新标签页打开复制后的工作流。");
   }
 
   function buildClipboardSnapshot(): ClipboardSnapshot | null {
@@ -424,6 +468,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
       <WorkflowHeader
         name={store.workflowName}
         dirty={store.isDirty}
+        savedAt={store.lastSavedAt}
         readOnly={isReadOnly || store.saving}
         onNameChange={(value) => {
           if (isReadOnly) {

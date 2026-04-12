@@ -32,8 +32,8 @@ async function getCsrfToken(request: APIRequestContext, accessToken: string): Pr
 }
 
 test.describe.serial("Workflow Run E2E", () => {
-  test("should open test-run panel and trigger run flow", async ({ page, request }) => {
-    await createWorkflowSession(page, request);
+  test("should open test-run panel and trigger run flow", async ({ page, request, ensureLoggedInSession }) => {
+    await createWorkflowSession(page, request, ensureLoggedInSession);
 
     await page.getByTestId("workflow.detail.toolbar.test-run").click();
     const resultPanel = page.getByTestId("workflow.detail.node.testrun.result-panel");
@@ -61,8 +61,8 @@ test.describe.serial("Workflow Run E2E", () => {
       .not.toBe("pending");
   });
 
-  test("should open single-node debug panel", async ({ page, request }) => {
-    await createWorkflowSession(page, request);
+  test("should open single-node debug panel", async ({ page, request, ensureLoggedInSession }) => {
+    await createWorkflowSession(page, request, ensureLoggedInSession);
 
     await page.getByRole("button", { name: /单节点调试/i }).click();
     const debugPanel = page.locator(".wf-react-debug-panel");

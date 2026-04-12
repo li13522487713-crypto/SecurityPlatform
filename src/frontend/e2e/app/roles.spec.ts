@@ -27,7 +27,14 @@ test.describe.serial("App Roles CRUD", () => {
     await page.getByTestId("app-roles-create").click();
     await page.getByTestId("app-roles-form-name").fill(roleName);
     await page.getByTestId("app-roles-form-code").fill(roleCode);
+    const createRoleResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles$/.test(response.url()) &&
+        response.status() < 400
+    );
     await page.getByTestId("e2e-crud-drawer-submit").click();
+    await createRoleResponsePromise;
     await expect(page.getByTestId("app-roles-table")).toContainText(roleName);
     await captureEvidenceScreenshot(page, testInfo, "roles-created");
 
@@ -35,13 +42,27 @@ test.describe.serial("App Roles CRUD", () => {
     await expect(createdRow).toBeVisible();
     await createdRow.locator('[data-testid^="app-roles-edit-"]').first().click();
     await page.getByTestId("app-roles-form-name").fill(updatedRoleName);
+    const updateRoleResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PUT" &&
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles\/[^/]+$/.test(response.url()) &&
+        response.status() < 400
+    );
     await page.getByTestId("e2e-crud-drawer-submit").click();
+    await updateRoleResponsePromise;
     await expect(page.getByTestId("app-roles-table")).toContainText(updatedRoleName);
 
     const editedRow = page.locator(".ant-table-row", { hasText: updatedRoleName }).first();
     await expect(editedRow).toBeVisible();
+    const deleteRoleResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "DELETE" &&
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles\/[^/]+$/.test(response.url()) &&
+        response.status() < 400
+    );
     await editedRow.locator('[data-testid^="app-roles-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
+    await deleteRoleResponsePromise;
 
     await expect(page.getByTestId("app-roles-table")).not.toContainText(updatedRoleName);
     await captureEvidenceScreenshot(page, testInfo, "roles-deleted");

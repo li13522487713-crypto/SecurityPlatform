@@ -76,8 +76,15 @@ test.describe.serial("App Departments And Positions CRUD", () => {
 
     const createdDeptRow = page.locator(".ant-table-row", { hasText: deptName }).first();
     await expect(createdDeptRow).toBeVisible();
+    const deleteDepartmentPromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "DELETE" &&
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments\/[^/]+$/.test(response.url()) &&
+        response.status() < 400
+    );
     await createdDeptRow.locator('[data-testid^="app-departments-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
+    await deleteDepartmentPromise;
     await expect(page.getByTestId("app-departments-table")).not.toContainText(deptName);
     await captureEvidenceScreenshot(page, testInfo, "departments-deleted");
   });
@@ -107,8 +114,15 @@ test.describe.serial("App Departments And Positions CRUD", () => {
 
     const positionRow = page.locator(".ant-table-row", { hasText: positionName }).first();
     await expect(positionRow).toBeVisible();
+    const deletePositionPromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "DELETE" &&
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/positions\/[^/]+$/.test(response.url()) &&
+        response.status() < 400
+    );
     await positionRow.locator('[data-testid^="app-positions-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
+    await deletePositionPromise;
     await expect(page.getByTestId("app-positions-table")).not.toContainText(positionName);
     await captureEvidenceScreenshot(page, testInfo, "positions-deleted");
   });

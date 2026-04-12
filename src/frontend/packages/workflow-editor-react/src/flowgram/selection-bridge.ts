@@ -1,12 +1,12 @@
 import { createContext, useContext } from "react";
 
 interface FlowgramSelectionBridge {
-  reportNodeSelection: (nodeKey: string, selected: boolean) => void;
+  selectNode: (nodeKey: string) => void;
   reportPortClick: (params: { nodeKey: string; portKey: string; portType: "input" | "output" }) => void;
 }
 
 const noopBridge: FlowgramSelectionBridge = {
-  reportNodeSelection: () => {},
+  selectNode: () => {},
   reportPortClick: () => {}
 };
 

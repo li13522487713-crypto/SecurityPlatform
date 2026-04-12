@@ -61,7 +61,11 @@ export function NodePanelPopover(props: NodePanelPopoverProps) {
           onChange={(event) => setKeyword(event.target.value)}
         />
       </div>
+      <div className="wf-react-node-panel-summary">
+        {t("wfUi.nodePanel.resultCount", { count: grouped.reduce((total, item) => total + item.items.length, 0) })}
+      </div>
       <div className="wf-react-node-panel-list">
+        {grouped.length === 0 ? <div className="wf-react-node-panel-empty">{t("wfUi.nodePanel.empty")}</div> : null}
         <Collapse
           size="small"
           bordered={false}
@@ -88,7 +92,10 @@ export function NodePanelPopover(props: NodePanelPopoverProps) {
                     <span className="wf-react-node-item-icon" style={{ backgroundColor: node.color }}>
                       {node.iconText}
                     </span>
-                    <span className="wf-react-node-item-title">{t(node.titleKey)}</span>
+                    <span className="wf-react-node-item-body">
+                      <span className="wf-react-node-item-title">{t(node.titleKey)}</span>
+                      <span className="wf-react-node-item-type">{node.type}</span>
+                    </span>
                   </button>
                 ))}
               </div>

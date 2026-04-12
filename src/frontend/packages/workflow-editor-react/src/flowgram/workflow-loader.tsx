@@ -1,12 +1,16 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  FreeLayoutEditor,
+  EditorRenderer,
+  FreeLayoutEditorProvider,
+  useClientContext,
   type WorkflowJSON,
   type WorkflowContentChangeEvent,
   type WorkflowNodeRegistry,
   type WorkflowPortEntity,
-  type onDragLineEndParams
+  type onDragLineEndParams,
+  useService
 } from "@flowgram.ai/free-layout-editor";
+import { FlowRendererKey, FlowRendererRegistry } from "@flowgram.ai/renderer";
 import type { CanvasSchema, NodeTypeMetadata } from "../types";
 import { toEditorCanvasSchema, toFlowgramWorkflowJSON } from "./workflow-json-bridge";
 import { WorkflowNodeRender } from "../node-render/node-render";
@@ -24,27 +28,86 @@ interface WorkflowLoaderProps {
   onDragLineEnd?: (params: onDragLineEndParams) => void;
 }
 
+function createCanvasSyncSignature(canvas: CanvasSchema): string {
+  const normalizedNodes = [...(canvas.nodes ?? [])]
+    .map((node) => ({
+      key: node.key,
+      type: node.type,
+      title: node.title,
+      layout: node.layout,
+      configs: node.configs,
+      inputMappings: node.inputMappings,
+      childCanvas: node.childCanvas
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key));
+
+  const normalizedConnections = [...(canvas.connections ?? [])]
+    .map((connection) => ({
+      fromNode: connection.fromNode,
+      fromPort: connection.fromPort,
+      toNode: connection.toNode,
+      toPort: connection.toPort,
+      condition: connection.condition ?? null
+    }))
+    .sort((left, right) =>
+      `${left.fromNode}:${left.fromPort}->${left.toNode}:${left.toPort}`.localeCompare(
+        `${right.fromNode}:${right.fromPort}->${right.toNode}:${right.toPort}`
+      )
+    );
+
+  return JSON.stringify({
+    nodes: normalizedNodes,
+    connections: normalizedConnections,
+    globals: canvas.globals ?? {},
+    viewport: canvas.viewport ?? null
+  });
+}
+
+function FlowgramRendererRegistrar() {
+  const rendererRegistry = useService(FlowRendererRegistry);
+
+  useEffect(() => {
+    rendererRegistry.registerReactComponent(FlowRendererKey.NODE_RENDER, WorkflowNodeRender);
+  }, [rendererRegistry]);
+
+  return null;
+}
+
+function FlowgramExternalCanvasSync(props: { canvas: CanvasSchema; nodeTypesMap: Map<string, NodeTypeMetadata> }) {
+  const ctx = useClientContext();
+  const lastAppliedSignatureRef = useRef("");
+
+  useEffect(() => {
+    const runtimeCanvas = toEditorCanvasSchema(ctx.document.toJSON() as WorkflowJSON, props.canvas);
+    const nextSignature = createCanvasSyncSignature(props.canvas);
+    const runtimeSignature = createCanvasSyncSignature(runtimeCanvas);
+
+    if (runtimeSignature === nextSignature || lastAppliedSignatureRef.current === nextSignature) {
+      lastAppliedSignatureRef.current = "";
+      return;
+    }
+
+    lastAppliedSignatureRef.current = nextSignature;
+    ctx.operation.fromJSON(toFlowgramWorkflowJSON(props.canvas, props.nodeTypesMap));
+  }, [ctx, props.canvas, props.nodeTypesMap]);
+
+  return null;
+}
+
 export function WorkflowLoader(props: WorkflowLoaderProps) {
-  const selectionMapRef = useRef<Record<string, boolean>>({});
+  const lastSelectedNodeKeyRef = useRef("");
+  const isReady = props.nodeTypesMeta.length > 0;
 
   const reportNodeSelection = useCallback(
-    (nodeKey: string, selected: boolean) => {
+    (nodeKey: string) => {
       if (!nodeKey) {
         return;
       }
-      if (selectionMapRef.current[nodeKey] === selected) {
+      if (lastSelectedNodeKeyRef.current === nodeKey) {
         return;
       }
-      selectionMapRef.current = {
-        ...selectionMapRef.current,
-        [nodeKey]: selected
-      };
-      if (props.onSelectionChange) {
-        const selectedNodeKeys = Object.entries(selectionMapRef.current)
-          .filter(([, value]) => value)
-          .map(([key]) => key);
-        props.onSelectionChange(selectedNodeKeys);
-      }
+      lastSelectedNodeKeyRef.current = nodeKey;
+      props.onSelectionChange?.([nodeKey]);
     },
     [props.onSelectionChange]
   );
@@ -94,9 +157,13 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
     [props.nodeTypesMeta]
   );
 
+  if (!isReady) {
+    return null;
+  }
+
   return (
-    <FlowgramSelectionBridgeContext.Provider value={{ reportNodeSelection, reportPortClick }}>
-      <FreeLayoutEditor
+    <FlowgramSelectionBridgeContext.Provider value={{ selectNode: reportNodeSelection, reportPortClick }}>
+      <FreeLayoutEditorProvider
         initialData={initialData}
         nodeRegistries={nodeRegistries}
         readonly={props.readonly}
@@ -163,7 +230,11 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
         onDragLineEnd={async (_ctx, params) => {
           props.onDragLineEnd?.(params);
         }}
-      />
+      >
+        <FlowgramRendererRegistrar />
+        <FlowgramExternalCanvasSync canvas={props.canvas} nodeTypesMap={nodeTypesMap} />
+        <EditorRenderer />
+      </FreeLayoutEditorProvider>
     </FlowgramSelectionBridgeContext.Provider>
   );
 }

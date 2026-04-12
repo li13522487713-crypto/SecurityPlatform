@@ -1,5 +1,6 @@
 import clsx from "classnames";
 import { Tag, Tooltip } from "antd";
+import { useTranslation } from "react-i18next";
 import type { PortRuntime } from "../editor/connection-rules";
 
 interface NodeCardProps {
@@ -54,6 +55,7 @@ function renderPort(
 }
 
 export function NodeCard(props: NodeCardProps) {
+  const { t } = useTranslation();
   const statusClass =
     props.executionState === "running"
       ? "wf-react-node-status-running"
@@ -69,16 +71,16 @@ export function NodeCard(props: NodeCardProps) {
 
   const statusText =
     props.executionState === "running"
-      ? "running"
+      ? t("wfUi.status.running")
       : props.executionState === "success"
-      ? "success"
+      ? t("wfUi.status.success")
       : props.executionState === "failed"
-      ? "failed"
+      ? t("wfUi.status.failed")
       : props.executionState === "skipped"
-      ? "skipped"
+      ? t("wfUi.status.skipped")
       : props.executionState === "blocked"
-      ? "blocked"
-      : "ready";
+      ? t("wfUi.status.blocked")
+      : t("wfUi.status.ready");
 
   return (
     <button
@@ -111,15 +113,15 @@ export function NodeCard(props: NodeCardProps) {
       <div className={clsx("wf-react-node-status", statusClass)} title={props.executionHint ?? statusText} />
       <div className="wf-react-node-content">
         <div className="wf-react-node-row">
-          <span className="wf-react-node-label">input</span>
+          <span className="wf-react-node-label">{t("wfUi.node.input")}</span>
           <span className="wf-react-node-value">{props.inputPorts.map((port) => port.key).join(", ") || "-"}</span>
         </div>
         <div className="wf-react-node-row">
-          <span className="wf-react-node-label">output</span>
+          <span className="wf-react-node-label">{t("wfUi.node.output")}</span>
           <span className="wf-react-node-value">{props.outputPorts.map((port) => port.key).join(", ") || "-"}</span>
         </div>
         <div className="wf-react-node-row">
-          <span className="wf-react-node-label">type</span>
+          <span className="wf-react-node-label">{t("wfUi.node.type")}</span>
           <span className="wf-react-node-value">{props.subtitle}</span>
         </div>
       </div>

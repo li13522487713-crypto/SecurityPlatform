@@ -3,8 +3,8 @@ import { createWorkflowSession } from "./workflow-e2e-helpers";
 import { appBaseUrl } from "./helpers";
 
 test.describe.serial("Workflow Collaboration E2E", () => {
-  test("should open same workflow in two tabs", async ({ page, request, context }) => {
-    const { appKey, workflowId } = await createWorkflowSession(page, request);
+  test("should open same workflow in two tabs", async ({ page, request, context, ensureLoggedInSession }) => {
+    const { appKey, workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
 
     const secondTab = await context.newPage();
     await secondTab.goto(

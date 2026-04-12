@@ -1,5 +1,6 @@
 import { Button, Segmented, Select, Space } from "antd";
 import { PlusOutlined, BorderOutlined, ZoomInOutlined, PlayCircleOutlined, ApartmentOutlined, AlignCenterOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 interface CanvasToolbarProps {
   zoom: number;
@@ -25,13 +26,17 @@ const ZOOM_OPTIONS = [50, 75, 100, 125, 150, 200].map((value) => ({
 
 export function CanvasToolbar(props: CanvasToolbarProps) {
   const isReadOnly = Boolean(props.readOnly);
+  const { t } = useTranslation();
 
   return (
     <div className="wf-react-toolbar">
       <div className="wf-react-toolbar-wrap">
         <div className="wf-react-tools-section">
           <Segmented
-            options={[{ label: "鼠标", value: "mouse" }, { label: "手势", value: "trackpad" }]}
+            options={[
+              { label: t("wfUi.toolbar.mouse"), value: "mouse" },
+              { label: t("wfUi.toolbar.trackpad"), value: "trackpad" }
+            ]}
             value={props.mode}
             size="small"
             onChange={(value) => props.onModeChange(value as "mouse" | "trackpad")}
@@ -45,12 +50,12 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
             onChange={(value) => props.onZoomChange(Number(value))}
           />
           <Button size="small" type={props.minimapVisible ? "primary" : "default"} icon={<BorderOutlined />} onClick={props.onToggleMinimap}>
-            小地图
+            {t("wfUi.toolbar.minimap")}
           </Button>
           {!isReadOnly ? (
             <>
               <Button size="small" icon={<AlignCenterOutlined />} onClick={props.onAutoLayout}>
-                自动布局
+                {t("wfUi.toolbar.autoLayout")}
               </Button>
               <Button
                 type="primary"
@@ -59,24 +64,24 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
                 onClick={props.onToggleNodePanel}
                 data-testid="workflow.detail.toolbar.add-node"
               >
-                添加节点
+                {t("wfUi.toolbar.addNode")}
               </Button>
             </>
           ) : null}
         </div>
         <div className="wf-react-tools-section">
           <Space size={8}>
-            <Button size="small" icon={<ApartmentOutlined />} onClick={props.onToggleVariables}>
-              变量
+            <Button size="small" icon={<ApartmentOutlined />} onClick={props.onToggleVariables} data-testid="workflow.detail.toolbar.variables">
+              {t("wfUi.toolbar.variables")}
             </Button>
             <Button size="small" onClick={props.onToggleDebug}>
-              单节点调试
+              {t("wfUi.toolbar.debug")}
             </Button>
-            <Button size="small" onClick={props.onToggleTrace}>
-              Trace
+            <Button size="small" onClick={props.onToggleTrace} data-testid="workflow.detail.toolbar.trace">
+              {t("wfUi.toolbar.trace")}
             </Button>
             <Button size="small" onClick={props.onToggleProblems}>
-              问题
+              {t("wfUi.toolbar.problems")}
             </Button>
             <Button
               size="small"
@@ -86,7 +91,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
               onClick={props.onRun}
               data-testid="workflow.detail.toolbar.test-run"
             >
-              测试运行
+              {t("wfUi.toolbar.testRun")}
             </Button>
           </Space>
         </div>

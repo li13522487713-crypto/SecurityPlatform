@@ -12,6 +12,7 @@ export interface NodeExecutionState {
 export interface WorkflowEditorState {
   workflowName: string;
   isDirty: boolean;
+  lastSavedAt: number | null;
   zoom: number;
   pan: { x: number; y: number };
   selectedNodeKeys: string[];
@@ -36,6 +37,7 @@ export interface WorkflowEditorState {
   saveVersion: number;
   setWorkflowName: (name: string) => void;
   setDirty: (dirty: boolean) => void;
+  setLastSavedAt: (savedAt: number | null) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
   setSelectedNodeKeys: (keys: string[]) => void;
@@ -69,13 +71,30 @@ export interface WorkflowEditorState {
     workflowName?: string;
     isDirty?: boolean;
   }) => void;
+  resetEditorState: () => void;
 }
 
 const DEFAULT_ZOOM = 100;
 
+function sameStringArray(left: string[], right: string[]): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
   workflowName: "",
   isDirty: false,
+  lastSavedAt: null,
   zoom: DEFAULT_ZOOM,
   pan: { x: 0, y: 0 },
   selectedNodeKeys: [],
@@ -100,9 +119,11 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
   saveVersion: 0,
   setWorkflowName: (workflowName) => set({ workflowName }),
   setDirty: (isDirty) => set({ isDirty }),
+  setLastSavedAt: (lastSavedAt) => set({ lastSavedAt }),
   setZoom: (zoom) => set({ zoom }),
   setPan: (pan) => set({ pan }),
-  setSelectedNodeKeys: (selectedNodeKeys) => set({ selectedNodeKeys }),
+  setSelectedNodeKeys: (selectedNodeKeys) =>
+    set((state) => (sameStringArray(state.selectedNodeKeys, selectedNodeKeys) ? state : { selectedNodeKeys })),
   setCanvasNodes: (canvasNodes) => set({ canvasNodes }),
   setCanvasConnections: (canvasConnections) => set({ canvasConnections }),
   setCanvasGlobals: (canvasGlobals) => set({ canvasGlobals }),
@@ -149,13 +170,42 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
       traceSteps: []
     }),
   setCanvasSnapshot: (payload) =>
-    set((state) => ({
+    set({
       canvasNodes: payload.nodes,
       canvasConnections: payload.connections,
       canvasGlobals: payload.globals,
-      pan: payload.viewport ? { x: payload.viewport.x, y: payload.viewport.y } : state.pan,
-      zoom: payload.viewport ? payload.viewport.zoom : state.zoom,
-      workflowName: payload.workflowName ?? state.workflowName,
-      isDirty: payload.isDirty ?? state.isDirty
-    }))
+      pan: payload.viewport ? { x: payload.viewport.x, y: payload.viewport.y } : { x: 0, y: 0 },
+      zoom: payload.viewport ? payload.viewport.zoom : DEFAULT_ZOOM,
+      workflowName: payload.workflowName ?? "",
+      isDirty: payload.isDirty ?? false,
+      lastSavedAt: payload.isDirty ? null : Date.now()
+    }),
+  resetEditorState: () =>
+    set({
+      workflowName: "",
+      isDirty: false,
+      lastSavedAt: null,
+      zoom: DEFAULT_ZOOM,
+      pan: { x: 0, y: 0 },
+      selectedNodeKeys: [],
+      canvasNodes: INITIAL_NODES,
+      canvasConnections: INITIAL_CONNECTIONS,
+      canvasGlobals: {},
+      nodeTypesMeta: [],
+      nodeTemplates: [],
+      logs: [],
+      traceSteps: [],
+      executionStateByNodeKey: {},
+      edgeStateByConnectionKey: {},
+      saving: false,
+      testRunning: false,
+      debugRunning: false,
+      testInputJson: "{\"input\":\"hello\"}",
+      testRunMode: "stream",
+      testRunSource: "published",
+      debugNodeKey: "",
+      debugInputJson: "{\"input\":\"hello\"}",
+      debugOutput: "",
+      saveVersion: 0
+    })
 }));

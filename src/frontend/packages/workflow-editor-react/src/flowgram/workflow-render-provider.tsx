@@ -1,7 +1,5 @@
 import "@flowgram.ai/free-layout-editor/index.css";
 import "reflect-metadata";
-import { PlaygroundReact, type PlaygroundRef } from "@flowgram.ai/playground-react";
-import { useRef } from "react";
 import type { onDragLineEndParams } from "@flowgram.ai/free-layout-editor";
 import type { CanvasSchema, NodeTypeMetadata } from "../types";
 import { FlowgramBackgroundLayer } from "./layers/background-layer";
@@ -20,23 +18,19 @@ interface WorkflowRenderProviderProps {
 }
 
 export function WorkflowRenderProvider(props: WorkflowRenderProviderProps) {
-  const playgroundRef = useRef<PlaygroundRef | null>(null);
-
   return (
     <div className="wf-flowgram-root">
       <FlowgramBackgroundLayer />
-      <PlaygroundReact ref={playgroundRef} playground={{ autoFocus: true, autoResize: true }}>
-        <WorkflowLoader
-          canvas={props.canvas}
-          readonly={props.readonly}
-          nodeTypesMeta={props.nodeTypesMeta}
-          edgeStateByKey={props.edgeStateByKey}
-          onCanvasChange={props.onCanvasChange}
-          onSelectionChange={props.onSelectionChange}
-          onPortClick={props.onPortClick}
-          onDragLineEnd={props.onDragLineEnd}
-        />
-      </PlaygroundReact>
+      <WorkflowLoader
+        canvas={props.canvas}
+        readonly={props.readonly}
+        nodeTypesMeta={props.nodeTypesMeta}
+        edgeStateByKey={props.edgeStateByKey}
+        onCanvasChange={props.onCanvasChange}
+        onSelectionChange={props.onSelectionChange}
+        onPortClick={props.onPortClick}
+        onDragLineEnd={props.onDragLineEnd}
+      />
       <FlowgramHoverLayer />
     </div>
   );

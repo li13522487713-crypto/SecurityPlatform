@@ -398,9 +398,13 @@ function toBackendCanvasJson(editorCanvasJson: string): string {
   if (!parsed || typeof parsed !== "object") {
     return editorCanvasJson;
   }
-  const maybeBackend = parsed as WorkflowCanvasPayload;
-  if (Array.isArray(maybeBackend.nodes) && maybeBackend.nodes.every((node) => typeof node.type === "number")) {
-    return JSON.stringify(maybeBackend);
+
+  if (isEditorCanvasPayload(parsed)) {
+    return JSON.stringify(normalizeEditorCanvasPayload(parsed));
+  }
+
+  if (isLegacyBackendCanvasPayload(parsed)) {
+    return editorCanvasJson;
   }
 
   const editorCanvas = parsed as CanvasSchema;
@@ -462,10 +466,16 @@ function toEditorCanvasJson(backendCanvasJson: string): string {
   if (!parsed || typeof parsed !== "object") {
     return backendCanvasJson;
   }
-  const payload = parsed as WorkflowCanvasPayload;
-  if (!Array.isArray(payload.nodes) || !Array.isArray(payload.connections)) {
+
+  if (isEditorCanvasPayload(parsed)) {
+    return JSON.stringify(normalizeEditorCanvasPayload(parsed));
+  }
+
+  if (!isLegacyBackendCanvasPayload(parsed)) {
     return backendCanvasJson;
   }
+
+  const payload = parsed as WorkflowCanvasPayload;
   const nodes = payload.nodes.map((node) => {
     const config = normalizeConfigPayload(node.config ?? {});
     const inputMappings = normalizeInputMappings(config.inputMappings);
@@ -500,7 +510,7 @@ function toEditorCanvasJson(backendCanvasJson: string): string {
     condition: connection.condition ?? null
   }));
   return JSON.stringify({
-    nodes,
+    nodes: normalizeEditorCanvasPayload({ nodes, connections, schemaVersion: payload.schemaVersion, viewport: payload.viewport, globals: payload.globals }).nodes,
     connections,
     schemaVersion: payload.schemaVersion,
     viewport: payload.viewport,
@@ -513,6 +523,132 @@ function normalizeConfigPayload(config: unknown): Record<string, unknown> {
     return {};
   }
   return { ...(config as Record<string, unknown>) };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isEditorCanvasPayload(value: unknown): value is CanvasSchema {
+  if (!isRecord(value) || !Array.isArray(value.nodes) || !Array.isArray(value.connections)) {
+    return false;
+  }
+
+  const sampleNode = value.nodes.find(isRecord);
+  const sampleConnection = value.connections.find(isRecord);
+
+  return Boolean(
+    sampleNode &&
+      ("title" in sampleNode || "configs" in sampleNode || "inputMappings" in sampleNode || "childCanvas" in sampleNode)
+  ) || Boolean(sampleConnection && ("fromNode" in sampleConnection || "toNode" in sampleConnection));
+}
+
+function isLegacyBackendCanvasPayload(value: unknown): value is WorkflowCanvasPayload {
+  if (!isRecord(value) || !Array.isArray(value.nodes) || !Array.isArray(value.connections)) {
+    return false;
+  }
+
+  const sampleNode = value.nodes.find(isRecord);
+  const sampleConnection = value.connections.find(isRecord);
+
+  return Boolean(
+    sampleNode &&
+      ("label" in sampleNode || "config" in sampleNode || typeof sampleNode.type === "number")
+  ) || Boolean(sampleConnection && ("sourceNodeKey" in sampleConnection || "targetNodeKey" in sampleConnection));
+}
+
+function normalizeEditorCanvasPayload(canvas: CanvasSchema): CanvasSchema {
+  return {
+    ...canvas,
+    nodes: (canvas.nodes ?? []).map((node) => ({
+      ...node,
+      configs: normalizeEditorNodeConfig(String(node.type), normalizeConfigPayload(node.configs)),
+      childCanvas: node.childCanvas ? normalizeEditorCanvasPayload(node.childCanvas) : undefined
+    }))
+  };
+}
+
+function normalizeEditorNodeConfig(type: string, config: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...config };
+  const nestedEntry = isRecord(config.entry) ? config.entry : null;
+  const nestedLlm = isRecord(config.llm) ? config.llm : null;
+  const nestedExit = isRecord(config.exit) ? config.exit : null;
+
+  if (type === "Entry") {
+    const entryVariable = firstNonEmptyString(next.entryVariable, next.variable, nestedEntry?.entryVariable, nestedEntry?.variable);
+    const entryDescription = firstNonEmptyString(next.entryDescription, next.description, nestedEntry?.entryDescription, nestedEntry?.description);
+    const entryAutoSaveHistory = firstBoolean(next.entryAutoSaveHistory, next.autoSaveHistory, nestedEntry?.entryAutoSaveHistory, nestedEntry?.autoSaveHistory);
+
+    if (entryVariable) {
+      next.entryVariable = entryVariable;
+    }
+    if (entryDescription) {
+      next.entryDescription = entryDescription;
+    }
+    if (typeof entryAutoSaveHistory === "boolean") {
+      next.entryAutoSaveHistory = entryAutoSaveHistory;
+    }
+  }
+
+  if (type === "Llm") {
+    const provider = firstNonEmptyString(next.provider, nestedLlm?.provider);
+    const model = firstNonEmptyString(next.model, nestedLlm?.model);
+    const prompt = firstNonEmptyString(next.prompt, next.userPrompt, nestedLlm?.prompt, nestedLlm?.userPrompt);
+    const outputKey = firstNonEmptyString(next.outputKey, nestedLlm?.outputKey, "result");
+    const systemPrompt = firstNonEmptyString(next.systemPrompt, nestedLlm?.systemPrompt);
+
+    if (provider) {
+      next.provider = provider;
+    }
+    if (model) {
+      next.model = model;
+    }
+    if (prompt) {
+      next.prompt = prompt;
+    }
+    if (outputKey) {
+      next.outputKey = outputKey;
+    }
+    if (systemPrompt) {
+      next.systemPrompt = systemPrompt;
+    }
+  }
+
+  if (type === "Exit") {
+    const exitTerminateMode = firstNonEmptyString(next.exitTerminateMode, next.terminateMode, nestedExit?.exitTerminateMode, nestedExit?.terminateMode);
+    const exitTemplate = firstNonEmptyString(next.exitTemplate, next.template, nestedExit?.exitTemplate, nestedExit?.template);
+    const exitStreaming = firstBoolean(next.exitStreaming, next.streaming, nestedExit?.exitStreaming, nestedExit?.streaming);
+
+    if (exitTerminateMode) {
+      next.exitTerminateMode = exitTerminateMode;
+    }
+    if (exitTemplate) {
+      next.exitTemplate = exitTemplate;
+    }
+    if (typeof exitStreaming === "boolean") {
+      next.exitStreaming = exitStreaming;
+    }
+  }
+
+  return next;
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function firstBoolean(...values: unknown[]): boolean | undefined {
+  for (const value of values) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 function normalizeInputMappings(raw: unknown): Record<string, string> {

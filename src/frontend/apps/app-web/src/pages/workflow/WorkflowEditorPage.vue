@@ -1,5 +1,6 @@
 <template>
   <WorkflowEditorBridge
+    :key="workflowId"
     :workflow-id="workflowId"
     :api-client="workflowV2Api"
     :locale="currentLocale"
@@ -12,7 +13,7 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { workflowV2Api } from "@/services/api-workflow";
-import WorkflowEditorBridge from "@/components/workflow/WorkflowEditorBridge";
+import WorkflowEditorBridge from "@/components/workflow/WorkflowEditorBridge.vue";
 
 const route = useRoute();
 const router = useRouter();
