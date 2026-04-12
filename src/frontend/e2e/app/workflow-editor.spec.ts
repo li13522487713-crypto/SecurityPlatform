@@ -55,4 +55,23 @@ test.describe.serial("Workflow Editor E2E", () => {
     await page.mouse.move((box?.x ?? 0) + 800, (box?.y ?? 0) + 200);
     await expect(page.locator(".wf-react-line-add-btn").first()).toBeVisible();
   });
+
+  test("should insert node from output port click", async ({ page, request }) => {
+    await createWorkflowSession(page, request);
+
+    const nodeCards = page.locator(".wf-node-render-shell");
+    const beforeNodeCount = await nodeCards.count();
+    expect(beforeNodeCount).toBeGreaterThan(0);
+
+    const firstNode = nodeCards.first();
+    const box = await firstNode.boundingBox();
+    expect(box).toBeTruthy();
+
+    await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) - 4, (box?.y ?? 0) + (box?.height ?? 0) / 2);
+    await expect(page.getByTestId("workflow.detail.node-panel")).toBeVisible();
+
+    await page.locator(".wf-react-node-item").first().click();
+    await expect(page.getByTestId("workflow.detail.node-panel")).toBeHidden();
+    await expect(nodeCards).toHaveCount(beforeNodeCount + 1);
+  });
 });
