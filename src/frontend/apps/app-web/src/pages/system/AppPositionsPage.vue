@@ -15,7 +15,7 @@
     @close-form="closeForm"
     @submit="submitForm"
   >
-    <template #toolbar-actions>
+    <template #card-extra>
       <a-button v-if="canCreate" type="primary" data-testid="app-positions-create" @click="openCreate">
         <template #icon><PlusOutlined /></template>
         {{ t("systemPositions.addPosition") }}
@@ -98,6 +98,7 @@ import { useI18n } from "vue-i18n";
 import { CrudPageLayout, TableViewToolbar } from "@atlas/shared-ui";
 import type { Rule } from "ant-design-vue/es/form";
 import { type AppPositionListItem } from "@/types/organization";
+import { usePermission } from "@/composables/usePermission";
 import { APP_PERMISSIONS } from "@/constants/permissions";
 import { useAppCrudPage } from "@/composables/useAppCrudPage";
 import {
@@ -109,6 +110,7 @@ import {
 } from "@/services/api-org-management";
 
 const { t } = useI18n();
+const { hasPermission } = usePermission();
 const columns = computed(() => [
   { title: t("systemPositions.colPositionName"), dataIndex: "name", key: "name" },
   { title: t("systemPositions.colCode"), dataIndex: "code", key: "code" },
@@ -138,6 +140,8 @@ const rules: Record<string, Rule[]> = {
   code: [{ required: true, message: t("systemPositions.codeRequired"), trigger: "blur" as const }]
 };
 
+const canManagePositions = hasPermission(APP_PERMISSIONS.APP_ROLES_UPDATE);
+
 const {
   keyword,
   dataSource,
@@ -151,9 +155,9 @@ const {
   tableColumns,
   tableViewController,
   tableSize,
-  canCreate,
-  canUpdate,
-  canDelete,
+  canCreate: baseCanCreate,
+  canUpdate: baseCanUpdate,
+  canDelete: baseCanDelete,
   onTableChange,
   handleSearch,
   resetFilters,
@@ -212,6 +216,10 @@ const {
   }),
   translate: (key, params) => String(t(key, (params ?? {}) as Record<string, string | number | boolean>))
 });
+
+const canCreate = canManagePositions || baseCanCreate;
+const canUpdate = canManagePositions || baseCanUpdate;
+const canDelete = canManagePositions || baseCanDelete;
 </script>
 
 <style scoped>

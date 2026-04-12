@@ -1,5 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
 import {
+  appBaseUrl,
   captureEvidenceScreenshot,
   ensureAppSetup,
   uniqueName
@@ -14,7 +15,7 @@ test.describe.serial("App Users CRUD", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/users`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/users`);
     await expect(page.getByTestId("app-users-page")).toBeVisible();
   });
 

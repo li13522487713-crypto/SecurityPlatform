@@ -299,7 +299,6 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
     options.DefaultPolicy = bearerPolicy;
-    options.FallbackPolicy = bearerPolicy;
 });
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -373,6 +372,8 @@ builder.Services.AddOpenTelemetry()
     });
 
 var app = builder.Build();
+var platformSetupStateProvider = app.Services.GetRequiredService<ISetupStateProvider>();
+var appSetupStateProvider = app.Services.GetRequiredService<IAppSetupStateProvider>();
 var instanceConfigLoader = app.Services.GetRequiredService<AppInstanceConfigurationLoader>();
 var instanceConfig = instanceConfigLoader.Load();
 var version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "1.0.0";
@@ -393,14 +394,28 @@ app.UseResponseCompression();
 app.UseRequestLocalization();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
-app.UseAuthentication();
+app.UseWhen(
+    context =>
+    {
+        if (!platformSetupStateProvider.IsReady || !appSetupStateProvider.IsReady)
+        {
+            return false;
+        }
 
-app.UseMiddleware<AppContextMiddleware>();
-app.UseMiddleware<AntiforgeryValidationMiddleware>();
-app.UseMiddleware<TenantContextMiddleware>();
-app.UseMiddleware<ApiVersionRewriteMiddleware>();
-
-app.UseAuthorization();
+        var path = context.Request.Path.Value ?? string.Empty;
+        return !path.StartsWith("/api/v1/setup", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith("/internal/health", StringComparison.OrdinalIgnoreCase);
+    },
+    runtime =>
+    {
+        runtime.UseAuthentication();
+        runtime.UseMiddleware<AppContextMiddleware>();
+        runtime.UseMiddleware<AntiforgeryValidationMiddleware>();
+        runtime.UseMiddleware<TenantContextMiddleware>();
+        runtime.UseMiddleware<ApiVersionRewriteMiddleware>();
+        runtime.UseAuthorization();
+    });
 
 app.MapHealthChecks("/internal/health/live");
 app.MapHealthChecks("/internal/health/ready");

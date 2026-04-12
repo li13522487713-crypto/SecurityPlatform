@@ -78,9 +78,12 @@ import {
 } from "@ant-design/icons-vue";
 import { requestApi } from "@/services/api-core";
 import { createNavigationProjectionApi, useNavigationProjection } from "@atlas/navigation-projection";
+import { APP_PERMISSIONS } from "@/constants/permissions";
+import { usePermission } from "@/composables/usePermission";
 
 const { t, te } = useI18n();
 const route = useRoute();
+const { hasPermission } = usePermission();
 
 const props = defineProps<{
   appKey: string;
@@ -158,18 +161,80 @@ function resolveProjectionIcon(groupKey: string, path: string) {
 const projectedNavGroups = computed<SidebarGroup[]>(() =>
   navigationProjection.groups.value.map((group) => ({
     title: localizeProjectionGroupTitle(group.groupKey, group.groupTitle),
-    items: group.items.map((item) => ({
-      key: item.key,
-      name: localizeProjectionItemTitle(item.key, item.title),
-      path: item.path || `${basePath.value}/dashboard`,
-      icon: resolveProjectionIcon(group.groupKey, item.path),
-      badgeText: undefined
-    }))
+    items: group.items
+      .filter((item) => item.key !== "organization" && item.path !== `${basePath.value}/capabilities/organization`)
+      .map((item) => ({
+        key: item.key,
+        name: localizeProjectionItemTitle(item.key, item.title),
+        path: item.path || `${basePath.value}/dashboard`,
+        icon: resolveProjectionIcon(group.groupKey, item.path),
+        badgeText: undefined
+      }))
   }))
 );
 
+const directNavGroups = computed<SidebarGroup[]>(() => {
+  const overviewItems: SidebarItem[] = [
+    {
+      key: "dashboard",
+      name: t("sidebar.overview"),
+      path: `${basePath.value}/dashboard`,
+      icon: DashboardOutlined
+    }
+  ];
+
+  const organizationItems: SidebarItem[] = [];
+
+  if (hasPermission(APP_PERMISSIONS.APP_MEMBERS_VIEW)) {
+    organizationItems.push({
+      key: "users",
+      name: t("sidebar.userManagement"),
+      path: `${basePath.value}/users`,
+      icon: TeamOutlined
+    });
+  }
+
+  if (hasPermission(APP_PERMISSIONS.APP_ROLES_VIEW)) {
+    organizationItems.push({
+      key: "roles",
+      name: t("sidebar.roleManagement"),
+      path: `${basePath.value}/roles`,
+      icon: SafetyCertificateOutlined
+    });
+  }
+
+  if (hasPermission(APP_PERMISSIONS.APP_ROLES_VIEW)) {
+    organizationItems.push({
+      key: "departments",
+      name: t("sidebar.departmentManagement"),
+      path: `${basePath.value}/departments`,
+      icon: ApartmentOutlined
+    });
+  }
+
+  if (hasPermission(APP_PERMISSIONS.APP_ROLES_VIEW)) {
+    organizationItems.push({
+      key: "positions",
+      name: t("sidebar.positionManagement"),
+      path: `${basePath.value}/positions`,
+      icon: IdcardOutlined
+    });
+  }
+
+  return [
+    {
+      title: "",
+      items: overviewItems
+    },
+    {
+      title: t("sidebar.usersOrg"),
+      items: organizationItems
+    }
+  ].filter((group) => group.items.length > 0);
+});
+
 const navGroups = computed<SidebarGroup[]>(() =>
-  projectedNavGroups.value
+  [...directNavGroups.value, ...projectedNavGroups.value.filter((group) => group.items.length > 0)]
 );
 </script>
 

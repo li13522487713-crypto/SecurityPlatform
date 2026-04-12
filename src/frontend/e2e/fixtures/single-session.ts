@@ -17,6 +17,9 @@ let createdContextCount = 0;
 let createdPageCount = 0;
 let sharedPage: Page | null = null;
 let activeAppSessionKey: string | null = null;
+const appProfileStorageKey = "atlas_app_auth_profile";
+const appAccessTokenStorageKey = "atlas_app_access_token";
+const appTenantStorageKey = "atlas_app_tenant_id";
 
 async function clearStorageForOrigin(page: Page, url: string) {
   let lastError: unknown = null;
@@ -65,6 +68,54 @@ async function isDashboardSessionReady(page: Page, appKey: string): Promise<bool
   return true;
 }
 
+async function syncAppProfile(page: Page): Promise<boolean> {
+  return page.evaluate(
+    async ({ profileKey, accessTokenKey, tenantKey }) => {
+      const accessToken = sessionStorage.getItem(accessTokenKey) ?? localStorage.getItem(accessTokenKey);
+      const tenantId = localStorage.getItem(tenantKey);
+      if (!accessToken || !tenantId) {
+        return false;
+      }
+
+      const response = await fetch("/api/v1/auth/me", {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "X-Tenant-Id": tenantId
+        }
+      });
+      if (!response.ok) {
+        return false;
+      }
+
+      const payload = (await response.json()) as { data?: unknown };
+      if (!payload.data) {
+        return false;
+      }
+
+      sessionStorage.setItem(profileKey, JSON.stringify(payload.data));
+      localStorage.removeItem(profileKey);
+      return true;
+    },
+    {
+      profileKey: appProfileStorageKey,
+      accessTokenKey: appAccessTokenStorageKey,
+      tenantKey: appTenantStorageKey
+    }
+  );
+}
+
+async function ensureFreshDashboardSession(page: Page, appKey: string): Promise<void> {
+  const synced = await syncAppProfile(page);
+  if (!synced) {
+    throw new Error("无法同步应用级认证档案，当前会话可能已失效。");
+  }
+
+  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboard`);
+  await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
+}
+
 export const test = base.extend<SessionFixtures>({
   _sharedContext: [
     async ({ browser }, use) => {
@@ -99,12 +150,14 @@ export const test = base.extend<SessionFixtures>({
       if (activeAppSessionKey === appKey) {
         const ready = await isDashboardSessionReady(page, appKey);
         if (ready) {
+          await ensureFreshDashboardSession(page, appKey);
           return;
         }
       }
 
       await clearAuthState(page);
       await loginApp(page, appKey);
+      await ensureFreshDashboardSession(page, appKey);
       activeAppSessionKey = appKey;
     });
   },

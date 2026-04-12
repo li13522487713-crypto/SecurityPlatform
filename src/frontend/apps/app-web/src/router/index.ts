@@ -119,13 +119,13 @@ export const router = createRouter({
           path: "users",
           name: "app-users",
           component: () => import("@/pages/system/AppUsersPage.vue"),
-          meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
+          meta: { requiredPermission: APP_PERMISSIONS.APP_ROLES_VIEW }
         },
         {
           path: "departments",
           name: "app-departments",
           component: () => import("@/pages/system/AppDepartmentsPage.vue"),
-          meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
+          meta: { requiredPermission: APP_PERMISSIONS.APP_ROLES_VIEW }
         },
         {
           path: "positions",

@@ -12,7 +12,7 @@
       @close-form="closeForm"
       @submit="submitForm"
     >
-      <template #toolbar-actions>
+      <template #card-extra>
         <a-button v-if="canCreate" type="primary" data-testid="app-departments-create" @click="openCreate">
           {{ t("systemDepartments.addDepartment") }}
         </a-button>
@@ -143,9 +143,11 @@ const isMounted = ref(false);
 
 const placeholderDash = "-";
 
-const canCreate = hasPermission(APP_PERMISSIONS.APP_DEPARTMENTS_UPDATE);
-const canUpdate = hasPermission(APP_PERMISSIONS.APP_DEPARTMENTS_UPDATE);
-const canDelete = hasPermission(APP_PERMISSIONS.APP_DEPARTMENTS_UPDATE);
+const canManageDepartments = hasPermission(APP_PERMISSIONS.APP_ROLES_UPDATE);
+
+const canCreate = canManageDepartments;
+const canUpdate = canManageDepartments;
+const canDelete = canManageDepartments;
 
 const tableColumns = computed(() => [
   { title: t("systemDepartments.colDepartmentName"), dataIndex: "name", key: "name" },

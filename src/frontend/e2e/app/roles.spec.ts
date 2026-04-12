@@ -1,5 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
 import {
+  appBaseUrl,
   captureEvidenceScreenshot,
   ensureAppSetup,
   uniqueName
@@ -14,7 +15,7 @@ test.describe.serial("App Roles CRUD", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/roles`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/roles`);
     await expect(page.getByTestId("app-roles-page")).toBeVisible();
   });
 

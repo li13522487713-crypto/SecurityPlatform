@@ -1,0 +1,9 @@
+{
+  "status": "Ready",
+  "completedAt": "2026-04-12T07:54:27.7798425+00:00",
+  "failedAt": null,
+  "failureMessage": null,
+  "appName": "E2E Setup App",
+  "adminUsername": "admin",
+  "appKey": "app-default"
+}

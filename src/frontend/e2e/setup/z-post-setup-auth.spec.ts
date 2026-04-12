@@ -245,16 +245,16 @@ async function loginPlatform(page: Page, request: APIRequestContext) {
 
 async function assertPlatformHomeVisible(page: Page) {
   await page.waitForURL("**/console", { timeout: 20_000 });
-  await expect(page.locator(".console-header .brand")).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".console-header .profile-btn")).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".console-header .ant-menu-item").first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".workbench-title")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".sidebar__brand-text")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".topbar__profile")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".sidebar__item").first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".hero-section__greeting")).toBeVisible({ timeout: 20_000 });
 }
 
 async function fillAppLoginForm(page: Page, password: string) {
-  await page.locator(".app-login-card input").first().fill(defaultTenantId);
-  await page.locator(".app-login-card input").nth(1).fill(defaultUsername);
-  await page.locator('.app-login-card input[type="password"]').fill(password);
+  await page.getByTestId("app-login-tenant").fill(defaultTenantId);
+  await page.getByTestId("app-login-username").fill(defaultUsername);
+  await page.getByTestId("app-login-password").fill(password);
 }
 
 test.describe.serial("安装后认证到主页回归 E2E", () => {
@@ -360,11 +360,11 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     }
 
     await page.waitForURL("**/console");
-    await expect(page.locator(".console-header .brand")).toContainText("Atlas Console");
-    await expect(page.locator(".route-nav-btn")).toContainText("Route Navigator");
+    await expect(page.locator(".sidebar__brand-text")).toContainText("Atlas Console");
+    await expect(page.locator(".topbar__search-input")).toHaveAttribute("placeholder", "Search features, menus...");
 
     await page.reload();
-    await expect(page.locator(".route-nav-btn")).toContainText("Route Navigator");
+    await expect(page.locator(".topbar__search-input")).toHaveAttribute("placeholder", "Search features, menus...");
   });
 
   test("[app] login happy path to dashboard menu home", async ({ request }) => {
@@ -374,16 +374,17 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
 
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
     await fillAppLoginForm(page, defaultPassword);
-    await page.locator('.app-login-card button[type="submit"]').click();
+    await page.getByTestId("app-login-submit").click();
 
     await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`), { timeout: 45_000 });
-    await expect(page.locator(".workspace-sider .ant-menu").first()).toBeVisible();
-    await expect(page.locator(".workspace-header .user-label")).toBeVisible();
-    await expect(page.locator(".ant-page-header-heading-title")).toContainText("应用仪表盘");
+    await expect(page.getByTestId("app-sidebar")).toBeVisible();
+    await expect(page.getByTestId("app-header-user-menu")).toBeVisible();
+    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
 
     await page.reload();
     await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`), { timeout: 45_000 });
-    await expect(page.locator(".workspace-sider .ant-menu").first()).toBeVisible();
+    await expect(page.getByTestId("app-sidebar")).toBeVisible();
+    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
 
     const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
     const payload = await state.json();
@@ -398,10 +399,10 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
 
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
     await fillAppLoginForm(page, "WrongPassword#123");
-    await page.locator('.app-login-card button[type="submit"]').click();
+    await page.getByTestId("app-login-submit").click();
 
     await expect(page).toHaveURL(new RegExp(`/apps/${resolvedAppKey}/login`));
-    await expect(page.locator(".app-login-error")).toBeVisible();
+    await expect(page.locator(".login-error")).toBeVisible();
   });
 
   test("[app] unauthenticated dashboard access redirects to app login", async ({ request }) => {
@@ -423,16 +424,16 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     await setLocaleForOrigin(page, appBaseUrl, "en-US");
 
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
-    await expect(page.locator('.app-login-card button[type="submit"]')).toContainText("Login & Enter App");
+    await expect(page.getByTestId("app-login-submit")).toContainText("Login");
     await fillAppLoginForm(page, defaultPassword);
-    await page.locator('.app-login-card button[type="submit"]').click();
+    await page.getByTestId("app-login-submit").click();
 
     await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`));
-    await expect(page.locator(".header-title")).toContainText("App Workspace");
-    await expect(page.locator(".ant-page-header-heading-title")).toContainText("App Dashboard");
+    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
+    await expect(page.getByTestId("app-dashboard-page")).toContainText("System running smoothly. All services healthy.");
 
     await page.reload();
-    await expect(page.locator(".header-title")).toContainText("App Workspace");
+    await expect(page.getByTestId("app-dashboard-page")).toContainText("System running smoothly. All services healthy.");
   });
 });
 

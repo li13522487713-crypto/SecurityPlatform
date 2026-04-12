@@ -1,5 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
 import {
+  appBaseUrl,
   ensureAppSetup
 } from "./helpers";
 
@@ -12,7 +13,7 @@ test.describe.serial("App Approval Workspace", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/approval`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/approval`);
     await expect(page.getByTestId("app-approval-page")).toBeVisible();
   });
 

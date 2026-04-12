@@ -84,7 +84,8 @@ async function waitForUrl(url, timeoutMs, serviceName) {
   while (Date.now() - startedAt < timeoutMs) {
     try {
       const response = await fetch(url, { method: "GET" });
-      if (response.ok || (response.status >= 300 && response.status < 400)) {
+      // setup 模式下健康检查可能返回 503（门禁或依赖未就绪），但只要有 HTTP 响应就说明服务已启动。
+      if (response.status >= 200 && response.status < 600) {
         log(`${serviceName} 已就绪: ${url} (status ${response.status})`);
         return;
       }

@@ -1,5 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
 import {
+  appBaseUrl,
   captureEvidenceScreenshot,
   ensureAppSetup,
   uniqueName
@@ -19,7 +20,7 @@ test.describe.serial("App Reports And Dashboards CRUD", () => {
     const dashboardName = uniqueName("E2EDashboard");
     const editedDashboardName = `${dashboardName}_edit`;
 
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/reports`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/reports`);
     await expect(page.getByTestId("app-reports-page")).toBeVisible();
     await page.getByTestId("app-reports-create").click();
     await page.getByTestId("app-reports-form-name").fill(reportName);
@@ -62,7 +63,7 @@ test.describe.serial("App Reports And Dashboards CRUD", () => {
     await expect(page.getByTestId("app-reports-table")).not.toContainText(reportName);
     await captureEvidenceScreenshot(page, testInfo, "reports-deleted");
 
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/dashboards`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboards`);
     await expect(page.getByTestId("app-dashboards-page")).toBeVisible();
     await page.getByTestId("app-dashboards-create").click();
     await page.getByTestId("app-dashboards-form-name").fill(dashboardName);

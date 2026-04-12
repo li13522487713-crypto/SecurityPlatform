@@ -1,5 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
 import {
+  appBaseUrl,
   ensureAppSetup
 } from "./helpers";
 
@@ -12,14 +13,14 @@ test.describe.serial("App Visualization And Runtime", () => {
   });
 
   test("visualization page should load", async ({ page }) => {
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/visualization`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/visualization`);
     await expect(page.getByTestId("app-visualization-page")).toBeVisible();
     await expect(page.getByTestId("app-visualization-table")).toBeVisible();
   });
 
   test("entry page should resolve to runtime or show deterministic fallback", async ({ page }) => {
     test.setTimeout(90_000);
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/entry`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/entry`);
     await expect.poll(
       async () => {
         const currentUrl = page.url();

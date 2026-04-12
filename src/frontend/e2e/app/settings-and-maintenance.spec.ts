@@ -1,5 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
 import {
+  appBaseUrl,
   ensureAppSetup
 } from "./helpers";
 
@@ -12,7 +13,7 @@ test.describe.serial("App Settings And Maintenance", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/settings`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/settings`);
     await expect(page.getByTestId("app-settings-page")).toBeVisible();
   });
 

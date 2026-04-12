@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "../fixtures/single-session";
 import {
+  appBaseUrl,
   ensureAppSetup,
   expectNoI18nKeyLeak,
+  seedLocale,
 } from "./helpers";
 
 async function clickSidebarAndAssertPage(
@@ -25,7 +27,7 @@ test.describe.serial("@smoke App Navigation", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/apps/${encodeURIComponent(appKey)}/dashboard`);
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboard`);
     await expect(page.getByTestId("app-sidebar")).toBeVisible();
   });
 
@@ -43,6 +45,20 @@ test.describe.serial("@smoke App Navigation", () => {
     await page.getByTestId("app-header-menu-profile").click();
     await expect(page.getByTestId("app-profile-page")).toBeVisible();
     await expectNoI18nKeyLeak(page, "app-profile-page");
+  });
+
+  test("app organization navigation should render in zh-CN", async ({ page }) => {
+    await seedLocale(page, "zh-CN");
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboard`);
+    await expect(page.getByTestId("app-sidebar-item-dashboard")).toContainText("概览");
+    await expect(page.getByTestId("app-sidebar-item-users")).toContainText("用户");
+    await expect(page.getByTestId("app-sidebar-item-roles")).toContainText("角色");
+    await expect(page.getByTestId("app-sidebar-item-departments")).toContainText("部门");
+    await expect(page.getByTestId("app-sidebar-item-positions")).toContainText("职位");
+    await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
+
+    await page.getByTestId("app-sidebar-item-departments").click();
+    await expect(page.getByTestId("app-departments-page")).toContainText("部门管理");
   });
 });
 

@@ -495,7 +495,6 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
     options.DefaultPolicy = bearerPolicy;
-    options.FallbackPolicy = bearerPolicy;
 });
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -614,6 +613,7 @@ builder.Services.AddReverseProxy();
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
+var setupStateProvider = app.Services.GetRequiredService<ISetupStateProvider>();
 
 // ─── AutoMapper validation (Dev only) ───
 if (app.Environment.IsDevelopment() && validateAutoMapperOnStartup)
@@ -665,18 +665,31 @@ app.UseCors("PlatformHostCors");
 app.UseResponseCompression();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
-app.UseAuthentication();
+app.UseWhen(
+    context =>
+    {
+        if (!setupStateProvider.IsReady)
+        {
+            return false;
+        }
 
-app.UseMiddleware<TenantContextMiddleware>();
-
-app.UseAuthorization();
-
-app.UseMiddleware<AppContextMiddleware>();
-app.UseMiddleware<AntiforgeryValidationMiddleware>();
-app.UseMiddleware<AppMembershipMiddleware>();
-app.UseMiddleware<ProjectContextMiddleware>();
-app.UseMiddleware<LicenseEnforcementMiddleware>();
-app.UseMiddleware<OpenApiGovernanceMiddleware>();
+        var path = context.Request.Path.Value ?? string.Empty;
+        return !path.StartsWith("/api/v1/setup", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
+            && !path.StartsWith("/internal/health", StringComparison.OrdinalIgnoreCase);
+    },
+    runtime =>
+    {
+        runtime.UseAuthentication();
+        runtime.UseMiddleware<TenantContextMiddleware>();
+        runtime.UseAuthorization();
+        runtime.UseMiddleware<AppContextMiddleware>();
+        runtime.UseMiddleware<AntiforgeryValidationMiddleware>();
+        runtime.UseMiddleware<AppMembershipMiddleware>();
+        runtime.UseMiddleware<ProjectContextMiddleware>();
+        runtime.UseMiddleware<LicenseEnforcementMiddleware>();
+        runtime.UseMiddleware<OpenApiGovernanceMiddleware>();
+    });
 
 app.MapHealthChecks("/internal/health/live");
 app.MapHealthChecks("/internal/health/ready");
