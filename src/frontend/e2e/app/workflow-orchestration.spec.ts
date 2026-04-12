@@ -12,9 +12,9 @@ test.describe.serial("@smoke Workflow Orchestration", () => {
   test("应可进入工作流列表页并看到列表区域", async ({ page }) => {
     await navigateBySidebar(page, "workflows", {
       pageTestId: "app-workflows-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`)
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`)
     });
-    await expect(page.getByTestId("app-workflows-table")).toBeVisible();
+    await expect(page.getByTestId("app-workflows-create")).toBeVisible();
   });
 });
 

@@ -1,6 +1,7 @@
 import { expect, test } from "../fixtures/single-session";
 import {
   captureEvidenceScreenshot,
+  clickCrudSubmit,
   ensureAppSetup,
   navigateBySidebar,
   uniqueName,
@@ -18,7 +19,7 @@ test.describe.serial("App Roles CRUD", () => {
   test.beforeEach(async ({ page }) => {
     await navigateBySidebar(page, "roles", {
       pageTestId: "app-roles-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/roles(?:\\?.*)?$`)
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/roles(?:\\?.*)?$`)
     });
     await expect(page.getByTestId("app-roles-create")).toBeEnabled({ timeout: 30_000 });
   });
@@ -31,24 +32,24 @@ test.describe.serial("App Roles CRUD", () => {
     await page.getByTestId("app-roles-create").click();
     await page.getByTestId("app-roles-form-name").fill(roleName);
     await page.getByTestId("app-roles-form-code").fill(roleCode);
-    await page.getByTestId("e2e-crud-drawer-submit").click();
+    await clickCrudSubmit(page);
     await waitForCrudDrawerClosed(page, "app-roles-form-name");
     await navigateBySidebar(page, "roles", {
       pageTestId: "app-roles-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/roles(?:\\?.*)?$`)
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/roles(?:\\?.*)?$`)
     });
     await expect(page.getByTestId("app-roles-table")).toContainText(roleName);
     await captureEvidenceScreenshot(page, testInfo, "roles-created");
 
-    const createdRow = page.locator(".ant-table-row", { hasText: roleName }).first();
+    const createdRow = page.getByTestId("app-roles-table").locator("tr", { hasText: roleName }).first();
     await expect(createdRow).toBeVisible();
     await createdRow.locator('[data-testid^="app-roles-edit-"]').first().click();
     await page.getByTestId("app-roles-form-name").fill(updatedRoleName);
-    await page.getByTestId("e2e-crud-drawer-submit").click();
+    await clickCrudSubmit(page);
     await waitForCrudDrawerClosed(page, "app-roles-form-name");
     await expect(page.getByTestId("app-roles-table")).toContainText(updatedRoleName);
 
-    const editedRow = page.locator(".ant-table-row", { hasText: updatedRoleName }).first();
+    const editedRow = page.getByTestId("app-roles-table").locator("tr", { hasText: updatedRoleName }).first();
     await expect(editedRow).toBeVisible();
     await editedRow.locator('[data-testid^="app-roles-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();

@@ -356,14 +356,35 @@ export async function loginApp(
     return;
   }
 
-  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/`), { timeout: 30_000 });
+  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`), { timeout: 30_000 });
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
 }
 
-export async function ensureAppDashboard(page: Page, appKey: string) {
-  await page.waitForURL(new RegExp(`/apps/${appKey}/dashboard`), { timeout: 45_000 });
-  await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
+export async function ensureAppWorkspace(page: Page, appKey: string) {
+  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`), { timeout: 45_000 });
+  await expect(page.getByTestId("app-develop-page")).toBeVisible();
 }
+
+const primaryNavBySidebarItem: Record<string, "workspace" | "explore" | "admin"> = {
+  develop: "workspace",
+  library: "workspace",
+  "agent-chat": "workspace",
+  "ai-assistant": "workspace",
+  "model-configs": "workspace",
+  workflows: "workspace",
+  "explore-plugins": "explore",
+  "explore-templates": "explore",
+  users: "admin",
+  roles: "admin",
+  departments: "admin",
+  positions: "admin",
+  approval: "admin",
+  reports: "admin",
+  dashboards: "admin",
+  visualization: "admin",
+  settings: "admin",
+  profile: "admin"
+};
 
 export async function navigateBySidebar(
   page: Page,
@@ -375,6 +396,15 @@ export async function navigateBySidebar(
 ) {
   const sidebar = page.getByTestId("app-sidebar");
   await expect(sidebar).toBeVisible({ timeout: 30_000 });
+
+  const primaryKey = primaryNavBySidebarItem[itemKey];
+  if (primaryKey) {
+    const itemProbe = page.getByTestId(`app-sidebar-item-${itemKey}`);
+    if (!(await itemProbe.isVisible().catch(() => false))) {
+      await page.getByTestId(`app-primary-item-${primaryKey}`).click();
+      await expect(itemProbe).toBeVisible({ timeout: 30_000 });
+    }
+  }
 
   const item = page.getByTestId(`app-sidebar-item-${itemKey}`);
   await expect(item, `左侧菜单缺少 ${itemKey}，当前账号不具备对应权限或菜单未正确投影。`).toBeVisible({
@@ -393,15 +423,21 @@ export async function navigateBySidebar(
   }
 }
 
+export async function clickCrudSubmit(page: Page) {
+  const submit = page.locator(".semi-modal-footer .semi-button-primary").last();
+  await expect(submit).toBeVisible({ timeout: 30_000 });
+  await submit.click();
+}
+
 export async function waitForCrudDrawerClosed(page: Page, probeTestId?: string) {
-  const drawerSubmit = page.getByTestId("e2e-crud-drawer-submit");
+  const drawerSubmit = page.locator(".semi-modal-footer .semi-button-primary").last();
   await expect(drawerSubmit).toBeHidden({ timeout: 30_000 });
 
   if (probeTestId) {
     await expect(page.getByTestId(probeTestId)).toBeHidden({ timeout: 30_000 });
   }
 
-  await expect(page.locator(".ant-drawer-mask")).toBeHidden({ timeout: 30_000 });
+  await expect(page.locator(".semi-modal-content")).toBeHidden({ timeout: 30_000 });
 }
 
 export function uniqueName(prefix: string): string {

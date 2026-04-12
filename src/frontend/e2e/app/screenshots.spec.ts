@@ -1,8 +1,8 @@
 import { expect, test } from "../fixtures/single-session";
 import {
-  appBaseUrl,
   captureEvidenceScreenshot,
-  ensureAppSetup
+  ensureAppSetup,
+  navigateBySidebar
 } from "./helpers";
 
 test.describe.serial("App Screenshot E2E", () => {
@@ -13,13 +13,17 @@ test.describe.serial("App Screenshot E2E", () => {
     await ensureLoggedInSession(appKey);
   });
 
-  test("should capture dashboard and users page screenshots in real browser", async ({ page }, testInfo) => {
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboard`);
-    await expect(page.getByTestId("app-dashboard-page")).toBeVisible({ timeout: 20_000 });
-    await captureEvidenceScreenshot(page, testInfo, "dashboard-fullpage");
+  test("should capture develop and users page screenshots in real browser", async ({ page }, testInfo) => {
+    await navigateBySidebar(page, "develop", {
+      pageTestId: "app-develop-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`)
+    });
+    await captureEvidenceScreenshot(page, testInfo, "develop-fullpage");
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/users`);
-    await expect(page.getByTestId("app-users-page")).toBeVisible({ timeout: 20_000 });
+    await navigateBySidebar(page, "users", {
+      pageTestId: "app-users-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/users(?:\\?.*)?$`)
+    });
     await captureEvidenceScreenshot(page, testInfo, "users-fullpage");
   });
 });

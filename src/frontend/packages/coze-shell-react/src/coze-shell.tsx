@@ -63,7 +63,7 @@ export function CozeShell({
         <button
           type="button"
           className="coze-shell__back"
-          onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/dashboard`)}
+          onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}`)}
           data-testid="app-shell-back"
         >
           <IconChevronLeft size="large" />

@@ -49,6 +49,7 @@ import {
   updateKnowledgeBase
 } from "@/services/api-knowledge";
 import { HomePage } from "./pages/home-page";
+import { DashboardPage } from "./pages/dashboard-page";
 import { LoginPage } from "./pages/login-page";
 import { ForbiddenPage } from "./pages/placeholder-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
@@ -346,19 +347,22 @@ function AppShellRoute() {
       key: "workspace",
       label: locale === "zh-CN" ? "工作空间" : "Workspace",
       icon: <IconGridView1 />,
-      path: `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(bootstrap.spaceId)}/develop`
+      path: `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(bootstrap.spaceId)}/develop`,
+      testId: "app-primary-item-workspace"
     },
     {
       key: "explore",
       label: locale === "zh-CN" ? "探索" : "Explore",
       icon: <IconGlobe />,
-      path: `/apps/${encodeURIComponent(appKey)}/explore/plugin`
+      path: `/apps/${encodeURIComponent(appKey)}/explore/plugin`,
+      testId: "app-primary-item-explore"
     },
     {
       key: "admin",
       label: locale === "zh-CN" ? "管理" : "Management",
       icon: <IconUserGroup />,
-      path: `/apps/${encodeURIComponent(appKey)}/admin/users`
+      path: `/apps/${encodeURIComponent(appKey)}/admin/users`,
+      testId: "app-primary-item-admin"
     }
   ];
 
@@ -445,6 +449,10 @@ function LibraryRoute() {
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   return <LibraryPage api={libraryApi} locale={locale} appKey={appKey} onNavigate={navigate} />;
+}
+
+function DashboardRoute() {
+  return <DashboardPage />;
 }
 
 function KnowledgeDetailRoute() {
@@ -616,7 +624,7 @@ export function AppRouter() {
         <Route path="/apps/:appKey/login" element={<LoginPage />} />
         <Route path="/apps/:appKey" element={<AppShellRoute />}>
           <Route index element={<DefaultWorkspaceRedirect />} />
-          <Route path="dashboard" element={<DefaultWorkspaceRedirect />} />
+          <Route path="dashboard" element={<DashboardRoute />} />
           <Route path="space/:spaceId/develop" element={<DevelopRoute />} />
           <Route path="space/:spaceId/chat" element={<AgentChatRoute />} />
           <Route path="space/:spaceId/assistant" element={<AiAssistantRoute />} />
@@ -628,6 +636,26 @@ export function AppRouter() {
           <Route path="explore/plugin" element={<ExplorePluginsRoute />} />
           <Route path="explore/template" element={<ExploreTemplatesRoute />} />
           <Route path="search/:word" element={<ExploreSearchRoute />} />
+          <Route path="ai/agents" element={<DevelopRoute />} />
+          <Route path="ai/chat/:agentId?" element={<AgentChatRoute />} />
+          <Route path="ai/assistant" element={<AiAssistantRoute />} />
+          <Route path="model-configs" element={<ModelConfigsRoute />} />
+          <Route path="users" element={<AdminUsersRoute />} />
+          <Route path="roles" element={<AdminRolesRoute />} />
+          <Route path="departments" element={<AdminDepartmentsRoute />} />
+          <Route path="positions" element={<AdminPositionsRoute />} />
+          <Route path="approval" element={<AdminApprovalRoute />} />
+          <Route path="reports" element={<AdminReportsRoute />} />
+          <Route path="dashboards" element={<AdminDashboardsRoute />} />
+          <Route path="visualization" element={<AdminVisualizationRoute />} />
+          <Route path="settings" element={<AdminSettingsRoute />} />
+          <Route path="profile" element={<AdminProfileRoute />} />
+          <Route path="library" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><LibraryRoute /></ProtectedPage>} />
+          <Route path="knowledge-bases" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><LibraryRoute /></ProtectedPage>} />
+          <Route path="knowledge/:id" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><KnowledgeDetailRoute /></ProtectedPage>} />
+          <Route path="knowledge/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><KnowledgeUploadRoute /></ProtectedPage>} />
+          <Route path="workflows" element={<WorkflowListRoute />} />
+          <Route path="workflows/:id/editor" element={<WorkflowEditorRoute />} />
           <Route path="work_flow" element={<WorkflowListRoute />} />
           <Route path="work_flow/:id/editor" element={<WorkflowEditorRoute />} />
           <Route path="admin/users" element={<AdminUsersRoute />} />
@@ -640,26 +668,6 @@ export function AppRouter() {
           <Route path="admin/visualization" element={<AdminVisualizationRoute />} />
           <Route path="admin/settings" element={<AdminSettingsRoute />} />
           <Route path="admin/profile" element={<AdminProfileRoute />} />
-          <Route path="library" element={<LegacyRedirect to={(nextAppKey, spaceId, search) => `/apps/${encodeURIComponent(nextAppKey)}/space/${encodeURIComponent(spaceId)}/library${search}`} />} />
-          <Route path="knowledge-bases" element={<LegacyRedirect to={(nextAppKey, spaceId) => `/apps/${encodeURIComponent(nextAppKey)}/space/${encodeURIComponent(spaceId)}/library?type=knowledge-base&biz=library`} />} />
-          <Route path="knowledge/:id" element={<LegacyKnowledgeRedirect />} />
-          <Route path="knowledge/:id/upload" element={<LegacyKnowledgeUploadRedirect />} />
-          <Route path="users" element={<Navigate to="admin/users" replace />} />
-          <Route path="roles" element={<Navigate to="admin/roles" replace />} />
-          <Route path="departments" element={<Navigate to="admin/departments" replace />} />
-          <Route path="positions" element={<Navigate to="admin/positions" replace />} />
-          <Route path="approval" element={<Navigate to="admin/approval" replace />} />
-          <Route path="reports" element={<Navigate to="admin/reports" replace />} />
-          <Route path="dashboards" element={<Navigate to="admin/dashboards" replace />} />
-          <Route path="visualization" element={<Navigate to="admin/visualization" replace />} />
-          <Route path="settings" element={<Navigate to="admin/settings" replace />} />
-          <Route path="profile" element={<Navigate to="admin/profile" replace />} />
-          <Route path="ai/agents" element={<LegacyRedirect to={(nextAppKey, spaceId) => `/apps/${encodeURIComponent(nextAppKey)}/space/${encodeURIComponent(spaceId)}/develop`} />} />
-          <Route path="ai/chat/:agentId?" element={<LegacyRedirect to={(nextAppKey, spaceId) => `/apps/${encodeURIComponent(nextAppKey)}/space/${encodeURIComponent(spaceId)}/chat`} />} />
-          <Route path="ai/assistant" element={<LegacyRedirect to={(nextAppKey, spaceId) => `/apps/${encodeURIComponent(nextAppKey)}/space/${encodeURIComponent(spaceId)}/assistant`} />} />
-          <Route path="model-configs" element={<LegacyRedirect to={(nextAppKey, spaceId) => `/apps/${encodeURIComponent(nextAppKey)}/space/${encodeURIComponent(spaceId)}/model-configs`} />} />
-          <Route path="workflows" element={<Navigate to="work_flow" replace />} />
-          <Route path="workflows/:id/editor" element={<LegacyWorkflowEditorRedirect />} />
           <Route path="forbidden" element={<ForbiddenPage />} />
           <Route path="*" element={<DefaultWorkspaceRedirect />} />
         </Route>

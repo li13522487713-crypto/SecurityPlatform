@@ -43,7 +43,7 @@ test.describe.serial("Workflow Editor E2E", () => {
     await expect(workflowNodes).toHaveCount(starterNodeCount + 1);
 
     await page.reload();
-    await page.waitForURL(/\/workflows\/[^/]+\/editor(?:\?.*)?$/, { timeout: 30_000 });
+    await page.waitForURL(/\/work_flow\/[^/]+\/editor(?:\?.*)?$/, { timeout: 30_000 });
     await expect(page.getByTestId("workflow.detail.toolbar.add-node")).toBeVisible();
     await expect(workflowNodes.first()).toBeVisible();
   });

@@ -127,15 +127,15 @@ test.describe.serial("Workflow Complete Flow", () => {
     await expect(page.locator(".wf-react-trace-panel")).toBeVisible();
 
     await page.getByTestId("workflow.detail.title.back").click();
-    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`), {
+    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`), {
       timeout: 30_000
     });
-    await expect(page.getByTestId("app-workflows-table")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("app-workflows-page")).toBeVisible({ timeout: 30_000 });
 
     const workflowRow = page.locator(`tr[data-row-key="${workflowId}"]`).first();
     await expect(workflowRow).toBeVisible({ timeout: 30_000 });
     await workflowRow.getByTestId(`app-workflows-open-${workflowId}`).click();
-    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`), {
+    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`), {
       timeout: 30_000
     });
     await expect(page.locator(".wf-react-canvas-shell")).toBeVisible();

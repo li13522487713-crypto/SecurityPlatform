@@ -6,7 +6,7 @@ import { useBootstrap } from "../bootstrap-context";
 
 export function HomePage() {
   const { t } = useAppI18n();
-  const { appKey } = useBootstrap();
+  const { appKey, spaceId } = useBootstrap();
   const navigate = useNavigate();
   const [value, setValue] = useState(appKey);
 
@@ -28,7 +28,7 @@ export function HomePage() {
                 Toast.warning(t("homeMissingAppKey"));
                 return;
               }
-              navigate(`/apps/${encodeURIComponent(value.trim())}/dashboard`);
+              navigate(`/apps/${encodeURIComponent(value.trim())}/space/${encodeURIComponent(spaceId)}/develop`);
             }}
           >
             {t("homeEnter")}

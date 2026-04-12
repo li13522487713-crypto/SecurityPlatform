@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
+import { useBootstrap } from "../bootstrap-context";
 
 export function LoginPage() {
   const { appKey = "" } = useParams();
@@ -10,6 +11,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const { login, loading } = useAuth();
   const { t } = useAppI18n();
+  const { spaceId } = useBootstrap();
   const [tenantId, setTenantId] = useState("00000000-0000-0000-0000-000000000001");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("P@ssw0rd!");
@@ -31,7 +33,7 @@ export function LoginPage() {
               onClick={async () => {
                 try {
                   await login(appKey, tenantId, username, password);
-                  navigate(searchParams.get("redirect") || `/apps/${encodeURIComponent(appKey)}/dashboard`, {
+                  navigate(searchParams.get("redirect") || `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/develop`, {
                     replace: true
                   });
                 } catch (error) {

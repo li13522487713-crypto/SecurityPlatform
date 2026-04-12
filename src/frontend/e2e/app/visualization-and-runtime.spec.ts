@@ -1,7 +1,8 @@
 import { expect, test } from "../fixtures/single-session";
 import {
   appBaseUrl,
-  ensureAppSetup
+  ensureAppSetup,
+  navigateBySidebar
 } from "./helpers";
 
 test.describe.serial("App Visualization And Runtime", () => {
@@ -13,8 +14,10 @@ test.describe.serial("App Visualization And Runtime", () => {
   });
 
   test("visualization page should load", async ({ page }) => {
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/visualization`);
-    await expect(page.getByTestId("app-visualization-page")).toBeVisible();
+    await navigateBySidebar(page, "visualization", {
+      pageTestId: "app-visualization-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/visualization(?:\\?.*)?$`)
+    });
     await expect(page.getByTestId("app-visualization-table")).toBeVisible();
   });
 

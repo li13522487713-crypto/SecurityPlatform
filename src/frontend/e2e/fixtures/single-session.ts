@@ -586,8 +586,8 @@ async function clearAuthState(page: Page) {
   activeAppSessionKey = null;
 }
 
-async function isDashboardSessionReady(page: Page, appKey: string): Promise<boolean> {
-  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboard`);
+async function isWorkspaceSessionReady(page: Page, appKey: string): Promise<boolean> {
+  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
 
   const loginRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/login(?:\\?.*)?$`);
   if (loginRegex.test(page.url())) {
@@ -636,13 +636,13 @@ async function syncAppProfile(page: Page): Promise<boolean> {
   );
 }
 
-async function ensureFreshDashboardSession(page: Page, appKey: string): Promise<void> {
+async function ensureFreshWorkspaceSession(page: Page, appKey: string): Promise<void> {
   const synced = await syncAppProfile(page);
   if (!synced) {
     throw new Error("无法同步应用级认证档案，当前会话可能已失效。");
   }
 
-  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/dashboard`);
+  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
 }
 
@@ -680,16 +680,16 @@ export const test = base.extend<SessionFixtures>({
   ensureLoggedInSession: async ({ page }, use) => {
     await use(async (appKey: string) => {
       if (activeAppSessionKey === appKey) {
-        const ready = await isDashboardSessionReady(page, appKey);
+        const ready = await isWorkspaceSessionReady(page, appKey);
         if (ready) {
-          await ensureFreshDashboardSession(page, appKey);
+          await ensureFreshWorkspaceSession(page, appKey);
           return;
         }
       }
 
       await clearAuthState(page);
       await loginApp(page, appKey);
-      await ensureFreshDashboardSession(page, appKey);
+      await ensureFreshWorkspaceSession(page, appKey);
       activeAppSessionKey = appKey;
     });
   },

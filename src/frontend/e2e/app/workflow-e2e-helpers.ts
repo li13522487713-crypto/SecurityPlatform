@@ -79,7 +79,7 @@ async function ensureWorkflowListReady(
   appKey: string,
   ensureLoggedInSession?: (appKey: string) => Promise<void>
 ): Promise<void> {
-  const workflowsRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`);
+  const workflowsRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`);
   const loginRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/login(?:\\?.*)?$`);
   const createButton = page.getByTestId("app-workflows-create");
 
@@ -289,7 +289,7 @@ export async function createWorkflowAndOpenEditor(page: Page, appKey: string): P
       : (createPayload.data?.id ?? "");
   expect(createdWorkflowId).not.toBe("");
 
-  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows/[^/]+/editor(?:\\?.*)?$`), {
+  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow/[^/]+/editor(?:\\?.*)?$`), {
     timeout: 30_000
   });
   await expectWorkflowEditorReady(page);
@@ -327,7 +327,7 @@ export async function openWorkflowEditor(page: Page, appKey: string, workflowId:
   await expect(row).toBeVisible({ timeout: 30_000 });
   await row.getByTestId(`app-workflows-open-${workflowId}`).click();
   await page.waitForURL(
-    new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`),
+    new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`),
     {
       timeout: 30_000
     }

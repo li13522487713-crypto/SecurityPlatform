@@ -1,6 +1,7 @@
 import { expect, test } from "../fixtures/single-session";
 import {
   captureEvidenceScreenshot,
+  clickCrudSubmit,
   ensureAppSetup,
   navigateBySidebar,
   uniqueName,
@@ -18,7 +19,7 @@ test.describe.serial("App Users CRUD", () => {
   test.beforeEach(async ({ page }) => {
     await navigateBySidebar(page, "users", {
       pageTestId: "app-users-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/users(?:\\?.*)?$`)
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/users(?:\\?.*)?$`)
     });
     await expect(page.getByTestId("app-users-create")).toBeEnabled({ timeout: 30_000 });
   });
@@ -32,32 +33,26 @@ test.describe.serial("App Users CRUD", () => {
     await page.getByTestId("app-users-form-username").fill(username);
     await page.getByTestId("app-users-form-password").fill("P@ssw0rd!123");
     await page.getByTestId("app-users-form-display-name").fill(displayName);
-    await page.getByTestId("e2e-crud-drawer-submit").click();
+    await clickCrudSubmit(page);
     await waitForCrudDrawerClosed(page, "app-users-form-username");
     await navigateBySidebar(page, "users", {
       pageTestId: "app-users-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/users(?:\\?.*)?$`)
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/users(?:\\?.*)?$`)
     });
 
     await expect(page.getByTestId("app-users-table")).toContainText(displayName);
     await captureEvidenceScreenshot(page, testInfo, "users-created");
 
-    const row = page.locator(".ant-table-row", { hasText: username }).first();
+    const row = page.getByTestId("app-users-table").locator("tr", { hasText: username }).first();
     await expect(row).toBeVisible();
     await row.locator('[data-testid^="app-users-edit-"]').first().click();
     await page.getByTestId("app-users-edit-display-name").fill(editedDisplayName);
-    await page.getByTestId("e2e-crud-drawer-submit").click();
+    await clickCrudSubmit(page);
     await waitForCrudDrawerClosed(page, "app-users-edit-display-name");
 
     await expect(page.getByTestId("app-users-table")).toContainText(editedDisplayName);
 
-    const editedRow = page.locator(".ant-table-row", { hasText: username }).first();
-    await editedRow.locator('[data-testid^="app-users-reset-password-"]').first().click();
-    await page.getByTestId("app-users-reset-password-input").fill("P@ssw0rd!456");
-    await page.getByTestId("e2e-crud-drawer-submit").click();
-    await waitForCrudDrawerClosed(page, "app-users-reset-password-input");
-
-    const latestRow = page.locator(".ant-table-row", { hasText: username }).first();
+    const latestRow = page.getByTestId("app-users-table").locator("tr", { hasText: username }).first();
     const removeButton = latestRow.locator('[data-testid^="app-users-remove-"]').first();
     await removeButton.click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();

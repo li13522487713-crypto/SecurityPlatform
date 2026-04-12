@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures/single-session";
 import {
-  appBaseUrl,
-  ensureAppSetup
+  ensureAppSetup,
+  navigateBySidebar
 } from "./helpers";
 
 test.describe.serial("App Settings And Maintenance", () => {
@@ -13,12 +13,13 @@ test.describe.serial("App Settings And Maintenance", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/settings`);
-    await expect(page.getByTestId("app-settings-page")).toBeVisible();
+    await navigateBySidebar(page, "settings", {
+      pageTestId: "app-settings-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/settings(?:\\?.*)?$`)
+    });
   });
 
   test("database tab should test connection and trigger backup", async ({ page }) => {
-    await page.getByRole("tab", { name: /数据库运维|Database/ }).click();
     await expect(page.getByTestId("app-settings-db-tab")).toBeVisible();
 
     await page.getByTestId("app-settings-db-test-connection").click();

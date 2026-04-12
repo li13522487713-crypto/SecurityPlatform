@@ -9,7 +9,7 @@ export function DashboardPage() {
   const { appKey = "" } = useParams();
 
   return (
-    <div className="atlas-dashboard">
+    <div className="atlas-dashboard" data-testid="app-dashboard-page">
       <div className="atlas-page-section">
         <Typography.Title heading={2}>{t("dashboardTitle")}</Typography.Title>
         <Typography.Text type="tertiary">{t("dashboardSubtitle")}</Typography.Text>
