@@ -91,13 +91,15 @@ public sealed class SetupStateController : ControllerBase
 
         var platformReady = IsPlatformReady(platformState);
         var appState = _appSetupStateProvider.GetState();
+        var configuredAppKey = ResolveSetupAppKey();
         return Ok(ApiResponse<AppHostSetupStateResponse>.Ok(
             new AppHostSetupStateResponse(
                 platformReady ? SetupState.Ready.ToString() : platformState.Status.ToString(),
                 platformReady,
                 appState.Status.ToString(),
                 _appSetupStateProvider.IsReady,
-                appState.AppKey),
+                appState.AppKey,
+                configuredAppKey),
             HttpContext.TraceIdentifier));
     }
 
@@ -498,7 +500,7 @@ public sealed class SetupStateController : ControllerBase
             positionsCreated = seedResult.PositionsCreated;
             adminBound = seedResult.AdminBound;
 
-            await PersistRuntimeConfigAsync(runtimeConnectionString, requestedDbType, cancellationToken);
+            await PersistRuntimeConfigAsync(runtimeConnectionString, requestedDbType, appKey, cancellationToken);
             await _appSetupStateProvider.CompleteSetupAsync(appName, adminUsername, appKey, cancellationToken);
 
             _logger.LogInformation(
@@ -1366,12 +1368,35 @@ public sealed class SetupStateController : ControllerBase
         return new TenantId(DefaultTenantGuid);
     }
 
-    private async Task PersistRuntimeConfigAsync(string connectionString, string dbType, CancellationToken cancellationToken)
+    private async Task PersistRuntimeConfigAsync(string connectionString, string dbType, string appKey, CancellationToken cancellationToken)
     {
+        var instanceConfig = new AppInstanceConfigurationLoader(_configuration).Load();
+        var tenantId = ResolveTenantId().Value.ToString("D");
+        var persistedInstanceId = string.IsNullOrWhiteSpace(instanceConfig.InstanceId)
+            ? $"{appKey}-instance-001"
+            : instanceConfig.InstanceId.Trim();
         var runtimeConfigPath = Path.Combine(_environment.ContentRootPath, "appsettings.runtime.json");
         var json = JsonSerializer.Serialize(new
         {
-            Database = new { ConnectionString = connectionString, DbType = dbType }
+            Database = new { ConnectionString = connectionString, DbType = dbType },
+            AppInstance = new
+            {
+                AppKey = appKey,
+                InstanceId = persistedInstanceId,
+                EnvironmentName = string.IsNullOrWhiteSpace(instanceConfig.EnvironmentName) ? "Development" : instanceConfig.EnvironmentName,
+                BaseUrl = instanceConfig.BaseUrl,
+                LoginUrl = instanceConfig.LoginUrl,
+                Port = instanceConfig.Port
+            },
+            Atlas = new
+            {
+                AppHost = new
+                {
+                    AppKey = appKey,
+                    InstanceId = persistedInstanceId,
+                    TenantId = tenantId
+                }
+            }
         }, new JsonSerializerOptions { WriteIndented = true });
         await System.IO.File.WriteAllTextAsync(runtimeConfigPath, json, cancellationToken);
         _logger.LogInformation("[AppSetup] 数据库配置已持久化到 {Path}", runtimeConfigPath);
@@ -1463,7 +1488,8 @@ public sealed record AppHostSetupStateResponse(
     bool PlatformSetupCompleted,
     string AppStatus,
     bool AppSetupCompleted,
-    string? AppKey);
+    string? AppKey,
+    string? ConfiguredAppKey);
 
 public sealed record AppSetupInitializeResponse(
     string PlatformStatus,

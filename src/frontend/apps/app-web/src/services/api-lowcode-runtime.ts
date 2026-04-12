@@ -6,6 +6,19 @@ import type { ApiResponse } from "@atlas/shared-core";
 import type { LowCodeAppDetail, LowCodePageRuntimeSchema } from "@/types/lowcode-runtime";
 import { requestApi } from "./api-core";
 
+interface NavigationProjectionScope {
+  tenantId: string;
+  appInstanceId: string | null;
+  appKey: string | null;
+}
+
+interface NavigationProjectionResponse {
+  hostMode: string;
+  scope: NavigationProjectionScope;
+  groups: Array<unknown>;
+  generatedAt: string;
+}
+
 export async function getLowCodeRuntimePageSchemaByKey(
   appKey: string,
   pageKey: string,
@@ -35,6 +48,19 @@ export async function getLowCodeAppByKey(appKey: string): Promise<LowCodeAppDeta
     throw new Error(response.message || "Query failed");
   }
   return response.data;
+}
+
+export async function getAppInstanceIdByAppKey(appKey: string): Promise<string | null> {
+  const normalized = appKey.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const response = await requestApi<ApiResponse<NavigationProjectionResponse>>(
+    `/api/v2/navigation/apps/by-key/${encodeURIComponent(normalized)}/workspace`
+  );
+
+  return response.data?.scope.appInstanceId?.trim() || null;
 }
 
 const V2_APP_BASE = "/api/v2/tenant-app-instances";

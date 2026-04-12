@@ -46,6 +46,7 @@
                 v-if="canCreate"
                 data-testid="app-users-add-existing"
                 class="app-users-outline-btn"
+                :disabled="!appId"
                 @click="openAddExistingMember"
               >
                 <template #icon><UserAddOutlined /></template>
@@ -56,6 +57,7 @@
                 type="primary"
                 data-testid="app-users-create"
                 class="app-users-create-btn"
+                :disabled="!appId"
                 @click="openCreateUser"
               >
                 <template #icon><PlusOutlined /></template>
@@ -319,7 +321,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { message } from "ant-design-vue";
 import { MailOutlined, PhoneOutlined, PlusOutlined, UserAddOutlined } from "@ant-design/icons-vue";
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
@@ -782,12 +784,29 @@ async function handleRemoveMember(userId: string) {
 
 onMounted(() => {
   isMounted.value = true;
-  void fetchData();
-  void loadDeptTree();
-  void loadRoleOptions();
-  void loadDeptOptions();
-  void loadPositionOptions();
+  if (appId.value) {
+    void fetchData();
+    void loadDeptTree();
+    void loadRoleOptions();
+    void loadDeptOptions();
+    void loadPositionOptions();
+  }
 });
+
+watch(
+  appId,
+  (id) => {
+    if (!id || !isMounted.value) {
+      return;
+    }
+    void fetchData();
+    void loadDeptTree();
+    void loadRoleOptions();
+    void loadDeptOptions();
+    void loadPositionOptions();
+  },
+  { immediate: true }
+);
 
 onUnmounted(() => {
   isMounted.value = false;

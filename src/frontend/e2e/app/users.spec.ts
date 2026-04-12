@@ -20,6 +20,7 @@ test.describe.serial("App Users CRUD", () => {
       pageTestId: "app-users-page",
       urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/users(?:\\?.*)?$`)
     });
+    await expect(page.getByTestId("app-users-create")).toBeEnabled({ timeout: 30_000 });
   });
 
   test("create/update/reset-password/delete user member should work", async ({ page }, testInfo) => {

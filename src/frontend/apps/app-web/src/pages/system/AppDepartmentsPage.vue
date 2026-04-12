@@ -13,7 +13,7 @@
       @submit="submitForm"
     >
       <template #card-extra>
-        <a-button v-if="canCreate" type="primary" data-testid="app-departments-create" @click="openCreate">
+        <a-button v-if="canCreate" type="primary" data-testid="app-departments-create" :disabled="!appId" @click="openCreate">
           {{ t("systemDepartments.addDepartment") }}
         </a-button>
       </template>
@@ -399,6 +399,18 @@ const loadAllDepartments = async () => {
   }
 };
 
+watch(
+  appId,
+  (id) => {
+    if (!id) {
+      return;
+    }
+    void loadParentOptions();
+    void loadAllDepartments();
+  },
+  { immediate: true }
+);
+
 const submitForm = async () => {
   const id = appId.value;
   if (!id) return;
@@ -448,8 +460,10 @@ const handleDeleteDept = async (deptId: string) => {
 
 onMounted(() => {
   isMounted.value = true;
-  void loadParentOptions();
-  void loadAllDepartments();
+  if (appId.value) {
+    void loadParentOptions();
+    void loadAllDepartments();
+  }
 });
 
 onUnmounted(() => {

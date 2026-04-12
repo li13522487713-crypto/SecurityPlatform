@@ -6,6 +6,7 @@ export interface SetupStateResponse {
   appStatus: string;
   appSetupCompleted: boolean;
   appKey: string | null;
+  configuredAppKey: string | null;
 }
 
 export interface DriverFieldDefinition {

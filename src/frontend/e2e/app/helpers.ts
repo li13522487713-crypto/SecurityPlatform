@@ -13,8 +13,8 @@ export const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 export const defaultUsername = "admin";
 export const defaultPassword = "P@ssw0rd!";
 
-const platformDatabasePath = "Data Source=atlas.app.e2e.db";
-const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.app.e2e.db")}`;
+const platformDatabasePath = "Data Source=atlas.e2e.db";
+const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.e2e.db")}`;
 const appName = "App E2E Regression";
 const e2eDataSourceName = "App E2E DataSource";
 

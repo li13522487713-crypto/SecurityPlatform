@@ -23,6 +23,7 @@ test.describe.serial("App Departments And Positions CRUD", () => {
       pageTestId: "app-departments-page",
       urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/departments(?:\\?.*)?$`)
     });
+    await expect(page.getByTestId("app-departments-create")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("app-departments-create").click();
     await page.getByTestId("app-departments-form-name").fill(deptName);
     await page.getByTestId("app-departments-form-code").fill(deptCode);
@@ -66,6 +67,7 @@ test.describe.serial("App Departments And Positions CRUD", () => {
       pageTestId: "app-positions-page",
       urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/positions(?:\\?.*)?$`)
     });
+    await expect(page.getByTestId("app-positions-create")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("app-positions-create").click();
     await page.getByTestId("app-positions-form-name").fill(positionName);
     await page.getByTestId("app-positions-form-code").fill(positionCode);

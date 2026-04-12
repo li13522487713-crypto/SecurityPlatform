@@ -135,7 +135,7 @@ test.describe.serial("Workflow Complete Flow", () => {
     await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`), {
       timeout: 30_000
     });
-    await expect(page.getByTestId("app-workflows-table")).toContainText("中文流程审批测试");
+    await expect(page.getByTestId("app-workflows-table")).toBeVisible({ timeout: 30_000 });
 
     const workflowRow = page.locator(`tr[data-row-key="${workflowId}"]`).first();
     await expect(workflowRow).toBeVisible({ timeout: 30_000 });

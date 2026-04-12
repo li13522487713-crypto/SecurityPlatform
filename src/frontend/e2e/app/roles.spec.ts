@@ -20,6 +20,7 @@ test.describe.serial("App Roles CRUD", () => {
       pageTestId: "app-roles-page",
       urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/roles(?:\\?.*)?$`)
     });
+    await expect(page.getByTestId("app-roles-create")).toBeEnabled({ timeout: 30_000 });
   });
 
   test("create/update/delete role should work", async ({ page }, testInfo) => {

@@ -21,6 +21,7 @@
         type="primary"
         class="roles-add-btn"
         data-testid="app-roles-create"
+        :disabled="!appId"
         @click="openCreate"
       >
         <template #icon><PlusOutlined /></template>
@@ -165,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
 import type { ColumnType } from "ant-design-vue/es/table";
 import { message } from "ant-design-vue";
@@ -385,9 +386,15 @@ function handleAssignSuccess() {
   void fetchData();
 }
 
-onMounted(() => {
-  void fetchData();
-});
+watch(
+  appId,
+  (id) => {
+    if (id) {
+      void fetchData();
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>

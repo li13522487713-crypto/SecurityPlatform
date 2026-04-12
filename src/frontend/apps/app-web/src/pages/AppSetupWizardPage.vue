@@ -346,6 +346,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   getDrivers,
+  getSetupState,
   initializeApp,
   testConnection,
   type AppSetupDepartmentConfig,
@@ -385,6 +386,7 @@ const drivers = ref<DriverDefinition[]>([]);
 const testingConnection = ref(false);
 const connectionTestResult = ref<boolean | null>(null);
 const connectionTestMessage = ref("");
+const configuredAppKey = ref("");
 
 const dbForm = ref<SetupDbForm>({
   driverCode: "SQLite",
@@ -396,7 +398,7 @@ const dbForm = ref<SetupDbForm>({
 const adminForm = ref({
   appName: "",
   adminUsername: "admin",
-  appKey: "app-default"
+  appKey: ""
 });
 
 const rolesForm = ref({
@@ -436,12 +438,20 @@ const organizationFormValid = computed(() => {
 
 onMounted(async () => {
   try {
-    const resp = await getDrivers();
-    if (resp.success && resp.data) {
-      drivers.value = resp.data;
+    const [driversResp, stateResp] = await Promise.all([getDrivers(), getSetupState()]);
+
+    if (driversResp.success && driversResp.data) {
+      drivers.value = driversResp.data;
+    }
+
+    const resolvedConfiguredAppKey = stateResp.data?.configuredAppKey?.trim() ?? "";
+    configuredAppKey.value = resolvedConfiguredAppKey;
+
+    if (!adminForm.value.appKey.trim()) {
+      adminForm.value.appKey = resolvedConfiguredAppKey;
     }
   } catch (error) {
-    console.error("Failed to load drivers", error);
+    console.error("Failed to load setup bootstrap data", error);
   }
 });
 
@@ -597,7 +607,7 @@ function retrySetup() {
 
 function enterWorkspace() {
   const resolvedAppKey =
-    initReport.value?.appKey || adminForm.value.appKey.trim() || "app-default";
+    initReport.value?.appKey || adminForm.value.appKey.trim() || configuredAppKey.value || "app-default";
   localStorage.setItem("atlas_app_last_appkey", resolvedAppKey);
   markAppSetupComplete();
   void router.push(`/apps/${encodeURIComponent(resolvedAppKey)}/login`);

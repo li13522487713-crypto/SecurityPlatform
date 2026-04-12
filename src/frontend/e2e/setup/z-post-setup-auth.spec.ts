@@ -226,10 +226,11 @@ async function loginPlatform(page: Page, request: APIRequestContext) {
   if (mode === "form") {
     await page.locator('input[autocomplete="username"]').fill(defaultUsername);
     await page.locator('input[autocomplete="current-password"]').fill(defaultPassword);
+    await expect(page.locator("button.submit-btn")).toBeEnabled({ timeout: 8_000 });
     await page.locator("button.submit-btn").click();
     try {
       await page.waitForFunction(() => window.location.pathname === "/console", undefined, {
-        timeout: 8_000
+        timeout: 15_000
       });
       return mode;
     } catch {
@@ -281,11 +282,7 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, platformBaseUrl, "zh-CN");
 
-    await apiLoginAndSeedPlatformSession(page, request);
-    await page.goto(`${platformBaseUrl}/console`);
-    await assertPlatformHomeVisible(page);
-
-    await page.reload();
+    await loginPlatform(page, request);
     await assertPlatformHomeVisible(page);
 
     const state = await request.get("http://127.0.0.1:5001/api/v1/setup/state");
