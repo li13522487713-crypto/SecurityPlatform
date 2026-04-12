@@ -12,7 +12,7 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 export function WorkflowNodeRender() {
   const render = useNodeRender();
-  const { reportNodeSelection } = useFlowgramSelectionBridge();
+  const { reportNodeSelection, reportPortClick } = useFlowgramSelectionBridge();
   const data = asRecord(render.data);
   const title = typeof data.title === "string" && data.title ? data.title : String(render.type);
   const status = (data.executionState as "idle" | "running" | "success" | "failed" | "skipped" | "blocked" | undefined) ?? "idle";
@@ -30,7 +30,22 @@ export function WorkflowNodeRender() {
   }, [nodeKey, render.selected, reportNodeSelection]);
 
   return (
-    <WorkflowNodeRenderer node={render.node} className="wf-node-render-shell">
+    <WorkflowNodeRenderer
+      node={render.node}
+      className="wf-node-render-shell"
+      onPortClick={(port, event) => {
+        if (event && typeof (event as { stopPropagation?: () => void }).stopPropagation === "function") {
+          (event as { stopPropagation: () => void }).stopPropagation();
+        }
+        const portType = port.portType === "input" ? "input" : "output";
+        const portKey = String(port.portID ?? (portType === "input" ? "input" : "output"));
+        reportPortClick({
+          nodeKey: nodeKey || String(render.id),
+          portKey,
+          portType
+        });
+      }}
+    >
       <NodeRenderWrapper selected={render.selected}>
         <NodeRenderHeader title={title} type={String(render.type)} />
         <ExecuteStatusBar status={status} />

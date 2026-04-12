@@ -8,6 +8,7 @@ interface WorkflowHeaderProps {
   readOnly?: boolean;
   onNameChange: (value: string) => void;
   onBack: () => void;
+  onDuplicate?: () => void;
   onSave: () => void;
   onPublish: () => void;
 }
@@ -27,10 +28,22 @@ export function WorkflowHeader(props: WorkflowHeaderProps) {
         <Tag color={props.dirty ? "orange" : "green"}>{props.dirty ? t("workflow.editorUnsaved") : t("workflow.autosaveAt", { time: "now" })}</Tag>
       </Space>
       <Space size={8}>
-        <Button disabled={props.readOnly} onClick={props.onSave}>
+        <Button
+          disabled={props.readOnly || !props.onDuplicate}
+          onClick={props.onDuplicate}
+          data-testid="workflow.detail.title.duplicate"
+        >
+          复制
+        </Button>
+        <Button disabled={props.readOnly} onClick={props.onSave} data-testid="workflow.detail.title.save-draft">
           {t("workflow.saveDraft")}
         </Button>
-        <Button type="primary" disabled={props.readOnly} onClick={props.onPublish}>
+        <Button
+          type="primary"
+          disabled={props.readOnly}
+          onClick={props.onPublish}
+          data-testid="workflow-base-publish-button"
+        >
           {t("workflow.publish")}
         </Button>
       </Space>

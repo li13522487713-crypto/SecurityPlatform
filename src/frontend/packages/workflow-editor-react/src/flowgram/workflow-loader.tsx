@@ -4,7 +4,8 @@ import {
   type WorkflowJSON,
   type WorkflowContentChangeEvent,
   type WorkflowNodeRegistry,
-  type WorkflowPortEntity
+  type WorkflowPortEntity,
+  type onDragLineEndParams
 } from "@flowgram.ai/free-layout-editor";
 import type { CanvasSchema, NodeTypeMetadata } from "../types";
 import { toEditorCanvasSchema, toFlowgramWorkflowJSON } from "./workflow-json-bridge";
@@ -19,6 +20,8 @@ interface WorkflowLoaderProps {
   edgeStateByKey?: Record<string, "idle" | "running" | "success" | "failed" | "skipped">;
   onCanvasChange: (next: CanvasSchema) => void;
   onSelectionChange?: (nodeKeys: string[]) => void;
+  onPortClick?: (params: { nodeKey: string; portKey: string; portType: "input" | "output" }) => void;
+  onDragLineEnd?: (params: onDragLineEndParams) => void;
 }
 
 export function WorkflowLoader(props: WorkflowLoaderProps) {
@@ -44,6 +47,13 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
       }
     },
     [props.onSelectionChange]
+  );
+
+  const reportPortClick = useCallback(
+    (params: { nodeKey: string; portKey: string; portType: "input" | "output" }) => {
+      props.onPortClick?.(params);
+    },
+    [props.onPortClick]
   );
 
   const buildEdgeRuntimeKey = (sourceNode: string, sourcePort: string, targetNode: string, targetPort: string) =>
@@ -85,7 +95,7 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
   );
 
   return (
-    <FlowgramSelectionBridgeContext.Provider value={{ reportNodeSelection }}>
+    <FlowgramSelectionBridgeContext.Provider value={{ reportNodeSelection, reportPortClick }}>
       <FreeLayoutEditor
         initialData={initialData}
         nodeRegistries={nodeRegistries}
@@ -149,6 +159,9 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
         onContentChange={(ctx, _event: WorkflowContentChangeEvent) => {
           const latest = ctx.document.toJSON() as WorkflowJSON;
           props.onCanvasChange(toEditorCanvasSchema(latest, props.canvas));
+        }}
+        onDragLineEnd={async (_ctx, params) => {
+          props.onDragLineEnd?.(params);
         }}
       />
     </FlowgramSelectionBridgeContext.Provider>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toFlowgramWorkflowJSON, toEditorCanvasSchema } from "./workflow-json-bridge";
-import type { CanvasSchema, NodeSchema } from "../types/workflow-v2";
+import type { CanvasSchema, NodeSchema, WorkflowNodeTypeKey } from "../types/workflow-v2";
 import type { NodeTypeMetadata } from "../types";
 import type { WorkflowJSON } from "@flowgram.ai/free-layout-editor";
 
@@ -36,7 +36,7 @@ describe("workflow-json-bridge", () => {
 
   const nodeTypesMap = new Map(nodeTypesMeta.map((m) => [m.key, m]));
 
-  function makeNode(key: string, type: string): NodeSchema {
+  function makeNode(key: string, type: WorkflowNodeTypeKey): NodeSchema {
     return {
       key,
       type,

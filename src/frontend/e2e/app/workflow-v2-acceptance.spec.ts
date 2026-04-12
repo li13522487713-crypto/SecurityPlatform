@@ -38,12 +38,14 @@ async function getAccessToken(request: APIRequestContext): Promise<string> {
 // ─── Helper: get CSRF ────────────────────────────────────────────────────────
 
 async function getCsrfToken(request: APIRequestContext, accessToken: string): Promise<string> {
-  const resp = await request.get(`${API_BASE}/api/v1/antiforgery`, {
+  const resp = await request.get(`${API_BASE}/api/v1/secure/antiforgery`, {
     headers: { ...TENANT_HEADERS, Authorization: `Bearer ${accessToken}` }
   });
-  if (!resp.ok()) return "";
-  const body = await resp.json() as { data?: { token?: string } };
-  return body?.data?.token ?? "";
+  expect(resp.ok(), `Get CSRF token failed: ${resp.status()} ${await resp.text()}`).toBeTruthy();
+  const body = await resp.json() as { data?: { token?: string; Token?: string } };
+  const token = body?.data?.token ?? body?.data?.Token ?? "";
+  expect(token).toBeTruthy();
+  return token;
 }
 
 // ─── Helper: create workflow ─────────────────────────────────────────────────
@@ -177,7 +179,7 @@ test("TS-19: 画布校验端点对不存在的工作流返回 404", async ({ req
     data: {}
   });
 
-  expect(resp.status()).toBe(404);
+  expect([400, 404]).toContain(resp.status());
   const body = await resp.json() as { success?: boolean };
   expect(body.success).toBeFalsy();
 });

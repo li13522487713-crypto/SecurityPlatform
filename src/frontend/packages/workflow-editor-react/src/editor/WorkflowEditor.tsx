@@ -2,351 +2,67 @@ import { message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CanvasToolbar } from "../components/CanvasToolbar";
-import { NodePanelPopover } from "../components/NodePanelPopover";
-import { NodeDebugPanel } from "../components/NodeDebugPanel";
-import { PropertiesPanel } from "../components/PropertiesPanel";
-import { TestRunPanel } from "../components/TestRunPanel";
-import { TracePanel, type TraceStepItem } from "../components/TracePanel";
+import { DragTooltip } from "../components/DragTooltip";
+import { FloatLayoutHolder, FloatLayoutProvider, useFloatLayoutService } from "../components/FloatLayout";
+import { LineAddButton } from "../components/LineAddButton";
 import { MinimapPanel } from "../components/MinimapPanel";
+import { NodeDebugPanel } from "../components/NodeDebugPanel";
+import { NodePanelPopover } from "../components/NodePanelPopover";
+import { NodeSideSheet } from "../components/NodeSideSheet";
 import { ProblemPanel } from "../components/ProblemPanel";
+import { TestRunPanel } from "../components/TestRunPanel";
+import { TracePanel } from "../components/TracePanel";
 import { VariablePanel } from "../components/VariablePanel";
 import { WorkflowHeader } from "../components/WorkflowHeader";
-import { WORKFLOW_NODE_CATALOG, type WorkflowNodeCatalogItem } from "../constants/node-catalog";
-import { ensureWorkflowI18n } from "../i18n";
-import { createMetadataBundle, mergeNodeDefaults, NodeRegistry } from "../node-registry";
-import type {
-  CanvasSchema,
-  NodeTemplateMetadata,
-  NodeTypeMetadata,
-  WorkflowDetailResponse,
-  WorkflowNodeTypeKey,
-  WorkflowSaveRequest
-} from "../types";
-import {
-  buildNodePortsRuntime,
-  resolveDefaultPortKey,
-  type ConnectionRuntime
-} from "./connection-rules";
-import { validateCanvas, type CanvasValidationResult } from "./editor-validation";
-import { buildVariableSuggestions } from "./smoke-utils";
+import { WORKFLOW_NODE_CATALOG } from "../constants/node-catalog";
+import { createWorkflowEditorContainer } from "../di/container";
+import { WorkflowEditorContainerProvider, useService } from "../di/provider";
+import { WORKFLOW_EDITOR_DI } from "../di/symbols";
 import { WorkflowRenderProvider } from "../flowgram/workflow-render-provider";
+import { ensureWorkflowI18n } from "../i18n";
+import { NodeRegistry } from "../node-registry";
+import type { CanvasSchema } from "../types";
+import { validateCanvas, type CanvasValidationResult } from "./editor-validation";
+import type { WorkflowEditorReactProps } from "./workflow-editor-props";
+import { buildVariableSuggestions } from "./smoke-utils";
+import type { CanvasConnection, CanvasNode } from "./workflow-editor-state";
+import { NODE_HEIGHT, NODE_WIDTH, toCanvasJson, type WorkflowViewportState } from "./workflow-editor-state";
+import { useNodeSideSheetStore } from "../stores/node-side-sheet-store";
+import { useWorkflowEditorStore } from "../stores/workflow-editor-store";
+import { WorkflowDragService, WorkflowEditService, WorkflowOperationService, WorkflowRunService, WorkflowSaveService } from "../services";
+import { WorkflowLineService } from "../services";
 import "./workflow-editor.css";
-
-interface WorkflowApiClient {
-  getDetail?: (id: string) => Promise<{ data?: WorkflowDetailResponse }>;
-  saveDraft?: (id: string, req: WorkflowSaveRequest) => Promise<unknown>;
-  publish?: (id: string, req: { changeLog?: string }) => Promise<unknown>;
-  getNodeTypes?: () => Promise<{ data?: NodeTypeMetadata[] }>;
-  getNodeTemplates?: () => Promise<{ data?: NodeTemplateMetadata[] }>;
-  runSync?: (
-    id: string,
-    req: { inputsJson?: string; source?: "published" | "draft" }
-  ) => Promise<{ data?: { executionId: string } }>;
-  runStream?: (
-    id: string,
-    req: { inputsJson?: string; source?: "published" | "draft" },
-    callbacks: {
-      onExecutionStarted?: (ev: { executionId: string }) => void;
-      onNodeStarted?: (ev: { nodeKey: string; nodeType: string }) => void;
-      onNodeOutput?: (ev: { nodeKey: string }) => void;
-      onNodeCompleted?: (ev: { nodeKey: string; durationMs?: number }) => void;
-      onNodeFailed?: (ev: { nodeKey: string; errorMessage: string }) => void;
-      onNodeSkipped?: (ev: { nodeKey: string; reason?: string }) => void;
-      onNodeBlocked?: (ev: { nodeKey: string; reason?: string }) => void;
-      onEdgeStatusChanged?: (ev: {
-        edge?: {
-          sourceNodeKey?: string;
-          sourcePort?: string;
-          targetNodeKey?: string;
-          targetPort?: string;
-          status?: number;
-        };
-      }) => void;
-      onBranchDecision?: (ev: {
-        executionId?: string;
-        nodeKey: string;
-        nodeType?: string;
-        selectedBranch?: string;
-        candidates?: string[];
-      }) => void;
-      onExecutionCompleted?: (ev: { outputsJson?: string }) => void;
-      onExecutionFailed?: (ev: { errorMessage: string }) => void;
-      onExecutionCancelled?: (ev: { errorMessage?: string }) => void;
-      onExecutionInterrupted?: (ev: { interruptType: string; nodeKey?: string }) => void;
-      onError?: (err: Event | Error) => void;
-    }
-  ) => { abort: () => void; done: Promise<void> };
-  getProcess?: (executionId: string) => Promise<{ data?: { nodeExecutions?: Array<{ nodeKey: string; status: number; errorMessage?: string }> } }>;
-  debugNode?: (
-    workflowId: string,
-    nodeKey: string,
-    req: { nodeKey: string; inputsJson?: string; inputs?: Record<string, unknown> }
-  ) => Promise<{ data?: { outputsJson?: string; status: number; executionId?: string } }>;
-}
-
-export interface WorkflowEditorReactProps {
-  workflowId: string;
-  locale?: string;
-  readOnly?: boolean;
-  apiClient: WorkflowApiClient;
-  onBack?: () => void;
-}
-
-interface CanvasNode {
-  key: string;
-  type: WorkflowNodeTypeKey;
-  title: string;
-  x: number;
-  y: number;
-  configs: Record<string, unknown>;
-  inputMappings: Record<string, string>;
-  childCanvas?: CanvasSchema;
-  inputTypes?: Record<string, string>;
-  outputTypes?: Record<string, string>;
-  inputSources?: Array<Record<string, unknown>>;
-  outputSources?: Array<Record<string, unknown>>;
-  debugMeta?: Record<string, unknown>;
-}
-
-interface CanvasConnection extends ConnectionRuntime {}
-type EdgeRuntimeState = "idle" | "running" | "success" | "failed" | "skipped";
 
 interface ClipboardSnapshot {
   nodes: CanvasNode[];
   connections: CanvasConnection[];
 }
 
+interface PendingInsertContext {
+  mode: "line" | "port" | "dragLine";
+  lineId?: string;
+  from?: { nodeKey: string; portKey: string; portType: "input" | "output" };
+  to?: { nodeKey: string; portKey: string; portType: "input" | "output" };
+  position?: { x: number; y: number };
+}
+
 const nodeRegistry = new NodeRegistry();
-const NODE_WIDTH = 360;
-const NODE_HEIGHT = 160;
 
-const INITIAL_NODES: CanvasNode[] = [
-  {
-    key: "entry_1",
-    type: "Entry",
-    title: "开始",
-    x: 160,
-    y: 120,
-    configs: { entry: { variable: "USER_INPUT", autoSaveHistory: true } },
-    inputMappings: {}
-  },
-  {
-    key: "llm_1",
-    type: "Llm",
-    title: "大模型",
-    x: 620,
-    y: 120,
-    configs: { llm: { provider: "qwen", model: "qwen-max", userPrompt: "{{entry_1.output}}" } },
-    inputMappings: {}
-  },
-  {
-    key: "exit_1",
-    type: "Exit",
-    title: "结束",
-    x: 1080,
-    y: 120,
-    configs: { exit: { terminateMode: "return", template: "{{llm_1.result}}" } },
-    inputMappings: {}
-  }
-];
-
-const INITIAL_CONNECTIONS: CanvasConnection[] = [
-  { id: "conn_entry_1_llm_1", fromNode: "entry_1", fromPort: "output", toNode: "llm_1", toPort: "input", condition: null },
-  { id: "conn_llm_1_exit_1", fromNode: "llm_1", fromPort: "output", toNode: "exit_1", toPort: "input", condition: null }
-];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function parseCanvasNode(node: unknown): CanvasNode | null {
-  if (!isRecord(node)) {
-    return null;
-  }
-  const key = typeof node.key === "string" ? node.key : "";
-  const type = typeof node.type === "string" ? (node.type as WorkflowNodeTypeKey) : "TextProcessor";
-  const layout = isRecord(node.layout) ? node.layout : {};
-  const title = typeof node.title === "string" ? node.title : type;
-  const configs = isRecord(node.configs) ? node.configs : {};
-  const inputMappings = isRecord(node.inputMappings)
-    ? (Object.fromEntries(Object.entries(node.inputMappings).filter(([, value]) => typeof value === "string")) as Record<string, string>)
-    : {};
-  const childCanvasRaw = isRecord(node.childCanvas) ? node.childCanvas : null;
-  const childCanvas =
-    childCanvasRaw && Array.isArray(childCanvasRaw.nodes) && Array.isArray(childCanvasRaw.connections)
-      ? (childCanvasRaw as unknown as CanvasSchema)
-      : undefined;
-  if (!key) {
-    return null;
-  }
-  return {
-    key,
-    type,
-    title,
-    x: typeof layout.x === "number" ? layout.x : 120,
-    y: typeof layout.y === "number" ? layout.y : 120,
-    configs,
-    inputMappings,
-    childCanvas,
-    inputTypes: isRecord(node.inputTypes) ? (node.inputTypes as Record<string, string>) : undefined,
-    outputTypes: isRecord(node.outputTypes) ? (node.outputTypes as Record<string, string>) : undefined,
-    inputSources: Array.isArray(node.inputSources) ? (node.inputSources as Array<Record<string, unknown>>) : undefined,
-    outputSources: Array.isArray(node.outputSources) ? (node.outputSources as Array<Record<string, unknown>>) : undefined,
-    debugMeta: isRecord(node.debugMeta) ? (node.debugMeta as Record<string, unknown>) : undefined
-  };
-}
-
-function parseCanvasConnection(connection: unknown, index: number): CanvasConnection | null {
-  if (!isRecord(connection)) {
-    return null;
-  }
-  const fromNode = typeof connection.fromNode === "string" ? connection.fromNode : "";
-  const toNode = typeof connection.toNode === "string" ? connection.toNode : "";
-  if (!fromNode || !toNode) {
-    return null;
-  }
-  return {
-    id:
-      typeof connection.id === "string" && connection.id
-        ? connection.id
-        : `conn_${fromNode}_${toNode}_${index.toString(36)}`,
-    fromNode,
-    fromPort: typeof connection.fromPort === "string" && connection.fromPort ? connection.fromPort : "output",
-    toNode,
-    toPort: typeof connection.toPort === "string" && connection.toPort ? connection.toPort : "input",
-    condition: typeof connection.condition === "string" ? connection.condition : null
-  };
-}
-
-function parseCanvasJson(
-  json: string | undefined
-): { nodes: CanvasNode[]; connections: CanvasConnection[]; globals: Record<string, unknown>; viewport?: { x: number; y: number; zoom: number } } {
-  if (!json) {
-    return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
-  }
-  try {
-    const parsed = JSON.parse(json) as CanvasSchema;
-    if (!Array.isArray(parsed.nodes)) {
-      return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
-    }
-    const nodes = parsed.nodes.map((item) => parseCanvasNode(item)).filter((item): item is CanvasNode => item !== null);
-    const connections = Array.isArray(parsed.connections)
-      ? parsed.connections
-          .map((item, index) => parseCanvasConnection(item, index))
-          .filter((item): item is CanvasConnection => item !== null)
-      : [];
-    const viewportCandidate = isRecord(parsed.viewport) ? parsed.viewport : null;
-    const viewport =
-      viewportCandidate &&
-      typeof viewportCandidate.x === "number" &&
-      typeof viewportCandidate.y === "number" &&
-      typeof viewportCandidate.zoom === "number"
-        ? { x: viewportCandidate.x, y: viewportCandidate.y, zoom: viewportCandidate.zoom }
-        : undefined;
-    return { nodes: nodes.length > 0 ? nodes : INITIAL_NODES, connections, globals: isRecord(parsed.globals) ? parsed.globals : {}, viewport };
-  } catch {
-    return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
-  }
-}
-
-function toCanvasJson(
-  nodes: CanvasNode[],
-  connections: CanvasConnection[],
-  globals: Record<string, unknown>,
-  viewport: { x: number; y: number; zoom: number }
-): string {
-  const payload: CanvasSchema = {
-    nodes: nodes.map((node) => ({
-      key: node.key,
-      type: node.type,
-      title: node.title,
-      layout: { x: node.x, y: node.y, width: NODE_WIDTH, height: NODE_HEIGHT },
-      configs: node.configs,
-      inputMappings: node.inputMappings,
-      childCanvas: node.childCanvas,
-      inputTypes: node.inputTypes,
-      outputTypes: node.outputTypes,
-      inputSources: node.inputSources,
-      outputSources: node.outputSources,
-      debugMeta: node.debugMeta
-    })),
-    connections: connections.map((connection) => ({
-      fromNode: connection.fromNode,
-      fromPort: connection.fromPort,
-      toNode: connection.toNode,
-      toPort: connection.toPort,
-      condition: connection.condition
-    })),
-    schemaVersion: 2,
-    globals,
-    viewport
-  };
-  return JSON.stringify(payload);
-}
-
-function normalizeConnectionsByPorts(
-  nodes: CanvasNode[],
-  connections: CanvasConnection[],
-  nodeTypesMeta: NodeTypeMetadata[]
-): { connections: CanvasConnection[]; migratedCount: number } {
-  const nodeMap = new Map(nodes.map((node) => [node.key, node]));
-  const typeMap = new Map<string, NodeTypeMetadata>(nodeTypesMeta.map((meta) => [String(meta.key), meta]));
-  const dedupe = new Set<string>();
-  let migratedCount = 0;
-
-  const normalized: CanvasConnection[] = [];
-  for (let i = 0; i < connections.length; i += 1) {
-    const current = connections[i];
-    const fromNode = nodeMap.get(current.fromNode);
-    const toNode = nodeMap.get(current.toNode);
-    if (!fromNode || !toNode) {
-      normalized.push(current);
-      continue;
-    }
-
-    const fromPorts = buildNodePortsRuntime(typeMap.get(fromNode.type));
-    const toPorts = buildNodePortsRuntime(typeMap.get(toNode.type));
-
-    const outputPortExists = fromPorts.outputs.some((port) => port.key === current.fromPort);
-    const inputPortExists = toPorts.inputs.some((port) => port.key === current.toPort);
-
-    const nextFromPort = outputPortExists ? current.fromPort : resolveDefaultPortKey(fromPorts.outputs, "output");
-    const nextToPort = inputPortExists ? current.toPort : resolveDefaultPortKey(toPorts.inputs, "input");
-
-    if (nextFromPort !== current.fromPort || nextToPort !== current.toPort) {
-      migratedCount += 1;
-    }
-
-    const dedupeKey = `${current.fromNode}:${nextFromPort}->${current.toNode}:${nextToPort}`;
-    if (dedupe.has(dedupeKey)) {
-      migratedCount += 1;
-      continue;
-    }
-    dedupe.add(dedupeKey);
-
-    normalized.push({
-      ...current,
-      fromPort: nextFromPort,
-      toPort: nextToPort
-    });
-  }
-  return { connections: normalized, migratedCount };
-}
-
-export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
+function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   ensureWorkflowI18n(props.locale ?? "zh-CN");
   const { t } = useTranslation();
   const isReadOnly = Boolean(props.readOnly);
+  const layoutService = useFloatLayoutService();
+  const dragService = useService<WorkflowDragService>(WORKFLOW_EDITOR_DI.workflowDragService);
+  const operationService = useService<WorkflowOperationService>(WORKFLOW_EDITOR_DI.workflowOperationService);
+  const editService = useService<WorkflowEditService>(WORKFLOW_EDITOR_DI.workflowEditService);
+  const runService = useService<WorkflowRunService>(WORKFLOW_EDITOR_DI.workflowRunService);
+  const saveService = useService<WorkflowSaveService>(WORKFLOW_EDITOR_DI.workflowSaveService);
+  const lineService = useService<WorkflowLineService>(WORKFLOW_EDITOR_DI.workflowLineService);
 
-  const canvasShellRef = useRef<HTMLDivElement | null>(null);
-  const panRef = useRef({ x: 0, y: 0 });
-  const zoomRef = useRef(100);
+  const store = useWorkflowEditorStore();
+  const sideSheetStore = useNodeSideSheetStore();
 
-  const [workflowName, setWorkflowName] = useState(`Workflow_${props.workflowId}`);
-  const [isDirty, setIsDirty] = useState(false);
-  const [zoom, setZoom] = useState(100);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [selectedNodeKeys, setSelectedNodeKeys] = useState<string[]>(["llm_1"]);
   const [showNodePanel, setShowNodePanel] = useState(false);
   const [showTestPanel, setShowTestPanel] = useState(false);
   const [showProblemPanel, setShowProblemPanel] = useState(false);
@@ -355,185 +71,59 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [showVariablePanel, setShowVariablePanel] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [interactionMode, setInteractionMode] = useState<"mouse" | "trackpad">("mouse");
-  const [logs, setLogs] = useState<string[]>([]);
-  const [traceSteps, setTraceSteps] = useState<TraceStepItem[]>([]);
-  const [canvasNodes, setCanvasNodes] = useState<CanvasNode[]>(INITIAL_NODES);
-  const [canvasConnections, setCanvasConnections] = useState<CanvasConnection[]>(INITIAL_CONNECTIONS);
-  const [canvasGlobals, setCanvasGlobals] = useState<Record<string, unknown>>({});
-  const [nodeTypesMeta, setNodeTypesMeta] = useState<NodeTypeMetadata[]>([]);
-  const [nodeTemplates, setNodeTemplates] = useState<NodeTemplateMetadata[]>([]);
   const [canvasValidation, setCanvasValidation] = useState<CanvasValidationResult | null>(null);
   const [draggingCatalogNodeType, setDraggingCatalogNodeType] = useState<string | null>(null);
-  const [executionStateByNodeKey, setExecutionStateByNodeKey] = useState<
-    Record<string, { state: "idle" | "running" | "success" | "failed" | "skipped" | "blocked"; hint?: string }>
-  >({});
-  const [edgeStateByConnectionKey, setEdgeStateByConnectionKey] = useState<Record<string, EdgeRuntimeState>>({});
-  const [testInputJson, setTestInputJson] = useState<string>('{"input":"hello"}');
-  const [testRunMode, setTestRunMode] = useState<"stream" | "sync">("stream");
-  const [testRunSource, setTestRunSource] = useState<"published" | "draft">("published");
-  const [testRunning, setTestRunning] = useState(false);
-  const [debugNodeKey, setDebugNodeKey] = useState("");
-  const [debugInputJson, setDebugInputJson] = useState('{"input":"hello"}');
-  const [debugOutput, setDebugOutput] = useState("");
-  const [debugRunning, setDebugRunning] = useState(false);
-  const streamAbortRef = useRef<null | (() => void)>(null);
+  const [dragHint, setDragHint] = useState<string | undefined>(undefined);
+  const [pendingInsertContext, setPendingInsertContext] = useState<PendingInsertContext | null>(null);
+  const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
   const clipboardRef = useRef<ClipboardSnapshot | null>(null);
-
-  function buildEdgeRuntimeKey(connection: Pick<CanvasConnection, "fromNode" | "fromPort" | "toNode" | "toPort">): string {
-    return `${connection.fromNode}:${connection.fromPort}->${connection.toNode}:${connection.toPort}`;
-  }
-
-  const scale = zoom / 100;
-  const selectedNodeKey = selectedNodeKeys[0] ?? "";
+  const panRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(100);
+  const canvasShellRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    panRef.current = pan;
-  }, [pan]);
+    operationService.bindProps(props);
+    void saveService.loadDocument();
+  }, [operationService, props, saveService]);
 
   useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
+    panRef.current = store.pan;
+  }, [store.pan]);
 
   useEffect(() => {
-    if (isReadOnly || !isDirty) {
+    zoomRef.current = store.zoom;
+  }, [store.zoom]);
+
+  useEffect(() => {
+    const selectedNodeKey = store.selectedNodeKeys[0];
+    if (!selectedNodeKey) {
+      sideSheetStore.closeSideSheet();
       return;
     }
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-    };
-  }, [isDirty, isReadOnly]);
+    sideSheetStore.openSideSheet(selectedNodeKey);
+    layoutService.open("NodeForm", { nodeKey: selectedNodeKey });
+  }, [layoutService, sideSheetStore, store.selectedNodeKeys]);
+
+  const selectedNodeKey = store.selectedNodeKeys[0] ?? "";
+  const selectedNode = useMemo(() => store.canvasNodes.find((item) => item.key === selectedNodeKey) ?? null, [selectedNodeKey, store.canvasNodes]);
 
   useEffect(() => {
-    let disposed = false;
-    const load = async () => {
-      const apiClient = props.apiClient;
-      let loadedNodeTypes: NodeTypeMetadata[] = [];
-      if (apiClient?.getNodeTypes) {
-        const response = await apiClient.getNodeTypes();
-        loadedNodeTypes = response.data ?? [];
-        if (!disposed) {
-          setNodeTypesMeta(loadedNodeTypes);
-        }
-      }
-      if (apiClient?.getNodeTemplates) {
-        const response = await apiClient.getNodeTemplates();
-        if (!disposed) {
-          setNodeTemplates(response.data ?? []);
-        }
-      }
-      if (apiClient?.getDetail) {
-        const response = await apiClient.getDetail(props.workflowId);
-        if (!disposed && response.data) {
-          const parsed = parseCanvasJson(response.data.canvasJson);
-          const normalized = normalizeConnectionsByPorts(parsed.nodes, parsed.connections, loadedNodeTypes);
-          setWorkflowName(response.data.name || `Workflow_${props.workflowId}`);
-          setCanvasNodes(parsed.nodes);
-          setCanvasConnections(normalized.connections);
-          setCanvasGlobals(parsed.globals);
-          if (parsed.viewport) {
-            setPan({ x: parsed.viewport.x, y: parsed.viewport.y });
-            setZoom(parsed.viewport.zoom);
-          }
-          if (normalized.migratedCount > 0) {
-            message.info(`已迁移 ${normalized.migratedCount} 条历史连线到默认端口。`);
-          }
-          if (parsed.nodes.length > 0) {
-            setSelectedNodeKeys([parsed.nodes[0]?.key ?? ""]);
-          }
-        }
-      }
-    };
-    void load();
-    return () => {
-      disposed = true;
-    };
-  }, [props.apiClient, props.workflowId]);
-
-  const metadataBundle = useMemo(() => createMetadataBundle(nodeTypesMeta, nodeTemplates), [nodeTemplates, nodeTypesMeta]);
-
-  const selectedNode = useMemo(() => {
-    const node = canvasNodes.find((item: CanvasNode) => item.key === selectedNodeKey);
-    return node ?? null;
-  }, [canvasNodes, selectedNodeKey]);
-
-  useEffect(() => {
-    if (!debugNodeKey && selectedNode) {
-      setDebugNodeKey(selectedNode.key);
+    if (!store.debugNodeKey && selectedNode) {
+      store.setDebugNodeKey(selectedNode.key);
     }
-  }, [debugNodeKey, selectedNode]);
-
-  function isEditableTarget(target: EventTarget | null): boolean {
-    const element = target as HTMLElement | null;
-    if (!element) {
-      return false;
-    }
-    const tagName = element.tagName.toLowerCase();
-    if (tagName === "input" || tagName === "textarea" || tagName === "select") {
-      return true;
-    }
-    return Boolean(element.closest("input, textarea, [contenteditable='true']"));
-  }
-
-  function buildUniqueNodeKey(baseType: string, existingNodes: CanvasNode[]): string {
-    const normalizedBase = `${baseType.toLowerCase()}_${Date.now().toString(36)}`;
-    if (!existingNodes.some((node) => node.key === normalizedBase)) {
-      return normalizedBase;
-    }
-    let cursor = 1;
-    let candidate = `${normalizedBase}_${cursor}`;
-    while (existingNodes.some((node) => node.key === candidate)) {
-      cursor += 1;
-      candidate = `${normalizedBase}_${cursor}`;
-    }
-    return candidate;
-  }
-
-  const nodeMap = useMemo(() => {
-    const result = new Map<string, WorkflowNodeCatalogItem>();
-    for (const item of WORKFLOW_NODE_CATALOG) {
-      result.set(item.type, item);
-    }
-    for (const type of nodeRegistry.getAllTypes()) {
-      if (!result.has(type)) {
-        result.set(type, {
-          type,
-          titleKey: `wfUi.nodeTypes.${type}`,
-          category: "dataProcess",
-          color: "#64748B",
-          iconText: type.slice(0, 2).toUpperCase()
-        });
-      }
-    }
-    return result;
-  }, []);
-
-  const nodeByKey = useMemo(() => {
-    const map = new Map<string, CanvasNode>();
-    for (const node of canvasNodes) {
-      map.set(node.key, node);
-    }
-    return map;
-  }, [canvasNodes]);
-
-  useEffect(() => {
-    setSelectedNodeKeys((prev) => prev.filter((key) => nodeByKey.has(key)));
-  }, [nodeByKey]);
+  }, [selectedNode, store]);
 
   const variableSuggestions = useMemo(
     () =>
       buildVariableSuggestions(
-        canvasNodes.map((node) => ({ key: node.key, type: node.type, configs: node.configs, x: node.x })),
+        store.canvasNodes.map((node) => ({ key: node.key, type: node.type, configs: node.configs, x: node.x })),
         selectedNodeKey,
-        canvasConnections.map((connection) => ({ fromNode: connection.fromNode, toNode: connection.toNode })),
-        canvasGlobals
+        store.canvasConnections.map((connection) => ({ fromNode: connection.fromNode, toNode: connection.toNode })),
+        store.canvasGlobals
       ),
-    [canvasConnections, canvasGlobals, canvasNodes, selectedNodeKey]
+    [selectedNodeKey, store.canvasConnections, store.canvasGlobals, store.canvasNodes]
   );
+
   const variablePanelItems = useMemo(
     () =>
       variableSuggestions.map((item) => ({
@@ -543,14 +133,56 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       })),
     [variableSuggestions]
   );
+
   const debugNodeOptions = useMemo(
     () =>
-      canvasNodes.map((node) => ({
+      store.canvasNodes.map((node) => ({
         value: node.key,
         label: `${node.title || node.key} (${node.type})`
       })),
-    [canvasNodes]
+    [store.canvasNodes]
   );
+
+  const lineSegments = useMemo(() => {
+    const nodeMap = new Map(store.canvasNodes.map((node) => [node.key, node]));
+    return store.canvasConnections
+      .map((line) => {
+        const fromNode = nodeMap.get(line.fromNode);
+        const toNode = nodeMap.get(line.toNode);
+        if (!fromNode || !toNode) {
+          return null;
+        }
+        const from = { x: fromNode.x + NODE_WIDTH / 2, y: fromNode.y + NODE_HEIGHT / 2 };
+        const to = { x: toNode.x + NODE_WIDTH / 2, y: toNode.y + NODE_HEIGHT / 2 };
+        return {
+          lineId: line.id,
+          line,
+          from,
+          to,
+          x: (from.x + to.x) / 2,
+          y: (from.y + to.y) / 2
+        };
+      })
+      .filter((item): item is { lineId: string; line: CanvasConnection; from: { x: number; y: number }; to: { x: number; y: number }; x: number; y: number } => item !== null);
+  }, [store.canvasConnections, store.canvasNodes]);
+
+  function distancePointToSegment(
+    point: { x: number; y: number },
+    start: { x: number; y: number },
+    end: { x: number; y: number }
+  ): number {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (dx === 0 && dy === 0) {
+      return Math.hypot(point.x - start.x, point.y - start.y);
+    }
+    const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+    const projection = {
+      x: start.x + t * dx,
+      y: start.y + t * dy
+    };
+    return Math.hypot(point.x - projection.x, point.y - projection.y);
+  }
 
   function resolveWorldPoint(clientX: number, clientY: number): { x: number; y: number } | null {
     const shell = canvasShellRef.current;
@@ -568,28 +200,86 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     };
   }
 
-  function setSingleSelection(nodeKey: string) {
-    setSelectedNodeKeys(nodeKey ? [nodeKey] : []);
+  function centerPointForCreate(): { x: number; y: number } {
+    const shell = canvasShellRef.current;
+    if (!shell) {
+      return { x: 320, y: 320 };
+    }
+    const worldX = shell.clientWidth / 2 / (store.zoom / 100) - store.pan.x / (store.zoom / 100);
+    const worldY = shell.clientHeight / 2 / (store.zoom / 100) - store.pan.y / (store.zoom / 100);
+    return { x: Math.max(40, worldX - NODE_WIDTH / 2), y: Math.max(40, worldY - NODE_HEIGHT / 2) };
+  }
+
+  function runCanvasValidationAndReport(): CanvasValidationResult {
+    const result = validateCanvas(store.canvasNodes, store.canvasConnections, store.nodeTypesMeta, store.canvasGlobals);
+    setCanvasValidation(result);
+    if (!result.ok) {
+      const firstNodeIssue = result.nodeResults.find((item) => item.issues.length > 0)?.issues[0];
+      const firstCanvasIssue = result.canvasIssues[0];
+      message.error(firstNodeIssue ?? firstCanvasIssue ?? "工作流配置存在校验错误，请先修复。");
+    }
+    return result;
+  }
+
+  async function handleSave(): Promise<void> {
+    if (isReadOnly) {
+      message.warning("只读模式下不可保存。");
+      return;
+    }
+    const result = runCanvasValidationAndReport();
+    if (!result.ok) {
+      return;
+    }
+    await saveService.save(false);
+  }
+
+  async function handlePublish(): Promise<void> {
+    if (isReadOnly) {
+      message.warning("只读模式下不可发布。");
+      return;
+    }
+    const result = runCanvasValidationAndReport();
+    if (!result.ok) {
+      return;
+    }
+    if (store.isDirty) {
+      await saveService.save(false);
+    }
+    await operationService.publish();
+    message.success("工作流已发布。");
+    store.setDirty(false);
+  }
+
+  async function handleDuplicate(): Promise<void> {
+    if (isReadOnly) {
+      message.warning("只读模式下不可复制。");
+      return;
+    }
+    const duplicatedId = await operationService.copy();
+    if (!duplicatedId) {
+      message.warning("当前环境未启用复制接口。");
+      return;
+    }
+    const nextUrl = buildEditorUrlByWorkflowId(duplicatedId);
+    window.open(nextUrl, "_blank", "noopener,noreferrer");
+    message.success("已在新标签页打开复制后的工作流。");
   }
 
   function buildClipboardSnapshot(): ClipboardSnapshot | null {
-    if (selectedNodeKeys.length === 0) {
+    if (store.selectedNodeKeys.length === 0) {
       return null;
     }
-    const selectedSet = new Set(selectedNodeKeys);
-    const nodes = canvasNodes.filter((node) => selectedSet.has(node.key));
+    const selectedSet = new Set(store.selectedNodeKeys);
+    const nodes = store.canvasNodes.filter((node) => selectedSet.has(node.key));
     if (nodes.length === 0) {
       return null;
     }
-    const connections = canvasConnections.filter((line) => selectedSet.has(line.fromNode) && selectedSet.has(line.toNode));
-    return {
-      nodes: structuredClone(nodes),
-      connections: structuredClone(connections)
-    };
+    const connections = store.canvasConnections.filter((line) => selectedSet.has(line.fromNode) && selectedSet.has(line.toNode));
+    return { nodes: structuredClone(nodes), connections: structuredClone(connections) };
   }
 
   function pasteClipboardSnapshot(snapshot: ClipboardSnapshot): string[] {
-    const usedKeys = new Set(canvasNodes.map((node) => node.key));
+    const usedKeys = new Set(store.canvasNodes.map((node) => node.key));
     const keyMap = new Map<string, string>();
     const buildNextKey = (baseType: string) => {
       let candidate = `${baseType.toLowerCase()}_${Date.now().toString(36)}`;
@@ -628,68 +318,68 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       })
       .filter((item): item is CanvasConnection => item !== null);
 
-    setCanvasNodes((prev) => [...prev, ...createdNodes]);
-    setCanvasConnections((prev) => [...prev, ...createdConnections]);
-    setIsDirty(true);
-    setCanvasValidation(null);
+    store.setCanvasNodes([...store.canvasNodes, ...createdNodes]);
+    store.setCanvasConnections([...store.canvasConnections, ...createdConnections]);
+    store.setDirty(true);
     return createdNodes.map((node) => node.key);
   }
 
-  function centerPointForCreate(): { x: number; y: number } {
-    const shell = canvasShellRef.current;
-    if (!shell) {
-      return { x: 320, y: 320 };
-    }
-    const worldX = shell.clientWidth / 2 / scale - pan.x / scale;
-    const worldY = shell.clientHeight / 2 / scale - pan.y / scale;
-    return { x: Math.max(40, worldX - NODE_WIDTH / 2), y: Math.max(40, worldY - NODE_HEIGHT / 2) };
-  }
-
-  function createNodeByType(nodeType: string, x: number, y: number) {
-    if (isReadOnly) {
-      return "";
-    }
-    const definition = nodeRegistry.resolve(nodeType);
-    const normalizedType = definition.type;
-    const template = metadataBundle.templatesMap.get(normalizedType);
-    const key = buildUniqueNodeKey(nodeType, canvasNodes);
-    const nextConfigs = mergeNodeDefaults(definition, template, {});
-    const catalog = nodeMap.get(normalizedType);
-    setCanvasNodes((prev: CanvasNode[]) => [
-      ...prev,
-      {
-        key,
-        type: normalizedType,
-        title: catalog ? t(catalog.titleKey) : normalizedType,
-        x: Math.round(x),
-        y: Math.round(y),
-        configs: nextConfigs,
-        inputMappings: {}
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const element = event.target as HTMLElement | null;
+      if (element && (element.closest("input, textarea, [contenteditable='true']") || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName))) {
+        return;
       }
-    ]);
-    setSingleSelection(key);
-    setIsDirty(true);
-    setCanvasValidation(null);
-    return key;
-  }
 
-  function runCanvasValidationAndReport(): CanvasValidationResult {
-    const result = validateCanvas(canvasNodes, canvasConnections, nodeTypesMeta, canvasGlobals);
-    setCanvasValidation(result);
-    setShowProblemPanel(!result.ok);
-    if (!result.ok) {
-      const firstNodeIssue = result.nodeResults.find((item) => item.issues.length > 0)?.issues[0];
-      const firstCanvasIssue = result.canvasIssues[0];
-      message.error(firstNodeIssue ?? firstCanvasIssue ?? "工作流配置存在校验错误，请先修复。");
-    }
-    return result;
-  }
+      const isMeta = event.ctrlKey || event.metaKey;
+      const lowerKey = event.key.toLowerCase();
+      if (isMeta && lowerKey === "c" && !isReadOnly) {
+        const snapshot = buildClipboardSnapshot();
+        if (!snapshot) {
+          return;
+        }
+        clipboardRef.current = snapshot;
+        event.preventDefault();
+      } else if (isMeta && lowerKey === "v" && !isReadOnly) {
+        if (!clipboardRef.current) {
+          return;
+        }
+        const createdNodeKeys = pasteClipboardSnapshot(clipboardRef.current);
+        store.setSelectedNodeKeys(createdNodeKeys);
+        event.preventDefault();
+      } else if (isMeta && lowerKey === "d" && !isReadOnly) {
+        const snapshot = buildClipboardSnapshot();
+        if (!snapshot) {
+          return;
+        }
+        clipboardRef.current = snapshot;
+        const createdNodeKeys = pasteClipboardSnapshot(snapshot);
+        store.setSelectedNodeKeys(createdNodeKeys);
+        event.preventDefault();
+      } else if (isMeta && lowerKey === "a") {
+        store.setSelectedNodeKeys(store.canvasNodes.map((node) => node.key));
+        event.preventDefault();
+      } else if ((event.key === "Delete" || event.key === "Backspace") && !isReadOnly) {
+        if (store.selectedNodeKeys.length === 0) {
+          return;
+        }
+        for (const key of store.selectedNodeKeys) {
+          editService.deleteNode(key);
+        }
+        event.preventDefault();
+      } else if (isMeta && lowerKey === "s" && !isReadOnly) {
+        event.preventDefault();
+        void handleSave();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editService, isReadOnly, store]);
 
-  const hasCanvasValidationErrors = Boolean(
-    canvasValidation && (!canvasValidation.ok || canvasValidation.canvasIssues.length > 0 || canvasValidation.nodeResults.some((item) => item.issues.length > 0))
-  );
   const flowgramCanvasSchema: CanvasSchema = {
-    nodes: canvasNodes.map((node) => ({
+    nodes: store.canvasNodes.map((node) => ({
       key: node.key,
       type: node.type,
       title: node.title,
@@ -703,7 +393,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       outputSources: node.outputSources,
       debugMeta: node.debugMeta
     })),
-    connections: canvasConnections.map((line) => ({
+    connections: store.canvasConnections.map((line) => ({
       fromNode: line.fromNode,
       fromPort: line.fromPort,
       toNode: line.toNode,
@@ -711,503 +401,69 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       condition: line.condition
     })),
     schemaVersion: 2,
-    globals: canvasGlobals,
-    viewport: { x: pan.x, y: pan.y, zoom }
+    globals: store.canvasGlobals,
+    viewport: { x: store.pan.x, y: store.pan.y, zoom: store.zoom }
   };
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) {
-        return;
-      }
-
-      const isMeta = event.ctrlKey || event.metaKey;
-      const lowerKey = event.key.toLowerCase();
-
-      if (isMeta && lowerKey === "c") {
-        if (isReadOnly) {
-          return;
-        }
-        const snapshot = buildClipboardSnapshot();
-        if (!snapshot) {
-          return;
-        }
-        clipboardRef.current = snapshot;
-        event.preventDefault();
-        return;
-      }
-
-      if (isMeta && lowerKey === "v") {
-        if (isReadOnly) {
-          return;
-        }
-        if (!clipboardRef.current) {
-          return;
-        }
-        const createdNodeKeys = pasteClipboardSnapshot(clipboardRef.current);
-        setSelectedNodeKeys(createdNodeKeys);
-        event.preventDefault();
-        return;
-      }
-
-      if (isMeta && lowerKey === "d") {
-        if (isReadOnly) {
-          return;
-        }
-        const snapshot = buildClipboardSnapshot();
-        if (!snapshot) {
-          return;
-        }
-        clipboardRef.current = snapshot;
-        const createdNodeKeys = pasteClipboardSnapshot(snapshot);
-        setSelectedNodeKeys(createdNodeKeys);
-        event.preventDefault();
-        return;
-      }
-
-      if (isMeta && lowerKey === "a") {
-        setSelectedNodeKeys(canvasNodes.map((node) => node.key));
-        event.preventDefault();
-        return;
-      }
-
-      if (event.key === "Delete" || event.key === "Backspace") {
-        if (isReadOnly) {
-          return;
-        }
-        if (selectedNodeKeys.length === 0) {
-          return;
-        }
-        const selectedSet = new Set(selectedNodeKeys);
-        const remainingNodes = canvasNodes.filter((node) => !selectedSet.has(node.key));
-        if (remainingNodes.length === canvasNodes.length) {
-          return;
-        }
-        setCanvasNodes(remainingNodes);
-        setCanvasConnections((prev) => prev.filter((line) => !selectedSet.has(line.fromNode) && !selectedSet.has(line.toNode)));
-        setSelectedNodeKeys(remainingNodes.length > 0 ? [remainingNodes[0]?.key ?? ""] : []);
-        setIsDirty(true);
-        setCanvasValidation(null);
-        event.preventDefault();
-        return;
-      }
-
-      if (isMeta && lowerKey === "s") {
-        if (isReadOnly) {
-          return;
-        }
-        event.preventDefault();
-        void (async () => {
-          const result = runCanvasValidationAndReport();
-          if (!result.ok || !props.apiClient.saveDraft) {
-            return;
-          }
-          await props.apiClient.saveDraft(props.workflowId, {
-            canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals, { x: pan.x, y: pan.y, zoom })
-          });
-          setIsDirty(false);
-          appendLog("save_draft");
-        })();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [canvasConnections, canvasGlobals, canvasNodes, isReadOnly, pan.x, pan.y, props.apiClient, props.workflowId, selectedNodeKeys, zoom]);
-
-  function appendLog(line: string) {
-    setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()} ${line}`]);
-  }
-
-  function appendTrace(step: TraceStepItem) {
-    setTraceSteps((prev) => [...prev, step]);
-  }
-
-  function markNodeState(nodeKey: string, state: "idle" | "running" | "success" | "failed" | "skipped" | "blocked", hint?: string) {
-    setExecutionStateByNodeKey((prev) => ({
-      ...prev,
-      [nodeKey]: { state, hint }
-    }));
-    setCanvasNodes((prev) =>
-      prev.map((node) =>
-        node.key === nodeKey
-          ? {
-              ...node,
-              debugMeta: {
-                ...(node.debugMeta ?? {}),
-                executionState: state,
-                executionHint: hint
-              }
-            }
-          : node
-      )
-    );
-  }
-
-  function markOutgoingEdgesState(nodeKey: string, state: EdgeRuntimeState) {
-    setEdgeStateByConnectionKey((prev) => {
-      const next = { ...prev };
-      for (const connection of canvasConnections) {
-        if (connection.fromNode === nodeKey) {
-          next[buildEdgeRuntimeKey(connection)] = state;
-        }
-      }
-      return next;
-    });
-  }
-
-  function markEdgeStateByRuntimeEdge(
-    edge: { sourceNodeKey?: string; sourcePort?: string; targetNodeKey?: string; targetPort?: string },
-    status: number | undefined
-  ) {
-    if (!edge.sourceNodeKey || !edge.sourcePort || !edge.targetNodeKey || !edge.targetPort) {
-      return;
-    }
-    const mappedState: EdgeRuntimeState =
-      status === 1 ? "success" : status === 2 ? "skipped" : status === 3 ? "failed" : "idle";
-    const key = buildEdgeRuntimeKey({
-      fromNode: edge.sourceNodeKey,
-      fromPort: edge.sourcePort,
-      toNode: edge.targetNodeKey,
-      toPort: edge.targetPort
-    });
-    setEdgeStateByConnectionKey((prev) => ({ ...prev, [key]: mappedState }));
-  }
-
-  function resetRuntimeVisualization() {
-    setExecutionStateByNodeKey({});
-    setEdgeStateByConnectionKey({});
-    setCanvasNodes((prev) =>
-      prev.map((node) => {
-        if (!node.debugMeta) {
-          return node;
-        }
-        const nextDebugMeta = { ...node.debugMeta };
-        delete nextDebugMeta.executionState;
-        delete nextDebugMeta.executionHint;
-        return {
-          ...node,
-          debugMeta: Object.keys(nextDebugMeta).length > 0 ? nextDebugMeta : undefined
-        };
-      })
-    );
-    setTraceSteps([]);
-  }
-
-  async function handleRunTest() {
-    if (testRunning) {
-      streamAbortRef.current?.();
-      streamAbortRef.current = null;
-      setTestRunning(false);
-      appendLog("execution_cancelled");
-      return;
-    }
-
-    const validation = runCanvasValidationAndReport();
-    if (!validation.ok) {
-      setShowProblemPanel(true);
-      return;
-    }
-
-    let parsedInputs: unknown = {};
-    if (testInputJson.trim()) {
-      try {
-        parsedInputs = JSON.parse(testInputJson);
-      } catch {
-        message.error("测试输入 JSON 不合法。");
-        return;
-      }
-    }
-
-    resetRuntimeVisualization();
-    setTestRunning(true);
-
-    if (testRunMode === "stream" && props.apiClient.runStream) {
-      const handle = props.apiClient.runStream(
-        props.workflowId,
-        {
-          inputsJson: JSON.stringify(parsedInputs),
-          source: testRunSource
-        },
-        {
-          onExecutionStarted: (ev) => appendLog(`execution_start ${ev.executionId}`),
-          onNodeStarted: (ev) => {
-            markNodeState(ev.nodeKey, "running");
-            markOutgoingEdgesState(ev.nodeKey, "running");
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: ev.nodeKey,
-              status: "running"
-            });
-            appendLog(`node_start ${ev.nodeKey}`);
-          },
-          onNodeOutput: (ev) => appendLog(`node_output ${ev.nodeKey}`),
-          onNodeCompleted: (ev) => {
-            markNodeState(ev.nodeKey, "success", ev.durationMs ? `${ev.durationMs}ms` : undefined);
-            markOutgoingEdgesState(ev.nodeKey, "success");
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: ev.nodeKey,
-              status: "success",
-              detail: ev.durationMs ? `${ev.durationMs}ms` : undefined
-            });
-            appendLog(`node_complete ${ev.nodeKey}`);
-          },
-          onNodeFailed: (ev) => {
-            markNodeState(ev.nodeKey, "failed", ev.errorMessage);
-            markOutgoingEdgesState(ev.nodeKey, "failed");
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: ev.nodeKey,
-              status: "failed",
-              detail: ev.errorMessage
-            });
-            appendLog(`node_failed ${ev.nodeKey} ${ev.errorMessage}`);
-          },
-          onNodeSkipped: (ev) => {
-            markNodeState(ev.nodeKey, "skipped", ev.reason);
-            markOutgoingEdgesState(ev.nodeKey, "skipped");
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: ev.nodeKey,
-              status: "skipped",
-              detail: ev.reason
-            });
-            appendLog(`node_skipped ${ev.nodeKey}`);
-          },
-          onNodeBlocked: (ev) => {
-            markNodeState(ev.nodeKey, "blocked", ev.reason);
-            markOutgoingEdgesState(ev.nodeKey, "skipped");
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: ev.nodeKey,
-              status: "blocked",
-              detail: ev.reason
-            });
-            appendLog(`node_blocked ${ev.nodeKey} ${ev.reason ?? ""}`.trim());
-          },
-          onEdgeStatusChanged: (ev) => {
-            markEdgeStateByRuntimeEdge(ev.edge ?? {}, ev.edge?.status);
-          },
-          onBranchDecision: (ev) => {
-            const candidatesText = Array.isArray(ev.candidates) && ev.candidates.length > 0 ? ev.candidates.join(",") : "-";
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: ev.nodeKey,
-              status: "success",
-              detail: `branch=${ev.selectedBranch ?? "-"} | candidates=${candidatesText}`
-            });
-            appendLog(`branch_decision ${ev.nodeKey} ${ev.selectedBranch ?? "-"}`);
-          },
-          onExecutionCompleted: () => {
-            setTestRunning(false);
-            appendLog("execution_complete");
-          },
-          onExecutionCancelled: (ev) => {
-            setTestRunning(false);
-            appendLog(`execution_cancelled ${ev.errorMessage ?? ""}`.trim());
-          },
-          onExecutionInterrupted: (ev) => {
-            setTestRunning(false);
-            appendLog(`execution_interrupted ${ev.nodeKey ?? ""}`.trim());
-          },
-          onExecutionFailed: (ev) => {
-            setTestRunning(false);
-            appendLog(`execution_failed ${ev.errorMessage}`);
-          },
-          onError: (err) => {
-            setTestRunning(false);
-            appendLog(`stream_error ${err instanceof Error ? err.message : "unknown"}`);
-          }
-        }
-      );
-      streamAbortRef.current = handle.abort;
-      await handle.done;
-      streamAbortRef.current = null;
-      setTestRunning(false);
-      return;
-    }
-
-    if (props.apiClient.runSync) {
-      const result = await props.apiClient.runSync(props.workflowId, {
-        inputsJson: JSON.stringify(parsedInputs),
-        source: testRunSource
-      });
-      appendLog(`execution_start ${result.data?.executionId ?? "-"}`);
-      if (result.data?.executionId && props.apiClient.getProcess) {
-        const process = await props.apiClient.getProcess(result.data.executionId);
-        const nodeExecutions = process.data?.nodeExecutions ?? [];
-        for (const item of nodeExecutions) {
-          if (item.status === 2) {
-            markNodeState(item.nodeKey, "success");
-            markOutgoingEdgesState(item.nodeKey, "success");
-            appendTrace({ timestamp: new Date().toLocaleTimeString(), nodeKey: item.nodeKey, status: "success" });
-          } else if (item.status === 3) {
-            markNodeState(item.nodeKey, "failed", item.errorMessage);
-            markOutgoingEdgesState(item.nodeKey, "failed");
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: item.nodeKey,
-              status: "failed",
-              detail: item.errorMessage
-            });
-          } else if (item.status === 6) {
-            markNodeState(item.nodeKey, "skipped");
-            markOutgoingEdgesState(item.nodeKey, "skipped");
-            appendTrace({ timestamp: new Date().toLocaleTimeString(), nodeKey: item.nodeKey, status: "skipped" });
-          } else if (item.status === 7) {
-            markNodeState(item.nodeKey, "blocked", item.errorMessage);
-            markOutgoingEdgesState(item.nodeKey, "skipped");
-            appendTrace({
-              timestamp: new Date().toLocaleTimeString(),
-              nodeKey: item.nodeKey,
-              status: "blocked",
-              detail: item.errorMessage
-            });
-          }
-        }
-      }
-      appendLog("execution_complete");
-    }
-    setTestRunning(false);
-  }
-
-  function handleAutoLayout() {
-    if (isReadOnly) {
-      return;
-    }
-    const xStart = 80;
-    const yStart = 80;
-    const colGap = 420;
-    const rowGap = 220;
-    setCanvasNodes((prev) =>
-      prev.map((node, index) => ({
-        ...node,
-        x: xStart + (index % 4) * colGap,
-        y: yStart + Math.floor(index / 4) * rowGap
-      }))
-    );
-    setIsDirty(true);
-  }
-
-  async function handleDebugNode() {
-    if (!props.apiClient.debugNode || !debugNodeKey) {
-      message.warning("当前环境未启用单节点调试接口。");
-      return;
-    }
-    let parsed: unknown = {};
-    if (debugInputJson.trim()) {
-      try {
-        parsed = JSON.parse(debugInputJson);
-      } catch {
-        message.error("调试输入 JSON 不合法。");
-        return;
-      }
-    }
-
-    setDebugRunning(true);
-    markNodeState(debugNodeKey, "running", "debug");
-    try {
-      const response = await props.apiClient.debugNode(props.workflowId, debugNodeKey, {
-        nodeKey: debugNodeKey,
-        inputsJson: JSON.stringify(parsed)
-      });
-      const outputText = JSON.stringify(response.data ?? {}, null, 2);
-      setDebugOutput(outputText);
-      markNodeState(debugNodeKey, "success", "debug ok");
-      setCanvasNodes((prev) =>
-        prev.map((node) =>
-          node.key === debugNodeKey
-            ? {
-                ...node,
-                debugMeta: {
-                  ...(node.debugMeta ?? {}),
-                  debugResult: response.data ?? null,
-                  lastDebugAt: new Date().toISOString()
-                }
-              }
-            : node
-        )
-      );
-      appendLog(`node_debug ${debugNodeKey} success`);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "调试失败";
-      setDebugOutput(errorMessage);
-      markNodeState(debugNodeKey, "failed", errorMessage);
-      appendLog(`node_debug ${debugNodeKey} failed: ${errorMessage}`);
-    } finally {
-      setDebugRunning(false);
-    }
-  }
+  const hasCanvasValidationErrors = Boolean(
+    canvasValidation &&
+      (!canvasValidation.ok ||
+        canvasValidation.canvasIssues.length > 0 ||
+        canvasValidation.nodeResults.some((item) => item.issues.length > 0))
+  );
 
   return (
     <div className="wf-react-editor-page">
       <WorkflowHeader
-        name={workflowName}
-        dirty={isDirty}
-        readOnly={isReadOnly}
+        name={store.workflowName}
+        dirty={store.isDirty}
+        readOnly={isReadOnly || store.saving}
         onNameChange={(value) => {
           if (isReadOnly) {
             return;
           }
-          setWorkflowName(value);
-          setIsDirty(true);
+          store.setWorkflowName(value);
+          store.setDirty(true);
         }}
         onBack={() => props.onBack?.()}
-        onSave={async () => {
-          if (isReadOnly) {
-            message.warning("只读模式下不可保存。");
-            return;
-          }
-          const result = runCanvasValidationAndReport();
-          if (!result.ok) {
-            return;
-          }
-          if (props.apiClient.saveDraft) {
-            await props.apiClient.saveDraft(props.workflowId, {
-              canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals, { x: pan.x, y: pan.y, zoom })
-            });
-          }
-          setIsDirty(false);
-          setLogs((prev: string[]) => [...prev, `${new Date().toLocaleTimeString()} save_draft`]);
-        }}
-        onPublish={async () => {
-          if (isReadOnly) {
-            message.warning("只读模式下不可发布。");
-            return;
-          }
-          const result = runCanvasValidationAndReport();
-          if (!result.ok) {
-            return;
-          }
-          try {
-            if (props.apiClient.saveDraft && isDirty) {
-              await props.apiClient.saveDraft(props.workflowId, {
-                canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals, { x: pan.x, y: pan.y, zoom })
-              });
-            }
-            if (props.apiClient.publish) {
-              await props.apiClient.publish(props.workflowId, {});
-              message.success("工作流已发布。");
-              setIsDirty(false);
-            } else {
-              message.warning("当前环境未启用发布接口。");
-            }
-            setLogs((prev: string[]) => [...prev, `${new Date().toLocaleTimeString()} publish`]);
-          } catch (error) {
-            message.error(error instanceof Error ? error.message : "发布失败");
-          }
-        }}
+        onDuplicate={() => void handleDuplicate()}
+        onSave={() => void handleSave()}
+        onPublish={() => void handlePublish()}
       />
       <div
         ref={canvasShellRef}
         className="wf-react-canvas-shell"
+        onMouseMove={(event) => {
+          const shell = canvasShellRef.current;
+          if (!shell || showNodePanel) {
+            setHoveredLineId(null);
+            return;
+          }
+          const rect = shell.getBoundingClientRect();
+          const pointerX = event.clientX - rect.left;
+          const pointerY = event.clientY - rect.top;
+          const scale = store.zoom / 100;
+          let winner: { lineId: string; distance: number } | null = null;
+          for (const line of lineSegments) {
+            const start = { x: line.from.x * scale + store.pan.x, y: line.from.y * scale + store.pan.y };
+            const end = { x: line.to.x * scale + store.pan.x, y: line.to.y * scale + store.pan.y };
+            const distance = distancePointToSegment({ x: pointerX, y: pointerY }, start, end);
+            if (distance <= 14 && (!winner || distance < winner.distance)) {
+              winner = { lineId: line.lineId, distance };
+            }
+          }
+          setHoveredLineId(winner?.lineId ?? null);
+        }}
+        onMouseLeave={() => setHoveredLineId(null)}
         onDragOver={(event) => {
           if (draggingCatalogNodeType) {
             event.preventDefault();
             event.dataTransfer.dropEffect = "copy";
+            const canDrop = dragService.canDrop({
+              coord: { x: event.clientX, y: event.clientY },
+              dragNode: { type: draggingCatalogNodeType }
+            });
+            setDragHint(canDrop ? undefined : dragService.canDropToNode(draggingCatalogNodeType).message);
           }
         }}
         onDrop={(event) => {
@@ -1226,171 +482,365 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           if (!world) {
             return;
           }
-          createNodeByType(nodeType, Math.max(24, world.x - NODE_WIDTH / 2), Math.max(24, world.y - NODE_HEIGHT / 2));
+          dragService.startDrag({ type: nodeType });
+          const canDrop = dragService.canDrop({
+            coord: { x: world.x, y: world.y },
+            dragNode: { type: nodeType }
+          });
+          if (!canDrop) {
+            message.warning(dragService.canDropToNode(nodeType).message ?? "当前目标位置不允许放置该节点。");
+            dragService.endDrag();
+            return;
+          }
+          editService.addNode(nodeType, undefined, { x: Math.max(24, world.x - NODE_WIDTH / 2), y: Math.max(24, world.y - NODE_HEIGHT / 2) }, true);
           setDraggingCatalogNodeType(null);
           setShowNodePanel(false);
+          setDragHint(undefined);
         }}
         onWheel={(event) => {
           if (!event.ctrlKey) {
             return;
           }
           event.preventDefault();
-          setZoom((prev) => {
-            const next = prev - event.deltaY * 0.06;
-            return Math.max(25, Math.min(200, Math.round(next)));
-          });
+          const next = Math.max(25, Math.min(200, Math.round(store.zoom - event.deltaY * 0.06)));
+          store.setZoom(next);
         }}
       >
         <WorkflowRenderProvider
-            canvas={flowgramCanvasSchema}
-            readonly={isReadOnly}
-            nodeTypesMeta={nodeTypesMeta}
-            edgeStateByKey={edgeStateByConnectionKey}
-            onSelectionChange={(nodeKeys) => setSelectedNodeKeys(nodeKeys)}
-            onCanvasChange={(next) => {
-              if (isReadOnly) {
-                return;
+          canvas={flowgramCanvasSchema}
+          readonly={isReadOnly}
+          nodeTypesMeta={store.nodeTypesMeta}
+          edgeStateByKey={store.edgeStateByConnectionKey}
+          onPortClick={(params) => {
+            if (isReadOnly) {
+              return;
+            }
+            setPendingInsertContext({
+              mode: "port",
+              from: {
+                nodeKey: params.nodeKey,
+                portKey: params.portKey,
+                portType: params.portType
               }
-              const nextNodes: CanvasNode[] = next.nodes.map((node) => ({
-                key: node.key,
-                type: node.type,
-                title: node.title,
-                x: node.layout?.x ?? 0,
-                y: node.layout?.y ?? 0,
-                configs: node.configs,
-                inputMappings: node.inputMappings,
-                childCanvas: node.childCanvas,
-                inputTypes: node.inputTypes,
-                outputTypes: node.outputTypes,
-                inputSources: node.inputSources,
-                outputSources: node.outputSources,
-                debugMeta: node.debugMeta
-              }));
-              const nextConnections: CanvasConnection[] = next.connections.map((line, index) => ({
-                id: `conn_${line.fromNode}_${line.fromPort}_${line.toNode}_${line.toPort}_${index}`,
-                fromNode: line.fromNode,
-                fromPort: line.fromPort,
-                toNode: line.toNode,
-                toPort: line.toPort,
-                condition: line.condition
-              }));
+            });
+            setShowNodePanel(true);
+          }}
+          onDragLineEnd={(params) => {
+            if (isReadOnly) {
+              return;
+            }
+            const fromPort = params?.fromPort;
+            if (!fromPort || params?.toPort) {
+              return;
+            }
+            const candidate = lineService.onDragLineEnd({
+              fromPort: {
+                nodeKey: String(fromPort.node?.id ?? ""),
+                portKey: String(fromPort.portID ?? "output")
+              },
+              toPort: undefined
+            });
+            if (!candidate.allowInsert) {
+              if (candidate.message) {
+                message.warning(candidate.message);
+              }
+              return;
+            }
+            const mousePos = params?.mousePos;
+            const position =
+              mousePos && typeof mousePos.x === "number" && typeof mousePos.y === "number"
+                ? resolveWorldPoint(mousePos.x, mousePos.y) ?? undefined
+                : undefined;
+            setPendingInsertContext({
+              mode: "dragLine",
+              from: {
+                nodeKey: String(fromPort.node?.id ?? ""),
+                portKey: String(fromPort.portID ?? "output"),
+                portType: "output"
+              },
+              position
+            });
+            setShowNodePanel(true);
+          }}
+          onSelectionChange={(nodeKeys) => store.setSelectedNodeKeys(nodeKeys)}
+          onCanvasChange={(next) => {
+            if (isReadOnly) {
+              return;
+            }
+            const nextNodes: CanvasNode[] = next.nodes.map((node) => ({
+              key: node.key,
+              type: node.type,
+              title: node.title,
+              x: node.layout?.x ?? 0,
+              y: node.layout?.y ?? 0,
+              configs: node.configs,
+              inputMappings: node.inputMappings,
+              childCanvas: node.childCanvas,
+              inputTypes: node.inputTypes,
+              outputTypes: node.outputTypes,
+              inputSources: node.inputSources,
+              outputSources: node.outputSources,
+              debugMeta: node.debugMeta
+            }));
+            const nextConnections: CanvasConnection[] = next.connections.map((line, index) => ({
+              id: `conn_${line.fromNode}_${line.fromPort}_${line.toNode}_${line.toPort}_${index}`,
+              fromNode: line.fromNode,
+              fromPort: line.fromPort,
+              toNode: line.toNode,
+              toPort: line.toPort,
+              condition: line.condition
+            }));
+            const viewport = next.viewport as WorkflowViewportState | undefined;
+            store.setCanvasNodes(nextNodes);
+            store.setCanvasConnections(nextConnections);
+            if (viewport) {
+              store.setPan({ x: viewport.x, y: viewport.y });
+              store.setZoom(viewport.zoom);
+            }
+            store.setDirty(true);
+            setCanvasValidation(null);
+            saveService.listenContentChange({ type: "NODE_ADD" });
+          }}
+        />
 
-              setCanvasNodes(nextNodes);
-              setCanvasConnections(nextConnections);
-              setIsDirty(true);
-            }}
-          />
         <NodePanelPopover
           visible={showNodePanel}
           nodes={WORKFLOW_NODE_CATALOG}
-          onDragStart={(nodeType) => setDraggingCatalogNodeType(nodeType)}
-          onDragEnd={() => setDraggingCatalogNodeType(null)}
+          onDragStart={(nodeType) => {
+            setDraggingCatalogNodeType(nodeType);
+            dragService.startDrag({ type: nodeType });
+          }}
+          onDragEnd={() => {
+            setDraggingCatalogNodeType(null);
+            dragService.endDrag();
+            setDragHint(undefined);
+          }}
           onSelect={(nodeType) => {
             if (isReadOnly) {
               return;
             }
-            const center = centerPointForCreate();
-            createNodeByType(nodeType, center.x, center.y);
+            if (pendingInsertContext?.mode === "line" && pendingInsertContext.lineId) {
+              const targetLine = store.canvasConnections.find((line) => line.id === pendingInsertContext.lineId);
+              const midpoint = lineSegments.find((item) => item.lineId === pendingInsertContext.lineId);
+              if (targetLine && midpoint) {
+                const insertedNode = editService.addNode(nodeType, undefined, { x: midpoint.x - NODE_WIDTH / 2, y: midpoint.y - NODE_HEIGHT / 2 }, false);
+                if (insertedNode) {
+                  store.setCanvasConnections(store.canvasConnections.filter((line) => line.id !== pendingInsertContext.lineId));
+                  lineService.createLine(
+                    { nodeKey: targetLine.fromNode, portKey: targetLine.fromPort },
+                    { nodeKey: insertedNode.key, portKey: "input" }
+                  );
+                  lineService.createLine(
+                    { nodeKey: insertedNode.key, portKey: "output" },
+                    { nodeKey: targetLine.toNode, portKey: targetLine.toPort }
+                  );
+                }
+              }
+            } else if (pendingInsertContext?.mode === "port" && pendingInsertContext.from) {
+              const from = pendingInsertContext.from;
+              const anchorNode = store.canvasNodes.find((node) => node.key === from.nodeKey);
+              const fallback = centerPointForCreate();
+              const suggested = anchorNode
+                ? {
+                    x: from.portType === "output" ? anchorNode.x + 360 : Math.max(40, anchorNode.x - 360),
+                    y: anchorNode.y
+                  }
+                : fallback;
+              const insertedNode = editService.addNode(nodeType, undefined, suggested, false);
+              if (insertedNode) {
+                if (from.portType === "output") {
+                  lineService.createLine(
+                    { nodeKey: from.nodeKey, portKey: from.portKey },
+                    { nodeKey: insertedNode.key, portKey: "input" }
+                  );
+                } else {
+                  lineService.createLine(
+                    { nodeKey: insertedNode.key, portKey: "output" },
+                    { nodeKey: from.nodeKey, portKey: from.portKey }
+                  );
+                }
+              }
+            } else if (pendingInsertContext?.mode === "dragLine" && pendingInsertContext.from) {
+              const base = pendingInsertContext.position ?? centerPointForCreate();
+              const insertedNode = editService.addNode(nodeType, undefined, base, false);
+              if (insertedNode) {
+                const from = pendingInsertContext.from;
+                lineService.createLine(
+                  { nodeKey: from.nodeKey, portKey: from.portKey },
+                  { nodeKey: insertedNode.key, portKey: "input" }
+                );
+              }
+            } else {
+              const center = centerPointForCreate();
+              const insertedNode = editService.addNode(nodeType, undefined, center, false);
+              if (insertedNode && store.selectedNodeKeys.length === 1) {
+                const selectedNode = store.selectedNodeKeys[0];
+                if (selectedNode && selectedNode !== insertedNode.key) {
+                  lineService.createLine(
+                    { nodeKey: selectedNode, portKey: "output" },
+                    { nodeKey: insertedNode.key, portKey: "input" }
+                  );
+                }
+              }
+            }
+            setPendingInsertContext(null);
             setShowNodePanel(false);
           }}
         />
 
-        <PropertiesPanel
-          visible={Boolean(selectedNode)}
-          selectedNode={selectedNode}
-          selectedNodeLabel={selectedNode ? selectedNode.title || t(nodeMap.get(selectedNode.type)?.titleKey ?? selectedNode.type) : ""}
-          template={selectedNode ? metadataBundle.templatesMap.get(selectedNode.type) : undefined}
-          nodeTypeMeta={selectedNode ? metadataBundle.nodeTypesMap.get(selectedNode.type) : undefined}
-          variableSuggestions={variableSuggestions}
-          onChangeNode={(next) => {
-            if (isReadOnly) {
-              return;
-            }
-            if (!selectedNode) {
-              return;
-            }
-            setCanvasNodes((prev) =>
-              prev.map((node) => (node.key === selectedNode.key ? { ...node, title: next.title, configs: next.configs } : node))
-            );
-            setIsDirty(true);
-            setCanvasValidation(null);
-          }}
-          onClose={() => setSingleSelection("")}
-        />
+        {!isReadOnly && !showNodePanel
+          ? lineSegments.map((item) => {
+              const scale = store.zoom / 100;
+              return (
+                <LineAddButton
+                  key={item.lineId}
+                  visible={hoveredLineId === item.lineId}
+                  x={item.x * scale + store.pan.x}
+                  y={item.y * scale + store.pan.y}
+                  onClick={() => {
+                    setPendingInsertContext({ mode: "line", lineId: item.lineId });
+                    setShowNodePanel(true);
+                  }}
+                />
+              );
+            })
+          : null}
 
-        <TestRunPanel
-          visible={showTestPanel}
-          logs={logs}
-          running={testRunning}
-          source={testRunSource}
-          mode={testRunMode}
-          inputJson={testInputJson}
-          onInputJsonChange={setTestInputJson}
-          onSourceChange={setTestRunSource}
-          onModeChange={setTestRunMode}
-          onClose={() => setShowTestPanel(false)}
-          onRun={() => void handleRunTest()}
-        />
-
-        <TracePanel visible={showTracePanel} steps={traceSteps} onClose={() => setShowTracePanel(false)} />
-
-        <ProblemPanel
-          visible={showProblemPanel}
-          validation={canvasValidation}
-          onClose={() => setShowProblemPanel(false)}
-          onSelectNode={(nodeKey) => {
-            setSingleSelection(nodeKey);
-            setShowProblemPanel(false);
-          }}
+        <FloatLayoutHolder
+          nodeForm={<NodeSideSheet />}
+          problemPanel={
+            <ProblemPanel
+              visible={showProblemPanel}
+              validation={canvasValidation}
+              onClose={() => setShowProblemPanel(false)}
+              onSelectNode={(nodeKey) => {
+                editService.focusNode(nodeKey);
+                setShowProblemPanel(false);
+              }}
+            />
+          }
+          tracePanel={<TracePanel visible={showTracePanel} steps={store.traceSteps} onClose={() => setShowTracePanel(false)} />}
+          testRunPanel={
+            <TestRunPanel
+              visible={showTestPanel}
+              logs={store.logs}
+              running={store.testRunning}
+              source={store.testRunSource}
+              mode={store.testRunMode}
+              inputJson={store.testInputJson}
+              onInputJsonChange={store.setTestInputJson}
+              onSourceChange={store.setTestRunSource}
+              onModeChange={store.setTestRunMode}
+              onClose={() => setShowTestPanel(false)}
+              onRun={() => void runService.testRun()}
+            />
+          }
         />
 
         <NodeDebugPanel
           visible={showDebugPanel}
-          running={debugRunning}
+          running={store.debugRunning}
           nodeOptions={debugNodeOptions}
-          selectedNodeKey={debugNodeKey}
-          inputJson={debugInputJson}
-          output={debugOutput}
-          onNodeChange={setDebugNodeKey}
-          onInputJsonChange={setDebugInputJson}
-          onRun={() => void handleDebugNode()}
+          selectedNodeKey={store.debugNodeKey}
+          inputJson={store.debugInputJson}
+          output={store.debugOutput}
+          onNodeChange={store.setDebugNodeKey}
+          onInputJsonChange={store.setDebugInputJson}
+          onRun={() => void runService.testRunOneNode(store.debugNodeKey, store.debugInputJson)}
           onClose={() => setShowDebugPanel(false)}
         />
 
         <VariablePanel
           visible={showVariablePanel}
           variables={variablePanelItems}
-          globals={canvasGlobals}
+          globals={store.canvasGlobals}
           onChangeGlobals={(next) => {
             if (isReadOnly) {
               return;
             }
-            setCanvasGlobals(next);
-            setIsDirty(true);
+            store.setCanvasGlobals(next);
+            store.setDirty(true);
+            saveService.listenContentChange({ type: "META_CHANGE" });
           }}
           onClose={() => setShowVariablePanel(false)}
         />
 
-        <MinimapPanel visible={showMinimap} nodes={canvasNodes.map((node) => ({ key: node.key, x: node.x, y: node.y }))} selectedNodeKey={selectedNodeKey} />
+        <MinimapPanel visible={showMinimap} nodes={store.canvasNodes.map((node) => ({ key: node.key, x: node.x, y: node.y }))} selectedNodeKey={selectedNodeKey} />
 
         <CanvasToolbar
-          zoom={zoom}
+          zoom={store.zoom}
           mode={interactionMode}
           minimapVisible={showMinimap}
           readOnly={isReadOnly}
-          onZoomChange={(value: number) => setZoom(value)}
+          onZoomChange={store.setZoom}
           onModeChange={setInteractionMode}
-          onToggleNodePanel={() => setShowNodePanel((value: boolean) => !value)}
+          onToggleNodePanel={() => setShowNodePanel((value) => !value)}
           onToggleMinimap={() => setShowMinimap((value) => !value)}
-          onAutoLayout={handleAutoLayout}
+          onAutoLayout={() => {
+            if (isReadOnly) {
+              return;
+            }
+            const xStart = 80;
+            const yStart = 80;
+            const colGap = 420;
+            const rowGap = 220;
+            store.setCanvasNodes(
+              store.canvasNodes.map((node, index) => ({
+                ...node,
+                x: xStart + (index % 4) * colGap,
+                y: yStart + Math.floor(index / 4) * rowGap
+              }))
+            );
+            store.setDirty(true);
+            saveService.listenContentChange({ type: "MOVE_NODE" });
+          }}
           onToggleVariables={() => setShowVariablePanel((value) => !value)}
           onToggleDebug={() => setShowDebugPanel((value) => !value)}
-          onToggleTrace={() => setShowTracePanel((value) => !value)}
-          onToggleProblems={() => setShowProblemPanel((value) => !value)}
-          onRun={() => setShowTestPanel((value: boolean) => !value)}
+          onToggleTrace={() => {
+            setShowTracePanel((value) => !value);
+            layoutService.open("TracePanel");
+          }}
+          onToggleProblems={() => {
+            setShowProblemPanel((value) => !value);
+            layoutService.open("ProblemPanel");
+          }}
+          onRun={() => {
+            setShowTestPanel((value) => !value);
+            layoutService.open("TestRunPanel");
+          }}
         />
+        <DragTooltip dragging={Boolean(draggingCatalogNodeType)} message={dragHint} />
       </div>
       {hasCanvasValidationErrors ? <div className="wf-react-validation-banner">检测到校验问题，可点击“问题”按钮查看详情。</div> : null}
     </div>
   );
+}
+
+export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
+  const containerRef = useRef(createWorkflowEditorContainer());
+  return (
+    <WorkflowEditorContainerProvider container={containerRef.current}>
+      <FloatLayoutProvider>
+        <WorkflowEditorCore {...props} />
+      </FloatLayoutProvider>
+    </WorkflowEditorContainerProvider>
+  );
+}
+
+function buildEditorUrlByWorkflowId(workflowId: string): string {
+  if (typeof window === "undefined") {
+    return `/workflows/${encodeURIComponent(workflowId)}/editor`;
+  }
+  const pathname = window.location.pathname;
+  const nextPathname = pathname.replace(/\/workflows\/[^/]+\/editor$/, `/workflows/${encodeURIComponent(workflowId)}/editor`);
+  return `${window.location.origin}${nextPathname}${window.location.search}`;
+}
+
+export function exportCurrentCanvasJson(): string {
+  const state = useWorkflowEditorStore.getState();
+  return toCanvasJson(state.canvasNodes, state.canvasConnections, state.canvasGlobals, {
+    x: state.pan.x,
+    y: state.pan.y,
+    zoom: state.zoom
+  });
 }

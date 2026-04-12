@@ -52,7 +52,13 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
               <Button size="small" icon={<AlignCenterOutlined />} onClick={props.onAutoLayout}>
                 自动布局
               </Button>
-              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={props.onToggleNodePanel}>
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={props.onToggleNodePanel}
+                data-testid="workflow.detail.toolbar.add-node"
+              >
                 添加节点
               </Button>
             </>
@@ -72,7 +78,14 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
             <Button size="small" onClick={props.onToggleProblems}>
               问题
             </Button>
-            <Button size="small" type="primary" ghost icon={<PlayCircleOutlined />} onClick={props.onRun}>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              icon={<PlayCircleOutlined />}
+              onClick={props.onRun}
+              data-testid="workflow.detail.toolbar.test-run"
+            >
               测试运行
             </Button>
           </Space>

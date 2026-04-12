@@ -49,11 +49,12 @@ export function NodePanelPopover(props: NodePanelPopoverProps) {
   }
 
   return (
-    <div className="wf-react-node-panel">
+    <div className="wf-react-node-panel" data-testid="workflow.detail.node-panel">
       <div className="wf-react-node-panel-search">
         <Input
           allowClear
           size="small"
+          data-testid="workflow.detail.node-panel.search"
           prefix={<SearchOutlined />}
           placeholder={t("wfUi.nodePanel.phSearch")}
           value={keyword}

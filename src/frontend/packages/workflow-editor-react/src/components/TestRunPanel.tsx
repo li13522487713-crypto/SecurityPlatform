@@ -20,7 +20,7 @@ export function TestRunPanel(props: TestRunPanelProps) {
   }
 
   return (
-    <div className="wf-react-test-panel">
+    <div className="wf-react-test-panel" data-testid="workflow.detail.node.testrun.result-panel">
       <div className="wf-react-test-header">
         <Space>
           <Tag color={props.mode === "stream" ? "blue" : "default"}>流式运行</Tag>
@@ -57,7 +57,15 @@ export function TestRunPanel(props: TestRunPanelProps) {
       </div>
       <Input.TextArea rows={5} value={props.inputJson} onChange={(event) => props.onInputJsonChange(event.target.value)} placeholder='{"input":"hello"}' />
       <div className="wf-react-test-log">
-        {props.logs.length === 0 ? <div className="wf-react-test-empty">暂无日志</div> : props.logs.map((line, index) => <div key={`${line}-${index}`}>{line}</div>)}
+        {props.logs.length === 0 ? (
+          <div className="wf-react-test-empty">暂无日志</div>
+        ) : (
+          props.logs.map((line, index) => (
+            <div key={`${line}-${index}`} data-testid="workflow.detail.node.testrun.result-item">
+              {line}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
