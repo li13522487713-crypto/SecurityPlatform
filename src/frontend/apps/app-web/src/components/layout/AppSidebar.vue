@@ -148,6 +148,17 @@ function localizeProjectionItemTitle(itemKey: string, fallbackTitle: string) {
   return te(translationKey) ? t(translationKey) : fallbackTitle;
 }
 
+function normalizeProjectionItemKey(itemKey: string, path: string) {
+  if (path.includes("/workflows")) return "workflows";
+  if (path.includes("/logic-flow")) return "logic-flow";
+  if (path.includes("/knowledge-bases")) return "knowledge-bases";
+  if (path.includes("/model-configs")) return "model-configs";
+  if (path.includes("/evaluations")) return "evaluations";
+  if (path.includes("/data")) return "data";
+  if (path.includes("/settings")) return "settings";
+  return itemKey;
+}
+
 function resolveProjectionIcon(groupKey: string, path: string) {
   const normalizedGroup = groupKey.toLowerCase();
   if (normalizedGroup.includes("ai")) return RobotOutlined;
@@ -164,7 +175,7 @@ const projectedNavGroups = computed<SidebarGroup[]>(() =>
     items: group.items
       .filter((item) => item.key !== "organization" && item.path !== `${basePath.value}/capabilities/organization`)
       .map((item) => ({
-        key: item.key,
+        key: normalizeProjectionItemKey(item.key, item.path),
         name: localizeProjectionItemTitle(item.key, item.title),
         path: item.path || `${basePath.value}/dashboard`,
         icon: resolveProjectionIcon(group.groupKey, item.path),

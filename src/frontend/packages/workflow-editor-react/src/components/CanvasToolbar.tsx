@@ -74,7 +74,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
             <Button size="small" icon={<ApartmentOutlined />} onClick={props.onToggleVariables} data-testid="workflow.detail.toolbar.variables">
               {t("wfUi.toolbar.variables")}
             </Button>
-            <Button size="small" onClick={props.onToggleDebug}>
+            <Button size="small" onClick={props.onToggleDebug} data-testid="workflow.detail.toolbar.debug">
               {t("wfUi.toolbar.debug")}
             </Button>
             <Button size="small" onClick={props.onToggleTrace} data-testid="workflow.detail.toolbar.trace">

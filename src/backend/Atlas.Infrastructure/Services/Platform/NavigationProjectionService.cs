@@ -92,13 +92,13 @@ public sealed class NavigationProjectionService : INavigationProjectionService
             .FirstAsync(item => item.Id == appInstanceId, cancellationToken);
         var appKey = app?.AppKey;
 
-        var permissionSet = await LoadPermissionSetAsync(userId, cancellationToken);
+        var permissionSet = await LoadWorkspacePermissionSetAsync(userId, appInstanceId, cancellationToken);
         var capabilities = await _capabilityRegistry.GetAllAsync(tenantId, cancellationToken);
         var items = capabilities
             .Where(capability => capability.HostModes.Any(mode =>
                 string.Equals(mode, "app", StringComparison.OrdinalIgnoreCase)))
             .Where(capability => !string.IsNullOrWhiteSpace(capability.AppRoute))
-            .Where(capability => HasPermission(capability.RequiredPermissions, permissionSet, isPlatformAdmin))
+            .Where(capability => HasPermission(capability.RequiredPermissions, permissionSet, isPlatformAdmin: false))
             .Select(capability => new NavigationProjectionItem(
                 Key: capability.CapabilityKey,
                 Title: capability.Title,
@@ -318,6 +318,53 @@ public sealed class NavigationProjectionService : INavigationProjectionService
             .Where(code => !string.IsNullOrWhiteSpace(code))
             .Select(code => code.Trim())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<HashSet<string>> LoadWorkspacePermissionSetAsync(
+        long userId,
+        long appInstanceId,
+        CancellationToken cancellationToken)
+    {
+        if (userId <= 0 || appInstanceId <= 0)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var roleIds = await _db.Queryable<AppUserRole>()
+            .Where(item => item.UserId == userId && item.AppId == appInstanceId)
+            .Select(item => item.RoleId)
+            .ToListAsync(cancellationToken);
+        if (roleIds.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var roleIdArray = roleIds.Distinct().ToArray();
+        var roleCodes = await _db.Queryable<AppRole>()
+            .Where(item => item.AppId == appInstanceId && SqlFunc.ContainsArray(roleIdArray, item.Id))
+            .Select(item => item.Code)
+            .ToListAsync(cancellationToken);
+        var permissionCodes = await _db.Queryable<AppRolePermission>()
+            .Where(item => item.AppId == appInstanceId && SqlFunc.ContainsArray(roleIdArray, item.RoleId))
+            .Select(item => item.PermissionCode)
+            .ToListAsync(cancellationToken);
+
+        var permissionSet = permissionCodes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (roleCodes.Contains("AppAdmin", StringComparer.OrdinalIgnoreCase))
+        {
+            permissionSet.Add("*:*:*");
+            permissionSet.Add(PermissionCodes.AppAdmin);
+        }
+
+        if (roleCodes.Count > 0)
+        {
+            permissionSet.Add(PermissionCodes.AppUser);
+        }
+
+        return permissionSet;
     }
 
     private static bool HasPermission(

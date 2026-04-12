@@ -93,7 +93,8 @@ public sealed class FieldPermissionResolver : IFieldPermissionResolver
     {
         var roleCodes = await _rbacResolver.GetRoleCodesAsync(tenantId, userId, cancellationToken);
         if (roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
-            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
+            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase)
+            || roleCodes.Contains("AppAdmin", StringComparer.OrdinalIgnoreCase))
         {
             return (Array.Empty<FieldPermission>(), false);
         }

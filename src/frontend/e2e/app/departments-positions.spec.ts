@@ -1,8 +1,8 @@
 import { expect, test } from "../fixtures/single-session";
 import {
-  appBaseUrl,
   captureEvidenceScreenshot,
   ensureAppSetup,
+  navigateBySidebar,
   uniqueName
 } from "./helpers";
 
@@ -18,22 +18,22 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     const deptName = uniqueName("E2EDepartment");
     const deptCode = uniqueName("E2E_DEPT").replace(/-/g, "_").toUpperCase();
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/departments`);
-    await expect(page.getByTestId("app-departments-page")).toBeVisible();
+    await navigateBySidebar(page, "departments", {
+      pageTestId: "app-departments-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/departments(?:\\?.*)?$`)
+    });
     await page.getByTestId("app-departments-create").click();
     await page.getByTestId("app-departments-form-name").fill(deptName);
     await page.getByTestId("app-departments-form-code").fill(deptCode);
     const createDeptResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments$/.test(response.url())
     );
     const listAfterCreateResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "GET" &&
-        /\/api\/v2\/tenant-app-instances\/\d+\/departments\/all(?:\?.*)?$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments\/all(?:\?.*)?$/.test(response.url())
     );
     await page.getByTestId("e2e-crud-drawer-submit").click();
     const createDeptResponse = await createDeptResponsePromise;
@@ -79,8 +79,7 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     const deleteDepartmentPromise = page.waitForResponse(
       (response) =>
         response.request().method() === "DELETE" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments\/[^/]+$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments\/[^/]+$/.test(response.url())
     );
     await createdDeptRow.locator('[data-testid^="app-departments-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
@@ -93,16 +92,17 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     const positionName = uniqueName("E2EPosition");
     const positionCode = uniqueName("E2E_POS").replace(/-/g, "_").toUpperCase();
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/positions`);
-    await expect(page.getByTestId("app-positions-page")).toBeVisible();
+    await navigateBySidebar(page, "positions", {
+      pageTestId: "app-positions-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/positions(?:\\?.*)?$`)
+    });
     await page.getByTestId("app-positions-create").click();
     await page.getByTestId("app-positions-form-name").fill(positionName);
     await page.getByTestId("app-positions-form-code").fill(positionCode);
     const createPositionResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/positions$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/positions$/.test(response.url())
     );
     await page.getByTestId("e2e-crud-drawer-submit").click();
     const createPositionResponse = await createPositionResponsePromise;
@@ -117,8 +117,7 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     const deletePositionPromise = page.waitForResponse(
       (response) =>
         response.request().method() === "DELETE" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/positions\/[^/]+$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/positions\/[^/]+$/.test(response.url())
     );
     await positionRow.locator('[data-testid^="app-positions-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();

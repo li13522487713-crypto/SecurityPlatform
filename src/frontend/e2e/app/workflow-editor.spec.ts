@@ -2,7 +2,6 @@ import { expect, test, type Page } from "../fixtures/single-session";
 import {
   createWorkflowSession,
   expectWorkflowEditorReady,
-  openWorkflowEditor,
   workflowNodeLocator
 } from "./workflow-e2e-helpers";
 
@@ -32,7 +31,7 @@ test.describe.serial("Workflow Editor E2E", () => {
   });
 
   test("should add node from panel and keep editor usable after refresh", async ({ page, request, ensureLoggedInSession }) => {
-    const { appKey, workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
+    await createWorkflowSession(page, request, ensureLoggedInSession);
     const workflowNodes = workflowNodeLocator(page);
     const starterNodeCount = await workflowNodes.count();
 
@@ -42,7 +41,7 @@ test.describe.serial("Workflow Editor E2E", () => {
     await expect(workflowNodes).toHaveCount(starterNodeCount + 1);
 
     await page.reload();
-    await openWorkflowEditor(page, appKey, workflowId);
+    await page.waitForURL(/\/workflows\/[^/]+\/editor(?:\?.*)?$/, { timeout: 30_000 });
     await expect(page.getByTestId("workflow.detail.toolbar.add-node")).toBeVisible();
     await expect(workflowNodes.first()).toBeVisible();
   });

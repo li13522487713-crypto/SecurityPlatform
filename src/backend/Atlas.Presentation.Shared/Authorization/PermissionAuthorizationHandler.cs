@@ -9,13 +9,16 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
 {
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IPermissionDecisionService _permissionDecisionService;
+    private readonly IAppContextAccessor _appContextAccessor;
 
     public PermissionAuthorizationHandler(
         ICurrentUserAccessor currentUserAccessor,
-        IPermissionDecisionService permissionDecisionService)
+        IPermissionDecisionService permissionDecisionService,
+        IAppContextAccessor appContextAccessor)
     {
         _currentUserAccessor = currentUserAccessor;
         _permissionDecisionService = permissionDecisionService;
+        _appContextAccessor = appContextAccessor;
     }
 
     protected override async Task HandleRequirementAsync(
@@ -29,7 +32,8 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
         }
 
         // 对受信任签名令牌中的平台管理员声明走快速放行，避免每个请求都触发数据库权限决策。
-        if (currentUser.IsPlatformAdmin)
+        var appId = _appContextAccessor.ResolveAppId();
+        if (currentUser.IsPlatformAdmin && appId is null)
         {
             context.Succeed(requirement);
             return;

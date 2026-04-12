@@ -1,5 +1,6 @@
 using Atlas.Application.System.Models;
 using Atlas.Application.Abstractions;
+using Atlas.Application.Identity;
 using Atlas.Application.Options;
 using Atlas.AppHost.Sdk.Hosting;
 using Atlas.Core.Abstractions;
@@ -365,6 +366,8 @@ public sealed class SetupStateController : ControllerBase
                         typeof(LowCodeApp),
                         typeof(AppDataRoutePolicy),
                         typeof(AppRole),
+                        typeof(AppRolePermission),
+                        typeof(AppPermission),
                         typeof(AppDepartment),
                         typeof(AppPosition),
                         typeof(AppMember),
@@ -864,6 +867,78 @@ public sealed class SetupStateController : ControllerBase
         {
             await db.Insertable(newRoles).ExecuteCommandAsync(cancellationToken);
             rolesCreated = newRoles.Count;
+        }
+
+        var permissionCodes = AppPermissionSeedCatalog.AllPermissionCodes.ToArray();
+        var existingPermissions = permissionCodes.Length == 0
+            ? []
+            : await db.Queryable<AppPermission>()
+                .Where(permission =>
+                    permission.TenantIdValue == tenantId.Value
+                    && permission.AppId == appId
+                    && SqlFunc.ContainsArray(permissionCodes, permission.Code))
+                .ToListAsync(cancellationToken);
+        var permissionByCode = existingPermissions.ToDictionary(permission => permission.Code, StringComparer.OrdinalIgnoreCase);
+        var newPermissions = permissionCodes
+            .Where(code => !permissionByCode.ContainsKey(code))
+            .Select(code => new AppPermission(tenantId, appId, code, code, "Api", _idGeneratorAccessor.NextId()))
+            .ToList();
+        if (newPermissions.Count > 0)
+        {
+            await db.Insertable(newPermissions).ExecuteCommandAsync(cancellationToken);
+            foreach (var permission in newPermissions)
+            {
+                permissionByCode[permission.Code] = permission;
+            }
+        }
+
+        var roleIds = roleByCode.Values
+            .Select(role => role.Id)
+            .Distinct()
+            .ToArray();
+        if (roleIds.Length > 0)
+        {
+            var existingRolePermissions = await db.Queryable<AppRolePermission>()
+                .Where(item =>
+                    item.TenantIdValue == tenantId.Value
+                    && item.AppId == appId
+                    && SqlFunc.ContainsArray(roleIds, item.RoleId))
+                .ToListAsync(cancellationToken);
+            var existingRolePermissionKeys = existingRolePermissions
+                .Select(item => $"{item.RoleId}:{item.PermissionCode}")
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var rolePermissionsToInsert = new List<AppRolePermission>();
+            foreach (var role in roleByCode.Values)
+            {
+                var grantedPermissionCodes = AppPermissionSeedCatalog.GetPermissionCodesForRole(role.Code);
+                foreach (var permissionCode in grantedPermissionCodes)
+                {
+                    if (!permissionByCode.ContainsKey(permissionCode))
+                    {
+                        continue;
+                    }
+
+                    var key = $"{role.Id}:{permissionCode}";
+                    if (!existingRolePermissionKeys.Add(key))
+                    {
+                        continue;
+                    }
+
+                    rolePermissionsToInsert.Add(
+                        new AppRolePermission(
+                            tenantId,
+                            appId,
+                            role.Id,
+                            permissionCode,
+                            _idGeneratorAccessor.NextId()));
+                }
+            }
+
+            if (rolePermissionsToInsert.Count > 0)
+            {
+                await db.Insertable(rolePermissionsToInsert).ExecuteCommandAsync(cancellationToken);
+            }
         }
 
         var departmentSeeds = requestedDepartments.Count > 0

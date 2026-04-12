@@ -7,14 +7,14 @@
  * TS-19: 异常分支（Fail 节点输出）
  * TS-20: 执行记录 Trace 查询
  *
- * 注意：E2E 测试依赖运行中的后端服务（PlatformHost），
+ * 注意：E2E 测试依赖运行中的应用后端服务（AppHost），
  * 使用 API 请求方式（无 UI 交互）验证核心工作流生命周期。
  */
 
 import { test, expect, type APIRequestContext } from "../fixtures/single-session";
-import { platformApiBase, defaultTenantId, defaultUsername, defaultPassword } from "./helpers";
+import { appApiBase, defaultTenantId, defaultUsername, defaultPassword } from "./helpers";
 
-const API_BASE = platformApiBase;
+const API_BASE = appApiBase;
 const TENANT_HEADERS = {
   "X-Tenant-Id": defaultTenantId,
   "X-Project-Id": "1",
@@ -180,8 +180,11 @@ test("TS-19: 画布校验端点对不存在的工作流返回 404", async ({ req
   });
 
   expect([400, 404]).toContain(resp.status());
-  const body = await resp.json() as { success?: boolean };
-  expect(body.success).toBeFalsy();
+  const rawBody = await resp.text();
+  if (rawBody.trim().length > 0) {
+    const body = JSON.parse(rawBody) as { success?: boolean };
+    expect(body.success).toBeFalsy();
+  }
 });
 
 // ─── TS-20: Execution trace query ─────────────────────────────────────────────

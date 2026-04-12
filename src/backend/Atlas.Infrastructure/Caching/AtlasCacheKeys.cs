@@ -20,9 +20,15 @@ public static class AtlasCacheKeys
 
     public static class Identity
     {
-        public static string PermissionDecision(TenantId tenantId, long userId) => $"identity:perm:u:{tenantId.Value:N}:{userId}";
+        public static string PermissionDecision(TenantId tenantId, long userId, long? appId = null)
+            => appId is > 0
+                ? $"identity:perm:a:{tenantId.Value:N}:{appId.Value}:{userId}"
+                : $"identity:perm:u:{tenantId.Value:N}:{userId}";
 
-        public static string AuthProfile(TenantId tenantId, long userId) => $"identity:profile:u:{tenantId.Value:N}:{userId}";
+        public static string AuthProfile(TenantId tenantId, long userId, long? appId = null)
+            => appId is > 0
+                ? $"identity:profile:a:{tenantId.Value:N}:{appId.Value}:{userId}"
+                : $"identity:profile:u:{tenantId.Value:N}:{userId}";
 
         public static string MenuTree(TenantId tenantId, long userId) => $"identity:menu:u:{tenantId.Value:N}:{userId}";
 
@@ -80,4 +86,3 @@ public static class AtlasCacheTags
         return value.Trim().ToLowerInvariant();
     }
 }
-

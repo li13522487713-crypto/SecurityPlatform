@@ -780,7 +780,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
 
         var roleCodes = await _rbacResolver.GetRoleCodesAsync(tenantId, operatorUserId, cancellationToken);
         var isAdmin = roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
-            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
+            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase)
+            || roleCodes.Contains("AppAdmin", StringComparer.OrdinalIgnoreCase);
         if (isAdmin)
         {
             return;
@@ -812,7 +813,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
 
         var roleCodes = await _rbacResolver.GetRoleCodesAsync(tenantId, operatorUserId, cancellationToken);
         var isAdmin = roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
-            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
+            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase)
+            || roleCodes.Contains("AppAdmin", StringComparer.OrdinalIgnoreCase);
         if (isAdmin)
         {
             return;

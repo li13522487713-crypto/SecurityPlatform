@@ -85,12 +85,6 @@ public sealed class AppMembershipMiddleware
             return;
         }
 
-        if (currentUser.IsPlatformAdmin)
-        {
-            await _next(context);
-            return;
-        }
-
         var permissionDecisionService = context.RequestServices.GetRequiredService<IPermissionDecisionService>();
         var isSystemAdmin = await permissionDecisionService.IsSystemAdminAsync(
             tenantId,

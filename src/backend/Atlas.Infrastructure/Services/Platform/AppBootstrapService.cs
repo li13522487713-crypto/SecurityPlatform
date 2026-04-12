@@ -1,3 +1,4 @@
+using Atlas.Application.Identity;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Repositories;
 using Atlas.Core.Abstractions;
@@ -21,22 +22,6 @@ public sealed class AppBootstrapService : IAppBootstrapService
     private readonly IAppMemberDepartmentRepository _memberDeptRepository;
     private readonly IAppDepartmentRepository _departmentRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
-
-    private static readonly string[] DefaultPermissionCodes =
-    [
-        "app:members:view", "app:members:create", "app:members:update", "app:members:delete",
-        "app:roles:view", "app:roles:create", "app:roles:update", "app:roles:delete",
-        "app:departments:view", "app:departments:create", "app:departments:update", "app:departments:delete",
-        "app:positions:view", "app:positions:create", "app:positions:update", "app:positions:delete",
-        "app:projects:view", "app:projects:create", "app:projects:update", "app:projects:delete",
-        "app:permissions:view", "app:permissions:create", "app:permissions:update",
-        "app:pages:view", "app:pages:create", "app:pages:update", "app:pages:delete",
-        "app:forms:view", "app:forms:create", "app:forms:update", "app:forms:delete",
-        "app:data:view", "app:data:create", "app:data:update", "app:data:delete", "app:data:import", "app:data:export",
-        "app:approval:view", "app:approval:create", "app:approval:manage",
-        "app:reports:view", "app:reports:create", "app:reports:update", "app:reports:delete",
-        "app:settings:view", "app:settings:update"
-    ];
 
     public AppBootstrapService(
         IAppRoleRepository roleRepository,
@@ -63,7 +48,7 @@ public sealed class AppBootstrapService : IAppBootstrapService
         var now = DateTimeOffset.UtcNow;
 
         var permissions = new List<AppPermission>();
-        foreach (var code in DefaultPermissionCodes)
+        foreach (var code in AppPermissionSeedCatalog.AllPermissionCodes)
         {
             permissions.Add(new AppPermission(tenantId, appId, code, code, "Api", _idGenerator.NextId()));
         }
@@ -84,9 +69,9 @@ public sealed class AppBootstrapService : IAppBootstrapService
             new AppRolePermission(tenantId, appId, adminRole.Id, p.Code, _idGenerator.NextId())).ToList();
         await _rolePermissionRepository.AddRangeAsync(adminRolePermissions, cancellationToken);
 
-        var memberViewCodes = DefaultPermissionCodes.Where(c => c.EndsWith(":view")).ToHashSet();
         var memberRolePermissions = permissions
-            .Where(p => memberViewCodes.Contains(p.Code))
+            .Where(p => AppPermissionSeedCatalog.GetPermissionCodesForRole(memberRole.Code)
+                .Contains(p.Code, StringComparer.OrdinalIgnoreCase))
             .Select(p => new AppRolePermission(tenantId, appId, memberRole.Id, p.Code, _idGenerator.NextId()))
             .ToList();
         await _rolePermissionRepository.AddRangeAsync(memberRolePermissions, cancellationToken);

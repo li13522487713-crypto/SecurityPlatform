@@ -263,6 +263,15 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Cancel(long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
+        var execution = await _queryService.GetExecutionProcessAsync(tenantId, execId, cancellationToken);
+        if (execution is null)
+        {
+            return NotFound(ApiResponse<object>.Fail(
+                ErrorCodes.NotFound,
+                ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"),
+                HttpContext.TraceIdentifier));
+        }
+
         await _executionService.CancelAsync(tenantId, execId, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = execId.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -406,11 +415,20 @@ public sealed class WorkflowV2Controller : ControllerBase
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
+        var execution = await _queryService.GetExecutionProcessAsync(tenantId, execId, cancellationToken);
+        if (execution is null)
+        {
+            return NotFound(ApiResponse<WorkflowV2RunTraceDto>.Fail(
+                ErrorCodes.NotFound,
+                ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"),
+                HttpContext.TraceIdentifier));
+        }
+
         var result = await _queryService.GetRunTraceAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<WorkflowV2RunTraceDto>.Fail(
-                WorkflowErrorCodes.WorkflowExecutionNotFound,
+                ErrorCodes.NotFound,
                 ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"),
                 HttpContext.TraceIdentifier));
         }

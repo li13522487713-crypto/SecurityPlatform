@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Threading;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
+using Atlas.AppHost.Sdk.Hosting;
 
 namespace Atlas.AppHost;
 
@@ -118,17 +119,20 @@ internal sealed class AppHostAppContextAccessor : IAppContextAccessor
     private readonly ITenantProvider tenantProvider;
     private readonly ICurrentUserAccessor currentUserAccessor;
     private readonly IClientContextAccessor clientContextAccessor;
+    private readonly AppInstanceConfigurationLoader appInstanceConfigurationLoader;
 
     public AppHostAppContextAccessor(
         IHttpContextAccessor httpContextAccessor,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
-        IClientContextAccessor clientContextAccessor)
+        IClientContextAccessor clientContextAccessor,
+        AppInstanceConfigurationLoader appInstanceConfigurationLoader)
     {
         this.httpContextAccessor = httpContextAccessor;
         this.tenantProvider = tenantProvider;
         this.currentUserAccessor = currentUserAccessor;
         this.clientContextAccessor = clientContextAccessor;
+        this.appInstanceConfigurationLoader = appInstanceConfigurationLoader;
     }
 
     public IAppContext GetCurrent()
@@ -141,7 +145,7 @@ internal sealed class AppHostAppContextAccessor : IAppContextAccessor
         var httpContext = httpContextAccessor.HttpContext;
         return new AppContextSnapshot(
             tenantProvider.GetTenantId(),
-            httpContext?.Request.Headers["X-App-Id"].ToString() ?? string.Empty,
+            ResolveAppId(httpContext),
             currentUserAccessor.GetCurrentUser(),
             clientContextAccessor.GetCurrent(),
             httpContext?.TraceIdentifier);
@@ -150,6 +154,17 @@ internal sealed class AppHostAppContextAccessor : IAppContextAccessor
     public string GetAppId()
     {
         return GetCurrent().AppId;
+    }
+
+    private string ResolveAppId(HttpContext? httpContext)
+    {
+        var headerValue = httpContext?.Request.Headers["X-App-Id"].ToString();
+        if (!string.IsNullOrWhiteSpace(headerValue))
+        {
+            return headerValue;
+        }
+
+        return appInstanceConfigurationLoader.Load().InstanceId?.Trim() ?? string.Empty;
     }
 
     public IDisposable BeginScope(IAppContext context)

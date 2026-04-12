@@ -365,6 +365,34 @@ export async function ensureAppDashboard(page: Page, appKey: string) {
   await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
 }
 
+export async function navigateBySidebar(
+  page: Page,
+  itemKey: string,
+  options: {
+    pageTestId?: string;
+    urlPattern?: RegExp;
+  } = {}
+) {
+  const sidebar = page.getByTestId("app-sidebar");
+  await expect(sidebar).toBeVisible({ timeout: 30_000 });
+
+  const item = page.getByTestId(`app-sidebar-item-${itemKey}`);
+  await expect(item, `左侧菜单缺少 ${itemKey}，当前账号不具备对应权限或菜单未正确投影。`).toBeVisible({
+    timeout: 30_000
+  });
+
+  const currentUrl = page.url();
+  await item.click();
+
+  if (options.urlPattern && !options.urlPattern.test(currentUrl)) {
+    await page.waitForURL(options.urlPattern, { timeout: 30_000 });
+  }
+
+  if (options.pageTestId) {
+    await expect(page.getByTestId(options.pageTestId)).toBeVisible({ timeout: 30_000 });
+  }
+}
+
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }

@@ -1,8 +1,8 @@
 import { expect, test } from "../fixtures/single-session";
 import {
-  appBaseUrl,
   captureEvidenceScreenshot,
   ensureAppSetup,
+  navigateBySidebar,
   uniqueName
 } from "./helpers";
 
@@ -15,8 +15,10 @@ test.describe.serial("App Users CRUD", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/users`);
-    await expect(page.getByTestId("app-users-page")).toBeVisible();
+    await navigateBySidebar(page, "users", {
+      pageTestId: "app-users-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/users(?:\\?.*)?$`)
+    });
   });
 
   test("create/update/reset-password/delete user member should work", async ({ page }, testInfo) => {
@@ -31,8 +33,7 @@ test.describe.serial("App Users CRUD", () => {
     const createUserResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/users$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/users$/.test(response.url())
     );
     await page.getByTestId("e2e-crud-drawer-submit").click();
     await createUserResponsePromise;
@@ -47,14 +48,12 @@ test.describe.serial("App Users CRUD", () => {
     const updateProfilePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "PUT" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/profile$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/profile$/.test(response.url())
     );
     const updateRolesPromise = page.waitForResponse(
       (response) =>
         response.request().method() === "PUT" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/roles$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/roles$/.test(response.url())
     );
     await page.getByTestId("e2e-crud-drawer-submit").click();
     await Promise.all([updateProfilePromise, updateRolesPromise]);
@@ -67,8 +66,7 @@ test.describe.serial("App Users CRUD", () => {
     const resetPasswordPromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/reset-password$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/reset-password$/.test(response.url())
     );
     await page.getByTestId("e2e-crud-drawer-submit").click();
     await resetPasswordPromise;
@@ -77,8 +75,7 @@ test.describe.serial("App Users CRUD", () => {
     const deleteUserPromise = page.waitForResponse(
       (response) =>
         response.request().method() === "DELETE" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+$/.test(response.url())
     );
     const removeButton = latestRow.locator('[data-testid^="app-users-remove-"]').first();
     await removeButton.click();

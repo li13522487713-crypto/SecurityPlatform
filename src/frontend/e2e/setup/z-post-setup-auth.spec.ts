@@ -245,10 +245,9 @@ async function loginPlatform(page: Page, request: APIRequestContext) {
 
 async function assertPlatformHomeVisible(page: Page) {
   await page.waitForURL("**/console", { timeout: 20_000 });
-  await expect(page.locator(".sidebar__brand-text")).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".topbar__profile")).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".sidebar__item").first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".hero-section__greeting")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".topbar__search-input")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".main-content")).toBeVisible({ timeout: 20_000 });
 }
 
 async function fillAppLoginForm(page: Page, password: string) {

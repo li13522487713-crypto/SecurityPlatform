@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "../fixtures/single-session";
 import { createWorkflowSession } from "./workflow-e2e-helpers";
-import { defaultPassword, defaultTenantId, defaultUsername, platformApiBase } from "./helpers";
+import { appApiBase, defaultPassword, defaultTenantId, defaultUsername } from "./helpers";
 
 const TENANT_HEADERS = {
   "X-Tenant-Id": defaultTenantId,
@@ -9,7 +9,7 @@ const TENANT_HEADERS = {
 };
 
 async function getAccessToken(request: APIRequestContext): Promise<string> {
-  const resp = await request.post(`${platformApiBase}/api/v1/auth/token`, {
+  const resp = await request.post(`${appApiBase}/api/v1/auth/token`, {
     headers: { "Content-Type": "application/json", "X-Tenant-Id": defaultTenantId },
     data: { username: defaultUsername, password: defaultPassword }
   });
@@ -21,7 +21,7 @@ async function getAccessToken(request: APIRequestContext): Promise<string> {
 }
 
 async function getCsrfToken(request: APIRequestContext, accessToken: string): Promise<string> {
-  const resp = await request.get(`${platformApiBase}/api/v1/secure/antiforgery`, {
+  const resp = await request.get(`${appApiBase}/api/v1/secure/antiforgery`, {
     headers: { ...TENANT_HEADERS, Authorization: `Bearer ${accessToken}` }
   });
   expect(resp.ok()).toBeTruthy();
@@ -64,7 +64,7 @@ test.describe.serial("Workflow Run E2E", () => {
   test("should open single-node debug panel", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
 
-    await page.getByRole("button", { name: /单节点调试/i }).click();
+    await page.getByTestId("workflow.detail.toolbar.debug").click();
     const debugPanel = page.locator(".wf-react-debug-panel");
     await expect(debugPanel).toBeVisible();
   });
@@ -73,7 +73,7 @@ test.describe.serial("Workflow Run E2E", () => {
     const accessToken = await getAccessToken(request);
     const csrfToken = await getCsrfToken(request, accessToken);
 
-    const resp = await request.post(`${platformApiBase}/api/v2/workflows/executions/999999999/cancel`, {
+    const resp = await request.post(`${appApiBase}/api/v2/workflows/executions/999999999/cancel`, {
       headers: {
         ...TENANT_HEADERS,
         Authorization: `Bearer ${accessToken}`,

@@ -2,6 +2,7 @@ using Atlas.Application.Abstractions;
 using Atlas.Application.Identity;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Caching;
 
@@ -18,17 +19,34 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IRbacResolver _rbacResolver;
+    private readonly IAppContextAccessor _appContextAccessor;
 
     public PermissionDecisionService(
         IAtlasHybridCache cache,
         IUserAccountRepository userAccountRepository,
         IUserRoleRepository userRoleRepository,
         IRbacResolver rbacResolver)
+        : this(
+            cache,
+            userAccountRepository,
+            userRoleRepository,
+            rbacResolver,
+            NullAppContextAccessor.Instance)
+    {
+    }
+
+    public PermissionDecisionService(
+        IAtlasHybridCache cache,
+        IUserAccountRepository userAccountRepository,
+        IUserRoleRepository userRoleRepository,
+        IRbacResolver rbacResolver,
+        IAppContextAccessor appContextAccessor)
     {
         _cache = cache;
         _userAccountRepository = userAccountRepository;
         _userRoleRepository = userRoleRepository;
         _rbacResolver = rbacResolver;
+        _appContextAccessor = appContextAccessor;
     }
 
     public async Task<bool> HasPermissionAsync(
@@ -43,12 +61,17 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
             return false;
         }
 
-        if (cacheEntry.IsPlatformAdmin)
+        if (cacheEntry.IsPlatformAdmin && !cacheEntry.IsAppScoped)
         {
             return true;
         }
 
         if (cacheEntry.PermissionCodes.Contains(PermissionCodes.SystemAdmin, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (cacheEntry.PermissionCodes.Contains("*:*:*", StringComparer.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -73,7 +96,7 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
             return false;
         }
 
-        if (cacheEntry.IsPlatformAdmin)
+        if (cacheEntry.IsPlatformAdmin && !cacheEntry.IsAppScoped)
         {
             return true;
         }
@@ -81,6 +104,12 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
         if (cacheEntry.PermissionCodes.Contains(PermissionCodes.SystemAdmin, StringComparer.OrdinalIgnoreCase))
         {
             return true;
+        }
+
+        if (cacheEntry.IsAppScoped)
+        {
+            return cacheEntry.PermissionCodes.Contains(PermissionCodes.AppAdmin, StringComparer.OrdinalIgnoreCase)
+                || cacheEntry.RoleCodes.Contains("AppAdmin", StringComparer.OrdinalIgnoreCase);
         }
 
         return cacheEntry.RoleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
@@ -124,7 +153,8 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
         long userId,
         CancellationToken cancellationToken)
     {
-        var cacheKey = AtlasCacheKeys.Identity.PermissionDecision(tenantId, userId);
+        var appId = ResolveAppId();
+        var cacheKey = AtlasCacheKeys.Identity.PermissionDecision(tenantId, userId, appId);
         var result = await _cache.GetOrCreateAsync(
             cacheKey,
             async ct =>
@@ -139,6 +169,7 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
                 return new PermissionDecisionCacheEntry(
                     account.IsActive,
                     account.IsPlatformAdmin,
+                    appId.HasValue,
                     roleCodes,
                     permissionCodes);
             },
@@ -152,13 +183,49 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
     private sealed record PermissionDecisionCacheEntry(
         bool IsActive,
         bool IsPlatformAdmin,
+        bool IsAppScoped,
         IReadOnlyList<string> RoleCodes,
         IReadOnlyList<string> PermissionCodes)
     {
         public static readonly PermissionDecisionCacheEntry Empty = new(
             false,
             false,
+            false,
             Array.Empty<string>(),
             Array.Empty<string>());
+    }
+
+    private long? ResolveAppId()
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        return appId is > 0 ? appId : null;
+    }
+
+    private sealed class NullAppContextAccessor : IAppContextAccessor
+    {
+        public static readonly NullAppContextAccessor Instance = new();
+
+        public IAppContext GetCurrent()
+        {
+            return new AppContextSnapshot(
+                TenantId.Empty,
+                string.Empty,
+                null,
+                new ClientContext(ClientType.WebH5, ClientPlatform.Web, ClientChannel.Browser, ClientAgent.Other),
+                null);
+        }
+
+        public string GetAppId() => string.Empty;
+
+        public IDisposable BeginScope(IAppContext context) => NoopDisposable.Instance;
+    }
+
+    private sealed class NoopDisposable : IDisposable
+    {
+        public static readonly NoopDisposable Instance = new();
+
+        public void Dispose()
+        {
+        }
     }
 }

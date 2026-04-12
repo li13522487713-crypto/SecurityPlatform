@@ -1,11 +1,12 @@
 <template>
-  <a-card :bordered="false">
+  <a-card :bordered="false" data-testid="app-workflows-page">
     <template #title>工作流管理</template>
     <template #extra>
-      <a-button type="primary" @click="createWorkflow">新建工作流</a-button>
+      <a-button type="primary" data-testid="app-workflows-create" @click="createWorkflow">新建工作流</a-button>
     </template>
 
     <a-table
+      data-testid="app-workflows-table"
       row-key="id"
       :data-source="items"
       :columns="columns"
@@ -15,12 +16,31 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'name'">
-          <a-button type="link" @click="openEditor(record.id)">{{ record.name }}</a-button>
+          <a-button
+            type="link"
+            :data-testid="`app-workflows-open-${record.id}`"
+            @click="openEditor(record.id)"
+          >
+            {{ record.name }}
+          </a-button>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button type="link" @click="openEditor(record.id)">编辑</a-button>
-            <a-button type="link" danger @click="removeWorkflow(record.id)">删除</a-button>
+            <a-button
+              type="link"
+              :data-testid="`app-workflows-edit-${record.id}`"
+              @click="openEditor(record.id)"
+            >
+              编辑
+            </a-button>
+            <a-button
+              type="link"
+              danger
+              :data-testid="`app-workflows-delete-${record.id}`"
+              @click="removeWorkflow(record.id)"
+            >
+              删除
+            </a-button>
           </a-space>
         </template>
       </template>

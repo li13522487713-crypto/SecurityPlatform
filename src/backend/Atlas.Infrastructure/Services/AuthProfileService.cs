@@ -1,6 +1,7 @@
 using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Core.Identity;
 using Atlas.Application.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Caching;
@@ -12,16 +13,19 @@ public sealed class AuthProfileService : IAuthProfileService
     private readonly IUserAccountRepository _userRepository;
     private readonly IRbacResolver _rbacResolver;
     private readonly IAtlasHybridCache _cache;
+    private readonly IAppContextAccessor _appContextAccessor;
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
     public AuthProfileService(
         IUserAccountRepository userRepository,
         IRbacResolver rbacResolver,
+        IAppContextAccessor appContextAccessor,
         IAtlasHybridCache cache)
     {
         _userRepository = userRepository;
         _rbacResolver = rbacResolver;
+        _appContextAccessor = appContextAccessor;
         _cache = cache;
     }
 
@@ -30,7 +34,8 @@ public sealed class AuthProfileService : IAuthProfileService
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
-        var cacheKey = AtlasCacheKeys.Identity.AuthProfile(tenantId, userId);
+        var appId = ResolveAppId();
+        var cacheKey = AtlasCacheKeys.Identity.AuthProfile(tenantId, userId, appId);
         var cached = await _cache.TryGetAsync<AuthProfileResult>(cacheKey, cancellationToken: cancellationToken);
         if (cached.Found)
         {
@@ -62,5 +67,11 @@ public sealed class AuthProfileService : IAuthProfileService
             [AtlasCacheTags.IdentityUser(tenantId, userId), AtlasCacheTags.IdentityTenant(tenantId)],
             cancellationToken: cancellationToken);
         return result;
+    }
+
+    private long? ResolveAppId()
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        return appId is > 0 ? appId : null;
     }
 }

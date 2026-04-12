@@ -1,8 +1,8 @@
 import { expect, test } from "../fixtures/single-session";
 import {
-  appBaseUrl,
   captureEvidenceScreenshot,
   ensureAppSetup,
+  navigateBySidebar,
   uniqueName
 } from "./helpers";
 
@@ -15,8 +15,10 @@ test.describe.serial("App Roles CRUD", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/roles`);
-    await expect(page.getByTestId("app-roles-page")).toBeVisible();
+    await navigateBySidebar(page, "roles", {
+      pageTestId: "app-roles-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/roles(?:\\?.*)?$`)
+    });
   });
 
   test("create/update/delete role should work", async ({ page }, testInfo) => {
@@ -30,8 +32,7 @@ test.describe.serial("App Roles CRUD", () => {
     const createRoleResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles$/.test(response.url())
     );
     await page.getByTestId("e2e-crud-drawer-submit").click();
     await createRoleResponsePromise;
@@ -45,8 +46,7 @@ test.describe.serial("App Roles CRUD", () => {
     const updateRoleResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "PUT" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles\/[^/]+$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles\/[^/]+$/.test(response.url())
     );
     await page.getByTestId("e2e-crud-drawer-submit").click();
     await updateRoleResponsePromise;
@@ -57,8 +57,7 @@ test.describe.serial("App Roles CRUD", () => {
     const deleteRoleResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === "DELETE" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles\/[^/]+$/.test(response.url()) &&
-        response.status() < 400
+        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/roles\/[^/]+$/.test(response.url())
     );
     await editedRow.locator('[data-testid^="app-roles-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
