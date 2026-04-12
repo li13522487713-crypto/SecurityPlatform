@@ -7,14 +7,16 @@ import type {
   WorkflowModelCatalogItem,
   WorkflowSaveRequest,
   WorkflowValidateRequest,
+  WorkflowUpdateMetaRequest,
   WorkflowVersionDiff,
   WorkflowVersionRollbackResult,
   WorkflowVersionItem
-} from "../types";
+} from "./types";
 
 export interface WorkflowApiClient {
   getDetail?: (id: string, query?: WorkflowDetailQuery) => Promise<{ data?: WorkflowDetailResponse }>;
   saveDraft?: (id: string, req: WorkflowSaveRequest & { saveVersion?: number; ignoreStatusTransfer?: boolean }) => Promise<unknown>;
+  updateMeta?: (id: string, req: WorkflowUpdateMetaRequest) => Promise<unknown>;
   publish?: (id: string, req: { changeLog?: string }) => Promise<unknown>;
   copy?: (id: string) => Promise<{ data?: { id?: string } }>;
   getVersions?: (id: string) => Promise<{ data?: WorkflowVersionItem[] }>;
@@ -64,7 +66,15 @@ export interface WorkflowApiClient {
   ) => { abort: () => void; done: Promise<void> };
   getProcess?: (
     executionId: string
-  ) => Promise<{ data?: { status?: number; nodeExecutions?: Array<{ nodeKey: string; status: number; errorMessage?: string }> } }>;
+  ) => Promise<{
+    data?: {
+      status?: number;
+      startedAt?: string;
+      completedAt?: string;
+      errorMessage?: string;
+      nodeExecutions?: Array<{ nodeKey: string; status: number; errorMessage?: string }>;
+    };
+  }>;
   getTrace?: (executionId: string) => Promise<{ data?: RunTrace }>;
   cancel?: (executionId: string) => Promise<unknown>;
   debugNode?: (

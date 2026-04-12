@@ -1,27 +1,15 @@
 import { createApiClient } from "@atlas/shared-core/api";
 import type { RequestOptions } from "@atlas/shared-core/api";
+import { appSignPath } from "@atlas/app-shell-shared";
 
-export type AppRuntimeMode = "platform" | "direct";
+export type AppRuntimeMode = "app";
 
 const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 
-const APP_RUNTIME_MODE: AppRuntimeMode = (() => {
-  const rawMode = String(import.meta.env.VITE_APP_RUNTIME_MODE ?? "platform")
-    .trim()
-    .toLowerCase();
-  return rawMode === "direct" ? "direct" : "platform";
-})();
+const APP_RUNTIME_MODE: AppRuntimeMode = "app";
 
-const APP_HOST_TARGET = String(import.meta.env.VITE_APP_HOST_TARGET ?? "http://127.0.0.1:5002")
-  .trim()
-  .replace(/\/+$/, "");
-
-export const API_BASE = import.meta.env.VITE_API_BASE ?? (
-  APP_RUNTIME_MODE === "direct"
-    ? `${APP_HOST_TARGET}/api/v1`
-    : "/api/v1"
-);
+export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 function normalizeApiPath(path: string): string {
   if (!path) return "/";
@@ -46,7 +34,7 @@ export function getAppRuntimeMode(): AppRuntimeMode {
 }
 
 export function isDirectRuntimeMode(): boolean {
-  return APP_RUNTIME_MODE === "direct";
+  return true;
 }
 
 export function setUnauthorizedHandler(handler: (() => void | Promise<void>) | null) {
@@ -92,7 +80,7 @@ async function forceLogout() {
   if (typeof window !== "undefined") {
     const appKey = getCurrentRouteAppKey();
     if (appKey) {
-      window.location.assign(`/apps/${encodeURIComponent(appKey)}/login`);
+      window.location.assign(appSignPath(appKey));
       return;
     }
     window.location.assign("/");
@@ -114,27 +102,6 @@ export const requestPagedApi = apiClient.requestPagedApi;
 export const uploadFile = apiClient.uploadFile;
 export const downloadFile = apiClient.downloadFile;
 
-export function resolveAppHostPrefix(appKey?: string): string {
-  if (isDirectRuntimeMode()) {
-    return "";
-  }
-
-  const normalizedAppKey = appKey?.trim();
-  if (normalizedAppKey) {
-    return `/app-host/${encodeURIComponent(normalizedAppKey)}`;
-  }
-
-  if (typeof window === "undefined") return "";
-
-  const appHostMatch = window.location.pathname.match(/^\/app-host\/([^/]+)/);
-  if (appHostMatch) {
-    return `/app-host/${appHostMatch[1]}`;
-  }
-
-  const appRouteMatch = window.location.pathname.match(/^\/apps\/([^/]+)/);
-  if (appRouteMatch) {
-    return `/app-host/${encodeURIComponent(decodeURIComponent(appRouteMatch[1]))}`;
-  }
-
+export function resolveAppHostPrefix(_appKey?: string): string {
   return "";
 }

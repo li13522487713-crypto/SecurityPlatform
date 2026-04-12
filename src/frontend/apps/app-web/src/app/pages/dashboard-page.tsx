@@ -1,12 +1,14 @@
 import { Button, Typography } from "@douyinfe/semi-ui";
 import { useNavigate, useParams } from "react-router-dom";
+import { workflowListPath, workspaceDevelopPath, workspaceLibraryPath } from "../app-paths";
 import { useAppI18n } from "../i18n";
-import { getAppRuntimeMode } from "@/services/api-core";
+import { useBootstrap } from "../bootstrap-context";
 
 export function DashboardPage() {
   const { t } = useAppI18n();
   const navigate = useNavigate();
   const { appKey = "" } = useParams();
+  const { spaceId } = useBootstrap();
 
   return (
     <div className="atlas-dashboard" data-testid="app-dashboard-page">
@@ -26,7 +28,7 @@ export function DashboardPage() {
         </div>
         <div className="atlas-metric-card">
           <span>{t("summaryMode")}</span>
-          <strong>{getAppRuntimeMode() === "direct" ? t("runtimeDirect") : t("runtimePlatform")}</strong>
+          <strong>App Host</strong>
         </div>
         <div className="atlas-metric-card">
           <span>{t("summaryModule")}</span>
@@ -37,19 +39,19 @@ export function DashboardPage() {
       <div className="atlas-action-grid">
         <div className="atlas-action-card">
           <Typography.Title heading={4}>{t("dashboardGoLibrary")}</Typography.Title>
-          <Button type="primary" onClick={() => navigate(`/apps/${encodeURIComponent(appKey)}/library`)}>
+          <Button type="primary" onClick={() => navigate(workspaceLibraryPath(appKey, spaceId))}>
             {t("dashboardGoLibrary")}
           </Button>
         </div>
         <div className="atlas-action-card">
           <Typography.Title heading={4}>{t("dashboardGoAgents")}</Typography.Title>
-          <Button onClick={() => navigate(`/apps/${encodeURIComponent(appKey)}/ai/agents`)}>
+          <Button onClick={() => navigate(`${workspaceDevelopPath(appKey, spaceId)}?focus=agents`)}>
             {t("dashboardGoAgents")}
           </Button>
         </div>
         <div className="atlas-action-card">
           <Typography.Title heading={4}>{t("dashboardGoWorkflow")}</Typography.Title>
-          <Button onClick={() => navigate(`/apps/${encodeURIComponent(appKey)}/workflows`)}>
+          <Button onClick={() => navigate(workflowListPath(appKey))}>
             {t("dashboardGoWorkflow")}
           </Button>
         </div>

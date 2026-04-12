@@ -6,7 +6,12 @@
 
 .module-studio__header,
 .module-studio__toolbar,
-.module-studio__actions {
+.module-studio__actions,
+.module-studio__section-head,
+.module-studio__develop-toolbar,
+.module-studio__hero,
+.module-studio__ide-layout,
+.module-studio__card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -19,6 +24,33 @@
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 24px 54px rgba(15, 23, 42, 0.08);
   padding: 18px;
+}
+
+.module-studio__develop-stack,
+.module-studio__stack,
+.module-studio__list,
+.module-studio__chat-body,
+.module-studio__section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.module-studio__hero {
+  padding: 24px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.18), transparent 24%),
+    linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.96));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.module-studio__develop-toolbar {
+  align-items: center;
+}
+
+.module-studio__develop-toolbar .semi-input-wrapper {
+  max-width: 360px;
 }
 
 .module-studio__grid {
@@ -37,17 +69,19 @@
   padding: 18px;
 }
 
+.module-studio__summary-card strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
 .module-studio__card p {
   margin: 0;
   color: rgba(15, 23, 42, 0.58);
 }
 
-.module-studio__stack,
-.module-studio__list,
-.module-studio__chat-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.module-studio__meta {
+  color: rgba(15, 23, 42, 0.56);
+  font-size: 12px;
 }
 
 .module-studio__textarea {
@@ -65,4 +99,43 @@
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 18px;
+}
+
+.module-studio__ide-layout {
+  align-items: stretch;
+}
+
+.module-studio__ide-layout > * {
+  flex: 1;
+}
+
+.module-studio__ide-sidecard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(244, 248, 255, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+@media (max-width: 960px) {
+  .module-studio__header,
+  .module-studio__toolbar,
+  .module-studio__actions,
+  .module-studio__section-head,
+  .module-studio__develop-toolbar,
+  .module-studio__hero,
+  .module-studio__ide-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .module-studio__develop-toolbar .semi-input-wrapper {
+    max-width: none;
+  }
+
+  .module-studio__chat-layout {
+    grid-template-columns: 1fr;
+  }
 }

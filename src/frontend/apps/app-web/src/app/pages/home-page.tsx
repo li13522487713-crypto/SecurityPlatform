@@ -1,6 +1,7 @@
 import { Button, Card, Input, Toast, Typography } from "@douyinfe/semi-ui";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { workspaceDevelopPath } from "../app-paths";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 
@@ -28,7 +29,7 @@ export function HomePage() {
                 Toast.warning(t("homeMissingAppKey"));
                 return;
               }
-              navigate(`/apps/${encodeURIComponent(value.trim())}/space/${encodeURIComponent(spaceId)}/develop`);
+              navigate(workspaceDevelopPath(value.trim(), spaceId));
             }}
           >
             {t("homeEnter")}

@@ -7,6 +7,7 @@ interface WorkflowHeaderProps {
   dirty: boolean;
   savedAt?: number | null;
   readOnly?: boolean;
+  mode?: "workflow" | "chatflow";
   onNameChange: (value: string) => void;
   onBack: () => void;
   onDuplicate?: () => void;
@@ -16,6 +17,7 @@ interface WorkflowHeaderProps {
 
 export function WorkflowHeader(props: WorkflowHeaderProps) {
   const { t } = useTranslation();
+  const isChatflow = props.mode === "chatflow";
   const saveText =
     props.dirty || !props.savedAt
       ? t("workflow.editorUnsaved")
@@ -35,8 +37,10 @@ export function WorkflowHeader(props: WorkflowHeaderProps) {
             {t("workflow.back")}
           </Button>
           <div className="wf-react-header-meta">
-            <div className="wf-react-header-title">{t("workflow.title")}</div>
-            <div className="wf-react-header-subtitle">{t("workflow.subtitle")}</div>
+            <div className="wf-react-header-title">{isChatflow ? "Chatflow" : t("workflow.title")}</div>
+            <div className="wf-react-header-subtitle">
+              {isChatflow ? "面向对话流的连续编排、调试与发布" : t("workflow.subtitle")}
+            </div>
           </div>
         </Space>
         <div className="wf-react-header-name-wrap">

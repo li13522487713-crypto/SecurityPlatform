@@ -6,6 +6,7 @@ export interface CozePrimaryNavItem {
   icon: ReactNode;
   path: string;
   activePrefixes?: string[];
+  badge?: string;
   testId?: string;
 }
 
@@ -13,6 +14,8 @@ export interface CozeSecondaryNavItem {
   key: string;
   label: string;
   path: string;
+  icon?: ReactNode;
+  badge?: string;
   testId?: string;
 }
 

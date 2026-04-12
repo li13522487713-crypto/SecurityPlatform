@@ -1,7 +1,7 @@
 .coze-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 88px 268px minmax(0, 1fr);
+  grid-template-columns: 88px 288px minmax(0, 1fr);
   background:
     radial-gradient(circle at top left, rgba(47, 129, 247, 0.14), transparent 24%),
     linear-gradient(180deg, #f4f8ff 0%, #f7f8fb 40%, #fbfbfd 100%);
@@ -77,6 +77,13 @@
   line-height: 16px;
 }
 
+.coze-shell__primary-item-badge {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.22);
+  font-size: 10px;
+}
+
 .coze-shell__secondary {
   display: flex;
   flex-direction: column;
@@ -120,9 +127,11 @@
 }
 
 .coze-shell__secondary-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 38px;
+  min-height: 42px;
+  gap: 10px;
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 12px;
@@ -137,6 +146,16 @@
   background: #eef3ff;
   border-color: rgba(59, 130, 246, 0.18);
   color: #2457d6;
+}
+
+.coze-shell__secondary-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coze-shell__secondary-item-label {
+  text-align: left;
 }
 
 .coze-shell__content {
@@ -166,6 +185,6 @@
 
 @media (max-width: 1200px) {
   .coze-shell {
-    grid-template-columns: 80px 224px minmax(0, 1fr);
+    grid-template-columns: 80px 236px minmax(0, 1fr);
   }
 }

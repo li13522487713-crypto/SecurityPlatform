@@ -1,5 +1,5 @@
 {
-  "name": "@atlas/module-workflow-react",
+  "name": "@atlas/workflow-core-react",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,20 +7,19 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./styles.css": "./src/styles.css"
+    "./api": "./src/api/index.ts",
+    "./types": "./src/types/index.ts"
   },
   "scripts": {
-    "lint": "echo 'module-workflow-react: no lint configured yet'",
-    "build": "echo 'module-workflow-react: source-only package, no build step'"
+    "lint": "echo 'workflow-core-react: no lint configured yet'",
+    "build": "echo 'workflow-core-react: source-only package, no build step'"
   },
   "peerDependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "dependencies": {
-    "@atlas/shared-core": "workspace:*",
-    "@atlas/workflow-core-react": "workspace:*",
-    "@douyinfe/semi-ui": "^2.82.0"
+    "@atlas/shared-core": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.2.13",

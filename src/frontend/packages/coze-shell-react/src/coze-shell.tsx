@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Avatar, Button, Dropdown, Space, Typography } from "@douyinfe/semi-ui";
+import { Avatar, Button, Dropdown, Space, Typography, Tag } from "@douyinfe/semi-ui";
 import { IconChevronLeft, IconGlobe, IconTreeTriangleDown, IconExit } from "@douyinfe/semi-icons";
 import type {
   CozeHeaderAction,
@@ -93,6 +93,7 @@ export function CozeShell({
               >
                 <span className="coze-shell__primary-item-icon">{item.icon}</span>
                 <span className="coze-shell__primary-item-label">{item.label}</span>
+                {item.badge ? <span className="coze-shell__primary-item-badge">{item.badge}</span> : null}
               </button>
             );
           })}
@@ -122,7 +123,9 @@ export function CozeShell({
                       onClick={() => onNavigate(item.path)}
                       data-testid={item.testId}
                     >
-                      {item.label}
+                      {item.icon ? <span className="coze-shell__secondary-item-icon">{item.icon}</span> : null}
+                      <span className="coze-shell__secondary-item-label">{item.label}</span>
+                      {item.badge ? <Tag size="small" color="light-blue">{item.badge}</Tag> : null}
                     </button>
                   );
                 })}

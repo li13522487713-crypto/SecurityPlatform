@@ -16,9 +16,8 @@ const platformHostDll = path.resolve(platformHostBuildDir, "Atlas.PlatformHost.d
 const appHostDll = path.resolve(appHostBuildDir, "Atlas.AppHost.dll");
 const isWindows = process.platform === "win32";
 const playwrightArgs = ["test", "-c", "playwright.app.config.ts", ...process.argv.slice(2)];
-const appWebMode = process.env.PLAYWRIGHT_APP_WEB_MODE === "direct" ? "direct" : "platform";
-const appWebPort = appWebMode === "direct" ? 5182 : 5181;
-const appWebScript = appWebMode === "direct" ? "dev:app-web:direct" : "dev:app-web";
+const appWebPort = 5181;
+const appWebScript = "dev:app-web";
 const platformApiBase = "http://127.0.0.1:5001";
 const appApiBase = "http://127.0.0.1:5002";
 const platformDatabasePath = "Data Source=atlas.app.e2e.db";
@@ -64,16 +63,6 @@ const services = [
     }
   },
   {
-    name: "PlatformWeb",
-    command: isWindows ? "cmd.exe" : "pnpm",
-    args: isWindows ? ["/d", "/s", "/c", "pnpm run dev:platform-web"] : ["run", "dev:platform-web"],
-    cwd: frontendRoot,
-    url: "http://127.0.0.1:5180",
-    env: {
-      PLAYWRIGHT_E2E: "1"
-    }
-  },
-  {
     name: "AppWeb",
     command: isWindows ? "cmd.exe" : "pnpm",
     args: isWindows ? ["/d", "/s", "/c", `pnpm run ${appWebScript}`] : ["run", appWebScript],
@@ -81,15 +70,13 @@ const services = [
     url: `http://127.0.0.1:${appWebPort}`,
     env: {
       PLAYWRIGHT_E2E: "1",
-      PLAYWRIGHT_APP_WEB_MODE: appWebMode,
       PLAYWRIGHT_APP_WEB_PORT: String(appWebPort)
     }
   }
 ];
 const platformHostService = services[0];
 const appHostService = services[1];
-const platformWebService = services[2];
-const appWebService = services[3];
+const appWebService = services[2];
 
 function log(message) {
   process.stdout.write(`[run-app-e2e] ${message}\n`);
@@ -378,9 +365,7 @@ async function startServices() {
   await ensureAppSetupState();
   await restartService(appHostService);
 
-  spawnService(platformWebService);
   spawnService(appWebService);
-  await waitForUrl(platformWebService.url, 180_000, platformWebService.name);
   await waitForUrl(appWebService.url, 180_000, appWebService.name);
 }
 
@@ -396,7 +381,6 @@ async function runPlaywright() {
         env: {
           ...process.env,
           PLAYWRIGHT_MANAGED_WEBSERVERS: "0",
-          PLAYWRIGHT_APP_WEB_MODE: appWebMode,
           PLAYWRIGHT_APP_WEB_PORT: String(appWebPort)
         },
         stdio: "inherit"
@@ -413,7 +397,7 @@ async function runPlaywright() {
 }
 
 async function main() {
-  log(`应用前端模式: ${appWebMode} (http://127.0.0.1:${appWebPort})`);
+  log(`应用前端入口: http://127.0.0.1:${appWebPort}`);
   ensureBuildDirectories();
 
   await runCommand(

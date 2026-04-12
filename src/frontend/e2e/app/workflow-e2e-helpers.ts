@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { appSignPath } from "@atlas/app-shell-shared";
 import { ensureAppSetup, loginApp, navigateBySidebar } from "./helpers";
 
 export interface WorkflowSessionContext {
@@ -80,7 +81,7 @@ async function ensureWorkflowListReady(
   ensureLoggedInSession?: (appKey: string) => Promise<void>
 ): Promise<void> {
   const workflowsRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`);
-  const loginRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/login(?:\\?.*)?$`);
+  const loginRegex = new RegExp(`${appSignPath(appKey).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`);
   const createButton = page.getByTestId("app-workflows-create");
 
   for (let attempt = 0; attempt < 3; attempt += 1) {

@@ -4,14 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --mode platform",
-    "dev:platform": "vite --host 0.0.0.0 --mode platform",
-    "dev:direct": "vite --host 0.0.0.0 --mode direct",
+    "dev": "vite --host 0.0.0.0",
+    "dev:platform": "vite --host 0.0.0.0",
+    "dev:direct": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,tsx}\""
   },
   "dependencies": {
+    "@atlas/app-shell-shared": "workspace:*",
     "@atlas/coze-shell-react": "workspace:*",
     "@atlas/library-module-react": "workspace:*",
     "@atlas/module-admin-react": "workspace:*",
@@ -20,13 +21,19 @@
     "@atlas/module-workflow-react": "workspace:*",
     "@atlas/shared-biz": "workspace:*",
     "@atlas/shared-core": "workspace:*",
-    "@atlas/workflow-editor-react": "workspace:*",
+    "@atlas/workflow-core-react": "workspace:*",
+    "@remix-run/router": "^1.23.2",
     "@douyinfe/semi-icons": "^2.82.0",
     "@douyinfe/semi-illustrations": "^2.82.0",
     "@douyinfe/semi-ui": "^2.82.0",
+    "classnames": "^2.5.1",
+    "loose-envify": "^1.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router": "^6.30.1",
     "react-router-dom": "^6.30.1"
+    ,
+    "scheduler": "^0.23.2"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

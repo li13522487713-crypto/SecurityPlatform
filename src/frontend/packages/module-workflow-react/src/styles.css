@@ -5,17 +5,40 @@
   min-height: 640px;
 }
 
-.module-workflow__header {
+.module-workflow__hero,
+.module-workflow__toolbar,
+.module-workflow__item-head,
+.module-workflow__item-actions,
+.module-workflow__filter-group,
+.module-workflow__editor-banner {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
+.module-workflow__hero {
+  padding: 24px 28px;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.18), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 255, 0.96));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 54px rgba(15, 23, 42, 0.08);
+}
+
+.module-workflow__toolbar {
+  align-items: center;
+}
+
+.module-workflow__toolbar .semi-input-wrapper {
+  max-width: 360px;
+}
+
 .module-workflow__surface {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   border-radius: 24px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.96);
@@ -23,18 +46,232 @@
   padding: 18px;
 }
 
-.module-workflow__item {
+.module-workflow__list {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border-radius: 18px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.module-workflow__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  border-radius: 20px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(248, 250, 252, 0.96);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
   padding: 18px;
 }
 
-.module-workflow__item p {
+.module-workflow__item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.module-workflow__item-head p,
+.module-workflow__template p {
   margin: 6px 0 0;
   color: rgba(15, 23, 42, 0.58);
+}
+
+.module-workflow__item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: rgba(15, 23, 42, 0.6);
+  font-size: 12px;
+}
+
+.module-workflow__item-actions {
+  align-items: center;
+}
+
+.module-workflow__create-modal,
+.module-workflow__create-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.module-workflow__create-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.module-workflow__template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.module-workflow__template {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.82);
+  cursor: pointer;
+  text-align: left;
+}
+
+.module-workflow__template:hover,
+.module-workflow__template.is-active {
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(238, 243, 255, 0.9);
+  box-shadow: 0 16px 34px rgba(59, 130, 246, 0.12);
+}
+
+.module-workflow__template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.module-workflow__editor-page {
+  min-height: calc(100vh - 180px);
+}
+
+.module-workflow__shell {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.module-workflow__editor-banner {
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.module-workflow__editor-loading {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.module-workflow__editor-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module-workflow__editor-summary article,
+.module-workflow__panel,
+.module-workflow__node-card,
+.module-workflow__version-item,
+.module-workflow__execution-card {
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+}
+
+.module-workflow__editor-summary article {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+}
+
+.module-workflow__editor-summary span,
+.module-workflow__node-card span,
+.module-workflow__version-item span,
+.module-workflow__execution-card span {
+  color: rgba(15, 23, 42, 0.62);
+}
+
+.module-workflow__editor-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.4fr) minmax(280px, 1fr);
+  gap: 16px;
+}
+
+.module-workflow__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.module-workflow__panel-wide {
+  min-width: 0;
+}
+
+.module-workflow__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.module-workflow__node-list,
+.module-workflow__version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.module-workflow__node-card,
+.module-workflow__version-item,
+.module-workflow__execution-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+}
+
+.module-workflow__node-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.module-workflow__json-editor {
+  width: 100%;
+  min-height: 420px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 18px;
+  padding: 16px;
+  resize: vertical;
+  font: 13px/1.6 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  color: #0f172a;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+.module-workflow__json-editor--compact {
+  min-height: 180px;
+}
+
+@media (max-width: 960px) {
+  .module-workflow__hero,
+  .module-workflow__toolbar,
+  .module-workflow__item,
+  .module-workflow__item-head,
+  .module-workflow__item-actions,
+  .module-workflow__editor-banner {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .module-workflow__toolbar .semi-input-wrapper {
+    max-width: none;
+  }
+
+  .module-workflow__editor-summary,
+  .module-workflow__editor-grid {
+    grid-template-columns: 1fr;
+  }
 }

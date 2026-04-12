@@ -1,10 +1,9 @@
 import path from "node:path";
 import { expect, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
+import { appSignPath, workspaceDevelopPath } from "@atlas/app-shell-shared";
 
 export const platformBaseUrl = "http://127.0.0.1:5180";
-const appWebPort =
-  process.env.PLAYWRIGHT_APP_WEB_PORT ??
-  (process.env.PLAYWRIGHT_APP_WEB_MODE === "direct" ? "5182" : "5181");
+const appWebPort = process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181";
 export const appBaseUrl = `http://127.0.0.1:${appWebPort}`;
 export const platformApiBase = "http://127.0.0.1:5001";
 export const appApiBase = "http://127.0.0.1:5002";
@@ -227,7 +226,6 @@ async function clearStorageForOrigin(page: Page, url: string) {
 
 export async function clearAuthStorage(page: Page) {
   await page.context().clearCookies();
-  await clearStorageForOrigin(page, platformBaseUrl);
   await clearStorageForOrigin(page, appBaseUrl);
 }
 
@@ -346,7 +344,7 @@ export async function loginApp(
   options?: { expectSuccess?: boolean }
 ) {
   const expectSuccess = options?.expectSuccess ?? true;
-  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/login`);
+  await page.goto(`${appBaseUrl}${appSignPath(appKey)}`);
   await page.getByTestId("app-login-tenant").fill(defaultTenantId);
   await page.getByTestId("app-login-username").fill(defaultUsername);
   await page.getByTestId("app-login-password").fill(password);
@@ -361,7 +359,7 @@ export async function loginApp(
 }
 
 export async function ensureAppWorkspace(page: Page, appKey: string) {
-  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`), { timeout: 45_000 });
+  await page.waitForURL(new RegExp(`${workspaceDevelopPath(appKey).replace("atlas-space", "[^/]+")}(?:\\?.*)?$`), { timeout: 45_000 });
   await expect(page.getByTestId("app-develop-page")).toBeVisible();
 }
 

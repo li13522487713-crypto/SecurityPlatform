@@ -476,6 +476,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         dirty={store.isDirty}
         savedAt={store.lastSavedAt}
         readOnly={isReadOnly || store.saving}
+        mode={props.mode}
         onNameChange={(value) => {
           if (isReadOnly) {
             return;
@@ -890,7 +891,10 @@ function buildEditorUrlByWorkflowId(workflowId: string): string {
     return `/workflows/${encodeURIComponent(workflowId)}/editor`;
   }
   const pathname = window.location.pathname;
-  const nextPathname = pathname.replace(/\/workflows\/[^/]+\/editor$/, `/workflows/${encodeURIComponent(workflowId)}/editor`);
+  const nextPathname = pathname
+    .replace(/\/workflows\/[^/]+\/editor$/, `/workflows/${encodeURIComponent(workflowId)}/editor`)
+    .replace(/\/work_flow\/[^/]+\/editor$/, `/work_flow/${encodeURIComponent(workflowId)}/editor`)
+    .replace(/\/chat_flow\/[^/]+\/editor$/, `/chat_flow/${encodeURIComponent(workflowId)}/editor`);
   return `${window.location.origin}${nextPathname}${window.location.search}`;
 }
 

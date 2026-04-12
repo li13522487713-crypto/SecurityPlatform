@@ -1,4 +1,5 @@
 import path from "node:path";
+import { appSignPath, workspaceDevelopPath } from "@atlas/app-shell-shared";
 import { expect, test, type APIRequestContext, type Page } from "../fixtures/single-session";
 
 const defaultTenantId = "00000000-0000-0000-0000-000000000001";
@@ -374,19 +375,19 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, appBaseUrl, "zh-CN");
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
+    await page.goto(`${appBaseUrl}${appSignPath(resolvedAppKey)}`);
     await fillAppLoginForm(page, defaultPassword);
     await page.getByTestId("app-login-submit").click();
 
-    await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`), { timeout: 45_000 });
+    await page.waitForURL(new RegExp(`${workspaceDevelopPath(resolvedAppKey).replace("atlas-space", "[^/]+")}$`), { timeout: 45_000 });
     await expect(page.getByTestId("app-sidebar")).toBeVisible();
     await expect(page.getByTestId("app-header-user-menu")).toBeVisible();
-    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
+    await expect(page.getByTestId("app-develop-page")).toBeVisible();
 
     await page.reload();
-    await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`), { timeout: 45_000 });
+    await page.waitForURL(new RegExp(`${workspaceDevelopPath(resolvedAppKey).replace("atlas-space", "[^/]+")}$`), { timeout: 45_000 });
     await expect(page.getByTestId("app-sidebar")).toBeVisible();
-    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
+    await expect(page.getByTestId("app-develop-page")).toBeVisible();
 
     const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
     const payload = await state.json();
@@ -399,11 +400,11 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, appBaseUrl, "zh-CN");
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
+    await page.goto(`${appBaseUrl}${appSignPath(resolvedAppKey)}`);
     await fillAppLoginForm(page, "WrongPassword#123");
     await page.getByTestId("app-login-submit").click();
 
-    await expect(page).toHaveURL(new RegExp(`/apps/${resolvedAppKey}/login`));
+    await expect(page).toHaveURL(new RegExp(appSignPath(resolvedAppKey)));
     await expect(page.locator(".login-error")).toBeVisible();
   });
 
@@ -411,8 +412,8 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     resolvedAppKey = await ensureAppSetup(request);
     await clearAuthStorage(page);
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/dashboard`);
-    await expect(page).toHaveURL(new RegExp(`/apps/${resolvedAppKey}/login`));
+    await page.goto(`${appBaseUrl}${workspaceDevelopPath(resolvedAppKey)}`);
+    await expect(page).toHaveURL(new RegExp(appSignPath(resolvedAppKey)));
 
     const state = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
     const payload = await state.json();
@@ -425,18 +426,16 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, appBaseUrl, "en-US");
 
-    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(resolvedAppKey)}/login`);
+    await page.goto(`${appBaseUrl}${appSignPath(resolvedAppKey)}`);
     await expect(page.getByTestId("app-login-submit")).toContainText("Login");
     await fillAppLoginForm(page, defaultPassword);
     await page.getByTestId("app-login-submit").click();
 
-    await page.waitForURL(new RegExp(`/apps/${resolvedAppKey}/dashboard$`));
-    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
-    await expect(page.getByTestId("app-dashboard-page")).toContainText("System running smoothly. All services healthy.");
+    await page.waitForURL(new RegExp(`${workspaceDevelopPath(resolvedAppKey).replace("atlas-space", "[^/]+")}$`));
+    await expect(page.getByTestId("app-develop-page")).toBeVisible();
+    await expect(page.getByTestId("app-develop-page")).not.toContainText("System running smoothly. All services healthy.");
 
     await page.reload();
-    await expect(page.getByTestId("app-dashboard-page")).toContainText("System running smoothly. All services healthy.");
+    await expect(page.getByTestId("app-develop-page")).toBeVisible();
   });
 });
-
-

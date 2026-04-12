@@ -1,6 +1,8 @@
 import type { PagedResult } from "@atlas/shared-core/types";
 
 export type StudioLocale = "zh-CN" | "en-US";
+export type DevelopFocus = "overview" | "agents" | "workflow" | "chatflow" | "models" | "chat";
+export type DevelopResourceKind = "agent" | "workflow" | "chatflow" | "model";
 
 export interface AgentListItem {
   id: string;
@@ -58,6 +60,16 @@ export interface ModelConfigItem {
   isEnabled: boolean;
   supportsEmbedding: boolean;
   createdAt: string;
+}
+
+export interface DevelopResourceSummary {
+  id: string;
+  kind: DevelopResourceKind;
+  title: string;
+  description?: string;
+  status?: string;
+  updatedAt?: string;
+  meta?: string;
 }
 
 export interface StudioModuleApi {

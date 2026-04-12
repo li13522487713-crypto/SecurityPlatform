@@ -5,7 +5,8 @@ import {
   type Locator,
   type Page
 } from "@playwright/test";
-import { appBaseUrl, loginApp, platformBaseUrl } from "../app/helpers";
+import { appSignPath } from "@atlas/app-shell-shared";
+import { appBaseUrl, loginApp } from "../app/helpers";
 
 type SessionFixtures = {
   _sharedContext: BrowserContext;
@@ -581,7 +582,6 @@ async function clearStorageForOrigin(page: Page, url: string) {
 
 async function clearAuthState(page: Page) {
   await page.context().clearCookies();
-  await clearStorageForOrigin(page, platformBaseUrl);
   await clearStorageForOrigin(page, appBaseUrl);
   activeAppSessionKey = null;
 }
@@ -589,7 +589,7 @@ async function clearAuthState(page: Page) {
 async function isWorkspaceSessionReady(page: Page, appKey: string): Promise<boolean> {
   await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
 
-  const loginRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/login(?:\\?.*)?$`);
+  const loginRegex = new RegExp(`${appSignPath(appKey).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`);
   if (loginRegex.test(page.url())) {
     return false;
   }

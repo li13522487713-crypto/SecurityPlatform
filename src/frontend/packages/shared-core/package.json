@@ -29,7 +29,11 @@
   },
   "dependencies": {
     "@atlas/ai-core": "workspace:*",
-    "@atlas/shared-kernel": "workspace:*"
+    "@atlas/shared-kernel": "workspace:*",
+    "ant-design-vue": "^4.2.6",
+    "vue": "^3.5.17",
+    "vue-i18n": "^9.14.5",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "ant-design-vue": "4.2.6",
