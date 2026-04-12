@@ -52,8 +52,6 @@ test.describe.serial("App Roles CRUD", () => {
     const editedRow = page.getByTestId("app-roles-table").locator("tr", { hasText: updatedRoleName }).first();
     await expect(editedRow).toBeVisible();
     await editedRow.locator('[data-testid^="app-roles-delete-"]').first().click();
-    await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
-
     await expect(page.getByTestId("app-roles-table")).not.toContainText(updatedRoleName);
     await captureEvidenceScreenshot(page, testInfo, "roles-deleted");
   });

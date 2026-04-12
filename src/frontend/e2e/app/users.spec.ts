@@ -55,7 +55,6 @@ test.describe.serial("App Users CRUD", () => {
     const latestRow = page.getByTestId("app-users-table").locator("tr", { hasText: username }).first();
     const removeButton = latestRow.locator('[data-testid^="app-users-remove-"]').first();
     await removeButton.click();
-    await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
 
     await expect(page.getByTestId("app-users-table")).not.toContainText(username);
     await captureEvidenceScreenshot(page, testInfo, "users-deleted");

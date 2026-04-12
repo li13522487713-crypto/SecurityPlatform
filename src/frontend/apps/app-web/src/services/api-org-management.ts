@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core";
 import type {
   AppOrganizationWorkspaceResponse,
   TenantAppMemberListItem,

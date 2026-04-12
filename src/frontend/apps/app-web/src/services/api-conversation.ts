@@ -1,10 +1,10 @@
 import { requestApi, toQuery, resolveAppHostPrefix } from "@/services/api-core";
-import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core/types";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import {
   getAccessToken,
   getAntiforgeryToken,
   getTenantId
-} from "@atlas/shared-core/utils";
+} from "@atlas/shared-react-core/utils";
 
 export type SnowflakeId = string;
 

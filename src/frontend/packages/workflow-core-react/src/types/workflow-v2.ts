@@ -103,16 +103,27 @@ export const WORKFLOW_NODE_TYPE_VALUES: Record<WorkflowNodeTypeKey, number> = {
 
 const NODE_ALIAS_MAP: Record<string, WorkflowNodeTypeKey> = {
   Start: "Entry",
+  start: "Entry",
   End: "Exit",
+  end: "Exit",
   LLM: "Llm",
+  llm: "Llm",
   If: "Selector",
+  if: "Selector",
   Api: "Plugin",
+  api: "Plugin",
   Code: "CodeRunner",
+  code: "CodeRunner",
   Http: "HttpRequester",
+  http: "HttpRequester",
   ToJSON: "JsonSerialization",
+  tojson: "JsonSerialization",
   FromJSON: "JsonDeserialization",
+  fromjson: "JsonDeserialization",
   ENTRY: "Entry",
-  EXIT: "Exit"
+  entry: "Entry",
+  EXIT: "Exit",
+  exit: "Exit"
 };
 
 const NODE_VALUE_TO_KEY = Object.entries(WORKFLOW_NODE_TYPE_VALUES).reduce<Record<number, WorkflowNodeTypeKey>>(
@@ -124,18 +135,26 @@ const NODE_VALUE_TO_KEY = Object.entries(WORKFLOW_NODE_TYPE_VALUES).reduce<Recor
 );
 
 export function normalizeNodeTypeKey(value: string): WorkflowNodeTypeKey {
-  const numericValue = Number(value);
+  const trimmed = value.trim();
+  const numericValue = Number(trimmed);
   if (!Number.isNaN(numericValue) && Number.isFinite(numericValue)) {
     return workflowNodeValueToKey(numericValue);
   }
 
-  if (value in WORKFLOW_NODE_TYPE_VALUES) {
-    return value as WorkflowNodeTypeKey;
+  if (trimmed in WORKFLOW_NODE_TYPE_VALUES) {
+    return trimmed as WorkflowNodeTypeKey;
   }
 
-  const alias = NODE_ALIAS_MAP[value];
+  const alias = NODE_ALIAS_MAP[trimmed] ?? NODE_ALIAS_MAP[trimmed.toLowerCase()];
   if (alias) {
     return alias;
+  }
+
+  const canonicalMatch = (Object.keys(WORKFLOW_NODE_TYPE_VALUES) as WorkflowNodeTypeKey[]).find(
+    (key) => key.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (canonicalMatch) {
+    return canonicalMatch;
   }
 
   return "TextProcessor";

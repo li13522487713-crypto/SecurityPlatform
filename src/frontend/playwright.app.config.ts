@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const useManagedWebServers = process.env.PLAYWRIGHT_MANAGED_WEBSERVERS !== "0";
 const appWebPort = 5181;
 const appWebDevCommand = "pnpm run dev:app-web";
+const retainArtifacts = process.env.PLAYWRIGHT_DEBUG_ARTIFACTS === "1";
 
 export default defineConfig({
   testDir: "./e2e/app",
@@ -20,9 +21,9 @@ export default defineConfig({
   },
   use: {
     baseURL: `http://127.0.0.1:${appWebPort}`,
-    trace: "retain-on-failure",
+    trace: retainArtifacts ? "retain-on-failure" : "off",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video: retainArtifacts ? "retain-on-failure" : "off",
     actionTimeout: 15_000,
     navigationTimeout: 30_000
   },

@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedResult } from "@atlas/shared-core";
+import type { ApiResponse, PagedResult } from "@atlas/shared-react-core";
 import { requestApi } from "./api-core";
 
 export interface UserNotificationItem {

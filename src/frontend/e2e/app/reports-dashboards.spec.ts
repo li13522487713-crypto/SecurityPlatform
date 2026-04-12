@@ -54,14 +54,14 @@ test.describe.serial("App Reports And Dashboards CRUD", () => {
 
     const editedReportRow = page.getByTestId("app-reports-table").locator("tr", { hasText: editedReportName }).first();
     await expect(editedReportRow).toBeVisible();
-    await editedReportRow.locator('[data-testid^="app-reports-delete-"]').first().click();
-    const deleteReportResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "DELETE" &&
-        /\/api\/v1\/reports\/[^/]+$/.test(response.url())
-    );
-    await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
-    const deleteReportResponse = await deleteReportResponsePromise;
+    const [deleteReportResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "DELETE" &&
+          /\/api\/v1\/reports\/[^/]+$/.test(response.url())
+      ),
+      editedReportRow.locator('[data-testid^="app-reports-delete-"]').first().click()
+    ]);
     expect(deleteReportResponse.ok()).toBeTruthy();
     await expect(page.getByTestId("app-reports-table")).not.toContainText(reportName);
     await captureEvidenceScreenshot(page, testInfo, "reports-deleted");
@@ -99,14 +99,14 @@ test.describe.serial("App Reports And Dashboards CRUD", () => {
 
     const editedDashboardRow = page.getByTestId("app-dashboards-table").locator("tr", { hasText: editedDashboardName }).first();
     await expect(editedDashboardRow).toBeVisible();
-    await editedDashboardRow.locator('[data-testid^="app-dashboards-delete-"]').first().click();
-    const deleteDashboardResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "DELETE" &&
-        /\/api\/v1\/dashboards\/[^/]+$/.test(response.url())
-    );
-    await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
-    const deleteDashboardResponse = await deleteDashboardResponsePromise;
+    const [deleteDashboardResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "DELETE" &&
+          /\/api\/v1\/dashboards\/[^/]+$/.test(response.url())
+      ),
+      editedDashboardRow.locator('[data-testid^="app-dashboards-delete-"]').first().click()
+    ]);
     expect(deleteDashboardResponse.ok()).toBeTruthy();
     await expect(page.getByTestId("app-dashboards-table")).not.toContainText(dashboardName);
     await captureEvidenceScreenshot(page, testInfo, "dashboards-deleted");

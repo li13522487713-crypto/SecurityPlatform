@@ -1,4 +1,4 @@
-import type { PagedResult } from "@atlas/shared-core";
+import type { PagedResult } from "@atlas/shared-react-core";
 
 export interface TenantAppMemberListItem {
   userId: string;

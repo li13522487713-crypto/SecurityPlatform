@@ -1,4 +1,4 @@
-import type { PagedRequest, PagedResult } from "@atlas/shared-core/types";
+import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 
 export type SupportedLocale = "zh-CN" | "en-US";
 export type ResourceType = "agent" | "knowledge-base" | "workflow" | "app" | "prompt";
@@ -139,6 +139,7 @@ export interface LibraryPageProps {
   api: LibraryKnowledgeApi;
   locale: SupportedLocale;
   appKey: string;
+  spaceId: string;
   onNavigate: (path: string) => void;
 }
 
@@ -146,6 +147,7 @@ export interface KnowledgeDetailPageProps {
   api: LibraryKnowledgeApi;
   locale: SupportedLocale;
   appKey: string;
+  spaceId: string;
   knowledgeBaseId: number;
   onNavigate: (path: string) => void;
 }
@@ -154,6 +156,7 @@ export interface KnowledgeUploadPageProps {
   api: LibraryKnowledgeApi;
   locale: SupportedLocale;
   appKey: string;
+  spaceId: string;
   knowledgeBaseId: number;
   initialType?: string | null;
   onNavigate: (path: string) => void;

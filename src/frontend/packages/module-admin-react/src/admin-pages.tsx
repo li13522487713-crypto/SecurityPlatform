@@ -24,7 +24,7 @@ import type {
   UserCreateRequest,
   UserListItem,
   UserUpdateRequest
-} from "@atlas/shared-core/types";
+} from "@atlas/shared-react-core/types";
 
 interface CopyMap {
   searchPlaceholder: string;
@@ -742,9 +742,9 @@ export function DashboardsAdminPage({ api }: AdminPageCommonProps) {
 
   const submit = async () => {
     if (editingId) {
-      await api.updateDashboard(editingId, { name: name.trim(), layoutJson: "{}", isDefault: false, isLargeScreen: false });
+      await api.updateDashboard(editingId, { name: name.trim(), layoutJson: "{}", isLargeScreen: false });
     } else {
-      await api.createDashboard({ name: name.trim(), layoutJson: "{}", isDefault: false, isLargeScreen: false });
+      await api.createDashboard({ name: name.trim(), layoutJson: "{}", isLargeScreen: false });
     }
     setOpen(false);
     setEditingId(null);

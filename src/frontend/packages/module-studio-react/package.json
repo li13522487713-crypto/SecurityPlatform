@@ -18,7 +18,7 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
-    "@atlas/shared-core": "workspace:*",
+    "@atlas/shared-react-core": "workspace:*",
     "@douyinfe/semi-icons": "^2.82.0",
     "@douyinfe/semi-ui": "^2.82.0"
   },

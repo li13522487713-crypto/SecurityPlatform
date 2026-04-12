@@ -47,7 +47,6 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     const createdDeptRow = page.getByTestId("app-departments-table").locator("tr", { hasText: deptName }).first();
     await expect(createdDeptRow).toBeVisible();
     await createdDeptRow.locator('[data-testid^="app-departments-delete-"]').first().click();
-    await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
     await expect(page.getByTestId("app-departments-table")).not.toContainText(deptName);
     await captureEvidenceScreenshot(page, testInfo, "departments-deleted");
   });
@@ -72,7 +71,6 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     const positionRow = page.getByTestId("app-positions-table").locator("tr", { hasText: positionName }).first();
     await expect(positionRow).toBeVisible();
     await positionRow.locator('[data-testid^="app-positions-delete-"]').first().click();
-    await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
     await expect(page.getByTestId("app-positions-table")).not.toContainText(positionName);
     await captureEvidenceScreenshot(page, testInfo, "positions-deleted");
   });

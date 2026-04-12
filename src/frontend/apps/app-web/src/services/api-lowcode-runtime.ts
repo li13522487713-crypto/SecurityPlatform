@@ -1,7 +1,7 @@
 /**
  * Low-code runtime API for fetching runtime schema and app metadata through AppHost.
  */
-import type { ApiResponse } from "@atlas/shared-core/types";
+import type { ApiResponse } from "@atlas/shared-react-core/types";
 import type { LowCodeAppDetail, LowCodePageRuntimeSchema } from "@/types/lowcode-runtime";
 import { requestApi } from "./api-core";
 

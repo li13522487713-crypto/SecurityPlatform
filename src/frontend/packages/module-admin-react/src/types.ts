@@ -20,7 +20,7 @@ import type {
   UserProfileDetail,
   UserProfileUpdateRequest,
   UserUpdateRequest
-} from "@atlas/shared-core/types";
+} from "@atlas/shared-react-core/types";
 
 export type AdminLocale = "zh-CN" | "en-US";
 
@@ -63,7 +63,7 @@ export interface DashboardItem {
   id: string;
   name: string;
   description?: string | null;
-  isDefault: boolean;
+  isDefault?: boolean;
   createdAt: string;
 }
 
@@ -118,7 +118,6 @@ export interface SaveDashboardRequest {
   description?: string;
   category?: string;
   layoutJson: string;
-  isDefault: boolean;
   isLargeScreen: boolean;
   canvasWidth?: number;
   canvasHeight?: number;

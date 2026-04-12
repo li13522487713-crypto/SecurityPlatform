@@ -44,6 +44,7 @@ export function KnowledgeDetailPage({
   api,
   locale,
   appKey,
+  spaceId,
   knowledgeBaseId,
   onNavigate
 }: KnowledgeDetailPageProps) {
@@ -343,10 +344,10 @@ export function KnowledgeDetailPage({
   }
 
   return (
-    <div className="atlas-library-page">
+    <div className="atlas-library-page" data-testid="app-knowledge-detail-page">
       <div className="atlas-page-header">
         <Space spacing={8}>
-          <Button icon={<IconArrowLeft />} onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/library?type=knowledge-base&biz=library`)}>
+          <Button icon={<IconArrowLeft />} onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/library?type=knowledge-base&biz=library`)}>
             {copy.backToLibrary}
           </Button>
           <div>
@@ -361,7 +362,7 @@ export function KnowledgeDetailPage({
         <Button
           type="primary"
           icon={<IconUpload />}
-          onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/knowledge/${knowledgeBaseId}/upload?type=${mapKnowledgeType(knowledge?.type ?? 0)}&biz=library`)}
+          onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${knowledgeBaseId}/upload?type=${mapKnowledgeType(knowledge?.type ?? 0)}&biz=library`)}
         >
           {copy.upload}
         </Button>

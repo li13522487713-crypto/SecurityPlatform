@@ -5,7 +5,7 @@ export type {
   JsonValue,
   PagedRequest,
   PagedResult
-} from "@atlas/shared-core";
+} from "@atlas/shared-react-core";
 
 export interface RuntimeMenuItem {
   pageKey: string;

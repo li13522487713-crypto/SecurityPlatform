@@ -9,7 +9,7 @@ test.describe.serial("Workflow Collaboration E2E", () => {
     const secondTab = await context.newPage();
     await loginApp(secondTab, appKey);
     await openWorkflowEditor(secondTab, appKey, workflowId);
-    await expect(secondTab.locator(".wf-react-canvas-shell")).toBeVisible();
+    await expect(secondTab.getByTestId("app-workflow-editor-shell")).toBeVisible();
     await secondTab.close();
   });
 });

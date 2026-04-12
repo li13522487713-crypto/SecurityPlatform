@@ -9,7 +9,7 @@ import type {
   TableViewUpdateRequest,
   TableViewConfigUpdateRequest,
   TableViewApiFunctions
-} from "@atlas/shared-core";
+} from "@atlas/shared-react-core";
 import { requestApi, toQuery } from "./api-core";
 
 export async function getTableViewsPaged(

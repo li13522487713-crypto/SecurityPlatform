@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core/types";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import { requestApi, toQuery } from "./api-core";
 import type { AiLibraryItem, ResourceType } from "@atlas/library-module-react";
 

@@ -531,15 +531,6 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
                 version = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
                 if (version is null)
                 {
-                    var draftFallback = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
-                    if (draftFallback is not null)
-                    {
-                        _logger.LogWarning(
-                            "工作流 {WorkflowId} 请求按 published 运行，但尚无已发布版本，自动回退到 draft。",
-                            workflowId);
-                        return new ResolvedWorkflowCanvas(draftFallback.CanvasJson, 0);
-                    }
-
                     throw new BusinessException("工作流尚未发布，无法按 published 方式运行。", ErrorCodes.ValidationError);
                 }
             }

@@ -27,11 +27,32 @@ interface WorkflowProcessSnapshot {
   }>;
 }
 
-function safeParseCanvas(canvasJson: string): CanvasSchema | null {
+function normalizeCanvasSchema(canvas: unknown): CanvasSchema {
+  if (!canvas || typeof canvas !== "object") {
+    return {
+      nodes: [],
+      connections: []
+    };
+  }
+
+  const record = canvas as Partial<CanvasSchema>;
+  return {
+    nodes: Array.isArray(record.nodes) ? record.nodes : [],
+    connections: Array.isArray(record.connections) ? record.connections : [],
+    schemaVersion: record.schemaVersion,
+    viewport: record.viewport,
+    globals: record.globals
+  };
+}
+
+function safeParseCanvas(canvasJson: string): CanvasSchema {
   try {
-    return JSON.parse(canvasJson) as CanvasSchema;
+    return normalizeCanvasSchema(JSON.parse(canvasJson));
   } catch {
-    return null;
+    return {
+      nodes: [],
+      connections: []
+    };
   }
 }
 
@@ -138,8 +159,8 @@ export function WorkflowEditorShell({
   }, [apiClient, workflowId]);
 
   const parsedCanvas = useMemo(() => safeParseCanvas(canvasJson), [canvasJson]);
-  const nodeCount = parsedCanvas?.nodes.length ?? 0;
-  const connectionCount = parsedCanvas?.connections.length ?? 0;
+  const nodeCount = parsedCanvas.nodes.length;
+  const connectionCount = parsedCanvas.connections.length;
   const title = mode === "chatflow" ? "Chatflow Editor" : "Workflow Editor";
 
   async function refreshExecution(executionId: string) {
@@ -255,15 +276,62 @@ export function WorkflowEditorShell({
           </Typography.Text>
         </div>
         <Space wrap>
-          <Button onClick={onBack}>返回列表</Button>
+          <Button onClick={onBack} data-testid="workflow.detail.title.back">返回列表</Button>
           <Button onClick={() => void handleValidate()}>校验</Button>
-          <Button loading={saving} onClick={() => void handleSave()} data-testid="app-workflow-editor-save">
+          <Button loading={saving} onClick={() => void handleSave()} data-testid="workflow.detail.title.save-draft">
             保存草稿
           </Button>
-          <Button theme="solid" type="primary" loading={publishing} onClick={() => void handlePublish()}>
+          <Button
+            theme="borderless"
+            onClick={() => Toast.info("当前 React 工作流壳层暂不提供复制接口。")}
+            data-testid="workflow.detail.title.duplicate"
+          >
+            复制
+          </Button>
+          <Button
+            theme="solid"
+            type="primary"
+            loading={publishing}
+            onClick={() => void handlePublish()}
+            data-testid="workflow-base-publish-button"
+          >
             发布
           </Button>
-          <Button theme="solid" type="secondary" loading={running} onClick={() => void handleRun()} data-testid="app-workflow-editor-run">
+          <Button
+            theme="borderless"
+            onClick={() => Toast.info("当前 React 工作流壳层暂不提供节点面板。")}
+            data-testid="workflow.detail.toolbar.add-node"
+          >
+            添加节点
+          </Button>
+          <Button
+            theme="borderless"
+            onClick={() => Toast.info("当前 React 工作流壳层暂不提供变量面板。")}
+            data-testid="workflow.detail.toolbar.variables"
+          >
+            变量
+          </Button>
+          <Button
+            theme="borderless"
+            onClick={() => Toast.info("当前 React 工作流壳层暂不提供 Trace 面板。")}
+            data-testid="workflow.detail.toolbar.trace"
+          >
+            Trace
+          </Button>
+          <Button
+            theme="borderless"
+            onClick={() => Toast.info("当前 React 工作流壳层暂不提供节点调试面板。")}
+            data-testid="workflow.detail.toolbar.debug"
+          >
+            调试
+          </Button>
+          <Button
+            theme="solid"
+            type="secondary"
+            loading={running}
+            onClick={() => void handleRun()}
+            data-testid="workflow.detail.toolbar.test-run"
+          >
             测试运行
           </Button>
         </Space>
@@ -299,15 +367,15 @@ export function WorkflowEditorShell({
               <Typography.Title heading={6}>基础信息</Typography.Title>
               <label className="module-workflow__field">
                 <span>名称</span>
-                <Input value={draftName} onChange={setDraftName} />
+                <Input value={draftName} onChange={setDraftName} data-testid="workflow.detail.meta.name" />
               </label>
               <label className="module-workflow__field">
                 <span>描述</span>
-                <Input value={draftDescription} onChange={setDraftDescription} />
+                <Input value={draftDescription} onChange={setDraftDescription} data-testid="workflow.detail.meta.description" />
               </label>
               <Typography.Title heading={6}>节点概览</Typography.Title>
               <div className="module-workflow__node-list">
-                {parsedCanvas?.nodes.map(node => (
+                {parsedCanvas.nodes.map(node => (
                   <div key={node.key} className="module-workflow__node-card">
                     <div className="module-workflow__node-card-head">
                       <strong>{node.title || node.key}</strong>
@@ -316,7 +384,7 @@ export function WorkflowEditorShell({
                     <span>{node.key}</span>
                   </div>
                 ))}
-                {!parsedCanvas?.nodes.length ? <Typography.Text type="tertiary">当前画布还没有节点。</Typography.Text> : null}
+                {parsedCanvas.nodes.length === 0 ? <Typography.Text type="tertiary">当前画布还没有节点。</Typography.Text> : null}
               </div>
             </section>
 
@@ -327,6 +395,7 @@ export function WorkflowEditorShell({
                 value={canvasJson}
                 onChange={event => setCanvasJson(event.target.value)}
                 spellCheck={false}
+                data-testid="workflow.detail.canvas-json"
               />
               {validationErrors.length > 0 ? (
                 <Banner
@@ -346,13 +415,14 @@ export function WorkflowEditorShell({
                 value={runInputs}
                 onChange={event => setRunInputs(event.target.value)}
                 spellCheck={false}
+                data-testid="workflow.detail.run-inputs"
               />
-              <div className="module-workflow__execution-card">
+              <div className="module-workflow__execution-card" data-testid="workflow.detail.node.testrun.result-panel">
                 <strong>最近一次执行</strong>
-                <span>状态：{resolveExecutionStatus(runProcess?.status)}</span>
-                <span>开始：{formatDateTime(runProcess?.startedAt)}</span>
-                <span>结束：{formatDateTime(runProcess?.completedAt)}</span>
-                <span>节点执行数：{runProcess?.nodeExecutions.length ?? 0}</span>
+                <span data-testid="workflow.detail.node.testrun.result-item">状态：{resolveExecutionStatus(runProcess?.status)}</span>
+                <span data-testid="workflow.detail.node.testrun.result-item">开始：{formatDateTime(runProcess?.startedAt)}</span>
+                <span data-testid="workflow.detail.node.testrun.result-item">结束：{formatDateTime(runProcess?.completedAt)}</span>
+                <span data-testid="workflow.detail.node.testrun.result-item">节点执行数：{runProcess?.nodeExecutions.length ?? 0}</span>
                 {runProcess?.errorMessage ? <Tag color="red">{runProcess.errorMessage}</Tag> : null}
               </div>
               <Typography.Title heading={6}>版本</Typography.Title>

@@ -25,6 +25,7 @@ export function KnowledgeUploadPage({
   api,
   locale,
   appKey,
+  spaceId,
   knowledgeBaseId,
   initialType,
   onNavigate
@@ -130,10 +131,10 @@ export function KnowledgeUploadPage({
   }
 
   return (
-    <div className="atlas-library-page">
+    <div className="atlas-library-page" data-testid="app-knowledge-upload-page">
       <div className="atlas-page-header">
         <Space spacing={8}>
-          <Button icon={<IconArrowLeft />} onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/knowledge/${knowledgeBaseId}?biz=library`)}>
+          <Button icon={<IconArrowLeft />} onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${knowledgeBaseId}?biz=library`)}>
             {copy.backToLibrary}
           </Button>
           <div>

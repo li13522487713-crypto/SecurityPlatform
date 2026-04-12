@@ -40,7 +40,7 @@ const DEFAULT_CREATE_FORM: CreateFormState = {
   type: 0
 };
 
-export function LibraryPage({ api, locale, appKey, onNavigate }: LibraryPageProps) {
+export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: LibraryPageProps) {
   const copy = getLibraryCopy(locale);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ResourceType | "all">("all");
@@ -189,11 +189,11 @@ export function LibraryPage({ api, locale, appKey, onNavigate }: LibraryPageProp
           onClick={event => {
             event.stopPropagation();
             if (isKnowledgeType(record.resourceType)) {
-              onNavigate(`/apps/${encodeURIComponent(appKey)}/knowledge/${record.resourceId}?biz=library`);
+              onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${record.resourceId}?biz=library`);
               return;
             }
 
-            onNavigate(normalizeResourcePath(record.path, appKey));
+            onNavigate(normalizeResourcePath(record.path, appKey, spaceId));
           }}
         >
           {copy.open}
@@ -218,7 +218,7 @@ export function LibraryPage({ api, locale, appKey, onNavigate }: LibraryPageProp
       setCreateVisible(false);
       setForm(DEFAULT_CREATE_FORM);
       Toast.success(copy.createKnowledge);
-      onNavigate(`/apps/${encodeURIComponent(appKey)}/knowledge/${id}?biz=library`);
+      onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${id}?biz=library`);
     } catch (error) {
       Toast.error((error as Error).message);
     } finally {
@@ -227,7 +227,7 @@ export function LibraryPage({ api, locale, appKey, onNavigate }: LibraryPageProp
   }
 
   return (
-    <div className="atlas-library-page">
+    <div className="atlas-library-page" data-testid="app-library-page">
       <div className="atlas-page-header">
         <div>
           <Typography.Title heading={3} style={{ margin: 0 }}>
@@ -335,11 +335,11 @@ export function LibraryPage({ api, locale, appKey, onNavigate }: LibraryPageProp
                 }
 
                 if (record.resourceType === "knowledge-base") {
-                  onNavigate(`/apps/${encodeURIComponent(appKey)}/knowledge/${record.resourceId}?biz=library`);
+                  onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${record.resourceId}?biz=library`);
                   return;
                 }
 
-                onNavigate(normalizeResourcePath(record.path, appKey));
+                onNavigate(normalizeResourcePath(record.path, appKey, spaceId));
               }
             })}
           />

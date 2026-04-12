@@ -186,6 +186,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsureAssetSchemaAsync(db, cancellationToken);
         await EnsureDynamicTableSchemaAsync(db, cancellationToken);
         await EnsureDynamicFieldSchemaAsync(db, cancellationToken);
+        await EnsureDashboardDefinitionSchemaAsync(db, cancellationToken);
 
         // Schema 迁移检查（兼容历史版本字段结构）
         report.MigrationsApplied = !effectiveInitializer.SkipSchemaMigrations;
@@ -2067,6 +2068,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await RebuildTableViaOrmAsync<DynamicField>(db, cancellationToken);
     }
 
+    private static async Task EnsureDashboardDefinitionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var tableName = db.EntityMaintenance.GetTableName<DashboardDefinition>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<DashboardDefinition>(db, "CanvasWidth", "CanvasHeight"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<DashboardDefinition>(db, cancellationToken);
+    }
+
     private static async Task EnsureAuthSessionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AuthSession", false))
@@ -2935,6 +2952,5 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         bool IsSystem,
         int SortOrder);
 }
-
 
 

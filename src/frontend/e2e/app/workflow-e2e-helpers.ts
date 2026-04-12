@@ -1,6 +1,6 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { appSignPath } from "@atlas/app-shell-shared";
-import { ensureAppSetup, loginApp, navigateBySidebar } from "./helpers";
+import { clickCrudSubmit, ensureAppSetup, loginApp, navigateBySidebar } from "./helpers";
 
 export interface WorkflowSessionContext {
   appKey: string;
@@ -11,8 +11,8 @@ interface CreateWorkflowSessionOptions {
   reuseExisting?: boolean;
 }
 
-const workflowCanvasSelector = ".wf-react-canvas-shell";
-const workflowNodeSelector = ".gedit-flow-activity-node, .wf-react-node";
+const workflowCanvasSelector = '[data-testid="app-workflow-editor-shell"], [data-testid="app-chatflow-editor-shell"]';
+const workflowNodeSelector = ".module-workflow__node-card";
 const workflowEdgeSelector = ".wf-react-edge-path";
 let cachedWorkflowSession: WorkflowSessionContext | null = null;
 
@@ -113,7 +113,7 @@ async function ensureWorkflowListReady(
 
 export async function expectWorkflowEditorReady(page: Page): Promise<void> {
   await expect(page.locator(workflowCanvasSelector)).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator(workflowNodeSelector).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("workflow.detail.title.save-draft")).toBeVisible({ timeout: 15_000 });
 }
 
 export function workflowNodeLocator(page: Page) {
@@ -132,25 +132,10 @@ export async function clickWorkflowTestRun(
   page: Page,
   inputJson = "{\"input\":\"hello\"}"
 ): Promise<void> {
+  await page.getByTestId("workflow.detail.run-inputs").fill(inputJson);
   await page.getByTestId("workflow.detail.toolbar.test-run").click();
   const panel = page.getByTestId("workflow.detail.node.testrun.result-panel");
   await expect(panel).toBeVisible({ timeout: 15_000 });
-
-  const selects = panel.locator(".ant-select");
-  const sourceSelect = selects.nth(1);
-  if (await sourceSelect.isVisible().catch(() => false)) {
-    const currentSourceLabel = (await sourceSelect.textContent().catch(() => "")) ?? "";
-    if (!/草稿版本|Draft/i.test(currentSourceLabel)) {
-      await sourceSelect.click();
-      await page.keyboard.press("ArrowDown");
-      await page.waitForTimeout(120);
-      await page.keyboard.press("Enter");
-      await page.waitForTimeout(180);
-    }
-  }
-
-  await panel.locator("textarea").first().fill(inputJson);
-  await panel.locator(".ant-btn-primary").first().click();
 }
 
 export async function hoverCanvasAt(page: Page, offset: { x: number; y: number }): Promise<void> {
@@ -275,11 +260,12 @@ export async function loginToWorkflowList(
 }
 
 export async function createWorkflowAndOpenEditor(page: Page, appKey: string): Promise<string> {
+  await page.getByTestId("app-workflows-create").click();
+  await expect(page.locator(".semi-modal-content").last()).toBeVisible({ timeout: 15_000 });
   const createResponsePromise = page.waitForResponse((response) => {
     return response.request().method() === "POST" && /\/api\/v2\/workflows$/.test(response.url());
   });
-
-  await page.getByTestId("app-workflows-create").click();
+  await clickCrudSubmit(page);
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
 
@@ -324,7 +310,7 @@ export async function createWorkflowSession(
 
 export async function openWorkflowEditor(page: Page, appKey: string, workflowId: string): Promise<void> {
   await ensureWorkflowListReady(page, appKey);
-  const row = page.locator(`tr[data-row-key="${workflowId}"]`).first();
+  const row = page.locator(`[data-row-key="${workflowId}"]`).first();
   await expect(row).toBeVisible({ timeout: 30_000 });
   await row.getByTestId(`app-workflows-open-${workflowId}`).click();
   await page.waitForURL(

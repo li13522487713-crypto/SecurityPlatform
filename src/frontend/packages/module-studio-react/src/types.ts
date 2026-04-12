@@ -1,4 +1,4 @@
-import type { PagedResult } from "@atlas/shared-core/types";
+import type { PagedResult } from "@atlas/shared-react-core/types";
 
 export type StudioLocale = "zh-CN" | "en-US";
 export type DevelopFocus = "overview" | "agents" | "workflow" | "chatflow" | "models" | "chat";

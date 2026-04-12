@@ -1,71 +1,54 @@
-import { expect, test, type ConsoleMessage, type Page } from "../fixtures/single-session";
-import { clickWorkflowTestRun, createWorkflowSession, workflowNodeLocator } from "./workflow-e2e-helpers";
-
-const BENIGN_CONSOLE_PATTERNS = [/ResizeObserver loop completed with undelivered notifications/i, /ResizeObserver loop limit exceeded/i];
-const BLOCKING_CONSOLE_PATTERNS = [/Unhandled rejection/i, /ResizeObserver/i];
-
-async function insertNodeFromPanel(page: Page, keywords: string[]): Promise<void> {
-  await page.getByTestId("workflow.detail.toolbar.add-node").click();
-  await expect(page.getByTestId("workflow.detail.node-panel")).toBeVisible();
-  const searchInput = page.getByTestId("workflow.detail.node-panel.search");
-  const firstNodeItem = page.locator(".wf-react-node-item").first();
-  let foundKeyword = "";
-  for (const keyword of keywords) {
-    await searchInput.fill(keyword);
-    const visible = await firstNodeItem.isVisible({ timeout: 2_000 }).catch(() => false);
-    if (visible) {
-      foundKeyword = keyword;
-      break;
-    }
-  }
-  expect(foundKeyword, `节点面板未能命中任一关键字: ${keywords.join(", ")}`).not.toBe("");
-  await expect(searchInput).toHaveValue(foundKeyword);
-  await page.locator(".wf-react-node-item").first().click();
-  await expect(page.getByTestId("workflow.detail.node-panel")).toBeHidden();
-}
-
-function isBenignConsoleMessage(text: string): boolean {
-  return BENIGN_CONSOLE_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-function isBlockingConsoleMessage(text: string): boolean {
-  return BLOCKING_CONSOLE_PATTERNS.some((pattern) => pattern.test(text));
-}
+import { expect, test, type ConsoleMessage } from "../fixtures/single-session";
+import { clickWorkflowTestRun, createWorkflowSession, openWorkflowEditor } from "./workflow-e2e-helpers";
 
 function stringifyConsoleMessage(message: ConsoleMessage): string {
   return `${message.type()}: ${message.text()}`.trim();
 }
 
+function isUnexpectedConsoleError(entry: string) {
+  return /error:/i.test(entry) && !entry.includes("status of 400 (Bad Request)");
+}
+
+function parseCanvasValue(raw: string) {
+  return JSON.parse(raw) as {
+    nodes?: Array<{ key: string; type: string; title: string; configs?: Record<string, unknown> }>;
+    connections?: Array<{ from: string; to: string }>;
+  };
+}
+
 test.describe.serial("Workflow Complete Flow", () => {
-  test("应完成应用端工作流中文全链路（新建、命名、编排、保存、发布、测试运行）", async ({
+  test("应完成应用端工作流中文全链路（新建、命名、保存、发布、测试运行、回列表再进入）", async ({
     page,
     request,
     ensureLoggedInSession
   }) => {
-    test.setTimeout(360_000);
+    test.setTimeout(240_000);
 
     const consoleEvents: string[] = [];
     const pageErrors: string[] = [];
 
     page.on("console", (message) => {
-      const text = stringifyConsoleMessage(message);
-      if (!isBenignConsoleMessage(text)) {
-        consoleEvents.push(text);
-      }
+      consoleEvents.push(stringifyConsoleMessage(message));
     });
     page.on("pageerror", (error) => {
       pageErrors.push(error.message);
     });
 
     const { appKey, workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
-    const workflowNodes = workflowNodeLocator(page);
-    const starterNodeCount = await workflowNodes.count();
-    expect(starterNodeCount).toBeGreaterThan(0);
+    const workflowName = `中文流程_${Date.now().toString().slice(-6)}`;
+    const canvasJson = JSON.stringify({
+      nodes: [
+        { key: "start_node", type: "start", title: "开始" },
+        { key: "summary_node", type: "llm", title: "审批总结" }
+      ],
+      connections: [
+        { from: "start_node", to: "summary_node" }
+      ]
+    }, null, 2);
 
-    const workflowName = page.locator(".wf-react-name");
-    await expect(workflowName).toBeVisible();
-    await workflowName.fill("中文流程审批测试");
-    await expect(workflowName).toHaveValue("中文流程审批测试");
+    await page.getByTestId("workflow.detail.meta.name").fill(workflowName);
+    await page.getByTestId("workflow.detail.meta.description").fill("应用端中文工作流全链路测试");
+    await page.getByTestId("workflow.detail.canvas-json").fill(canvasJson);
 
     const saveDraftResponsePromise = page.waitForResponse((response) => {
       return response.request().method() === "PUT" && response.url().endsWith(`/api/v2/workflows/${workflowId}/draft`);
@@ -82,49 +65,7 @@ test.describe.serial("Workflow Complete Flow", () => {
     expect([200, 400]).toContain(publishResponse.status());
 
     await clickWorkflowTestRun(page, "{\"input\":\"hello\"}");
-
-    await expect
-      .poll(
-        async () => {
-          if ((await page.getByTestId("workflow.detail.node.testrun.result-item").count()) > 0) {
-            return "result";
-          }
-          if (await page.locator(".wf-react-problem-panel").isVisible()) {
-            return "problem";
-          }
-          return "pending";
-        },
-        { timeout: 30_000 }
-      )
-      .not.toBe("pending");
-
-    await insertNodeFromPanel(page, ["大模型", "llm", "LLM"]);
-    await expect(workflowNodes).toHaveCount(starterNodeCount + 1);
-
-    const llmNode = workflowNodeLocator(page).filter({ hasText: /大模型|LLM/i }).last();
-    await llmNode.click();
-    await expect(page.locator(".wf-react-properties-panel")).toBeVisible();
-    const titleInput = page.locator(".wf-react-properties-panel input").first();
-    await titleInput.fill("中文审批节点");
-    await expect(titleInput).toHaveValue("中文审批节点");
-
-    await page.getByTestId("workflow.detail.toolbar.variables").click();
-    await expect(page.locator(".wf-react-variable-panel")).toBeVisible();
-    await page.locator(".wf-react-global-create .wf-react-global-key").fill("approvalLevel");
-    await page.locator(".wf-react-global-create .wf-react-global-value").fill("\"高级审批\"");
-    await page.locator(".wf-react-global-create button").click();
-    await expect(page.locator(".wf-react-global-list .wf-react-global-key").first()).toHaveValue("approvalLevel");
-    await page.locator(".wf-react-variable-panel .wf-react-variable-panel-header button").click();
-
-    const draftAfterEditResponsePromise = page.waitForResponse((response) => {
-      return response.request().method() === "PUT" && response.url().endsWith(`/api/v2/workflows/${workflowId}/draft`);
-    }, { timeout: 30_000 });
-    await page.getByTestId("workflow.detail.title.save-draft").click();
-    const draftAfterEditResponse = await draftAfterEditResponsePromise;
-    expect(draftAfterEditResponse.ok()).toBeTruthy();
-
-    await page.getByTestId("workflow.detail.toolbar.trace").click();
-    await expect(page.locator(".wf-react-trace-panel")).toBeVisible();
+    await expect(page.getByTestId("workflow.detail.node.testrun.result-panel")).toBeVisible();
 
     await page.getByTestId("workflow.detail.title.back").click();
     await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`), {
@@ -132,16 +73,17 @@ test.describe.serial("Workflow Complete Flow", () => {
     });
     await expect(page.getByTestId("app-workflows-page")).toBeVisible({ timeout: 30_000 });
 
-    const workflowRow = page.locator(`tr[data-row-key="${workflowId}"]`).first();
-    await expect(workflowRow).toBeVisible({ timeout: 30_000 });
-    await workflowRow.getByTestId(`app-workflows-open-${workflowId}`).click();
-    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`), {
-      timeout: 30_000
-    });
-    await expect(page.locator(".wf-react-canvas-shell")).toBeVisible();
+    await openWorkflowEditor(page, appKey, workflowId);
+    const reopenedCanvas = parseCanvasValue(await page.getByTestId("workflow.detail.canvas-json").inputValue());
+    expect(reopenedCanvas.nodes).toEqual([
+      { key: "start_node", type: "start", title: "开始", configs: {} },
+      { key: "summary_node", type: "llm", title: "审批总结", configs: {} }
+    ]);
+    expect(reopenedCanvas.connections).toEqual([
+      { from: "start_node", to: "summary_node" }
+    ]);
 
-    const blockingConsoleEvents = consoleEvents.filter((text) => isBlockingConsoleMessage(text));
-    expect(blockingConsoleEvents, `检测到异常控制台输出: ${blockingConsoleEvents.join("\n")}`).toEqual([]);
     expect(pageErrors, `检测到页面运行时异常: ${pageErrors.join("\n")}`).toEqual([]);
+    expect(consoleEvents.filter(isUnexpectedConsoleError), `检测到异常控制台输出: ${consoleEvents.join("\n")}`).toEqual([]);
   });
 });

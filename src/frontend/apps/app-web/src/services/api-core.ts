@@ -1,5 +1,5 @@
-import { createApiClient } from "@atlas/shared-core/api";
-import type { RequestOptions } from "@atlas/shared-core/api";
+import { createApiClient } from "@atlas/shared-react-core/api";
+import type { RequestOptions } from "@atlas/shared-react-core/api";
 import { appSignPath } from "@atlas/app-shell-shared";
 
 export type AppRuntimeMode = "app";

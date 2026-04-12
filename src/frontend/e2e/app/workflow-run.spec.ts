@@ -32,33 +32,27 @@ async function getCsrfToken(request: APIRequestContext, accessToken: string): Pr
 }
 
 test.describe.serial("Workflow Run E2E", () => {
-  test("should open test-run panel and trigger run flow", async ({ page, request, ensureLoggedInSession }) => {
+  test("should trigger run flow and render latest execution summary", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
     await clickWorkflowTestRun(page, "{\"input\":\"hello\"}");
 
-    const problemPanel = page.locator(".wf-react-problem-panel");
     await expect
       .poll(
         async () => {
-          if ((await page.getByTestId("workflow.detail.node.testrun.result-item").count()) > 0) {
-            return "result";
-          }
-          if (await problemPanel.isVisible()) {
-            return "problem";
-          }
-          return "pending";
+          const items = await page.getByTestId("workflow.detail.node.testrun.result-item").allTextContents();
+          return items.join("\n");
         },
         { timeout: 30_000 }
       )
-      .not.toBe("pending");
+      .toContain("状态");
   });
 
-  test("should open single-node debug panel", async ({ page, request, ensureLoggedInSession }) => {
+  test("should allow updating run input json before rerun", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
 
-    await page.getByTestId("workflow.detail.toolbar.debug").click();
-    const debugPanel = page.locator(".wf-react-debug-panel");
-    await expect(debugPanel).toBeVisible();
+    await page.getByTestId("workflow.detail.run-inputs").fill("{\"ticket\":\"A-1001\"}");
+    await page.getByTestId("workflow.detail.toolbar.test-run").click();
+    await expect(page.getByTestId("workflow.detail.node.testrun.result-panel")).toBeVisible();
   });
 
   test("should support cancel endpoint contract", async ({ request }) => {
@@ -78,4 +72,3 @@ test.describe.serial("Workflow Run E2E", () => {
     expect([400, 404]).toContain(resp.status());
   });
 });
-

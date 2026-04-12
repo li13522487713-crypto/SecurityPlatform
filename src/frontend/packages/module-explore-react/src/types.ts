@@ -1,4 +1,4 @@
-import type { PagedRequest, PagedResult } from "@atlas/shared-core/types";
+import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 
 export type ExploreLocale = "zh-CN" | "en-US";
 

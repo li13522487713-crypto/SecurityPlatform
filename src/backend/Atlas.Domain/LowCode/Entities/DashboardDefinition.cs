@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.LowCode.Entities;
 
@@ -34,7 +35,9 @@ public sealed class DashboardDefinition : TenantEntity
     public int Version { get; private set; }
     public FormDefinitionStatus Status { get; private set; }
     public bool IsLargeScreen { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public int? CanvasWidth { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public int? CanvasHeight { get; private set; }
     public string? ThemeJson { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }

@@ -82,7 +82,8 @@ import {
 } from "@/services/api-knowledge";
 import { HomePage } from "./pages/home-page";
 import { LoginPage } from "./pages/login-page";
-import { ForbiddenPage } from "./pages/placeholder-page";
+import { EntryGatewayPage } from "./pages/entry-gateway-page";
+import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
 import {
   backupNow,
@@ -524,7 +525,7 @@ function AppShellRoute() {
             },
             {
               key: "chat",
-              label: locale === "zh-CN" ? "对话" : "Chat",
+              label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat",
               icon: navGlyph("C"),
               path: workspaceChatPath(appKey, bootstrap.spaceId),
               testId: "app-sidebar-item-agent-chat"
@@ -545,7 +546,7 @@ function AppShellRoute() {
             },
             {
               key: "workflow",
-              label: locale === "zh-CN" ? "Workflow" : "Workflow",
+              label: locale === "zh-CN" ? "工作流" : "Workflow",
               icon: navGlyph("W"),
               badge: "Flow",
               path: workflowListPath(appKey),
@@ -626,25 +627,25 @@ function AppShellRoute() {
 }
 
 function LibraryRoute() {
-  const { appKey = "" } = useParams();
+  const { appKey = "", spaceId = "" } = useParams();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
-  return <LibraryPage api={libraryApi} locale={locale} appKey={appKey} onNavigate={navigate} />;
+  return <LibraryPage api={libraryApi} locale={locale} appKey={appKey} spaceId={spaceId} onNavigate={navigate} />;
 }
 
 function KnowledgeDetailRoute() {
-  const { appKey = "", id = "" } = useParams();
+  const { appKey = "", id = "", spaceId = "" } = useParams();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
-  return <KnowledgeDetailPage api={libraryApi} locale={locale} appKey={appKey} knowledgeBaseId={Number(id)} onNavigate={navigate} />;
+  return <KnowledgeDetailPage api={libraryApi} locale={locale} appKey={appKey} spaceId={spaceId} knowledgeBaseId={Number(id)} onNavigate={navigate} />;
 }
 
 function KnowledgeUploadRoute() {
-  const { appKey = "", id = "" } = useParams();
+  const { appKey = "", id = "", spaceId = "" } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
-  return <KnowledgeUploadPage api={libraryApi} locale={locale} appKey={appKey} knowledgeBaseId={Number(id)} initialType={searchParams.get("type")} onNavigate={navigate} />;
+  return <KnowledgeUploadPage api={libraryApi} locale={locale} appKey={appKey} spaceId={spaceId} knowledgeBaseId={Number(id)} initialType={searchParams.get("type")} onNavigate={navigate} />;
 }
 
 function DevelopRoute() {
@@ -887,6 +888,7 @@ export function AppRouter() {
           <Route path="explore/plugin" element={<ExplorePluginsRoute />} />
           <Route path="explore/template" element={<ExploreTemplatesRoute />} />
           <Route path="search/:word" element={<ExploreSearchRoute />} />
+          <Route path="entry" element={<EntryGatewayPage />} />
           <Route path="work_flow" element={<WorkflowListRoute mode="workflow" />} />
           <Route path="work_flow/:id/editor" element={<WorkflowEditorRoute mode="workflow" />} />
           <Route path="chat_flow" element={<WorkflowListRoute mode="chatflow" />} />

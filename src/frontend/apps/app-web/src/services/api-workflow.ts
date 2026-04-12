@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedResult } from "@atlas/shared-core/types";
+import type { ApiResponse, PagedResult } from "@atlas/shared-react-core/types";
 import { createWorkflowApiFromRequest } from "@atlas/workflow-core-react/api";
 import type {
   NodeDebugRequest,

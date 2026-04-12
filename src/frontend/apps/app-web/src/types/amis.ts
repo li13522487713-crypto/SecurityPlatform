@@ -1,4 +1,4 @@
-import type { JsonValue } from "@atlas/shared-core";
+import type { JsonValue } from "@atlas/shared-react-core";
 
 export interface AmisFetcherConfig {
   url: string;

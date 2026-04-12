@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@atlas/shared-core";
+import type { ApiResponse } from "@atlas/shared-react-core";
 import { requestApi } from "./api-core";
 
 export interface TenantAppInstanceDetail {

@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core/types";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import { requestApi, toQuery, resolveAppHostPrefix } from "./api-core";
 
 export interface ReportItem {
@@ -12,7 +12,7 @@ export interface DashboardItem {
   id: string;
   name: string;
   description?: string | null;
-  isDefault: boolean;
+  isDefault?: boolean;
   createdAt: string;
 }
 
@@ -29,7 +29,6 @@ export interface SaveDashboardRequest {
   description?: string;
   category?: string;
   layoutJson: string;
-  isDefault: boolean;
   isLargeScreen: boolean;
   canvasWidth?: number;
   canvasHeight?: number;

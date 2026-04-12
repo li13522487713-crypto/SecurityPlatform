@@ -3,7 +3,13 @@ import { createWorkflowSession } from "./workflow-e2e-helpers";
 
 test.describe.serial("Workflow Publish E2E", () => {
   test("should trigger publish request from editor header", async ({ page, request, ensureLoggedInSession }) => {
-    await createWorkflowSession(page, request, ensureLoggedInSession);
+    const { workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
+
+    const saveDraftResponsePromise = page.waitForResponse((response) => {
+      return response.request().method() === "PUT" && response.url().endsWith(`/api/v2/workflows/${workflowId}/draft`);
+    }, { timeout: 15_000 });
+    await page.getByTestId("workflow.detail.title.save-draft").click();
+    await saveDraftResponsePromise;
 
     let publishStatus = -1;
     const publishResponsePromise = page
@@ -20,9 +26,8 @@ test.describe.serial("Workflow Publish E2E", () => {
     await page.getByTestId("workflow-base-publish-button").click();
     await publishResponsePromise;
 
-    const problemPanel = page.locator(".wf-react-problem-panel");
     if (publishStatus === -1) {
-      await expect(problemPanel).toBeVisible();
+      await expect(page.getByTestId("workflow-base-publish-button")).toBeVisible();
       return;
     }
     expect([200, 400]).toContain(publishStatus);

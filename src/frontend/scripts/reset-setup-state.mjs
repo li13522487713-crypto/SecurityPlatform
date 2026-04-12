@@ -26,8 +26,12 @@ const cleanupTargets = [
 
 const cleanupDirectories = [
   "runtime/instances",
-  "runtime/artifacts"
+  "runtime/artifacts",
+  "src/frontend/test-results",
+  "src/frontend/playwright-report"
 ];
+
+const runtimeConfigPath = "src/backend/Atlas.PlatformHost/appsettings.runtime.json";
 
 function stopRelevantProcesses() {
   if (process.platform !== "win32") {
@@ -122,6 +126,16 @@ function clearDirectoryContents(relativePath) {
   console.log(`[reset-setup-state] cleared directory: ${relativePath}`);
 }
 
+function writeRuntimeConfigPlaceholder() {
+  const absolutePath = path.resolve(repoRoot, runtimeConfigPath);
+  if (!absolutePath.startsWith(repoRoot)) {
+    throw new Error(`Refusing to write path outside repo: ${absolutePath}`);
+  }
+
+  fs.writeFileSync(absolutePath, "{}\n", "utf8");
+  console.log(`[reset-setup-state] reset file: ${runtimeConfigPath}`);
+}
+
 stopRelevantProcesses();
 
 for (const target of cleanupTargets) {
@@ -131,5 +145,7 @@ for (const target of cleanupTargets) {
 for (const directory of cleanupDirectories) {
   clearDirectoryContents(directory);
 }
+
+writeRuntimeConfigPlaceholder();
 
 console.log("[reset-setup-state] setup test environment reset complete.");

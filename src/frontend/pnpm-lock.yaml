@@ -62,12 +62,9 @@ importers:
       '@atlas/module-workflow-react':
         specifier: workspace:*
         version: link:../../packages/module-workflow-react
-      '@atlas/shared-biz':
+      '@atlas/shared-react-core':
         specifier: workspace:*
-        version: link:../../packages/shared-biz
-      '@atlas/shared-core':
-        specifier: workspace:*
-        version: link:../../packages/shared-core
+        version: link:../../packages/shared-react-core
       '@atlas/workflow-core-react':
         specifier: workspace:*
         version: link:../../packages/workflow-core-react
@@ -357,9 +354,9 @@ importers:
 
   packages/library-module-react:
     dependencies:
-      '@atlas/shared-core':
+      '@atlas/shared-react-core':
         specifier: workspace:*
-        version: link:../shared-core
+        version: link:../shared-react-core
       '@douyinfe/semi-icons':
         specifier: ^2.82.0
         version: 2.94.0(react@18.3.1)
@@ -381,9 +378,9 @@ importers:
 
   packages/module-admin-react:
     dependencies:
-      '@atlas/shared-core':
+      '@atlas/shared-react-core':
         specifier: workspace:*
-        version: link:../shared-core
+        version: link:../shared-react-core
       '@douyinfe/semi-icons':
         specifier: ^2.82.0
         version: 2.94.0(react@18.3.1)
@@ -406,9 +403,9 @@ importers:
 
   packages/module-explore-react:
     dependencies:
-      '@atlas/shared-core':
+      '@atlas/shared-react-core':
         specifier: workspace:*
-        version: link:../shared-core
+        version: link:../shared-react-core
       '@douyinfe/semi-icons':
         specifier: ^2.82.0
         version: 2.94.0(react@18.3.1)
@@ -431,9 +428,9 @@ importers:
 
   packages/module-studio-react:
     dependencies:
-      '@atlas/shared-core':
+      '@atlas/shared-react-core':
         specifier: workspace:*
-        version: link:../shared-core
+        version: link:../shared-react-core
       '@douyinfe/semi-icons':
         specifier: ^2.82.0
         version: 2.94.0(react@18.3.1)
@@ -456,9 +453,9 @@ importers:
 
   packages/module-workflow-react:
     dependencies:
-      '@atlas/shared-core':
+      '@atlas/shared-react-core':
         specifier: workspace:*
-        version: link:../shared-core
+        version: link:../shared-react-core
       '@atlas/workflow-core-react':
         specifier: workspace:*
         version: link:../workflow-core-react
@@ -521,30 +518,29 @@ importers:
 
   packages/shared-core:
     dependencies:
-      '@atlas/ai-core':
-        specifier: workspace:*
-        version: link:../ai-core
       '@atlas/shared-kernel':
         specifier: workspace:*
         version: link:../shared-kernel
+    devDependencies:
+      '@atlas/ai-core':
+        specifier: workspace:*
+        version: link:../ai-core
       ant-design-vue:
-        specifier: ^4.2.6
+        specifier: 4.2.6
         version: 4.2.6(vue@3.5.32(typescript@5.9.3))
       vue:
-        specifier: ^3.5.17
+        specifier: 3.5.32
         version: 3.5.32(typescript@5.9.3)
       vue-i18n:
-        specifier: ^9.14.5
+        specifier: 9.14.5
         version: 9.14.5(vue@3.5.32(typescript@5.9.3))
       vue-router:
-        specifier: ^4.6.4
+        specifier: 4.6.4
         version: 4.6.4(vue@3.5.32(typescript@5.9.3))
 
-  packages/shared-kernel:
-    dependencies:
-      vue:
-        specifier: ^3.5.0
-        version: 3.5.32(typescript@5.9.3)
+  packages/shared-kernel: {}
+
+  packages/shared-react-core: {}
 
   packages/shared-ui:
     dependencies:
@@ -570,9 +566,9 @@ importers:
 
   packages/workflow-core-react:
     dependencies:
-      '@atlas/shared-core':
+      '@atlas/shared-react-core':
         specifier: workspace:*
-        version: link:../shared-core
+        version: link:../shared-react-core
       react:
         specifier: ^18.2.0
         version: 18.3.1

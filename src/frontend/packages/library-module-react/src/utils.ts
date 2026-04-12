@@ -32,7 +32,7 @@ export function mapKnowledgeBaseToLibraryItem(item: KnowledgeBaseDto): AiLibrary
     name: item.name,
     description: item.description,
     updatedAt: item.createdAt,
-    path: `/knowledge/${item.id}`,
+    path: `/ai/knowledge-bases/${item.id}`,
     resourceSubType: mapKnowledgeType(item.type),
     status: item.documentCount > 0 ? "ready" : "processing",
     documentCount: item.documentCount,
@@ -51,26 +51,26 @@ export function mapKnowledgeType(type: KnowledgeBaseType): string {
   }
 }
 
-export function normalizeResourcePath(path: string, appKey: string): string {
+export function normalizeResourcePath(path: string, appKey: string, spaceId: string): string {
   if (!path) {
-    return `/apps/${encodeURIComponent(appKey)}/dashboard`;
+    return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/develop`;
   }
 
   if (path.startsWith("/ai/knowledge-bases/")) {
     const id = path.slice("/ai/knowledge-bases/".length);
-    return `/apps/${encodeURIComponent(appKey)}/knowledge/${id}`;
+    return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${id}`;
   }
 
   if (path.startsWith("/ai/agents")) {
-    return `/apps/${encodeURIComponent(appKey)}/ai/agents`;
+    return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/develop?focus=agents`;
   }
 
   if (path.startsWith("/ai/workflows")) {
-    return `/apps/${encodeURIComponent(appKey)}/workflows`;
+    return `/apps/${encodeURIComponent(appKey)}/work_flow`;
   }
 
   if (path.startsWith("/ai/prompts")) {
-    return `/apps/${encodeURIComponent(appKey)}/prompts`;
+    return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/assistant`;
   }
 
   return path;

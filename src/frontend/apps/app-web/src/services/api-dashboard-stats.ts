@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedResult } from "@atlas/shared-core";
+import type { ApiResponse, PagedResult } from "@atlas/shared-react-core";
 import { requestApi, resolveAppHostPrefix } from "./api-core";
 
 export async function getApprovalPendingCount(): Promise<number> {

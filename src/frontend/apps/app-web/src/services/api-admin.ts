@@ -21,7 +21,7 @@ import type {
   UserProfileDetail,
   UserProfileUpdateRequest,
   UserUpdateRequest
-} from "@atlas/shared-core/types";
+} from "@atlas/shared-react-core/types";
 import { requestApi, toQuery } from "./api-core";
 import {
   changePassword,

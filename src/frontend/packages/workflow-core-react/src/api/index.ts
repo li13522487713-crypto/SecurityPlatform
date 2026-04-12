@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@atlas/shared-core/types";
+import type { ApiResponse } from "@atlas/shared-react-core/types";
 import type { WorkflowApiFactoryOptions } from "./workflow-api-factory";
 import { createWorkflowV2Api } from "./workflow-api-factory";
 

@@ -1,13 +1,13 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { AuthProfile } from "@atlas/shared-core/types";
+import type { AuthProfile } from "@atlas/shared-react-core/types";
 import {
   clearAuthStorage,
   getAccessToken,
   getAuthProfile,
   getTenantId,
   setAuthProfile
-} from "@atlas/shared-core/utils";
+} from "@atlas/shared-react-core/utils";
 import { loginByAppEntry, logout as logoutApi } from "@/services/api-auth";
 import { getCurrentUser } from "@/services/api-profile";
 import { rememberConfiguredAppKey } from "@/services/api-core";

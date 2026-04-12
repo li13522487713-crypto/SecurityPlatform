@@ -1,4 +1,4 @@
-import type { PagedResult } from "@atlas/shared-core/types";
+import type { PagedResult } from "@atlas/shared-react-core/types";
 import type { WorkflowApiClient } from "@atlas/workflow-core-react";
 
 export type WorkflowResourceMode = "workflow" | "chatflow";

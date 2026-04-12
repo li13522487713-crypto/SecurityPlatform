@@ -28,14 +28,27 @@ if (!supportedTargets.has(target)) {
 const repoRoot = path.resolve(process.cwd(), "..");
 const appSrc = path.join(repoRoot, "frontend", "apps", target, "src");
 const sharedUiSrc = path.join(repoRoot, "frontend", "packages", "shared-ui", "src");
-const localeZhPath = path.join(appSrc, "i18n", "zh-CN.ts");
-const localeEnPath = path.join(appSrc, "i18n", "en-US.ts");
+const localeZhPath = target === "app-web"
+  ? path.join(appSrc, "app", "messages.ts")
+  : path.join(appSrc, "i18n", "zh-CN.ts");
+const localeEnPath = target === "app-web"
+  ? path.join(appSrc, "app", "messages.ts")
+  : path.join(appSrc, "i18n", "en-US.ts");
 
-function loadLocaleObject(filePath) {
+function loadLocaleObject(filePath, locale) {
   const raw = fs.readFileSync(filePath, "utf8");
-  const transformed = raw
-    .replace(/^\s*import\s+.*$/gm, "")
-    .replace(/^\s*export\s+default\s+/, "module.exports = ");
+  const transformed =
+    target === "app-web"
+      ? `${raw
+          .replace(/^\s*import\s+.*$/gm, "")
+          .replace(/^\s*export\s+type\s+.*$/gm, "")
+          .replace(/:\s*typeof\s+\w+\s*=/g, " =")
+          .replace(/\s+as\s+const/g, "")
+          .replace(/^\s*const\s+/gm, "const ")
+          .replace(/export\s+const\s+APP_MESSAGES\s*=\s*/, "module.exports = ")}\nmodule.exports = module.exports["${locale}"];`
+      : raw
+          .replace(/^\s*import\s+.*$/gm, "")
+          .replace(/^\s*export\s+default\s+/, "module.exports = ");
   const sandbox = { module: { exports: {} }, exports: {} };
   vm.runInNewContext(transformed, sandbox, { filename: filePath });
   return sandbox.module.exports;
@@ -63,7 +76,7 @@ function walkSourceFiles(dirPath, output = []) {
       walkSourceFiles(absolutePath, output);
       continue;
     }
-    if (!/\.(vue|ts)$/.test(entry.name)) continue;
+    if (!/\.(vue|ts|tsx)$/.test(entry.name)) continue;
     output.push(absolutePath);
   }
   return output;
@@ -106,12 +119,14 @@ function buildNamespaceStats(keys) {
   return Array.from(stats.entries()).sort((a, b) => b[1] - a[1]);
 }
 
-const localeZh = loadLocaleObject(localeZhPath);
-const localeEn = loadLocaleObject(localeEnPath);
+const localeZh = loadLocaleObject(localeZhPath, "zh-CN");
+const localeEn = loadLocaleObject(localeEnPath, "en-US");
 const localeZhKeys = flattenKeys(localeZh);
 const localeEnKeys = flattenKeys(localeEn);
 
-const files = [...walkSourceFiles(appSrc), ...walkSourceFiles(sharedUiSrc)];
+const files = target === "app-web"
+  ? walkSourceFiles(appSrc)
+  : [...walkSourceFiles(appSrc), ...walkSourceFiles(sharedUiSrc)];
 const usedKeys = extractUsedI18nKeys(files);
 
 const missingZh = [];

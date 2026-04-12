@@ -5,7 +5,9 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@atlas/shared-react-core": ["../../packages/shared-react-core/src/index.ts"],
+      "@atlas/shared-react-core/*": ["../../packages/shared-react-core/src/*"]
     }
   },
   "include": [
