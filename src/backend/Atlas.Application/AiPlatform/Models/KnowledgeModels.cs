@@ -71,6 +71,10 @@ public sealed record DocumentResegmentRequest(
     int Overlap = 50,
     ChunkingStrategy Strategy = ChunkingStrategy.Fixed);
 
+public sealed record KnowledgeRetrievalTestRequest(
+    string Query,
+    int TopK = 5);
+
 public sealed record RagSearchResult(
     long KnowledgeBaseId,
     long DocumentId,

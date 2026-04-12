@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from "../fixtures/single-session";
-import { createWorkflowSession } from "./workflow-e2e-helpers";
+import { clickWorkflowTestRun, createWorkflowSession } from "./workflow-e2e-helpers";
 import { appApiBase, defaultPassword, defaultTenantId, defaultUsername } from "./helpers";
 
 const TENANT_HEADERS = {
@@ -34,15 +34,7 @@ async function getCsrfToken(request: APIRequestContext, accessToken: string): Pr
 test.describe.serial("Workflow Run E2E", () => {
   test("should open test-run panel and trigger run flow", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
-
-    await page.getByTestId("workflow.detail.toolbar.test-run").click();
-    const resultPanel = page.getByTestId("workflow.detail.node.testrun.result-panel");
-    await expect(resultPanel).toBeVisible();
-
-    await resultPanel.locator("textarea").first().fill("{}");
-    const runButton = resultPanel.locator(".ant-btn-primary").first();
-    await expect(runButton).toBeVisible();
-    await runButton.click();
+    await clickWorkflowTestRun(page, "{\"input\":\"hello\"}");
 
     const problemPanel = page.locator(".wf-react-problem-panel");
     await expect

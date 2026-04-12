@@ -86,8 +86,10 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   }, [operationService, props]);
 
   useEffect(() => {
-    store.setReadOnlyMode(isReadOnly);
-  }, [isReadOnly, store]);
+    const nextTestRunSource = isReadOnly ? "published" : "draft";
+    useWorkflowEditorStore.getState().setReadOnlyMode(isReadOnly);
+    useWorkflowEditorStore.getState().setTestRunSource(nextTestRunSource);
+  }, [isReadOnly]);
 
   useEffect(() => {
     if (props.workflowId) {

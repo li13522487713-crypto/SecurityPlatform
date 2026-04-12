@@ -1,0 +1,68 @@
+.module-studio__page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.module-studio__header,
+.module-studio__toolbar,
+.module-studio__actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.module-studio__surface {
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.08);
+  padding: 18px;
+}
+
+.module-studio__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.module-studio__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.96);
+  padding: 18px;
+}
+
+.module-studio__card p {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.58);
+}
+
+.module-studio__stack,
+.module-studio__list,
+.module-studio__chat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.module-studio__textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  font: inherit;
+  resize: vertical;
+}
+
+.module-studio__chat-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 18px;
+}

@@ -4,7 +4,7 @@ import type {
   ChangePasswordRequest,
   UserProfileDetail,
   UserProfileUpdateRequest,
-} from "@atlas/shared-core";
+} from "@atlas/shared-core/types";
 import { requestApi } from "./api-core";
 
 export interface MfaSetupResult {

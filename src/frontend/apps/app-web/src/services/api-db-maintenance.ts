@@ -1,5 +1,5 @@
 import { requestApi } from "./api-core";
-import type { ApiResponse } from "@atlas/shared-core";
+import type { ApiResponse } from "@atlas/shared-core/types";
 
 export interface DatabaseConnectionStatus {
   connected: boolean;

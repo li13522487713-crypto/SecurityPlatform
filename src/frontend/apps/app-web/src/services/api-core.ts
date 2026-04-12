@@ -1,9 +1,10 @@
 import { createApiClient } from "@atlas/shared-core/api";
 import type { RequestOptions } from "@atlas/shared-core/api";
-import { router } from "@/router";
 
 export type AppRuntimeMode = "platform" | "direct";
+
 const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
+let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 
 const APP_RUNTIME_MODE: AppRuntimeMode = (() => {
   const rawMode = String(import.meta.env.VITE_APP_RUNTIME_MODE ?? "platform")
@@ -21,7 +22,6 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? (
     ? `${APP_HOST_TARGET}/api/v1`
     : "/api/v1"
 );
-
 
 function normalizeApiPath(path: string): string {
   if (!path) return "/";
@@ -48,26 +48,58 @@ export function getAppRuntimeMode(): AppRuntimeMode {
 export function isDirectRuntimeMode(): boolean {
   return APP_RUNTIME_MODE === "direct";
 }
-export type { RequestOptions };
 
-function forceLogout() {
-  if (router.currentRoute.value.name !== "app-login") {
-    void router.push({ name: "app-login", params: { appKey: getAppKeyFromRoute() } });
-  }
+export function setUnauthorizedHandler(handler: (() => void | Promise<void>) | null) {
+  unauthorizedHandler = handler;
 }
 
-function getAppKeyFromRoute(): string {
-  const params = router.currentRoute.value.params;
-  if (typeof params.appKey === "string" && params.appKey.trim()) {
-    return params.appKey;
+export function rememberConfiguredAppKey(appKey?: string | null) {
+  const normalized = String(appKey ?? "").trim();
+  if (!normalized || typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.setItem(LAST_APP_KEY_STORAGE, normalized);
+}
+
+export function getConfiguredAppKey(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return localStorage.getItem(LAST_APP_KEY_STORAGE) ?? "";
+}
+
+function getCurrentRouteAppKey(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const directMatch = window.location.pathname.match(/^\/apps\/([^/]+)/);
+  if (directMatch) {
+    return decodeURIComponent(directMatch[1]);
+  }
+
+  return getConfiguredAppKey();
+}
+
+async function forceLogout() {
+  if (unauthorizedHandler) {
+    await unauthorizedHandler();
+    return;
   }
 
   if (typeof window !== "undefined") {
-    return localStorage.getItem(LAST_APP_KEY_STORAGE) ?? "";
+    const appKey = getCurrentRouteAppKey();
+    if (appKey) {
+      window.location.assign(`/apps/${encodeURIComponent(appKey)}/login`);
+      return;
+    }
+    window.location.assign("/");
   }
-
-  return "";
 }
+
+export type { RequestOptions };
 
 const apiClient = createApiClient({
   resolveRequestUrl,

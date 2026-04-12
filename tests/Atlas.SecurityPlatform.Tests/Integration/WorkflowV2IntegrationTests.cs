@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Atlas.Core.Models;
@@ -17,7 +16,7 @@ public sealed class WorkflowV2IntegrationTests
     }
 
     [Fact]
-    public async Task RunWithPublishedSource_BeforePublish_ShouldReturnValidationError()
+    public async Task RunWithPublishedSource_BeforePublish_ShouldFallbackToDraftExecution()
     {
         var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
         var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
@@ -35,11 +34,9 @@ public sealed class WorkflowV2IntegrationTests
         });
 
         using var runResponse = await _client.SendAsync(runRequest);
-        Assert.Equal(HttpStatusCode.BadRequest, runResponse.StatusCode);
-
-        var payload = await runResponse.Content.ReadFromJsonAsync<ApiResponse<JsonElement>>();
-        Assert.NotNull(payload);
-        Assert.Equal(ErrorCodes.ValidationError, payload.Code);
+        var payload = await ApiResponseAssert.ReadSuccessAsync(runResponse);
+        Assert.True(payload.Data.TryGetProperty("executionId", out var executionId));
+        Assert.False(string.IsNullOrWhiteSpace(executionId.GetString()));
     }
 
     [Fact]

@@ -1,0 +1,31 @@
+import type { ReactNode } from "react";
+
+export interface CozePrimaryNavItem {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  path: string;
+  activePrefixes?: string[];
+  testId?: string;
+}
+
+export interface CozeSecondaryNavItem {
+  key: string;
+  label: string;
+  path: string;
+  testId?: string;
+}
+
+export interface CozeSecondaryNavSection {
+  key: string;
+  title: string;
+  items: CozeSecondaryNavItem[];
+}
+
+export interface CozeHeaderAction {
+  key: string;
+  label: string;
+  icon?: ReactNode;
+  onClick: () => void;
+  testId?: string;
+}

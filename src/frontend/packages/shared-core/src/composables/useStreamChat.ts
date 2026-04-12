@@ -1,9 +1,11 @@
 import { ref } from "vue";
 import {
   useDualStreamRenderer,
-  type StreamChatMessage,
-  type StreamPhase
-} from "@atlas/ai-core";
+} from "@atlas/ai-core/composables";
+import type {
+  StreamChatMessage,
+  StreamPhase
+} from "@atlas/ai-core/types";
 
 export interface StreamChatAttachment {
   type: string;

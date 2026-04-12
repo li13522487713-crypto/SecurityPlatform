@@ -1,6 +1,6 @@
 import { requestApi, toQuery, API_BASE } from "@/services/api-core";
-import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
-import { getAccessToken, getTenantId, getAntiforgeryToken } from "@atlas/shared-core";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core/types";
+import { getAccessToken, getAntiforgeryToken, getTenantId } from "@atlas/shared-core/utils";
 
 export interface ModelConfigDto {
   id: number;

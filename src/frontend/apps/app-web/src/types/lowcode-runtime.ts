@@ -1,5 +1,15 @@
 /** 应用运行端低代码运行时所需的最小类型（与后端契约对齐）。 */
-import type { RuntimeManifest } from "@/runtime/release/runtime-release-types";
+
+interface RuntimeManifestRefs {
+  lifecycle?: Record<string, JsonValue>;
+  actionRegistry?: Record<string, JsonValue>;
+  bindingRegistry?: Record<string, JsonValue>;
+  initialContextPatch?: Record<string, JsonValue>;
+}
+
+type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
+type JsonObject = { [key: string]: JsonValue };
+type JsonArray = JsonValue[];
 
 export interface LowCodePageListItem {
   id: string;
@@ -46,8 +56,8 @@ export interface LowCodePageRuntimeSchema {
   schemaJson: string;
   version: number;
   mode: string;
-  lifecycle?: RuntimeManifest["lifecycle"];
-  actionRegistry?: RuntimeManifest["actionRegistry"];
-  bindingRegistry?: RuntimeManifest["bindingRegistry"];
-  initialContextPatch?: RuntimeManifest["initialContextPatch"];
+  lifecycle?: RuntimeManifestRefs["lifecycle"];
+  actionRegistry?: RuntimeManifestRefs["actionRegistry"];
+  bindingRegistry?: RuntimeManifestRefs["bindingRegistry"];
+  initialContextPatch?: RuntimeManifestRefs["initialContextPatch"];
 }

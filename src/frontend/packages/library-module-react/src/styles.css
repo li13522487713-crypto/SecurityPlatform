@@ -1,0 +1,170 @@
+.atlas-library-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.atlas-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.atlas-filter-card,
+.atlas-table-card,
+.atlas-summary-card,
+.atlas-retrieval-card,
+.atlas-upload-step-card,
+.atlas-upload-status-card {
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.06);
+}
+
+.atlas-library-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.atlas-library-item__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(14, 165, 233, 0.18));
+  color: #2563eb;
+}
+
+.atlas-library-item__body {
+  min-width: 0;
+}
+
+.atlas-library-item__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.atlas-library-item__desc {
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.atlas-knowledge-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 16px;
+}
+
+.atlas-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+
+.atlas-summary-tile {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.95));
+}
+
+.atlas-summary-tile span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.atlas-summary-tile strong {
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.atlas-knowledge-detail-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 16px;
+}
+
+.atlas-test-result-list,
+.atlas-upload-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.atlas-test-result {
+  border-radius: 16px;
+}
+
+.atlas-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.atlas-upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 180px;
+  margin-top: 16px;
+  border: 1px dashed rgba(37, 99, 235, 0.4);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(248, 250, 252, 0.9));
+  cursor: pointer;
+}
+
+.atlas-upload-type-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.atlas-upload-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.atlas-upload-file-item,
+.atlas-upload-task {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.95);
+}
+
+.atlas-upload-task__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 1200px) {
+  .atlas-knowledge-grid,
+  .atlas-knowledge-detail-grid,
+  .atlas-upload-grid {
+    grid-template-columns: 1fr;
+  }
+}

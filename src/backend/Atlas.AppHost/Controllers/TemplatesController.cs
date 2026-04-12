@@ -1,0 +1,101 @@
+using Atlas.Application.Templates;
+using Atlas.Core.Models;
+using Atlas.Domain.Templates;
+using Atlas.Presentation.Shared.Authorization;
+using Atlas.Presentation.Shared.Filters;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.AppHost.Controllers;
+
+[ApiController]
+[Route("api/v1/templates")]
+public sealed class TemplatesController : ControllerBase
+{
+    private readonly IComponentTemplateQueryService _queryService;
+    private readonly IComponentTemplateCommandService _commandService;
+
+    public TemplatesController(
+        IComponentTemplateQueryService queryService,
+        IComponentTemplateCommandService commandService)
+    {
+        _queryService = queryService;
+        _commandService = commandService;
+    }
+
+    [HttpGet]
+    [Authorize(Policy = PermissionPolicies.TemplatesView)]
+    public async Task<ActionResult<ApiResponse<object>>> Search(
+        [FromQuery] PagedRequest request,
+        [FromQuery] string? keyword = null,
+        [FromQuery] TemplateCategory? category = null,
+        [FromQuery] string? tags = null,
+        [FromQuery] string? version = null,
+        CancellationToken cancellationToken = default)
+    {
+        var (items, total) = await _queryService.SearchAsync(keyword, category, tags, version, request.PageIndex, request.PageSize, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            request.PageIndex,
+            request.PageSize,
+            Total = total,
+            Items = items
+        }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.TemplatesView)]
+    public async Task<ActionResult<ApiResponse<ComponentTemplate>>> GetById(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var template = await _queryService.GetByIdAsync(id, cancellationToken);
+        if (template is null)
+        {
+            return NotFound(ApiResponse<ComponentTemplate>.Fail("NOT_FOUND", ApiResponseLocalizer.T(HttpContext, "ComponentTemplateNotFound"), HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<ComponentTemplate>.Ok(template, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost]
+    [Authorize(Policy = PermissionPolicies.TemplatesCreate)]
+    public async Task<ActionResult<ApiResponse<object>>> Create(
+        [FromBody] CreateTemplateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var id = await _commandService.CreateAsync(request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.TemplatesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> Update(
+        long id,
+        [FromBody] UpdateTemplateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await _commandService.UpdateAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.TemplatesDelete)]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        await _commandService.DeleteAsync(id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/instantiate")]
+    [Authorize(Policy = PermissionPolicies.TemplatesInstantiate)]
+    public async Task<ActionResult<ApiResponse<object>>> Instantiate(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var schemaJson = await _commandService.InstantiateAsync(id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { SchemaJson = schemaJson }, HttpContext.TraceIdentifier));
+    }
+}

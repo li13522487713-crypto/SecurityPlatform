@@ -61,3 +61,12 @@ public sealed class ChunkUpdateRequestValidator : AbstractValidator<ChunkUpdateR
         RuleFor(x => x.EndOffset).GreaterThanOrEqualTo(x => x.StartOffset);
     }
 }
+
+public sealed class KnowledgeRetrievalTestRequestValidator : AbstractValidator<KnowledgeRetrievalTestRequest>
+{
+    public KnowledgeRetrievalTestRequestValidator()
+    {
+        RuleFor(x => x.Query).NotEmpty().MaximumLength(2000);
+        RuleFor(x => x.TopK).GreaterThanOrEqualTo(1).LessThanOrEqualTo(20);
+    }
+}

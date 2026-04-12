@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@atlas/shared-core";
+import type { ApiResponse } from "@atlas/shared-core/types";
 import { requestApi, resolveAppHostPrefix } from "./api-core";
 
 export type AiAssistantFunctionType = "form" | "sql" | "workflow";

@@ -1,0 +1,66 @@
+.module-admin__page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.module-admin__page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.module-admin__toolbar,
+.module-admin__actions,
+.module-admin__tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.module-admin__search {
+  width: 320px;
+}
+
+.module-admin__surface {
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.08);
+  padding: 18px;
+}
+
+.module-admin__table-wrap {
+  overflow: auto;
+}
+
+.module-admin__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.module-admin__table th,
+.module-admin__table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.module-admin__table th {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.56);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.module-admin__field {
+  margin-bottom: 12px;
+}
+
+.module-admin__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}

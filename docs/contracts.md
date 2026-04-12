@@ -165,3 +165,121 @@
 - Knowledge：Dataset Search/Dataset Write/LTM
 - Database：Query/Insert/Update/Delete/Custom SQL
 - Conversation：Conversation CRUD + History + Message CRUD + Input/Output
+
+## AI 资源库与知识库 API
+
+### 适用主机
+
+- `PlatformHost` 与 `AppHost` 均提供同构接口。
+- `app-web` 在 `platform` 与 `direct` 两种运行模式下统一消费以下契约。
+
+### 资源库列表
+
+- `GET /api/v1/ai-workspaces/library`
+- 查询参数：
+  - `keyword`
+  - `resourceType`
+  - `pageIndex`
+  - `pageSize`
+- 返回：`ApiResponse<AiLibraryPagedResult>`
+- `AiLibraryPagedResult` 字段：
+  - `items[]`
+  - `totalCount`
+  - `pageIndex`
+  - `pageSize`
+- `items[]` 每项至少包含：
+  - `id`
+  - `name`
+  - `description`
+  - `resourceType`
+  - `resourceSubType`
+  - `status`
+  - `documentCount`
+  - `chunkCount`
+  - `updatedAt`
+
+### 知识库 CRUD
+
+- `GET /api/v1/knowledge-bases`
+- `GET /api/v1/knowledge-bases/{id}`
+- `POST /api/v1/knowledge-bases`
+- `PUT /api/v1/knowledge-bases/{id}`
+- `DELETE /api/v1/knowledge-bases/{id}`
+- `KnowledgeBaseCreateRequest` / `KnowledgeBaseUpdateRequest`：
+  - `name`
+  - `description`
+  - `type`，枚举值固定为 `Text`、`Table`、`Image`
+- `KnowledgeBaseDto`：
+  - `id`
+  - `name`
+  - `description`
+  - `type`
+  - `documentCount`
+  - `chunkCount`
+  - `createdAt`
+
+### 文档管理
+
+- `GET /api/v1/knowledge-bases/{id}/documents`
+- `POST /api/v1/knowledge-bases/{id}/documents`
+- `DELETE /api/v1/knowledge-bases/{id}/documents/{docId}`
+- `GET /api/v1/knowledge-bases/{id}/documents/{docId}/progress`
+- `POST /api/v1/knowledge-bases/{id}/documents/{docId}/resegment`
+- `POST /api/v1/knowledge-bases/{id}/documents` 支持两种导入方式：
+  - `multipart/form-data` 上传 `file`
+  - 传入已存在文件的 `fileId`
+- `KnowledgeDocumentDto`：
+  - `id`
+  - `knowledgeBaseId`
+  - `fileId`
+  - `fileName`
+  - `contentType`
+  - `fileSizeBytes`
+  - `status`
+  - `errorMessage`
+  - `chunkCount`
+  - `createdAt`
+  - `processedAt`
+- `DocumentProgressDto`：
+  - `id`
+  - `status`
+  - `chunkCount`
+  - `errorMessage`
+  - `processedAt`
+- `DocumentResegmentRequest`：
+  - `chunkSize`
+  - `overlap`
+  - `strategy`
+
+### 分片管理
+
+- `GET /api/v1/knowledge-bases/{id}/documents/{docId}/chunks`
+- `POST /api/v1/knowledge-bases/{id}/chunks`
+- `PUT /api/v1/knowledge-bases/{id}/chunks/{chunkId}`
+- `DELETE /api/v1/knowledge-bases/{id}/chunks/{chunkId}`
+- `DocumentChunkDto`：
+  - `id`
+  - `knowledgeBaseId`
+  - `documentId`
+  - `chunkIndex`
+  - `content`
+  - `startOffset`
+  - `endOffset`
+  - `hasEmbedding`
+  - `createdAt`
+
+### 检索测试
+
+- `POST /api/v1/knowledge-bases/{id}/retrieval-test`
+- 请求体：`KnowledgeRetrievalTestRequest`
+  - `query`
+  - `topK`
+- 返回：`ApiResponse<RagSearchResult[]>`
+- `RagSearchResult`：
+  - `knowledgeBaseId`
+  - `documentId`
+  - `chunkId`
+  - `content`
+  - `score`
+  - `documentName`
+  - `documentCreatedAt`

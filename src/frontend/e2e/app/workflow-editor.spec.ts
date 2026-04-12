@@ -1,7 +1,13 @@
 import { expect, test, type Page } from "../fixtures/single-session";
 import {
+  clickWorkflowTestRun,
+  connectWorkflowPorts,
   createWorkflowSession,
+  dragNodeCatalogItemToCanvas,
   expectWorkflowEditorReady,
+  hoverCanvasAt,
+  humanHoverLocator,
+  workflowConnectionLocator,
   workflowNodeLocator
 } from "./workflow-e2e-helpers";
 
@@ -12,10 +18,6 @@ async function insertLlmNodeFromPanel(page: Page): Promise<void> {
   await expect(page.locator(".wf-react-node-item").first()).toBeVisible();
   await page.locator(".wf-react-node-item").first().click();
   await expect(page.getByTestId("workflow.detail.node-panel")).toBeHidden();
-}
-
-function workflowOutputPortLocator(page: Page) {
-  return page.locator(".workflow-port-render[data-port-entity-type='output']").first();
 }
 
 test.describe.serial("Workflow Editor E2E", () => {
@@ -57,36 +59,74 @@ test.describe.serial("Workflow Editor E2E", () => {
     await expect(page.locator(".wf-react-canvas-shell")).toBeVisible();
   });
 
+  test("should click test-run panel run button from workflow editor", async ({ page, request, ensureLoggedInSession }) => {
+    await createWorkflowSession(page, request, ensureLoggedInSession);
+    await clickWorkflowTestRun(page);
+    await expect
+      .poll(
+        async () => {
+          const items = await page.getByTestId("workflow.detail.node.testrun.result-item").allTextContents();
+          return items.join("\n");
+        },
+        { timeout: 30_000 }
+      )
+      .toContain("execution");
+  });
+
   test("should insert node from line add button", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
     const workflowNodes = workflowNodeLocator(page);
     const starterNodeCount = await workflowNodes.count();
 
-    const canvas = page.locator(".wf-react-canvas-shell");
-    const box = await canvas.boundingBox();
-    expect(box).toBeTruthy();
-    await page.mouse.move((box?.x ?? 0) + 570, (box?.y ?? 0) + 200);
-
+    await hoverCanvasAt(page, { x: 570, y: 200 });
     const lineAddButton = page.locator(".wf-react-line-add-btn").first();
     await expect(lineAddButton).toBeVisible();
     await lineAddButton.click();
     await insertLlmNodeFromPanel(page);
     await expect(workflowNodes).toHaveCount(starterNodeCount + 1);
-    await page.mouse.move((box?.x ?? 0) + 800, (box?.y ?? 0) + 200);
+    await hoverCanvasAt(page, { x: 800, y: 200 });
     await expect(page.locator(".wf-react-line-add-btn").first()).toBeVisible();
   });
 
-  test("should insert node from output port click", async ({ page, request, ensureLoggedInSession }) => {
+  test("should drag node from panel to canvas with human-like motion", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
+    const workflowNodes = workflowNodeLocator(page);
+    const starterNodeCount = await workflowNodes.count();
+
+    await page.getByTestId("workflow.detail.toolbar.add-node").click();
+    await dragNodeCatalogItemToCanvas(page, "llm", { x: 620, y: 260 });
+
+    await expect(workflowNodes).toHaveCount(starterNodeCount + 1);
+    await expect(page.getByTestId("workflow.detail.node-panel")).toBeHidden();
+  });
+
+  test("should connect nodes by dragging ports with human-like motion", async ({ page, request, ensureLoggedInSession }) => {
+    await createWorkflowSession(page, request, ensureLoggedInSession);
+    const initialNodeCount = await workflowNodeLocator(page).count();
+    const initialConnectionCount = await workflowConnectionLocator(page).count();
+
+    await page.getByTestId("workflow.detail.toolbar.add-node").click();
+    await dragNodeCatalogItemToCanvas(page, "llm", { x: 620, y: 280 });
+    await page.getByTestId("workflow.detail.toolbar.add-node").click();
+    await dragNodeCatalogItemToCanvas(page, "llm", { x: 980, y: 280 });
 
     const workflowNodes = workflowNodeLocator(page);
-    const beforeNodeCount = await workflowNodes.count();
-    expect(beforeNodeCount).toBeGreaterThan(0);
+    await expect(workflowNodes).toHaveCount(initialNodeCount + 2);
 
-    const outputPort = workflowOutputPortLocator(page);
-    await expect(outputPort).toBeVisible();
-    await outputPort.click({ force: true });
-    await insertLlmNodeFromPanel(page);
-    await expect(workflowNodes).toHaveCount(beforeNodeCount + 1);
+    const connections = workflowConnectionLocator(page);
+    await expect(connections).toHaveCount(initialConnectionCount);
+
+    const llmNodes = workflowNodes.filter({ hasText: /大模型|Llm|LLM/i });
+    await expect(llmNodes).toHaveCount(2);
+
+    const sourceNode = llmNodes.first();
+    const targetNode = llmNodes.last();
+    const sourcePort = sourceNode.locator('[data-wf-port="true"][data-port-kind="output"]').first();
+    const targetPort = targetNode.locator('[data-wf-port="true"][data-port-kind="input"]').first();
+
+    await humanHoverLocator(page, sourcePort);
+    await connectWorkflowPorts(page, sourcePort, targetPort);
+
+    await expect(connections).toHaveCount(initialConnectionCount + 1);
   });
 });

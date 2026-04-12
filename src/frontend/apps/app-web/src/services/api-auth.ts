@@ -1,4 +1,4 @@
-import type { ApiResponse, AuthTokenResult } from "@atlas/shared-core";
+import type { ApiResponse, AuthTokenResult } from "@atlas/shared-core/types";
 import {
   setAccessToken,
   setRefreshToken,
@@ -6,7 +6,7 @@ import {
   getRefreshToken,
   getTenantId,
   clearAuthStorage
-} from "@atlas/shared-core";
+} from "@atlas/shared-core/utils";
 import { API_BASE, requestApi, persistTokenResult } from "./api-core";
 
 const TENANT_ID_REGEX =

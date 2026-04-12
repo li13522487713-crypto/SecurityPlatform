@@ -1,5 +1,5 @@
 import { expect, test, type ConsoleMessage, type Page } from "../fixtures/single-session";
-import { createWorkflowSession, workflowNodeLocator } from "./workflow-e2e-helpers";
+import { clickWorkflowTestRun, createWorkflowSession, workflowNodeLocator } from "./workflow-e2e-helpers";
 
 const BENIGN_CONSOLE_PATTERNS = [/ResizeObserver loop completed with undelivered notifications/i, /ResizeObserver loop limit exceeded/i];
 const BLOCKING_CONSOLE_PATTERNS = [/Unhandled rejection/i, /ResizeObserver/i];
@@ -81,12 +81,7 @@ test.describe.serial("Workflow Complete Flow", () => {
     const publishResponse = await publishResponsePromise;
     expect([200, 400]).toContain(publishResponse.status());
 
-    await page.getByTestId("workflow.detail.toolbar.test-run").click();
-    const testRunPanel = page.getByTestId("workflow.detail.node.testrun.result-panel");
-    await expect(testRunPanel).toBeVisible();
-
-    await testRunPanel.locator("textarea").first().fill("{}");
-    await testRunPanel.locator(".ant-btn-primary").first().click();
+    await clickWorkflowTestRun(page, "{\"input\":\"hello\"}");
 
     await expect
       .poll(

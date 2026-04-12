@@ -19,6 +19,7 @@ public sealed class KnowledgeBasesController : ControllerBase
     private readonly IKnowledgeBaseService _knowledgeBaseService;
     private readonly IDocumentService _documentService;
     private readonly IChunkService _chunkService;
+    private readonly IRagRetrievalService _ragRetrievalService;
     private readonly IFileStorageService _fileStorageService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
@@ -28,11 +29,13 @@ public sealed class KnowledgeBasesController : ControllerBase
     private readonly IValidator<DocumentResegmentRequest> _documentResegmentValidator;
     private readonly IValidator<ChunkCreateRequest> _chunkCreateValidator;
     private readonly IValidator<ChunkUpdateRequest> _chunkUpdateValidator;
+    private readonly IValidator<KnowledgeRetrievalTestRequest> _retrievalTestValidator;
 
     public KnowledgeBasesController(
         IKnowledgeBaseService knowledgeBaseService,
         IDocumentService documentService,
         IChunkService chunkService,
+        IRagRetrievalService ragRetrievalService,
         IFileStorageService fileStorageService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
@@ -41,11 +44,13 @@ public sealed class KnowledgeBasesController : ControllerBase
         IValidator<DocumentCreateRequest> documentCreateValidator,
         IValidator<DocumentResegmentRequest> documentResegmentValidator,
         IValidator<ChunkCreateRequest> chunkCreateValidator,
-        IValidator<ChunkUpdateRequest> chunkUpdateValidator)
+        IValidator<ChunkUpdateRequest> chunkUpdateValidator,
+        IValidator<KnowledgeRetrievalTestRequest> retrievalTestValidator)
     {
         _knowledgeBaseService = knowledgeBaseService;
         _documentService = documentService;
         _chunkService = chunkService;
+        _ragRetrievalService = ragRetrievalService;
         _fileStorageService = fileStorageService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
@@ -55,6 +60,7 @@ public sealed class KnowledgeBasesController : ControllerBase
         _documentResegmentValidator = documentResegmentValidator;
         _chunkCreateValidator = chunkCreateValidator;
         _chunkUpdateValidator = chunkUpdateValidator;
+        _retrievalTestValidator = retrievalTestValidator;
     }
 
     [HttpGet]
@@ -272,5 +278,18 @@ public sealed class KnowledgeBasesController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         await _chunkService.DeleteAsync(tenantId, id, chunkId, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = chunkId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/retrieval-test")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<RagSearchResult>>>> RetrievalTest(
+        long id,
+        [FromBody] KnowledgeRetrievalTestRequest request,
+        CancellationToken cancellationToken)
+    {
+        _retrievalTestValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _ragRetrievalService.SearchAsync(tenantId, [id], request.Query.Trim(), request.TopK, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<RagSearchResult>>.Ok(result, HttpContext.TraceIdentifier));
     }
 }

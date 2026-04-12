@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedResult, PagedRequest } from "@atlas/shared-core";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core/types";
 import { requestApi, toQuery } from "./api-core";
 
 export interface ApprovalTaskItem {

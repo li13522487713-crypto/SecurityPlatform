@@ -1,6 +1,5 @@
 import { requestApi } from "@/services/api-core";
-import type { ApiResponse } from "@atlas/shared-core";
-import type { PagedResult } from "@atlas/shared-core";
+import type { ApiResponse, PagedResult } from "@atlas/shared-core/types";
 
 export interface AgentDetail {
   id: string;

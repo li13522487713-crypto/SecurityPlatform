@@ -2,7 +2,7 @@
  * Low-code runtime API (platform gateway /api/v1) for fetching Schema by appKey + pageKey.
  * For app-host direct connections, prefer getRuntimePageSchema in api-runtime.
  */
-import type { ApiResponse } from "@atlas/shared-core";
+import type { ApiResponse } from "@atlas/shared-core/types";
 import type { LowCodeAppDetail, LowCodePageRuntimeSchema } from "@/types/lowcode-runtime";
 import { requestApi } from "./api-core";
 
@@ -56,11 +56,9 @@ export async function getAppInstanceIdByAppKey(appKey: string): Promise<string |
     return null;
   }
 
-  const response = await requestApi<ApiResponse<NavigationProjectionResponse>>(
-    `/api/v2/navigation/apps/by-key/${encodeURIComponent(normalized)}/workspace`
-  );
-
-  return response.data?.scope.appInstanceId?.trim() || null;
+  const detail = await getLowCodeAppByKey(normalized);
+  const id = String(detail.id ?? "").trim();
+  return id || null;
 }
 
 const V2_APP_BASE = "/api/v2/tenant-app-instances";
