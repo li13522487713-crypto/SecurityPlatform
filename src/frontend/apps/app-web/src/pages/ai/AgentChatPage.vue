@@ -1,5 +1,5 @@
 <template>
-  <div class="ai-chat-shell">
+  <div class="ai-chat-shell" data-testid="app-agent-chat-page">
     <aside class="agent-sidebar">
       <div class="agent-sidebar-header">
         <h3 class="agent-sidebar-title">{{ t("ai.chat.agentListTitle") }}</h3>

@@ -83,7 +83,7 @@ import { usePermission } from "@/composables/usePermission";
 
 const { t, te } = useI18n();
 const route = useRoute();
-const { hasPermission } = usePermission();
+const { hasPermission, isPrivilegedUser } = usePermission();
 
 const props = defineProps<{
   appKey: string;
@@ -98,6 +98,10 @@ const navigationProjection = useNavigationProjection({
 });
 
 const basePath = computed(() => `/apps/${props.appKey}`);
+const canManageAgents = computed(() => isPrivilegedUser() || hasPermission("agent:view") || hasPermission(APP_PERMISSIONS.APP_ADMIN));
+const canManageModelConfigs = computed(
+  () => isPrivilegedUser() || hasPermission("model-config:view") || hasPermission(APP_PERMISSIONS.APP_ADMIN)
+);
 
 const currentKey = computed(() => {
   const path = route.path;
@@ -110,7 +114,8 @@ const currentKey = computed(() => {
   if (path.startsWith(`${base}/capabilities/organization`)) return "organization";
   if (path.startsWith(`${base}/ai/agents`)) return "agent-management";
   if (path.startsWith(`${base}/capabilities/agent`)) return "agent";
-  if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`) || path.startsWith(`${base}/ai/assistant`)) return "agents";
+  if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`)) return "agent-chat";
+  if (path.startsWith(`${base}/ai/assistant`)) return "ai-assistant";
   if (path.startsWith(`${base}/multi-agent`)) return "multi-agent";
   if (path.startsWith(`${base}/workflows`)) return "workflows";
   if (path.startsWith(`${base}/workflow-databases`)) return "workflow-databases";
@@ -119,6 +124,10 @@ const currentKey = computed(() => {
   if (path.startsWith(`${base}/prompts`)) return "prompts";
   if (path.startsWith(`${base}/model-configs`)) return "model-configs";
   if (path.startsWith(`${base}/evaluations`)) return "evaluations";
+  if (path.startsWith(`${base}/approval`)) return "approval";
+  if (path.startsWith(`${base}/reports`)) return "reports";
+  if (path.startsWith(`${base}/dashboards`)) return "dashboards";
+  if (path.startsWith(`${base}/visualization`)) return "visualization";
   if (path.startsWith(`${base}/data`)) return "data";
   if (path.startsWith(`${base}/org`)) return "org";
   if (path.startsWith(`${base}/settings`)) return "settings";
@@ -246,6 +255,38 @@ const directNavGroups = computed<SidebarGroup[]>(() => {
     {
       title: t("sidebar.groupAI"),
       items: [
+        ...(canManageAgents.value
+          ? [
+              {
+                key: "agent-management",
+                name: t("sidebar.agentManagement"),
+                path: `${basePath.value}/ai/agents`,
+                icon: RobotOutlined
+              } satisfies SidebarItem
+            ]
+          : []),
+        {
+          key: "agent-chat",
+          name: t("sidebar.agentChat"),
+          path: `${basePath.value}/ai/chat`,
+          icon: MessageOutlined
+        },
+        {
+          key: "ai-assistant",
+          name: t("sidebar.aiAssistant"),
+          path: `${basePath.value}/ai/assistant`,
+          icon: ThunderboltOutlined
+        },
+        ...(canManageModelConfigs.value
+          ? [
+              {
+                key: "model-configs",
+                name: t("sidebar.modelConfigs"),
+                path: `${basePath.value}/model-configs`,
+                icon: ExperimentOutlined
+              } satisfies SidebarItem
+            ]
+          : []),
         {
           key: "workflows",
           name: t("sidebar.workflows"),
@@ -265,21 +306,59 @@ const directNavGroups = computed<SidebarGroup[]>(() => {
           icon: ControlOutlined
         }
       ]
+    },
+    {
+      title: t("workspace.menuApproval"),
+      items: [
+        {
+          key: "approval",
+          name: t("sidebar.approvalWorkspace"),
+          path: `${basePath.value}/approval`,
+          icon: ClusterOutlined
+        }
+      ]
+    },
+    {
+      title: t("workspace.menuReports"),
+      items: [
+        {
+          key: "reports",
+          name: t("sidebar.reports"),
+          path: `${basePath.value}/reports`,
+          icon: TableOutlined
+        },
+        {
+          key: "dashboards",
+          name: t("sidebar.dashboards"),
+          path: `${basePath.value}/dashboards`,
+          icon: DashboardOutlined
+        },
+        {
+          key: "visualization",
+          name: t("sidebar.visualization"),
+          path: `${basePath.value}/visualization`,
+          icon: AppstoreOutlined
+        }
+      ]
     }
   ].filter((group) => group.items.length > 0);
 });
 
-const navGroups = computed<SidebarGroup[]>(() =>
-  [
+const navGroups = computed<SidebarGroup[]>(() => {
+  const directKeys = new Set(
+    directNavGroups.value.flatMap((group) => group.items.map((item) => item.key))
+  );
+
+  return [
     ...directNavGroups.value,
     ...projectedNavGroups.value
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => !["workflows", "workflow-databases", "logic-flow"].includes(item.key))
+        items: group.items.filter((item) => !directKeys.has(item.key))
       }))
       .filter((group) => group.items.length > 0)
-  ]
-);
+  ];
+});
 </script>
 
 <style scoped>

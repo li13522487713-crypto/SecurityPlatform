@@ -757,7 +757,7 @@ async function handleSubmit() {
       message.success(t("systemUsers.resetPasswordSuccess"));
     }
     closeDrawer();
-    void fetchData();
+    await fetchData();
   } catch (e: unknown) {
     if (e instanceof Error && e.message) {
       message.error(e.message);
@@ -774,7 +774,7 @@ async function handleRemoveMember(userId: string) {
   try {
     await removeMember(id, userId);
     message.success(t("systemUsers.removeMemberSuccess"));
-    void fetchData();
+    await fetchData();
   } catch (e: unknown) {
     message.error(e instanceof Error ? e.message : t("crud.deleteFailed"));
   }

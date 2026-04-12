@@ -10,6 +10,7 @@ let platformReady = true;
 let appReady = true;
 let configuredAppKey = "";
 const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
+const privilegedRoleCodes = new Set(["admin", "superadmin", "securityadmin", "systemadmin"]);
 let refreshTokenInflight: Promise<boolean> | null = null;
 
 export function markAppSetupComplete() {
@@ -346,7 +347,7 @@ function checkPermission(permission: string | undefined, userStore: ReturnType<t
   if (!permission) return true;
   if (userStore.profile?.isPlatformAdmin) return true;
   if (userStore.permissions.includes("*:*:*")) return true;
-  if (userStore.roles.some((r) => ["admin", "superadmin"].includes(r.toLowerCase()))) return true;
+  if (userStore.roles.some((role) => privilegedRoleCodes.has(role.trim().toLowerCase()))) return true;
   return userStore.permissions.includes(permission);
 }
 

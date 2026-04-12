@@ -3,7 +3,8 @@ import {
   captureEvidenceScreenshot,
   ensureAppSetup,
   navigateBySidebar,
-  uniqueName
+  uniqueName,
+  waitForCrudDrawerClosed
 } from "./helpers";
 
 test.describe.serial("App Users CRUD", () => {
@@ -30,13 +31,12 @@ test.describe.serial("App Users CRUD", () => {
     await page.getByTestId("app-users-form-username").fill(username);
     await page.getByTestId("app-users-form-password").fill("P@ssw0rd!123");
     await page.getByTestId("app-users-form-display-name").fill(displayName);
-    const createUserResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/users$/.test(response.url())
-    );
     await page.getByTestId("e2e-crud-drawer-submit").click();
-    await createUserResponsePromise;
+    await waitForCrudDrawerClosed(page, "app-users-form-username");
+    await navigateBySidebar(page, "users", {
+      pageTestId: "app-users-page",
+      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/users(?:\\?.*)?$`)
+    });
 
     await expect(page.getByTestId("app-users-table")).toContainText(displayName);
     await captureEvidenceScreenshot(page, testInfo, "users-created");
@@ -45,42 +45,21 @@ test.describe.serial("App Users CRUD", () => {
     await expect(row).toBeVisible();
     await row.locator('[data-testid^="app-users-edit-"]').first().click();
     await page.getByTestId("app-users-edit-display-name").fill(editedDisplayName);
-    const updateProfilePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "PUT" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/profile$/.test(response.url())
-    );
-    const updateRolesPromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "PUT" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/roles$/.test(response.url())
-    );
     await page.getByTestId("e2e-crud-drawer-submit").click();
-    await Promise.all([updateProfilePromise, updateRolesPromise]);
+    await waitForCrudDrawerClosed(page, "app-users-edit-display-name");
 
     await expect(page.getByTestId("app-users-table")).toContainText(editedDisplayName);
 
     const editedRow = page.locator(".ant-table-row", { hasText: username }).first();
     await editedRow.locator('[data-testid^="app-users-reset-password-"]').first().click();
     await page.getByTestId("app-users-reset-password-input").fill("P@ssw0rd!456");
-    const resetPasswordPromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+\/reset-password$/.test(response.url())
-    );
     await page.getByTestId("e2e-crud-drawer-submit").click();
-    await resetPasswordPromise;
+    await waitForCrudDrawerClosed(page, "app-users-reset-password-input");
 
     const latestRow = page.locator(".ant-table-row", { hasText: username }).first();
-    const deleteUserPromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "DELETE" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/organization\/members\/[^/]+$/.test(response.url())
-    );
     const removeButton = latestRow.locator('[data-testid^="app-users-remove-"]').first();
     await removeButton.click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
-    await deleteUserPromise;
 
     await expect(page.getByTestId("app-users-table")).not.toContainText(username);
     await captureEvidenceScreenshot(page, testInfo, "users-deleted");

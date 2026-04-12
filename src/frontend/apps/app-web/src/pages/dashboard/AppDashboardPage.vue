@@ -86,7 +86,7 @@
             </select>
           </div>
           <div class="chart-container">
-            <v-chart :option="areaChartOption" :autoresize="true" />
+            <v-chart :option="areaChartOption" :autoresize="chartAutoresize" />
           </div>
         </div>
 
@@ -284,6 +284,9 @@ const userStore = useAppUserStore();
 const appKey = computed(() => String(route.params.appKey ?? ""));
 const displayName = computed(() => userStore.name || "Admin");
 const todoTab = ref<"pending" | "alerts">("pending");
+const chartAutoresize = {
+  throttle: 120
+} as const;
 
 const stats = reactive({
   runtimePages: 0,

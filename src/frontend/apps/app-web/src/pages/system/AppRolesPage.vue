@@ -360,7 +360,7 @@ async function submitForm() {
       message.success(t("crud.updateSuccess"));
     }
     closeForm();
-    void fetchData();
+    await fetchData();
   } catch (e: unknown) {
     message.error(e instanceof Error ? e.message : t("crud.operationFailed"));
   } finally {
@@ -375,7 +375,7 @@ async function handleDeleteRole(roleId: string) {
   try {
     await deleteRole(id, roleId);
     message.success(t("crud.deleteSuccess"));
-    void fetchData();
+    await fetchData();
   } catch (e: unknown) {
     message.error(e instanceof Error ? e.message : t("crud.deleteFailed"));
   }

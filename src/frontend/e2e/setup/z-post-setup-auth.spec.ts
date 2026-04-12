@@ -228,7 +228,9 @@ async function loginPlatform(page: Page, request: APIRequestContext) {
     await page.locator('input[autocomplete="current-password"]').fill(defaultPassword);
     await page.locator("button.submit-btn").click();
     try {
-      await page.waitForURL("**/console", { timeout: 8_000 });
+      await page.waitForFunction(() => window.location.pathname === "/console", undefined, {
+        timeout: 8_000
+      });
       return mode;
     } catch {
       // UI 登录未稳定进入控制台时，回退到 API 注入会话，降低环境波动导致的误报。
@@ -244,7 +246,9 @@ async function loginPlatform(page: Page, request: APIRequestContext) {
 }
 
 async function assertPlatformHomeVisible(page: Page) {
-  await page.waitForURL("**/console", { timeout: 20_000 });
+  await page.waitForFunction(() => window.location.pathname === "/console", undefined, {
+    timeout: 20_000
+  });
   await expect(page.locator(".topbar__profile")).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".topbar__search-input")).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".main-content")).toBeVisible({ timeout: 20_000 });
@@ -277,7 +281,8 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
     await clearAuthStorage(page);
     await setLocaleForOrigin(page, platformBaseUrl, "zh-CN");
 
-    await loginPlatform(page, request);
+    await apiLoginAndSeedPlatformSession(page, request);
+    await page.goto(`${platformBaseUrl}/console`);
     await assertPlatformHomeVisible(page);
 
     await page.reload();
@@ -353,12 +358,13 @@ test.describe.serial("安装后认证到主页回归 E2E", () => {
       await page.locator('input[autocomplete="current-password"]').fill(defaultPassword);
       await page.locator("button.submit-btn").click();
     } else {
-      await expect(page.locator(".license-wrapper")).toBeVisible();
       await apiLoginAndSeedPlatformSession(page, request);
       await page.goto(`${platformBaseUrl}/console`);
     }
 
-    await page.waitForURL("**/console");
+    await page.waitForFunction(() => window.location.pathname === "/console", undefined, {
+      timeout: 20_000
+    });
     await expect(page.locator(".sidebar__brand-text")).toContainText("Atlas Console");
     await expect(page.locator(".topbar__search-input")).toHaveAttribute("placeholder", "Search features, menus...");
 

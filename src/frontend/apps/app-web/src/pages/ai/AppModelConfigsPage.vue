@@ -1,5 +1,5 @@
 <template>
-  <div class="model-configs-page">
+  <div class="model-configs-page" data-testid="app-model-configs-page">
     <!-- Left Panel: Provider & Model Tree -->
     <div class="left-panel">
       <div class="left-header">

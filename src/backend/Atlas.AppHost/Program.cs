@@ -14,6 +14,7 @@ using Atlas.Application.Assets.Mappings;
 using Atlas.Application.Options;
 using Atlas.Application.Resources;
 using Atlas.Core.Identity;
+using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure;
 using Atlas.Presentation.Shared.Filters;

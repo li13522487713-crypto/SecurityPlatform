@@ -1,5 +1,5 @@
 <template>
-  <div class="ai-assistant-page">
+  <div class="ai-assistant-page" data-testid="app-ai-assistant-page">
     <div class="ai-content">
       <div class="ai-sidebar">
         <h3>{{ t("aiAssistant.sidebarTitle") }}</h3>

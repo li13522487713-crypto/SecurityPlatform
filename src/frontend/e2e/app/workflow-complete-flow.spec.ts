@@ -57,7 +57,7 @@ test.describe.serial("Workflow Complete Flow", () => {
       pageErrors.push(error.message);
     });
 
-    const { workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
+    const { appKey, workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
     const workflowNodes = workflowNodeLocator(page);
     const starterNodeCount = await workflowNodes.count();
     expect(starterNodeCount).toBeGreaterThan(0);
@@ -130,6 +130,20 @@ test.describe.serial("Workflow Complete Flow", () => {
 
     await page.getByTestId("workflow.detail.toolbar.trace").click();
     await expect(page.locator(".wf-react-trace-panel")).toBeVisible();
+
+    await page.getByTestId("workflow.detail.title.back").click();
+    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows(?:\\?.*)?$`), {
+      timeout: 30_000
+    });
+    await expect(page.getByTestId("app-workflows-table")).toContainText("中文流程审批测试");
+
+    const workflowRow = page.locator(`tr[data-row-key="${workflowId}"]`).first();
+    await expect(workflowRow).toBeVisible({ timeout: 30_000 });
+    await workflowRow.getByTestId(`app-workflows-open-${workflowId}`).click();
+    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/workflows/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`), {
+      timeout: 30_000
+    });
+    await expect(page.locator(".wf-react-canvas-shell")).toBeVisible();
 
     const blockingConsoleEvents = consoleEvents.filter((text) => isBlockingConsoleMessage(text));
     expect(blockingConsoleEvents, `检测到异常控制台输出: ${blockingConsoleEvents.join("\n")}`).toEqual([]);

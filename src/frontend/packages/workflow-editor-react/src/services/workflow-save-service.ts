@@ -40,29 +40,37 @@ export class WorkflowSaveService {
   async loadDocument(): Promise<void> {
     const state = useWorkflowEditorStore.getState();
     state.resetEditorState();
-    const [nodeTypesResp, templatesResp, modelCatalogResp, detailResp] = await Promise.all([
+    const [nodeTypesResp, templatesResp, modelCatalogResp, detailResp] = await Promise.allSettled([
       this.operationService.apiClient?.getNodeTypes?.(),
       this.operationService.apiClient?.getNodeTemplates?.(),
       this.operationService.apiClient?.getModelCatalog?.(),
       this.operationService.apiClient?.getDetail?.(this.operationService.workflowId, this.operationService.detailQuery)
     ]);
 
-    const nodeTypesMeta = nodeTypesResp?.data ?? [];
-    const nodeTemplates = templatesResp?.data ?? [];
-    const modelCatalog = modelCatalogResp?.data ?? [];
+    const nodeTypesMeta = nodeTypesResp.status === "fulfilled" ? nodeTypesResp.value?.data ?? [] : [];
+    const nodeTemplates = templatesResp.status === "fulfilled" ? templatesResp.value?.data ?? [] : [];
+    const modelCatalog = modelCatalogResp.status === "fulfilled" ? modelCatalogResp.value?.data ?? [] : [];
     state.setNodeTypesMeta(nodeTypesMeta);
     state.setNodeTemplates(nodeTemplates);
     state.setModelCatalog(modelCatalog);
 
-    if (detailResp?.data) {
-      const parsed = parseCanvasJson(detailResp.data.canvasJson);
+    if (modelCatalogResp.status === "rejected") {
+      message.warning("模型目录加载失败，已以空目录进入编辑器。请稍后检查模型配置服务。");
+    }
+
+    if (detailResp.status === "rejected") {
+      throw detailResp.reason;
+    }
+
+    if (detailResp.value?.data) {
+      const parsed = parseCanvasJson(detailResp.value.data.canvasJson);
       const normalized = normalizeConnectionsByPorts(parsed.nodes, parsed.connections, nodeTypesMeta);
       state.setCanvasSnapshot({
         nodes: parsed.nodes,
         connections: normalized.connections,
         globals: parsed.globals,
         viewport: parsed.viewport,
-        workflowName: detailResp.data.name || `Workflow_${this.operationService.workflowId}`,
+        workflowName: detailResp.value.data.name || `Workflow_${this.operationService.workflowId}`,
         isDirty: false
       });
       state.setSelectedNodeKeys([]);

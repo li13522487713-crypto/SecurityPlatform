@@ -37,6 +37,14 @@ test.describe.serial("@smoke App Navigation", () => {
     await clickSidebarAndAssertPage(page, "app-sidebar-item-roles", "roles", "app-roles-page");
     await clickSidebarAndAssertPage(page, "app-sidebar-item-departments", "departments", "app-departments-page");
     await clickSidebarAndAssertPage(page, "app-sidebar-item-positions", "positions", "app-positions-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-agent-management", "ai/agents", "app-agent-mgmt-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-agent-chat", "ai/chat", "app-agent-chat-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-ai-assistant", "ai/assistant", "app-ai-assistant-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-model-configs", "model-configs", "app-model-configs-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-approval", "approval", "app-approval-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-reports", "reports", "app-reports-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-dashboards", "dashboards", "app-dashboards-page");
+    await clickSidebarAndAssertPage(page, "app-sidebar-item-visualization", "visualization", "app-visualization-page");
     await clickSidebarAndAssertPage(page, "app-sidebar-item-settings", "settings", "app-settings-page");
   });
 
@@ -55,6 +63,14 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-roles")).toContainText("角色");
     await expect(page.getByTestId("app-sidebar-item-departments")).toContainText("部门");
     await expect(page.getByTestId("app-sidebar-item-positions")).toContainText("职位");
+    await expect(page.getByTestId("app-sidebar-item-agent-management")).toContainText("Agent 管理");
+    await expect(page.getByTestId("app-sidebar-item-agent-chat")).toContainText("Agent 对话");
+    await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toContainText("AI 助手");
+    await expect(page.getByTestId("app-sidebar-item-model-configs")).toContainText("模型配置");
+    await expect(page.getByTestId("app-sidebar-item-approval")).toContainText("审批工作台");
+    await expect(page.getByTestId("app-sidebar-item-reports")).toContainText("报表管理");
+    await expect(page.getByTestId("app-sidebar-item-dashboards")).toContainText("仪表盘管理");
+    await expect(page.getByTestId("app-sidebar-item-visualization")).toContainText("运行监控");
     await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
 
     await page.getByTestId("app-sidebar-item-departments").click();

@@ -393,6 +393,17 @@ export async function navigateBySidebar(
   }
 }
 
+export async function waitForCrudDrawerClosed(page: Page, probeTestId?: string) {
+  const drawerSubmit = page.getByTestId("e2e-crud-drawer-submit");
+  await expect(drawerSubmit).toBeHidden({ timeout: 30_000 });
+
+  if (probeTestId) {
+    await expect(page.getByTestId(probeTestId)).toBeHidden({ timeout: 30_000 });
+  }
+
+  await expect(page.locator(".ant-drawer-mask")).toBeHidden({ timeout: 30_000 });
+}
+
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }

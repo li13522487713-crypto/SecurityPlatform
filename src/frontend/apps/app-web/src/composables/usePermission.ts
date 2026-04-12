@@ -1,6 +1,8 @@
 import { useAppUserStore } from "@/stores/user";
 import { getAuthProfile, hasPermission as hasPermissionWithProfile, isAdminRole } from "@atlas/shared-core";
 
+const privilegedRoleCodes = new Set(["admin", "superadmin", "securityadmin", "systemadmin"]);
+
 export function usePermission() {
   const userStore = useAppUserStore();
 
@@ -28,6 +30,10 @@ export function usePermission() {
     const profile = resolveProfile();
     const permissions = profile?.permissions ?? userStore.permissions;
     if (permissions.includes("*:*:*")) return true;
+    const roles = profile?.roles ?? userStore.roles;
+    if (roles.some((role) => privilegedRoleCodes.has(role.trim().toLowerCase()))) {
+      return true;
+    }
     return isAdminRole(profile);
   }
 

@@ -75,6 +75,7 @@
     :title="versionDrawerTitle"
     :width="560"
     destroy-on-close
+    data-testid="app-workflows-version-drawer"
     @close="closeVersionDrawer"
   >
     <a-spin :spinning="versionLoading">

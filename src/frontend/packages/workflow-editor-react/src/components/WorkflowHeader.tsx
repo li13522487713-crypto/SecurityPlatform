@@ -31,7 +31,7 @@ export function WorkflowHeader(props: WorkflowHeaderProps) {
     <div className="wf-react-header">
       <div className="wf-react-header-main">
         <Space size={12}>
-          <Button icon={<ArrowLeftOutlined />} onClick={props.onBack}>
+          <Button icon={<ArrowLeftOutlined />} onClick={props.onBack} data-testid="workflow.detail.title.back">
             {t("workflow.back")}
           </Button>
           <div className="wf-react-header-meta">

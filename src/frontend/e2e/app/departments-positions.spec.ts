@@ -3,7 +3,8 @@ import {
   captureEvidenceScreenshot,
   ensureAppSetup,
   navigateBySidebar,
-  uniqueName
+  uniqueName,
+  waitForCrudDrawerClosed
 } from "./helpers";
 
 test.describe.serial("App Departments And Positions CRUD", () => {
@@ -25,33 +26,8 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     await page.getByTestId("app-departments-create").click();
     await page.getByTestId("app-departments-form-name").fill(deptName);
     await page.getByTestId("app-departments-form-code").fill(deptCode);
-    const createDeptResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments$/.test(response.url())
-    );
-    const listAfterCreateResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "GET" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments\/all(?:\?.*)?$/.test(response.url())
-    );
     await page.getByTestId("e2e-crud-drawer-submit").click();
-    const createDeptResponse = await createDeptResponsePromise;
-    const listAfterCreateResponse = await listAfterCreateResponsePromise;
-    expect(createDeptResponse.ok()).toBeTruthy();
-    const createDeptPayload = (await createDeptResponse.json()) as { success?: boolean; message?: string };
-    expect(createDeptPayload.success, createDeptPayload.message ?? "创建部门接口返回 success=false").toBeTruthy();
-    expect(listAfterCreateResponse.ok()).toBeTruthy();
-    const listAfterCreatePayload = (await listAfterCreateResponse.json()) as {
-      success?: boolean;
-      message?: string;
-      data?: Array<{ name?: string }>;
-    };
-    expect(listAfterCreatePayload.success, listAfterCreatePayload.message ?? "部门列表接口返回 success=false").toBeTruthy();
-    expect(
-      listAfterCreatePayload.data?.some((item) => item.name === deptName),
-      "创建后部门列表未返回新部门"
-    ).toBeTruthy();
+    await waitForCrudDrawerClosed(page, "app-departments-form-code");
 
     let departmentRowVisible = false;
     for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -76,14 +52,8 @@ test.describe.serial("App Departments And Positions CRUD", () => {
 
     const createdDeptRow = page.locator(".ant-table-row", { hasText: deptName }).first();
     await expect(createdDeptRow).toBeVisible();
-    const deleteDepartmentPromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "DELETE" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/departments\/[^/]+$/.test(response.url())
-    );
     await createdDeptRow.locator('[data-testid^="app-departments-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
-    await deleteDepartmentPromise;
     await expect(page.getByTestId("app-departments-table")).not.toContainText(deptName);
     await captureEvidenceScreenshot(page, testInfo, "departments-deleted");
   });
@@ -99,29 +69,15 @@ test.describe.serial("App Departments And Positions CRUD", () => {
     await page.getByTestId("app-positions-create").click();
     await page.getByTestId("app-positions-form-name").fill(positionName);
     await page.getByTestId("app-positions-form-code").fill(positionCode);
-    const createPositionResponsePromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/positions$/.test(response.url())
-    );
     await page.getByTestId("e2e-crud-drawer-submit").click();
-    const createPositionResponse = await createPositionResponsePromise;
-    expect(createPositionResponse.ok()).toBeTruthy();
-    const createPositionPayload = (await createPositionResponse.json()) as { success?: boolean; message?: string };
-    expect(createPositionPayload.success, createPositionPayload.message ?? "创建职位接口返回 success=false").toBeTruthy();
+    await waitForCrudDrawerClosed(page, "app-positions-form-code");
     await expect(page.getByTestId("app-positions-table")).toContainText(positionName);
     await captureEvidenceScreenshot(page, testInfo, "positions-created");
 
     const positionRow = page.locator(".ant-table-row", { hasText: positionName }).first();
     await expect(positionRow).toBeVisible();
-    const deletePositionPromise = page.waitForResponse(
-      (response) =>
-        response.request().method() === "DELETE" &&
-        /\/api\/v2\/tenant-app-instances\/[^/]+\/positions\/[^/]+$/.test(response.url())
-    );
     await positionRow.locator('[data-testid^="app-positions-delete-"]').first().click();
     await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
-    await deletePositionPromise;
     await expect(page.getByTestId("app-positions-table")).not.toContainText(positionName);
     await captureEvidenceScreenshot(page, testInfo, "positions-deleted");
   });

@@ -19,7 +19,7 @@
         </span>
       </div>
       <div class="stat-mini-chart">
-        <v-chart :option="chartOption" :autoresize="true" />
+        <v-chart :option="chartOption" :autoresize="chartAutoresize" />
       </div>
     </div>
   </div>
@@ -44,6 +44,10 @@ const props = defineProps<{
   iconBg: string;
   chartData: number[];
 }>();
+
+const chartAutoresize = {
+  throttle: 120
+} as const;
 
 const chartOption = computed(() => ({
   grid: { top: 0, right: 0, bottom: 0, left: 0 },
