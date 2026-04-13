@@ -1,5 +1,5 @@
-import type { ApiResponse, PagedResult } from "@atlas/shared-core";
-import { getAccessToken, getAntiforgeryToken, getTenantId } from "@atlas/shared-core";
+import type { ApiResponse, PagedResult } from "@atlas/shared-react-core/types";
+import { getAccessToken, getAntiforgeryToken, getTenantId } from "@atlas/shared-react-core/utils";
 import {
   normalizeNodeTypeKey,
   workflowNodeTypeToValue,

@@ -18,12 +18,10 @@
   },
   "peerDependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "vue": "^3.5.0"
+    "react-dom": "^18.2.0"
   },
   "dependencies": {
-    "@atlas/shared-core": "workspace:*",
-    "@atlas/shared-kernel": "workspace:*",
+    "@atlas/shared-react-core": "workspace:*",
     "@flowgram.ai/free-layout-editor": "^1.0.8",
     "@flowgram.ai/playground-react": "^1.0.8",
     "@flowgram.ai/free-lines-plugin": "^1.0.8",

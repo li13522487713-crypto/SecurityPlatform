@@ -32,6 +32,7 @@ const cleanupDirectories = [
 ];
 
 const runtimeConfigPath = "src/backend/Atlas.PlatformHost/appsettings.runtime.json";
+const appSetupStatePath = "src/backend/Atlas.AppHost/app-setup-state.json";
 
 function stopRelevantProcesses() {
   if (process.platform !== "win32") {
@@ -136,6 +137,16 @@ function writeRuntimeConfigPlaceholder() {
   console.log(`[reset-setup-state] reset file: ${runtimeConfigPath}`);
 }
 
+function writeAppSetupStatePlaceholder() {
+  const absolutePath = path.resolve(repoRoot, appSetupStatePath);
+  if (!absolutePath.startsWith(repoRoot)) {
+    throw new Error(`Refusing to write path outside repo: ${absolutePath}`);
+  }
+
+  fs.writeFileSync(absolutePath, "{}\n", "utf8");
+  console.log(`[reset-setup-state] reset file: ${appSetupStatePath}`);
+}
+
 stopRelevantProcesses();
 
 for (const target of cleanupTargets) {
@@ -147,5 +158,6 @@ for (const directory of cleanupDirectories) {
 }
 
 writeRuntimeConfigPlaceholder();
+writeAppSetupStatePlaceholder();
 
 console.log("[reset-setup-state] setup test environment reset complete.");

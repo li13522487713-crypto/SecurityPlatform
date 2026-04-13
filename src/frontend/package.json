@@ -9,7 +9,7 @@
     "build": "pnpm run build:app-web",
     "build:app-web": "pnpm --filter atlas-app-web run build",
     "lint": "pnpm --filter atlas-app-web run lint",
-    "test:unit": "pnpm --filter @atlas/shared-core run test && pnpm --filter @atlas/runtime-core run test",
+    "test:unit": "pnpm exec vitest run --passWithNoTests \"packages/**/src/**/*.spec.ts\" \"packages/**/src/**/*.spec.tsx\" \"packages/**/src/**/*.test.ts\" \"packages/**/src/**/*.test.tsx\" \"apps/**/src/**/*.spec.ts\" \"apps/**/src/**/*.spec.tsx\" \"apps/**/src/**/*.test.ts\" \"apps/**/src/**/*.test.tsx\"",
     "format": "pnpm -r run format",
     "test:e2e:app": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs",
     "test:e2e:app:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --headed",
@@ -22,11 +22,9 @@
     "@playwright/test": "^1.55.0",
     "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.39.1",
-    "eslint-plugin-vue": "^10.5.1",
     "globals": "^16.4.0",
     "typescript-eslint": "^8.46.1",
-    "vitest": "^4.1.4",
-    "vue-eslint-parser": "^10.2.0"
+    "vitest": "^4.1.4"
   },
   "engines": {
     "pnpm": ">=10.0.0"
