@@ -104,6 +104,7 @@ public static class AtlasOrmSchemaCatalog
         typeof(AiMarketplaceProduct),
         typeof(AiMarketplaceFavorite),
         typeof(AiRecentEdit),
+        typeof(WorkspaceIdeFavorite),
         typeof(AiWorkspace),
         typeof(AiShortcutCommand),
         typeof(AiBotPopupInfo),

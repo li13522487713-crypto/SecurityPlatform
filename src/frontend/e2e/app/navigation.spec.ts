@@ -57,6 +57,10 @@ test.describe.serial("@smoke App Navigation", () => {
     });
     await expectNoI18nKeyLeak(page, "app-workflows-page");
 
+    await expect(page.getByTestId("app-sidebar-item-plugins")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-item-data")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-item-organization-overview")).toBeVisible();
+
     await navigateBySidebar(page, "users", {
       pageTestId: "app-users-page",
       urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/users(?:\\?.*)?$`)
@@ -130,6 +134,9 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toContainText("AI 助手");
     await expect(page.getByTestId("app-sidebar-item-model-configs")).toContainText("模型配置");
     await expect(page.getByTestId("app-sidebar-item-workflows")).toContainText("工作流");
+    await expect(page.getByTestId("app-sidebar-item-plugins")).toContainText("插件");
+    await expect(page.getByTestId("app-sidebar-item-data")).toContainText("数据");
+    await expect(page.getByTestId("app-sidebar-item-organization-overview")).toContainText("组织概览");
 
     await page.getByTestId("app-primary-item-admin").click();
     await expect(page.getByTestId("app-sidebar-item-users")).toContainText("用户");

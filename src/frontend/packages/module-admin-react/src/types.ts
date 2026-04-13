@@ -105,6 +105,27 @@ export interface BackupResult {
   sizeBytes: number | null;
 }
 
+export interface OrganizationOverviewItem {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  meta?: string | null;
+}
+
+export interface OrganizationOverview {
+  appId: string;
+  memberCount: number;
+  roleCount: number;
+  departmentCount: number;
+  positionCount: number;
+  projectCount: number;
+  uncoveredMemberCount: number;
+  recentMembers: OrganizationOverviewItem[];
+  recentRoles: OrganizationOverviewItem[];
+  recentDepartments: OrganizationOverviewItem[];
+  recentPositions: OrganizationOverviewItem[];
+}
+
 export interface SaveReportRequest {
   name: string;
   description?: string;
@@ -125,6 +146,7 @@ export interface SaveDashboardRequest {
 }
 
 export interface AdminModuleApi {
+  getOrganizationOverview: () => Promise<OrganizationOverview>;
   listUsers: (request: PagedRequest) => Promise<PagedResult<UserListItem>>;
   getUserDetail: (id: string) => Promise<UserDetail>;
   createUser: (request: UserCreateRequest) => Promise<void>;

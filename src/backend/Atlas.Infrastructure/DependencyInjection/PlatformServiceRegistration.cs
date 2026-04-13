@@ -50,6 +50,7 @@ public static class PlatformServiceRegistration
         services.AddScoped<IRuntimeContextQueryService, RuntimeContextQueryService>();
         services.AddScoped<IRuntimeExecutionQueryService, RuntimeExecutionQueryService>();
         services.AddScoped<IAppDesignerSnapshotService, AppDesignerSnapshotService>();
+        services.AddScoped<IWorkspaceIdeService, WorkspaceIdeService>();
         return services;
     }
 }

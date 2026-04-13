@@ -30,6 +30,11 @@ GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/workspace?pag
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 组织概览
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/overview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 新增成员（统一入口）
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/members
 Authorization: Bearer {{accessToken}}

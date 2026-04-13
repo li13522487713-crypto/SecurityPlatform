@@ -353,6 +353,35 @@ export async function getOrganizationWorkspace(
   return resp.data;
 }
 
+export interface AppOrganizationOverviewItem {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  meta?: string | null;
+}
+
+export interface AppOrganizationOverviewResponse {
+  appId: string;
+  memberCount: number;
+  roleCount: number;
+  departmentCount: number;
+  positionCount: number;
+  projectCount: number;
+  uncoveredMemberCount: number;
+  recentMembers: AppOrganizationOverviewItem[];
+  recentRoles: AppOrganizationOverviewItem[];
+  recentDepartments: AppOrganizationOverviewItem[];
+  recentPositions: AppOrganizationOverviewItem[];
+}
+
+export async function getOrganizationOverview(appId: string): Promise<AppOrganizationOverviewResponse> {
+  const resp = await requestApi<ApiResponse<AppOrganizationOverviewResponse>>(
+    `${orgBase(appId)}/overview`
+  );
+  if (!resp.data) throw new Error(resp.message ?? "Failed to load organization overview");
+  return resp.data;
+}
+
 // ========== Permissions ==========
 
 export interface PermissionListItem {

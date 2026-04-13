@@ -5,6 +5,7 @@ import { IconGlobe, IconGridView1, IconUserGroup } from "@douyinfe/semi-icons";
 import { CozeShell } from "@atlas/coze-shell-react";
 import { LibraryPage, KnowledgeDetailPage, KnowledgeUploadPage, type LibraryKnowledgeApi } from "@atlas/library-module-react";
 import {
+  OrganizationOverviewPage,
   ApprovalAdminPage,
   DashboardsAdminPage,
   DepartmentsAdminPage,
@@ -139,11 +140,20 @@ import {
   saveProfile
 } from "@/services/api-admin";
 import {
-  createProject,
-  deleteProject,
+  getOrganizationOverview,
   getOrganizationWorkspace,
-  updateProject
 } from "@/services/api-org-management";
+import {
+  deleteAiApp,
+  updateAiApp
+} from "@/services/api-ai-app";
+import {
+  createWorkspaceIdeApp,
+  getWorkspaceIdeSummary,
+  recordWorkspaceIdeActivity,
+  updateWorkspaceIdeFavorite,
+  getWorkspaceIdeResources
+} from "@/services/api-workspace-ide";
 import {
   getAiPluginBuiltInMetadata,
   getAiPluginById,
@@ -355,6 +365,7 @@ function ProtectedPage({ permission, children }: { permission?: string; children
 
 function createAdminApi(appKey: string): AdminModuleApi {
   return {
+    getOrganizationOverview: () => getOrganizationOverview(appKey),
     listUsers: getUsersPaged,
     getUserDetail,
     createUser,
@@ -463,6 +474,18 @@ function parseSseFrame(frame: string): ParsedSseFrame | null {
   };
 }
 
+function toAppShellPath(appKey: string, entryRoute: string): string {
+  if (!entryRoute) {
+    return workspaceDevelopPath(appKey);
+  }
+
+  if (entryRoute.startsWith("/apps/")) {
+    return entryRoute;
+  }
+
+  return `/apps/${encodeURIComponent(appKey)}${entryRoute.startsWith("/") ? entryRoute : `/${entryRoute}`}`;
+}
+
 async function* createAgentMessageStream(
   appKey: string,
   agentId: string,
@@ -536,27 +559,45 @@ function createStudioApi(appKey: string): StudioModuleApi {
     createAgent,
     updateAgent,
     getWorkspaceOverview: async () => {
-      const workspace = await getOrganizationWorkspace(appKey, { pageIndex: 1, pageSize: 8 });
+      const [workspace, summary] = await Promise.all([
+        getOrganizationWorkspace(appKey, { pageIndex: 1, pageSize: 8 }),
+        getWorkspaceIdeSummary()
+      ]);
       return {
         appId: workspace.appId,
         memberCount: workspace.members.total,
         roleCount: workspace.roles.length,
         departmentCount: workspace.departments.length,
         positionCount: workspace.positions.length,
-        projectCount: workspace.projects.length,
+        projectCount: summary.appCount,
         uncoveredMemberCount: workspace.roleGovernance.uncoveredMembers,
-        applications: workspace.projects.map(project => ({
-          id: project.id,
-          code: project.code,
-          name: project.name,
-          description: project.description ?? undefined,
-          isActive: project.isActive
+        applications: []
+      };
+    },
+    getWorkspaceSummary: getWorkspaceIdeSummary,
+    listWorkspaceResources: async params => {
+      const result = await getWorkspaceIdeResources(params);
+      return {
+        ...result,
+        items: result.items.map(item => ({
+          ...item,
+          entryRoute: toAppShellPath(appKey, item.entryRoute)
         }))
       };
     },
-    createApplication: request => createProject(appKey, request),
-    updateApplication: (id, request) => updateProject(appKey, id, request),
-    deleteApplication: id => deleteProject(appKey, id),
+    createApplication: async request => {
+      const result = await createWorkspaceIdeApp(request);
+      return {
+        ...result,
+        entryRoute: toAppShellPath(appKey, result.entryRoute)
+      };
+    },
+    updateApplication: (id, request) => updateAiApp(id, request),
+    deleteApplication: id => deleteAiApp(id),
+    toggleWorkspaceFavorite: (resourceType, resourceId, isFavorite) =>
+      updateWorkspaceIdeFavorite(resourceType, resourceId, isFavorite),
+    recordWorkspaceActivity: request =>
+      recordWorkspaceIdeActivity(request),
     listConversations: agentId => getConversationsPaged(appKey, { pageIndex: 1, pageSize: 20 }, agentId),
     getMessages: conversationId => getMessages(appKey, conversationId),
     createConversation: (agentId, title) => createConversation(appKey, agentId, title),
@@ -809,7 +850,7 @@ function AppShellRoute() {
       key: "admin",
       label: locale === "zh-CN" ? "管理" : "Management",
       icon: <IconUserGroup />,
-      path: adminPath(appKey, "users"),
+      path: adminPath(appKey, "overview"),
       testId: "app-primary-item-admin"
     }
   ];
@@ -857,6 +898,20 @@ function AppShellRoute() {
               badge: "Flow",
               path: `/apps/${encodeURIComponent(appKey)}/chat_flow`,
               testId: "app-sidebar-item-chatflows"
+            },
+            {
+              key: "plugins",
+              label: locale === "zh-CN" ? "插件" : "Plugins",
+              icon: navGlyph("PL"),
+              path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=plugins`,
+              testId: "app-sidebar-item-plugins"
+            },
+            {
+              key: "data",
+              label: locale === "zh-CN" ? "数据" : "Data",
+              icon: navGlyph("DT"),
+              path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=data`,
+              testId: "app-sidebar-item-data"
             }
           ]
         },
@@ -898,6 +953,7 @@ function AppShellRoute() {
           key: "workspace-organization",
           title: locale === "zh-CN" ? "组织架构" : "Organization",
           items: [
+            { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
             { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
             { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
             { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
@@ -939,6 +995,7 @@ function AppShellRoute() {
             key: "admin",
             title: locale === "zh-CN" ? "管理" : "Management",
             items: [
+              { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
               { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
               { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
               { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
@@ -1155,6 +1212,13 @@ function AdminUsersRoute() {
   return <UsersAdminPage api={adminApi} locale={locale} />;
 }
 
+function AdminOverviewRoute() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { adminApi } = useAppApis(appKey);
+  return <OrganizationOverviewPage api={adminApi} locale={locale} />;
+}
+
 function AdminRolesRoute() {
   const { appKey = "" } = useParams();
   const { locale } = useAppI18n();
@@ -1265,6 +1329,7 @@ export function AppRouter() {
           <Route path="work_flow/:id/editor" element={<WorkflowEditorRoute mode="workflow" />} />
           <Route path="chat_flow" element={<WorkflowListRoute mode="chatflow" />} />
           <Route path="chat_flow/:id/editor" element={<WorkflowEditorRoute mode="chatflow" />} />
+          <Route path="admin/overview" element={<AdminOverviewRoute />} />
           <Route path="admin/users" element={<AdminUsersRoute />} />
           <Route path="admin/roles" element={<AdminRolesRoute />} />
           <Route path="admin/departments" element={<AdminDepartmentsRoute />} />

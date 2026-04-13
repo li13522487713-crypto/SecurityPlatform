@@ -369,11 +369,14 @@ export async function ensureAppWorkspace(page: Page, appKey: string) {
 
 const primaryNavBySidebarItem: Record<string, "workspace" | "explore" | "admin"> = {
   develop: "workspace",
+  plugins: "workspace",
+  data: "workspace",
   library: "workspace",
   "agent-chat": "workspace",
   "ai-assistant": "workspace",
   "model-configs": "workspace",
   workflows: "workspace",
+  "organization-overview": "workspace",
   "explore-plugins": "explore",
   "explore-templates": "explore",
   users: "admin",

@@ -378,3 +378,98 @@
   - `nodeType`
   - `durationMs`
   - `errorMessage`
+
+## Workspace IDE API（PlatformHost）
+
+### 工作空间摘要
+
+- `GET /api/v1/workspace-ide/summary`
+- 返回：`ApiResponse<WorkspaceIdeSummaryResponse>`
+- `WorkspaceIdeSummaryResponse`
+  - `appCount`
+  - `agentCount`
+  - `workflowCount`
+  - `chatflowCount`
+  - `pluginCount`
+  - `knowledgeBaseCount`
+  - `databaseCount`
+  - `favoriteCount`
+  - `recentCount`
+
+### 工作空间统一资源列表
+
+- `GET /api/v1/workspace-ide/resources`
+- 查询参数：
+  - `keyword`
+  - `resourceType`：`agent | app | workflow | chatflow | plugin | knowledge-base | database`
+  - `favoriteOnly`
+  - `pageIndex`
+  - `pageSize`
+- 返回：`ApiResponse<PagedResult<WorkspaceIdeResourceCardResponse>>`
+- `WorkspaceIdeResourceCardResponse`
+  - `resourceType`
+  - `resourceId`
+  - `name`
+  - `description`
+  - `icon`
+  - `status`
+  - `publishStatus`
+  - `updatedAt`
+  - `isFavorite`
+  - `lastOpenedAt`
+  - `lastEditedAt`
+  - `entryRoute`
+  - `badge`
+  - `linkedWorkflowId`
+
+### 工作空间应用复合创建
+
+- `POST /api/v1/workspace-ide/apps`
+- 请求体：`WorkspaceIdeCreateAppRequest`
+  - `name`
+  - `description`
+  - `icon`
+- 语义：
+  - 同时创建 `ai-app`
+  - 同时创建一个标准 `workflow`
+  - 自动把该 `workflowId` 绑定到 `ai-app`
+- 返回：`ApiResponse<WorkspaceIdeCreateAppResult>`
+  - `appId`
+  - `workflowId`
+  - `entryRoute`
+
+### 收藏与最近编辑
+
+- `PUT /api/v1/workspace-ide/favorites/{resourceType}/{resourceId}`
+- 请求体：`WorkspaceIdeFavoriteUpdateRequest`
+  - `isFavorite`
+- `POST /api/v1/workspace-ide/activities`
+- 请求体：`WorkspaceIdeActivityCreateRequest`
+  - `resourceType`
+  - `resourceId`
+  - `resourceTitle`
+  - `entryRoute`
+
+## 组织概览 API（TenantApp V2）
+
+### 组织概览
+
+- `GET /api/v2/tenant-app-instances/{appId}/organization/overview`
+- 返回：`ApiResponse<AppOrganizationOverviewResponse>`
+- `AppOrganizationOverviewResponse`
+  - `appId`
+  - `memberCount`
+  - `roleCount`
+  - `departmentCount`
+  - `positionCount`
+  - `projectCount`
+  - `uncoveredMemberCount`
+  - `recentMembers[]`
+  - `recentRoles[]`
+  - `recentDepartments[]`
+  - `recentPositions[]`
+- `AppOrganizationOverviewItem`
+  - `id`
+  - `title`
+  - `subtitle`
+  - `meta`

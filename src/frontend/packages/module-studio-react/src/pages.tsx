@@ -25,7 +25,6 @@ import type {
   ConversationItem,
   StudioApplicationCreateRequest,
   StudioApplicationSummary,
-  StudioApplicationUpdateRequest,
   StudioWorkspaceOverview,
   DevelopFocus,
   DevelopResourceSummary,
@@ -35,6 +34,8 @@ import type {
   ModelConfigPromptTestRequest,
   ModelConfigStats,
   ModelConfigUpdateRequest,
+  WorkspaceIdeResource,
+  WorkspaceIdeSummary,
   WorkbenchTrace,
   WorkflowListItem,
   StudioPageProps
@@ -353,8 +354,6 @@ function parseTraceSummary(metadata?: string): WorkbenchTrace | null {
   };
 }
 
-const APPLICATION_CODE_REGEX = /^[A-Za-z][A-Za-z0-9_-]{1,31}$/;
-
 interface AgentPromptSections {
   persona: string;
   goals: string;
@@ -475,69 +474,91 @@ export function DevelopPage({
   const [items, setItems] = useState<AgentListItem[]>([]);
   const [models, setModels] = useState<ModelConfigItem[]>([]);
   const [workspaceOverview, setWorkspaceOverview] = useState<StudioWorkspaceOverview | null>(null);
+  const [workspaceSummary, setWorkspaceSummary] = useState<WorkspaceIdeSummary | null>(null);
+  const [workspaceResources, setWorkspaceResources] = useState<WorkspaceIdeResource[]>([]);
   const [activeFocus, setActiveFocus] = useState<DevelopFocus>(focus);
   const [keyword, setKeyword] = useState("");
   const deferredKeyword = useDeferredValue(keyword);
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [agentDialogVisible, setAgentDialogVisible] = useState(false);
   const [applicationDialogVisible, setApplicationDialogVisible] = useState(false);
   const [applicationEditing, setApplicationEditing] = useState<StudioApplicationSummary | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState("");
   const [agentDraft, setAgentDraft] = useState({ name: "", description: "" });
   const [applicationDraft, setApplicationDraft] = useState<StudioApplicationCreateRequest>({
-    code: "",
     name: "",
     description: "",
-    isActive: true
+    icon: ""
   });
   const [submitting, setSubmitting] = useState(false);
 
   const load = async () => {
-    const [agentsResult, modelResult, workspaceResult] = await Promise.all([
+    const [agentsResult, modelResult, workspaceResult, workspaceSummaryResult, workspaceResourcesResult] = await Promise.all([
       api.listAgents({ pageIndex: 1, pageSize: 20, keyword: deferredKeyword || undefined }),
       api.listModelConfigs(),
-      api.getWorkspaceOverview()
+      api.getWorkspaceOverview(),
+      api.getWorkspaceSummary(),
+      api.listWorkspaceResources({
+        keyword: deferredKeyword || undefined,
+        favoriteOnly,
+        pageIndex: 1,
+        pageSize: 120
+      })
     ]);
     setItems(agentsResult.items);
     setModels(modelResult.items);
     setWorkspaceOverview(workspaceResult);
-    setSelectedApplicationId(current => current || workspaceResult.applications[0]?.id || "");
+    setWorkspaceSummary(workspaceSummaryResult);
+    setWorkspaceResources(workspaceResourcesResult.items);
+    const applicationResources = workspaceResourcesResult.items.filter(item => item.resourceType === "app");
+    setSelectedApplicationId(current => current || applicationResources[0]?.resourceId || "");
   };
 
   useEffect(() => {
     void load();
-  }, [api, deferredKeyword]);
+  }, [api, deferredKeyword, favoriteOnly]);
 
   useEffect(() => {
     setActiveFocus(focus);
   }, [focus]);
 
-  const applications = workspaceOverview?.applications ?? [];
+  const applications = useMemo(
+    () =>
+      workspaceResources
+        .filter(item => item.resourceType === "app")
+        .map(item => ({
+          id: item.resourceId,
+          name: item.name,
+          description: item.description,
+          icon: item.icon,
+          status: item.status,
+          publishVersion: item.badge?.startsWith("v") ? Number(item.badge.slice(1)) || undefined : undefined,
+          workflowId: item.linkedWorkflowId,
+          entryRoute: item.entryRoute,
+          isFavorite: item.isFavorite,
+          updatedAt: item.updatedAt,
+          lastEditedAt: item.lastEditedAt,
+          badge: item.badge
+        })),
+    [workspaceResources]
+  );
   const selectedApplication = useMemo(
     () => applications.find(item => item.id === selectedApplicationId) ?? applications[0] ?? null,
     [applications, selectedApplicationId]
   );
 
   const recentResources = useMemo(() => {
-    const recentAgents = items.slice(0, 3).map((item) => ({
-      id: item.id,
-      kind: "agent" as const,
-      title: item.name,
-      description: item.description || item.modelName || "Agent",
-      updatedAt: item.createdAt,
-      meta: item.status
-    }));
-
-    return [...recentAgents, ...workflowItems.slice(0, 3), ...chatflowItems.slice(0, 3)]
-      .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
+    return [...workspaceResources]
+      .sort((left, right) => String(right.lastEditedAt || right.updatedAt || "").localeCompare(String(left.lastEditedAt || left.updatedAt || "")))
       .slice(0, 8);
-  }, [chatflowItems, items, workflowItems]);
+  }, [workspaceResources]);
 
   const summaryCards = [
     {
       key: "projects",
       title: "应用",
       description: "把项目资源、组织协作和编排能力收拢到同一个应用工作台里。",
-      count: applications.length,
+      count: workspaceSummary?.appCount ?? applications.length,
       actionLabel: "查看应用",
       onClick: () => setActiveFocus("projects")
     },
@@ -545,7 +566,7 @@ export function DevelopPage({
       key: "agents",
       title: "Agent",
       description: "配置智能体、提示词和对话调试。",
-      count: items.length,
+      count: workspaceSummary?.agentCount ?? items.length,
       actionLabel: "进入 Agent",
       onClick: () => setActiveFocus("agents")
     },
@@ -553,7 +574,7 @@ export function DevelopPage({
       key: "workflow",
       title: "Workflow",
       description: "编排自动化流程与测试运行。",
-      count: workflowItems.length,
+      count: workspaceSummary?.workflowCount ?? workflowItems.length,
       actionLabel: "进入 Workflow",
       onClick: onOpenWorkflows
     },
@@ -561,7 +582,7 @@ export function DevelopPage({
       key: "chatflow",
       title: "Chatflow",
       description: "面向对话流的编排与发布。",
-      count: chatflowItems.length,
+      count: workspaceSummary?.chatflowCount ?? chatflowItems.length,
       actionLabel: "进入 Chatflow",
       onClick: onOpenChatflows
     },
@@ -587,14 +608,14 @@ export function DevelopPage({
     () => items.filter((item) => !deferredKeyword || item.name.toLowerCase().includes(deferredKeyword.toLowerCase())),
     [deferredKeyword, items]
   );
-  const filteredApplications = useMemo(
-    () =>
-      applications.filter((item) =>
-        !deferredKeyword ||
-        item.name.toLowerCase().includes(deferredKeyword.toLowerCase()) ||
-        item.code.toLowerCase().includes(deferredKeyword.toLowerCase())
-      ),
-    [applications, deferredKeyword]
+  const filteredApplications = useMemo(() => applications, [applications]);
+  const pluginResources = useMemo(
+    () => workspaceResources.filter(item => item.resourceType === "plugin"),
+    [workspaceResources]
+  );
+  const dataResources = useMemo(
+    () => workspaceResources.filter(item => item.resourceType === "knowledge-base" || item.resourceType === "database"),
+    [workspaceResources]
   );
   const filteredWorkflows = useMemo(
     () => workflowItems.filter((item) => !deferredKeyword || item.title.toLowerCase().includes(deferredKeyword.toLowerCase())),
@@ -613,10 +634,9 @@ export function DevelopPage({
   function openCreateApplicationDialog() {
     setApplicationEditing(null);
     setApplicationDraft({
-      code: "",
       name: "",
       description: "",
-      isActive: true
+      icon: ""
     });
     setApplicationDialogVisible(true);
   }
@@ -624,10 +644,9 @@ export function DevelopPage({
   function openEditApplicationDialog(item: StudioApplicationSummary) {
     setApplicationEditing(item);
     setApplicationDraft({
-      code: item.code,
       name: item.name,
       description: item.description ?? "",
-      isActive: item.isActive
+      icon: item.icon ?? ""
     });
     setApplicationDialogVisible(true);
   }
@@ -669,28 +688,23 @@ export function DevelopPage({
       return;
     }
 
-    if (!APPLICATION_CODE_REGEX.test(applicationDraft.code.trim())) {
-      Toast.warning("应用编码需以字母开头，只能包含字母、数字、下划线或中划线，长度 2-32。");
-      return;
-    }
-
     setSubmitting(true);
     try {
       if (applicationEditing) {
         await api.updateApplication(applicationEditing.id, {
           name: applicationDraft.name.trim(),
           description: applicationDraft.description?.trim() || undefined,
-          isActive: applicationDraft.isActive
+          icon: applicationDraft.icon?.trim() || undefined
         });
         Toast.success("应用信息已更新。");
       } else {
-        await api.createApplication({
-          code: applicationDraft.code.trim(),
+        const created = await api.createApplication({
           name: applicationDraft.name.trim(),
           description: applicationDraft.description?.trim() || undefined,
-          isActive: applicationDraft.isActive
+          icon: applicationDraft.icon?.trim() || undefined
         });
         Toast.success("应用已创建。");
+        onOpenWorkflow(created.workflowId);
       }
       setApplicationDialogVisible(false);
       await load();
@@ -715,6 +729,28 @@ export function DevelopPage({
         }
       }
     });
+  }
+
+  async function handleToggleFavorite(resource: WorkspaceIdeResource) {
+    try {
+      await api.toggleWorkspaceFavorite(resource.resourceType, resource.resourceId, !resource.isFavorite);
+      await load();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "更新收藏状态失败。");
+    }
+  }
+
+  async function handleRecordActivity(resource: WorkspaceIdeResource) {
+    try {
+      await api.recordWorkspaceActivity({
+        resourceType: resource.resourceType,
+        resourceId: Number(resource.resourceId),
+        resourceTitle: resource.name,
+        entryRoute: resource.entryRoute
+      });
+    } catch {
+      // 最近编辑记录失败不阻断主交互。
+    }
   }
 
   return (
@@ -777,22 +813,32 @@ export function DevelopPage({
             showClear
             data-testid="app-develop-search"
           />
-          <Radio.Group
-            type="button"
-            value={activeFocus}
-            onChange={event => {
-              const nextFocus = event.target.value as DevelopFocus;
-              startTransition(() => setActiveFocus(nextFocus));
-            }}
-          >
-            <Radio value="overview">总览</Radio>
-            <Radio value="projects">应用</Radio>
-            <Radio value="agents">Agent</Radio>
-            <Radio value="workflow">Workflow</Radio>
-            <Radio value="chatflow">Chatflow</Radio>
-            <Radio value="models">模型</Radio>
-            <Radio value="chat">对话</Radio>
-          </Radio.Group>
+          <Space wrap>
+            <Radio.Group
+              type="button"
+              value={activeFocus}
+              onChange={event => {
+                const nextFocus = event.target.value as DevelopFocus;
+                startTransition(() => setActiveFocus(nextFocus));
+              }}
+            >
+              <Radio value="overview">总览</Radio>
+              <Radio value="projects">应用</Radio>
+              <Radio value="agents">Agent</Radio>
+              <Radio value="workflow">Workflow</Radio>
+              <Radio value="chatflow">Chatflow</Radio>
+              <Radio value="plugins">插件</Radio>
+              <Radio value="data">数据</Radio>
+              <Radio value="models">模型</Radio>
+              <Radio value="chat">最近编辑</Radio>
+            </Radio.Group>
+            <Switch
+              checked={favoriteOnly}
+              onChange={checked => setFavoriteOnly(checked)}
+              checkedText="仅收藏"
+              uncheckedText="全部资源"
+            />
+          </Space>
         </div>
 
         <div className="module-studio__coze-board">
@@ -819,12 +865,56 @@ export function DevelopPage({
                           <Tag color="light-blue">应用</Tag>
                           <strong>{item.name}</strong>
                         </div>
-                        <Tag color={item.isActive ? "green" : "grey"}>{item.isActive ? "启用" : "停用"}</Tag>
+                        <Space>
+                          {item.status ? <Tag color={item.status.toLowerCase() === "published" ? "green" : "blue"}>{item.status}</Tag> : null}
+                          <Button theme="borderless" onClick={() => void handleToggleFavorite({
+                            resourceType: "app",
+                            resourceId: item.id,
+                            name: item.name,
+                            description: item.description,
+                            icon: item.icon,
+                            status: item.status || "draft",
+                            publishStatus: item.status?.toLowerCase() === "published" ? "published" : "draft",
+                            updatedAt: item.updatedAt || "",
+                            isFavorite: Boolean(item.isFavorite),
+                            entryRoute: item.entryRoute || "",
+                            badge: item.badge,
+                            linkedWorkflowId: item.workflowId
+                          })}>
+                            {item.isFavorite ? "★" : "☆"}
+                          </Button>
+                        </Space>
                       </div>
-                      <p>{item.description || `项目编码：${item.code}`}</p>
-                      <span className="module-studio__meta">编码：{item.code}</span>
+                      <p>{item.description || "AI 应用将智能体、工作流和提示模板组织成统一交付入口。"}</p>
+                      <span className="module-studio__meta">最近更新：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
                       <div className="module-studio__actions">
                         <Button onClick={() => setSelectedApplicationId(item.id)}>查看详情</Button>
+                        <Button
+                          theme="solid"
+                          type="primary"
+                          onClick={() => {
+                            void handleRecordActivity({
+                              resourceType: "app",
+                              resourceId: item.id,
+                              name: item.name,
+                              description: item.description,
+                              icon: item.icon,
+                              status: item.status || "draft",
+                              publishStatus: item.status?.toLowerCase() === "published" ? "published" : "draft",
+                              updatedAt: item.updatedAt || "",
+                              isFavorite: Boolean(item.isFavorite),
+                              entryRoute: item.entryRoute || "",
+                              badge: item.badge,
+                              linkedWorkflowId: item.workflowId
+                            }).then(() => {
+                              if (item.workflowId) {
+                                onOpenWorkflow(item.workflowId);
+                              }
+                            });
+                          }}
+                        >
+                          打开 IDE
+                        </Button>
                         <Button theme="borderless" onClick={() => openEditApplicationDialog(item)}>编辑</Button>
                         <Button theme="borderless" type="danger" onClick={() => void handleDeleteApplication(item)}>删除</Button>
                       </div>
@@ -930,6 +1020,68 @@ export function DevelopPage({
               </section>
             ) : null}
 
+            {(activeFocus === "overview" || activeFocus === "plugins") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>插件</Typography.Title>
+                    <Typography.Text type="tertiary">把 Bot 技能、HTTP/OpenAPI 能力与工具调用统一沉淀在 Coze 工作空间里。</Typography.Text>
+                  </div>
+                  <Button theme="borderless" onClick={onOpenLibrary}>进入资源库</Button>
+                </div>
+                <CardGrid
+                  testId="app-develop-plugins-grid"
+                  items={pluginResources}
+                  render={(item: WorkspaceIdeResource) => (
+                    <article key={`${item.resourceType}-${item.resourceId}`} className="module-studio__coze-card">
+                      <div className="module-studio__card-head">
+                        <div>
+                          <Tag color="orange">Plugin</Tag>
+                          <strong>{item.name}</strong>
+                        </div>
+                        <Button theme="borderless" onClick={() => void handleToggleFavorite(item)}>{item.isFavorite ? "★" : "☆"}</Button>
+                      </div>
+                      <p>{item.description || "插件工具能力"}</p>
+                      <span className="module-studio__meta">最近更新：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
+                      <Button onClick={onOpenLibrary}>打开资源库</Button>
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
+
+            {(activeFocus === "overview" || activeFocus === "data") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>数据与知识</Typography.Title>
+                    <Typography.Text type="tertiary">知识库、数据库和变量继续沉淀在统一工作空间里，为智能体与工作流复用。</Typography.Text>
+                  </div>
+                  <Button theme="borderless" onClick={onOpenLibrary}>统一管理</Button>
+                </div>
+                <CardGrid
+                  testId="app-develop-data-grid"
+                  items={dataResources}
+                  render={(item: WorkspaceIdeResource) => (
+                    <article key={`${item.resourceType}-${item.resourceId}`} className="module-studio__coze-card">
+                      <div className="module-studio__card-head">
+                        <div>
+                          <Tag color={item.resourceType === "knowledge-base" ? "green" : "blue"}>
+                            {item.resourceType === "knowledge-base" ? "知识库" : "数据库"}
+                          </Tag>
+                          <strong>{item.name}</strong>
+                        </div>
+                        <Button theme="borderless" onClick={() => void handleToggleFavorite(item)}>{item.isFavorite ? "★" : "☆"}</Button>
+                      </div>
+                      <p>{item.description || "可被工作流与智能体直接复用的数据资源。"}</p>
+                      <span className="module-studio__meta">最近更新：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
+                      <Button onClick={onOpenLibrary}>打开资源库</Button>
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
+
             {(activeFocus === "overview" || activeFocus === "models") ? (
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
@@ -971,18 +1123,19 @@ export function DevelopPage({
                 <CardGrid
                   testId="app-develop-recent-grid"
                   items={recentResources}
-                  render={(item: DevelopResourceSummary) => (
-                    <article key={`${item.kind}-${item.id}`} className="module-studio__coze-card module-studio__coze-card--compact">
-                      <Tag color={item.kind === "chatflow" ? "purple" : item.kind === "workflow" ? "blue" : item.kind === "model" ? "green" : "cyan"}>
-                        {item.kind}
+                  render={(item: WorkspaceIdeResource) => (
+                    <article key={`${item.resourceType}-${item.resourceId}`} className="module-studio__coze-card module-studio__coze-card--compact">
+                      <Tag color={item.resourceType === "chatflow" ? "purple" : item.resourceType === "workflow" ? "blue" : item.resourceType === "agent" ? "cyan" : "green"}>
+                        {item.resourceType}
                       </Tag>
-                      <strong>{item.title}</strong>
-                      <p>{item.description || item.meta || "最近访问资源"}</p>
-                      <span className="module-studio__meta">最近时间：{formatDate(item.updatedAt)}</span>
-                      {item.kind === "agent" ? <Button onClick={() => onOpenBot(item.id)}>继续编辑</Button> : null}
-                      {item.kind === "workflow" ? <Button onClick={() => onOpenWorkflow(item.id)}>继续编辑</Button> : null}
-                      {item.kind === "chatflow" ? <Button onClick={() => onOpenChatflow(item.id)}>继续编辑</Button> : null}
-                      {item.kind === "model" ? <Button onClick={onOpenModelConfigs}>查看模型</Button> : null}
+                      <strong>{item.name}</strong>
+                      <p>{item.description || item.badge || item.status || "最近访问资源"}</p>
+                      <span className="module-studio__meta">最近时间：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
+                      {item.resourceType === "agent" ? <Button onClick={() => onOpenBot(item.resourceId)}>继续编辑</Button> : null}
+                      {item.resourceType === "workflow" ? <Button onClick={() => onOpenWorkflow(item.resourceId)}>继续编辑</Button> : null}
+                      {item.resourceType === "chatflow" ? <Button onClick={() => onOpenChatflow(item.resourceId)}>继续编辑</Button> : null}
+                      {item.resourceType === "app" && item.linkedWorkflowId ? <Button onClick={() => onOpenWorkflow(item.linkedWorkflowId!)}>继续编辑</Button> : null}
+                      {(item.resourceType === "plugin" || item.resourceType === "knowledge-base" || item.resourceType === "database") ? <Button onClick={onOpenLibrary}>打开资源库</Button> : null}
                     </article>
                   )}
                 />
@@ -995,14 +1148,24 @@ export function DevelopPage({
               <Typography.Title heading={6}>应用详情</Typography.Title>
               {selectedApplication ? (
                 <div className="module-studio__stack">
-                  <Tag color={selectedApplication.isActive ? "green" : "grey"}>
-                    {selectedApplication.isActive ? "已启用" : "已停用"}
+                  <Tag color={selectedApplication.status?.toLowerCase() === "published" ? "green" : "blue"}>
+                    {selectedApplication.status || "Draft"}
                   </Tag>
                   <strong>{selectedApplication.name}</strong>
                   <Typography.Text type="tertiary">{selectedApplication.description || "当前应用还没有补充描述。"}</Typography.Text>
-                  <span className="module-studio__meta">编码：{selectedApplication.code}</span>
+                  <span className="module-studio__meta">最近更新：{formatDate(selectedApplication.lastEditedAt || selectedApplication.updatedAt)}</span>
                   <Space wrap>
-                    <Button theme="solid" type="primary" onClick={onOpenWorkflows}>资源编排</Button>
+                    <Button
+                      theme="solid"
+                      type="primary"
+                      onClick={() => {
+                        if (selectedApplication.workflowId) {
+                          onOpenWorkflow(selectedApplication.workflowId);
+                        }
+                      }}
+                    >
+                      进入工作流 IDE
+                    </Button>
                     <Button onClick={() => openEditApplicationDialog(selectedApplication)}>编辑应用</Button>
                   </Space>
                 </div>
@@ -1057,6 +1220,14 @@ export function DevelopPage({
                   <span>模型配置</span>
                   <strong>{models.length}</strong>
                 </button>
+                <button type="button" className="module-studio__coze-linkrow" onClick={() => setFavoriteOnly(current => !current)}>
+                  <span>收藏资源</span>
+                  <strong>{workspaceSummary?.favoriteCount ?? 0}</strong>
+                </button>
+                <button type="button" className="module-studio__coze-linkrow" onClick={() => setActiveFocus("chat")}>
+                  <span>最近编辑</span>
+                  <strong>{workspaceSummary?.recentCount ?? 0}</strong>
+                </button>
               </div>
             </section>
           </aside>
@@ -1097,21 +1268,14 @@ export function DevelopPage({
           <div className="module-studio__stack">
             <Input value={applicationDraft.name} onChange={value => setApplicationDraft(current => ({ ...current, name: value }))} placeholder="应用名称" />
             <Input
-              value={applicationDraft.code}
-              onChange={value => setApplicationDraft(current => ({ ...current, code: value }))}
-              placeholder="应用编码"
-              disabled={Boolean(applicationEditing)}
-            />
-            <Input
               value={applicationDraft.description ?? ""}
               onChange={value => setApplicationDraft(current => ({ ...current, description: value }))}
               placeholder="应用描述"
             />
-            <Switch
-              checked={applicationDraft.isActive}
-              onChange={checked => setApplicationDraft(current => ({ ...current, isActive: checked }))}
-              checkedText="启用"
-              uncheckedText="停用"
+            <Input
+              value={applicationDraft.icon ?? ""}
+              onChange={value => setApplicationDraft(current => ({ ...current, icon: value }))}
+              placeholder="图标标识（可选）"
             />
           </div>
         </Modal>

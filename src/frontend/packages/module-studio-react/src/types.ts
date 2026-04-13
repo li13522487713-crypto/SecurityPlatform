@@ -1,8 +1,9 @@
 import type { PagedResult } from "@atlas/shared-react-core/types";
 
 export type StudioLocale = "zh-CN" | "en-US";
-export type DevelopFocus = "overview" | "agents" | "projects" | "workflow" | "chatflow" | "models" | "chat";
+export type DevelopFocus = "overview" | "agents" | "projects" | "workflow" | "chatflow" | "plugins" | "data" | "models" | "chat";
 export type DevelopResourceKind = "agent" | "workflow" | "chatflow" | "model";
+export type WorkspaceIdeResourceType = "agent" | "app" | "workflow" | "chatflow" | "plugin" | "knowledge-base" | "database";
 
 export interface AgentListItem {
   id: string;
@@ -235,23 +236,58 @@ export interface DevelopResourceSummary {
 
 export interface StudioApplicationSummary {
   id: string;
-  code: string;
   name: string;
   description?: string;
-  isActive: boolean;
+  icon?: string;
+  status?: string;
+  publishVersion?: number;
+  workflowId?: string;
+  entryRoute?: string;
+  isFavorite?: boolean;
+  updatedAt?: string;
+  lastEditedAt?: string;
+  badge?: string;
 }
 
 export interface StudioApplicationCreateRequest {
-  code: string;
   name: string;
   description?: string;
-  isActive: boolean;
+  icon?: string;
 }
 
 export interface StudioApplicationUpdateRequest {
   name: string;
   description?: string;
-  isActive: boolean;
+  icon?: string;
+}
+
+export interface WorkspaceIdeSummary {
+  appCount: number;
+  agentCount: number;
+  workflowCount: number;
+  chatflowCount: number;
+  pluginCount: number;
+  knowledgeBaseCount: number;
+  databaseCount: number;
+  favoriteCount: number;
+  recentCount: number;
+}
+
+export interface WorkspaceIdeResource {
+  resourceType: WorkspaceIdeResourceType;
+  resourceId: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  status: string;
+  publishStatus: string;
+  updatedAt: string;
+  isFavorite: boolean;
+  lastOpenedAt?: string;
+  lastEditedAt?: string;
+  entryRoute: string;
+  badge?: string;
+  linkedWorkflowId?: string;
 }
 
 export interface StudioWorkspaceOverview {
@@ -271,9 +307,19 @@ export interface StudioModuleApi {
   createAgent: (request: AgentCreateRequest) => Promise<string>;
   updateAgent: (id: string, request: AgentUpdateRequest) => Promise<void>;
   getWorkspaceOverview: () => Promise<StudioWorkspaceOverview>;
-  createApplication: (request: StudioApplicationCreateRequest) => Promise<void>;
+  getWorkspaceSummary: () => Promise<WorkspaceIdeSummary>;
+  listWorkspaceResources: (params?: {
+    keyword?: string;
+    resourceType?: WorkspaceIdeResourceType;
+    favoriteOnly?: boolean;
+    pageIndex?: number;
+    pageSize?: number;
+  }) => Promise<PagedResult<WorkspaceIdeResource>>;
+  createApplication: (request: StudioApplicationCreateRequest) => Promise<{ appId: string; workflowId: string; entryRoute: string }>;
   updateApplication: (id: string, request: StudioApplicationUpdateRequest) => Promise<void>;
   deleteApplication: (id: string) => Promise<void>;
+  toggleWorkspaceFavorite: (resourceType: WorkspaceIdeResourceType, resourceId: string, isFavorite: boolean) => Promise<void>;
+  recordWorkspaceActivity: (request: { resourceType: WorkspaceIdeResourceType; resourceId: number; resourceTitle: string; entryRoute: string }) => Promise<void>;
   listConversations: (agentId?: string) => Promise<PagedResult<ConversationItem>>;
   getMessages: (conversationId: string) => Promise<ChatMessageItem[]>;
   createConversation: (agentId: string, title?: string) => Promise<string>;

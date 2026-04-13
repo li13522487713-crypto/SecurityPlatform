@@ -12,7 +12,9 @@ import {
 import { IconDelete, IconEdit, IconPlus, IconRefresh, IconSearch } from "@douyinfe/semi-icons";
 import type {
   AdminLocale,
-  AdminPageCommonProps
+  AdminPageCommonProps,
+  OrganizationOverview,
+  OrganizationOverviewItem
 } from "./types";
 import type {
   DepartmentListItem,
@@ -27,6 +29,8 @@ import type {
 } from "@atlas/shared-react-core/types";
 
 interface CopyMap {
+  overviewTitle: string;
+  overviewSubtitle: string;
   searchPlaceholder: string;
   create: string;
   save: string;
@@ -63,6 +67,8 @@ interface CopyMap {
 
 const copy: Record<AdminLocale, CopyMap> = {
   "zh-CN": {
+    overviewTitle: "组织概览",
+    overviewSubtitle: "把用户、角色、部门和岗位统一收拢到 Coze 壳内的组织入口。",
     searchPlaceholder: "搜索名称、编码或关键词",
     create: "创建",
     save: "保存",
@@ -97,6 +103,8 @@ const copy: Record<AdminLocale, CopyMap> = {
     status: "状态"
   },
   "en-US": {
+    overviewTitle: "Organization Overview",
+    overviewSubtitle: "A Coze-style landing page for users, roles, departments, and positions.",
     searchPlaceholder: "Search by name, code, or keyword",
     create: "Create",
     save: "Save",
@@ -258,6 +266,109 @@ function useKeyword(initialValue = "") {
   const [keyword, setKeyword] = useState(initialValue);
   const deferredKeyword = useDeferredValue(keyword);
   return { keyword, deferredKeyword, setKeyword };
+}
+
+function OverviewMetric({
+  title,
+  value,
+  subtitle
+}: {
+  title: string;
+  value: number;
+  subtitle: string;
+}) {
+  return (
+    <article className="module-admin__overview-metric">
+      <span className="module-admin__overview-metric-label">{title}</span>
+      <strong>{value}</strong>
+      <p>{subtitle}</p>
+    </article>
+  );
+}
+
+function OverviewList({
+  title,
+  items,
+  emptyTitle
+}: {
+  title: string;
+  items: OrganizationOverviewItem[];
+  emptyTitle: string;
+}) {
+  return (
+    <section className="module-admin__overview-panel">
+      <Typography.Title heading={6} style={{ margin: 0 }}>{title}</Typography.Title>
+      {items.length === 0 ? (
+        <Empty title={emptyTitle} image={null} />
+      ) : (
+        <div className="module-admin__overview-list">
+          {items.map(item => (
+            <article key={`${title}-${item.id}`} className="module-admin__overview-item">
+              <div>
+                <strong>{item.title}</strong>
+                {item.subtitle ? <Typography.Text type="tertiary">{item.subtitle}</Typography.Text> : null}
+              </div>
+              {item.meta ? <span className="module-admin__meta">{item.meta}</span> : null}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function OrganizationOverviewPage({ api, locale }: AdminPageCommonProps) {
+  const text = useCopy(locale);
+  const [overview, setOverview] = useState<OrganizationOverview | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setOverview(await api.getOrganizationOverview());
+    } catch (error) {
+      Toast.error((error as Error).message || text.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  return (
+    <PageShell
+      title={text.overviewTitle}
+      subtitle={text.overviewSubtitle}
+      testId="app-organization-overview-page"
+      toolbar={<Button icon={<IconRefresh />} theme="borderless" onClick={() => void load()}>{text.refresh}</Button>}
+    >
+      {loading ? <Typography.Text type="tertiary">Loading...</Typography.Text> : null}
+      <div className="module-admin__overview-grid">
+        <OverviewMetric title={locale === "zh-CN" ? "成员" : "Members"} value={overview?.memberCount ?? 0} subtitle={locale === "zh-CN" ? "应用内已加入组织成员" : "Members in current app organization"} />
+        <OverviewMetric title={locale === "zh-CN" ? "角色" : "Roles"} value={overview?.roleCount ?? 0} subtitle={locale === "zh-CN" ? "可分配的组织角色" : "Assignable app roles"} />
+        <OverviewMetric title={locale === "zh-CN" ? "部门" : "Departments"} value={overview?.departmentCount ?? 0} subtitle={locale === "zh-CN" ? "组织结构节点" : "Organization units"} />
+        <OverviewMetric title={locale === "zh-CN" ? "岗位" : "Positions"} value={overview?.positionCount ?? 0} subtitle={locale === "zh-CN" ? "岗位与职责编制" : "Position registry"} />
+      </div>
+      {(overview?.uncoveredMemberCount ?? 0) > 0 ? (
+        <Banner
+          type="warning"
+          bordered={false}
+          fullMode={false}
+          title={locale === "zh-CN" ? "治理提醒" : "Governance Notice"}
+          description={locale === "zh-CN"
+            ? `仍有 ${overview?.uncoveredMemberCount ?? 0} 位成员未完成角色覆盖。`
+            : `${overview?.uncoveredMemberCount ?? 0} members are still uncovered by role governance.`}
+        />
+      ) : null}
+      <div className="module-admin__overview-columns">
+        <OverviewList title={locale === "zh-CN" ? "最近成员" : "Recent Members"} items={overview?.recentMembers ?? []} emptyTitle={text.empty} />
+        <OverviewList title={locale === "zh-CN" ? "最近角色" : "Recent Roles"} items={overview?.recentRoles ?? []} emptyTitle={text.empty} />
+        <OverviewList title={locale === "zh-CN" ? "部门与岗位" : "Departments & Positions"} items={[...(overview?.recentDepartments ?? []), ...(overview?.recentPositions ?? [])]} emptyTitle={text.empty} />
+      </div>
+    </PageShell>
+  );
 }
 
 export function UsersAdminPage({ api, locale }: AdminPageCommonProps) {

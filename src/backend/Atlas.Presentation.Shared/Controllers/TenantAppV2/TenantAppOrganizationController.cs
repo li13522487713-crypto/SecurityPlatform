@@ -51,6 +51,56 @@ public sealed class TenantAppOrganizationController : ControllerBase
         return Ok(ApiResponse<AppOrganizationWorkspaceResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("overview")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<AppOrganizationOverviewResponse>>> GetOverview(
+        long appId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var workspace = await _queryService.GetWorkspaceAsync(tenantId, appId, new PagedRequest(1, 6, null), null, cancellationToken);
+        var result = new AppOrganizationOverviewResponse(
+            workspace.AppId,
+            checked((int)workspace.Members.Total),
+            workspace.Roles.Count,
+            workspace.Departments.Count,
+            workspace.Positions.Count,
+            workspace.Projects.Count,
+            workspace.RoleGovernance.UncoveredMembers,
+            workspace.Members.Items
+                .Select(item => new AppOrganizationOverviewItem(
+                    item.UserId,
+                    item.DisplayName,
+                    item.Username,
+                    item.IsActive ? "active" : "inactive"))
+                .ToArray(),
+            workspace.Roles
+                .Take(6)
+                .Select(item => new AppOrganizationOverviewItem(
+                    item.Id,
+                    item.Name,
+                    item.Code,
+                    item.IsSystem ? "system" : "custom"))
+                .ToArray(),
+            workspace.Departments
+                .Take(6)
+                .Select(item => new AppOrganizationOverviewItem(
+                    item.Id,
+                    item.Name,
+                    item.Code,
+                    $"members:{item.MemberCount}"))
+                .ToArray(),
+            workspace.Positions
+                .Take(6)
+                .Select(item => new AppOrganizationOverviewItem(
+                    item.Id,
+                    item.Name,
+                    item.Code,
+                    item.IsActive ? "active" : "inactive"))
+                .ToArray());
+        return Ok(ApiResponse<AppOrganizationOverviewResponse>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("members")]
     [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> AddMembers(

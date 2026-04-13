@@ -10,6 +10,7 @@ export type WorkspaceLeaf =
 export type ExploreLeaf = "plugin" | "template";
 
 export type AdminLeaf =
+  | "overview"
   | "users"
   | "roles"
   | "departments"
