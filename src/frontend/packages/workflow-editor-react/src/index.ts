@@ -4,6 +4,7 @@ export * from "./i18n";
 export * from "./services";
 export { WorkflowEditorReact as WorkflowEditor } from "./editor/WorkflowEditor";
 export type {
+  CanvasValidationResult,
   WorkflowEditorReactProps,
   WorkflowApiClient,
   WorkflowPanelCommand,

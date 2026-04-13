@@ -8,13 +8,15 @@ import type {
 } from "@atlas/workflow-core-react";
 import {
   WorkflowEditor,
+  type CanvasValidationResult,
   type WorkflowPanelCommand,
   type WorkflowPanelCommandType
 } from "@atlas/workflow-editor-react";
 import {
   buildReferenceSidebarSections,
   buildResourceSidebarSections,
-  ensureWorkflowTab
+  ensureWorkflowTab,
+  type WorkflowSidebarAction
 } from "./coze-adapter";
 import { getWorkflowModuleCopy } from "./copy";
 import type {
@@ -35,6 +37,8 @@ import type {
   ResourceIdeLibraryItem,
   ResourceIdeLibraryType,
   ResourceIdeTab,
+  WorkflowProblemItem,
+  WorkflowTraceStepSummary,
   WorkflowListItem,
   WorkflowPageProps,
   WorkflowResourceMode
@@ -55,6 +59,15 @@ type SidebarTabKey = "resources" | "references";
 type WorkspaceViewKey = "logic" | "ui";
 type CreateDialogKind = "workflow" | "chatflow" | "plugin" | "knowledge-base" | "database";
 type GroupMenuKey = "workflow" | "plugin" | "data";
+type ResourceContextMenuState = {
+  itemKey: string;
+  x: number;
+  y: number;
+  itemName: string;
+  action: WorkflowSidebarAction;
+  resourceType: ResourceIdeLibraryType | "workflow" | "chatflow" | "variables" | "conversations";
+  resourceId?: string;
+} | null;
 type VariableDialogState = {
   visible: boolean;
   editingId?: number;
@@ -109,6 +122,13 @@ function formatDateTime(value: string | undefined, locale: "zh-CN" | "en-US"): s
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale);
 }
 
+function readSearchParam(name: string): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return new URLSearchParams(window.location.search).get(name) ?? "";
+}
+
 export function WorkflowEditorShell({
   api,
   locale,
@@ -131,8 +151,8 @@ export function WorkflowEditorShell({
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeBaseListItem[]>([]);
   const [databaseItems, setDatabaseItems] = useState<AiDatabaseListItem[]>([]);
   const [conversationItems, setConversationItems] = useState<ConversationListItem[]>([]);
-  const [sidebarTab, setSidebarTab] = useState<SidebarTabKey>("resources");
-  const [workspaceView, setWorkspaceView] = useState<WorkspaceViewKey>("logic");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTabKey>(() => readSearchParam("sidebarTab") === "references" ? "references" : "resources");
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceViewKey>(() => readSearchParam("workspaceView") === "ui" ? "ui" : "logic");
   const [sidebarKeyword, setSidebarKeyword] = useState("");
   const [panelCommand, setPanelCommand] = useState<WorkflowPanelCommand | undefined>(undefined);
   const [commandNonce, setCommandNonce] = useState(0);
@@ -144,7 +164,7 @@ export function WorkflowEditorShell({
     closable: false,
     mode
   }]);
-  const [activeTabKey, setActiveTabKey] = useState(workflowTabKey);
+  const [activeTabKey, setActiveTabKey] = useState(() => readSearchParam("activeTab") || workflowTabKey);
   const [groupMenu, setGroupMenu] = useState<GroupMenuKey | null>(null);
   const [createDialog, setCreateDialog] = useState({
     visible: false,
@@ -191,6 +211,11 @@ export function WorkflowEditorShell({
   const [conversationDraft, setConversationDraft] = useState("");
   const [agents, setAgents] = useState<AgentSummaryItem[]>([]);
   const [processSnapshot, setProcessSnapshot] = useState<WorkflowProcessSnapshot | null>(null);
+  const [canvasValidation, setCanvasValidation] = useState<CanvasValidationResult | null>(null);
+  const [traceSteps, setTraceSteps] = useState<WorkflowTraceStepSummary[]>([]);
+  const [selectedTraceStep, setSelectedTraceStep] = useState<WorkflowTraceStepSummary | null>(null);
+  const [focusNodeKey, setFocusNodeKey] = useState("");
+  const [resourceContextMenu, setResourceContextMenu] = useState<ResourceContextMenuState>(null);
 
   const canvas = useMemo(() => safeParseCanvas(detail?.canvasJson), [detail?.canvasJson]);
   const activeTab = useMemo(
@@ -243,8 +268,14 @@ export function WorkflowEditorShell({
 
   useEffect(() => {
     setTabs(prev => ensureWorkflowTab(prev, workflowId, detail?.name ?? workflowId, mode));
-    setActiveTabKey(workflowTabKey);
   }, [detail?.name, mode, workflowId, workflowTabKey]);
+
+  useEffect(() => {
+    if (tabs.some(tab => tab.key === activeTabKey)) {
+      return;
+    }
+    setActiveTabKey(workflowTabKey);
+  }, [activeTabKey, tabs, workflowTabKey]);
 
   useEffect(() => {
     const resourceType = libraryDialog.resourceType;
@@ -363,6 +394,51 @@ export function WorkflowEditorShell({
       Toast.error(error instanceof Error ? error.message : copy.conversationLoadFailure);
     });
   }, [activeTab?.kind, api, conversationItems, conversationMessages, copy.conversationLoadFailure, selectedConversationId]);
+
+  useEffect(() => {
+    const handle = () => setResourceContextMenu(null);
+    window.addEventListener("click", handle);
+    return () => window.removeEventListener("click", handle);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("sidebarTab", sidebarTab);
+    params.set("workspaceView", workspaceView);
+    params.set("activeTab", activeTabKey);
+    params.set("openedTabs", tabs.map(tab => tab.key).join(","));
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [activeTabKey, sidebarTab, tabs, workspaceView]);
+
+  useEffect(() => {
+    if (!focusNodeKey || activeTabKey !== workflowTabKey) {
+      return;
+    }
+
+    const handle = window.setTimeout(() => setFocusNodeKey(""), 80);
+    return () => window.clearTimeout(handle);
+  }, [activeTabKey, focusNodeKey, workflowTabKey]);
+
+  const problemItems = useMemo<WorkflowProblemItem[]>(() => {
+    const canvasIssues = (canvasValidation?.canvasIssues ?? []).map((issue: string, index: number) => ({
+      key: `canvas-${index}`,
+      level: "canvas" as const,
+      label: issue
+    }));
+    const nodeIssues = (canvasValidation?.nodeResults ?? [])
+      .filter((item: { nodeKey: string; issues: string[] }) => item.issues.length > 0)
+      .flatMap(item =>
+        item.issues.map((issue: string, index: number) => ({
+          key: `${item.nodeKey}-${index}`,
+          level: "node" as const,
+          label: issue,
+          nodeKey: item.nodeKey
+        }))
+      );
+
+    return [...canvasIssues, ...nodeIssues];
+  }, [canvasValidation]);
 
   function emitPanelCommand(type: WorkflowPanelCommandType) {
     const nonce = commandNonce + 1;
@@ -713,6 +789,18 @@ export function WorkflowEditorShell({
               key={item.key}
               type="button"
               className={`module-workflow__coze-item${item.active || (item.action.type === "tab" && activeTabKey === item.action.tab.key) ? " is-active" : ""}`}
+              onContextMenu={event => {
+                event.preventDefault();
+                setResourceContextMenu({
+                  itemKey: item.key,
+                  x: event.clientX,
+                  y: event.clientY,
+                  itemName: item.name,
+                  action: item.action,
+                  resourceType: item.resourceType === "knowledge-base" ? "knowledge-base" : item.resourceType,
+                  resourceId: item.id
+                });
+              }}
               onClick={() => {
                 if (item.action.type === "route") {
                   window.location.assign(buildEditorPath(item.action.workflowId, item.action.mode));
@@ -736,6 +824,67 @@ export function WorkflowEditorShell({
     ));
   }
 
+  async function handleContextDelete() {
+    if (!resourceContextMenu?.resourceId) {
+      return;
+    }
+
+    try {
+      if (resourceContextMenu.resourceType === "plugin") {
+        await handleDeletePlugin(resourceContextMenu.resourceId);
+      } else if (resourceContextMenu.resourceType === "knowledge-base") {
+        await handleDeleteKnowledge(resourceContextMenu.resourceId);
+      } else if (resourceContextMenu.resourceType === "database") {
+        await handleDeleteDatabase(resourceContextMenu.resourceId);
+      } else if (resourceContextMenu.resourceType === "workflow" || resourceContextMenu.resourceType === "chatflow") {
+        await api.deleteWorkflow(resourceContextMenu.resourceId);
+        await loadContext(sidebarKeyword);
+      }
+    } finally {
+      setResourceContextMenu(null);
+    }
+  }
+
+  async function handleContextExport() {
+    if (!resourceContextMenu?.resourceId) {
+      return;
+    }
+
+    const resourceType = resourceContextMenu.resourceType === "chatflow" ? "workflow" : resourceContextMenu.resourceType;
+    if (resourceType === "variables" || resourceType === "conversations") {
+      return;
+    }
+
+    try {
+      await api.exportLibraryItem({ resourceType: resourceType as ResourceIdeLibraryType, resourceId: Number(resourceContextMenu.resourceId) });
+      Toast.success(copy.libraryImportSuccess);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : copy.libraryImportFailure);
+    } finally {
+      setResourceContextMenu(null);
+    }
+  }
+
+  async function handleContextMove() {
+    if (!resourceContextMenu?.resourceId) {
+      return;
+    }
+
+    const resourceType = resourceContextMenu.resourceType === "chatflow" ? "workflow" : resourceContextMenu.resourceType;
+    if (resourceType === "variables" || resourceType === "conversations") {
+      return;
+    }
+
+    try {
+      await api.moveLibraryItem({ resourceType: resourceType as ResourceIdeLibraryType, resourceId: Number(resourceContextMenu.resourceId) });
+      Toast.success(copy.libraryImportSuccess);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : copy.libraryImportFailure);
+    } finally {
+      setResourceContextMenu(null);
+    }
+  }
+
   function renderResourceTabs() {
     return (
       <div className="module-workflow__coze-resource-tabs">
@@ -752,6 +901,144 @@ export function WorkflowEditorShell({
   function renderActivePanel() {
     if (workspaceView === "ui") {
       return <div className="module-workflow__coze-ui-placeholder"><Typography.Text>{copy.editorUiComingSoon}</Typography.Text></div>;
+    }
+    if (activeTab?.kind === "problems") {
+      return (
+        <div className="module-workflow__coze-resource-panel">
+          <div className="module-workflow__coze-panel-toolbar">
+            <Typography.Title heading={5} style={{ margin: 0 }}>{copy.problemsLabel}</Typography.Title>
+            <Button theme="light" onClick={() => setActiveTabKey(workflowTabKey)}>{copy.openLabel}</Button>
+          </div>
+          {problemItems.length === 0 ? (
+            <Empty title={copy.emptyReferences} image={null} />
+          ) : (
+            <div className="module-workflow__coze-list-card">
+              {problemItems.map(item => (
+                <div key={item.key} className="module-workflow__coze-list-row">
+                  <div>
+                    <strong>{item.level === "canvas" ? copy.problemsLabel : item.nodeKey}</strong>
+                    <small>{item.label}</small>
+                  </div>
+                  {item.nodeKey ? (
+                    <div className="module-workflow__coze-list-row-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFocusNodeKey(item.nodeKey ?? "");
+                          setActiveTabKey(workflowTabKey);
+                        }}
+                      >
+                        {copy.openLabel}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (activeTab?.kind === "trace-list") {
+      return (
+        <div className="module-workflow__coze-resource-panel">
+          <div className="module-workflow__coze-panel-toolbar">
+            <Typography.Title heading={5} style={{ margin: 0 }}>{copy.traceLabel}</Typography.Title>
+            <Button theme="light" onClick={() => setTraceSteps([])}>{copy.refreshLabel}</Button>
+          </div>
+          {traceSteps.length === 0 ? (
+            <Empty title="暂无 Trace 记录" image={null} />
+          ) : (
+            <div className="module-workflow__coze-list-card">
+              {traceSteps.map((step, index) => (
+                <div key={`${step.timestamp}-${step.nodeKey}-${index}`} className="module-workflow__coze-list-row">
+                  <div>
+                    <strong>{step.nodeKey}</strong>
+                    <small>{step.timestamp} / {step.status}</small>
+                  </div>
+                  <div className="module-workflow__coze-list-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTraceStep(step);
+                        openTab({ key: "trace-step", kind: "trace-step", title: `${copy.traceLabel}: ${step.nodeKey}`, closable: true });
+                      }}
+                    >
+                      详情
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFocusNodeKey(step.nodeKey);
+                        setActiveTabKey(workflowTabKey);
+                      }}
+                    >
+                      定位
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (activeTab?.kind === "trace-step") {
+      return (
+        <div className="module-workflow__coze-resource-panel">
+          <div className="module-workflow__coze-panel-toolbar">
+            <Typography.Title heading={5} style={{ margin: 0 }}>{copy.traceLabel}</Typography.Title>
+            <Button theme="light" onClick={() => setActiveTabKey("trace-list")}>返回列表</Button>
+          </div>
+          {selectedTraceStep ? (
+            <div className="module-workflow__coze-list-card">
+              <div className="module-workflow__coze-list-row"><div><strong>节点</strong><small>{selectedTraceStep.nodeKey}</small></div></div>
+              <div className="module-workflow__coze-list-row"><div><strong>状态</strong><small>{selectedTraceStep.status}</small></div></div>
+              <div className="module-workflow__coze-list-row"><div><strong>时间</strong><small>{selectedTraceStep.timestamp}</small></div></div>
+              <div className="module-workflow__coze-list-row"><div><strong>详情</strong><small>{selectedTraceStep.detail || "-"}</small></div></div>
+              <div className="module-workflow__coze-list-row-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFocusNodeKey(selectedTraceStep.nodeKey);
+                    setActiveTabKey(workflowTabKey);
+                  }}
+                >
+                  定位到画布
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Empty title="暂无 Trace 详情" image={null} />
+          )}
+        </div>
+      );
+    }
+    if (activeTab?.kind === "references") {
+      const referenceSections = buildReferenceSidebarSections({
+        copy,
+        detail,
+        versions,
+        nodes: canvas.nodes,
+        nodeTypes
+      });
+      return (
+        <div className="module-workflow__coze-resource-panel">
+          <div className="module-workflow__coze-panel-toolbar">
+            <Typography.Title heading={5} style={{ margin: 0 }}>{copy.referencesTitle}</Typography.Title>
+          </div>
+          <div className="module-workflow__coze-list-card">
+            {referenceSections.flatMap(section => section.items).map(item => (
+              <div key={item.key} className="module-workflow__coze-list-row">
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{item.hint || item.badge || "-"}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
     }
     if (activeTab?.kind === "plugin" && activeTab.resourceId) {
       const detailResult = pluginDetails[activeTab.resourceId];
@@ -865,7 +1152,7 @@ export function WorkflowEditorShell({
         </div>
       );
     }
-    return <WorkflowEditor workflowId={workflowId} apiClient={apiClient} locale={locale} mode={mode} panelCommand={panelCommand} onBack={() => { if (backPath) { window.location.assign(backPath); return; } onBack(); }} />;
+    return <WorkflowEditor workflowId={workflowId} apiClient={apiClient} locale={locale} mode={mode} panelCommand={panelCommand} focusNodeKey={focusNodeKey} onValidationChange={setCanvasValidation} onTraceStepsChange={setTraceSteps} onBack={() => { if (backPath) { window.location.assign(backPath); return; } onBack(); }} />;
   }
 
   return (
@@ -889,7 +1176,7 @@ export function WorkflowEditorShell({
           {renderResourceTabs()}
           <div className="module-workflow__coze-workspace-header">
             <div className="module-workflow__coze-workspace-chip"><span className="module-workflow__coze-workspace-dot" /><strong>{activeTab?.title ?? detail?.name ?? workflowId}</strong></div>
-            {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openTrace")}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button>{mode === "chatflow" ? <Button theme="borderless" onClick={() => emitPanelCommand("openRoleConfig")}>{chatflowRoleLabel}</Button> : null}<Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
+            {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "problems", kind: "problems", title: copy.problemsLabel, closable: true })}>{copy.problemsLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "trace-list", kind: "trace-list", title: copy.traceLabel, closable: true })}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "references", kind: "references", title: copy.referencesTitle, closable: true })}>{copy.referencesTab}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button>{mode === "chatflow" ? <Button theme="borderless" onClick={() => emitPanelCommand("openRoleConfig")}>{chatflowRoleLabel}</Button> : null}<Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
           </div>
           <div className="module-workflow__coze-editor-surface">{renderActivePanel()}</div>
           {isWorkflowTab ? <div className="module-workflow__coze-status-strip"><span>{copy.versionLabel}: v{detail?.latestVersionNumber ?? 0}</span><span>{copy.testRunLabel}: {processSnapshot?.status ? copy.publishedStatus : copy.draftStatus}</span><span>{copy.updatedAtLabel}: {formatDateTime(detail?.updatedAt, locale)}</span></div> : null}
@@ -928,6 +1215,49 @@ export function WorkflowEditorShell({
           {conversationDialog.error ? <div className="module-workflow__coze-form-error">{conversationDialog.error}</div> : null}
         </div>
       </Modal>
+      {resourceContextMenu ? (
+        <div
+          className="module-workflow__coze-context-menu"
+          style={{ left: resourceContextMenu.x, top: resourceContextMenu.y }}
+          onClick={event => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (resourceContextMenu.action.type === "route") {
+                window.location.assign(buildEditorPath(resourceContextMenu.action.workflowId, resourceContextMenu.action.mode));
+              } else if (resourceContextMenu.action.type === "tab") {
+                openTab(resourceContextMenu.action.tab);
+              }
+              setResourceContextMenu(null);
+            }}
+          >
+            {copy.openLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (resourceContextMenu.action.type === "route") {
+                window.open(buildEditorPath(resourceContextMenu.action.workflowId, resourceContextMenu.action.mode), "_blank", "noopener,noreferrer");
+              } else if (resourceContextMenu.action.type === "tab") {
+                openTab(resourceContextMenu.action.tab);
+              }
+              setResourceContextMenu(null);
+            }}
+          >
+            新标签打开
+          </button>
+          {resourceContextMenu.resourceType !== "variables" && resourceContextMenu.resourceType !== "conversations" ? (
+            <>
+              <button type="button" onClick={() => void handleContextExport()}>{copy.libraryExportLabel}</button>
+              <button type="button" onClick={() => void handleContextMove()}>{copy.libraryMoveLabel}</button>
+            </>
+          ) : null}
+          {(resourceContextMenu.resourceType === "plugin" || resourceContextMenu.resourceType === "knowledge-base" || resourceContextMenu.resourceType === "database" || resourceContextMenu.resourceType === "workflow" || resourceContextMenu.resourceType === "chatflow") ? (
+            <button type="button" className="is-danger" onClick={() => void handleContextDelete()}>{copy.deleteLabel}</button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

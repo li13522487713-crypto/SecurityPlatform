@@ -167,6 +167,22 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   }, [layoutService, props.panelCommand]);
 
   useEffect(() => {
+    props.onValidationChange?.(canvasValidation);
+  }, [canvasValidation, props]);
+
+  useEffect(() => {
+    props.onTraceStepsChange?.(store.traceSteps);
+  }, [props, store.traceSteps]);
+
+  useEffect(() => {
+    if (!props.focusNodeKey) {
+      return;
+    }
+
+    editService.focusNode(props.focusNodeKey);
+  }, [editService, props.focusNodeKey]);
+
+  useEffect(() => {
     if (props.mode !== "chatflow") {
       return;
     }

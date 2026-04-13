@@ -11,6 +11,8 @@ import type {
   WorkflowVersionRollbackResult,
   WorkflowVersionItem
 } from "../types";
+import type { TraceStepItem } from "../components/TracePanel";
+import type { CanvasValidationResult } from "./editor-validation";
 
 export interface WorkflowApiClient {
   getDetail?: (id: string, query?: WorkflowDetailQuery) => Promise<{ data?: WorkflowDetailResponse }>;
@@ -103,4 +105,9 @@ export interface WorkflowEditorReactProps {
   apiClient: WorkflowApiClient;
   onBack?: () => void;
   panelCommand?: WorkflowPanelCommand;
+  onValidationChange?: (validation: CanvasValidationResult | null) => void;
+  onTraceStepsChange?: (steps: TraceStepItem[]) => void;
+  focusNodeKey?: string;
 }
+
+export type { CanvasValidationResult } from "./editor-validation";

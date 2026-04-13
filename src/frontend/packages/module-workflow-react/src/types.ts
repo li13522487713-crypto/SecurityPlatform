@@ -21,7 +21,11 @@ export type ResourceIdeTabKind =
   | "knowledge"
   | "database"
   | "variables"
-  | "conversations";
+  | "conversations"
+  | "problems"
+  | "trace-list"
+  | "trace-step"
+  | "references";
 export type AiVariableScope = 0 | 1 | 2;
 export type KnowledgeBaseType = 0 | 1 | 2;
 export type AiPluginType = 0 | 1;
@@ -98,6 +102,20 @@ export interface ResourceIdeTab {
   title: string;
   closable: boolean;
   mode?: WorkflowResourceMode;
+}
+
+export interface WorkflowProblemItem {
+  key: string;
+  level: "canvas" | "node";
+  label: string;
+  nodeKey?: string;
+}
+
+export interface WorkflowTraceStepSummary {
+  timestamp: string;
+  nodeKey: string;
+  status: "running" | "success" | "failed" | "skipped" | "blocked";
+  detail?: string;
 }
 
 export interface ResourceIdeLibraryItem {
