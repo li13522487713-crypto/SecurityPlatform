@@ -247,6 +247,9 @@ importers:
       '@atlas/workflow-core-react':
         specifier: workspace:*
         version: link:../workflow-core-react
+      '@atlas/workflow-editor-react':
+        specifier: workspace:*
+        version: link:../workflow-editor-react
       '@douyinfe/semi-ui':
         specifier: ^2.82.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

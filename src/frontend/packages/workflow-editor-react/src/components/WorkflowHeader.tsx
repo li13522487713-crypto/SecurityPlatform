@@ -1,5 +1,5 @@
 import { Button, Input, Space, Tag } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, CopyOutlined, SaveOutlined, UploadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 interface WorkflowHeaderProps {
@@ -32,17 +32,21 @@ export function WorkflowHeader(props: WorkflowHeaderProps) {
   return (
     <div className="wf-react-header">
       <div className="wf-react-header-main">
-        <Space size={12}>
-          <Button icon={<ArrowLeftOutlined />} onClick={props.onBack} data-testid="workflow.detail.title.back">
-            {t("workflow.back")}
-          </Button>
-          <div className="wf-react-header-meta">
-            <div className="wf-react-header-title">{isChatflow ? "Chatflow" : t("workflow.title")}</div>
-            <div className="wf-react-header-subtitle">
-              {isChatflow ? "面向对话流的连续编排、调试与发布" : t("workflow.subtitle")}
-            </div>
+        <button type="button" className="wf-react-header-back" onClick={props.onBack} data-testid="workflow.detail.title.back">
+          <ArrowLeftOutlined />
+        </button>
+        <div className="wf-react-header-badge">{isChatflow ? "CF" : "WF"}</div>
+        <div className="wf-react-header-meta">
+          <div className="wf-react-header-title-row">
+            <div className="wf-react-header-title">{props.name || t("workflow.title")}</div>
+            <Tag color="blue" className="wf-react-mode-tag">
+              {isChatflow ? "Chatflow" : t("workflow.title")}
+            </Tag>
           </div>
-        </Space>
+          <div className="wf-react-header-subtitle">
+            {isChatflow ? "面向对话流的连续编排、调试与发布" : t("workflow.subtitle")}
+          </div>
+        </div>
         <div className="wf-react-header-name-wrap">
           <Input
             value={props.name}
@@ -55,20 +59,22 @@ export function WorkflowHeader(props: WorkflowHeaderProps) {
           </Tag>
         </div>
       </div>
-      <Space size={8}>
+      <Space size={8} className="wf-react-header-actions">
         <Button
           disabled={props.readOnly || !props.onDuplicate}
+          icon={<CopyOutlined />}
           onClick={props.onDuplicate}
           data-testid="workflow.detail.title.duplicate"
         >
           {t("workflow.duplicate")}
         </Button>
-        <Button disabled={props.readOnly} onClick={props.onSave} data-testid="workflow.detail.title.save-draft">
+        <Button disabled={props.readOnly} icon={<SaveOutlined />} onClick={props.onSave} data-testid="workflow.detail.title.save-draft">
           {t("workflow.saveDraft")}
         </Button>
         <Button
           type="primary"
           disabled={props.readOnly}
+          icon={<UploadOutlined />}
           onClick={props.onPublish}
           data-testid="workflow-base-publish-button"
         >

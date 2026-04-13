@@ -20,6 +20,8 @@ interface CozeShellProps {
   localeLabel: string;
   userName: string;
   extraActions?: CozeHeaderAction[];
+  profileLabel?: string;
+  logoutLabel?: string;
   onNavigate: (path: string) => void;
   onToggleLocale: () => void;
   onOpenProfile?: () => void;
@@ -28,7 +30,13 @@ interface CozeShellProps {
 }
 
 function isActiveSecondary(item: CozeSecondaryNavItem, activePath: string): boolean {
-  return activePath === item.path || activePath.startsWith(`${item.path}/`);
+  if (activePath === item.path || activePath.startsWith(`${item.path}/`)) {
+    return true;
+  }
+
+  const [activePathname] = activePath.split("?");
+  const [itemPathname] = item.path.split("?");
+  return activePathname === itemPathname && activePath.includes(item.path);
 }
 
 function isActivePrimary(item: CozePrimaryNavItem, activePath: string): boolean {
@@ -51,15 +59,14 @@ export function CozeShell({
   localeLabel,
   userName,
   extraActions,
+  profileLabel = "个人中心",
+  logoutLabel = "退出登录",
   onNavigate,
   onToggleLocale,
   onOpenProfile,
   onLogout,
   children,
 }: CozeShellProps) {
-  const profileLabel = "个人中心";
-  const logoutLabel = "退出登录";
-
   return (
     <div className="coze-shell">
       <aside className="coze-shell__primary" data-testid="app-primary-nav">

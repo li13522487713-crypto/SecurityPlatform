@@ -20,6 +20,7 @@
   "dependencies": {
     "@atlas/shared-react-core": "workspace:*",
     "@atlas/workflow-core-react": "workspace:*",
+    "@atlas/workflow-editor-react": "workspace:*",
     "@douyinfe/semi-ui": "^2.82.0"
   },
   "devDependencies": {

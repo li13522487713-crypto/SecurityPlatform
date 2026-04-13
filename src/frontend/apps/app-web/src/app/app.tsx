@@ -653,6 +653,7 @@ function AppShellRoute() {
   const bootstrap = useBootstrap();
   const auth = useAuth();
   const { locale, setLocale } = useAppI18n();
+  const activeShellPath = `${location.pathname}${location.search}`;
 
   useEffect(() => {
     rememberConfiguredAppKey(appKey);
@@ -807,11 +808,16 @@ function AppShellRoute() {
           }
         ];
 
-  const headerTitle = primaryKey === "workspace"
-    ? (locale === "zh-CN" ? "工作空间" : "Workspace")
-    : primaryKey === "explore"
-      ? (locale === "zh-CN" ? "探索" : "Explore")
-      : (locale === "zh-CN" ? "管理" : "Management");
+  const activeSecondaryItem = secondarySections
+    .flatMap(section => section.items)
+    .find(item => activeShellPath === item.path || activeShellPath.startsWith(`${item.path}/`) || activeShellPath.includes(item.path));
+
+  const headerTitle = activeSecondaryItem?.label
+    ?? (primaryKey === "workspace"
+      ? (locale === "zh-CN" ? "工作空间" : "Workspace")
+      : primaryKey === "explore"
+        ? (locale === "zh-CN" ? "探索" : "Explore")
+        : (locale === "zh-CN" ? "管理" : "Management"));
 
   return (
     <>
@@ -819,14 +825,16 @@ function AppShellRoute() {
       <CozeShell
         appKey={appKey}
         workspaceLabel={bootstrap.workspaceLabel || appKey}
-        activePath={location.pathname}
+        activePath={activeShellPath}
         activePrimaryKey={primaryKey}
         primaryItems={primaryItems}
         secondarySections={secondarySections}
         headerTitle={headerTitle}
-        headerSubtitle={locale === "zh-CN" ? "应用宿主" : "App Host"}
+        headerSubtitle={bootstrap.workspaceLabel || (locale === "zh-CN" ? "应用宿主" : "App Host")}
         localeLabel={locale === "zh-CN" ? "English" : "中文"}
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+        profileLabel={locale === "zh-CN" ? "个人中心" : "Profile"}
+        logoutLabel={locale === "zh-CN" ? "退出登录" : "Sign Out"}
         onNavigate={navigate}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
         onOpenProfile={() => navigate(adminPath(appKey, "profile"))}

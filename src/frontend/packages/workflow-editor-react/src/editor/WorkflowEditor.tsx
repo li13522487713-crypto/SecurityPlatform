@@ -126,6 +126,39 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNode]);
 
+  useEffect(() => {
+    const command = props.panelCommand;
+    if (!command) {
+      return;
+    }
+
+    switch (command.type) {
+      case "openNodePanel":
+        setShowNodePanel(true);
+        break;
+      case "openTestRun":
+        setShowTestPanel(true);
+        layoutService.open("TestRunPanel");
+        break;
+      case "openTrace":
+        setShowTracePanel(true);
+        layoutService.open("TracePanel");
+        break;
+      case "openVariables":
+        setShowVariablePanel(true);
+        break;
+      case "openDebug":
+        setShowDebugPanel(true);
+        break;
+      case "openProblems":
+        setShowProblemPanel(true);
+        layoutService.open("ProblemPanel");
+        break;
+      default:
+        break;
+    }
+  }, [layoutService, props.panelCommand]);
+
   const variableSuggestions = useMemo(
     () =>
       buildVariableSuggestions(

@@ -80,6 +80,19 @@ export interface WorkflowApiClient {
   ) => Promise<{ data?: { outputsJson?: string; status?: number; executionId?: string } }>;
 }
 
+export type WorkflowPanelCommandType =
+  | "openNodePanel"
+  | "openTestRun"
+  | "openTrace"
+  | "openVariables"
+  | "openDebug"
+  | "openProblems";
+
+export interface WorkflowPanelCommand {
+  type: WorkflowPanelCommandType;
+  nonce: number;
+}
+
 export interface WorkflowEditorReactProps {
   workflowId: string;
   locale?: string;
@@ -88,4 +101,5 @@ export interface WorkflowEditorReactProps {
   detailQuery?: WorkflowDetailQuery;
   apiClient: WorkflowApiClient;
   onBack?: () => void;
+  panelCommand?: WorkflowPanelCommand;
 }

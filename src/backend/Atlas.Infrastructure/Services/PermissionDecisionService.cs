@@ -61,12 +61,17 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
             return false;
         }
 
-        if (cacheEntry.IsPlatformAdmin && !cacheEntry.IsAppScoped)
+        if (cacheEntry.IsPlatformAdmin)
         {
             return true;
         }
 
         if (cacheEntry.PermissionCodes.Contains(PermissionCodes.SystemAdmin, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (cacheEntry.IsAppScoped && cacheEntry.RoleCodes.Contains("AppAdmin", StringComparer.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -96,7 +101,7 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
             return false;
         }
 
-        if (cacheEntry.IsPlatformAdmin && !cacheEntry.IsAppScoped)
+        if (cacheEntry.IsPlatformAdmin)
         {
             return true;
         }

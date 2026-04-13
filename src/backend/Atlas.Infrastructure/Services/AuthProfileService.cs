@@ -5,6 +5,7 @@ using Atlas.Core.Identity;
 using Atlas.Application.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Caching;
+using Atlas.Application.Identity;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -49,6 +50,23 @@ public sealed class AuthProfileService : IAuthProfileService
         }
 
         var (roleCodes, permissionCodes) = await _rbacResolver.GetRolesAndPermissionsAsync(account, tenantId, cancellationToken);
+        var effectivePermissionCodes = permissionCodes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (account.IsPlatformAdmin)
+        {
+            effectivePermissionCodes.Add(PermissionCodes.SystemAdmin);
+            effectivePermissionCodes.Add(PermissionCodes.AppAdmin);
+            effectivePermissionCodes.Add("*:*:*");
+        }
+
+        if (appId.HasValue && roleCodes.Contains("AppAdmin", StringComparer.OrdinalIgnoreCase))
+        {
+            effectivePermissionCodes.Add(PermissionCodes.AppAdmin);
+            effectivePermissionCodes.Add("*:*:*");
+        }
 
         var result = new AuthProfileResult(
             account.Id.ToString(),
@@ -56,7 +74,7 @@ public sealed class AuthProfileService : IAuthProfileService
             account.DisplayName,
             tenantId.Value.ToString("D"),
             roleCodes,
-            permissionCodes,
+            effectivePermissionCodes.ToArray(),
             account.IsPlatformAdmin,
             null);
 
