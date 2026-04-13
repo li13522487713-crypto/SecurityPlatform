@@ -118,6 +118,7 @@ export function WorkflowEditorShell({
   mode = "workflow"
 }: WorkflowEditorShellProps) {
   const copy = getWorkflowModuleCopy(locale);
+  const chatflowRoleLabel = locale === "zh-CN" ? "角色" : "Role";
   const apiClient = api.apiClient;
   const workflowTabKey = `${mode}-${workflowId}`;
 
@@ -888,7 +889,7 @@ export function WorkflowEditorShell({
           {renderResourceTabs()}
           <div className="module-workflow__coze-workspace-header">
             <div className="module-workflow__coze-workspace-chip"><span className="module-workflow__coze-workspace-dot" /><strong>{activeTab?.title ?? detail?.name ?? workflowId}</strong></div>
-            {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openTrace")}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button><Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
+            {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openTrace")}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button>{mode === "chatflow" ? <Button theme="borderless" onClick={() => emitPanelCommand("openRoleConfig")}>{chatflowRoleLabel}</Button> : null}<Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
           </div>
           <div className="module-workflow__coze-editor-surface">{renderActivePanel()}</div>
           {isWorkflowTab ? <div className="module-workflow__coze-status-strip"><span>{copy.versionLabel}: v{detail?.latestVersionNumber ?? 0}</span><span>{copy.testRunLabel}: {processSnapshot?.status ? copy.publishedStatus : copy.draftStatus}</span><span>{copy.updatedAtLabel}: {formatDateTime(detail?.updatedAt, locale)}</span></div> : null}

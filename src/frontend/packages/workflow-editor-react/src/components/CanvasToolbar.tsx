@@ -1,5 +1,5 @@
 import { Button, Segmented, Select, Space } from "antd";
-import { PlusOutlined, BorderOutlined, ZoomInOutlined, PlayCircleOutlined, ApartmentOutlined, AlignCenterOutlined } from "@ant-design/icons";
+import { PlusOutlined, BorderOutlined, ZoomInOutlined, PlayCircleOutlined, ApartmentOutlined, AlignCenterOutlined, UserOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 interface CanvasToolbarProps {
@@ -16,6 +16,8 @@ interface CanvasToolbarProps {
   onToggleDebug: () => void;
   onToggleTrace: () => void;
   onToggleProblems: () => void;
+  showRoleConfig?: boolean;
+  onToggleRoleConfig?: () => void;
   onRun: () => void;
 }
 
@@ -74,6 +76,16 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
             <Button size="small" icon={<ApartmentOutlined />} onClick={props.onToggleVariables} data-testid="workflow.detail.toolbar.variables">
               {t("wfUi.toolbar.variables")}
             </Button>
+            {props.showRoleConfig ? (
+              <Button
+                size="small"
+                icon={<UserOutlined />}
+                onClick={props.onToggleRoleConfig}
+                data-testid="workflow.detail.toolbar.role-config"
+              >
+                {t("wfUi.toolbar.roleConfig")}
+              </Button>
+            ) : null}
             <Button size="small" onClick={props.onToggleDebug} data-testid="workflow.detail.toolbar.debug">
               {t("wfUi.toolbar.debug")}
             </Button>

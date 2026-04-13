@@ -150,6 +150,25 @@
   color: #334155;
 }
 
+.wf-node-render-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.wf-node-render-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #5b63ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .wf-node-render-ellipsis {
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -841,6 +860,148 @@
   z-index: 1150;
 }
 
+.wf-react-chatflow-role-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: min(420px, calc(100vw - 24px));
+  height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 20px 52px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(18px);
+  z-index: 1160;
+  overflow: hidden;
+}
+
+.wf-react-chatflow-role-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+}
+
+.wf-react-chatflow-role-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.wf-react-chatflow-role-subtitle {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.wf-react-chatflow-role-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 18px 20px;
+  overflow: auto;
+}
+
+.wf-react-chatflow-role-alert {
+  margin-bottom: 16px;
+  border-radius: 14px;
+}
+
+.wf-react-chatflow-role-alert-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.wf-react-chatflow-role-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.wf-react-chatflow-role-section:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.wf-react-chatflow-role-section-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.wf-react-chatflow-role-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-react-chatflow-role-field span {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wf-react-chatflow-role-field-inline {
+  flex: 1;
+}
+
+.wf-react-chatflow-role-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.wf-react-chatflow-role-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #14b8a6, #0ea5e9);
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+  box-shadow: 0 16px 26px rgba(14, 165, 233, 0.22);
+}
+
+.wf-react-chatflow-role-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.84);
+}
+
+.wf-react-chatflow-role-toggle span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wf-react-chatflow-role-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wf-react-chatflow-role-question-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
 .wf-react-variable-panel-header {
   display: flex;
   justify-content: space-between;
@@ -929,6 +1090,104 @@
 
 .wf-react-test-empty {
   color: #94a3b8;
+}
+
+.wf-react-test-payload-preview {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dbe7ff;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(248, 250, 255, 0.96) 0%, rgba(239, 244, 255, 0.92) 100%);
+}
+
+.wf-react-test-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.wf-react-test-preview-empty {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.wf-react-test-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.wf-react-test-preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(191, 219, 254, 0.7);
+}
+
+.wf-react-test-preview-item strong {
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wf-react-test-preview-item span {
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wf-react-test-validation {
+  margin: 12px 0 0;
+}
+
+.wf-react-test-validation-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.wf-react-test-log-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.wf-react-test-log-index {
+  color: #60a5fa;
+  font-variant-numeric: tabular-nums;
+}
+
+.wf-react-test-log-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wf-react-test-chatflow-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.wf-react-test-chatflow-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wf-react-test-chatflow-field span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .wf-react-toolbar {
@@ -1114,6 +1373,30 @@
   }
 
   .wf-react-node-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wf-react-chatflow-role-panel {
+    width: min(420px, calc(100vw - 16px));
+    right: 8px;
+    top: 8px;
+    height: calc(100% - 16px);
+  }
+
+  .wf-react-chatflow-role-avatar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wf-react-chatflow-role-question-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wf-react-test-chatflow-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wf-react-test-preview-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }

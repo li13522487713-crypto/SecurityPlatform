@@ -175,6 +175,8 @@ export function NodeContentMap(props: ContentProps) {
         operation={props.type}
         userId={readNumber(configs.userId)}
         conversationId={readNumber(configs.conversationId)}
+        agentId={readNumber(configs.agentId)}
+        title={readText(configs.title)}
       />
     );
   }
@@ -233,6 +235,7 @@ export function NodeContentMap(props: ContentProps) {
         operation={props.type}
         conversationId={readNumber(configs.conversationId)}
         messageId={readNumber(configs.messageId)}
+        role={readText(configs.role)}
       />
     );
   }

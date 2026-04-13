@@ -2,6 +2,7 @@ import { message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CanvasToolbar } from "../components/CanvasToolbar";
+import { ChatflowRolePanel } from "../components/ChatflowRolePanel";
 import { DragTooltip } from "../components/DragTooltip";
 import { FloatLayoutHolder, FloatLayoutProvider, useFloatLayoutService } from "../components/FloatLayout";
 import { LineAddButton } from "../components/LineAddButton";
@@ -24,7 +25,9 @@ import { NodeRegistry } from "../node-registry";
 import type { CanvasSchema } from "../types";
 import { validateCanvas, type CanvasValidationResult } from "./editor-validation";
 import type { WorkflowEditorReactProps } from "./workflow-editor-props";
+import { ensureChatflowGlobals, readChatflowRoleConfig, validateChatflowRoleConfig } from "./chatflow-role-config";
 import { buildVariableSuggestions } from "./smoke-utils";
+import { validateTestRunPayload, type TestRunValidationIssueCode } from "./test-run-validation";
 import type { CanvasConnection, CanvasNode } from "./workflow-editor-state";
 import { NODE_HEIGHT, NODE_WIDTH, toCanvasJson, type WorkflowViewportState } from "./workflow-editor-state";
 import { useNodeSideSheetStore } from "../stores/node-side-sheet-store";
@@ -69,6 +72,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   const [showTracePanel, setShowTracePanel] = useState(false);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showVariablePanel, setShowVariablePanel] = useState(false);
+  const [showRolePanel, setShowRolePanel] = useState(props.mode === "chatflow");
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [interactionMode, setInteractionMode] = useState<"mouse" | "trackpad">("mouse");
   const [canvasValidation, setCanvasValidation] = useState<CanvasValidationResult | null>(null);
@@ -147,6 +151,9 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
       case "openVariables":
         setShowVariablePanel(true);
         break;
+      case "openRoleConfig":
+        setShowRolePanel(true);
+        break;
       case "openDebug":
         setShowDebugPanel(true);
         break;
@@ -158,6 +165,37 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         break;
     }
   }, [layoutService, props.panelCommand]);
+
+  useEffect(() => {
+    if (props.mode !== "chatflow") {
+      return;
+    }
+
+    const normalizedGlobals = ensureChatflowGlobals(store.canvasGlobals);
+    if (normalizedGlobals !== store.canvasGlobals) {
+      store.setCanvasGlobals(normalizedGlobals);
+    }
+  }, [props.mode, store]);
+
+  useEffect(() => {
+    if (props.mode !== "chatflow") {
+      return;
+    }
+
+    const current = store.testInputJson.trim();
+    if (!current || current === "{\"input\":\"hello\"}") {
+      store.setTestInputJson(
+        JSON.stringify(
+          {
+            USER_INPUT: "hello",
+            CONVERSATION_NAME: "new_conversation"
+          },
+          null,
+          2
+        )
+      );
+    }
+  }, [props.mode, store]);
 
   const variableSuggestions = useMemo(
     () =>
@@ -265,6 +303,13 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
 
   function runCanvasValidationAndReport(): CanvasValidationResult {
     const result = validateCanvas(store.canvasNodes, store.canvasConnections, store.nodeTypesMeta, store.canvasGlobals);
+    if (props.mode === "chatflow") {
+      const roleIssues = validateChatflowRoleConfig(readChatflowRoleConfig(store.canvasGlobals));
+      if (roleIssues.length > 0) {
+        result.canvasIssues.push(...roleIssues);
+        result.ok = false;
+      }
+    }
     setCanvasValidation(result);
     if (!result.ok) {
       const firstNodeIssue = result.nodeResults.find((item) => item.issues.length > 0)?.issues[0];
@@ -306,6 +351,23 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
       }
     }
     return fallbackMessage;
+  }
+
+  function getTestRunIssueLabel(issue: TestRunValidationIssueCode): string {
+    switch (issue) {
+      case "invalidJson":
+        return t("wfUi.testRun.invalidJson");
+      case "invalidPayload":
+        return t("wfUi.testRun.invalidPayload");
+      case "userInputRequired":
+        return t("wfUi.testRun.userInputRequired");
+      case "conversationNameRequired":
+        return t("wfUi.testRun.conversationNameRequired");
+      case "conversationNameTooLong":
+        return t("wfUi.testRun.conversationNameTooLong");
+      default:
+        return t("wfUi.testRun.invalidPayload");
+    }
   }
 
   async function handleSave(): Promise<void> {
@@ -360,6 +422,18 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     } catch (error) {
       message.error(extractErrorMessage(error, "复制工作流失败，请稍后重试。"));
     }
+  }
+
+  async function handleTestRun(): Promise<void> {
+    const validation = validateTestRunPayload(store.testInputJson, props.mode);
+    if (validation.issues.length > 0) {
+      message.error(getTestRunIssueLabel(validation.issues[0]));
+      setShowTestPanel(true);
+      layoutService.open("TestRunPanel");
+      return;
+    }
+
+    await runService.testRun();
   }
 
   function buildClipboardSnapshot(): ClipboardSnapshot | null {
@@ -825,6 +899,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
               visible={showTestPanel}
               logs={store.logs}
               running={store.testRunning}
+              workflowMode={props.mode}
               source={store.testRunSource}
               mode={store.testRunMode}
               inputJson={store.testInputJson}
@@ -832,7 +907,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
               onSourceChange={store.setTestRunSource}
               onModeChange={store.setTestRunMode}
               onClose={() => setShowTestPanel(false)}
-              onRun={() => void runService.testRun()}
+              onRun={() => void handleTestRun()}
             />
           }
         />
@@ -865,6 +940,10 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
           onClose={() => setShowVariablePanel(false)}
         />
 
+        {props.mode === "chatflow" ? (
+          <ChatflowRolePanel visible={showRolePanel} readOnly={isReadOnly} onClose={() => setShowRolePanel(false)} />
+        ) : null}
+
         <MinimapPanel visible={showMinimap} nodes={store.canvasNodes.map((node) => ({ key: node.key, x: node.x, y: node.y }))} selectedNodeKey={selectedNodeKey} />
 
         <CanvasToolbar
@@ -895,6 +974,8 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
             saveService.listenContentChange({ type: "MOVE_NODE" });
           }}
           onToggleVariables={() => setShowVariablePanel((value) => !value)}
+          showRoleConfig={props.mode === "chatflow"}
+          onToggleRoleConfig={() => setShowRolePanel((value) => !value)}
           onToggleDebug={() => setShowDebugPanel((value) => !value)}
           onToggleTrace={() => {
             setShowTracePanel((value) => !value);

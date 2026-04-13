@@ -85,6 +85,7 @@ export type WorkflowPanelCommandType =
   | "openTestRun"
   | "openTrace"
   | "openVariables"
+  | "openRoleConfig"
   | "openDebug"
   | "openProblems";
 

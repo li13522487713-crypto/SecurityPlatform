@@ -41,28 +41,18 @@ export const INITIAL_NODES: CanvasNode[] = [
     inputMappings: {}
   },
   {
-    key: "llm_1",
-    type: "Llm",
-    title: "大模型",
-    x: 620,
-    y: 120,
-    configs: { provider: "qwen", model: "qwen-max", prompt: "{{entry_1.output}}", outputKey: "result" },
-    inputMappings: {}
-  },
-  {
     key: "exit_1",
     type: "Exit",
     title: "结束",
-    x: 1080,
+    x: 720,
     y: 120,
-    configs: { exitTerminateMode: "return", exitTemplate: "{{llm_1.result}}" },
+    configs: { exitTerminateMode: "return", exitTemplate: "{{entry_1.USER_INPUT}}" },
     inputMappings: {}
   }
 ];
 
 export const INITIAL_CONNECTIONS: CanvasConnection[] = [
-  { id: "conn_entry_1_llm_1", fromNode: "entry_1", fromPort: "output", toNode: "llm_1", toPort: "input", condition: null },
-  { id: "conn_llm_1_exit_1", fromNode: "llm_1", fromPort: "output", toNode: "exit_1", toPort: "input", condition: null }
+  { id: "conn_entry_1_exit_1", fromNode: "entry_1", fromPort: "output", toNode: "exit_1", toPort: "input", condition: null }
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
