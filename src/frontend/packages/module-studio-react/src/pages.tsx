@@ -315,6 +315,10 @@ function formatWorkflowResultMessage(card: SecurityIncidentTaskCard): string {
   return lines.join("\n");
 }
 
+function formatModelConfigEndpointSummary(baseUrl?: string): string {
+  return baseUrl?.trim() ? "接入地址已配置" : "接入地址未配置";
+}
+
 function parseTraceSummary(metadata?: string): WorkbenchTrace | null {
   const payload = parseJsonSafely(metadata);
   if (!isRecord(payload) || !isRecord(payload.trace)) {
@@ -683,6 +687,15 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const [workbenchLoading, setWorkbenchLoading] = useState(true);
   const [workbenchError, setWorkbenchError] = useState<string | null>(null);
   const workbenchRequestIdRef = useRef(0);
+  const conversationIdRef = useRef("");
+  const ensureConversationPromiseRef = useRef<Promise<string> | null>(null);
+
+  function applyConversationId(nextConversationId?: string | null) {
+    const normalized = nextConversationId?.trim() ?? "";
+    conversationIdRef.current = normalized;
+    setConversationId(normalized);
+    return normalized;
+  }
 
   async function loadWorkbench(nextConversationId?: string) {
     const requestId = ++workbenchRequestIdRef.current;
@@ -722,8 +735,9 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
         return;
       }
 
-      const activeConversationId = nextConversationId || conversationId || conversationResult.items[0]?.id || "";
-      setConversationId(activeConversationId);
+      const activeConversationId = applyConversationId(
+        nextConversationId || conversationIdRef.current || conversationResult.items[0]?.id || ""
+      );
 
       if (!activeConversationId) {
         setMessages([]);
@@ -772,13 +786,22 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const resourceReady = !workbenchLoading && !workbenchError;
 
   async function ensureConversation(): Promise<string> {
-    if (conversationId) {
-      return conversationId;
+    if (conversationIdRef.current) {
+      return conversationIdRef.current;
     }
 
-    const createdConversationId = await api.createConversation(botId, `${name || "Agent"} 调试会话`);
-    setConversationId(createdConversationId);
-    return createdConversationId;
+    if (ensureConversationPromiseRef.current) {
+      return ensureConversationPromiseRef.current;
+    }
+
+    ensureConversationPromiseRef.current = api
+      .createConversation(botId, `${name || "Agent"} 调试会话`)
+      .then(createdConversationId => applyConversationId(createdConversationId))
+      .finally(() => {
+        ensureConversationPromiseRef.current = null;
+      });
+
+    return ensureConversationPromiseRef.current;
   }
 
   async function handleSave() {
@@ -808,7 +831,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
         defaultWorkflowId: workflowId,
         defaultWorkflowName: selectedWorkflow?.name
       } : current);
-      await loadWorkbench(conversationId || undefined);
+      await loadWorkbench(conversationIdRef.current || undefined);
       Toast.success("Agent 配置已保存。");
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "保存 Agent 配置失败。");
@@ -826,7 +849,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     try {
       const binding = await api.bindAgentWorkflow(botId, workflowId);
       setWorkflowId(binding.workflowId || workflowId);
-      await loadWorkbench(conversationId || undefined);
+      await loadWorkbench(conversationIdRef.current || undefined);
       Toast.success(`已绑定工作流：${binding.workflowName || selectedWorkflow?.name || workflowId}`);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "绑定工作流失败。");
@@ -967,7 +990,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
               value: String(item.id)
             }))}
             onChange={value => setModelConfigId(typeof value === "string" ? value : undefined)}
-            disabled={!resourceReady}
+            disabled={!resourceReady || saving}
             data-testid="app-bot-ide-model-config"
           />
           <Select
@@ -978,10 +1001,10 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
               value: item.id
             }))}
             onChange={value => setWorkflowId(typeof value === "string" ? value : undefined)}
-            disabled={!resourceReady}
+            disabled={!resourceReady || saving}
             data-testid="app-bot-ide-workflow-select"
           />
-          <textarea value={systemPrompt} onChange={event => setSystemPrompt(event.target.value)} rows={10} className="module-studio__textarea" />
+          <textarea value={systemPrompt} onChange={event => setSystemPrompt(event.target.value)} rows={10} className="module-studio__textarea" disabled={saving} />
           <Space>
             <Button theme="solid" type="primary" onClick={() => void handleSave()} loading={saving} disabled={!resourceReady} data-testid="app-bot-ide-save">
               保存配置
@@ -1034,6 +1057,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
             rows={5}
             className="module-studio__textarea"
             placeholder="输入消息，测试当前 Agent 是否能通过已绑定模型正常回复。"
+            disabled={!canChat || saving || workbenchLoading || sending || Boolean(workbenchError)}
             data-testid="app-bot-ide-message-input"
           />
           <Button
@@ -1041,7 +1065,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
             type="primary"
             onClick={() => void handleSendMessage()}
             loading={sending}
-            disabled={!canChat}
+            disabled={!canChat || saving || workbenchLoading || Boolean(workbenchError)}
             data-testid="app-bot-ide-send"
           >
             发送消息
@@ -1054,12 +1078,13 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
             rows={5}
             className="module-studio__textarea"
             placeholder="输入事件描述，例如：主机检测到可疑 PowerShell 横向移动行为，需要立即安排处置。"
+            disabled={!workflowId || saving || workbenchLoading || runningWorkflow || Boolean(workbenchError)}
             data-testid="app-bot-ide-workflow-input"
           />
           <Button
             onClick={() => void handleRunWorkflow()}
             loading={runningWorkflow}
-            disabled={!workflowId}
+            disabled={!workflowId || saving || workbenchLoading || Boolean(workbenchError)}
             data-testid="app-bot-ide-run-workflow"
           >
             执行安全事件任务
@@ -1409,7 +1434,7 @@ export function ModelConfigsPage({ api }: StudioPageProps) {
                 <Tag color={item.isEnabled ? "green" : "grey"}>{item.isEnabled ? "启用" : "停用"}</Tag>
               </div>
               <p>{item.providerType} / {item.defaultModel}</p>
-              <span className="module-studio__meta">Base URL: {item.baseUrl || "-"}</span>
+              <span className="module-studio__meta">{formatModelConfigEndpointSummary(item.baseUrl)}</span>
               <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
               <div className="module-studio__actions">
                 <Button onClick={() => void openEditDialog(item)} data-testid={`app-model-config-edit-${item.id}`}>编辑</Button>

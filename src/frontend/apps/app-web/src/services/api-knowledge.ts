@@ -11,7 +11,7 @@ import type {
   KnowledgeRetrievalTestItem,
   KnowledgeRetrievalTestRequest
 } from "@atlas/library-module-react";
-import { requestApi, toQuery } from "./api-core";
+import { extractResourceId, requestApi, toQuery } from "./api-core";
 
 export async function getKnowledgeBasesPaged(request: PagedRequest, keyword?: string) {
   const query = toQuery(request, { keyword });
@@ -27,13 +27,14 @@ export async function getKnowledgeBaseById(id: number) {
 }
 
 export async function createKnowledgeBase(request: KnowledgeBaseCreateRequest) {
-  const response = await requestApi<ApiResponse<{ id: string }>>("/knowledge-bases", {
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>("/knowledge-bases", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
   });
-  if (!response.success || !response.data) throw new Error(response.message || "创建知识库失败");
-  return Number(response.data.id);
+  const knowledgeBaseId = extractResourceId(response.data);
+  if (!response.success || !knowledgeBaseId) throw new Error(response.message || "创建知识库失败");
+  return Number(knowledgeBaseId);
 }
 
 export async function updateKnowledgeBase(id: number, request: KnowledgeBaseCreateRequest) {
@@ -62,15 +63,16 @@ export async function getKnowledgeDocumentsPaged(knowledgeBaseId: number, reques
 export async function createKnowledgeDocumentByFile(knowledgeBaseId: number, file: File) {
   const form = new FormData();
   form.append("file", file);
-  const response = await requestApi<ApiResponse<{ id: string }>>(
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>(
     `/knowledge-bases/${knowledgeBaseId}/documents`,
     {
       method: "POST",
       body: form
     }
   );
-  if (!response.success || !response.data) throw new Error(response.message || "新增文档失败");
-  return Number(response.data.id);
+  const documentId = extractResourceId(response.data);
+  if (!response.success || !documentId) throw new Error(response.message || "新增文档失败");
+  return Number(documentId);
 }
 
 export async function deleteKnowledgeDocument(knowledgeBaseId: number, documentId: number) {
@@ -123,13 +125,14 @@ export async function getDocumentChunksPaged(
 }
 
 export async function createChunk(knowledgeBaseId: number, request: ChunkCreateRequest) {
-  const response = await requestApi<ApiResponse<{ id: string }>>(`/knowledge-bases/${knowledgeBaseId}/chunks`, {
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>(`/knowledge-bases/${knowledgeBaseId}/chunks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
   });
-  if (!response.success || !response.data) throw new Error(response.message || "新增分片失败");
-  return Number(response.data.id);
+  const chunkId = extractResourceId(response.data);
+  if (!response.success || !chunkId) throw new Error(response.message || "新增分片失败");
+  return Number(chunkId);
 }
 
 export async function updateChunk(knowledgeBaseId: number, chunkId: number, request: ChunkUpdateRequest) {

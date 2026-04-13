@@ -1,4 +1,4 @@
-import { requestApi, toQuery, API_BASE } from "@/services/api-core";
+import { extractResourceId, requestApi, toQuery, API_BASE } from "@/services/api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import { getAccessToken, getAntiforgeryToken, getTenantId } from "@atlas/shared-react-core/utils";
 
@@ -121,7 +121,7 @@ export async function createModelConfig(request: ModelConfigCreateRequest): Prom
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
   });
-  const id = response.data?.id ?? response.data?.Id;
+  const id = extractResourceId(response.data);
   if (!response.success || !id) throw new Error(response.message || "Failed to create model config");
   return id;
 }

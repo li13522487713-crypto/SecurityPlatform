@@ -1,4 +1,4 @@
-import { requestApi, toQuery, resolveAppHostPrefix } from "@/services/api-core";
+import { extractResourceId, requestApi, toQuery, resolveAppHostPrefix } from "@/services/api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import {
   getAccessToken,
@@ -74,15 +74,16 @@ export async function getConversationsPaged(
 }
 
 export async function createConversation(appKey: string, agentId: SnowflakeId, title?: string): Promise<string> {
-  const response = await requestApi<ApiResponse<{ id: string }>>(
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>(
     convBase(appKey),
     {
       method: "POST",
       body: JSON.stringify({ agentId, title })
     }
   );
-  if (!response.success || !response.data) throw new Error(response.message || "Failed to create conversation");
-  return response.data.id;
+  const conversationId = extractResourceId(response.data);
+  if (!response.success || !conversationId) throw new Error(response.message || "Failed to create conversation");
+  return conversationId;
 }
 
 export async function deleteConversation(appKey: string, id: SnowflakeId): Promise<void> {

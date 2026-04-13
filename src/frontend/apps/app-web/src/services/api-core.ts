@@ -105,3 +105,18 @@ export const downloadFile = apiClient.downloadFile;
 export function resolveAppHostPrefix(_appKey?: string): string {
   return "";
 }
+
+export interface ResourceIdPayload {
+  id?: string | number | null;
+  Id?: string | number | null;
+}
+
+export function extractResourceId(payload?: ResourceIdPayload | null): string | null {
+  const rawValue = payload?.id ?? payload?.Id;
+  if (rawValue === undefined || rawValue === null) {
+    return null;
+  }
+
+  const normalized = String(rawValue).trim();
+  return normalized.length > 0 ? normalized : null;
+}

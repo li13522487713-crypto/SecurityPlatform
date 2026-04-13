@@ -365,6 +365,60 @@ function createExploreApi(): ExploreModuleApi {
   };
 }
 
+interface ParsedSseFrame {
+  eventType: string;
+  payload: string;
+  isDone: boolean;
+}
+
+function extractSseFrames(buffer: string): { frames: ParsedSseFrame[]; rest: string } {
+  const normalizedBuffer = buffer.replaceAll("\r\n", "\n");
+  const rawFrames = normalizedBuffer.split("\n\n");
+  const rest = rawFrames.pop() ?? "";
+  const frames = rawFrames
+    .map(parseSseFrame)
+    .filter((frame): frame is ParsedSseFrame => frame !== null);
+
+  return { frames, rest };
+}
+
+function parseTrailingSseFrame(buffer: string): ParsedSseFrame | null {
+  if (!buffer.trim()) {
+    return null;
+  }
+
+  return parseSseFrame(buffer.replaceAll("\r\n", "\n"));
+}
+
+function parseSseFrame(frame: string): ParsedSseFrame | null {
+  const lines = frame.split("\n");
+  let eventType = "message";
+  const dataLines: string[] = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (line.startsWith("event:")) {
+      eventType = line.slice(6).trim();
+      continue;
+    }
+
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  const payload = dataLines.join("\n").trim();
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    eventType,
+    payload,
+    isDone: eventType === "done" || payload === "[DONE]"
+  };
+}
+
 async function* createAgentMessageStream(
   appKey: string,
   agentId: string,
@@ -392,45 +446,41 @@ async function* createAgentMessageStream(
   while (true) {
     const { done, value } = await reader.read();
     if (done) {
+      buffer += decoder.decode();
+      const trailingFrame = parseTrailingSseFrame(buffer);
+      if (trailingFrame && !trailingFrame.isDone) {
+        if (trailingFrame.eventType === "thought") {
+          yield { type: "thought", content: trailingFrame.payload };
+        } else if (trailingFrame.eventType === "final") {
+          yield { type: "final", content: trailingFrame.payload };
+        } else {
+          yield { type: "chunk", content: trailingFrame.payload };
+        }
+      }
+
       break;
     }
 
     buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
+    const { frames, rest } = extractSseFrames(buffer);
+    buffer = rest;
 
     for (const frame of frames) {
-      const lines = frame.split("\n");
-      let eventType = "message";
-      const dataLines: string[] = [];
-
-      for (const line of lines) {
-        if (line.startsWith("event:")) {
-          eventType = line.slice(6).trim();
-          continue;
-        }
-
-        if (line.startsWith("data:")) {
-          dataLines.push(line.slice(5).trimStart());
-        }
+      if (frame.isDone) {
+        return;
       }
 
-      const payload = dataLines.join("\n").trim();
-      if (!payload || eventType === "done" || payload === "[DONE]") {
+      if (frame.eventType === "thought") {
+        yield { type: "thought", content: frame.payload };
         continue;
       }
 
-      if (eventType === "thought") {
-        yield { type: "thought", content: payload };
+      if (frame.eventType === "final") {
+        yield { type: "final", content: frame.payload };
         continue;
       }
 
-      if (eventType === "final") {
-        yield { type: "final", content: payload };
-        continue;
-      }
-
-      yield { type: "chunk", content: payload };
+      yield { type: "chunk", content: frame.payload };
     }
   }
 }
@@ -496,27 +546,25 @@ function createStudioApi(appKey: string): StudioModuleApi {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
+          buffer += decoder.decode();
+          const trailingFrame = parseTrailingSseFrame(buffer);
+          if (trailingFrame && !trailingFrame.isDone) {
+            text += trailingFrame.payload;
+          }
           break;
         }
 
         buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split("\n\n");
-        buffer = frames.pop() ?? "";
+        const { frames, rest } = extractSseFrames(buffer);
+        buffer = rest;
 
         for (const frame of frames) {
-          const lines = frame.split("\n");
-          const dataLines: string[] = [];
-          currentEvent = "message";
-
-          for (const line of lines) {
-            if (line.startsWith("event:")) {
-              currentEvent = line.slice(6).trim();
-            } else if (line.startsWith("data:")) {
-              dataLines.push(line.slice(5).trimStart());
-            }
+          currentEvent = frame.eventType;
+          if (frame.isDone) {
+            return text.trim();
           }
 
-          const payload = dataLines.join("\n");
+          const payload = frame.payload;
           if (!payload || currentEvent === "done" || payload === "[DONE]") {
             continue;
           }

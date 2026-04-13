@@ -1,4 +1,4 @@
-import { requestApi } from "@/services/api-core";
+import { extractResourceId, requestApi } from "@/services/api-core";
 import type { ApiResponse, PagedResult } from "@atlas/shared-react-core/types";
 
 export interface AgentDetail {
@@ -98,15 +98,16 @@ export async function getAgentById(id: string): Promise<AgentDetail> {
 }
 
 export async function createAgent(request: AgentCreateRequest): Promise<string> {
-  const response = await requestApi<ApiResponse<{ id: string }>>("/agents", {
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>("/agents", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
-  if (!response.data) {
+  const agentId = extractResourceId(response.data);
+  if (!response.data || !agentId) {
     throw new Error(response.message || "Failed to create agent");
   }
-  return response.data.id;
+  return agentId;
 }
 
 export async function updateAgent(id: string, request: AgentUpdateRequest): Promise<void> {
