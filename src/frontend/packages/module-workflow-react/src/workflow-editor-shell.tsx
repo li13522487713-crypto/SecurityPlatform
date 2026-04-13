@@ -13,10 +13,11 @@ import {
   type WorkflowPanelCommandType
 } from "@atlas/workflow-editor-react";
 import {
-  buildReferenceSidebarSections,
   buildResourceSidebarSections,
   ensureWorkflowTab,
-  type WorkflowSidebarAction
+  type WorkflowSidebarAction,
+  type WorkflowSidebarItem,
+  type WorkflowSidebarSection
 } from "./coze-adapter";
 import { getWorkflowModuleCopy } from "./copy";
 import type {
@@ -37,6 +38,7 @@ import type {
   ResourceIdeLibraryItem,
   ResourceIdeLibraryType,
   ResourceIdeTab,
+  WorkflowDependencies,
   WorkflowProblemItem,
   WorkflowTraceStepSummary,
   WorkflowListItem,
@@ -129,6 +131,38 @@ function readSearchParam(name: string): string {
   return new URLSearchParams(window.location.search).get(name) ?? "";
 }
 
+function restoreTabFromKey(key: string): ResourceIdeTab | null {
+  if (!key) {
+    return null;
+  }
+
+  if (key === "problems" || key === "trace-list" || key === "trace-step" || key === "references" || key === "variables" || key === "conversations") {
+    return {
+      key,
+      kind: key as ResourceIdeTab["kind"],
+      title: key,
+      closable: true
+    };
+  }
+
+  const [kind, resourceId] = key.split("-", 2);
+  if (!resourceId) {
+    return null;
+  }
+
+  if (kind === "plugin") {
+    return { key, kind: "plugin", resourceId, title: resourceId, closable: true };
+  }
+  if (kind === "knowledge") {
+    return { key, kind: "knowledge", resourceId, title: resourceId, closable: true };
+  }
+  if (kind === "database") {
+    return { key, kind: "database", resourceId, title: resourceId, closable: true };
+  }
+
+  return null;
+}
+
 export function WorkflowEditorShell({
   api,
   locale,
@@ -156,14 +190,23 @@ export function WorkflowEditorShell({
   const [sidebarKeyword, setSidebarKeyword] = useState("");
   const [panelCommand, setPanelCommand] = useState<WorkflowPanelCommand | undefined>(undefined);
   const [commandNonce, setCommandNonce] = useState(0);
-  const [tabs, setTabs] = useState<ResourceIdeTab[]>([{
-    key: workflowTabKey,
-    kind: mode === "chatflow" ? "chatflow-editor" : "workflow-editor",
-    resourceId: workflowId,
-    title: workflowId,
-    closable: false,
-    mode
-  }]);
+  const [tabs, setTabs] = useState<ResourceIdeTab[]>([
+    {
+      key: workflowTabKey,
+      kind: mode === "chatflow" ? "chatflow-editor" : "workflow-editor",
+      resourceId: workflowId,
+      title: workflowId,
+      closable: false,
+      mode
+    },
+    ...((readSearchParam("openedTabs")
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean)
+      .map(restoreTabFromKey)
+      .filter((item): item is ResourceIdeTab => item !== null))
+      .filter(item => item.key !== workflowTabKey))
+  ]);
   const [activeTabKey, setActiveTabKey] = useState(() => readSearchParam("activeTab") || workflowTabKey);
   const [groupMenu, setGroupMenu] = useState<GroupMenuKey | null>(null);
   const [createDialog, setCreateDialog] = useState({
@@ -211,10 +254,12 @@ export function WorkflowEditorShell({
   const [conversationDraft, setConversationDraft] = useState("");
   const [agents, setAgents] = useState<AgentSummaryItem[]>([]);
   const [processSnapshot, setProcessSnapshot] = useState<WorkflowProcessSnapshot | null>(null);
+  const [dependencies, setDependencies] = useState<WorkflowDependencies | null>(null);
   const [canvasValidation, setCanvasValidation] = useState<CanvasValidationResult | null>(null);
   const [traceSteps, setTraceSteps] = useState<WorkflowTraceStepSummary[]>([]);
   const [selectedTraceStep, setSelectedTraceStep] = useState<WorkflowTraceStepSummary | null>(null);
   const [focusNodeKey, setFocusNodeKey] = useState("");
+  const [highlightVariableKey, setHighlightVariableKey] = useState(readSearchParam("variableKey"));
   const [resourceContextMenu, setResourceContextMenu] = useState<ResourceContextMenuState>(null);
 
   const canvas = useMemo(() => safeParseCanvas(detail?.canvasJson), [detail?.canvasJson]);
@@ -227,7 +272,7 @@ export function WorkflowEditorShell({
   const loadContext = useCallback(async (keyword = "") => {
     setLoading(true);
     try {
-      const [detailResponse, versionsResponse, nodeTypesResponse, workflowResult, pluginResult, knowledgeResult, databaseResult, conversationResult] = await Promise.all([
+      const [detailResponse, versionsResponse, nodeTypesResponse, workflowResult, pluginResult, knowledgeResult, databaseResult, conversationResult, dependencyResult] = await Promise.all([
         apiClient.getDetail?.(workflowId),
         apiClient.getVersions?.(workflowId),
         apiClient.getNodeTypes?.(),
@@ -235,7 +280,8 @@ export function WorkflowEditorShell({
         api.listPlugins({ pageIndex: 1, pageSize: 20 }, keyword),
         api.listKnowledgeBases({ pageIndex: 1, pageSize: 20 }, keyword),
         api.listDatabases({ pageIndex: 1, pageSize: 20 }, keyword),
-        api.listConversations({ pageIndex: 1, pageSize: 20 })
+        api.listConversations({ pageIndex: 1, pageSize: 20 }),
+        api.getDependencies(workflowId)
       ]);
 
       setDetail(detailResponse?.data ?? null);
@@ -246,6 +292,7 @@ export function WorkflowEditorShell({
       setKnowledgeItems(knowledgeResult.items);
       setDatabaseItems(databaseResult.items);
       setConversationItems(conversationResult.items);
+      setDependencies(dependencyResult);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : copy.loadFailure);
     } finally {
@@ -269,6 +316,39 @@ export function WorkflowEditorShell({
   useEffect(() => {
     setTabs(prev => ensureWorkflowTab(prev, workflowId, detail?.name ?? workflowId, mode));
   }, [detail?.name, mode, workflowId, workflowTabKey]);
+
+  useEffect(() => {
+    setTabs(prev => prev.map(tab => {
+      if (tab.kind === "plugin" && tab.resourceId) {
+        const item = pluginItems.find(current => String(current.id) === tab.resourceId);
+        return item ? { ...tab, title: item.name } : tab;
+      }
+      if (tab.kind === "knowledge" && tab.resourceId) {
+        const item = knowledgeItems.find(current => String(current.id) === tab.resourceId);
+        return item ? { ...tab, title: item.name } : tab;
+      }
+      if (tab.kind === "database" && tab.resourceId) {
+        const item = databaseItems.find(current => String(current.id) === tab.resourceId);
+        return item ? { ...tab, title: item.name } : tab;
+      }
+      if (tab.kind === "variables") {
+        return { ...tab, title: copy.variablesLabel };
+      }
+      if (tab.kind === "conversations") {
+        return { ...tab, title: copy.conversationManagement };
+      }
+      if (tab.kind === "problems") {
+        return { ...tab, title: copy.problemsLabel };
+      }
+      if (tab.kind === "trace-list") {
+        return { ...tab, title: copy.traceLabel };
+      }
+      if (tab.kind === "references") {
+        return { ...tab, title: copy.referencesTitle };
+      }
+      return tab;
+    }));
+  }, [copy.conversationManagement, copy.problemsLabel, copy.referencesTitle, copy.traceLabel, copy.variablesLabel, databaseItems, knowledgeItems, pluginItems]);
 
   useEffect(() => {
     if (tabs.some(tab => tab.key === activeTabKey)) {
@@ -407,9 +487,19 @@ export function WorkflowEditorShell({
     params.set("workspaceView", workspaceView);
     params.set("activeTab", activeTabKey);
     params.set("openedTabs", tabs.map(tab => tab.key).join(","));
+    if (highlightVariableKey) {
+      params.set("variableKey", highlightVariableKey);
+    } else {
+      params.delete("variableKey");
+    }
+    if (selectedTraceStep?.nodeKey) {
+      params.set("traceNodeKey", selectedTraceStep.nodeKey);
+    } else {
+      params.delete("traceNodeKey");
+    }
     const nextUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, "", nextUrl);
-  }, [activeTabKey, sidebarTab, tabs, workspaceView]);
+  }, [activeTabKey, highlightVariableKey, selectedTraceStep?.nodeKey, sidebarTab, tabs, workspaceView]);
 
   useEffect(() => {
     if (!focusNodeKey || activeTabKey !== workflowTabKey) {
@@ -419,6 +509,31 @@ export function WorkflowEditorShell({
     const handle = window.setTimeout(() => setFocusNodeKey(""), 80);
     return () => window.clearTimeout(handle);
   }, [activeTabKey, focusNodeKey, workflowTabKey]);
+
+  useEffect(() => {
+    if (!highlightVariableKey || activeTab?.kind !== "variables") {
+      return;
+    }
+
+    const handle = window.setTimeout(() => setHighlightVariableKey(""), 1200);
+    return () => window.clearTimeout(handle);
+  }, [activeTab?.kind, highlightVariableKey]);
+
+  useEffect(() => {
+    if (selectedTraceStep || traceSteps.length === 0) {
+      return;
+    }
+
+    const traceNodeKey = readSearchParam("traceNodeKey");
+    if (!traceNodeKey) {
+      return;
+    }
+
+    const restored = traceSteps.find(item => item.nodeKey === traceNodeKey);
+    if (restored) {
+      setSelectedTraceStep(restored);
+    }
+  }, [selectedTraceStep, traceSteps]);
 
   const problemItems = useMemo<WorkflowProblemItem[]>(() => {
     const canvasIssues = (canvasValidation?.canvasIssues ?? []).map((issue: string, index: number) => ({
@@ -437,8 +552,27 @@ export function WorkflowEditorShell({
         }))
       );
 
-    return [...canvasIssues, ...nodeIssues];
-  }, [canvasValidation]);
+    const dependencyIssues = dependencies
+      ? [
+          ...dependencies.subWorkflows,
+          ...dependencies.plugins,
+          ...dependencies.knowledgeBases,
+          ...dependencies.databases
+        ]
+          .filter(item => item.description?.includes("不存在") || item.description?.includes("删除"))
+          .map((item, index) => ({
+            key: `resource-${item.resourceType}-${item.resourceId}-${index}`,
+            level: "resource" as const,
+            label: item.description ?? `${item.resourceType} 依赖异常`,
+            nodeKey: item.sourceNodeKeys?.[0],
+            resourceType: item.resourceType,
+            resourceId: item.resourceId,
+            sourceNodeKeys: item.sourceNodeKeys
+          }))
+      : [];
+
+    return [...canvasIssues, ...nodeIssues, ...dependencyIssues];
+  }, [canvasValidation, dependencies]);
 
   function emitPanelCommand(type: WorkflowPanelCommandType) {
     const nonce = commandNonce + 1;
@@ -456,6 +590,67 @@ export function WorkflowEditorShell({
     }
     setTabs(prev => prev.some(item => item.key === tab.key) ? prev : [...prev, tab]);
     setActiveTabKey(tab.key);
+  }
+
+  function focusSourceNode(sourceNodeKeys?: string[]) {
+    if (!sourceNodeKeys || sourceNodeKeys.length === 0) {
+      return;
+    }
+
+    setFocusNodeKey(sourceNodeKeys[0]);
+    setActiveTabKey(workflowTabKey);
+  }
+
+  function openDependencyResource(item: {
+    resourceType: string;
+    resourceId: string;
+    name: string;
+    sourceNodeKeys?: string[];
+  }) {
+    if (item.resourceType === "workflow") {
+      window.location.assign(buildEditorPath(item.resourceId, "workflow"));
+      return;
+    }
+
+    if (item.resourceType === "variable") {
+      setHighlightVariableKey(item.resourceId);
+      openTab({
+        key: "variables",
+        kind: "variables",
+        title: copy.variablesLabel,
+        closable: true
+      });
+      return;
+    }
+
+    if (item.resourceType === "conversation") {
+      openTab({
+        key: "conversations",
+        kind: "conversations",
+        title: copy.conversationManagement,
+        closable: true
+      });
+      if (conversationItems.some(conversation => conversation.id === item.resourceId)) {
+        setSelectedConversationId(item.resourceId);
+        return;
+      }
+
+      focusSourceNode(item.sourceNodeKeys);
+      return;
+    }
+
+    const tabKind: ResourceIdeTab["kind"] = item.resourceType === "plugin"
+      ? "plugin"
+      : item.resourceType === "knowledge-base"
+        ? "knowledge"
+        : "database";
+    openTab({
+      key: `${tabKind}-${item.resourceId}`,
+      kind: tabKind,
+      resourceId: item.resourceId,
+      title: item.name,
+      closable: true
+    });
   }
 
   function closeTab(tabKey: string) {
@@ -723,7 +918,7 @@ export function WorkflowEditorShell({
   }
 
   function renderSidebar() {
-    const sections = sidebarTab === "resources"
+    const sections: WorkflowSidebarSection[] = sidebarTab === "resources"
       ? buildResourceSidebarSections({
           copy,
           mode,
@@ -735,13 +930,99 @@ export function WorkflowEditorShell({
           conversations: conversationItems,
           keyword: sidebarKeyword
         })
-      : buildReferenceSidebarSections({
-          copy,
-          detail,
-          versions,
-          nodes: canvas.nodes,
-          nodeTypes
-        });
+      : [
+          {
+            key: "ref-subworkflows",
+            title: "SubWorkflows",
+            items: (dependencies?.subWorkflows ?? []).map<WorkflowSidebarItem>(item => ({
+              key: `workflow-${item.resourceId}`,
+              id: item.resourceId,
+              resourceType: "workflow" as const,
+              name: item.name,
+              description: item.description,
+              hint: item.sourceNodeKeys?.length ? `来源节点 ${item.sourceNodeKeys.length} 个` : item.description,
+              action: { type: "route" as const, workflowId: item.resourceId, mode: "workflow" as const }
+            }))
+          },
+          {
+            key: "ref-plugins",
+            title: copy.pluginLabel,
+            items: (dependencies?.plugins ?? []).map<WorkflowSidebarItem>(item => ({
+              key: `plugin-${item.resourceId}`,
+              id: item.resourceId,
+              resourceType: "plugin" as const,
+              name: item.name,
+              description: item.description,
+              hint: item.sourceNodeKeys?.length ? `来源节点 ${item.sourceNodeKeys.length} 个` : item.description,
+              action: {
+                type: "tab" as const,
+                tab: { key: `plugin-${item.resourceId}`, kind: "plugin" as const, resourceId: item.resourceId, title: item.name, closable: true }
+              }
+            }))
+          },
+          {
+            key: "ref-data",
+            title: copy.sectionData,
+            items: [
+              ...(dependencies?.knowledgeBases ?? []).map<WorkflowSidebarItem>(item => ({
+                key: `knowledge-${item.resourceId}`,
+                id: item.resourceId,
+                resourceType: "knowledge-base" as const,
+                name: item.name,
+                description: item.description,
+                hint: item.sourceNodeKeys?.length ? `来源节点 ${item.sourceNodeKeys.length} 个` : item.description,
+                action: {
+                  type: "tab" as const,
+                  tab: { key: `knowledge-${item.resourceId}`, kind: "knowledge" as const, resourceId: item.resourceId, title: item.name, closable: true }
+                }
+              })),
+              ...(dependencies?.databases ?? []).map<WorkflowSidebarItem>(item => ({
+                key: `database-${item.resourceId}`,
+                id: item.resourceId,
+                resourceType: "database" as const,
+                name: item.name,
+                description: item.description,
+                hint: item.sourceNodeKeys?.length ? `来源节点 ${item.sourceNodeKeys.length} 个` : item.description,
+                action: {
+                  type: "tab" as const,
+                  tab: { key: `database-${item.resourceId}`, kind: "database" as const, resourceId: item.resourceId, title: item.name, closable: true }
+                }
+              }))
+            ]
+          },
+          {
+            key: "ref-variables",
+            title: copy.variablesLabel,
+            items: (dependencies?.variables ?? []).map<WorkflowSidebarItem>(item => ({
+              key: `variable-${item.resourceId}`,
+              id: item.resourceId,
+              resourceType: "variables" as const,
+              name: item.name,
+              description: item.description,
+              hint: item.sourceNodeKeys?.length ? `来源节点 ${item.sourceNodeKeys.length} 个` : item.description,
+              action: {
+                type: "tab" as const,
+                tab: { key: "variables", kind: "variables" as const, title: copy.variablesLabel, closable: true }
+              }
+            }))
+          },
+          {
+            key: "ref-conversations",
+            title: copy.conversationManagement,
+            items: (dependencies?.conversations ?? []).map<WorkflowSidebarItem>(item => ({
+              key: `conversation-${item.resourceId}`,
+              id: item.resourceId,
+              resourceType: "conversations" as const,
+              name: item.name,
+              description: item.description,
+              hint: item.sourceNodeKeys?.length ? `来源节点 ${item.sourceNodeKeys.length} 个` : item.description,
+              action: {
+                type: "tab" as const,
+                tab: { key: "conversations", kind: "conversations" as const, title: copy.conversationManagement, closable: true }
+              }
+            }))
+          }
+        ];
 
     return sections.map(section => (
       <section key={section.key} className="module-workflow__coze-section">
@@ -802,6 +1083,24 @@ export function WorkflowEditorShell({
                 });
               }}
               onClick={() => {
+                if (sidebarTab === "references" && item.id) {
+                  openDependencyResource({
+                    resourceType: item.resourceType === "variables"
+                      ? "variable"
+                      : item.resourceType === "conversations"
+                        ? "conversation"
+                        : item.resourceType,
+                    resourceId: item.id,
+                    name: item.name,
+                    sourceNodeKeys: dependencies?.subWorkflows.find(current => current.resourceId === item.id)?.sourceNodeKeys
+                      ?? dependencies?.plugins.find(current => current.resourceId === item.id)?.sourceNodeKeys
+                      ?? dependencies?.knowledgeBases.find(current => current.resourceId === item.id)?.sourceNodeKeys
+                      ?? dependencies?.databases.find(current => current.resourceId === item.id)?.sourceNodeKeys
+                      ?? dependencies?.variables.find(current => current.resourceId === item.id)?.sourceNodeKeys
+                      ?? dependencies?.conversations.find(current => current.resourceId === item.id)?.sourceNodeKeys
+                  });
+                  return;
+                }
                 if (item.action.type === "route") {
                   window.location.assign(buildEditorPath(item.action.workflowId, item.action.mode));
                   return;
@@ -916,10 +1215,29 @@ export function WorkflowEditorShell({
               {problemItems.map(item => (
                 <div key={item.key} className="module-workflow__coze-list-row">
                   <div>
-                    <strong>{item.level === "canvas" ? copy.problemsLabel : item.nodeKey}</strong>
+                    <strong>{item.level === "canvas" ? copy.problemsLabel : item.level === "resource" ? `${item.resourceType} / ${item.resourceId}` : item.nodeKey}</strong>
                     <small>{item.label}</small>
                   </div>
-                  {item.nodeKey ? (
+                  {item.level === "resource" && item.resourceType && item.resourceId ? (
+                    <div className="module-workflow__coze-list-row-actions">
+                      <button
+                        type="button"
+                        onClick={() => openDependencyResource({
+                          resourceType: item.resourceType!,
+                          resourceId: item.resourceId!,
+                          name: item.resourceId!,
+                          sourceNodeKeys: item.sourceNodeKeys
+                        })}
+                      >
+                        {copy.openLabel}
+                      </button>
+                      {item.sourceNodeKeys?.length ? (
+                        <button type="button" onClick={() => focusSourceNode(item.sourceNodeKeys)}>
+                          定位来源
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : item.nodeKey ? (
                     <div className="module-workflow__coze-list-row-actions">
                       <button
                         type="button"
@@ -1015,24 +1333,40 @@ export function WorkflowEditorShell({
       );
     }
     if (activeTab?.kind === "references") {
-      const referenceSections = buildReferenceSidebarSections({
-        copy,
-        detail,
-        versions,
-        nodes: canvas.nodes,
-        nodeTypes
-      });
+      const dependencyItems = dependencies
+        ? [
+            ...dependencies.subWorkflows.map(item => ({ ...item, tabKind: item.resourceType === "workflow" ? "workflow-editor" : "workflow-editor" })),
+            ...dependencies.plugins.map(item => ({ ...item, tabKind: "plugin" })),
+            ...dependencies.knowledgeBases.map(item => ({ ...item, tabKind: "knowledge" })),
+            ...dependencies.databases.map(item => ({ ...item, tabKind: "database" })),
+            ...dependencies.variables.map(item => ({ ...item, tabKind: "variables" })),
+            ...dependencies.conversations.map(item => ({ ...item, tabKind: "conversations" }))
+          ]
+        : [];
       return (
         <div className="module-workflow__coze-resource-panel">
           <div className="module-workflow__coze-panel-toolbar">
             <Typography.Title heading={5} style={{ margin: 0 }}>{copy.referencesTitle}</Typography.Title>
           </div>
           <div className="module-workflow__coze-list-card">
-            {referenceSections.flatMap(section => section.items).map(item => (
-              <div key={item.key} className="module-workflow__coze-list-row">
+            {dependencyItems.length === 0 ? <Empty title={copy.emptyReferences} image={null} /> : dependencyItems.map(item => (
+              <div key={`${item.resourceType}-${item.resourceId}`} className="module-workflow__coze-list-row">
                 <div>
                   <strong>{item.name}</strong>
-                  <small>{item.hint || item.badge || "-"}</small>
+                  <small>{item.description || item.resourceType}{item.sourceNodeKeys?.length ? ` · 来源 ${item.sourceNodeKeys.length} 个节点` : ""}</small>
+                </div>
+                <div className="module-workflow__coze-list-row-actions">
+                  <button
+                    type="button"
+                    onClick={() => openDependencyResource(item)}
+                  >
+                    {copy.openLabel}
+                  </button>
+                  {item.sourceNodeKeys?.length ? (
+                    <button type="button" onClick={() => focusSourceNode(item.sourceNodeKeys)}>
+                      定位来源
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -1127,7 +1461,7 @@ export function WorkflowEditorShell({
             <Button theme="solid" type="secondary" onClick={() => setVariableDialog({ visible: true, key: "", value: "", scope: 0, scopeId: "", submitting: false })}>{copy.variableCreateLabel}</Button>
           </div>
           <div className="module-workflow__coze-two-column">
-            <div className="module-workflow__coze-list-card">{variables.map(item => <div key={item.id} className="module-workflow__coze-list-row"><div><strong>{item.key}</strong><small>{item.value || copy.noDescription}</small></div><div className="module-workflow__coze-list-row-actions"><button type="button" onClick={() => setVariableDialog({ visible: true, editingId: item.id, key: item.key, value: item.value ?? "", scope: item.scope, scopeId: item.scopeId ? String(item.scopeId) : "", submitting: false })}>{copy.editLabel}</button><button type="button" onClick={() => void handleDeleteVariable(item.id)}>{copy.deleteLabel}</button></div></div>)}</div>
+            <div className="module-workflow__coze-list-card">{variables.map(item => <div key={item.id} className={`module-workflow__coze-list-row${highlightVariableKey === item.key ? " is-selected" : ""}`}><div><strong>{item.key}</strong><small>{item.value || copy.noDescription}</small></div><div className="module-workflow__coze-list-row-actions"><button type="button" onClick={() => setVariableDialog({ visible: true, editingId: item.id, key: item.key, value: item.value ?? "", scope: item.scope, scopeId: item.scopeId ? String(item.scopeId) : "", submitting: false })}>{copy.editLabel}</button><button type="button" onClick={() => void handleDeleteVariable(item.id)}>{copy.deleteLabel}</button></div></div>)}</div>
             <div className="module-workflow__coze-list-card">{systemVariables.map(item => <div key={item.key} className="module-workflow__coze-list-row"><div><strong>{item.key}</strong><small>{item.description}</small></div><Tag color="grey">{copy.systemVariableReadonly}</Tag></div>)}</div>
           </div>
         </div>

@@ -90,19 +90,82 @@ X-CSRF-TOKEN: {{csrfToken}}
   ],
   "temperature": 0.3,
   "maxTokens": 4096,
+  "knowledgeBindings": [
+    {
+      "knowledgeBaseId": 1001,
+      "isEnabled": true,
+      "invokeMode": "auto",
+      "topK": 5,
+      "scoreThreshold": 0.5,
+      "enabledContentTypes": ["text", "table"],
+      "rewriteQueryTemplate": "请结合 {{query}} 生成更适合检索的查询词"
+    },
+    {
+      "knowledgeBaseId": 1002,
+      "isEnabled": true,
+      "invokeMode": "manual",
+      "topK": 3,
+      "scoreThreshold": 0.3,
+      "enabledContentTypes": ["text", "image"]
+    }
+  ],
   "knowledgeBaseIds": [1001, 1002],
   "pluginBindings": [
     {
       "pluginId": 1,
       "sortOrder": 0,
       "isEnabled": true,
-      "toolConfigJson": "{\"timeout\":30}"
+      "toolBindings": [
+        {
+          "apiId": 11,
+          "isEnabled": true,
+          "timeoutSeconds": 30,
+          "failurePolicy": "fail",
+          "parameterBindings": [
+            {
+              "parameterName": "assetId",
+              "valueSource": "variable",
+              "variableKey": "asset_id"
+            },
+            {
+              "parameterName": "severity",
+              "valueSource": "literal",
+              "literalValue": "high"
+            }
+          ]
+        }
+      ]
     },
     {
       "pluginId": 2,
       "sortOrder": 1,
       "isEnabled": true,
-      "toolConfigJson": "{\"timeout\":60}"
+      "toolBindings": [
+        {
+          "apiId": 21,
+          "isEnabled": false,
+          "timeoutSeconds": 60,
+          "failurePolicy": "skip",
+          "parameterBindings": []
+        }
+      ]
+    }
+  ],
+  "databaseBindings": [
+    {
+      "databaseId": 3001,
+      "alias": "incident_db",
+      "accessMode": "readonly",
+      "tableAllowlist": ["alerts", "incidents"],
+      "isDefault": true
+    }
+  ],
+  "variableBindings": [
+    {
+      "variableId": 4001,
+      "alias": "asset_id",
+      "isRequired": true,
+      "defaultValueOverride": "srv-001"
     }
   ]
 }

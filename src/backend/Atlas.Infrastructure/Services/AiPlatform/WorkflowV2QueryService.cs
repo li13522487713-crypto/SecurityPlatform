@@ -6,17 +6,26 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.WorkflowEngine;
+using SqlSugar;
+using System.Text.RegularExpressions;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
 {
+    private static readonly Regex TemplateVariableRegex = new("{{\\s*([^{}]+?)\\s*}}", RegexOptions.Compiled);
     private readonly IWorkflowMetaRepository _metaRepo;
     private readonly IWorkflowDraftRepository _draftRepo;
     private readonly IWorkflowVersionRepository _versionRepo;
     private readonly IWorkflowExecutionRepository _executionRepo;
     private readonly IWorkflowNodeExecutionRepository _nodeExecutionRepo;
+    private readonly ISqlSugarClient _db;
+    private readonly AiPluginRepository _pluginRepository;
+    private readonly AiPluginApiRepository _pluginApiRepository;
+    private readonly KnowledgeBaseRepository _knowledgeBaseRepository;
+    private readonly AiDatabaseRepository _databaseRepository;
     private readonly NodeExecutorRegistry _registry;
 
     public WorkflowV2QueryService(
@@ -25,6 +34,11 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         IWorkflowVersionRepository versionRepo,
         IWorkflowExecutionRepository executionRepo,
         IWorkflowNodeExecutionRepository nodeExecutionRepo,
+        ISqlSugarClient db,
+        AiPluginRepository pluginRepository,
+        AiPluginApiRepository pluginApiRepository,
+        KnowledgeBaseRepository knowledgeBaseRepository,
+        AiDatabaseRepository databaseRepository,
         NodeExecutorRegistry registry)
     {
         _metaRepo = metaRepo;
@@ -32,6 +46,11 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         _versionRepo = versionRepo;
         _executionRepo = executionRepo;
         _nodeExecutionRepo = nodeExecutionRepo;
+        _db = db;
+        _pluginRepository = pluginRepository;
+        _pluginApiRepository = pluginApiRepository;
+        _knowledgeBaseRepository = knowledgeBaseRepository;
+        _databaseRepository = databaseRepository;
         _registry = registry;
     }
 
@@ -250,6 +269,131 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             edgeStatuses);
     }
 
+    public async Task<WorkflowV2DependencyDto?> GetDependenciesAsync(
+        TenantId tenantId,
+        long workflowId,
+        CancellationToken cancellationToken)
+    {
+        var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken);
+        if (meta is null)
+        {
+            return null;
+        }
+
+        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
+        if (draft is null || string.IsNullOrWhiteSpace(draft.CanvasJson))
+        {
+            return new WorkflowV2DependencyDto(
+                workflowId.ToString(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>());
+        }
+
+        var canvas = DagExecutor.ParseCanvas(draft.CanvasJson);
+        if (canvas is null)
+        {
+            return new WorkflowV2DependencyDto(
+                workflowId.ToString(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>(),
+                Array.Empty<WorkflowV2DependencyItemDto>());
+        }
+        var dependencies = new WorkflowDependencyAccumulator();
+
+        foreach (var node in canvas.Nodes)
+        {
+            CollectDependencies(node, dependencies);
+        }
+
+        var subWorkflowIds = dependencies.SubWorkflowSources.Keys.ToArray();
+        var pluginIds = dependencies.PluginSources.Keys.ToArray();
+        var pluginApiIds = dependencies.PluginApiSources.Keys.ToArray();
+        var knowledgeBaseIds = dependencies.KnowledgeBaseSources.Keys.ToArray();
+        var databaseIds = dependencies.DatabaseSources.Keys.ToArray();
+
+        if (pluginApiIds.Length > 0)
+        {
+            var pluginApis = await _pluginApiRepository.GetByIdsAsync(tenantId, pluginApiIds, cancellationToken);
+            foreach (var pluginApi in pluginApis)
+            {
+                if (dependencies.PluginApiSources.TryGetValue(pluginApi.Id, out var apiSources))
+                {
+                    foreach (var sourceNodeKey in apiSources)
+                    {
+                        dependencies.AddPlugin(pluginApi.PluginId, sourceNodeKey);
+                    }
+                }
+            }
+
+            pluginIds = dependencies.PluginSources.Keys.ToArray();
+        }
+
+        var subWorkflows = subWorkflowIds.Length == 0
+            ? new List<WorkflowMeta>()
+            : await _db.Queryable<WorkflowMeta>()
+                .Where(item => item.TenantIdValue == tenantId.Value && !item.IsDeleted && SqlFunc.ContainsArray(subWorkflowIds, item.Id))
+                .ToListAsync(cancellationToken);
+        var plugins = await _pluginRepository.QueryByIdsAsync(tenantId, pluginIds, cancellationToken);
+        var knowledgeBases = await _knowledgeBaseRepository.QueryByIdsAsync(tenantId, knowledgeBaseIds, cancellationToken);
+        var databases = await _databaseRepository.QueryByIdsAsync(tenantId, databaseIds, cancellationToken);
+
+        return new WorkflowV2DependencyDto(
+            workflowId.ToString(),
+            BuildEntityDependencies(
+                "workflow",
+                subWorkflowIds,
+                subWorkflows.ToDictionary(item => item.Id),
+                item => item.Name,
+                item => item.Description,
+                dependencies.SubWorkflowSources),
+            BuildEntityDependencies(
+                "plugin",
+                pluginIds,
+                plugins.ToDictionary(item => item.Id),
+                item => item.Name,
+                item => item.Description,
+                dependencies.PluginSources),
+            BuildEntityDependencies(
+                "knowledge-base",
+                knowledgeBaseIds,
+                knowledgeBases.ToDictionary(item => item.Id),
+                item => item.Name,
+                item => item.Description,
+                dependencies.KnowledgeBaseSources),
+            BuildEntityDependencies(
+                "database",
+                databaseIds,
+                databases.ToDictionary(item => item.Id),
+                item => item.Name,
+                item => item.Description,
+                dependencies.DatabaseSources),
+            dependencies.VariableSources
+                .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(item => new WorkflowV2DependencyItemDto(
+                    "variable",
+                    item.Key,
+                    item.Key,
+                    item.Value.Count > 0 ? $"来源节点 {item.Value.Count} 个" : null,
+                    item.Value.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray()))
+                .ToArray(),
+            dependencies.ConversationSources
+                .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(item => new WorkflowV2DependencyItemDto(
+                    "conversation",
+                    item.Key,
+                    item.Key,
+                    item.Value.Count > 0 ? $"来源节点 {item.Value.Count} 个" : null,
+                    item.Value.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray()))
+                .ToArray());
+    }
+
     private static Dictionary<string, JsonElement>? TryParseJsonDict(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
@@ -449,6 +593,291 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
 
         return null;
     }
+
+    private static IReadOnlyList<WorkflowV2DependencyItemDto> BuildEntityDependencies<T>(
+        string resourceType,
+        IEnumerable<long> requestedIds,
+        IReadOnlyDictionary<long, T> entityMap,
+        Func<T, string> nameSelector,
+        Func<T, string?> descriptionSelector,
+        IReadOnlyDictionary<long, HashSet<string>> sourceMap)
+    {
+        var result = new List<WorkflowV2DependencyItemDto>();
+        foreach (var id in requestedIds.OrderBy(item => item))
+        {
+            var sourceNodeKeys = sourceMap.TryGetValue(id, out var sources)
+                ? sources.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).ToArray()
+                : Array.Empty<string>();
+            if (entityMap.TryGetValue(id, out var entity))
+            {
+                var name = nameSelector(entity);
+                var description = descriptionSelector(entity);
+                if (sourceNodeKeys.Length > 0 && string.IsNullOrWhiteSpace(description))
+                {
+                    description = $"来源节点 {sourceNodeKeys.Length} 个";
+                }
+
+                result.Add(new WorkflowV2DependencyItemDto(resourceType, id.ToString(), name, description, sourceNodeKeys));
+                continue;
+            }
+
+            result.Add(new WorkflowV2DependencyItemDto(
+                resourceType,
+                id.ToString(),
+                $"{resourceType} #{id}",
+                "依赖资源不存在或已删除。",
+                sourceNodeKeys));
+        }
+
+        return result;
+    }
+
+    private static void CollectDependencies(
+        Domain.AiPlatform.ValueObjects.NodeSchema node,
+        WorkflowDependencyAccumulator dependencies)
+    {
+        if (node.Type is WorkflowNodeType.CreateConversation
+            or WorkflowNodeType.ConversationList
+            or WorkflowNodeType.ConversationUpdate
+            or WorkflowNodeType.ConversationDelete
+            or WorkflowNodeType.ConversationHistory
+            or WorkflowNodeType.ClearConversationHistory
+            or WorkflowNodeType.MessageList
+            or WorkflowNodeType.CreateMessage
+            or WorkflowNodeType.EditMessage
+            or WorkflowNodeType.DeleteMessage)
+        {
+            dependencies.AddConversation(node.Key, node.Key);
+        }
+
+        foreach (var entry in node.Config)
+        {
+            CollectDependenciesFromElement(node.Key, entry.Key, entry.Value, dependencies);
+        }
+
+        if (node.ChildCanvas is null)
+        {
+            return;
+        }
+
+        foreach (var childNode in node.ChildCanvas.Nodes)
+        {
+            CollectDependencies(childNode, dependencies);
+        }
+    }
+
+    private static void CollectDependenciesFromElement(
+        string nodeKey,
+        string key,
+        JsonElement value,
+        WorkflowDependencyAccumulator dependencies)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Object:
+                if (key.Equals("assignments", StringComparison.OrdinalIgnoreCase) ||
+                    key.Equals("inputMappings", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var property in value.EnumerateObject())
+                    {
+                        dependencies.AddVariable(property.Name, nodeKey);
+                        CollectDependenciesFromElement(nodeKey, property.Name, property.Value, dependencies);
+                    }
+                    return;
+                }
+
+                foreach (var property in value.EnumerateObject())
+                {
+                    CollectDependenciesFromElement(nodeKey, property.Name, property.Value, dependencies);
+                }
+                return;
+            case JsonValueKind.Array:
+                if (key.Equals("knowledgeIds", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var item in value.EnumerateArray())
+                    {
+                        AddLongDependency(item, dependencies.AddKnowledgeBase, nodeKey);
+                    }
+                    return;
+                }
+
+                if (key.Equals("variableKeys", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var item in value.EnumerateArray())
+                    {
+                        AddStringDependency(item, dependencies.AddVariable, nodeKey);
+                    }
+                    return;
+                }
+
+                foreach (var item in value.EnumerateArray())
+                {
+                    CollectDependenciesFromElement(nodeKey, key, item, dependencies);
+                }
+                return;
+            case JsonValueKind.Number:
+                if (!value.TryGetInt64(out var numberValue) || numberValue <= 0)
+                {
+                    return;
+                }
+
+                if (key.Equals("workflowId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddSubWorkflow(numberValue, nodeKey);
+                }
+                else if (key.Equals("pluginId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddPlugin(numberValue, nodeKey);
+                }
+                else if (key.Equals("apiId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddPluginApi(numberValue, nodeKey);
+                }
+                else if (key.Equals("knowledgeId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddKnowledgeBase(numberValue, nodeKey);
+                }
+                else if (key.Equals("databaseInfoId", StringComparison.OrdinalIgnoreCase) || key.Equals("databaseId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddDatabase(numberValue, nodeKey);
+                }
+                else if (key.Equals("conversationId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddConversation(numberValue.ToString(), nodeKey);
+                }
+                else if (key.Equals("messageId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddConversation($"message:{numberValue}", nodeKey);
+                }
+                return;
+            case JsonValueKind.String:
+                var text = value.GetString()?.Trim();
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return;
+                }
+
+                if (key.Equals("workflowId", StringComparison.OrdinalIgnoreCase) && long.TryParse(text, out var workflowId) && workflowId > 0)
+                {
+                    dependencies.AddSubWorkflow(workflowId, nodeKey);
+                }
+                else if (key.Equals("pluginId", StringComparison.OrdinalIgnoreCase)
+                    && long.TryParse(text, out var pluginId) && pluginId > 0)
+                {
+                    dependencies.AddPlugin(pluginId, nodeKey);
+                }
+                else if (key.Equals("apiId", StringComparison.OrdinalIgnoreCase)
+                    && long.TryParse(text, out var apiId) && apiId > 0)
+                {
+                    dependencies.AddPluginApi(apiId, nodeKey);
+                }
+                else if (key.Equals("knowledgeId", StringComparison.OrdinalIgnoreCase) && long.TryParse(text, out var knowledgeId) && knowledgeId > 0)
+                {
+                    dependencies.AddKnowledgeBase(knowledgeId, nodeKey);
+                }
+                else if ((key.Equals("databaseInfoId", StringComparison.OrdinalIgnoreCase) || key.Equals("databaseId", StringComparison.OrdinalIgnoreCase))
+                    && long.TryParse(text, out var databaseId) && databaseId > 0)
+                {
+                    dependencies.AddDatabase(databaseId, nodeKey);
+                }
+                else if (key.Equals("conversationId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddConversation(text, nodeKey);
+                }
+                else if (key.Equals("messageId", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddConversation($"message:{text}", nodeKey);
+                }
+
+                if (key.Contains("variable", StringComparison.OrdinalIgnoreCase))
+                {
+                    dependencies.AddVariable(text, nodeKey);
+                }
+
+                foreach (Match match in TemplateVariableRegex.Matches(text))
+                {
+                    var variableKey = match.Groups[1].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(variableKey))
+                    {
+                        dependencies.AddVariable(variableKey, nodeKey);
+                    }
+                }
+                return;
+        }
+    }
+
+    private static void AddLongDependency(JsonElement element, Action<long, string> addAction, string nodeKey)
+    {
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var numericValue) && numericValue > 0)
+        {
+            addAction(numericValue, nodeKey);
+        }
+        else if (element.ValueKind == JsonValueKind.String && long.TryParse(element.GetString(), out var parsedValue) && parsedValue > 0)
+        {
+            addAction(parsedValue, nodeKey);
+        }
+    }
+
+    private static void AddStringDependency(JsonElement element, Action<string, string> addAction, string nodeKey)
+    {
+        if (element.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(element.GetString()))
+        {
+            addAction(element.GetString()!.Trim(), nodeKey);
+        }
+    }
+
+    private sealed class WorkflowDependencyAccumulator
+    {
+        public Dictionary<long, HashSet<string>> SubWorkflowSources { get; } = new();
+        public Dictionary<long, HashSet<string>> PluginSources { get; } = new();
+        public Dictionary<long, HashSet<string>> PluginApiSources { get; } = new();
+        public Dictionary<long, HashSet<string>> KnowledgeBaseSources { get; } = new();
+        public Dictionary<long, HashSet<string>> DatabaseSources { get; } = new();
+        public Dictionary<string, HashSet<string>> VariableSources { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, HashSet<string>> ConversationSources { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public void AddSubWorkflow(long id, string nodeKey) => AddNumeric(SubWorkflowSources, id, nodeKey);
+        public void AddPlugin(long id, string nodeKey) => AddNumeric(PluginSources, id, nodeKey);
+        public void AddPluginApi(long id, string nodeKey) => AddNumeric(PluginApiSources, id, nodeKey);
+        public void AddKnowledgeBase(long id, string nodeKey) => AddNumeric(KnowledgeBaseSources, id, nodeKey);
+        public void AddDatabase(long id, string nodeKey) => AddNumeric(DatabaseSources, id, nodeKey);
+        public void AddVariable(string key, string nodeKey) => AddString(VariableSources, key, nodeKey);
+        public void AddConversation(string key, string nodeKey) => AddString(ConversationSources, key, nodeKey);
+
+        private static void AddNumeric(Dictionary<long, HashSet<string>> map, long id, string nodeKey)
+        {
+            if (id <= 0)
+            {
+                return;
+            }
+
+            if (!map.TryGetValue(id, out var sourceNodeKeys))
+            {
+                sourceNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                map[id] = sourceNodeKeys;
+            }
+
+            sourceNodeKeys.Add(nodeKey);
+        }
+
+        private static void AddString(Dictionary<string, HashSet<string>> map, string value, string nodeKey)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            var normalized = value.Trim();
+            if (!map.TryGetValue(normalized, out var sourceNodeKeys))
+            {
+                sourceNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                map[normalized] = sourceNodeKeys;
+            }
+
+            sourceNodeKeys.Add(nodeKey);
+        }
+    }
+
 
     private static bool IsSelectorTrueConnection(Domain.AiPlatform.ValueObjects.ConnectionSchema connection)
     {

@@ -189,6 +189,22 @@ public sealed record WorkflowV2RunTraceDto(
     IReadOnlyList<WorkflowV2StepResultDto>? Steps = null,
     IReadOnlyList<WorkflowV2EdgeRuntimeStatusDto>? EdgeStatuses = null);
 
+public sealed record WorkflowV2DependencyItemDto(
+    string ResourceType,
+    string ResourceId,
+    string Name,
+    string? Description = null,
+    IReadOnlyList<string>? SourceNodeKeys = null);
+
+public sealed record WorkflowV2DependencyDto(
+    string WorkflowId,
+    IReadOnlyList<WorkflowV2DependencyItemDto> SubWorkflows,
+    IReadOnlyList<WorkflowV2DependencyItemDto> Plugins,
+    IReadOnlyList<WorkflowV2DependencyItemDto> KnowledgeBases,
+    IReadOnlyList<WorkflowV2DependencyItemDto> Databases,
+    IReadOnlyList<WorkflowV2DependencyItemDto> Variables,
+    IReadOnlyList<WorkflowV2DependencyItemDto> Conversations);
+
 /// <summary>
 /// SSE 流式事件封装。
 /// </summary>

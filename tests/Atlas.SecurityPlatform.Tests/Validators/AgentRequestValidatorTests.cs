@@ -23,6 +23,10 @@ public sealed class AgentRequestValidatorTests
             Constraints: "constraints",
             OpeningMessage: "opening message",
             PresetQuestions: ["问题一", "问题二"],
+            KnowledgeBindings: null,
+            DatabaseBindings: null,
+            VariableBindings: null,
+            KnowledgeBaseIds: null,
             DatabaseBindingIds: null,
             VariableBindingIds: null,
             ModelConfigId: null,
@@ -56,6 +60,9 @@ public sealed class AgentRequestValidatorTests
             Constraints: null,
             OpeningMessage: null,
             PresetQuestions: ["1", "2", "3", "4", "5", "6", "7"],
+            KnowledgeBindings: null,
+            DatabaseBindings: null,
+            VariableBindings: null,
             DatabaseBindingIds: null,
             VariableBindingIds: null,
             ModelConfigId: null,
@@ -75,5 +82,43 @@ public sealed class AgentRequestValidatorTests
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error => error.PropertyName == nameof(AgentUpdateRequest.PresetQuestions));
+    }
+
+    [Fact]
+    public void CreateValidator_ShouldFail_WhenDatabaseBindingAccessModeInvalid()
+    {
+        var request = new AgentCreateRequest(
+            Name: "StructuredBot",
+            Description: null,
+            AvatarUrl: null,
+            SystemPrompt: null,
+            PersonaMarkdown: null,
+            Goals: null,
+            ReplyLogic: null,
+            OutputFormat: null,
+            Constraints: null,
+            OpeningMessage: null,
+            PresetQuestions: null,
+            KnowledgeBindings: null,
+            DatabaseBindings: [new AgentDatabaseBindingInput(12, "ops_db", "writeonly", ["alerts"], true)],
+            VariableBindings: null,
+            KnowledgeBaseIds: null,
+            DatabaseBindingIds: null,
+            VariableBindingIds: null,
+            ModelConfigId: null,
+            ModelName: null,
+            Temperature: null,
+            MaxTokens: null,
+            DefaultWorkflowId: null,
+            DefaultWorkflowName: null,
+            EnableMemory: true,
+            EnableShortTermMemory: true,
+            EnableLongTermMemory: true,
+            LongTermMemoryTopK: 3);
+
+        var result = _createValidator.Validate(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error => error.PropertyName.Contains(nameof(AgentCreateRequest.DatabaseBindings), StringComparison.Ordinal));
     }
 }

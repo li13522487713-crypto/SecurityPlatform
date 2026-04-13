@@ -55,4 +55,9 @@ public interface IWorkflowV2QueryService
         TenantId tenantId,
         long executionId,
         CancellationToken cancellationToken);
+
+    Task<WorkflowV2DependencyDto?> GetDependenciesAsync(
+        TenantId tenantId,
+        long workflowId,
+        CancellationToken cancellationToken);
 }

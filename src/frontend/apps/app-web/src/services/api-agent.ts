@@ -14,6 +14,11 @@ export interface AgentDetail {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBindings?: AgentKnowledgeBinding[];
+  databaseBindings?: AgentDatabaseBinding[];
+  variableBindings?: AgentVariableBinding[];
+  knowledgeBaseIds?: number[];
+  pluginBindings?: AgentPluginBinding[];
   databaseBindingIds?: number[];
   variableBindingIds?: number[];
   modelConfigId?: string;
@@ -48,6 +53,11 @@ export interface AgentCreateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBindings?: AgentKnowledgeBindingInput[];
+  databaseBindings?: AgentDatabaseBindingInput[];
+  variableBindings?: AgentVariableBindingInput[];
+  knowledgeBaseIds?: number[];
+  pluginBindings?: AgentPluginBindingInput[];
   databaseBindingIds?: number[];
   variableBindingIds?: number[];
   modelConfigId?: string;
@@ -74,6 +84,11 @@ export interface AgentUpdateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBindings?: AgentKnowledgeBindingInput[];
+  databaseBindings?: AgentDatabaseBindingInput[];
+  variableBindings?: AgentVariableBindingInput[];
+  knowledgeBaseIds?: number[];
+  pluginBindings?: AgentPluginBindingInput[];
   databaseBindingIds?: number[];
   variableBindingIds?: number[];
   modelConfigId?: string;
@@ -86,6 +101,62 @@ export interface AgentUpdateRequest {
   enableShortTermMemory?: boolean;
   enableLongTermMemory?: boolean;
   longTermMemoryTopK?: number;
+}
+
+export interface AgentKnowledgeBinding {
+  knowledgeBaseId: number;
+  isEnabled: boolean;
+  invokeMode: "auto" | "manual";
+  topK: number;
+  scoreThreshold?: number;
+  enabledContentTypes: Array<"text" | "table" | "image">;
+  rewriteQueryTemplate?: string;
+}
+
+export interface AgentKnowledgeBindingInput extends AgentKnowledgeBinding {}
+
+export interface AgentDatabaseBinding {
+  databaseId: number;
+  alias?: string;
+  accessMode: "readonly" | "readwrite";
+  tableAllowlist: string[];
+  isDefault: boolean;
+}
+
+export interface AgentDatabaseBindingInput extends AgentDatabaseBinding {}
+
+export interface AgentVariableBinding {
+  variableId: number;
+  alias?: string;
+  isRequired: boolean;
+  defaultValueOverride?: string;
+}
+
+export interface AgentVariableBindingInput extends AgentVariableBinding {}
+
+export interface AgentPluginBinding {
+  pluginId: number;
+  sortOrder: number;
+  isEnabled: boolean;
+  toolConfigJson?: string;
+  toolBindings?: AgentPluginToolBinding[];
+}
+
+export interface AgentPluginBindingInput extends AgentPluginBinding {}
+
+export interface AgentPluginToolBinding {
+  apiId: number;
+  isEnabled: boolean;
+  timeoutSeconds: number;
+  failurePolicy: "skip" | "fail";
+  parameterBindings: AgentPluginParameterBinding[];
+}
+
+export interface AgentPluginParameterBinding {
+  parameterName: string;
+  valueSource: "literal" | "variable";
+  literalValue?: string;
+  variableKey?: string;
 }
 
 export async function getAgentsPaged(params?: {

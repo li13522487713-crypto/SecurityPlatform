@@ -224,6 +224,19 @@ public sealed class AgentPublicationService : IAgentPublicationService
                 .Distinct()
                 .OrderBy(x => x)
                 .ToArray(),
+            knowledgeBindings = knowledgeLinks
+                .OrderBy(x => x.KnowledgeBaseId)
+                .Select(x => new
+                {
+                    x.KnowledgeBaseId,
+                    x.IsEnabled,
+                    x.InvokeMode,
+                    x.TopK,
+                    x.ScoreThreshold,
+                    x.EnabledContentTypesJson,
+                    x.RewriteQueryTemplate
+                })
+                .ToArray(),
             pluginBindings = pluginBindings
                 .OrderBy(x => x.SortOrder)
                 .ThenBy(x => x.PluginId)

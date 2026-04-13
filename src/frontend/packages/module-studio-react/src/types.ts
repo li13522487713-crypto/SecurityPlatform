@@ -27,8 +27,11 @@ export interface AgentDetail {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBindings?: AgentKnowledgeBinding[];
+  databaseBindings?: AgentDatabaseBinding[];
+  variableBindings?: AgentVariableBinding[];
   knowledgeBaseIds?: number[];
-  pluginBindings?: Array<{ pluginId: number; sortOrder: number; isEnabled: boolean; toolConfigJson?: string }>;
+  pluginBindings?: AgentPluginBinding[];
   databaseBindingIds?: number[];
   variableBindingIds?: number[];
   modelConfigId?: string;
@@ -56,8 +59,11 @@ export interface AgentCreateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBindings?: AgentKnowledgeBindingInput[];
+  databaseBindings?: AgentDatabaseBindingInput[];
+  variableBindings?: AgentVariableBindingInput[];
   knowledgeBaseIds?: number[];
-  pluginBindings?: Array<{ pluginId: number; sortOrder: number; isEnabled: boolean; toolConfigJson?: string }>;
+  pluginBindings?: AgentPluginBindingInput[];
   databaseBindingIds?: number[];
   variableBindingIds?: number[];
   modelConfigId?: string;
@@ -84,8 +90,11 @@ export interface AgentUpdateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBindings?: AgentKnowledgeBindingInput[];
+  databaseBindings?: AgentDatabaseBindingInput[];
+  variableBindings?: AgentVariableBindingInput[];
   knowledgeBaseIds?: number[];
-  pluginBindings?: Array<{ pluginId: number; sortOrder: number; isEnabled: boolean; toolConfigJson?: string }>;
+  pluginBindings?: AgentPluginBindingInput[];
   databaseBindingIds?: number[];
   variableBindingIds?: number[];
   modelConfigId?: string;
@@ -132,6 +141,62 @@ export interface WorkflowListItem {
 export interface WorkflowBinding {
   workflowId?: string;
   workflowName?: string;
+}
+
+export interface AgentKnowledgeBinding {
+  knowledgeBaseId: number;
+  isEnabled: boolean;
+  invokeMode: "auto" | "manual";
+  topK: number;
+  scoreThreshold?: number;
+  enabledContentTypes: Array<"text" | "table" | "image">;
+  rewriteQueryTemplate?: string;
+}
+
+export interface AgentKnowledgeBindingInput extends AgentKnowledgeBinding {}
+
+export interface AgentDatabaseBinding {
+  databaseId: number;
+  alias?: string;
+  accessMode: "readonly" | "readwrite";
+  tableAllowlist: string[];
+  isDefault: boolean;
+}
+
+export interface AgentDatabaseBindingInput extends AgentDatabaseBinding {}
+
+export interface AgentVariableBinding {
+  variableId: number;
+  alias?: string;
+  isRequired: boolean;
+  defaultValueOverride?: string;
+}
+
+export interface AgentVariableBindingInput extends AgentVariableBinding {}
+
+export interface AgentPluginBinding {
+  pluginId: number;
+  sortOrder: number;
+  isEnabled: boolean;
+  toolConfigJson?: string;
+  toolBindings?: AgentPluginToolBinding[];
+}
+
+export interface AgentPluginBindingInput extends AgentPluginBinding {}
+
+export interface AgentPluginToolBinding {
+  apiId: number;
+  isEnabled: boolean;
+  timeoutSeconds: number;
+  failurePolicy: "skip" | "fail";
+  parameterBindings: AgentPluginParameterBinding[];
+}
+
+export interface AgentPluginParameterBinding {
+  parameterName: string;
+  valueSource: "literal" | "variable";
+  literalValue?: string;
+  variableKey?: string;
 }
 
 export interface WorkflowExecutionSummary {
@@ -369,6 +434,12 @@ export interface StudioModuleApi {
   ) => Promise<string>;
   listWorkflows: (params?: { keyword?: string; status?: "draft" | "published" | "all" }) => Promise<WorkflowListItem[]>;
   listPlugins: () => Promise<Array<{ id: number; name: string; category?: string; status: number }>>;
+  getPluginDetail: (pluginId: number) => Promise<{
+    id: number;
+    name: string;
+    category?: string;
+    apis: Array<{ id: number; name: string; requestSchemaJson: string; timeoutSeconds: number; isEnabled: boolean }>;
+  }>;
   listKnowledgeBases: () => Promise<Array<{ id: number; name: string; type: number }>>;
   listDatabases: () => Promise<Array<{ id: number; name: string; botId?: number }>>;
   listBotVariables: (botId: string) => Promise<Array<{ id: number; key: string; scopeId?: number }>>;

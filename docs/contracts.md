@@ -392,6 +392,72 @@
   - `durationMs`
   - `errorMessage`
 
+### Workflow 依赖查询（PlatformHost）
+
+- `GET /api/v2/workflows/{id}/dependencies`
+- 返回：`ApiResponse<WorkflowV2DependencyDto>`
+- `WorkflowV2DependencyDto`
+  - `workflowId`
+  - `subWorkflows[]`
+  - `plugins[]`
+  - `knowledgeBases[]`
+  - `databases[]`
+  - `variables[]`
+  - `conversations[]`
+- `WorkflowV2DependencyItemDto`
+  - `resourceType`
+  - `resourceId`
+  - `name`
+  - `description`
+  - `sourceNodeKeys[]`
+    - 当前依赖被哪些节点引用
+    - `references` 侧栏、问题面板与节点定位联动都依赖该字段
+
+### Agent 配置化绑定
+
+- `AgentDetail` / `AgentCreateRequest` / `AgentUpdateRequest` 扩展：
+  - `knowledgeBindings[]`
+    - `knowledgeBaseId`
+    - `isEnabled`
+    - `invokeMode`
+    - `topK`
+    - `scoreThreshold`
+    - `enabledContentTypes[]`
+    - `rewriteQueryTemplate`
+  - `pluginBindings[]`
+    - `pluginId`
+    - `sortOrder`
+    - `isEnabled`
+    - `toolConfigJson`
+    - `toolBindings[]`
+  - `toolBindings[]`
+    - `apiId`
+    - `isEnabled`
+    - `timeoutSeconds`
+    - `failurePolicy`
+    - `parameterBindings[]`
+  - `parameterBindings[]`
+    - `parameterName`
+    - `valueSource`
+    - `literalValue`
+    - `variableKey`
+  - `databaseBindings[]`
+    - `databaseId`
+    - `alias`
+    - `accessMode`
+    - `tableAllowlist[]`
+    - `isDefault`
+  - `variableBindings[]`
+    - `variableId`
+    - `alias`
+    - `isRequired`
+    - `defaultValueOverride`
+- 兼容投影：
+  - `knowledgeBaseIds[]` 继续保留
+  - `databaseBindingIds[]` 继续保留
+  - `variableBindingIds[]` 继续保留
+  - `ToolConfigJson` 继续作为数据库列存在，但前端不直接编辑裸 JSON
+
 ## Workspace IDE API（PlatformHost）
 
 ### 工作空间摘要

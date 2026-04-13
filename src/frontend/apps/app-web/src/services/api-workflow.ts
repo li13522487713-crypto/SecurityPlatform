@@ -38,6 +38,24 @@ import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-core-reac
 type IdLike = string | number;
 export type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-core-react/api";
 
+export interface WorkflowDependencyItem {
+  resourceType: string;
+  resourceId: string;
+  name: string;
+  description?: string;
+  sourceNodeKeys?: string[];
+}
+
+export interface WorkflowDependencies {
+  workflowId: string;
+  subWorkflows: WorkflowDependencyItem[];
+  plugins: WorkflowDependencyItem[];
+  knowledgeBases: WorkflowDependencyItem[];
+  databases: WorkflowDependencyItem[];
+  variables: WorkflowDependencyItem[];
+  conversations: WorkflowDependencyItem[];
+}
+
 const APP_ID_REGEX = /^[1-9]\d*$/;
 let appIdResolvingPromise: Promise<string | null> | null = null;
 
@@ -208,6 +226,10 @@ export function getNodeTypes(): Promise<ApiResponse<NodeTypeMetadata[]>> {
 
 export function getNodeTemplates(): Promise<ApiResponse<NodeTemplateMetadata[]>> {
   return workflowV2Api.getNodeTemplates();
+}
+
+export async function getWorkflowDependencies(id: IdLike): Promise<ApiResponse<WorkflowDependencies>> {
+  return workflowRequest<ApiResponse<WorkflowDependencies>>(`/api/v2/workflows/${id}/dependencies`);
 }
 
 export function syncRunWorkflow(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {

@@ -213,6 +213,7 @@ import {
   copyWorkflow,
   createWorkflow as createWorkflowDefinition,
   deleteWorkflow as deleteWorkflowDefinition,
+  getWorkflowDependencies,
   listWorkflowVersions,
   listWorkflows,
   workflowV2Api
@@ -636,6 +637,21 @@ function createStudioApi(appKey: string): StudioModuleApi {
         status: item.status
       }));
     },
+    getPluginDetail: async (pluginId) => {
+      const detail = await getAiPluginById(pluginId);
+      return {
+        id: detail.id,
+        name: detail.name,
+        category: detail.category,
+        apis: detail.apis.map(api => ({
+          id: api.id,
+          name: api.name,
+          requestSchemaJson: api.requestSchemaJson,
+          timeoutSeconds: api.timeoutSeconds,
+          isEnabled: api.isEnabled
+        }))
+      };
+    },
     listKnowledgeBases: async () => {
       const result = await getKnowledgeBasesPaged({ pageIndex: 1, pageSize: 50 });
       return result.items.map(item => ({
@@ -772,6 +788,18 @@ function createWorkflowModuleApi(appKey: string): WorkflowModuleApi {
         versionNumber: item.versionNumber,
         publishedAt: item.publishedAt
       }));
+    },
+    getDependencies: async (id: string) => {
+      const response = await getWorkflowDependencies(id);
+      return response.data ?? {
+        workflowId: id,
+        subWorkflows: [],
+        plugins: [],
+        knowledgeBases: [],
+        databases: [],
+        variables: [],
+        conversations: []
+      };
     },
     listLibrary: getLibraryPaged,
     importLibraryItem,

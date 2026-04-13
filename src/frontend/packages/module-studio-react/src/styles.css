@@ -7,6 +7,7 @@
 .module-studio__header,
 .module-studio__toolbar,
 .module-studio__actions,
+.module-studio__inline-actions,
 .module-studio__section-head,
 .module-studio__develop-toolbar,
 .module-studio__hero,
@@ -16,6 +17,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.module-studio__inline-actions {
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .module-studio__surface {

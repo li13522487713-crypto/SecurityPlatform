@@ -21,6 +21,12 @@ import { IconPlus } from "@douyinfe/semi-icons";
 import type {
   AgentListItem,
   AgentDetail,
+  AgentDatabaseBindingInput,
+  AgentKnowledgeBindingInput,
+  AgentPluginBindingInput,
+  AgentPluginToolBinding,
+  AgentPluginParameterBinding,
+  AgentVariableBindingInput,
   ChatMessageItem,
   ConversationItem,
   StudioApplicationCreateRequest,
@@ -354,6 +360,44 @@ function parseTraceSummary(metadata?: string): WorkbenchTrace | null {
   };
 }
 
+interface WorkbenchResourceUsage {
+  pluginTools: string[];
+  knowledgeBases: string[];
+  databases: string[];
+  variables: string[];
+}
+
+function parseResourceUsageSummary(metadata?: string): WorkbenchResourceUsage | null {
+  const payload = parseJsonSafely(metadata);
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const source = isRecord(payload.resourceUsage)
+    ? payload.resourceUsage
+    : isRecord(payload.resources)
+      ? payload.resources
+      : payload;
+
+  const toStringArray = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map(item => item.trim())
+      : [];
+
+  const result = {
+    pluginTools: toStringArray(source.usedPlugins ?? source.pluginTools),
+    knowledgeBases: toStringArray(source.usedKnowledgeBases ?? source.knowledgeBases),
+    databases: toStringArray(source.usedDatabases ?? source.databases),
+    variables: toStringArray(source.usedVariables ?? source.variables)
+  };
+
+  if (result.pluginTools.length === 0 && result.knowledgeBases.length === 0 && result.databases.length === 0 && result.variables.length === 0) {
+    return null;
+  }
+
+  return result;
+}
+
 interface AgentPromptSections {
   persona: string;
   goals: string;
@@ -431,6 +475,99 @@ function composeAgentPromptSections(sections: AgentPromptSections): string {
     })
     .filter(Boolean)
     .join("\n\n");
+}
+
+function parsePluginParameterNames(requestSchemaJson?: string): Array<{ name: string; required: boolean }> {
+  if (!requestSchemaJson?.trim()) {
+    return [];
+  }
+
+  try {
+    const schema = JSON.parse(requestSchemaJson) as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+    const required = new Set(schema.required ?? []);
+    return Object.keys(schema.properties ?? {}).map(name => ({
+      name,
+      required: required.has(name)
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function createDefaultKnowledgeBinding(knowledgeBaseId: number): AgentKnowledgeBindingInput {
+  return {
+    knowledgeBaseId,
+    isEnabled: true,
+    invokeMode: "auto",
+    topK: 5,
+    scoreThreshold: 0.5,
+    enabledContentTypes: ["text", "table", "image"],
+    rewriteQueryTemplate: undefined
+  };
+}
+
+function createDefaultPluginBinding(pluginId: number): AgentPluginBindingInput {
+  return {
+    pluginId,
+    sortOrder: 0,
+    isEnabled: true,
+    toolConfigJson: "{}",
+    toolBindings: []
+  };
+}
+
+function createDefaultDatabaseBinding(databaseId: number, isDefault = false): AgentDatabaseBindingInput {
+  return {
+    databaseId,
+    alias: undefined,
+    accessMode: "readonly",
+    tableAllowlist: [],
+    isDefault
+  };
+}
+
+function createDefaultVariableBinding(variableId: number): AgentVariableBindingInput {
+  return {
+    variableId,
+    alias: undefined,
+    isRequired: false,
+    defaultValueOverride: undefined
+  };
+}
+
+function normalizeAllowlistText(value: string): string[] {
+  return value
+    .split(/[,\n]/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .filter((item, index, array) => array.indexOf(item) === index);
+}
+
+function stringifyAllowlist(value: string[]): string {
+  return value.join(", ");
+}
+
+function readPageSearchParam(name: string): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return new URLSearchParams(window.location.search).get(name) ?? "";
+}
+
+function replacePageSearchParams(mutator: (params: URLSearchParams) => void) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  mutator(params);
+  const query = params.toString();
+  const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+  window.history.replaceState(null, "", nextUrl);
 }
 
 export function DevelopPage({
@@ -1305,6 +1442,11 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const [knowledgeBaseOptions, setKnowledgeBaseOptions] = useState<Array<{ id: number; name: string; type: number }>>([]);
   const [databaseOptions, setDatabaseOptions] = useState<Array<{ id: number; name: string; botId?: number }>>([]);
   const [variableOptions, setVariableOptions] = useState<Array<{ id: number; key: string; scopeId?: number }>>([]);
+  const [pluginDetailMap, setPluginDetailMap] = useState<Record<number, { id: number; name: string; category?: string; apis: Array<{ id: number; name: string; requestSchemaJson: string; timeoutSeconds: number; isEnabled: boolean }> }>>({});
+  const [knowledgeBindings, setKnowledgeBindings] = useState<AgentKnowledgeBindingInput[]>([]);
+  const [pluginBindings, setPluginBindings] = useState<AgentPluginBindingInput[]>([]);
+  const [databaseBindings, setDatabaseBindings] = useState<AgentDatabaseBindingInput[]>([]);
+  const [variableBindings, setVariableBindings] = useState<AgentVariableBindingInput[]>([]);
   const [selectedKnowledgeBaseIds, setSelectedKnowledgeBaseIds] = useState<number[]>([]);
   const [selectedPluginIds, setSelectedPluginIds] = useState<number[]>([]);
   const [selectedDatabaseIds, setSelectedDatabaseIds] = useState<number[]>([]);
@@ -1321,9 +1463,15 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const [lastTrace, setLastTrace] = useState<WorkbenchTrace | null>(null);
   const [workbenchLoading, setWorkbenchLoading] = useState(true);
   const [workbenchError, setWorkbenchError] = useState<string | null>(null);
+  const [autosaveHint, setAutosaveHint] = useState("草稿已同步");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const workbenchRequestIdRef = useRef(0);
   const conversationIdRef = useRef("");
   const ensureConversationPromiseRef = useRef<Promise<string> | null>(null);
+  const persistedDraftSignatureRef = useRef("");
+  const botHydratingRef = useRef(true);
+  const autosaveTimerRef = useRef<number | null>(null);
+  const readwriteConfirmedRef = useRef(false);
 
   function applyConversationId(nextConversationId?: string | null) {
     const normalized = nextConversationId?.trim() ?? "";
@@ -1332,8 +1480,80 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     return normalized;
   }
 
+  function buildAgentDraftRequest() {
+    const nextSystemPrompt = composeAgentPromptSections(promptSections);
+    const presetQuestions = presetQuestionsInput
+      .split(/\r?\n/)
+      .map(item => item.trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    const normalizedKnowledgeBindings = knowledgeBindings.map(binding => ({
+      ...binding,
+      enabledContentTypes: Array.from(new Set(binding.enabledContentTypes))
+    }));
+    const normalizedPluginBindings = pluginBindings.map((binding, index) => ({
+      ...binding,
+      sortOrder: index,
+      toolConfigJson: JSON.stringify({
+        toolBindings: (binding.toolBindings ?? []).map(tool => ({
+          apiId: tool.apiId,
+          isEnabled: tool.isEnabled,
+          timeoutSeconds: tool.timeoutSeconds,
+          failurePolicy: tool.failurePolicy,
+          parameterBindings: tool.parameterBindings
+        }))
+      })
+    }));
+    const normalizedDatabaseBindings = databaseBindings.map((binding, index) => ({
+      ...binding,
+      alias: binding.alias?.trim() || undefined,
+      accessMode: binding.accessMode,
+      tableAllowlist: Array.from(new Set(binding.tableAllowlist.map(item => item.trim()).filter(Boolean))),
+      isDefault: binding.isDefault || (index === 0 && !databaseBindings.some(item => item.isDefault))
+    }));
+    const normalizedVariableBindings = variableBindings.map(binding => ({
+      ...binding,
+      alias: binding.alias?.trim() || undefined,
+      defaultValueOverride: binding.defaultValueOverride?.trim() || undefined
+    }));
+
+    return {
+      request: {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        avatarUrl: avatarUrl.trim() || undefined,
+        systemPrompt: nextSystemPrompt || undefined,
+        personaMarkdown: promptSections.persona.trim() || undefined,
+        goals: promptSections.goals.trim() || undefined,
+        replyLogic: promptSections.skills.trim() || undefined,
+        outputFormat: promptSections.outputFormat.trim() || undefined,
+        constraints: promptSections.constraints.trim() || undefined,
+        openingMessage: openingMessage.trim() || promptSections.opening.trim() || undefined,
+        presetQuestions: presetQuestions.length > 0 ? presetQuestions : undefined,
+        knowledgeBindings: normalizedKnowledgeBindings,
+        knowledgeBaseIds: normalizedKnowledgeBindings.map(item => item.knowledgeBaseId),
+        pluginBindings: normalizedPluginBindings,
+        databaseBindings: normalizedDatabaseBindings,
+        databaseBindingIds: normalizedDatabaseBindings.map(item => item.databaseId),
+        variableBindings: normalizedVariableBindings,
+        variableBindingIds: normalizedVariableBindings.map(item => item.variableId),
+        modelConfigId,
+        modelName: selectedModel?.defaultModel,
+        defaultWorkflowId: workflowId,
+        defaultWorkflowName: selectedWorkflow?.name,
+        enableMemory,
+        enableShortTermMemory,
+        enableLongTermMemory,
+        longTermMemoryTopK
+      },
+      systemPrompt: nextSystemPrompt,
+      presetQuestions
+    } as const;
+  }
+
   async function loadWorkbench(nextConversationId?: string) {
     const requestId = ++workbenchRequestIdRef.current;
+    botHydratingRef.current = true;
     setWorkbenchLoading(true);
     setWorkbenchError(null);
 
@@ -1389,10 +1609,41 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       setKnowledgeBaseOptions(knowledgeBases);
       setDatabaseOptions(databases);
       setVariableOptions(variables);
-      setSelectedKnowledgeBaseIds(nextDetail.knowledgeBaseIds ?? []);
-      setSelectedPluginIds((nextDetail.pluginBindings ?? []).filter(item => item.isEnabled).map(item => item.pluginId));
-      setSelectedDatabaseIds(nextDetail.databaseBindingIds ?? []);
-      setSelectedVariableIds(nextDetail.variableBindingIds ?? []);
+      const nextKnowledgeBindings = nextDetail.knowledgeBindings && nextDetail.knowledgeBindings.length > 0
+        ? nextDetail.knowledgeBindings
+        : (nextDetail.knowledgeBaseIds ?? []).map(id => createDefaultKnowledgeBinding(id));
+      const nextPluginBindings = nextDetail.pluginBindings && nextDetail.pluginBindings.length > 0
+        ? nextDetail.pluginBindings
+        : [];
+      const nextDatabaseBindings = nextDetail.databaseBindings && nextDetail.databaseBindings.length > 0
+        ? nextDetail.databaseBindings
+        : (nextDetail.databaseBindingIds ?? []).map((id, index) => createDefaultDatabaseBinding(id, index === 0));
+      const nextVariableBindings = nextDetail.variableBindings && nextDetail.variableBindings.length > 0
+        ? nextDetail.variableBindings
+        : (nextDetail.variableBindingIds ?? []).map(id => createDefaultVariableBinding(id));
+      setKnowledgeBindings(nextKnowledgeBindings);
+      setPluginBindings(nextPluginBindings);
+      setDatabaseBindings(nextDatabaseBindings);
+      setVariableBindings(nextVariableBindings);
+      setSelectedKnowledgeBaseIds(nextKnowledgeBindings.map(item => item.knowledgeBaseId));
+      setSelectedPluginIds(nextPluginBindings.filter(item => item.isEnabled).map(item => item.pluginId));
+      setSelectedDatabaseIds(nextDatabaseBindings.map(item => item.databaseId));
+      setSelectedVariableIds(nextVariableBindings.map(item => item.variableId));
+      readwriteConfirmedRef.current = nextDatabaseBindings.some(item => item.accessMode === "readwrite");
+
+      const pluginIds = nextPluginBindings.map(item => item.pluginId).filter((value, index, array) => array.indexOf(value) === index);
+      if (pluginIds.length > 0) {
+        const details = await Promise.all(pluginIds.map(async pluginId => {
+          const detail = await api.getPluginDetail(pluginId);
+          return [pluginId, detail] as const;
+        }));
+        if (requestId !== workbenchRequestIdRef.current) {
+          return;
+        }
+        setPluginDetailMap(Object.fromEntries(details));
+      } else {
+        setPluginDetailMap({});
+      }
 
       const conversationResult = await api.listConversations(botId);
       if (requestId !== workbenchRequestIdRef.current) {
@@ -1400,8 +1651,52 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       }
 
       const activeConversationId = applyConversationId(
-        nextConversationId || conversationIdRef.current || conversationResult.items[0]?.id || ""
+        nextConversationId || readPageSearchParam("botConversationId") || conversationIdRef.current || conversationResult.items[0]?.id || ""
       );
+
+      const persistedRequest = {
+        name: nextDetail.name.trim(),
+        description: nextDetail.description?.trim() || undefined,
+        avatarUrl: nextDetail.avatarUrl?.trim() || undefined,
+        systemPrompt: nextDetail.systemPrompt || undefined,
+        personaMarkdown: (nextDetail.personaMarkdown || parsedPromptSections.persona).trim() || undefined,
+        goals: (nextDetail.goals || parsedPromptSections.goals).trim() || undefined,
+        replyLogic: (nextDetail.replyLogic || parsedPromptSections.skills).trim() || undefined,
+        outputFormat: (nextDetail.outputFormat || parsedPromptSections.outputFormat).trim() || undefined,
+        constraints: (nextDetail.constraints || parsedPromptSections.constraints).trim() || undefined,
+        openingMessage: (nextDetail.openingMessage || parsedPromptSections.opening).trim() || undefined,
+        presetQuestions: (nextDetail.presetQuestions ?? []).map(item => item.trim()).filter(Boolean).slice(0, 6),
+        knowledgeBindings: nextKnowledgeBindings,
+        knowledgeBaseIds: nextKnowledgeBindings.map(item => item.knowledgeBaseId),
+        pluginBindings: nextPluginBindings.map((binding, index) => ({
+          ...binding,
+          sortOrder: index,
+          toolConfigJson: JSON.stringify({
+            toolBindings: (binding.toolBindings ?? []).map(tool => ({
+              apiId: tool.apiId,
+              isEnabled: tool.isEnabled,
+              timeoutSeconds: tool.timeoutSeconds,
+              failurePolicy: tool.failurePolicy,
+              parameterBindings: tool.parameterBindings
+            }))
+          })
+        })),
+        databaseBindings: nextDatabaseBindings,
+        databaseBindingIds: nextDatabaseBindings.map(item => item.databaseId),
+        variableBindings: nextVariableBindings,
+        variableBindingIds: nextVariableBindings.map(item => item.variableId),
+        modelConfigId: nextDetail.modelConfigId,
+        modelName: modelResult.items.find(item => String(item.id) === String(nextDetail.modelConfigId ?? ""))?.defaultModel ?? nextDetail.modelName,
+        defaultWorkflowId: nextDetail.defaultWorkflowId,
+        defaultWorkflowName: nextDetail.defaultWorkflowName,
+        enableMemory: nextDetail.enableMemory ?? true,
+        enableShortTermMemory: nextDetail.enableShortTermMemory ?? true,
+        enableLongTermMemory: nextDetail.enableLongTermMemory ?? true,
+        longTermMemoryTopK: nextDetail.longTermMemoryTopK ?? 3
+      };
+      persistedDraftSignatureRef.current = JSON.stringify(persistedRequest);
+      setHasUnsavedChanges(false);
+      setAutosaveHint("草稿已同步");
 
       if (!activeConversationId) {
         setMessages([]);
@@ -1430,6 +1725,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     } finally {
       if (requestId === workbenchRequestIdRef.current) {
         setWorkbenchLoading(false);
+        botHydratingRef.current = false;
       }
     }
   }
@@ -1448,6 +1744,83 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   );
   const canChat = Boolean(selectedModel && selectedModel.isEnabled);
   const resourceReady = !workbenchLoading && !workbenchError;
+  const lastResourceUsage = useMemo(
+    () => [...messages].reverse().map(message => parseResourceUsageSummary(message.metadata)).find(Boolean) ?? null,
+    [messages]
+  );
+  const draftSignature = useMemo(() => JSON.stringify(buildAgentDraftRequest().request), [
+    avatarUrl,
+    databaseBindings,
+    description,
+    enableLongTermMemory,
+    enableMemory,
+    enableShortTermMemory,
+    knowledgeBindings,
+    longTermMemoryTopK,
+    modelConfigId,
+    name,
+    openingMessage,
+    pluginBindings,
+    presetQuestionsInput,
+    promptSections,
+    selectedModel?.defaultModel,
+    selectedWorkflow?.name,
+    variableBindings,
+    workflowId
+  ]);
+
+  useEffect(() => {
+    if (botHydratingRef.current) {
+      return;
+    }
+
+    const changed = draftSignature !== persistedDraftSignatureRef.current;
+    setHasUnsavedChanges(changed);
+    if (!changed) {
+      setAutosaveHint("草稿已同步");
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      return;
+    }
+
+    setAutosaveHint("存在未保存变更");
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+
+    if (saving || sending || runningWorkflow || workbenchLoading) {
+      return;
+    }
+
+    autosaveTimerRef.current = window.setTimeout(() => {
+      void handleSave({ silent: true, source: "autosave" });
+    }, 1800);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [draftSignature, runningWorkflow, saving, sending, workbenchLoading]);
+
+  useEffect(() => {
+    replacePageSearchParams(params => {
+      if (conversationId) {
+        params.set("botConversationId", conversationId);
+      } else {
+        params.delete("botConversationId");
+      }
+    });
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!databaseBindings.some(item => item.accessMode === "readwrite")) {
+      readwriteConfirmedRef.current = false;
+    }
+  }, [databaseBindings]);
 
   async function ensureConversation(): Promise<string> {
     if (conversationIdRef.current) {
@@ -1468,86 +1841,165 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     return ensureConversationPromiseRef.current;
   }
 
-  async function handleSave() {
-    if (!name.trim()) {
-      Toast.warning("请先填写 Agent 名称。");
+  async function handlePluginSelectionChange(nextPluginIds: number[]) {
+    setSelectedPluginIds(nextPluginIds);
+    setPluginBindings(current => {
+      const next = nextPluginIds.map((pluginId, index) => {
+        const existing = current.find(item => item.pluginId === pluginId);
+        return existing ? { ...existing, sortOrder: index } : { ...createDefaultPluginBinding(pluginId), sortOrder: index };
+      });
+      return next;
+    });
+
+    const missingPluginIds = nextPluginIds.filter(pluginId => !pluginDetailMap[pluginId]);
+    if (missingPluginIds.length === 0) {
       return;
     }
 
-    const nextSystemPrompt = composeAgentPromptSections(promptSections);
-    const presetQuestions = presetQuestionsInput
-      .split(/\r?\n/)
-      .map(item => item.trim())
-      .filter(Boolean)
-      .slice(0, 6);
-    setSaving(true);
     try {
-      await api.updateAgent(botId, {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        avatarUrl: avatarUrl.trim() || undefined,
-        systemPrompt: nextSystemPrompt || undefined,
-        personaMarkdown: promptSections.persona.trim() || undefined,
-        goals: promptSections.goals.trim() || undefined,
-        replyLogic: promptSections.skills.trim() || undefined,
-        outputFormat: promptSections.outputFormat.trim() || undefined,
-        constraints: promptSections.constraints.trim() || undefined,
-        openingMessage: openingMessage.trim() || promptSections.opening.trim() || undefined,
-        presetQuestions: presetQuestions.length > 0 ? presetQuestions : undefined,
-        knowledgeBaseIds: selectedKnowledgeBaseIds,
-        pluginBindings: selectedPluginIds.map((pluginId, index) => ({
-          pluginId,
-          sortOrder: index,
-          isEnabled: true,
-          toolConfigJson: "{}"
-        })),
-        databaseBindingIds: selectedDatabaseIds,
-        variableBindingIds: selectedVariableIds,
-        modelConfigId,
-        modelName: selectedModel?.defaultModel,
-        defaultWorkflowId: workflowId,
-        defaultWorkflowName: selectedWorkflow?.name,
-        enableMemory,
-        enableShortTermMemory,
-        enableLongTermMemory,
-        longTermMemoryTopK
+      const details = await Promise.all(missingPluginIds.map(async pluginId => {
+        const detail = await api.getPluginDetail(pluginId);
+        return [pluginId, detail] as const;
+      }));
+      setPluginDetailMap(current => ({
+        ...current,
+        ...Object.fromEntries(details)
+      }));
+      setPluginBindings(current => current.map(binding => {
+        if (!missingPluginIds.includes(binding.pluginId) || (binding.toolBindings && binding.toolBindings.length > 0)) {
+          return binding;
+        }
+
+        const pluginDetail = Object.fromEntries(details)[binding.pluginId];
+        const toolBindings = pluginDetail.apis.map(apiItem => ({
+          apiId: apiItem.id,
+          isEnabled: apiItem.isEnabled,
+          timeoutSeconds: apiItem.timeoutSeconds || 30,
+          failurePolicy: "fail" as const,
+          parameterBindings: parsePluginParameterNames(apiItem.requestSchemaJson).map(parameter => ({
+            parameterName: parameter.name,
+            valueSource: "literal" as const,
+            literalValue: "",
+            variableKey: undefined
+          }))
+        }));
+
+        return {
+          ...binding,
+          toolBindings,
+          toolConfigJson: JSON.stringify({ toolBindings })
+        };
+      }));
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载插件详情失败。");
+    }
+  }
+
+  function handleKnowledgeSelectionChange(nextKnowledgeBaseIds: number[]) {
+    setSelectedKnowledgeBaseIds(nextKnowledgeBaseIds);
+    setKnowledgeBindings(current => nextKnowledgeBaseIds.map(id => current.find(item => item.knowledgeBaseId === id) ?? createDefaultKnowledgeBinding(id)));
+  }
+
+  function handleDatabaseSelectionChange(nextDatabaseIds: number[]) {
+    setSelectedDatabaseIds(nextDatabaseIds);
+    setDatabaseBindings(current => {
+      const retained = current.filter(item => nextDatabaseIds.includes(item.databaseId));
+      const defaultDatabaseId = retained.find(item => item.isDefault)?.databaseId ?? nextDatabaseIds[0];
+      return nextDatabaseIds.map((id, index) => {
+        const existing = retained.find(item => item.databaseId === id);
+        if (existing) {
+          return {
+            ...existing,
+            isDefault: id === defaultDatabaseId
+          };
+        }
+
+        return createDefaultDatabaseBinding(id, id === defaultDatabaseId || (!defaultDatabaseId && index === 0));
       });
+    });
+  }
+
+  function handleVariableSelectionChange(nextVariableIds: number[]) {
+    setSelectedVariableIds(nextVariableIds);
+    setVariableBindings(current => nextVariableIds.map(id => current.find(item => item.variableId === id) ?? createDefaultVariableBinding(id)));
+  }
+
+  async function handleSave(options?: { silent?: boolean; source?: "manual" | "autosave" }) {
+    if (!name.trim()) {
+      if (!options?.silent) {
+        Toast.warning("请先填写 Agent 名称。");
+      }
+      return false;
+    }
+
+    if (pluginBindings.some(binding => binding.toolBindings?.some(tool => tool.isEnabled)) && !selectedModel?.enableTools) {
+      if (!options?.silent) {
+        Toast.warning("当前模型未启用工具调用能力，请先切换或配置支持工具调用的模型。");
+      }
+      return false;
+    }
+
+    if (knowledgeBindings.some(binding => binding.isEnabled && binding.invokeMode === "auto") && !selectedModel?.supportsEmbedding) {
+      if (!options?.silent) {
+        Toast.warning("当前模型未启用知识检索相关能力，请先切换支持检索的模型或改为手动调用。");
+      }
+      return false;
+    }
+
+    const { request, systemPrompt: nextSystemPrompt, presetQuestions } = buildAgentDraftRequest();
+    if (request.databaseBindings?.some(binding => binding.accessMode === "readwrite") && !readwriteConfirmedRef.current) {
+      const confirmed = window.confirm("当前数据库绑定包含读写权限，继续保存将允许智能体执行写入动作。是否继续？");
+      if (!confirmed) {
+        return false;
+      }
+      readwriteConfirmedRef.current = true;
+    }
+
+    setSaving(true);
+    setAutosaveHint(options?.source === "autosave" ? "正在自动保存…" : "正在保存…");
+    try {
+      await api.updateAgent(botId, request);
+      persistedDraftSignatureRef.current = JSON.stringify(request);
+      setHasUnsavedChanges(false);
       setDetail(current => current ? {
         ...current,
-        name: name.trim(),
-        description: description.trim() || undefined,
-        avatarUrl: avatarUrl.trim() || undefined,
+        name: request.name,
+        description: request.description,
+        avatarUrl: request.avatarUrl,
         systemPrompt: nextSystemPrompt || undefined,
-        personaMarkdown: promptSections.persona.trim() || undefined,
-        goals: promptSections.goals.trim() || undefined,
-        replyLogic: promptSections.skills.trim() || undefined,
-        outputFormat: promptSections.outputFormat.trim() || undefined,
-        constraints: promptSections.constraints.trim() || undefined,
-        openingMessage: openingMessage.trim() || promptSections.opening.trim() || undefined,
+        personaMarkdown: request.personaMarkdown,
+        goals: request.goals,
+        replyLogic: request.replyLogic,
+        outputFormat: request.outputFormat,
+        constraints: request.constraints,
+        openingMessage: request.openingMessage,
         presetQuestions: presetQuestions.length > 0 ? presetQuestions : undefined,
-        knowledgeBaseIds: selectedKnowledgeBaseIds,
-        pluginBindings: selectedPluginIds.map((pluginId, index) => ({
-          pluginId,
-          sortOrder: index,
-          isEnabled: true,
-          toolConfigJson: "{}"
-        })),
-        databaseBindingIds: selectedDatabaseIds,
-        variableBindingIds: selectedVariableIds,
-        modelConfigId,
-        modelName: selectedModel?.defaultModel,
-        defaultWorkflowId: workflowId,
-        defaultWorkflowName: selectedWorkflow?.name,
-        enableMemory,
-        enableShortTermMemory,
-        enableLongTermMemory,
-        longTermMemoryTopK
+        knowledgeBindings: request.knowledgeBindings,
+        knowledgeBaseIds: request.knowledgeBaseIds,
+        pluginBindings: request.pluginBindings,
+        databaseBindings: request.databaseBindings,
+        databaseBindingIds: request.databaseBindingIds,
+        variableBindings: request.variableBindings,
+        variableBindingIds: request.variableBindingIds,
+        modelConfigId: request.modelConfigId,
+        modelName: request.modelName,
+        defaultWorkflowId: request.defaultWorkflowId,
+        defaultWorkflowName: request.defaultWorkflowName,
+        enableMemory: request.enableMemory,
+        enableShortTermMemory: request.enableShortTermMemory,
+        enableLongTermMemory: request.enableLongTermMemory,
+        longTermMemoryTopK: request.longTermMemoryTopK
       } : current);
       setSystemPrompt(nextSystemPrompt);
-      await loadWorkbench(conversationIdRef.current || undefined);
-      Toast.success("Agent 配置已保存。");
+      setAutosaveHint(options?.source === "autosave" ? "草稿已自动保存" : "草稿已保存");
+      if (!options?.silent) {
+        Toast.success("Agent 配置已保存。");
+      }
+      return true;
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : "保存 Agent 配置失败。");
+      setAutosaveHint(options?.source === "autosave" ? "自动保存失败" : "保存失败");
+      Toast.error(error instanceof Error ? error.message : options?.source === "autosave" ? "自动保存 Agent 草稿失败。" : "保存 Agent 配置失败。");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -1791,7 +2243,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
               <Typography.Text type="tertiary">把模型、工作流和记忆策略组合成可执行智能体能力。</Typography.Text>
             </div>
             <div className="module-studio__meta" data-testid="app-bot-ide-resource-status">
-              {workbenchLoading ? "资源加载中" : `模型 ${modelConfigs.length} 个 / 工作流 ${workflowOptions.length} 个`}
+              {workbenchLoading ? "资源加载中" : `${autosaveHint} · 模型 ${modelConfigs.length} 个 / 工作流 ${workflowOptions.length} 个`}
             </div>
           </div>
 
@@ -1836,7 +2288,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
                   label: `${item.name}${item.category ? ` / ${item.category}` : ""}`,
                   value: item.id
                 }))}
-                onChange={value => setSelectedPluginIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                onChange={value => void handlePluginSelectionChange(Array.isArray(value) ? value.map(item => Number(item)) : [])}
                 disabled={!resourceReady || saving}
                 data-testid="app-bot-ide-plugins"
               />
@@ -1852,11 +2304,206 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
                   label: `${item.name} / type:${item.type}`,
                   value: item.id
                 }))}
-                onChange={value => setSelectedKnowledgeBaseIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                onChange={value => handleKnowledgeSelectionChange(Array.isArray(value) ? value.map(item => Number(item)) : [])}
                 disabled={!resourceReady || saving}
                 data-testid="app-bot-ide-knowledge-bases"
               />
             </div>
+
+            {knowledgeBindings.map(binding => {
+              const knowledgeOption = knowledgeBaseOptions.find(item => item.id === binding.knowledgeBaseId);
+              return (
+                <div key={`knowledge-${binding.knowledgeBaseId}`} className="module-studio__coze-inspector-card">
+                  <div className="module-studio__card-head">
+                    <strong>{knowledgeOption?.name || `KB ${binding.knowledgeBaseId}`}</strong>
+                    <Switch
+                      checked={binding.isEnabled}
+                      onChange={checked => setKnowledgeBindings(current => current.map(item => item.knowledgeBaseId === binding.knowledgeBaseId ? { ...item, isEnabled: checked } : item))}
+                    />
+                  </div>
+                  <div className="module-studio__form-grid">
+                    <div className="module-studio__field">
+                      <span>调用方式</span>
+                      <Select
+                        value={binding.invokeMode}
+                        optionList={[
+                          { label: "自动", value: "auto" },
+                          { label: "手动", value: "manual" }
+                        ]}
+                        onChange={value => setKnowledgeBindings(current => current.map(item => item.knowledgeBaseId === binding.knowledgeBaseId ? { ...item, invokeMode: String(value) as "auto" | "manual" } : item))}
+                      />
+                    </div>
+                    <div className="module-studio__field">
+                      <span>TopK</span>
+                      <InputNumber value={binding.topK} min={1} max={20} onNumberChange={value => setKnowledgeBindings(current => current.map(item => item.knowledgeBaseId === binding.knowledgeBaseId ? { ...item, topK: value ?? 5 } : item))} />
+                    </div>
+                    <div className="module-studio__field">
+                      <span>阈值</span>
+                      <InputNumber value={binding.scoreThreshold} min={0} max={1} step={0.1} onNumberChange={value => setKnowledgeBindings(current => current.map(item => item.knowledgeBaseId === binding.knowledgeBaseId ? { ...item, scoreThreshold: value ?? 0 } : item))} />
+                    </div>
+                    <div className="module-studio__field module-studio__field--full">
+                      <span>内容类型</span>
+                      <Space wrap>
+                        {(["text", "table", "image"] as const).map(type => {
+                          const active = binding.enabledContentTypes.includes(type);
+                          return (
+                            <Button
+                              key={`${binding.knowledgeBaseId}-${type}`}
+                              theme={active ? "solid" : "light"}
+                              type={active ? "primary" : "tertiary"}
+                              onClick={() => setKnowledgeBindings(current => current.map(item => {
+                                if (item.knowledgeBaseId !== binding.knowledgeBaseId) {
+                                  return item;
+                                }
+                                const nextTypes = active
+                                  ? item.enabledContentTypes.filter(currentType => currentType !== type)
+                                  : [...item.enabledContentTypes, type];
+                                return { ...item, enabledContentTypes: nextTypes };
+                              }))}
+                            >
+                              {type}
+                            </Button>
+                          );
+                        })}
+                      </Space>
+                    </div>
+                    <div className="module-studio__field module-studio__field--full">
+                      <span>查询改写模板</span>
+                      <textarea
+                        rows={3}
+                        className="module-studio__textarea"
+                        value={binding.rewriteQueryTemplate ?? ""}
+                        onChange={event => setKnowledgeBindings(current => current.map(item => item.knowledgeBaseId === binding.knowledgeBaseId ? { ...item, rewriteQueryTemplate: event.target.value || undefined } : item))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {pluginBindings.map(binding => {
+              const pluginOption = pluginOptions.find(item => item.id === binding.pluginId);
+              const pluginDetail = pluginDetailMap[binding.pluginId];
+              return (
+                <div key={`plugin-${binding.pluginId}`} className="module-studio__coze-inspector-card">
+                  <div className="module-studio__card-head">
+                    <strong>{pluginOption?.name || `Plugin ${binding.pluginId}`}</strong>
+                    <Tag color={binding.isEnabled ? "green" : "grey"}>{binding.isEnabled ? "启用" : "停用"}</Tag>
+                  </div>
+                  {!pluginDetail ? <Typography.Text type="tertiary">插件详情加载中…</Typography.Text> : (
+                    <div className="module-studio__stack">
+                      {binding.toolBindings?.map(toolBinding => {
+                        const apiDetail = pluginDetail.apis.find(apiItem => apiItem.id === toolBinding.apiId);
+                        return (
+                          <div key={`tool-${binding.pluginId}-${toolBinding.apiId}`} className="module-studio__coze-inspector-card">
+                            <div className="module-studio__card-head">
+                              <div>
+                                <strong>{apiDetail?.name || `API ${toolBinding.apiId}`}</strong>
+                                <Typography.Text type="tertiary">{pluginOption?.category || "Plugin API"}</Typography.Text>
+                              </div>
+                              <Switch
+                                checked={toolBinding.isEnabled}
+                                onChange={checked => setPluginBindings(current => current.map(item => item.pluginId === binding.pluginId ? {
+                                  ...item,
+                                  toolBindings: item.toolBindings?.map(tool => tool.apiId === toolBinding.apiId ? { ...tool, isEnabled: checked } : tool)
+                                } : item))}
+                              />
+                            </div>
+                            <div className="module-studio__form-grid">
+                              <div className="module-studio__field">
+                                <span>超时（秒）</span>
+                                <InputNumber value={toolBinding.timeoutSeconds} min={1} max={300} onNumberChange={value => setPluginBindings(current => current.map(item => item.pluginId === binding.pluginId ? {
+                                  ...item,
+                                  toolBindings: item.toolBindings?.map(tool => tool.apiId === toolBinding.apiId ? { ...tool, timeoutSeconds: value ?? 30 } : tool)
+                                } : item))} />
+                              </div>
+                              <div className="module-studio__field">
+                                <span>失败策略</span>
+                                <Select
+                                  value={toolBinding.failurePolicy}
+                                  optionList={[
+                                    { label: "失败即终止", value: "fail" },
+                                    { label: "跳过并继续", value: "skip" }
+                                  ]}
+                                  onChange={value => setPluginBindings(current => current.map(item => item.pluginId === binding.pluginId ? {
+                                    ...item,
+                                    toolBindings: item.toolBindings?.map(tool => tool.apiId === toolBinding.apiId ? { ...tool, failurePolicy: String(value) as "skip" | "fail" } : tool)
+                                  } : item))}
+                                />
+                              </div>
+                            </div>
+                            {(toolBinding.parameterBindings ?? []).length > 0 ? (
+                              <div className="module-studio__stack">
+                                {(toolBinding.parameterBindings ?? []).map((parameter, index) => (
+                                  <div key={`param-${toolBinding.apiId}-${parameter.parameterName}-${index}`} className="module-studio__form-grid">
+                                    <div className="module-studio__field">
+                                      <span>{parameter.parameterName}</span>
+                                      <Select
+                                        value={parameter.valueSource}
+                                        optionList={[
+                                          { label: "字面量", value: "literal" },
+                                          { label: "变量", value: "variable" }
+                                        ]}
+                                        onChange={value => setPluginBindings(current => current.map(item => item.pluginId === binding.pluginId ? {
+                                          ...item,
+                                          toolBindings: item.toolBindings?.map(tool => tool.apiId === toolBinding.apiId ? {
+                                            ...tool,
+                                            parameterBindings: tool.parameterBindings.map(currentParameter => currentParameter.parameterName === parameter.parameterName ? {
+                                              ...currentParameter,
+                                              valueSource: String(value) as "literal" | "variable"
+                                            } : currentParameter)
+                                          } : tool)
+                                        } : item))}
+                                      />
+                                    </div>
+                                    {parameter.valueSource === "literal" ? (
+                                      <div className="module-studio__field">
+                                        <span>字面量值</span>
+                                        <Input
+                                          value={parameter.literalValue ?? ""}
+                                          onChange={value => setPluginBindings(current => current.map(item => item.pluginId === binding.pluginId ? {
+                                            ...item,
+                                            toolBindings: item.toolBindings?.map(tool => tool.apiId === toolBinding.apiId ? {
+                                              ...tool,
+                                              parameterBindings: tool.parameterBindings.map(currentParameter => currentParameter.parameterName === parameter.parameterName ? {
+                                                ...currentParameter,
+                                                literalValue: value || undefined
+                                              } : currentParameter)
+                                            } : tool)
+                                          } : item))}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="module-studio__field">
+                                        <span>变量</span>
+                                        <Select
+                                          value={parameter.variableKey}
+                                          optionList={variableOptions.map(item => ({ label: item.key, value: item.key }))}
+                                          onChange={value => setPluginBindings(current => current.map(item => item.pluginId === binding.pluginId ? {
+                                            ...item,
+                                            toolBindings: item.toolBindings?.map(tool => tool.apiId === toolBinding.apiId ? {
+                                              ...tool,
+                                              parameterBindings: tool.parameterBindings.map(currentParameter => currentParameter.parameterName === parameter.parameterName ? {
+                                                ...currentParameter,
+                                                variableKey: String(value) || undefined
+                                              } : currentParameter)
+                                            } : tool)
+                                          } : item))}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             <div className="module-studio__coze-inspector-card">
               <span>数据库</span>
@@ -1868,11 +2515,67 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
                   label: `${item.name}${item.botId ? " / 已绑定" : ""}`,
                   value: item.id
                 }))}
-                onChange={value => setSelectedDatabaseIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                onChange={value => handleDatabaseSelectionChange(Array.isArray(value) ? value.map(item => Number(item)) : [])}
                 disabled={!resourceReady || saving}
                 data-testid="app-bot-ide-databases"
               />
             </div>
+
+            {databaseBindings.map(binding => {
+              const databaseOption = databaseOptions.find(item => item.id === binding.databaseId);
+              return (
+                <div key={`database-${binding.databaseId}`} className="module-studio__coze-inspector-card">
+                  <div className="module-studio__card-head">
+                    <strong>{databaseOption?.name || `DB ${binding.databaseId}`}</strong>
+                    <div className="module-studio__inline-actions">
+                      <Tag color={binding.isDefault ? "blue" : "grey"}>{binding.isDefault ? "默认库" : "已绑定"}</Tag>
+                      {binding.accessMode === "readwrite" ? <Tag color="orange">读写</Tag> : <Tag color="green">只读</Tag>}
+                    </div>
+                  </div>
+                  <div className="module-studio__form-grid">
+                    <div className="module-studio__field">
+                      <span>别名</span>
+                      <Input
+                        value={binding.alias ?? ""}
+                        onChange={value => setDatabaseBindings(current => current.map(item => item.databaseId === binding.databaseId ? { ...item, alias: value || undefined } : item))}
+                      />
+                    </div>
+                    <div className="module-studio__field">
+                      <span>访问模式</span>
+                      <Select
+                        value={binding.accessMode}
+                        optionList={[
+                          { label: "只读", value: "readonly" },
+                          { label: "读写", value: "readwrite" }
+                        ]}
+                        onChange={value => setDatabaseBindings(current => current.map(item => item.databaseId === binding.databaseId ? { ...item, accessMode: String(value) as "readonly" | "readwrite" } : item))}
+                      />
+                    </div>
+                    <div className="module-studio__field">
+                      <span>默认数据库</span>
+                      <Switch
+                        checked={binding.isDefault}
+                        onChange={checked => setDatabaseBindings(current => current.map(item => ({
+                          ...item,
+                          isDefault: checked ? item.databaseId === binding.databaseId : item.databaseId === current.find(candidate => candidate.databaseId !== binding.databaseId)?.databaseId
+                        })))}
+                      />
+                    </div>
+                    <div className="module-studio__field module-studio__field--full">
+                      <span>表白名单（逗号分隔）</span>
+                      <Input
+                        value={stringifyAllowlist(binding.tableAllowlist)}
+                        onChange={value => setDatabaseBindings(current => current.map(item => item.databaseId === binding.databaseId ? {
+                          ...item,
+                          tableAllowlist: normalizeAllowlistText(value)
+                        } : item))}
+                        placeholder="例如：alerts, incidents, assets"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
 
             <div className="module-studio__coze-inspector-card">
               <span>变量</span>
@@ -1884,11 +2587,57 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
                   label: item.key,
                   value: item.id
                 }))}
-                onChange={value => setSelectedVariableIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                onChange={value => handleVariableSelectionChange(Array.isArray(value) ? value.map(item => Number(item)) : [])}
                 disabled={!resourceReady || saving}
                 data-testid="app-bot-ide-variables"
               />
             </div>
+
+            {selectedVariableIds.length === 0 ? (
+              <div className="module-studio__coze-inspector-card">
+                <Typography.Text type="tertiary">当前 Bot 作用域还没有变量绑定，可先在工作流侧创建 Bot 变量后回来配置。</Typography.Text>
+              </div>
+            ) : null}
+
+            {variableBindings.map(binding => {
+              const variableOption = variableOptions.find(item => item.id === binding.variableId);
+              return (
+                <div key={`variable-${binding.variableId}`} className="module-studio__coze-inspector-card">
+                  <div className="module-studio__card-head">
+                    <strong>{variableOption?.key || `Var ${binding.variableId}`}</strong>
+                    <Tag color={binding.isRequired ? "red" : "grey"}>{binding.isRequired ? "必填" : "可选"}</Tag>
+                  </div>
+                  <div className="module-studio__form-grid">
+                    <div className="module-studio__field">
+                      <span>别名</span>
+                      <Input
+                        value={binding.alias ?? ""}
+                        onChange={value => setVariableBindings(current => current.map(item => item.variableId === binding.variableId ? { ...item, alias: value || undefined } : item))}
+                      />
+                    </div>
+                    <div className="module-studio__field">
+                      <span>必填</span>
+                      <Switch
+                        checked={binding.isRequired}
+                        onChange={checked => setVariableBindings(current => current.map(item => item.variableId === binding.variableId ? { ...item, isRequired: checked } : item))}
+                      />
+                    </div>
+                    <div className="module-studio__field module-studio__field--full">
+                      <span>默认值覆盖</span>
+                      <textarea
+                        rows={3}
+                        className="module-studio__textarea"
+                        value={binding.defaultValueOverride ?? ""}
+                        onChange={event => setVariableBindings(current => current.map(item => item.variableId === binding.variableId ? {
+                          ...item,
+                          defaultValueOverride: event.target.value || undefined
+                        } : item))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
 
             <div className="module-studio__coze-inspector-card">
               <span>记忆开关</span>
@@ -1920,7 +2669,11 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
                   { key: "agent", value: detail?.name || "-" },
                   { key: "model", value: selectedModel ? `${selectedModel.providerType} / ${selectedModel.defaultModel}` : "尚未绑定模型" },
                   { key: "workflow", value: selectedWorkflow?.name || detail?.defaultWorkflowName || "尚未绑定工作流" },
-                  { key: "memory", value: enableMemory ? `${enableLongTermMemory ? "长期" : ""}${enableShortTermMemory ? "短期" : ""}` || "已启用" : "未启用" }
+                  { key: "memory", value: enableMemory ? `${enableLongTermMemory ? "长期" : ""}${enableShortTermMemory ? "短期" : ""}` || "已启用" : "未启用" },
+                  { key: "knowledge", value: `${knowledgeBindings.filter(item => item.isEnabled).length} 个知识库` },
+                  { key: "tools", value: `${pluginBindings.flatMap(item => item.toolBindings ?? []).filter(item => item.isEnabled).length} 个工具` },
+                  { key: "database", value: databaseBindings.find(item => item.isDefault)?.alias || databaseOptions.find(item => item.id === databaseBindings.find(candidate => candidate.isDefault)?.databaseId)?.name || "未设置默认库" },
+                  { key: "variables", value: `${variableBindings.length} 个变量` }
                 ]}
                 size="small"
                 align="left"
@@ -1935,7 +2688,24 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
               <Typography.Title heading={5} style={{ margin: 0 }}>预览与调试</Typography.Title>
               <Typography.Text type="tertiary">真实会话消息、模型流式响应和工作流运行痕迹都在这里查看。</Typography.Text>
             </div>
-            <Tag color={conversationId ? "green" : "grey"}>{conversationId ? "已创建会话" : "未创建会话"}</Tag>
+            <div className="module-studio__inline-actions">
+              {hasUnsavedChanges ? <Tag color="orange">有未保存改动</Tag> : null}
+              <Tag color={conversationId ? "green" : "grey"}>{conversationId ? "已创建会话" : "未创建会话"}</Tag>
+            </div>
+          </div>
+
+          <div className="module-studio__coze-inspector-card">
+            <span>本轮资源摘要</span>
+            <Descriptions
+              data={[
+                { key: "knowledge", value: lastResourceUsage?.knowledgeBases.join(", ") || `${knowledgeBindings.filter(item => item.isEnabled).length} 个启用知识库` },
+                { key: "plugin", value: lastResourceUsage?.pluginTools.join(", ") || `${pluginBindings.flatMap(item => item.toolBindings ?? []).filter(item => item.isEnabled).length} 个启用工具` },
+                { key: "database", value: lastResourceUsage?.databases.join(", ") || databaseOptions.find(item => item.id === databaseBindings.find(candidate => candidate.isDefault)?.databaseId)?.name || "未设置默认数据库" },
+                { key: "variable", value: lastResourceUsage?.variables.join(", ") || `${variableBindings.length} 个暴露变量` }
+              ]}
+              size="small"
+              align="left"
+            />
           </div>
 
           <div className="module-studio__message-list" data-testid="app-bot-ide-messages">

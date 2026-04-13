@@ -133,7 +133,10 @@ public sealed class AgentKernelAugmentationService
         CancellationToken cancellationToken)
     {
         var knowledgeLinks = await _agentKnowledgeLinkRepository.GetByAgentIdAsync(tenantId, agentId, cancellationToken);
-        var knowledgeBaseIds = knowledgeLinks
+        var enabledLinks = knowledgeLinks
+            .Where(item => item.IsEnabled)
+            .ToArray();
+        var knowledgeBaseIds = enabledLinks
             .Select(item => item.KnowledgeBaseId)
             .Distinct()
             .ToArray();
@@ -142,9 +145,18 @@ public sealed class AgentKernelAugmentationService
             return false;
         }
 
+        var defaultTopK = enabledLinks
+            .Select(item => item.TopK)
+            .Where(value => value > 0)
+            .DefaultIfEmpty(5)
+            .First();
+        var rewriteTemplate = enabledLinks
+            .Select(item => item.RewriteQueryTemplate)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
         var knowledgeSearchFunction = KernelFunctionFactory.CreateFromMethod(
             method: async (string query, int topK, CancellationToken ct) =>
-                await SearchKnowledgeAsync(tenantId, knowledgeBaseIds, query, topK, ct),
+                await SearchKnowledgeAsync(tenantId, knowledgeBaseIds, RewriteKnowledgeQuery(query, rewriteTemplate), topK <= 0 ? defaultTopK : topK, ct),
             options: new KernelFunctionFromMethodOptions
             {
                 FunctionName = "search_knowledge",
@@ -239,6 +251,22 @@ public sealed class AgentKernelAugmentationService
         JsonObject bindingConfig)
     {
         var includeApiIds = new HashSet<long>();
+        if (bindingConfig["toolBindings"] is JsonArray toolBindingsNode)
+        {
+            foreach (var toolBinding in toolBindingsNode.OfType<JsonObject>())
+            {
+                var isEnabled = toolBinding["isEnabled"]?.GetValue<bool>() ?? true;
+                if (!isEnabled)
+                {
+                    continue;
+                }
+
+                if (toolBinding["apiId"] is JsonValue toolApiIdNode && toolApiIdNode.TryGetValue<long>(out var toolApiId) && toolApiId > 0)
+                {
+                    includeApiIds.Add(toolApiId);
+                }
+            }
+        }
         if (bindingConfig["apiId"] is JsonValue apiIdNode && apiIdNode.TryGetValue<long>(out var singleApiId) && singleApiId > 0)
         {
             includeApiIds.Add(singleApiId);
@@ -280,6 +308,16 @@ public sealed class AgentKernelAugmentationService
         return apis
             .Where(api => includeApiIds.Contains(api.Id) || includeFunctionNames.Contains(api.Name))
             .ToList();
+    }
+
+    private static string RewriteKnowledgeQuery(string query, string? rewriteTemplate)
+    {
+        if (string.IsNullOrWhiteSpace(rewriteTemplate))
+        {
+            return query;
+        }
+
+        return rewriteTemplate.Replace("{{query}}", query, StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyDictionary<string, JsonObject> BuildToolSchemaMap(string toolSchemaJson)

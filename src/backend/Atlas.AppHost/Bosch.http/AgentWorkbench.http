@@ -85,7 +85,7 @@ X-CSRF-TOKEN: {{csrfToken}}
 {
   "role": "tool",
   "content": "任务标题：安全事件处置任务\\n事件摘要：示例告警\\n严重级别：高",
-  "metadata": "{\"kind\":\"workflow-task\",\"workflowId\":{{workflowId}}}"
+  "metadata": "{\"kind\":\"workflow-task\",\"workflowId\":{{workflowId}},\"resourceUsage\":{\"usedPlugins\":[\"asset_lookup\"],\"usedKnowledgeBases\":[\"SOC 知识库\"],\"usedDatabases\":[\"incident_db\"],\"usedVariables\":[\"asset_id\"]}}"
 }
 
 ### 绑定 Agent 默认工作流

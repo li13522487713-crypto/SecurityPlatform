@@ -106,9 +106,12 @@ export interface ResourceIdeTab {
 
 export interface WorkflowProblemItem {
   key: string;
-  level: "canvas" | "node";
+  level: "canvas" | "node" | "resource";
   label: string;
   nodeKey?: string;
+  resourceType?: string;
+  resourceId?: string;
+  sourceNodeKeys?: string[];
 }
 
 export interface WorkflowTraceStepSummary {
@@ -145,6 +148,24 @@ export interface ResourceIdeLibraryMutationResult {
   resourceId: number;
   resourceType: ResourceIdeLibraryType;
   libraryItemId: number;
+}
+
+export interface WorkflowDependencyItem {
+  resourceType: string;
+  resourceId: string;
+  name: string;
+  description?: string;
+  sourceNodeKeys?: string[];
+}
+
+export interface WorkflowDependencies {
+  workflowId: string;
+  subWorkflows: WorkflowDependencyItem[];
+  plugins: WorkflowDependencyItem[];
+  knowledgeBases: WorkflowDependencyItem[];
+  databases: WorkflowDependencyItem[];
+  variables: WorkflowDependencyItem[];
+  conversations: WorkflowDependencyItem[];
 }
 
 export interface AiPluginApiItem {
@@ -303,6 +324,7 @@ export interface WorkflowModuleApi {
   duplicateWorkflow: (id: string) => Promise<string>;
   deleteWorkflow: (id: string) => Promise<void>;
   getVersions: (id: string) => Promise<Array<{ id: string; versionNumber: number; publishedAt?: string }>>;
+  getDependencies: (id: string) => Promise<WorkflowDependencies>;
   listLibrary: (request: PagedRequest, resourceType?: ResourceIdeLibraryType) => Promise<PagedResult<ResourceIdeLibraryItem>>;
   importLibraryItem: (request: ResourceIdeLibraryImportRequest) => Promise<ResourceIdeLibraryMutationResult>;
   exportLibraryItem: (request: ResourceIdeLibraryMutationRequest) => Promise<ResourceIdeLibraryMutationResult>;

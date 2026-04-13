@@ -104,6 +104,12 @@ GET {{host}}/api/v2/workflows/{{workflowId}}/versions
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
+### ── Get Workflow Dependencies ──
+# 返回的每个 dependency item 额外包含 `sourceNodeKeys[]`，用于 references 侧栏直接定位来源节点。
+GET {{host}}/api/v2/workflows/{{workflowId}}/dependencies
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
 ### ── Diff Two Versions ──
 # fromId/toId 为版本表的 Id 字段（非 VersionNumber）
 @fromVersionId = 1
