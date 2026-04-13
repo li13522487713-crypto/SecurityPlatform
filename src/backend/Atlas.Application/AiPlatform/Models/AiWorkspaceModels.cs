@@ -25,6 +25,25 @@ public sealed record AiLibraryItem(
     DateTime UpdatedAt,
     string Path);
 
+public sealed record AiLibraryImportRequest(
+    string ResourceType,
+    long LibraryItemId,
+    long? TargetAppId,
+    long? TargetWorkspaceId);
+
+public sealed record AiLibraryExportRequest(
+    string ResourceType,
+    long ResourceId);
+
+public sealed record AiLibraryMoveRequest(
+    string ResourceType,
+    long ResourceId);
+
+public sealed record AiLibraryMutationResult(
+    long ResourceId,
+    string ResourceType,
+    long LibraryItemId);
+
 public sealed record AiLibraryQueryRequest(
     string? Keyword,
     string? ResourceType,

@@ -131,6 +131,8 @@ const zhCN: CopyTree = {
     "agent": "Agent",
     "knowledge-base": "知识库",
     "workflow": "工作流",
+    "plugin": "插件",
+    "database": "数据库",
     "app": "应用",
     "prompt": "Prompt"
   },
@@ -216,6 +218,8 @@ const enUS: CopyTree = {
     "agent": "Agent",
     "knowledge-base": "Knowledge Base",
     "workflow": "Workflow",
+    "plugin": "Plugin",
+    "database": "Database",
     "app": "App",
     "prompt": "Prompt"
   },

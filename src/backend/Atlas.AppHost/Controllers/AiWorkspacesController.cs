@@ -72,4 +72,40 @@ public sealed class AiWorkspacesController : ControllerBase
             cancellationToken);
         return Ok(ApiResponse<AiLibraryPagedResult>.Ok(result, HttpContext.TraceIdentifier));
     }
+
+    [HttpPost("library/imports")]
+    [Authorize(Policy = PermissionPolicies.AiWorkspaceUpdate)]
+    public async Task<ActionResult<ApiResponse<AiLibraryMutationResult>>> ImportLibraryItem(
+        [FromBody] AiLibraryImportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var result = await _service.ImportLibraryItemAsync(tenantId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<AiLibraryMutationResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("library/exports")]
+    [Authorize(Policy = PermissionPolicies.AiWorkspaceUpdate)]
+    public async Task<ActionResult<ApiResponse<AiLibraryMutationResult>>> ExportLibraryItem(
+        [FromBody] AiLibraryExportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var result = await _service.ExportLibraryItemAsync(tenantId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<AiLibraryMutationResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("library/moves")]
+    [Authorize(Policy = PermissionPolicies.AiWorkspaceUpdate)]
+    public async Task<ActionResult<ApiResponse<AiLibraryMutationResult>>> MoveLibraryItem(
+        [FromBody] AiLibraryMoveRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var result = await _service.MoveLibraryItemAsync(tenantId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<AiLibraryMutationResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
 }

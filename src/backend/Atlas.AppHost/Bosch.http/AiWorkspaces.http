@@ -21,3 +21,37 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20&resourceType=knowledge-base
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 导入 AppHost 资源库文件
+POST {{baseUrl}}/api/v1/ai-workspaces/library/imports
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "resourceType": "workflow",
+  "libraryItemId": 1,
+  "targetAppId": 1
+}
+
+### 复制 AppHost 资源到资源库
+POST {{baseUrl}}/api/v1/ai-workspaces/library/exports
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "resourceType": "plugin",
+  "resourceId": 1
+}
+
+### 移动 AppHost 资源到资源库
+POST {{baseUrl}}/api/v1/ai-workspaces/library/moves
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "resourceType": "knowledge-base",
+  "resourceId": 1
+}

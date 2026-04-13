@@ -31,6 +31,43 @@ export interface AiPluginBuiltInMetaItem {
   tags: string[];
 }
 
+export interface AiPluginApiItem {
+  id: number;
+  pluginId: number;
+  name: string;
+  description?: string;
+  method: string;
+  path: string;
+  requestSchemaJson: string;
+  responseSchemaJson: string;
+  timeoutSeconds: number;
+  isEnabled: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AiPluginDetail extends AiPluginListItem {
+  definitionJson: string;
+  authConfigJson: string;
+  toolSchemaJson: string;
+  openApiSpecJson: string;
+  apis: AiPluginApiItem[];
+}
+
+export interface AiPluginMutationRequest {
+  name: string;
+  description?: string;
+  icon?: string;
+  category?: string;
+  type: AiPluginType;
+  definitionJson?: string;
+  sourceType: AiPluginSourceType;
+  authType: AiPluginAuthType;
+  authConfigJson?: string;
+  toolSchemaJson?: string;
+  openApiSpecJson?: string;
+}
+
 export interface TemplateListItem {
   id: string;
   name: string;
@@ -81,6 +118,58 @@ export async function getAiPluginsPaged(request: PagedRequest, keyword?: string)
   }
 
   return response.data;
+}
+
+export async function getAiPluginById(id: number): Promise<AiPluginDetail> {
+  const response = await requestApi<ApiResponse<AiPluginDetail>>(`/ai-plugins/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询插件详情失败");
+  }
+
+  return response.data;
+}
+
+export async function createAiPlugin(request: AiPluginMutationRequest): Promise<number> {
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>("/ai-plugins", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  const id = response.data?.id ?? response.data?.Id;
+  if (!response.success || id === undefined || id === null) {
+    throw new Error(response.message || "创建插件失败");
+  }
+
+  return Number(id);
+}
+
+export async function updateAiPlugin(id: number, request: AiPluginMutationRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-plugins/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新插件失败");
+  }
+}
+
+export async function deleteAiPlugin(id: number): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-plugins/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除插件失败");
+  }
+}
+
+export async function publishAiPlugin(id: number): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-plugins/${id}/publish`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "发布插件失败");
+  }
 }
 
 export async function getAiPluginBuiltInMetadata(): Promise<AiPluginBuiltInMetaItem[]> {

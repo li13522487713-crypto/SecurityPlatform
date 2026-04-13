@@ -205,6 +205,17 @@ public sealed class AiDatabasesController : ControllerBase
         return Ok(ApiResponse<AiDatabaseSchemaValidateResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpPost("schema-validations")]
+    [Authorize(Policy = PermissionPolicies.AiDatabaseCreate)]
+    public async Task<ActionResult<ApiResponse<AiDatabaseSchemaValidateResult>>> ValidateSchemaForCreate(
+        [FromBody] AiDatabaseSchemaValidateRequest request,
+        CancellationToken cancellationToken)
+    {
+        _schemaValidator.ValidateAndThrow(request);
+        var result = await _service.ValidateSchemaAsync(request.TableSchema, cancellationToken);
+        return Ok(ApiResponse<AiDatabaseSchemaValidateResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("{id:long}/imports")]
     [Authorize(Policy = PermissionPolicies.AiDatabaseCreate)]
     public async Task<ActionResult<ApiResponse<object>>> SubmitImport(

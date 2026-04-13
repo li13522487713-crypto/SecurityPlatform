@@ -62,7 +62,12 @@ import {
   rememberConfiguredAppKey,
   setUnauthorizedHandler
 } from "@/services/api-core";
-import { getLibraryPaged } from "@/services/api-ai-workspace";
+import {
+  exportLibraryItem,
+  getLibraryPaged,
+  importLibraryItem,
+  moveLibraryItem
+} from "@/services/api-ai-workspace";
 import {
   createChunk,
   createKnowledgeBase,
@@ -135,11 +140,31 @@ import {
 } from "@/services/api-admin";
 import {
   getAiPluginBuiltInMetadata,
+  getAiPluginById,
   getAiPluginsPaged,
+  createAiPlugin,
+  deleteAiPlugin,
+  publishAiPlugin,
   getTemplatesPaged,
   getRecentAiEdits,
-  searchAi
+  searchAi,
+  updateAiPlugin
 } from "@/services/api-explore";
+import {
+  createAiDatabase,
+  deleteAiDatabase,
+  getAiDatabaseById,
+  getAiDatabasesPaged,
+  updateAiDatabase,
+  validateAiDatabaseSchema
+} from "@/services/api-ai-database";
+import {
+  createAiVariable,
+  deleteAiVariable,
+  getAiSystemVariableDefinitions,
+  getAiVariablesPaged,
+  updateAiVariable
+} from "@/services/api-ai-variable";
 import {
   bindAgentWorkflow,
   createAgent,
@@ -160,8 +185,11 @@ import {
 } from "@/services/api-model-config";
 import {
   appendConversationMessage,
+  clearConversationContext,
+  clearConversationHistory,
   createAgentChatStream,
   createConversation,
+  deleteConversation,
   getConversationsPaged,
   getMessages
 } from "@/services/api-conversation";
@@ -176,7 +204,17 @@ import {
 import { executeWorkflowTask } from "@/services/api-workflow-playground";
 
 const libraryApi: LibraryKnowledgeApi = {
-  listLibrary: getLibraryPaged,
+  listLibrary: (request, resourceType) => {
+    const normalizedType =
+      resourceType === "workflow" ||
+      resourceType === "plugin" ||
+      resourceType === "knowledge-base" ||
+      resourceType === "database"
+        ? resourceType
+        : undefined;
+
+    return getLibraryPaged(request, normalizedType);
+  },
   listKnowledgeBases: getKnowledgeBasesPaged,
   getKnowledgeBase: getKnowledgeBaseById,
   createKnowledgeBase,
@@ -578,7 +616,7 @@ function createStudioApi(appKey: string): StudioModuleApi {
   };
 }
 
-function createWorkflowModuleApi(): WorkflowModuleApi {
+function createWorkflowModuleApi(appKey: string): WorkflowModuleApi {
   return {
     listWorkflows: async (query?: WorkflowListQuery) => {
       const pageIndex = Math.max(1, query?.pageIndex ?? 1);
@@ -627,6 +665,44 @@ function createWorkflowModuleApi(): WorkflowModuleApi {
         publishedAt: item.publishedAt
       }));
     },
+    listLibrary: getLibraryPaged,
+    importLibraryItem,
+    exportLibraryItem,
+    moveLibraryItem,
+    listPlugins: getAiPluginsPaged,
+    getPluginDetail: getAiPluginById,
+    createPlugin: createAiPlugin,
+    updatePlugin: updateAiPlugin,
+    deletePlugin: deleteAiPlugin,
+    publishPlugin: publishAiPlugin,
+    listKnowledgeBases: getKnowledgeBasesPaged,
+    getKnowledgeBase: getKnowledgeBaseById,
+    createKnowledgeBase,
+    updateKnowledgeBase,
+    deleteKnowledgeBase,
+    listDatabases: getAiDatabasesPaged,
+    getDatabaseDetail: getAiDatabaseById,
+    createDatabase: createAiDatabase,
+    updateDatabase: updateAiDatabase,
+    deleteDatabase: deleteAiDatabase,
+    validateDatabaseSchema: validateAiDatabaseSchema,
+    listVariables: getAiVariablesPaged,
+    createVariable: createAiVariable,
+    updateVariable: updateAiVariable,
+    deleteVariable: deleteAiVariable,
+    listSystemVariables: getAiSystemVariableDefinitions,
+    listConversations: request => getConversationsPaged(appKey, request),
+    createConversation: request => createConversation(appKey, request.agentId, request.title),
+    deleteConversation: id => deleteConversation(appKey, id),
+    clearConversationContext: id => clearConversationContext(appKey, id),
+    clearConversationHistory: id => clearConversationHistory(appKey, id),
+    listConversationMessages: conversationId => getMessages(appKey, conversationId),
+    appendConversationMessage: (conversationId, request) => appendConversationMessage(appKey, conversationId, request),
+    listAgents: async (request, keyword) => getAgentsPaged({
+      pageIndex: request.pageIndex,
+      pageSize: request.pageSize,
+      keyword
+    }),
     apiClient: workflowV2Api
   };
 }
@@ -636,7 +712,7 @@ function useAppApis(appKey: string) {
     adminApi: createAdminApi(appKey),
     exploreApi: createExploreApi(),
     studioApi: createStudioApi(appKey),
-    workflowApi: createWorkflowModuleApi()
+    workflowApi: createWorkflowModuleApi(appKey)
   }), [appKey]);
 }
 

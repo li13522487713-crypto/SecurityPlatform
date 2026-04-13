@@ -198,6 +198,40 @@
   - `chunkCount`
   - `updatedAt`
 
+### 资源库导入 / 导出 / 移动
+
+- `POST /api/v1/ai-workspaces/library/imports`
+  - 请求体：`AiLibraryImportRequest`
+    - `resourceType`：当前支持 `workflow`、`plugin`、`knowledge-base`、`database`
+    - `libraryItemId`
+    - `targetAppId?`
+    - `targetWorkspaceId?`
+  - 返回：`ApiResponse<AiLibraryMutationResult>`
+- `POST /api/v1/ai-workspaces/library/exports`
+  - 请求体：`AiLibraryMutationRequest`
+    - `resourceType`
+    - `resourceId`
+  - 返回：`ApiResponse<AiLibraryMutationResult>`
+- `POST /api/v1/ai-workspaces/library/moves`
+  - 请求体：`AiLibraryMutationRequest`
+    - `resourceType`
+    - `resourceId`
+  - 返回：`ApiResponse<AiLibraryMutationResult>`
+- `AiLibraryMutationResult` 字段：
+  - `resourceId`
+  - `resourceType`
+  - `libraryItemId`
+
+### AI 数据库补充契约
+
+- `POST /api/v1/ai-databases/schema-validations`
+  - 用途：在新建数据库前对 `tableSchema` 做即时校验，不依赖已存在的数据库 ID。
+  - 请求体：
+    - `tableSchema`
+  - 返回：
+    - `isValid`
+    - `errors[]`
+
 ### 知识库 CRUD
 
 - `GET /api/v1/knowledge-bases`

@@ -1,8 +1,13 @@
 import type { WorkflowResourceMode } from "./types";
 
+type CreateKind = "workflow" | "chatflow" | "plugin" | "knowledge-base" | "database";
+
 export interface WorkflowModuleCopy {
   workflowLabel: string;
   chatflowLabel: string;
+  pluginLabel: string;
+  knowledgeLabel: string;
+  databaseLabel: string;
   listSubtitleWorkflow: string;
   listSubtitleChatflow: string;
   createButton: (mode: WorkflowResourceMode) => string;
@@ -10,7 +15,7 @@ export interface WorkflowModuleCopy {
   createFailure: (mode: WorkflowResourceMode) => string;
   duplicateSuccess: (mode: WorkflowResourceMode) => string;
   duplicateFailure: (mode: WorkflowResourceMode) => string;
-  deleteSuccess: (mode: WorkflowResourceMode) => string;
+  deleteSuccess: (label: string) => string;
   deleteTitle: (mode: WorkflowResourceMode) => string;
   deleteContent: (mode: WorkflowResourceMode) => string;
   searchPlaceholder: (mode: WorkflowResourceMode) => string;
@@ -19,12 +24,22 @@ export interface WorkflowModuleCopy {
   createModalConfirm: (mode: WorkflowResourceMode) => string;
   createFromTemplateTitle: (mode: WorkflowResourceMode) => string;
   createFromTemplateDescription: (mode: WorkflowResourceMode) => string;
+  createDialogTitle: (kind: CreateKind) => string;
+  createDialogConfirm: (kind: CreateKind) => string;
+  createDialogGlyph: (kind: CreateKind) => string;
+  workflowNameValidation: string;
+  variableKeyValidation: string;
+  databaseSchemaValidationFailed: string;
+  requiredField: string;
   nameLabel: string;
   descriptionLabel: string;
   descriptionPlaceholder: string;
   openLabel: string;
   duplicateLabel: string;
   deleteLabel: string;
+  editLabel: string;
+  saveLabel: string;
+  publishLabel: string;
   refreshLabel: string;
   allLabel: string;
   draftLabel: string;
@@ -39,23 +54,43 @@ export interface WorkflowModuleCopy {
   editorTabLogic: string;
   editorTabUi: string;
   editorUiComingSoon: string;
-  editorWorkspaceTitle: string;
-  editorWorkspaceSubtitle: string;
   resourcesTab: string;
   referencesTab: string;
   resourcesTitle: string;
   referencesTitle: string;
   sidebarSearchPlaceholder: string;
+  searchLibraryPlaceholder: string;
   sectionWorkflow: string;
   sectionPlugin: string;
   sectionData: string;
   sectionSettings: string;
   sectionReferences: string;
+  emptyWorkflow: string;
   emptyPlugin: string;
   emptyData: string;
   emptyReferences: string;
   conversationManagement: string;
+  conversationLabel: string;
+  conversationDescription: string;
+  conversationCreateLabel: string;
+  conversationCreateFailure: string;
+  conversationLoadFailure: string;
+  conversationAgentRequired: string;
+  conversationTitleLabel: string;
+  conversationUnit: string;
+  agentLabel: string;
+  agentLoadFailure: string;
+  selectAgentPlaceholder: string;
+  appendMessageLabel: string;
   variablesLabel: string;
+  variablesDescription: string;
+  variableCreateLabel: string;
+  variableEditLabel: string;
+  variableKeyLabel: string;
+  variableValueLabel: string;
+  variableLoadFailure: string;
+  variableSaveFailure: string;
+  systemVariableReadonly: string;
   traceLabel: string;
   testRunLabel: string;
   problemsLabel: string;
@@ -64,153 +99,192 @@ export interface WorkflowModuleCopy {
   currentWorkflowLabel: string;
   relatedVersionsLabel: string;
   refreshCanvasLabel: string;
-  fitViewLabel: string;
-  openUiPreviewLabel: string;
   loadFailure: string;
+  libraryDialogTitle: string;
+  libraryLoadFailure: string;
+  libraryImportSuccess: string;
+  libraryImportFailure: string;
+  librarySelectRequired: string;
+  libraryExportLabel: string;
+  libraryMoveLabel: string;
+  menuCreateWorkflow: string;
+  menuCreateChatflow: string;
+  menuCreatePlugin: string;
+  menuCreateKnowledge: string;
+  menuCreateDatabase: string;
+  menuImportLibrary: string;
+  pluginCategoryLabel: string;
+  knowledgeTypeLabel: string;
+  knowledgeTypeTextLabel: string;
+  knowledgeTypeTableLabel: string;
+  knowledgeTypeImageLabel: string;
+  pluginApiCountLabel: string;
+  pluginLoadFailure: string;
+  knowledgeLoadFailure: string;
+  databaseLoadFailure: string;
+  databaseSchemaLabel: string;
+  databaseRecordCountLabel: string;
+  documentCountLabel: string;
+  chunkCountLabel: string;
+  documentUnit: string;
+  chunkUnit: string;
+  recordUnit: string;
+  variableScopeLabel: string;
+  variableScopeIdLabel: string;
+  variableScopeGlobalLabel: string;
+  variableScopeProjectLabel: string;
+  variableScopeBotLabel: string;
+  clearContextLabel: string;
+  clearHistoryLabel: string;
 }
 
-const zhCN: WorkflowModuleCopy = {
-  workflowLabel: "工作流",
-  chatflowLabel: "Chatflow",
-  listSubtitleWorkflow: "通过模板创建工作流，并进入连续编排与测试运行。",
-  listSubtitleChatflow: "通过模板创建对话流，并进入连续调试与发布。",
-  createButton: mode => `新建${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createSuccess: mode => `已创建${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createFailure: mode => `创建${mode === "chatflow" ? "Chatflow" : "Workflow"}失败`,
-  duplicateSuccess: mode => `已复制${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  duplicateFailure: mode => `复制${mode === "chatflow" ? "Chatflow" : "Workflow"}失败`,
-  deleteSuccess: mode => `已删除${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  deleteTitle: mode => `删除${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  deleteContent: mode => `删除后不可恢复，确认删除当前${mode === "chatflow" ? "Chatflow" : "Workflow"}吗？`,
-  searchPlaceholder: mode => `搜索${mode === "chatflow" ? "Chatflow" : "Workflow"}名称`,
-  noItems: mode => `暂无${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createModalTitle: mode => `新建${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createModalConfirm: mode => `创建${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createFromTemplateTitle: mode => `从模板开始构建${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createFromTemplateDescription: mode =>
-    `当前支持空白模板与业务模板入口，默认创建草稿后直接进入 ${mode === "chatflow" ? "Chatflow" : "Workflow"} Editor。`,
-  nameLabel: "名称",
-  descriptionLabel: "描述",
-  descriptionPlaceholder: "描述用途或场景",
-  openLabel: "打开",
-  duplicateLabel: "复制",
-  deleteLabel: "删除",
-  refreshLabel: "刷新",
-  allLabel: "全部",
-  draftLabel: "草稿",
-  publishedLabel: "已发布",
-  updatedAtLabel: "最近更新",
-  versionLabel: "版本",
-  publishedAtLabel: "发布时间",
-  draftStatus: "草稿",
-  publishedStatus: "已发布",
-  archivedStatus: "已归档",
-  noDescription: "暂无描述",
-  editorTabLogic: "业务逻辑",
-  editorTabUi: "用户界面",
-  editorUiComingSoon: "用户界面编辑器仍在迁移，当前先聚焦业务逻辑画布。",
-  editorWorkspaceTitle: "Workflow Workspace",
-  editorWorkspaceSubtitle: "按 Coze 源码结构重组的 Atlas 工作流宿主。",
-  resourcesTab: "资源",
-  referencesTab: "引用关系",
-  resourcesTitle: "资源",
-  referencesTitle: "引用关系",
-  sidebarSearchPlaceholder: "搜索当前工作流资源",
-  sectionWorkflow: "工作流",
-  sectionPlugin: "插件",
-  sectionData: "数据",
-  sectionSettings: "设置",
-  sectionReferences: "关联资源",
-  emptyPlugin: "还未添加插件",
-  emptyData: "还未添加数据资源",
-  emptyReferences: "当前工作流暂未形成额外引用关系。",
-  conversationManagement: "会话管理",
-  variablesLabel: "变量",
-  traceLabel: "Trace",
-  testRunLabel: "试运行",
-  problemsLabel: "问题",
-  addNodeLabel: "添加节点",
-  debugLabel: "调试",
-  currentWorkflowLabel: "当前工作流",
-  relatedVersionsLabel: "相关版本",
-  refreshCanvasLabel: "刷新画布",
-  fitViewLabel: "适配视图",
-  openUiPreviewLabel: "用户界面",
-  loadFailure: "加载工作流编辑上下文失败"
-};
+function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
+  const zh = locale === "zh-CN";
+  const workflowWord = zh ? "工作流" : "Workflow";
+  const chatflowWord = zh ? "对话流" : "Chatflow";
 
-const enUS: WorkflowModuleCopy = {
-  workflowLabel: "Workflow",
-  chatflowLabel: "Chatflow",
-  listSubtitleWorkflow: "Create workflows from templates and move into continuous orchestration and test runs.",
-  listSubtitleChatflow: "Create chatflows from templates and move into continuous debugging and publishing.",
-  createButton: mode => `New ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createSuccess: mode => `${mode === "chatflow" ? "Chatflow" : "Workflow"} created`,
-  createFailure: mode => `Failed to create ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  duplicateSuccess: mode => `${mode === "chatflow" ? "Chatflow" : "Workflow"} duplicated`,
-  duplicateFailure: mode => `Failed to duplicate ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  deleteSuccess: mode => `${mode === "chatflow" ? "Chatflow" : "Workflow"} deleted`,
-  deleteTitle: mode => `Delete ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  deleteContent: mode =>
-    `This action cannot be undone. Delete the current ${mode === "chatflow" ? "chatflow" : "workflow"}?`,
-  searchPlaceholder: mode => `Search ${mode === "chatflow" ? "chatflow" : "workflow"} name`,
-  noItems: mode => `No ${mode === "chatflow" ? "chatflows" : "workflows"}`,
-  createModalTitle: mode => `New ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createModalConfirm: mode => `Create ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
-  createFromTemplateTitle: mode => `Build ${mode === "chatflow" ? "chatflow" : "workflow"} from a template`,
-  createFromTemplateDescription: mode =>
-    `Blank and business templates are available. New drafts open directly in the ${mode === "chatflow" ? "Chatflow" : "Workflow"} Editor.`,
-  nameLabel: "Name",
-  descriptionLabel: "Description",
-  descriptionPlaceholder: "Describe the purpose or scenario",
-  openLabel: "Open",
-  duplicateLabel: "Duplicate",
-  deleteLabel: "Delete",
-  refreshLabel: "Refresh",
-  allLabel: "All",
-  draftLabel: "Draft",
-  publishedLabel: "Published",
-  updatedAtLabel: "Updated",
-  versionLabel: "Version",
-  publishedAtLabel: "Published",
-  draftStatus: "Draft",
-  publishedStatus: "Published",
-  archivedStatus: "Archived",
-  noDescription: "No description",
-  editorTabLogic: "Business Logic",
-  editorTabUi: "User Interface",
-  editorUiComingSoon: "The UI editor is still being migrated. The business logic canvas remains the active workspace for now.",
-  editorWorkspaceTitle: "Workflow Workspace",
-  editorWorkspaceSubtitle: "Atlas workflow host reorganized around the Coze source layout.",
-  resourcesTab: "Resources",
-  referencesTab: "References",
-  resourcesTitle: "Resources",
-  referencesTitle: "References",
-  sidebarSearchPlaceholder: "Search workflow resources",
-  sectionWorkflow: "Workflow",
-  sectionPlugin: "Plugins",
-  sectionData: "Data",
-  sectionSettings: "Settings",
-  sectionReferences: "Related Resources",
-  emptyPlugin: "No plugins added yet",
-  emptyData: "No data resources added yet",
-  emptyReferences: "No extra references are available for this workflow yet.",
-  conversationManagement: "Conversation",
-  variablesLabel: "Variables",
-  traceLabel: "Trace",
-  testRunLabel: "Test Run",
-  problemsLabel: "Problems",
-  addNodeLabel: "Add Node",
-  debugLabel: "Debug",
-  currentWorkflowLabel: "Current Workflow",
-  relatedVersionsLabel: "Related Versions",
-  refreshCanvasLabel: "Refresh Canvas",
-  fitViewLabel: "Fit View",
-  openUiPreviewLabel: "User Interface",
-  loadFailure: "Failed to load workflow editor context"
-};
+  return {
+    workflowLabel: zh ? "工作流" : "Workflow",
+    chatflowLabel: zh ? "Chatflow" : "Chatflow",
+    pluginLabel: zh ? "插件" : "Plugin",
+    knowledgeLabel: zh ? "知识库" : "Knowledge Base",
+    databaseLabel: zh ? "数据库" : "Database",
+    listSubtitleWorkflow: zh ? "通过模板创建工作流，并进入连续编排与测试运行。" : "Create workflows from templates and move into orchestration and test runs.",
+    listSubtitleChatflow: zh ? "通过模板创建对话流，并进入连续调试与发布。" : "Create chatflows from templates and move into debugging and publishing.",
+    createButton: mode => zh ? `新建${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `New ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
+    createSuccess: mode => zh ? `已创建${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `${mode === "chatflow" ? "Chatflow" : "Workflow"} created`,
+    createFailure: mode => zh ? `创建${mode === "chatflow" ? "Chatflow" : "Workflow"}失败` : `Failed to create ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
+    duplicateSuccess: mode => zh ? `已复制${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `${mode === "chatflow" ? "Chatflow" : "Workflow"} duplicated`,
+    duplicateFailure: mode => zh ? `复制${mode === "chatflow" ? "Chatflow" : "Workflow"}失败` : `Failed to duplicate ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
+    deleteSuccess: label => zh ? `已删除${label}` : `${label} deleted`,
+    deleteTitle: mode => zh ? `删除${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `Delete ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
+    deleteContent: mode => zh ? `删除后不可恢复，确认删除当前${mode === "chatflow" ? "Chatflow" : "Workflow"}吗？` : `This action cannot be undone. Delete the current ${mode === "chatflow" ? "chatflow" : "workflow"}?`,
+    searchPlaceholder: mode => zh ? `搜索${mode === "chatflow" ? "Chatflow" : "Workflow"}名称` : `Search ${mode === "chatflow" ? "chatflow" : "workflow"} name`,
+    noItems: mode => zh ? `暂无${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `No ${mode === "chatflow" ? "chatflows" : "workflows"}`,
+    createModalTitle: mode => zh ? `新建${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `New ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
+    createModalConfirm: mode => zh ? `创建${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `Create ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
+    createFromTemplateTitle: mode => zh ? `从模板开始构建${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `Build ${mode === "chatflow" ? "chatflow" : "workflow"} from a template`,
+    createFromTemplateDescription: mode => zh ? `当前支持空白模板与业务模板入口，默认创建草稿后直接进入 ${mode === "chatflow" ? "Chatflow" : "Workflow"} Editor。` : `Blank and business templates are available. New drafts open directly in the ${mode === "chatflow" ? "Chatflow" : "Workflow"} Editor.`,
+    createDialogTitle: kind => zh
+      ? kind === "workflow" ? "创建工作流" : kind === "chatflow" ? "创建对话流" : kind === "plugin" ? "创建插件" : kind === "knowledge-base" ? "创建知识库" : "创建数据库"
+      : kind === "workflow" ? "Create workflow" : kind === "chatflow" ? "Create chatflow" : kind === "plugin" ? "Create plugin" : kind === "knowledge-base" ? "Create knowledge base" : "Create database",
+    createDialogConfirm: kind => zh ? (kind === "workflow" || kind === "chatflow" ? "确认" : "保存") : (kind === "workflow" || kind === "chatflow" ? "Confirm" : "Save"),
+    createDialogGlyph: kind => kind === "workflow" ? "W" : kind === "chatflow" ? "C" : kind === "plugin" ? "P" : kind === "knowledge-base" ? "K" : "D",
+    workflowNameValidation: zh ? "工作流名称只允许字母、数字和下划线，并以字母开头，最多 30 个字符。" : "Workflow names must start with a letter and contain only letters, numbers, and underscores, up to 30 characters.",
+    variableKeyValidation: zh ? "变量名首字符不能为数字，且只能包含字母、数字、$ 和 _。" : "Variable keys cannot start with a number and may only contain letters, numbers, $ and _.",
+    databaseSchemaValidationFailed: zh ? "数据库 Schema 校验失败。" : "Database schema validation failed.",
+    requiredField: zh ? "请填写必填项。" : "This field is required.",
+    nameLabel: zh ? "名称" : "Name",
+    descriptionLabel: zh ? "描述" : "Description",
+    descriptionPlaceholder: zh ? "描述用途或场景" : "Describe the purpose or scenario",
+    openLabel: zh ? "打开" : "Open",
+    duplicateLabel: zh ? "复制" : "Duplicate",
+    deleteLabel: zh ? "删除" : "Delete",
+    editLabel: zh ? "编辑" : "Edit",
+    saveLabel: zh ? "保存" : "Save",
+    publishLabel: zh ? "发布" : "Publish",
+    refreshLabel: zh ? "刷新" : "Refresh",
+    allLabel: zh ? "全部" : "All",
+    draftLabel: zh ? "草稿" : "Draft",
+    publishedLabel: zh ? "已发布" : "Published",
+    updatedAtLabel: zh ? "最近更新" : "Updated",
+    versionLabel: zh ? "版本" : "Version",
+    publishedAtLabel: zh ? "发布时间" : "Published",
+    draftStatus: zh ? "草稿" : "Draft",
+    publishedStatus: zh ? "已发布" : "Published",
+    archivedStatus: zh ? "已归档" : "Archived",
+    noDescription: zh ? "暂无描述" : "No description",
+    editorTabLogic: zh ? "业务逻辑" : "Business Logic",
+    editorTabUi: zh ? "用户界面" : "User Interface",
+    editorUiComingSoon: zh ? "用户界面编辑器仍在迁移，当前先聚焦业务逻辑画布。" : "The UI editor is still being migrated. The business logic canvas remains the active workspace for now.",
+    resourcesTab: zh ? "资源" : "Resources",
+    referencesTab: zh ? "引用关系" : "References",
+    resourcesTitle: zh ? "资源" : "Resources",
+    referencesTitle: zh ? "引用关系" : "References",
+    sidebarSearchPlaceholder: zh ? "搜索当前工作流资源" : "Search workflow resources",
+    searchLibraryPlaceholder: zh ? "搜索资源库文件" : "Search library resources",
+    sectionWorkflow: zh ? "工作流" : "Workflow",
+    sectionPlugin: zh ? "插件" : "Plugins",
+    sectionData: zh ? "数据" : "Data",
+    sectionSettings: zh ? "设置" : "Settings",
+    sectionReferences: zh ? "关联资源" : "Related Resources",
+    emptyWorkflow: zh ? "还未添加工作流" : "No workflows added yet",
+    emptyPlugin: zh ? "还未添加插件" : "No plugins added yet",
+    emptyData: zh ? "还未添加数据资源" : "No data resources added yet",
+    emptyReferences: zh ? "当前工作流暂未形成额外引用关系。" : "No extra references are available for this workflow yet.",
+    conversationManagement: zh ? "会话管理" : "Conversation Management",
+    conversationLabel: zh ? "会话" : "Conversation",
+    conversationDescription: zh ? "管理多轮对话、上下文和消息历史。" : "Manage multi-turn conversations, context, and message history.",
+    conversationCreateLabel: zh ? "新建会话" : "New Conversation",
+    conversationCreateFailure: zh ? "创建会话失败" : "Failed to create conversation",
+    conversationLoadFailure: zh ? "加载会话数据失败" : "Failed to load conversation data",
+    conversationAgentRequired: zh ? "请选择一个智能体。" : "Please select an agent.",
+    conversationTitleLabel: zh ? "会话标题" : "Conversation Title",
+    conversationUnit: zh ? "个会话" : " conversations",
+    agentLabel: zh ? "智能体" : "Agent",
+    agentLoadFailure: zh ? "加载智能体列表失败" : "Failed to load agents",
+    selectAgentPlaceholder: zh ? "请选择智能体" : "Select an agent",
+    appendMessageLabel: zh ? "发送消息" : "Send Message",
+    variablesLabel: zh ? "变量" : "Variables",
+    variablesDescription: zh ? "管理工作流与应用级变量。" : "Manage workflow and app level variables.",
+    variableCreateLabel: zh ? "新建变量" : "New Variable",
+    variableEditLabel: zh ? "编辑变量" : "Edit Variable",
+    variableKeyLabel: zh ? "变量名" : "Variable Key",
+    variableValueLabel: zh ? "变量值" : "Variable Value",
+    variableLoadFailure: zh ? "加载变量失败" : "Failed to load variables",
+    variableSaveFailure: zh ? "保存变量失败" : "Failed to save variable",
+    systemVariableReadonly: zh ? "只读" : "Read only",
+    traceLabel: "Trace",
+    testRunLabel: zh ? "试运行" : "Test Run",
+    problemsLabel: zh ? "问题" : "Problems",
+    addNodeLabel: zh ? "添加节点" : "Add Node",
+    debugLabel: zh ? "调试" : "Debug",
+    currentWorkflowLabel: zh ? "当前工作流" : "Current Workflow",
+    relatedVersionsLabel: zh ? "相关版本" : "Related Versions",
+    refreshCanvasLabel: zh ? "刷新画布" : "Refresh Canvas",
+    loadFailure: zh ? "加载工作流编辑上下文失败" : "Failed to load workflow editor context",
+    libraryDialogTitle: zh ? "导入资源库文件" : "Import library resource",
+    libraryLoadFailure: zh ? "加载资源库失败" : "Failed to load library resources",
+    libraryImportSuccess: zh ? "资源已导入" : "Resource imported",
+    libraryImportFailure: zh ? "导入资源库文件失败" : "Failed to import library resource",
+    librarySelectRequired: zh ? "请选择一个资源库文件。" : "Please select a library resource.",
+    libraryExportLabel: zh ? "复制到资源库" : "Copy to Library",
+    libraryMoveLabel: zh ? "移动到资源库" : "Move to Library",
+    menuCreateWorkflow: zh ? "新建工作流" : "New workflow",
+    menuCreateChatflow: zh ? "新建对话流" : "New chatflow",
+    menuCreatePlugin: zh ? "新建插件" : "New plugin",
+    menuCreateKnowledge: zh ? "新建知识库" : "New knowledge base",
+    menuCreateDatabase: zh ? "新建数据库" : "New database",
+    menuImportLibrary: zh ? "导入资源库文件" : "Import from library",
+    pluginCategoryLabel: zh ? "分类" : "Category",
+    knowledgeTypeLabel: zh ? "知识类型" : "Knowledge Type",
+    knowledgeTypeTextLabel: zh ? "文本知识" : "Text Knowledge",
+    knowledgeTypeTableLabel: zh ? "表格知识" : "Table Knowledge",
+    knowledgeTypeImageLabel: zh ? "图片知识" : "Image Knowledge",
+    pluginApiCountLabel: zh ? "接口数" : "API Count",
+    pluginLoadFailure: zh ? "加载插件详情失败" : "Failed to load plugin detail",
+    knowledgeLoadFailure: zh ? "加载知识库详情失败" : "Failed to load knowledge base detail",
+    databaseLoadFailure: zh ? "加载数据库详情失败" : "Failed to load database detail",
+    databaseSchemaLabel: zh ? "Schema JSON" : "Schema JSON",
+    databaseRecordCountLabel: zh ? "记录数" : "Record Count",
+    documentCountLabel: zh ? "文档数" : "Document Count",
+    chunkCountLabel: zh ? "分片数" : "Chunk Count",
+    documentUnit: zh ? "文档" : " docs",
+    chunkUnit: zh ? "分片" : " chunks",
+    recordUnit: zh ? "条记录" : " records",
+    variableScopeLabel: zh ? "作用域" : "Scope",
+    variableScopeIdLabel: zh ? "作用域 ID" : "Scope ID",
+    variableScopeGlobalLabel: zh ? "全局" : "Global",
+    variableScopeProjectLabel: zh ? "项目" : "Project",
+    variableScopeBotLabel: zh ? "智能体" : "Bot",
+    clearContextLabel: zh ? "清空上下文" : "Clear Context",
+    clearHistoryLabel: zh ? "清空历史" : "Clear History"
+  };
+}
+
+const zhCN = createCopy("zh-CN");
+const enUS = createCopy("en-US");
 
 export function getWorkflowModuleCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
   return locale === "en-US" ? enUS : zhCN;
 }
-

@@ -1,7 +1,7 @@
 import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 
 export type SupportedLocale = "zh-CN" | "en-US";
-export type ResourceType = "agent" | "knowledge-base" | "workflow" | "app" | "prompt";
+export type ResourceType = "agent" | "knowledge-base" | "workflow" | "plugin" | "database" | "app" | "prompt";
 export type KnowledgeBaseType = 0 | 1 | 2;
 export type DocumentProcessingStatus = 0 | 1 | 2 | 3;
 

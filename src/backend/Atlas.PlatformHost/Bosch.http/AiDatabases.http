@@ -106,6 +106,18 @@ X-CSRF-TOKEN: {{csrfToken}}
   "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"}]"
 }
 
+### 创建前校验 Schema
+POST {{baseUrl}}/api/v1/ai-databases/schema-validations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"}]"
+}
+
 ### 获取导入模板
 GET {{baseUrl}}/api/v1/ai-databases/{{databaseId}}/template
 Authorization: Bearer {{accessToken}}

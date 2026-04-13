@@ -28,6 +28,10 @@ describe("module-workflow-react coze adapter", () => {
         { id: "w1", name: "当前流程", mode: 0 },
         { id: "w2", name: "其他流程", mode: 0 }
       ],
+      pluginItems: [],
+      knowledgeItems: [],
+      databaseItems: [],
+      conversations: [],
       keyword: ""
     });
 
@@ -36,7 +40,7 @@ describe("module-workflow-react coze adapter", () => {
       badge: copy.currentWorkflowLabel,
       active: true
     });
-    expect(sections[3]?.items.map(item => item.key)).toContain("settings-variables");
+    expect(sections[3]?.items.map(item => item.key)).toEqual(["conversations", "variables"]);
   });
 
   it("builds reference sections from nodes and versions", () => {
@@ -67,7 +71,6 @@ describe("module-workflow-react coze adapter", () => {
     });
 
     expect(sections[0]?.items[0]?.badge).toBe("开始");
-    expect(sections[1]?.items[0]?.label).toBe("v3");
+    expect(sections[1]?.items[0]?.name).toBe("v3");
   });
 });
-

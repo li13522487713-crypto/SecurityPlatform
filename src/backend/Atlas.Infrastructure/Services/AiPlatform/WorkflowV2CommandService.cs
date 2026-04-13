@@ -39,35 +39,17 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
                 },
                 new
                 {
-                    key = "text_1",
-                    type = (int)WorkflowNodeType.TextProcessor,
-                    label = "文本处理",
-                    config = new
-                    {
-                        template = "Atlas Workflow Ready",
-                        outputKey = "text_output"
-                    },
-                    layout = new
-                    {
-                        x = 620,
-                        y = 120,
-                        width = 360,
-                        height = 160
-                    }
-                },
-                new
-                {
                     key = "exit_1",
                     type = (int)WorkflowNodeType.Exit,
                     label = "结束",
                     config = new
                     {
                         exitTerminateMode = "return",
-                        exitTemplate = "{{text_1.text_output}}"
+                        exitTemplate = "{{entry_1.USER_INPUT}}"
                     },
                     layout = new
                     {
-                        x = 1080,
+                        x = 720,
                         y = 120,
                         width = 360,
                         height = 160
@@ -79,14 +61,6 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
                 new
                 {
                     sourceNodeKey = "entry_1",
-                    sourcePort = "output",
-                    targetNodeKey = "text_1",
-                    targetPort = "input",
-                    condition = (string?)null
-                },
-                new
-                {
-                    sourceNodeKey = "text_1",
                     sourcePort = "output",
                     targetNodeKey = "exit_1",
                     targetPort = "input",

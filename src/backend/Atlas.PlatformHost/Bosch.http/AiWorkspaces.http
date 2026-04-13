@@ -50,3 +50,43 @@ Content-Type: application/json
 GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20&keyword=agent
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 导入资源库文件
+POST {{baseUrl}}/api/v1/ai-workspaces/library/imports
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "resourceType": "workflow",
+  "libraryItemId": 1,
+  "targetWorkspaceId": 1
+}
+
+### 复制到资源库
+POST {{baseUrl}}/api/v1/ai-workspaces/library/exports
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "resourceType": "plugin",
+  "resourceId": 1
+}
+
+### 移动到资源库
+POST {{baseUrl}}/api/v1/ai-workspaces/library/moves
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "resourceType": "database",
+  "resourceId": 1
+}

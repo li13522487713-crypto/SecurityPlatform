@@ -20,4 +20,22 @@ public interface IAiWorkspaceService
         TenantId tenantId,
         AiLibraryQueryRequest request,
         CancellationToken cancellationToken);
+
+    Task<AiLibraryMutationResult> ImportLibraryItemAsync(
+        TenantId tenantId,
+        long userId,
+        AiLibraryImportRequest request,
+        CancellationToken cancellationToken);
+
+    Task<AiLibraryMutationResult> ExportLibraryItemAsync(
+        TenantId tenantId,
+        long userId,
+        AiLibraryExportRequest request,
+        CancellationToken cancellationToken);
+
+    Task<AiLibraryMutationResult> MoveLibraryItemAsync(
+        TenantId tenantId,
+        long userId,
+        AiLibraryMoveRequest request,
+        CancellationToken cancellationToken);
 }
