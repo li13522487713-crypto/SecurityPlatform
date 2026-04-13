@@ -601,6 +601,9 @@ function createStudioApi(appKey: string): StudioModuleApi {
     listConversations: agentId => getConversationsPaged(appKey, { pageIndex: 1, pageSize: 20 }, agentId),
     getMessages: conversationId => getMessages(appKey, conversationId),
     createConversation: (agentId, title) => createConversation(appKey, agentId, title),
+    deleteConversation: conversationId => deleteConversation(appKey, conversationId),
+    clearConversationContext: conversationId => clearConversationContext(appKey, conversationId),
+    clearConversationHistory: conversationId => clearConversationHistory(appKey, conversationId),
     sendAgentMessage: (agentId, request) => createAgentMessageStream(appKey, agentId, request),
     appendConversationMessage: (conversationId, request) => appendConversationMessage(appKey, conversationId, request),
     listWorkflows: async params => {

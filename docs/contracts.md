@@ -330,6 +330,16 @@
 - `AgentDetail` / `AgentCreateRequest` / `AgentUpdateRequest` 新增字段：
   - `defaultWorkflowId`
   - `defaultWorkflowName`
+  - `avatarUrl`
+  - `personaMarkdown`
+  - `goals`
+  - `replyLogic`
+  - `outputFormat`
+  - `constraints`
+  - `openingMessage`
+  - `presetQuestions[]`
+  - `knowledgeBaseIds[]`
+  - `pluginBindings[]`
 - `WorkflowBindingUpdateRequest`
   - `workflowId`
 - `WorkflowBindingDto`
@@ -341,6 +351,9 @@
 - `POST /api/v1/agent-sessions`
 - `GET /api/v1/agent-sessions/{sessionId}/messages`
 - `POST /api/v1/agent-sessions/{sessionId}/messages`
+- `POST /api/v1/conversations/{id}/clear-context`
+- `POST /api/v1/conversations/{id}/clear-history`
+- `DELETE /api/v1/conversations/{id}`
 - `ConversationAppendMessageRequest`
   - `role`：`system | user | assistant | tool`
   - `content`

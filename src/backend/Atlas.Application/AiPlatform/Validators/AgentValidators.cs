@@ -9,7 +9,17 @@ public sealed class AgentCreateRequestValidator : AbstractValidator<AgentCreateR
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
         RuleFor(x => x.Description).MaximumLength(1024).When(x => !string.IsNullOrWhiteSpace(x.Description));
+        RuleFor(x => x.AvatarUrl).MaximumLength(1024).When(x => !string.IsNullOrWhiteSpace(x.AvatarUrl));
         RuleFor(x => x.SystemPrompt).MaximumLength(32000).When(x => !string.IsNullOrWhiteSpace(x.SystemPrompt));
+        RuleFor(x => x.PersonaMarkdown).MaximumLength(12000).When(x => !string.IsNullOrWhiteSpace(x.PersonaMarkdown));
+        RuleFor(x => x.Goals).MaximumLength(4000).When(x => !string.IsNullOrWhiteSpace(x.Goals));
+        RuleFor(x => x.ReplyLogic).MaximumLength(8000).When(x => !string.IsNullOrWhiteSpace(x.ReplyLogic));
+        RuleFor(x => x.OutputFormat).MaximumLength(4000).When(x => !string.IsNullOrWhiteSpace(x.OutputFormat));
+        RuleFor(x => x.Constraints).MaximumLength(4000).When(x => !string.IsNullOrWhiteSpace(x.Constraints));
+        RuleFor(x => x.OpeningMessage).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.OpeningMessage));
+        RuleFor(x => x.PresetQuestions).Must(questions => questions is null || questions.Count <= 6)
+            .WithMessage("PresetQuestions 最多 6 条。");
+        RuleForEach(x => x.PresetQuestions).NotEmpty().MaximumLength(200);
         RuleFor(x => x.ModelName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.ModelName));
         RuleFor(x => x.Temperature).InclusiveBetween(0f, 2f).When(x => x.Temperature.HasValue);
         RuleFor(x => x.MaxTokens).InclusiveBetween(1, 128000).When(x => x.MaxTokens.HasValue);
@@ -37,6 +47,15 @@ public sealed class AgentUpdateRequestValidator : AbstractValidator<AgentUpdateR
         RuleFor(x => x.Description).MaximumLength(1024).When(x => !string.IsNullOrWhiteSpace(x.Description));
         RuleFor(x => x.AvatarUrl).MaximumLength(1024).When(x => !string.IsNullOrWhiteSpace(x.AvatarUrl));
         RuleFor(x => x.SystemPrompt).MaximumLength(32000).When(x => !string.IsNullOrWhiteSpace(x.SystemPrompt));
+        RuleFor(x => x.PersonaMarkdown).MaximumLength(12000).When(x => !string.IsNullOrWhiteSpace(x.PersonaMarkdown));
+        RuleFor(x => x.Goals).MaximumLength(4000).When(x => !string.IsNullOrWhiteSpace(x.Goals));
+        RuleFor(x => x.ReplyLogic).MaximumLength(8000).When(x => !string.IsNullOrWhiteSpace(x.ReplyLogic));
+        RuleFor(x => x.OutputFormat).MaximumLength(4000).When(x => !string.IsNullOrWhiteSpace(x.OutputFormat));
+        RuleFor(x => x.Constraints).MaximumLength(4000).When(x => !string.IsNullOrWhiteSpace(x.Constraints));
+        RuleFor(x => x.OpeningMessage).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.OpeningMessage));
+        RuleFor(x => x.PresetQuestions).Must(questions => questions is null || questions.Count <= 6)
+            .WithMessage("PresetQuestions 最多 6 条。");
+        RuleForEach(x => x.PresetQuestions).NotEmpty().MaximumLength(200);
         RuleFor(x => x.ModelName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.ModelName));
         RuleFor(x => x.Temperature).InclusiveBetween(0f, 2f).When(x => x.Temperature.HasValue);
         RuleFor(x => x.MaxTokens).InclusiveBetween(1, 128000).When(x => x.MaxTokens.HasValue);

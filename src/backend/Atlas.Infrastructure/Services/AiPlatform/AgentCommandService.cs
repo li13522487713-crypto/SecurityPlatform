@@ -7,11 +7,13 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Repositories;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AgentCommandService : IAgentCommandService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AgentRepository _agentRepository;
     private readonly AgentKnowledgeLinkRepository _linkRepository;
     private readonly AgentPluginBindingRepository _pluginBindingRepository;
@@ -66,8 +68,15 @@ public sealed class AgentCommandService : IAgentCommandService
         entity.Update(
             request.Name,
             request.Description,
-            avatarUrl: null,
+            request.AvatarUrl,
             request.SystemPrompt,
+            request.PersonaMarkdown,
+            request.Goals,
+            request.ReplyLogic,
+            request.OutputFormat,
+            request.Constraints,
+            request.OpeningMessage,
+            SerializePresetQuestions(request.PresetQuestions),
             modelConfigId,
             request.ModelName,
             request.Temperature,
@@ -99,6 +108,13 @@ public sealed class AgentCommandService : IAgentCommandService
             request.Description,
             request.AvatarUrl,
             request.SystemPrompt,
+            request.PersonaMarkdown,
+            request.Goals,
+            request.ReplyLogic,
+            request.OutputFormat,
+            request.Constraints,
+            request.OpeningMessage,
+            SerializePresetQuestions(request.PresetQuestions),
             modelConfigId,
             request.ModelName,
             request.Temperature,
@@ -164,6 +180,13 @@ public sealed class AgentCommandService : IAgentCommandService
             entity.Description,
             entity.AvatarUrl,
             entity.SystemPrompt,
+            entity.PersonaMarkdown,
+            entity.Goals,
+            entity.ReplyLogic,
+            entity.OutputFormat,
+            entity.Constraints,
+            entity.OpeningMessage,
+            entity.PresetQuestionsJson,
             entity.ModelConfigId,
             entity.ModelName,
             entity.Temperature,
@@ -177,6 +200,17 @@ public sealed class AgentCommandService : IAgentCommandService
 
         await _agentRepository.UpdateAsync(entity, cancellationToken);
         return workflowBinding;
+    }
+
+    private static string SerializePresetQuestions(IReadOnlyList<string>? presetQuestions)
+    {
+        var normalized = presetQuestions?
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .Take(6)
+            .ToArray() ?? [];
+        return JsonSerializer.Serialize(normalized, JsonOptions);
     }
 
     public async Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)

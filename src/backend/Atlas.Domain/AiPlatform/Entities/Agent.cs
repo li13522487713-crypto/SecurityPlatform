@@ -12,6 +12,13 @@ public sealed class Agent : TenantEntity
         Description = string.Empty;
         AvatarUrl = string.Empty;
         SystemPrompt = string.Empty;
+        PersonaMarkdown = string.Empty;
+        Goals = string.Empty;
+        ReplyLogic = string.Empty;
+        OutputFormat = string.Empty;
+        Constraints = string.Empty;
+        OpeningMessage = string.Empty;
+        PresetQuestionsJson = "[]";
         ModelName = string.Empty;
         UpdatedAt = DateTime.UnixEpoch;
         PublishedAt = DateTime.UnixEpoch;
@@ -40,12 +47,20 @@ public sealed class Agent : TenantEntity
         EnableShortTermMemory = true;
         EnableLongTermMemory = true;
         LongTermMemoryTopK = 3;
+        PresetQuestionsJson = "[]";
     }
 
     public string Name { get; private set; }
     public string? Description { get; private set; }
     public string? AvatarUrl { get; private set; }
     public string? SystemPrompt { get; private set; }
+    public string? PersonaMarkdown { get; private set; }
+    public string? Goals { get; private set; }
+    public string? ReplyLogic { get; private set; }
+    public string? OutputFormat { get; private set; }
+    public string? Constraints { get; private set; }
+    public string? OpeningMessage { get; private set; }
+    public string PresetQuestionsJson { get; private set; }
     public long? ModelConfigId { get; private set; }
     public string? ModelName { get; private set; }
     public float? Temperature { get; private set; }
@@ -68,6 +83,13 @@ public sealed class Agent : TenantEntity
         string? description,
         string? avatarUrl,
         string? systemPrompt,
+        string? personaMarkdown,
+        string? goals,
+        string? replyLogic,
+        string? outputFormat,
+        string? constraints,
+        string? openingMessage,
+        string? presetQuestionsJson,
         long? modelConfigId,
         string? modelName,
         float? temperature,
@@ -83,6 +105,13 @@ public sealed class Agent : TenantEntity
         Description = description ?? string.Empty;
         AvatarUrl = avatarUrl ?? string.Empty;
         SystemPrompt = systemPrompt ?? string.Empty;
+        PersonaMarkdown = personaMarkdown ?? string.Empty;
+        Goals = goals ?? string.Empty;
+        ReplyLogic = replyLogic ?? string.Empty;
+        OutputFormat = outputFormat ?? string.Empty;
+        Constraints = constraints ?? string.Empty;
+        OpeningMessage = openingMessage ?? string.Empty;
+        PresetQuestionsJson = string.IsNullOrWhiteSpace(presetQuestionsJson) ? "[]" : presetQuestionsJson;
         ModelConfigId = modelConfigId;
         if (!ModelConfigId.HasValue)
         {
@@ -157,6 +186,13 @@ public sealed class Agent : TenantEntity
             Description,
             AvatarUrl,
             SystemPrompt,
+            PersonaMarkdown,
+            Goals,
+            ReplyLogic,
+            OutputFormat,
+            Constraints,
+            OpeningMessage,
+            PresetQuestionsJson,
             ModelConfigId,
             ModelName,
             Temperature,

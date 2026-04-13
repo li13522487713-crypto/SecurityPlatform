@@ -20,6 +20,13 @@ export interface AgentDetail {
   description?: string;
   avatarUrl?: string;
   systemPrompt?: string;
+  personaMarkdown?: string;
+  goals?: string;
+  replyLogic?: string;
+  outputFormat?: string;
+  constraints?: string;
+  openingMessage?: string;
+  presetQuestions?: string[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -38,6 +45,13 @@ export interface AgentCreateRequest {
   description?: string;
   avatarUrl?: string;
   systemPrompt?: string;
+  personaMarkdown?: string;
+  goals?: string;
+  replyLogic?: string;
+  outputFormat?: string;
+  constraints?: string;
+  openingMessage?: string;
+  presetQuestions?: string[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -55,6 +69,13 @@ export interface AgentUpdateRequest {
   description?: string;
   avatarUrl?: string;
   systemPrompt?: string;
+  personaMarkdown?: string;
+  goals?: string;
+  replyLogic?: string;
+  outputFormat?: string;
+  constraints?: string;
+  openingMessage?: string;
+  presetQuestions?: string[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -323,6 +344,9 @@ export interface StudioModuleApi {
   listConversations: (agentId?: string) => Promise<PagedResult<ConversationItem>>;
   getMessages: (conversationId: string) => Promise<ChatMessageItem[]>;
   createConversation: (agentId: string, title?: string) => Promise<string>;
+  deleteConversation: (conversationId: string) => Promise<void>;
+  clearConversationContext: (conversationId: string) => Promise<void>;
+  clearConversationHistory: (conversationId: string) => Promise<void>;
   sendAgentMessage: (
     agentId: string,
     request: { conversationId?: string; message: string; enableRag?: boolean }

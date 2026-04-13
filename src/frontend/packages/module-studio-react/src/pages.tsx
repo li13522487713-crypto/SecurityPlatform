@@ -1288,6 +1288,9 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const [detail, setDetail] = useState<AgentDetail | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [openingMessage, setOpeningMessage] = useState("");
+  const [presetQuestionsInput, setPresetQuestionsInput] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [promptSections, setPromptSections] = useState<AgentPromptSections>({ ...EMPTY_AGENT_PROMPT_SECTIONS });
   const [modelConfigId, setModelConfigId] = useState<string | undefined>(undefined);
@@ -1340,8 +1343,20 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       setDetail(nextDetail);
       setName(nextDetail.name);
       setDescription(nextDetail.description || "");
+      setAvatarUrl(nextDetail.avatarUrl || "");
+      setOpeningMessage(nextDetail.openingMessage || "");
+      setPresetQuestionsInput((nextDetail.presetQuestions ?? []).join("\n"));
       setSystemPrompt(nextDetail.systemPrompt || "");
-      setPromptSections(parseAgentPromptSections(nextDetail.systemPrompt || ""));
+      const parsedPromptSections = parseAgentPromptSections(nextDetail.systemPrompt || "");
+      setPromptSections({
+        persona: nextDetail.personaMarkdown || parsedPromptSections.persona,
+        goals: nextDetail.goals || parsedPromptSections.goals,
+        skills: nextDetail.replyLogic || parsedPromptSections.skills,
+        workflow: parsedPromptSections.workflow,
+        outputFormat: nextDetail.outputFormat || parsedPromptSections.outputFormat,
+        constraints: nextDetail.constraints || parsedPromptSections.constraints,
+        opening: nextDetail.openingMessage || parsedPromptSections.opening
+      });
       setModelConfigId(nextDetail.modelConfigId);
       setWorkflowId(nextDetail.defaultWorkflowId);
       setEnableMemory(nextDetail.enableMemory ?? true);
@@ -1440,12 +1455,25 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     }
 
     const nextSystemPrompt = composeAgentPromptSections(promptSections);
+    const presetQuestions = presetQuestionsInput
+      .split(/\r?\n/)
+      .map(item => item.trim())
+      .filter(Boolean)
+      .slice(0, 6);
     setSaving(true);
     try {
       await api.updateAgent(botId, {
         name: name.trim(),
         description: description.trim() || undefined,
+        avatarUrl: avatarUrl.trim() || undefined,
         systemPrompt: nextSystemPrompt || undefined,
+        personaMarkdown: promptSections.persona.trim() || undefined,
+        goals: promptSections.goals.trim() || undefined,
+        replyLogic: promptSections.skills.trim() || undefined,
+        outputFormat: promptSections.outputFormat.trim() || undefined,
+        constraints: promptSections.constraints.trim() || undefined,
+        openingMessage: openingMessage.trim() || promptSections.opening.trim() || undefined,
+        presetQuestions: presetQuestions.length > 0 ? presetQuestions : undefined,
         modelConfigId,
         modelName: selectedModel?.defaultModel,
         defaultWorkflowId: workflowId,
@@ -1459,7 +1487,15 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
         ...current,
         name: name.trim(),
         description: description.trim() || undefined,
+        avatarUrl: avatarUrl.trim() || undefined,
         systemPrompt: nextSystemPrompt || undefined,
+        personaMarkdown: promptSections.persona.trim() || undefined,
+        goals: promptSections.goals.trim() || undefined,
+        replyLogic: promptSections.skills.trim() || undefined,
+        outputFormat: promptSections.outputFormat.trim() || undefined,
+        constraints: promptSections.constraints.trim() || undefined,
+        openingMessage: openingMessage.trim() || promptSections.opening.trim() || undefined,
+        presetQuestions: presetQuestions.length > 0 ? presetQuestions : undefined,
         modelConfigId,
         modelName: selectedModel?.defaultModel,
         defaultWorkflowId: workflowId,
@@ -1476,6 +1512,52 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       Toast.error(error instanceof Error ? error.message : "保存 Agent 配置失败。");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleClearConversationContext() {
+    if (!conversationId) {
+      Toast.warning("当前还没有可清理的会话。");
+      return;
+    }
+
+    try {
+      await api.clearConversationContext(conversationId);
+      await loadWorkbench(conversationId);
+      Toast.success("会话上下文已清空。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "清空上下文失败。");
+    }
+  }
+
+  async function handleClearConversationHistory() {
+    if (!conversationId) {
+      Toast.warning("当前还没有可清理的会话。");
+      return;
+    }
+
+    try {
+      await api.clearConversationHistory(conversationId);
+      await loadWorkbench(conversationId);
+      Toast.success("会话历史已清空。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "清空历史失败。");
+    }
+  }
+
+  async function handleDeleteConversation() {
+    if (!conversationId) {
+      Toast.warning("当前还没有可删除的会话。");
+      return;
+    }
+
+    try {
+      await api.deleteConversation(conversationId);
+      applyConversationId("");
+      await loadWorkbench();
+      Toast.success("调试会话已删除。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "删除会话失败。");
     }
   }
 
@@ -1615,6 +1697,32 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
           <div className="module-studio__stack">
             <Input value={name} onChange={setName} placeholder="角色名称" />
             <Input value={description} onChange={setDescription} placeholder="角色概述" />
+            <Input value={avatarUrl} onChange={setAvatarUrl} placeholder="头像地址（可选）" data-testid="app-bot-ide-avatar-url" />
+            <div className="module-studio__field">
+              <span>开场白</span>
+              <textarea
+                value={openingMessage}
+                onChange={event => {
+                  setOpeningMessage(event.target.value);
+                  updatePromptSection("opening", event.target.value);
+                }}
+                rows={3}
+                className="module-studio__textarea"
+                disabled={saving}
+                data-testid="app-bot-ide-opening-message"
+              />
+            </div>
+            <div className="module-studio__field">
+              <span>预置问题（每行一条，最多 6 条）</span>
+              <textarea
+                value={presetQuestionsInput}
+                onChange={event => setPresetQuestionsInput(event.target.value)}
+                rows={4}
+                className="module-studio__textarea"
+                disabled={saving}
+                data-testid="app-bot-ide-preset-questions"
+              />
+            </div>
             {AGENT_PROMPT_SECTION_MAP.map(section => (
               <div key={section.key} className="module-studio__field">
                 <span>{section.title}</span>
@@ -1752,6 +1860,18 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
               </article>
             ) : null}
           </div>
+
+          <Space wrap>
+            <Button theme="borderless" onClick={() => void handleClearConversationContext()} disabled={!conversationId || saving || workbenchLoading}>
+              清空上下文
+            </Button>
+            <Button theme="borderless" onClick={() => void handleClearConversationHistory()} disabled={!conversationId || saving || workbenchLoading}>
+              清空历史
+            </Button>
+            <Button theme="borderless" type="danger" onClick={() => void handleDeleteConversation()} disabled={!conversationId || saving || workbenchLoading}>
+              删除会话
+            </Button>
+          </Space>
 
           <textarea
             value={messageInput}

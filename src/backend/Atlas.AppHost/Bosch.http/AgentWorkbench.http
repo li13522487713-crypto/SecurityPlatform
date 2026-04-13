@@ -51,6 +51,29 @@ GET {{baseUrl}}/api/v1/agent-sessions/{{createdSessionId}}/messages
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 清空会话上下文
+POST {{baseUrl}}/api/v1/conversations/{{createdSessionId}}/clear-context
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 清空会话历史
+POST {{baseUrl}}/api/v1/conversations/{{createdSessionId}}/clear-history
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 删除会话
+DELETE {{baseUrl}}/api/v1/conversations/{{createdSessionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
 ### 追加工具消息
 POST {{baseUrl}}/api/v1/agent-sessions/{{createdSessionId}}/messages
 Authorization: Bearer {{accessToken}}

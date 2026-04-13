@@ -7,6 +7,13 @@ export interface AgentDetail {
   description?: string;
   avatarUrl?: string;
   systemPrompt?: string;
+  personaMarkdown?: string;
+  goals?: string;
+  replyLogic?: string;
+  outputFormat?: string;
+  constraints?: string;
+  openingMessage?: string;
+  presetQuestions?: string[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -30,7 +37,15 @@ export interface AgentListItem {
 export interface AgentCreateRequest {
   name: string;
   description?: string;
+  avatarUrl?: string;
   systemPrompt?: string;
+  personaMarkdown?: string;
+  goals?: string;
+  replyLogic?: string;
+  outputFormat?: string;
+  constraints?: string;
+  openingMessage?: string;
+  presetQuestions?: string[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -48,6 +63,13 @@ export interface AgentUpdateRequest {
   description?: string;
   avatarUrl?: string;
   systemPrompt?: string;
+  personaMarkdown?: string;
+  goals?: string;
+  replyLogic?: string;
+  outputFormat?: string;
+  constraints?: string;
+  openingMessage?: string;
+  presetQuestions?: string[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;

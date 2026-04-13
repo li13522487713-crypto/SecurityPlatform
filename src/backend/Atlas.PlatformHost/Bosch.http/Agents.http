@@ -44,7 +44,18 @@ X-CSRF-TOKEN: {{csrfToken}}
 {
   "name": "Demo Agent",
   "description": "用于阶段 3 验证",
+  "avatarUrl": "https://example.com/avatar.png",
   "systemPrompt": "你是一个安全平台助手。",
+  "personaMarkdown": "## 角色\n你是安全运营助手",
+  "goals": "帮助用户排查与响应安全事件",
+  "replyLogic": "先总结问题，再给出处理建议与下一步动作",
+  "outputFormat": "优先使用清晰的分点结构",
+  "constraints": "禁止编造不存在的数据源与执行结果",
+  "openingMessage": "你好，我是你的安全运营助手。",
+  "presetQuestions": [
+    "帮我排查今天的高危告警",
+    "给我一个安全事件处置清单"
+  ],
   "temperature": 0.7,
   "maxTokens": 2048
 }
@@ -67,6 +78,16 @@ X-CSRF-TOKEN: {{csrfToken}}
   "description": "更新后的描述",
   "avatarUrl": "https://example.com/avatar.png",
   "systemPrompt": "你是一个专业安全顾问。",
+  "personaMarkdown": "## 角色\n你是专业安全顾问",
+  "goals": "识别风险、解释影响并给出处置建议",
+  "replyLogic": "先判断上下文，再输出结论与步骤",
+  "outputFormat": "输出需要包含结论、依据、建议",
+  "constraints": "不要输出未经确认的系统状态",
+  "openingMessage": "你好，我可以协助你进行安全分析。",
+  "presetQuestions": [
+    "检查一下最新的攻击面",
+    "给我这次事件的处置建议"
+  ],
   "temperature": 0.3,
   "maxTokens": 4096,
   "knowledgeBaseIds": [1001, 1002],

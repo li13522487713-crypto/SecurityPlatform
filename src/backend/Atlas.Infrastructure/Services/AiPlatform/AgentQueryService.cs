@@ -4,11 +4,13 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Repositories;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AgentQueryService : IAgentQueryService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AgentRepository _agentRepository;
     private readonly AgentKnowledgeLinkRepository _linkRepository;
     private readonly AgentPluginBindingRepository _pluginBindingRepository;
@@ -59,6 +61,13 @@ public sealed class AgentQueryService : IAgentQueryService
             NullIfEmpty(entity.Description),
             NullIfEmpty(entity.AvatarUrl),
             NullIfEmpty(entity.SystemPrompt),
+            NullIfEmpty(entity.PersonaMarkdown),
+            NullIfEmpty(entity.Goals),
+            NullIfEmpty(entity.ReplyLogic),
+            NullIfEmpty(entity.OutputFormat),
+            NullIfEmpty(entity.Constraints),
+            NullIfEmpty(entity.OpeningMessage),
+            ParsePresetQuestions(entity.PresetQuestionsJson),
             NullIfNonPositive(entity.ModelConfigId),
             NullIfEmpty(entity.ModelName),
             NullIfZero(entity.Temperature),
@@ -122,5 +131,22 @@ public sealed class AgentQueryService : IAgentQueryService
         }
 
         return null;
+    }
+
+    private static IReadOnlyList<string> ParsePresetQuestions(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(json, JsonOptions) ?? Array.Empty<string>();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
     }
 }
