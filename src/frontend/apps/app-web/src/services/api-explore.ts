@@ -111,6 +111,48 @@ export interface AiSearchResponse {
   recentEdits: AiRecentEditItem[];
 }
 
+export interface AiMarketplaceProductListItem {
+  id: number;
+  categoryId: number;
+  categoryName: string;
+  name: string;
+  summary?: string;
+  icon?: string;
+  productType: number;
+  status: number;
+  version: string;
+  downloadCount: number;
+  favoriteCount: number;
+  isFavorited: boolean;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AiMarketplaceProductDetail extends AiMarketplaceProductListItem {
+  description?: string;
+  tags: string[];
+  sourceResourceId?: number;
+  publisherUserId: number;
+}
+
+export interface TemplateDetailItem {
+  id: number;
+  name: string;
+  category: number;
+  schemaJson: string;
+  description: string;
+  tags: string;
+  isBuiltIn: boolean;
+  version: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TemplateInstantiateResult {
+  schemaJson: string;
+}
+
 export async function getAiPluginsPaged(request: PagedRequest, keyword?: string): Promise<PagedResult<AiPluginListItem>> {
   const response = await requestApi<ApiResponse<PagedResult<AiPluginListItem>>>(`/ai-plugins?${toQuery(request, { keyword })}`);
   if (!response.data) {
@@ -226,4 +268,91 @@ export async function getRecentAiEdits(limit = 20): Promise<AiRecentEditItem[]> 
   }
 
   return response.data;
+}
+
+export async function getMarketplaceProductsPaged(
+  request: PagedRequest,
+  filters?: { keyword?: string; categoryId?: number; productType?: number; status?: number }
+): Promise<PagedResult<AiMarketplaceProductListItem>> {
+  const response = await requestApi<ApiResponse<PagedResult<AiMarketplaceProductListItem>>>(
+    `/ai-marketplace/products?${toQuery(request, {
+      keyword: filters?.keyword,
+      categoryId: filters?.categoryId !== undefined ? String(filters.categoryId) : undefined,
+      productType: filters?.productType !== undefined ? String(filters.productType) : undefined,
+      status: filters?.status !== undefined ? String(filters.status) : undefined
+    })}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询市场商品失败");
+  }
+
+  return response.data;
+}
+
+export async function getMarketplaceProductById(id: number): Promise<AiMarketplaceProductDetail> {
+  const response = await requestApi<ApiResponse<AiMarketplaceProductDetail>>(`/ai-marketplace/products/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询市场商品详情失败");
+  }
+
+  return response.data;
+}
+
+export async function favoriteMarketplaceProduct(id: number): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-marketplace/products/${id}/favorite`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "收藏市场商品失败");
+  }
+}
+
+export async function unfavoriteMarketplaceProduct(id: number): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-marketplace/products/${id}/favorite`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "取消收藏市场商品失败");
+  }
+}
+
+export async function markMarketplaceProductDownloaded(id: number): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-marketplace/products/${id}/download`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "记录市场商品下载失败");
+  }
+}
+
+export async function publishMarketplaceProduct(id: number, version: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-marketplace/products/${id}/publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ version })
+  });
+  if (!response.success) {
+    throw new Error(response.message || "发布市场商品失败");
+  }
+}
+
+export async function getTemplateById(id: number): Promise<TemplateDetailItem> {
+  const response = await requestApi<ApiResponse<TemplateDetailItem>>(`/templates/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询模板详情失败");
+  }
+
+  return response.data;
+}
+
+export async function instantiateTemplate(id: number): Promise<TemplateInstantiateResult> {
+  const response = await requestApi<ApiResponse<{ schemaJson?: string; SchemaJson?: string }>>(`/templates/${id}/instantiate`, {
+    method: "POST"
+  });
+  const schemaJson = response.data?.schemaJson ?? response.data?.SchemaJson;
+  if (!response.success || !schemaJson) {
+    throw new Error(response.message || "模板实例化失败");
+  }
+
+  return { schemaJson };
 }

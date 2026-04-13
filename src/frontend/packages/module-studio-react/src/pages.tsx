@@ -143,6 +143,48 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+const EXPLORE_IMPORTED_PLUGIN_STORAGE_KEY = "atlas_explore_imported_plugins";
+
+interface ExploreImportedPluginState {
+  route: string;
+  importedPluginId: number;
+  sourceProductId: number;
+  sourceName: string;
+  importedAt: string;
+}
+
+function readExploreImportedPluginStateMap(): Record<string, ExploreImportedPluginState> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const raw = window.localStorage.getItem(EXPLORE_IMPORTED_PLUGIN_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, ExploreImportedPluginState | string>;
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, value]) => {
+        if (typeof value === "string") {
+          return [key, {
+            route: value,
+            importedPluginId: 0,
+            sourceProductId: Number(key),
+            sourceName: "",
+            importedAt: ""
+          } satisfies ExploreImportedPluginState];
+        }
+
+        return [key, value];
+      })
+    );
+  } catch {
+    return {};
+  }
+}
+
 function tryFormatJson(value?: string): string {
   if (!value) {
     return "{}";
@@ -3417,6 +3459,7 @@ export function PluginsPage({
 }) {
   const [items, setItems] = useState<Array<{ id: number; name: string; category?: string; status: number }>>([]);
   const [keyword, setKeyword] = useState("");
+  const [importedPlugins, setImportedPlugins] = useState<Record<string, ExploreImportedPluginState>>(() => readExploreImportedPluginStateMap());
 
   useEffect(() => {
     void api.listPlugins().then(result => {
@@ -3431,6 +3474,10 @@ export function PluginsPage({
       Toast.error(error instanceof Error ? error.message : "加载插件列表失败。");
     });
   }, [api, keyword]);
+
+  useEffect(() => {
+    setImportedPlugins(readExploreImportedPluginStateMap());
+  }, [items]);
 
   return (
     <Surface
@@ -3455,7 +3502,9 @@ export function PluginsPage({
         <CardGrid
           testId="app-studio-plugins-grid"
           items={items}
-          render={(item) => (
+          render={(item) => {
+            const marketSource = Object.values(importedPlugins).find(source => source.importedPluginId === item.id);
+            return (
             <article key={item.id} className="module-studio__coze-card">
               <div className="module-studio__card-head">
                 <div>
@@ -3465,13 +3514,21 @@ export function PluginsPage({
                 <Tag color={item.status === 1 ? "green" : "blue"}>{item.status === 1 ? "Published" : "Draft"}</Tag>
               </div>
               <p>{item.category || "工作空间插件能力"}</p>
+              {marketSource ? (
+                <Space wrap>
+                  <Tag color="green">来自插件市场</Tag>
+                  <Typography.Text type="tertiary">
+                    来源商品：{marketSource.sourceName || `商品#${marketSource.sourceProductId}`}，导入时间：{formatDate(marketSource.importedAt)}
+                  </Typography.Text>
+                </Space>
+              ) : null}
               <Space wrap>
                 <Button onClick={onOpenLibrary}>在资源库中管理</Button>
                 <Button theme="solid" type="primary" onClick={() => onOpenDetail(item.id)}>打开详情</Button>
                 <Button theme="light" onClick={onOpenExplore}>查看市场</Button>
               </Space>
             </article>
-          )}
+          )}}
         />
       </div>
     </Surface>
@@ -3490,6 +3547,7 @@ export function PluginDetailPage({
 }) {
   const [detail, setDetail] = useState<Awaited<ReturnType<StudioPageProps["api"]["getPluginDetail"]>> | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [importedPlugins, setImportedPlugins] = useState<Record<string, ExploreImportedPluginState>>(() => readExploreImportedPluginStateMap());
 
   async function load() {
     await api.getPluginDetail(pluginId).then(setDetail).catch(error => {
@@ -3500,6 +3558,10 @@ export function PluginDetailPage({
   useEffect(() => {
     void load();
   }, [api, pluginId]);
+
+  useEffect(() => {
+    setImportedPlugins(readExploreImportedPluginStateMap());
+  }, [pluginId]);
 
   async function handlePublish() {
     setPublishing(true);
@@ -3532,6 +3594,7 @@ export function PluginDetailPage({
     1: "OpenAPI 导入",
     2: "内置插件"
   }[detail.sourceType] ?? `类型 ${detail.sourceType}`) : "-";
+  const marketSource = Object.values(importedPlugins).find(source => source.importedPluginId === pluginId);
 
   return (
     <Surface title="插件详情" subtitle="查看插件 API 与基础信息。" testId="app-studio-plugin-detail-page">
@@ -3565,6 +3628,17 @@ export function PluginDetailPage({
                 ]}
               />
             </div>
+            {marketSource ? (
+              <div className="module-studio__coze-inspector-card">
+                <div className="module-studio__card-head">
+                  <strong>市场来源</strong>
+                  <Tag color="green">来自插件市场</Tag>
+                </div>
+                <Typography.Text type="tertiary">
+                  来源商品：{marketSource.sourceName || `商品#${marketSource.sourceProductId}`}，导入时间：{formatDate(marketSource.importedAt)}
+                </Typography.Text>
+              </div>
+            ) : null}
             <div className="module-studio__coze-inspector-card">
               <div className="module-studio__card-head">
                 <strong>发布与规格摘要</strong>

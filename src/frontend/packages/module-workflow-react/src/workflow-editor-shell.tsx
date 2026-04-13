@@ -123,6 +123,50 @@ function formatDateTime(value: string | undefined, locale: "zh-CN" | "en-US"): s
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale);
 }
 
+const EXPLORE_CREATED_TEMPLATE_STORAGE_KEY = "atlas_explore_created_templates";
+
+interface ExploreCreatedTemplateState {
+  route: string;
+  workflowId: string;
+  mode: "workflow" | "chatflow";
+  templateId: number;
+  templateName: string;
+  createdAt: string;
+}
+
+function readExploreCreatedTemplateStateMap(): Record<string, ExploreCreatedTemplateState> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const raw = window.localStorage.getItem(EXPLORE_CREATED_TEMPLATE_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, ExploreCreatedTemplateState | string>;
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, value]) => {
+        if (typeof value === "string") {
+          return [key, {
+            route: value,
+            workflowId: "",
+            mode: "workflow",
+            templateId: Number(key),
+            templateName: "",
+            createdAt: ""
+          } satisfies ExploreCreatedTemplateState];
+        }
+
+        return [key, value];
+      })
+    );
+  } catch {
+    return {};
+  }
+}
+
 function readSearchParam(name: string): string {
   if (typeof window === "undefined") {
     return "";
@@ -260,6 +304,7 @@ export function WorkflowEditorShell({
   const [focusNodeKey, setFocusNodeKey] = useState("");
   const [highlightVariableKey, setHighlightVariableKey] = useState(readSearchParam("variableKey"));
   const [resourceContextMenu, setResourceContextMenu] = useState<ResourceContextMenuState>(null);
+  const [templateSources, setTemplateSources] = useState<Record<string, ExploreCreatedTemplateState>>(() => readExploreCreatedTemplateStateMap());
 
   const canvas = useMemo(() => safeParseCanvas(detail?.canvasJson), [detail?.canvasJson]);
   const activeTab = useMemo(
@@ -267,6 +312,10 @@ export function WorkflowEditorShell({
     [activeTabKey, tabs]
   );
   const isWorkflowTab = activeTab?.kind === "workflow-editor" || activeTab?.kind === "chatflow-editor";
+  const templateSource = useMemo(
+    () => Object.values(templateSources).find(source => source.workflowId === workflowId),
+    [templateSources, workflowId]
+  );
 
   const loadContext = useCallback(async (keyword = "") => {
     setLoading(true);
@@ -302,6 +351,10 @@ export function WorkflowEditorShell({
   useEffect(() => {
     void loadContext();
   }, [loadContext]);
+
+  useEffect(() => {
+    setTemplateSources(readExploreCreatedTemplateStateMap());
+  }, [workflowId, detail?.name]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -1511,6 +1564,13 @@ export function WorkflowEditorShell({
             <div className="module-workflow__coze-workspace-chip"><span className="module-workflow__coze-workspace-dot" /><strong>{activeTab?.title ?? detail?.name ?? workflowId}</strong></div>
             {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "problems", kind: "problems", title: copy.problemsLabel, closable: true })}>{copy.problemsLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "trace-list", kind: "trace-list", title: copy.traceLabel, closable: true })}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "references", kind: "references", title: copy.referencesTitle, closable: true })}>{copy.referencesTab}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button>{mode === "chatflow" ? <Button theme="borderless" onClick={() => emitPanelCommand("openRoleConfig")}>{chatflowRoleLabel}</Button> : null}<Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
           </div>
+          {isWorkflowTab && templateSource ? (
+            <div className="module-workflow__coze-status-strip">
+              <span><Tag color="green">来自模板市场</Tag></span>
+              <span>模板：{templateSource.templateName || `模板#${templateSource.templateId}`}</span>
+              <span>创建时间：{formatDateTime(templateSource.createdAt, locale)}</span>
+            </div>
+          ) : null}
           <div className="module-workflow__coze-editor-surface">{renderActivePanel()}</div>
           {isWorkflowTab ? <div className="module-workflow__coze-status-strip"><span>{copy.versionLabel}: v{detail?.latestVersionNumber ?? 0}</span><span>{copy.testRunLabel}: {processSnapshot?.status ? copy.publishedStatus : copy.draftStatus}</span><span>{copy.updatedAtLabel}: {formatDateTime(detail?.updatedAt, locale)}</span></div> : null}
         </div>

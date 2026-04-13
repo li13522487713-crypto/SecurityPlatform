@@ -226,6 +226,14 @@ export function explorePath(appKey: string, leaf: ExploreLeaf): string {
   return `${appRootPath(appKey)}/explore/${leaf}`;
 }
 
+export function explorePluginDetailPath(appKey: string, productId: string | number): string {
+  return `${explorePath(appKey, "plugin")}/${encodeSegment(productId)}`;
+}
+
+export function exploreTemplateDetailPath(appKey: string, templateId: string | number): string {
+  return `${explorePath(appKey, "template")}/${encodeSegment(templateId)}`;
+}
+
 export function searchPath(appKey: string, keyword: string): string {
   return `${appRootPath(appKey)}/search/${encodeSegment(keyword)}`;
 }

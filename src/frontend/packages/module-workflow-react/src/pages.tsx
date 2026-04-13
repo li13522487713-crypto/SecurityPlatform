@@ -32,6 +32,50 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
+const EXPLORE_CREATED_TEMPLATE_STORAGE_KEY = "atlas_explore_created_templates";
+
+interface ExploreCreatedTemplateState {
+  route: string;
+  workflowId: string;
+  mode: "workflow" | "chatflow";
+  templateId: number;
+  templateName: string;
+  createdAt: string;
+}
+
+function readExploreCreatedTemplateStateMap(): Record<string, ExploreCreatedTemplateState> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const raw = window.localStorage.getItem(EXPLORE_CREATED_TEMPLATE_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, ExploreCreatedTemplateState | string>;
+    return Object.fromEntries(
+      Object.entries(parsed).map(([key, value]) => {
+        if (typeof value === "string") {
+          return [key, {
+            route: value,
+            workflowId: "",
+            mode: "workflow",
+            templateId: Number(key),
+            templateName: "",
+            createdAt: ""
+          } satisfies ExploreCreatedTemplateState];
+        }
+
+        return [key, value];
+      })
+    );
+  } catch {
+    return {};
+  }
+}
+
 function getModeLabel(mode: WorkflowResourceMode, workflowLabel: string, chatflowLabel: string) {
   return mode === "chatflow" ? chatflowLabel : workflowLabel;
 }
@@ -102,6 +146,7 @@ export function WorkflowListPage({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const [createdTemplates, setCreatedTemplates] = useState<Record<string, ExploreCreatedTemplateState>>(() => readExploreCreatedTemplateStateMap());
 
   const load = async () => {
     const result = await api.listWorkflows({ pageIndex: 1, pageSize: 100, keyword, mode, status });
@@ -127,6 +172,10 @@ export function WorkflowListPage({
       }
     });
   }, [api, mode]);
+
+  useEffect(() => {
+    setCreatedTemplates(readExploreCreatedTemplateStateMap());
+  }, [items, mode]);
 
   const filteredItems = useMemo(
     () => items.filter((item) => normalizeItemMode(item) === mode && matchesStatus(item, status)),
@@ -246,6 +295,7 @@ export function WorkflowListPage({
               archived: copy.archivedStatus,
               draft: copy.draftStatus
             });
+            const templateSource = Object.values(createdTemplates).find(source => source.workflowId === item.id);
             return (
               <article key={item.id} className="module-workflow__item" data-row-key={item.id}>
                 <div className="module-workflow__item-main">
@@ -266,6 +316,13 @@ export function WorkflowListPage({
                     <span>{copy.versionLabel}：v{item.latestVersionNumber ?? 0}</span>
                     <span>{copy.publishedAtLabel}：{formatDate(item.publishedAt)}</span>
                   </div>
+                  {templateSource ? (
+                    <div className="module-workflow__item-meta">
+                      <Tag color="green">来自模板市场</Tag>
+                      <span>模板：{templateSource.templateName || `模板#${templateSource.templateId}`}</span>
+                      <span>创建时间：{formatDate(templateSource.createdAt)}</span>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="module-workflow__item-actions">
                   <Button

@@ -150,6 +150,13 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
               {copy.typeLabels[(record.resourceSubType === "table" ? 1 : record.resourceSubType === "image" ? 2 : 0) as KnowledgeBaseType]}
             </Tag>
           ) : null}
+          {record.resourceType === "workflow" ? (
+            <Tag color={record.path.startsWith("/chat_flow/") ? "purple" : "cyan"}>
+              {record.path.startsWith("/chat_flow/")
+                ? copy.workflowModeLabels.chatflow
+                : copy.workflowModeLabels.workflow}
+            </Tag>
+          ) : null}
         </Space>
       )
     },
@@ -193,6 +200,11 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
             return;
           }
 
+          onNavigate(normalizeResourcePath(record.path, appKey, spaceId));
+        };
+
+        const openWorkflowCanvas = (event: MouseEvent) => {
+          event.stopPropagation();
           onNavigate(normalizeResourcePath(record.path, appKey, spaceId));
         };
 
@@ -290,6 +302,11 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
             {record.resourceType === "plugin" ? (
               <Button theme="borderless" onClick={event => void publishPlugin(event)}>
                 {copy.publish}
+              </Button>
+            ) : null}
+            {record.resourceType === "workflow" ? (
+              <Button theme="borderless" onClick={openWorkflowCanvas}>
+                {copy.openCanvas}
               </Button>
             ) : null}
             {record.resourceType === "agent" ? (

@@ -19,6 +19,7 @@ import {
   type AdminModuleApi
 } from "@atlas/module-admin-react";
 import { ExplorePluginsPage, ExploreSearchPage, ExploreTemplatesPage, type ExploreModuleApi } from "@atlas/module-explore-react";
+import { ExplorePluginDetailPage, ExploreTemplateDetailPage } from "@atlas/module-explore-react";
 import {
   AppsPage,
   AgentChatPage,
@@ -55,11 +56,14 @@ import {
   appForbiddenPath,
   appSignPath,
   explorePath,
+  explorePluginDetailPath,
+  exploreTemplateDetailPath,
   inferPrimaryArea,
   replacePathAppKey,
   studioAppsPath,
   studioAppDetailPath,
   studioAppPublishPath,
+  studioAssistantDetailPath,
   studioAssistantToolsPath,
   studioAssistantsPath,
   studioAssistantPublishPath,
@@ -191,14 +195,21 @@ import {
 } from "@/services/api-workspace-ide";
 import {
   getAiPluginBuiltInMetadata,
+  getMarketplaceProductById,
+  getMarketplaceProductsPaged,
   getAiPluginById,
   getAiPluginsPaged,
   createAiPlugin,
   deleteAiPlugin,
+  favoriteMarketplaceProduct,
+  getTemplateById,
   publishAiPlugin,
+  instantiateTemplate,
+  markMarketplaceProductDownloaded,
   getTemplatesPaged,
   getRecentAiEdits,
   searchAi,
+  unfavoriteMarketplaceProduct,
   updateAiPlugin
 } from "@/services/api-explore";
 import {
@@ -261,6 +272,7 @@ import {
   getWorkflowDependencies,
   listWorkflowVersions,
   listWorkflows,
+  saveWorkflowDraft,
   workflowV2Api
 } from "@/services/api-workflow";
 import { getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
@@ -466,14 +478,192 @@ function createAdminApi(appKey: string): AdminModuleApi {
   };
 }
 
-function createExploreApi(): ExploreModuleApi {
+function inferWorkflowModeFromTemplate(detail: { name: string; description?: string; tags?: string; schemaJson?: string }): "workflow" | "chatflow" {
+  const evidence = `${detail.name} ${detail.description ?? ""} ${detail.tags ?? ""} ${detail.schemaJson ?? ""}`.toLowerCase();
+  return evidence.includes("chatflow") || evidence.includes("chat_flow") || evidence.includes("对话")
+    ? "chatflow"
+    : "workflow";
+}
+
+function createExploreApi(appKey: string): ExploreModuleApi {
   return {
-    listPlugins: getAiPluginsPaged,
+    listPlugins: async (request, keyword) => {
+      const result = await getMarketplaceProductsPaged(request, {
+        keyword,
+        productType: 4,
+        status: 1
+      });
+      return {
+        ...result,
+        items: result.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.summary,
+          categoryName: item.categoryName,
+          status: item.status,
+          version: item.version,
+          downloadCount: item.downloadCount,
+          favoriteCount: item.favoriteCount,
+          isFavorited: item.isFavorited,
+          sourceResourceId: undefined,
+          publishedAt: item.publishedAt,
+          updatedAt: item.updatedAt
+        }))
+      };
+    },
+    getPluginDetail: async (productId) => {
+      const detail = await getMarketplaceProductById(productId);
+      const sourcePlugin = detail.sourceResourceId ? await getAiPluginById(detail.sourceResourceId).catch(() => null) : null;
+      return {
+        id: detail.id,
+        name: detail.name,
+        description: detail.description,
+        summary: detail.summary,
+        icon: detail.icon,
+        categoryId: detail.categoryId,
+        categoryName: detail.categoryName,
+        productType: detail.productType,
+        status: detail.status,
+        version: detail.version,
+        downloadCount: detail.downloadCount,
+        favoriteCount: detail.favoriteCount,
+        isFavorited: detail.isFavorited,
+        sourceResourceId: detail.sourceResourceId,
+        publisherUserId: detail.publisherUserId,
+        tags: detail.tags,
+        publishedAt: detail.publishedAt,
+        createdAt: detail.createdAt,
+        updatedAt: detail.updatedAt,
+        sourcePluginName: sourcePlugin?.name,
+        sourcePluginCategory: sourcePlugin?.category,
+        sourcePluginApiCount: sourcePlugin?.apis.length
+      };
+    },
+    favoritePlugin: favoriteMarketplaceProduct,
+    unfavoritePlugin: unfavoriteMarketplaceProduct,
+    importPluginToStudio: async (productId) => {
+      const detail = await getMarketplaceProductById(productId);
+      if (!detail.sourceResourceId) {
+        throw new Error("当前插件市场商品没有关联可导入的源插件。");
+      }
+
+      await markMarketplaceProductDownloaded(productId);
+      const imported = await importLibraryItem({
+        resourceType: "plugin",
+        libraryItemId: detail.sourceResourceId
+      });
+      return {
+        importedPluginId: imported.resourceId,
+        route: studioPluginDetailPath(appKey, imported.resourceId)
+      };
+    },
     listBuiltInPlugins: getAiPluginBuiltInMetadata,
-    listTemplates: getTemplatesPaged,
+    listTemplates: async (request, filters) => {
+      const result = await getTemplatesPaged(request, {
+        keyword: filters?.keyword,
+        category: filters?.category ?? 2
+      });
+      return {
+        ...result,
+        items: result.items.map(item => ({
+          id: Number(item.id),
+          name: item.name,
+          category: item.category,
+          description: item.description,
+          tags: item.tags,
+          version: item.version,
+          updatedAt: item.updatedAt,
+          schemaJson: item.schemaJson
+        }))
+      };
+    },
+    getTemplateDetail: async (templateId) => {
+      const detail = await getTemplateById(templateId);
+      return {
+        id: Number(detail.id),
+        name: detail.name,
+        category: detail.category,
+        schemaJson: detail.schemaJson,
+        description: detail.description,
+        tags: detail.tags,
+        isBuiltIn: detail.isBuiltIn,
+        version: detail.version,
+        createdAt: detail.createdAt,
+        updatedAt: detail.updatedAt
+      };
+    },
+    createWorkflowFromTemplate: async (templateId) => {
+      const detail = await getTemplateById(templateId);
+      const instantiated = await instantiateTemplate(templateId);
+      const mode = inferWorkflowModeFromTemplate({
+        name: detail.name,
+        description: detail.description,
+        tags: detail.tags,
+        schemaJson: instantiated.schemaJson
+      });
+      const createResult = await createWorkflowDefinition({
+        name: detail.name,
+        description: detail.description || undefined,
+        mode: mode === "chatflow" ? 1 : 0
+      });
+      const workflowId = createResult.data ?? "";
+      if (!workflowId) {
+        throw new Error("创建工作流失败。");
+      }
+
+      await saveWorkflowDraft(workflowId, {
+        canvasJson: instantiated.schemaJson
+      });
+
+      return {
+        workflowId,
+        mode,
+        route: mode === "chatflow"
+          ? `/apps/${encodeURIComponent(appKey)}/chat_flow/${encodeURIComponent(workflowId)}/editor`
+          : `/apps/${encodeURIComponent(appKey)}/work_flow/${encodeURIComponent(workflowId)}/editor`
+      };
+    },
     search: searchAi,
     recent: getRecentAiEdits
   };
+}
+
+function normalizeExploreLocalPath(appKey: string, path: string): string {
+  if (!path) {
+    return workspaceDevelopPath(appKey);
+  }
+
+  const agentDetailMatch = path.match(/^\/ai\/agents\/([^/]+)\/edit$/);
+  if (agentDetailMatch) {
+    return studioAssistantDetailPath(appKey, agentDetailMatch[1]);
+  }
+
+  const appDetailMatch = path.match(/^\/ai\/apps\/([^/]+)\/edit$/);
+  if (appDetailMatch) {
+    return studioAppDetailPath(appKey, appDetailMatch[1]);
+  }
+
+  if (path.startsWith("/ai/knowledge-bases/")) {
+    return `${studioKnowledgeBasesPath(appKey)}/${path.slice("/ai/knowledge-bases/".length)}`;
+  }
+
+  if (path.startsWith("/plugins/")) {
+    return `${studioPluginsPath(appKey)}/${path.slice("/plugins/".length)}`;
+  }
+
+  if (path.startsWith("/databases/")) {
+    return `${studioDatabasesPath(appKey)}/${path.slice("/databases/".length)}`;
+  }
+
+  if (path.startsWith("/work_flow/") || path.startsWith("/chat_flow/")) {
+    return `/apps/${encodeURIComponent(appKey)}${path}`;
+  }
+
+  if (path.startsWith("/apps/")) {
+    return path;
+  }
+
+  return `/apps/${encodeURIComponent(appKey)}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 interface ParsedSseFrame {
@@ -1036,7 +1226,7 @@ function createWorkflowModuleApi(appKey: string): WorkflowModuleApi {
 function useAppApis(appKey: string) {
   return useMemo(() => ({
     adminApi: createAdminApi(appKey),
-    exploreApi: createExploreApi(),
+    exploreApi: createExploreApi(appKey),
     studioApi: createStudioApi(appKey),
     workflowApi: createWorkflowModuleApi(appKey)
   }), [appKey]);
@@ -1829,21 +2019,68 @@ function ExplorePluginsRoute() {
   const { appKey = "" } = useParams();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
-  return <ExplorePluginsPage api={exploreApi} locale={locale} />;
+  const navigate = useNavigate();
+  return (
+    <ExplorePluginsPage
+      api={exploreApi}
+      locale={locale}
+      onOpenDetail={productId => navigate(explorePluginDetailPath(appKey, productId))}
+      onOpenImported={route => navigate(route)}
+    />
+  );
 }
 
 function ExploreTemplatesRoute() {
   const { appKey = "" } = useParams();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
-  return <ExploreTemplatesPage api={exploreApi} locale={locale} />;
+  const navigate = useNavigate();
+  return (
+    <ExploreTemplatesPage
+      api={exploreApi}
+      locale={locale}
+      onOpenDetail={templateId => navigate(exploreTemplateDetailPath(appKey, templateId))}
+      onOpenCreated={route => navigate(route)}
+    />
+  );
 }
 
 function ExploreSearchRoute() {
   const { appKey = "", word = "" } = useParams();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
-  return <ExploreSearchPage api={exploreApi} locale={locale} keyword={decodeURIComponent(word)} />;
+  const navigate = useNavigate();
+  return <ExploreSearchPage api={exploreApi} locale={locale} keyword={decodeURIComponent(word)} onOpenLocal={path => navigate(normalizeExploreLocalPath(appKey, path))} />;
+}
+
+function ExplorePluginDetailRoute() {
+  const { appKey = "", productId = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { exploreApi } = useAppApis(appKey);
+  const navigate = useNavigate();
+  return (
+    <ExplorePluginDetailPage
+      api={exploreApi}
+      locale={locale}
+      productId={Number(productId)}
+      onOpenImported={route => navigate(route)}
+    />
+  );
+}
+
+function ExploreTemplateDetailRoute() {
+  const { appKey = "", templateId = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { exploreApi } = useAppApis(appKey);
+  const navigate = useNavigate();
+  return (
+    <ExploreTemplateDetailPage
+      api={exploreApi}
+      locale={locale}
+      templateId={Number(templateId)}
+      onOpenCreated={route => navigate(route)}
+    />
+  );
 }
 
 export function AppRouter() {
@@ -1886,7 +2123,9 @@ export function AppRouter() {
           <Route path="space/:spaceId/library" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><LibraryRoute /></ProtectedPage>} />
           <Route path="space/:spaceId/knowledge/:id" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><KnowledgeDetailRoute /></ProtectedPage>} />
           <Route path="space/:spaceId/knowledge/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><KnowledgeUploadRoute /></ProtectedPage>} />
+          <Route path="explore/plugin/:productId" element={<ExplorePluginDetailRoute />} />
           <Route path="explore/plugin" element={<ExplorePluginsRoute />} />
+          <Route path="explore/template/:templateId" element={<ExploreTemplateDetailRoute />} />
           <Route path="explore/template" element={<ExploreTemplatesRoute />} />
           <Route path="search/:word" element={<ExploreSearchRoute />} />
           <Route path="entry" element={<EntryGatewayPage />} />

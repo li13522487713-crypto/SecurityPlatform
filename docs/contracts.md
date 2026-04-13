@@ -222,6 +222,34 @@
   - `resourceType`
   - `libraryItemId`
 
+### Explore / Marketplace 收口语义
+
+- 插件市场前端统一消费：
+  - `GET /api/v1/ai-marketplace/products`
+  - `GET /api/v1/ai-marketplace/products/{id}`
+  - `POST /api/v1/ai-marketplace/products/{id}/favorite`
+  - `DELETE /api/v1/ai-marketplace/products/{id}/favorite`
+  - `POST /api/v1/ai-marketplace/products/{id}/download`
+- 插件市场只展示 `productType = Plugin` 且已发布商品；导入到 Studio 时：
+  1. 先记录 `download`
+  2. 再复用 `POST /api/v1/ai-workspaces/library/imports`
+  3. 导入成功后前端跳转到 `studio/plugins/:id`
+- 模板市场当前仍消费：
+  - `GET /api/v1/templates`
+  - `GET /api/v1/templates/{id}`
+  - `POST /api/v1/templates/{id}/instantiate`
+- 模板市场默认只展示 `TemplateCategory.Flow`；一键创建工作流时：
+  1. 先读取模板详情
+  2. 调用 `instantiate` 获取 `schemaJson`
+  3. 复用 `POST /api/v2/workflows` 创建草稿
+  4. 复用 `PUT /api/v2/workflows/{id}/draft` 保存 `canvasJson`
+  5. 成功后跳转到 `work_flow/:id/editor` 或 `chat_flow/:id/editor`
+- `app-web` 前端收口路由：
+  - `/apps/:appKey/explore/plugin`
+  - `/apps/:appKey/explore/plugin/:productId`
+  - `/apps/:appKey/explore/template`
+  - `/apps/:appKey/explore/template/:templateId`
+
 ### AI 数据库补充契约
 
 - `POST /api/v1/ai-databases/schema-validations`

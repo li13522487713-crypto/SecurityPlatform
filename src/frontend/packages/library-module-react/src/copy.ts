@@ -18,6 +18,7 @@ type CopyTree = {
   updatedAt: string;
   actions: string;
   open: string;
+  openCanvas: string;
   openWorkflow: string;
   openPublish: string;
   publish: string;
@@ -63,6 +64,10 @@ type CopyTree = {
   failed: string;
   uploadProcessingHint: string;
   typeLabels: Record<KnowledgeBaseType, string>;
+  workflowModeLabels: {
+    workflow: string;
+    chatflow: string;
+  };
   resourceLabels: Record<ResourceType, string>;
   statusLabels: Record<string, string>;
   docStatusLabels: Record<DocumentProcessingStatus, string>;
@@ -86,6 +91,7 @@ const zhCN: CopyTree = {
   updatedAt: "最近更新",
   actions: "操作",
   open: "打开",
+  openCanvas: "打开画布",
   openWorkflow: "打开工作流",
   openPublish: "进入发布页",
   publish: "发布插件",
@@ -135,6 +141,10 @@ const zhCN: CopyTree = {
     1: "表格知识",
     2: "图片知识"
   },
+  workflowModeLabels: {
+    workflow: "标准工作流",
+    chatflow: "对话流"
+  },
   resourceLabels: {
     "agent": "Agent",
     "knowledge-base": "知识库",
@@ -177,6 +187,7 @@ const enUS: CopyTree = {
   updatedAt: "Updated",
   actions: "Actions",
   open: "Open",
+  openCanvas: "Open Canvas",
   openWorkflow: "Open Workflow",
   openPublish: "Open Publish",
   publish: "Publish Plugin",
@@ -225,6 +236,10 @@ const enUS: CopyTree = {
     0: "Text Knowledge",
     1: "Table Knowledge",
     2: "Image Knowledge"
+  },
+  workflowModeLabels: {
+    workflow: "Workflow",
+    chatflow: "Chatflow"
   },
   resourceLabels: {
     "agent": "Agent",
