@@ -30,7 +30,11 @@ import type {
   ChatMessageItem,
   ConversationItem,
   StudioApplicationCreateRequest,
+  StudioApplicationConversationTemplate,
+  StudioApplicationConversationTemplateCreateRequest,
+  StudioApplicationPublishRecord,
   StudioApplicationSummary,
+  StudioAssistantPublication,
   StudioWorkspaceOverview,
   DevelopFocus,
   DevelopResourceSummary,
@@ -587,6 +591,8 @@ export function DevelopPage({
   onOpenAgentChat,
   onOpenModelConfigs,
   onOpenLibrary,
+  onOpenApplicationDetail,
+  onOpenApplicationPublish,
   onCreateWorkflow,
   onCreateChatflow
 }: StudioPageProps & {
@@ -605,6 +611,8 @@ export function DevelopPage({
   onOpenAgentChat: () => void;
   onOpenModelConfigs: () => void;
   onOpenLibrary: () => void;
+  onOpenApplicationDetail: (appId: string) => void;
+  onOpenApplicationPublish: (appId: string) => void;
   onCreateWorkflow: () => void;
   onCreateChatflow: () => void;
 }) {
@@ -621,11 +629,20 @@ export function DevelopPage({
   const [applicationDialogVisible, setApplicationDialogVisible] = useState(false);
   const [applicationEditing, setApplicationEditing] = useState<StudioApplicationSummary | null>(null);
   const [selectedApplicationId, setSelectedApplicationId] = useState("");
+  const [selectedApplicationDetail, setSelectedApplicationDetail] = useState<StudioApplicationSummary | null>(null);
+  const [selectedApplicationPublishRecords, setSelectedApplicationPublishRecords] = useState<StudioApplicationPublishRecord[]>([]);
+  const [selectedApplicationConversationTemplates, setSelectedApplicationConversationTemplates] = useState<StudioApplicationConversationTemplate[]>([]);
+  const [applicationDetailLoading, setApplicationDetailLoading] = useState(false);
   const [agentDraft, setAgentDraft] = useState({ name: "", description: "" });
   const [applicationDraft, setApplicationDraft] = useState<StudioApplicationCreateRequest>({
     name: "",
     description: "",
     icon: ""
+  });
+  const [applicationTemplateDraft, setApplicationTemplateDraft] = useState<StudioApplicationConversationTemplateCreateRequest>({
+    name: "",
+    createMethod: "manual",
+    isDefault: false
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -709,6 +726,54 @@ export function DevelopPage({
     () => applications.find(item => item.id === selectedApplicationId) ?? applications[0] ?? null,
     [applications, selectedApplicationId]
   );
+  const selectedApplicationView = selectedApplicationDetail ?? selectedApplication;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSelectedApplicationDetail(appId: string) {
+      setApplicationDetailLoading(true);
+      try {
+        const [detail, publishRecords, templates] = await Promise.all([
+          api.getApplication(appId),
+          api.getApplicationPublishRecords(appId),
+          api.getApplicationConversationTemplates(appId)
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setSelectedApplicationDetail(detail);
+        setSelectedApplicationPublishRecords(publishRecords);
+        setSelectedApplicationConversationTemplates(templates);
+      } catch (error) {
+        if (!cancelled) {
+          setSelectedApplicationDetail(null);
+          setSelectedApplicationPublishRecords([]);
+          setSelectedApplicationConversationTemplates([]);
+          Toast.error(error instanceof Error ? error.message : "加载应用详情失败。");
+        }
+      } finally {
+        if (!cancelled) {
+          setApplicationDetailLoading(false);
+        }
+      }
+    }
+
+    if (selectedApplication?.id) {
+      void loadSelectedApplicationDetail(selectedApplication.id);
+    } else {
+      setSelectedApplicationDetail(null);
+      setSelectedApplicationPublishRecords([]);
+      setSelectedApplicationConversationTemplates([]);
+      setApplicationDetailLoading(false);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, selectedApplication?.id]);
 
   const recentResources = useMemo(() => {
     return [...workspaceResources]
@@ -894,6 +959,70 @@ export function DevelopPage({
     });
   }
 
+  async function handlePublishApplication(item: StudioApplicationSummary) {
+    const releaseNote = window.prompt("请输入发布说明（可选）", "") ?? "";
+    try {
+      await api.publishApplication(item.id, releaseNote.trim() || undefined);
+      const [detail, publishRecords, templates] = await Promise.all([
+        api.getApplication(item.id),
+        api.getApplicationPublishRecords(item.id),
+        api.getApplicationConversationTemplates(item.id)
+      ]);
+      setSelectedApplicationDetail(detail);
+      setSelectedApplicationPublishRecords(publishRecords);
+      setSelectedApplicationConversationTemplates(templates);
+      Toast.success("应用已发布。");
+      await load();
+      setSelectedApplicationId(item.id);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "发布应用失败。");
+    }
+  }
+
+  async function handleCreateApplicationConversationTemplate() {
+    if (!selectedApplication?.id) {
+      Toast.warning("请先选择一个应用。");
+      return;
+    }
+
+    if (!applicationTemplateDraft.name.trim()) {
+      Toast.warning("请先填写会话模板名称。");
+      return;
+    }
+
+    try {
+      await api.createApplicationConversationTemplate(selectedApplication.id, {
+        ...applicationTemplateDraft,
+        name: applicationTemplateDraft.name.trim()
+      });
+      Toast.success("会话模板已创建。");
+      setApplicationTemplateDraft({
+        name: "",
+        createMethod: "manual",
+        isDefault: false
+      });
+      const templates = await api.getApplicationConversationTemplates(selectedApplication.id);
+      setSelectedApplicationConversationTemplates(templates);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "创建会话模板失败。");
+    }
+  }
+
+  async function handleDeleteApplicationConversationTemplate(templateId: string) {
+    if (!selectedApplication?.id) {
+      return;
+    }
+
+    try {
+      await api.deleteApplicationConversationTemplate(selectedApplication.id, templateId);
+      Toast.success("会话模板已删除。");
+      const templates = await api.getApplicationConversationTemplates(selectedApplication.id);
+      setSelectedApplicationConversationTemplates(templates);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "删除会话模板失败。");
+    }
+  }
+
   async function handleToggleFavorite(resource: WorkspaceIdeResource) {
     try {
       await api.toggleWorkspaceFavorite(resource.resourceType, resource.resourceId, !resource.isFavorite);
@@ -1051,7 +1180,8 @@ export function DevelopPage({
                       <p>{item.description || "AI 应用将智能体、工作流和提示模板组织成统一交付入口。"}</p>
                       <span className="module-studio__meta">最近更新：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
                       <div className="module-studio__actions">
-                        <Button onClick={() => setSelectedApplicationId(item.id)}>查看详情</Button>
+                        <Button onClick={() => setSelectedApplicationId(item.id)}>侧边栏详情</Button>
+                        <Button theme="light" onClick={() => onOpenApplicationDetail(item.id)}>详情页</Button>
                         <Button
                           theme="solid"
                           type="primary"
@@ -1309,28 +1439,118 @@ export function DevelopPage({
           <aside className="module-studio__coze-board-side">
             <section className="module-studio__coze-sidepanel">
               <Typography.Title heading={6}>应用详情</Typography.Title>
-              {selectedApplication ? (
+              {selectedApplicationView ? (
                 <div className="module-studio__stack">
-                  <Tag color={selectedApplication.status?.toLowerCase() === "published" ? "green" : "blue"}>
-                    {selectedApplication.status || "Draft"}
+                  <Tag color={selectedApplicationView.status?.toLowerCase() === "published" ? "green" : "blue"}>
+                    {selectedApplicationView.status || "Draft"}
                   </Tag>
-                  <strong>{selectedApplication.name}</strong>
-                  <Typography.Text type="tertiary">{selectedApplication.description || "当前应用还没有补充描述。"}</Typography.Text>
-                  <span className="module-studio__meta">最近更新：{formatDate(selectedApplication.lastEditedAt || selectedApplication.updatedAt)}</span>
+                  <strong>{selectedApplicationView.name}</strong>
+                  <Typography.Text type="tertiary">{selectedApplicationView.description || "当前应用还没有补充描述。"}</Typography.Text>
+                  <span className="module-studio__meta">最近更新：{formatDate(selectedApplicationView.lastEditedAt || selectedApplicationView.updatedAt)}</span>
                   <Space wrap>
                     <Button
                       theme="solid"
                       type="primary"
                       onClick={() => {
-                        if (selectedApplication.workflowId) {
-                          onOpenWorkflow(selectedApplication.workflowId);
+                        if (selectedApplicationView.workflowId) {
+                          onOpenWorkflow(selectedApplicationView.workflowId);
                         }
                       }}
                     >
                       进入工作流 IDE
                     </Button>
-                    <Button onClick={() => openEditApplicationDialog(selectedApplication)}>编辑应用</Button>
+                    <Button onClick={() => openEditApplicationDialog(selectedApplicationView)}>编辑应用</Button>
+                    <Button theme="light" type="tertiary" onClick={() => void handlePublishApplication(selectedApplicationView)}>
+                      发布应用
+                    </Button>
+                    <Button theme="borderless" onClick={() => onOpenApplicationPublish(selectedApplicationView.id)}>
+                      打开发布页
+                    </Button>
                   </Space>
+
+                  {applicationDetailLoading ? (
+                    <Typography.Text type="tertiary">正在加载应用发布信息…</Typography.Text>
+                  ) : null}
+
+                  <div className="module-studio__coze-inspector-card">
+                    <span>发布记录</span>
+                    {selectedApplicationPublishRecords.length === 0 ? (
+                      <Typography.Text type="tertiary">当前还没有发布记录。</Typography.Text>
+                    ) : (
+                      <div className="module-studio__stack">
+                        {selectedApplicationPublishRecords.slice(0, 3).map(record => (
+                          <div key={record.id} className="module-studio__coze-linkrow">
+                            <span>{record.version}</span>
+                            <strong>{formatDate(record.createdAt)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="module-studio__coze-inspector-card">
+                    <div className="module-studio__card-head">
+                      <span>会话模板</span>
+                      <Tag color="light-blue">{selectedApplicationConversationTemplates.length}</Tag>
+                    </div>
+                    <div className="module-studio__stack">
+                      <Input
+                        value={applicationTemplateDraft.name}
+                        onChange={value => setApplicationTemplateDraft(current => ({ ...current, name: value }))}
+                        placeholder="新建会话模板名称"
+                      />
+                      <Space wrap>
+                        <Select
+                          value={applicationTemplateDraft.createMethod}
+                          optionList={[
+                            { label: "手动创建", value: "manual" },
+                            { label: "节点生成", value: "node" }
+                          ]}
+                          onChange={value =>
+                            setApplicationTemplateDraft(current => ({
+                              ...current,
+                              createMethod: String(value)
+                            }))
+                          }
+                        />
+                        <Switch
+                          checked={Boolean(applicationTemplateDraft.isDefault)}
+                          onChange={checked =>
+                            setApplicationTemplateDraft(current => ({
+                              ...current,
+                              isDefault: checked
+                            }))
+                          }
+                        />
+                        <Typography.Text type="tertiary">默认模板</Typography.Text>
+                      </Space>
+                      <Button onClick={() => void handleCreateApplicationConversationTemplate()}>
+                        新建模板
+                      </Button>
+                      {selectedApplicationConversationTemplates.length === 0 ? (
+                        <Typography.Text type="tertiary">当前还没有会话模板。</Typography.Text>
+                      ) : (
+                        selectedApplicationConversationTemplates.slice(0, 4).map(template => (
+                          <div key={template.id} className="module-studio__coze-linkrow">
+                            <div>
+                              <strong>{template.name}</strong>
+                              <div className="module-studio__meta">
+                                {template.createMethod} / v{template.version}
+                                {template.isDefault ? " / 默认" : ""}
+                              </div>
+                            </div>
+                            <Button
+                              theme="borderless"
+                              type="danger"
+                              onClick={() => void handleDeleteApplicationConversationTemplate(template.id)}
+                            >
+                              删除
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <Empty title="暂无应用" image={null} />
@@ -1447,8 +1667,159 @@ export function DevelopPage({
   );
 }
 
-export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) {
+export function AssistantsPage({
+  api,
+  onOpenDetail,
+  onOpenPublish
+}: StudioPageProps & {
+  onOpenDetail: (assistantId: string) => void;
+  onOpenPublish: (assistantId: string) => void;
+}) {
+  const [items, setItems] = useState<AgentListItem[]>([]);
+  const [keyword, setKeyword] = useState("");
+
+  useEffect(() => {
+    void api.listAgents({ pageIndex: 1, pageSize: 50, keyword: keyword.trim() || undefined }).then(result => {
+      setItems(result.items);
+    }).catch(error => {
+      Toast.error(error instanceof Error ? error.message : "加载智能体列表失败。");
+    });
+  }, [api, keyword]);
+
+  return (
+    <Surface
+      title="智能体中心"
+      subtitle="从这里进入智能体详情与发布页面。"
+      testId="app-studio-assistants-page"
+      toolbar={
+        <Input
+          value={keyword}
+          onChange={setKeyword}
+          placeholder="搜索智能体"
+          showClear
+          data-testid="app-studio-assistants-search"
+        />
+      }
+    >
+      <CardGrid
+        testId="app-studio-assistants-grid"
+        items={items}
+        render={(item: AgentListItem) => (
+          <article key={item.id} className="module-studio__coze-card">
+            <div className="module-studio__card-head">
+              <div>
+                <Tag color="cyan">Agent</Tag>
+                <strong>{item.name}</strong>
+              </div>
+              <Tag color={item.status?.toLowerCase() === "published" ? "green" : "blue"}>
+                {item.status || "Draft"}
+              </Tag>
+            </div>
+            <p>{item.description || "智能体设计、调试与发布。"}</p>
+            <span className="module-studio__meta">
+              创建时间：{formatDate(item.createdAt)} / 版本：v{item.publishVersion ?? 0}
+            </span>
+            <Space wrap>
+              <Button theme="solid" type="primary" onClick={() => onOpenDetail(item.id)}>
+                进入详情
+              </Button>
+              <Button onClick={() => onOpenPublish(item.id)}>
+                进入发布页
+              </Button>
+            </Space>
+          </article>
+        )}
+      />
+    </Surface>
+  );
+}
+
+export function AppsPage({
+  api,
+  onOpenDetail,
+  onOpenPublish,
+  onOpenWorkflow
+}: StudioPageProps & {
+  onOpenDetail: (appId: string) => void;
+  onOpenPublish: (appId: string) => void;
+  onOpenWorkflow?: (workflowId: string) => void;
+}) {
+  const [items, setItems] = useState<WorkspaceIdeResource[]>([]);
+  const [keyword, setKeyword] = useState("");
+
+  useEffect(() => {
+    void api.listWorkspaceResources({
+      resourceType: "app",
+      pageIndex: 1,
+      pageSize: 100,
+      keyword: keyword.trim() || undefined
+    }).then(result => {
+      setItems(result.items);
+    }).catch(error => {
+      Toast.error(error instanceof Error ? error.message : "加载应用列表失败。");
+    });
+  }, [api, keyword]);
+
+  return (
+    <Surface
+      title="应用中心"
+      subtitle="从这里进入应用详情、工作流和发布页面。"
+      testId="app-studio-apps-page"
+      toolbar={
+        <Input
+          value={keyword}
+          onChange={setKeyword}
+          placeholder="搜索应用"
+          showClear
+          data-testid="app-studio-apps-search"
+        />
+      }
+    >
+      <CardGrid
+        testId="app-studio-apps-grid"
+        items={items}
+        render={(item: WorkspaceIdeResource) => (
+          <article key={`${item.resourceType}-${item.resourceId}`} className="module-studio__coze-card">
+            <div className="module-studio__card-head">
+              <div>
+                <Tag color="light-blue">应用</Tag>
+                <strong>{item.name}</strong>
+              </div>
+              <Tag color={item.publishStatus?.toLowerCase() === "published" ? "green" : "blue"}>
+                {item.publishStatus || item.status || "Draft"}
+              </Tag>
+            </div>
+            <p>{item.description || "应用资源编排与发布。"}</p>
+            <span className="module-studio__meta">
+              最近更新：{formatDate(item.lastEditedAt || item.updatedAt)} {item.badge ? ` / ${item.badge}` : ""}
+            </span>
+            <Space wrap>
+              <Button theme="solid" type="primary" onClick={() => onOpenDetail(item.resourceId)}>
+                进入详情
+              </Button>
+              <Button onClick={() => onOpenPublish(item.resourceId)}>
+                进入发布页
+              </Button>
+              {item.linkedWorkflowId && onOpenWorkflow ? (
+                <Button theme="light" onClick={() => onOpenWorkflow(item.linkedWorkflowId!)}>
+                  打开工作流
+                </Button>
+              ) : null}
+            </Space>
+          </article>
+        )}
+      />
+    </Surface>
+  );
+}
+
+export function BotIdePage({
+  api,
+  botId,
+  onOpenPublish
+}: StudioPageProps & { botId: string; onOpenPublish?: () => void }) {
   const [detail, setDetail] = useState<AgentDetail | null>(null);
+  const [publications, setPublications] = useState<StudioAssistantPublication[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -1487,6 +1858,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const [streamingAssistant, setStreamingAssistant] = useState("");
   const [thoughts, setThoughts] = useState<string[]>([]);
   const [lastTrace, setLastTrace] = useState<WorkbenchTrace | null>(null);
+  const [publicationLoading, setPublicationLoading] = useState(false);
   const [workbenchLoading, setWorkbenchLoading] = useState(true);
   const [workbenchError, setWorkbenchError] = useState<string | null>(null);
   const [autosaveHint, setAutosaveHint] = useState("草稿已同步");
@@ -1581,11 +1953,13 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     const requestId = ++workbenchRequestIdRef.current;
     botHydratingRef.current = true;
     setWorkbenchLoading(true);
+    setPublicationLoading(true);
     setWorkbenchError(null);
 
     try {
-      const [nextDetail, modelResult, workflows, plugins, knowledgeBases, databases, variables] = await Promise.all([
+      const [nextDetail, nextPublications, modelResult, workflows, plugins, knowledgeBases, databases, variables] = await Promise.all([
         api.getAgent(botId),
+        api.getAgentPublications(botId),
         api.listModelConfigs(),
         api.listWorkflows({ status: "all" }),
         api.listPlugins(),
@@ -1599,6 +1973,7 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       }
 
       setDetail(nextDetail);
+      setPublications(nextPublications);
       setName(nextDetail.name);
       setDescription(nextDetail.description || "");
       setAvatarUrl(nextDetail.avatarUrl || "");
@@ -1748,9 +2123,11 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       setWorkbenchError(message);
       setMessages([]);
       setLastTrace(null);
+      setPublications([]);
     } finally {
       if (requestId === workbenchRequestIdRef.current) {
         setWorkbenchLoading(false);
+        setPublicationLoading(false);
         botHydratingRef.current = false;
       }
     }
@@ -2090,6 +2467,52 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       Toast.success(`已绑定工作流：${binding.workflowName || selectedWorkflow?.name || workflowId}`);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : "绑定工作流失败。");
+    }
+  }
+
+  async function handlePublishAgent() {
+    const releaseNote = window.prompt("请输入智能体发布说明（可选）", "") ?? "";
+    try {
+      const result = await api.publishAgent(botId, releaseNote.trim() || undefined);
+      setDetail(current => current ? {
+        ...current,
+        status: "Published"
+      } : current);
+      setPublications(current => [
+        {
+          id: result.publicationId,
+          agentId: result.agentId,
+          version: result.version,
+          embedToken: result.embedToken,
+          embedTokenExpiresAt: result.embedTokenExpiresAt,
+          isActive: true,
+          publishedByUserId: "",
+          createdAt: new Date().toISOString()
+        },
+        ...current.map(item => ({ ...item, isActive: false }))
+      ]);
+      Toast.success(`智能体已发布为 v${result.version}`);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "发布智能体失败。");
+    }
+  }
+
+  async function handleRegenerateEmbedToken() {
+    try {
+      const result = await api.regenerateAgentEmbedToken(botId);
+      setPublications(current => current.map(item =>
+        item.version === result.version
+          ? {
+              ...item,
+              embedToken: result.embedToken,
+              embedTokenExpiresAt: result.embedTokenExpiresAt,
+              isActive: true
+            }
+          : item
+      ));
+      Toast.success("嵌入令牌已刷新。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "刷新嵌入令牌失败。");
     }
   }
 
@@ -2734,6 +3157,49 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
             />
           </div>
 
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <span>发布与嵌入</span>
+              <Space>
+                <Button theme="light" type="tertiary" onClick={() => void handlePublishAgent()} disabled={saving || workbenchLoading}>
+                  发布
+                </Button>
+                {onOpenPublish ? (
+                  <Button theme="borderless" onClick={onOpenPublish}>
+                    打开发布页
+                  </Button>
+                ) : null}
+                <Button theme="borderless" onClick={() => void handleRegenerateEmbedToken()} disabled={publications.length === 0 || publicationLoading}>
+                  刷新令牌
+                </Button>
+              </Space>
+            </div>
+            {publicationLoading ? (
+              <Typography.Text type="tertiary">正在加载发布记录…</Typography.Text>
+            ) : publications.length === 0 ? (
+              <Typography.Text type="tertiary">当前还没有发布记录。</Typography.Text>
+            ) : (
+              <div className="module-studio__stack">
+                {publications.slice(0, 3).map(item => (
+                  <div key={item.id} className="module-studio__coze-linkrow">
+                    <div>
+                      <strong>v{item.version}</strong>
+                      <div className="module-studio__meta">
+                        {item.isActive ? "当前激活" : "历史版本"} / {formatDate(item.createdAt)}
+                      </div>
+                      <div className="module-studio__meta">
+                        Token: {item.embedToken ? `${item.embedToken.slice(0, 12)}...` : "-"}
+                      </div>
+                    </div>
+                    <Tag color={item.isActive ? "green" : "grey"}>
+                      {item.isActive ? "Active" : "Archived"}
+                    </Tag>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="module-studio__message-list" data-testid="app-bot-ide-messages">
             {messages.length === 0 ? (
               <Empty title="暂无会话消息" image={null} />
@@ -2916,6 +3382,407 @@ export function AiAssistantPage({ api }: StudioPageProps) {
         <textarea value={description} onChange={event => setDescription(event.target.value)} rows={8} className="module-studio__textarea" />
         <Button onClick={() => void api.generateAssistant(kind, description).then(next => setResult(next?.result || ""))}>Generate</Button>
         <textarea value={result} rows={10} readOnly className="module-studio__textarea" />
+      </div>
+    </Surface>
+  );
+}
+
+export function AppDetailPage({
+  api,
+  appId,
+  onOpenWorkflow,
+  onOpenPublish
+}: StudioPageProps & {
+  appId: string;
+  onOpenWorkflow?: (workflowId: string) => void;
+  onOpenPublish?: () => void;
+}) {
+  const [detail, setDetail] = useState<StudioApplicationSummary | null>(null);
+  const [publishRecords, setPublishRecords] = useState<StudioApplicationPublishRecord[]>([]);
+  const [templates, setTemplates] = useState<StudioApplicationConversationTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [templateDraft, setTemplateDraft] = useState<StudioApplicationConversationTemplateCreateRequest>({
+    name: "",
+    createMethod: "manual",
+    isDefault: false
+  });
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [nextDetail, nextRecords, nextTemplates] = await Promise.all([
+        api.getApplication(appId),
+        api.getApplicationPublishRecords(appId),
+        api.getApplicationConversationTemplates(appId)
+      ]);
+      setDetail(nextDetail);
+      setPublishRecords(nextRecords);
+      setTemplates(nextTemplates);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载应用详情失败。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, [api, appId]);
+
+  async function handleCreateTemplate() {
+    if (!templateDraft.name.trim()) {
+      Toast.warning("请先填写会话模板名称。");
+      return;
+    }
+
+    try {
+      await api.createApplicationConversationTemplate(appId, {
+        ...templateDraft,
+        name: templateDraft.name.trim()
+      });
+      Toast.success("会话模板已创建。");
+      setTemplateDraft({
+        name: "",
+        createMethod: "manual",
+        isDefault: false
+      });
+      setTemplates(await api.getApplicationConversationTemplates(appId));
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "创建会话模板失败。");
+    }
+  }
+
+  async function handleDeleteTemplate(templateId: string) {
+    try {
+      await api.deleteApplicationConversationTemplate(appId, templateId);
+      Toast.success("会话模板已删除。");
+      setTemplates(await api.getApplicationConversationTemplates(appId));
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "删除会话模板失败。");
+    }
+  }
+
+  return (
+    <Surface title="应用详情" subtitle="应用资源、发布记录与会话模板。" testId="app-studio-app-detail-page">
+      {loading ? (
+        <Banner type="info" bordered={false} fullMode={false} title="正在加载应用详情" description="请稍候，正在同步发布记录与会话模板。" />
+      ) : null}
+      {detail ? (
+        <div className="module-studio__chat-layout">
+          <section className="module-studio__coze-agent-panel">
+            <div className="module-studio__section-head">
+              <div>
+                <Typography.Title heading={5} style={{ margin: 0 }}>{detail.name}</Typography.Title>
+                <Typography.Text type="tertiary">{detail.description || "当前应用还没有补充描述。"}</Typography.Text>
+              </div>
+              <Tag color={detail.status?.toLowerCase() === "published" ? "green" : "blue"}>{detail.status || "Draft"}</Tag>
+            </div>
+            <Descriptions
+              data={[
+                { key: "id", value: detail.id },
+                { key: "workflow", value: detail.workflowId || "-" },
+                { key: "publishVersion", value: detail.publishVersion ?? 0 },
+                { key: "updatedAt", value: formatDate(detail.updatedAt || detail.lastEditedAt) }
+              ]}
+              align="left"
+              size="small"
+            />
+            <Space wrap>
+              <Button
+                theme="solid"
+                type="primary"
+                onClick={() => {
+                  if (detail.workflowId && onOpenWorkflow) {
+                    onOpenWorkflow(detail.workflowId);
+                  }
+                }}
+              >
+                打开工作流
+              </Button>
+              <Button onClick={() => onOpenPublish?.()}>
+                进入发布页
+              </Button>
+            </Space>
+          </section>
+
+          <aside className="module-studio__coze-agent-preview">
+            <div className="module-studio__coze-inspector-card">
+              <div className="module-studio__card-head">
+                <span>发布记录</span>
+                <Tag color="light-blue">{publishRecords.length}</Tag>
+              </div>
+              {publishRecords.length === 0 ? (
+                <Typography.Text type="tertiary">当前还没有发布记录。</Typography.Text>
+              ) : (
+                <div className="module-studio__stack">
+                  {publishRecords.map(item => (
+                    <div key={item.id} className="module-studio__coze-linkrow">
+                      <div>
+                        <strong>{item.version}</strong>
+                        <div className="module-studio__meta">{item.releaseNote || "无发布说明"}</div>
+                      </div>
+                      <span>{formatDate(item.createdAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <div className="module-studio__card-head">
+                <span>会话模板</span>
+                <Tag color="cyan">{templates.length}</Tag>
+              </div>
+              <div className="module-studio__stack">
+                <Input
+                  value={templateDraft.name}
+                  onChange={value => setTemplateDraft(current => ({ ...current, name: value }))}
+                  placeholder="会话模板名称"
+                />
+                <Space wrap>
+                  <Select
+                    value={templateDraft.createMethod}
+                    optionList={[
+                      { label: "手动创建", value: "manual" },
+                      { label: "节点生成", value: "node" }
+                    ]}
+                    onChange={value => setTemplateDraft(current => ({ ...current, createMethod: String(value) }))}
+                  />
+                  <Switch
+                    checked={Boolean(templateDraft.isDefault)}
+                    onChange={checked => setTemplateDraft(current => ({ ...current, isDefault: checked }))}
+                  />
+                  <Typography.Text type="tertiary">默认模板</Typography.Text>
+                </Space>
+                <Button onClick={() => void handleCreateTemplate()}>新建模板</Button>
+                {templates.length === 0 ? (
+                  <Typography.Text type="tertiary">当前还没有会话模板。</Typography.Text>
+                ) : (
+                  templates.map(item => (
+                    <div key={item.id} className="module-studio__coze-linkrow">
+                      <div>
+                        <strong>{item.name}</strong>
+                        <div className="module-studio__meta">
+                          {item.createMethod} / v{item.version}{item.isDefault ? " / 默认" : ""}
+                        </div>
+                      </div>
+                      <Button theme="borderless" type="danger" onClick={() => void handleDeleteTemplate(item.id)}>
+                        删除
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : (
+        <Empty title="未找到应用" image={null} />
+      )}
+    </Surface>
+  );
+}
+
+export function AppPublishPage({
+  api,
+  appId
+}: StudioPageProps & { appId: string }) {
+  const [detail, setDetail] = useState<StudioApplicationSummary | null>(null);
+  const [records, setRecords] = useState<StudioApplicationPublishRecord[]>([]);
+  const [releaseNote, setReleaseNote] = useState("");
+  const [publishing, setPublishing] = useState(false);
+
+  async function load() {
+    try {
+      const [nextDetail, nextRecords] = await Promise.all([
+        api.getApplication(appId),
+        api.getApplicationPublishRecords(appId)
+      ]);
+      setDetail(nextDetail);
+      setRecords(nextRecords);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载应用发布页失败。");
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, [api, appId]);
+
+  async function handlePublish() {
+    setPublishing(true);
+    try {
+      await api.publishApplication(appId, releaseNote.trim() || undefined);
+      Toast.success("应用已发布。");
+      setReleaseNote("");
+      await load();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "发布应用失败。");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  return (
+    <Surface title="应用发布" subtitle="版本说明、发布动作与历史记录。" testId="app-studio-app-publish-page">
+      <div className="module-studio__stack">
+        {detail ? (
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <strong>{detail.name}</strong>
+              <Tag color={detail.status?.toLowerCase() === "published" ? "green" : "blue"}>{detail.status || "Draft"}</Tag>
+            </div>
+            <Typography.Text type="tertiary">{detail.description || "当前应用还没有补充描述。"}</Typography.Text>
+            <span className="module-studio__meta">当前版本：v{detail.publishVersion ?? 0}</span>
+          </div>
+        ) : null}
+        <div className="module-studio__coze-inspector-card">
+          <span>发布说明</span>
+          <textarea
+            rows={4}
+            className="module-studio__textarea"
+            value={releaseNote}
+            onChange={event => setReleaseNote(event.target.value)}
+            placeholder="输入发布说明，可选。"
+          />
+          <Button theme="solid" type="primary" loading={publishing} onClick={() => void handlePublish()}>
+            发布应用
+          </Button>
+        </div>
+        <div className="module-studio__coze-inspector-card">
+          <div className="module-studio__card-head">
+            <span>历史发布</span>
+            <Tag color="light-blue">{records.length}</Tag>
+          </div>
+          {records.length === 0 ? (
+            <Typography.Text type="tertiary">当前还没有发布记录。</Typography.Text>
+          ) : (
+            <div className="module-studio__stack">
+              {records.map(item => (
+                <div key={item.id} className="module-studio__coze-linkrow">
+                  <div>
+                    <strong>{item.version}</strong>
+                    <div className="module-studio__meta">{item.releaseNote || "无发布说明"}</div>
+                  </div>
+                  <span>{formatDate(item.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Surface>
+  );
+}
+
+export function AssistantPublishPage({
+  api,
+  assistantId
+}: StudioPageProps & { assistantId: string }) {
+  const [detail, setDetail] = useState<AgentDetail | null>(null);
+  const [records, setRecords] = useState<StudioAssistantPublication[]>([]);
+  const [releaseNote, setReleaseNote] = useState("");
+  const [publishing, setPublishing] = useState(false);
+
+  async function load() {
+    try {
+      const [nextDetail, nextRecords] = await Promise.all([
+        api.getAgent(assistantId),
+        api.getAgentPublications(assistantId)
+      ]);
+      setDetail(nextDetail);
+      setRecords(nextRecords);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载智能体发布页失败。");
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, [api, assistantId]);
+
+  async function handlePublish() {
+    setPublishing(true);
+    try {
+      await api.publishAgent(assistantId, releaseNote.trim() || undefined);
+      Toast.success("智能体已发布。");
+      setReleaseNote("");
+      await load();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "发布智能体失败。");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function handleRegenerateToken() {
+    try {
+      await api.regenerateAgentEmbedToken(assistantId);
+      Toast.success("Embed token 已刷新。");
+      await load();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "刷新 Embed token 失败。");
+    }
+  }
+
+  return (
+    <Surface title="智能体发布" subtitle="版本、嵌入令牌与历史发布。" testId="app-studio-assistant-publish-page">
+      <div className="module-studio__stack">
+        {detail ? (
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <strong>{detail.name}</strong>
+              <Tag color={detail.status?.toLowerCase() === "published" ? "green" : "blue"}>{detail.status || "Draft"}</Tag>
+            </div>
+            <Typography.Text type="tertiary">{detail.description || "当前智能体还没有补充描述。"}</Typography.Text>
+          </div>
+        ) : null}
+        <div className="module-studio__coze-inspector-card">
+          <span>发布说明</span>
+          <textarea
+            rows={4}
+            className="module-studio__textarea"
+            value={releaseNote}
+            onChange={event => setReleaseNote(event.target.value)}
+            placeholder="输入发布说明，可选。"
+          />
+          <Space wrap>
+            <Button theme="solid" type="primary" loading={publishing} onClick={() => void handlePublish()}>
+              发布智能体
+            </Button>
+            <Button onClick={() => void handleRegenerateToken()} disabled={records.length === 0}>
+              刷新 Embed Token
+            </Button>
+          </Space>
+        </div>
+        <div className="module-studio__coze-inspector-card">
+          <div className="module-studio__card-head">
+            <span>历史发布</span>
+            <Tag color="cyan">{records.length}</Tag>
+          </div>
+          {records.length === 0 ? (
+            <Typography.Text type="tertiary">当前还没有发布记录。</Typography.Text>
+          ) : (
+            <div className="module-studio__stack">
+              {records.map(item => (
+                <div key={item.id} className="module-studio__coze-linkrow">
+                  <div>
+                    <strong>v{item.version}</strong>
+                    <div className="module-studio__meta">
+                      {item.isActive ? "当前激活" : "历史版本"} / {formatDate(item.createdAt)}
+                    </div>
+                    <div className="module-studio__meta">
+                      Token: {item.embedToken ? `${item.embedToken.slice(0, 12)}...` : "-"}
+                    </div>
+                  </div>
+                  <Tag color={item.isActive ? "green" : "grey"}>
+                    {item.isActive ? "Active" : "Archived"}
+                  </Tag>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </Surface>
   );

@@ -12,6 +12,7 @@ export interface AgentListItem {
   status: string;
   modelName?: string;
   createdAt?: string;
+  publishVersion?: number;
 }
 
 export interface AgentDetail {
@@ -347,6 +348,61 @@ export interface StudioApplicationSummary {
   badge?: string;
 }
 
+export interface StudioApplicationPublishRecord {
+  id: string;
+  appId: string;
+  version: string;
+  releaseNote?: string;
+  publishedByUserId: string;
+  createdAt: string;
+}
+
+export interface StudioApplicationConversationTemplate {
+  id: string;
+  appId: string;
+  name: string;
+  createMethod: string;
+  sourceWorkflowId?: string;
+  sourceWorkflowName?: string;
+  connectorId?: string;
+  isDefault: boolean;
+  version: number;
+  publishedVersion: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface StudioApplicationConversationTemplateCreateRequest {
+  name: string;
+  createMethod: string;
+  sourceWorkflowId?: string;
+  connectorId?: string;
+  isDefault?: boolean;
+  configJson?: string;
+}
+
+export interface StudioAssistantPublication {
+  id: string;
+  agentId: string;
+  version: number;
+  isActive: boolean;
+  embedToken: string;
+  embedTokenExpiresAt: string;
+  releaseNote?: string;
+  publishedByUserId: string;
+  createdAt: string;
+  updatedAt?: string;
+  revokedAt?: string;
+}
+
+export interface StudioAssistantPublishResult {
+  publicationId: string;
+  agentId: string;
+  version: number;
+  embedToken: string;
+  embedTokenExpiresAt: string;
+}
+
 export interface StudioApplicationCreateRequest {
   name: string;
   description?: string;
@@ -414,10 +470,19 @@ export interface StudioModuleApi {
     pageSize?: number;
   }) => Promise<PagedResult<WorkspaceIdeResource>>;
   createApplication: (request: StudioApplicationCreateRequest) => Promise<{ appId: string; workflowId: string; entryRoute: string }>;
+  getApplication: (id: string) => Promise<StudioApplicationSummary>;
   updateApplication: (id: string, request: StudioApplicationUpdateRequest) => Promise<void>;
   deleteApplication: (id: string) => Promise<void>;
+  publishApplication: (id: string, releaseNote?: string) => Promise<void>;
+  getApplicationPublishRecords: (id: string) => Promise<StudioApplicationPublishRecord[]>;
+  getApplicationConversationTemplates: (id: string) => Promise<StudioApplicationConversationTemplate[]>;
+  createApplicationConversationTemplate: (id: string, request: StudioApplicationConversationTemplateCreateRequest) => Promise<string>;
+  deleteApplicationConversationTemplate: (id: string, templateId: string) => Promise<void>;
   toggleWorkspaceFavorite: (resourceType: WorkspaceIdeResourceType, resourceId: string, isFavorite: boolean) => Promise<void>;
   recordWorkspaceActivity: (request: { resourceType: WorkspaceIdeResourceType; resourceId: number; resourceTitle: string; entryRoute: string }) => Promise<void>;
+  getAgentPublications: (agentId: string) => Promise<StudioAssistantPublication[]>;
+  publishAgent: (agentId: string, releaseNote?: string) => Promise<StudioAssistantPublishResult>;
+  regenerateAgentEmbedToken: (agentId: string) => Promise<StudioAssistantPublishResult>;
   listConversations: (agentId?: string) => Promise<PagedResult<ConversationItem>>;
   getMessages: (conversationId: string) => Promise<ChatMessageItem[]>;
   createConversation: (agentId: string, title?: string) => Promise<string>;

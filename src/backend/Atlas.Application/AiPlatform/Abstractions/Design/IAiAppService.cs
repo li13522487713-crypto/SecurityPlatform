@@ -18,6 +18,39 @@ public interface IAiAppService
         long id,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<AiAppPublishRecordItem>> GetPublishRecordsAsync(
+        TenantId tenantId,
+        long id,
+        int top,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<AiAppConversationTemplateListItem>> GetConversationTemplatesAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken);
+
+    Task<long> CreateConversationTemplateAsync(
+        TenantId tenantId,
+        long id,
+        long userId,
+        AiAppConversationTemplateCreateRequest request,
+        CancellationToken cancellationToken);
+
+    Task UpdateConversationTemplateAsync(
+        TenantId tenantId,
+        long id,
+        long templateId,
+        long userId,
+        AiAppConversationTemplateUpdateRequest request,
+        CancellationToken cancellationToken);
+
+    Task DeleteConversationTemplateAsync(
+        TenantId tenantId,
+        long id,
+        long templateId,
+        long userId,
+        CancellationToken cancellationToken);
+
     Task<long> CreateAsync(
         TenantId tenantId,
         AiAppCreateRequest request,

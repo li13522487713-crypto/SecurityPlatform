@@ -20,8 +20,13 @@ import {
 } from "@atlas/module-admin-react";
 import { ExplorePluginsPage, ExploreSearchPage, ExploreTemplatesPage, type ExploreModuleApi } from "@atlas/module-explore-react";
 import {
+  AppsPage,
   AgentChatPage,
+  AssistantsPage,
   AiAssistantPage,
+  AppDetailPage,
+  AppPublishPage,
+  AssistantPublishPage,
   BotIdePage,
   DevelopPage,
   ModelConfigsPage,
@@ -45,6 +50,11 @@ import {
   explorePath,
   inferPrimaryArea,
   replacePathAppKey,
+  studioAppsPath,
+  studioAppDetailPath,
+  studioAppPublishPath,
+  studioAssistantsPath,
+  studioAssistantPublishPath,
   workflowEditorPath,
   workflowListPath,
   workspaceAssistantPath,
@@ -146,6 +156,13 @@ import {
 } from "@/services/api-org-management";
 import {
   deleteAiApp,
+  getAiAppById,
+  createAiAppConversationTemplate,
+  deleteAiAppConversationTemplate,
+  getAiAppConversationTemplates,
+  getAiAppPublishRecords,
+  getAiAppVersionCheck,
+  publishAiApp,
   updateAiApp
 } from "@/services/api-ai-app";
 import {
@@ -183,13 +200,16 @@ import {
   updateAiVariable
 } from "@/services/api-ai-variable";
 import {
-  bindAgentWorkflow,
-  createAgent,
-  getAgentById,
-  getAgentsPaged,
-  updateAgent
-} from "@/services/api-agent";
-import { generateByAiAssistant } from "@/services/api-ai-assistant";
+  generateByAiAssistant,
+  bindAiAssistantWorkflow,
+  createAiAssistant,
+  getAiAssistantById,
+  getAiAssistantsPaged,
+  getAiAssistantPublications,
+  publishAiAssistant,
+  regenerateAiAssistantEmbedToken,
+  updateAiAssistant
+} from "@/services/api-ai-assistant";
 import {
   createModelConfig,
   createModelConfigPromptTestStream,
@@ -573,10 +593,10 @@ async function resolveCurrentStudioAppId(appKey: string): Promise<string> {
 
 function createStudioApi(appKey: string): StudioModuleApi {
   return {
-    listAgents: getAgentsPaged,
-    getAgent: getAgentById,
-    createAgent,
-    updateAgent,
+    listAgents: getAiAssistantsPaged,
+    getAgent: getAiAssistantById,
+    createAgent: createAiAssistant,
+    updateAgent: updateAiAssistant,
     getWorkspaceOverview: async () => {
       const appId = await resolveCurrentStudioAppId(appKey);
       const [workspace, summary] = await Promise.all([
@@ -612,12 +632,79 @@ function createStudioApi(appKey: string): StudioModuleApi {
         entryRoute: toAppShellPath(appKey, result.entryRoute)
       };
     },
+    getApplication: async id => {
+      const detail = await getAiAppById(id);
+      return {
+        id: String(detail.id),
+        name: detail.name,
+        description: detail.description,
+        icon: detail.icon,
+        status: String(detail.status),
+        publishVersion: detail.publishVersion,
+        workflowId: detail.workflowId ? String(detail.workflowId) : undefined,
+        updatedAt: detail.updatedAt,
+        lastEditedAt: detail.updatedAt,
+        badge: detail.publishVersion > 0 ? `v${detail.publishVersion}` : undefined
+      };
+    },
     updateApplication: (id, request) => updateAiApp(id, request),
     deleteApplication: id => deleteAiApp(id),
+    publishApplication: async (id, releaseNote) => {
+      await publishAiApp(id, { releaseNote });
+      await getAiAppVersionCheck(id);
+    },
+    getApplicationPublishRecords: async id => {
+      const records = await getAiAppPublishRecords(id);
+      return records.map(item => ({
+        ...item,
+        id: String(item.id),
+        appId: String(item.appId),
+        publishedByUserId: String(item.publishedByUserId)
+      }));
+    },
+    getApplicationConversationTemplates: async id => {
+      const templates = await getAiAppConversationTemplates(id);
+      return templates.map(item => ({
+        ...item,
+        id: String(item.id),
+        appId: String(item.appId),
+        sourceWorkflowId: item.sourceWorkflowId ? String(item.sourceWorkflowId) : undefined,
+        connectorId: item.connectorId ? String(item.connectorId) : undefined
+      }));
+    },
+    createApplicationConversationTemplate: (id, request) =>
+      createAiAppConversationTemplate(id, request),
+    deleteApplicationConversationTemplate: (id, templateId) =>
+      deleteAiAppConversationTemplate(id, templateId),
     toggleWorkspaceFavorite: (resourceType, resourceId, isFavorite) =>
       updateWorkspaceIdeFavorite(resourceType, resourceId, isFavorite),
     recordWorkspaceActivity: request =>
       recordWorkspaceIdeActivity(request),
+    getAgentPublications: async agentId => {
+      const items = await getAiAssistantPublications(agentId);
+      return items.map(item => ({
+        ...item,
+        id: String(item.id),
+        agentId: String(item.agentId),
+        publishedByUserId: String(item.publishedByUserId)
+      }));
+    },
+    publishAgent: async (agentId, releaseNote) => {
+      const result = await publishAiAssistant(agentId, { releaseNote });
+      return {
+        ...result,
+        publicationId: String(result.publicationId),
+        agentId: String(result.agentId)
+      };
+    },
+    regenerateAgentEmbedToken: async agentId => {
+      const result = await regenerateAiAssistantEmbedToken(agentId);
+      return {
+        ...result,
+        publicationId: String(result.publicationId),
+        agentId: String(result.agentId)
+      };
+    },
     listConversations: agentId => getConversationsPaged(appKey, { pageIndex: 1, pageSize: 20 }, agentId),
     getMessages: conversationId => getMessages(appKey, conversationId),
     createConversation: (agentId, title) => createConversation(appKey, agentId, title),
@@ -698,7 +785,7 @@ function createStudioApi(appKey: string): StudioModuleApi {
         scopeId: item.scopeId
       }));
     },
-    bindAgentWorkflow: (agentId, workflowId) => bindAgentWorkflow(agentId, workflowId),
+    bindAgentWorkflow: (agentId, workflowId) => bindAiAssistantWorkflow(agentId, workflowId),
     runWorkflowTask: (workflowId, incident) => executeWorkflowTask(workflowId, {
       incident,
       source: "draft"
@@ -853,7 +940,7 @@ function createWorkflowModuleApi(appKey: string): WorkflowModuleApi {
     clearConversationHistory: id => clearConversationHistory(appKey, id),
     listConversationMessages: conversationId => getMessages(appKey, conversationId),
     appendConversationMessage: (conversationId, request) => appendConversationMessage(appKey, conversationId, request),
-    listAgents: async (request, keyword) => getAgentsPaged({
+    listAgents: async (request, keyword) => getAiAssistantsPaged({
       pageIndex: request.pageIndex,
       pageSize: request.pageSize,
       keyword
@@ -875,6 +962,69 @@ function DefaultWorkspaceRedirect() {
   const { appKey = "" } = useParams();
   const bootstrap = useBootstrap();
   return <Navigate to={workspaceDevelopPath(appKey, bootstrap.spaceId)} replace />;
+}
+
+function StudioDevelopAliasRedirect() {
+  const { appKey = "" } = useParams();
+  const bootstrap = useBootstrap();
+  return <Navigate to={workspaceDevelopPath(appKey, bootstrap.spaceId)} replace />;
+}
+
+function StudioAssistantsAliasRedirect() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  const navigate = useNavigate();
+  return (
+    <AssistantsPage
+      api={studioApi}
+      locale={locale}
+      onOpenDetail={assistantId => navigate(`/apps/${encodeURIComponent(appKey)}/studio/assistants/${encodeURIComponent(assistantId)}`)}
+      onOpenPublish={assistantId => navigate(`/apps/${encodeURIComponent(appKey)}/studio/assistants/${encodeURIComponent(assistantId)}/publish`)}
+    />
+  );
+}
+
+function StudioAppsAliasRedirect() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  const navigate = useNavigate();
+  return (
+    <AppsPage
+      api={studioApi}
+      locale={locale}
+      onOpenDetail={appId => navigate(studioAppDetailPath(appKey, appId))}
+      onOpenPublish={appId => navigate(studioAppPublishPath(appKey, appId))}
+      onOpenWorkflow={workflowId => navigate(workflowEditorPath(appKey, workflowId))}
+    />
+  );
+}
+
+function StudioLibraryAliasRedirect() {
+  const { appKey = "" } = useParams();
+  const bootstrap = useBootstrap();
+  return <Navigate to={workspaceLibraryPath(appKey, bootstrap.spaceId)} replace />;
+}
+
+function WorkflowsAliasRedirect() {
+  const { appKey = "" } = useParams();
+  return <Navigate to={workflowListPath(appKey)} replace />;
+}
+
+function WorkflowEditorAliasRedirect() {
+  const { appKey = "", id = "" } = useParams();
+  return <Navigate to={workflowEditorPath(appKey, id)} replace />;
+}
+
+function ChatflowsAliasRedirect() {
+  const { appKey = "" } = useParams();
+  return <Navigate to={`/apps/${encodeURIComponent(appKey)}/chat_flow`} replace />;
+}
+
+function ChatflowEditorAliasRedirect() {
+  const { appKey = "", id = "" } = useParams();
+  return <Navigate to={`/apps/${encodeURIComponent(appKey)}/chat_flow/${encodeURIComponent(id)}/editor`} replace />;
 }
 
 function AppShellRoute() {
@@ -959,14 +1109,14 @@ function AppShellRoute() {
               key: "agents",
               label: locale === "zh-CN" ? "智能体" : "Agents",
               icon: navGlyph("A"),
-              path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=agents`,
+              path: studioAssistantsPath(appKey),
               testId: "app-sidebar-item-agents"
             },
             {
               key: "projects",
               label: locale === "zh-CN" ? "应用" : "Applications",
               icon: navGlyph("APP"),
-              path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=projects`,
+              path: studioAppsPath(appKey),
               testId: "app-sidebar-item-projects"
             },
             {
@@ -1211,6 +1361,8 @@ function DevelopRoute() {
       onOpenDepartments={() => navigate(adminPath(appKey, "departments"))}
       onOpenPositions={() => navigate(adminPath(appKey, "positions"))}
       onOpenLibrary={() => navigate(workspaceLibraryPath(appKey, bootstrap.spaceId))}
+      onOpenApplicationDetail={appId => navigate(studioAppDetailPath(appKey, appId))}
+      onOpenApplicationPublish={appId => navigate(studioAppPublishPath(appKey, appId))}
       onCreateWorkflow={() => navigate(`${workflowListPath(appKey)}?create=1`)}
       onCreateChatflow={() => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow?create=1`)}
     />
@@ -1219,9 +1371,17 @@ function DevelopRoute() {
 
 function BotIdeRoute() {
   const { appKey = "", botId = "" } = useParams();
+  const navigate = useNavigate();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
-  return <BotIdePage api={studioApi} locale={locale} botId={botId} />;
+  return (
+    <BotIdePage
+      api={studioApi}
+      locale={locale}
+      botId={botId}
+      onOpenPublish={() => navigate(studioAssistantPublishPath(appKey, botId))}
+    />
+  );
 }
 
 function AgentChatRoute() {
@@ -1236,6 +1396,51 @@ function AiAssistantRoute() {
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   return <AiAssistantPage api={studioApi} locale={locale} />;
+}
+
+function StudioAppDetailRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <AppDetailPage
+      api={studioApi}
+      locale={locale}
+      appId={id}
+      onOpenWorkflow={workflowId => navigate(workflowEditorPath(appKey, workflowId))}
+      onOpenPublish={() => navigate(studioAppPublishPath(appKey, id))}
+    />
+  );
+}
+
+function StudioAppPublishRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  return <AppPublishPage api={studioApi} locale={locale} appId={id} />;
+}
+
+function StudioAssistantDetailRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <BotIdePage
+      api={studioApi}
+      locale={locale}
+      botId={id}
+      onOpenPublish={() => navigate(studioAssistantPublishPath(appKey, id))}
+    />
+  );
+}
+
+function StudioAssistantPublishRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  return <AssistantPublishPage api={studioApi} locale={locale} assistantId={id} />;
 }
 
 function ModelConfigsRoute() {
@@ -1399,6 +1604,18 @@ export function AppRouter() {
         <Route path="/apps/:appKey/sign" element={<LoginPage />} />
         <Route path="/apps/:appKey" element={<AppShellRoute />}>
           <Route index element={<DefaultWorkspaceRedirect />} />
+          <Route path="studio/develop" element={<StudioDevelopAliasRedirect />} />
+          <Route path="studio/assistants" element={<StudioAssistantsAliasRedirect />} />
+          <Route path="studio/assistants/:id" element={<StudioAssistantDetailRoute />} />
+          <Route path="studio/assistants/:id/publish" element={<StudioAssistantPublishRoute />} />
+          <Route path="studio/apps" element={<StudioAppsAliasRedirect />} />
+          <Route path="studio/apps/:id" element={<StudioAppDetailRoute />} />
+          <Route path="studio/apps/:id/publish" element={<StudioAppPublishRoute />} />
+          <Route path="studio/library" element={<StudioLibraryAliasRedirect />} />
+          <Route path="workflows" element={<WorkflowsAliasRedirect />} />
+          <Route path="workflows/:id/editor" element={<WorkflowEditorAliasRedirect />} />
+          <Route path="chatflows" element={<ChatflowsAliasRedirect />} />
+          <Route path="chatflows/:id/editor" element={<ChatflowEditorAliasRedirect />} />
           <Route path="space/:spaceId/develop" element={<DevelopRoute />} />
           <Route path="space/:spaceId/chat" element={<AgentChatRoute />} />
           <Route path="space/:spaceId/assistant" element={<AiAssistantRoute />} />

@@ -90,6 +90,62 @@ export function workspaceModelConfigsPath(appKey: string, spaceId = DEFAULT_SPAC
   return workspaceLeafPath(appKey, spaceId, "model-configs");
 }
 
+export function studioBasePath(appKey: string): string {
+  return `${appRootPath(appKey)}/studio`;
+}
+
+export function studioDevelopPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/develop`;
+}
+
+export function studioAssistantsPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/assistants`;
+}
+
+export function studioAppsPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/apps`;
+}
+
+export function studioAppDetailPath(appKey: string, appId: string): string {
+  return `${studioAppsPath(appKey)}/${encodeSegment(appId)}`;
+}
+
+export function studioAppPublishPath(appKey: string, appId: string): string {
+  return `${studioAppDetailPath(appKey, appId)}/publish`;
+}
+
+export function studioAssistantDetailPath(appKey: string, assistantId: string): string {
+  return `${studioAssistantsPath(appKey)}/${encodeSegment(assistantId)}`;
+}
+
+export function studioAssistantPublishPath(appKey: string, assistantId: string): string {
+  return `${studioAssistantDetailPath(appKey, assistantId)}/publish`;
+}
+
+export function studioLibraryPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/library`;
+}
+
+export function studioVariablesPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/variables`;
+}
+
+export function workflowsAliasPath(appKey: string): string {
+  return `${appRootPath(appKey)}/workflows`;
+}
+
+export function workflowEditorAliasPath(appKey: string, workflowId: string): string {
+  return `${workflowsAliasPath(appKey)}/${encodeSegment(workflowId)}/editor`;
+}
+
+export function chatflowsAliasPath(appKey: string): string {
+  return `${appRootPath(appKey)}/chatflows`;
+}
+
+export function chatflowEditorAliasPath(appKey: string, workflowId: string): string {
+  return `${chatflowsAliasPath(appKey)}/${encodeSegment(workflowId)}/editor`;
+}
+
 export function workspaceBotPath(appKey: string, spaceId: string, botId: string): string {
   return `${workspaceBasePath(appKey, spaceId)}/bot/${encodeSegment(botId)}`;
 }

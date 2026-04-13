@@ -16,6 +16,7 @@ public sealed class AiAppService : IAiAppService
     private readonly AiAppRepository _appRepository;
     private readonly AiAppPublishRecordRepository _publishRecordRepository;
     private readonly AiAppResourceCopyTaskRepository _copyTaskRepository;
+    private readonly AiAppConversationTemplateRepository _conversationTemplateRepository;
     private readonly IBackgroundWorkQueue _backgroundWorkQueue;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
@@ -25,6 +26,7 @@ public sealed class AiAppService : IAiAppService
         AiAppRepository appRepository,
         AiAppPublishRecordRepository publishRecordRepository,
         AiAppResourceCopyTaskRepository copyTaskRepository,
+        AiAppConversationTemplateRepository conversationTemplateRepository,
         IBackgroundWorkQueue backgroundWorkQueue,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
@@ -33,6 +35,7 @@ public sealed class AiAppService : IAiAppService
         _appRepository = appRepository;
         _publishRecordRepository = publishRecordRepository;
         _copyTaskRepository = copyTaskRepository;
+        _conversationTemplateRepository = conversationTemplateRepository;
         _backgroundWorkQueue = backgroundWorkQueue;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
@@ -64,6 +67,99 @@ public sealed class AiAppService : IAiAppService
 
         var records = await _publishRecordRepository.GetByAppIdAsync(tenantId, id, top: 10, cancellationToken);
         return MapDetail(app, records);
+    }
+
+    public async Task<IReadOnlyList<AiAppPublishRecordItem>> GetPublishRecordsAsync(
+        TenantId tenantId,
+        long id,
+        int top,
+        CancellationToken cancellationToken)
+    {
+        await GetAppOrThrowAsync(tenantId, id, cancellationToken);
+        var records = await _publishRecordRepository.GetByAppIdAsync(
+            tenantId,
+            id,
+            top <= 0 ? 20 : top,
+            cancellationToken);
+        return records.Select(MapPublishRecord).ToArray();
+    }
+
+    public async Task<IReadOnlyList<AiAppConversationTemplateListItem>> GetConversationTemplatesAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        await GetAppOrThrowAsync(tenantId, id, cancellationToken);
+        var templates = await _conversationTemplateRepository.GetByAppIdAsync(tenantId, id, cancellationToken);
+        return templates.Select(MapConversationTemplate).ToArray();
+    }
+
+    public async Task<long> CreateConversationTemplateAsync(
+        TenantId tenantId,
+        long id,
+        long userId,
+        AiAppConversationTemplateCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        await GetAppOrThrowAsync(tenantId, id, cancellationToken);
+        _ = userId;
+        var template = new AiAppConversationTemplate(
+            tenantId,
+            id,
+            request.Name.Trim(),
+            ParseCreateMethod(request.CreateMethod),
+            request.SourceWorkflowId,
+            request.ConnectorId,
+            request.IsDefault,
+            request.ConfigJson,
+            _idGeneratorAccessor.NextId());
+        await _conversationTemplateRepository.AddAsync(template, cancellationToken);
+        return template.Id;
+    }
+
+    public async Task UpdateConversationTemplateAsync(
+        TenantId tenantId,
+        long id,
+        long templateId,
+        long userId,
+        AiAppConversationTemplateUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        await GetAppOrThrowAsync(tenantId, id, cancellationToken);
+        _ = userId;
+        var template = await _conversationTemplateRepository.FindByIdAsync(tenantId, templateId, cancellationToken)
+            ?? throw new BusinessException("应用会话模板不存在。", ErrorCodes.NotFound);
+        if (template.AppId != id)
+        {
+            throw new BusinessException("应用会话模板不属于当前应用。", ErrorCodes.ValidationError);
+        }
+
+        template.Update(
+            request.Name.Trim(),
+            request.SourceWorkflowId,
+            request.ConnectorId,
+            request.IsDefault,
+            request.ConfigJson);
+        await _conversationTemplateRepository.UpdateAsync(template, cancellationToken);
+    }
+
+    public async Task DeleteConversationTemplateAsync(
+        TenantId tenantId,
+        long id,
+        long templateId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        await GetAppOrThrowAsync(tenantId, id, cancellationToken);
+        _ = userId;
+        var template = await _conversationTemplateRepository.FindByIdAsync(tenantId, templateId, cancellationToken)
+            ?? throw new BusinessException("应用会话模板不存在。", ErrorCodes.NotFound);
+        if (template.AppId != id)
+        {
+            throw new BusinessException("应用会话模板不属于当前应用。", ErrorCodes.ValidationError);
+        }
+
+        await _conversationTemplateRepository.DeleteAsync(template, cancellationToken);
     }
 
     public async Task<long> CreateAsync(TenantId tenantId, AiAppCreateRequest request, CancellationToken cancellationToken)
@@ -112,6 +208,7 @@ public sealed class AiAppService : IAiAppService
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _copyTaskRepository.DeleteByAppIdAsync(tenantId, id, cancellationToken);
+            await _conversationTemplateRepository.DeleteByAppIdAsync(tenantId, id, cancellationToken);
             await _publishRecordRepository.DeleteByAppIdAsync(tenantId, id, cancellationToken);
             await _appRepository.DeleteAsync(tenantId, id, cancellationToken);
         }, cancellationToken);
@@ -277,4 +374,27 @@ public sealed class AiAppService : IAiAppService
             task.ErrorMessage,
             task.CreatedAt,
             task.UpdatedAt);
+
+    private static AiAppConversationTemplateCreateMethod ParseCreateMethod(string value)
+        => value.Trim().ToLowerInvariant() switch
+        {
+            "node" => AiAppConversationTemplateCreateMethod.NodeGenerated,
+            "nodegenerated" => AiAppConversationTemplateCreateMethod.NodeGenerated,
+            _ => AiAppConversationTemplateCreateMethod.Manual
+        };
+
+    private static AiAppConversationTemplateListItem MapConversationTemplate(AiAppConversationTemplate template)
+        => new(
+            template.Id,
+            template.AppId,
+            template.Name,
+            template.CreateMethod.ToString(),
+            template.SourceWorkflowId,
+            null,
+            template.ConnectorId,
+            template.IsDefault,
+            template.Version,
+            template.PublishedVersion,
+            template.CreatedAt,
+            template.UpdatedAt);
 }

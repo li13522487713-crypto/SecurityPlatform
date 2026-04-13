@@ -31,6 +31,32 @@ public sealed class AiAppConversationTemplate : TenantEntity
         ConfigJson = "{}";
     }
 
+    public AiAppConversationTemplate(
+        TenantId tenantId,
+        long appId,
+        string name,
+        AiAppConversationTemplateCreateMethod createMethod,
+        long? sourceWorkflowId,
+        long? connectorId,
+        bool isDefault,
+        string? configJson,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        AppId = appId;
+        Name = name;
+        CreateMethod = createMethod;
+        SourceWorkflowId = sourceWorkflowId;
+        ConnectorId = connectorId;
+        IsDefault = isDefault;
+        Version = 1;
+        PublishedVersion = 0;
+        ConfigJson = string.IsNullOrWhiteSpace(configJson) ? "{}" : configJson;
+        CreatedAt = DateTime.UtcNow;
+        UpdatedAt = CreatedAt;
+    }
+
     public long AppId { get; private set; }
     public string Name { get; private set; }
     public AiAppConversationTemplateCreateMethod CreateMethod { get; private set; }
@@ -42,6 +68,36 @@ public sealed class AiAppConversationTemplate : TenantEntity
     public string ConfigJson { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+
+    public void Update(
+        string name,
+        long? sourceWorkflowId,
+        long? connectorId,
+        bool? isDefault,
+        string? configJson)
+    {
+        Name = name;
+        SourceWorkflowId = sourceWorkflowId;
+        ConnectorId = connectorId;
+        if (isDefault.HasValue)
+        {
+            IsDefault = isDefault.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(configJson))
+        {
+            ConfigJson = configJson;
+        }
+
+        Version++;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarkPublished()
+    {
+        PublishedVersion = Version;
+        UpdatedAt = DateTime.UtcNow;
+    }
 }
 
 public enum AiAppConversationTemplateCreateMethod

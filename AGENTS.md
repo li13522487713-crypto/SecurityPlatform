@@ -1,6 +1,6 @@
 # Repository Guidelines (AGENTS.md)
 
-本文件为 AI 助理提供仓库级开发指南。详细技术说明见 `CLAUDE.md`。
+本文件为 AI 助理提供仓库级开发指南。详细技术说明可参考 `CLAUDE.md`，但若与当前代码、`package.json`、`.csproj`、`.cursor/environment.json` 或实际目录结构冲突，以当前仓库实际状态为准。
 
 **语言要求：** 所有助理回复必须使用中文。
 
@@ -10,8 +10,8 @@
 
 - 后端：.NET 10 + ASP.NET Core + SqlSugar + SQLite，结合 Hangfire、YARP、OpenTelemetry、Semantic Kernel、WorkflowCore / WorkflowCore.DSL、MassTransit、Qdrant / MinIO 等运行时能力
 - AppWeb：React 18 + TypeScript + Semi Design + Vite 8，支持 `platform` / `direct` 双运行模式
-- 前端共享：pnpm monorepo，采用 `apps/* + packages/*` 的双壳多包架构
-- 关键文档：`等保2.0要求清单.md`、`docs/contracts.md`、`docs/workflow-editor-validation-matrix.md`、`docs/plan-*.md`
+- 前端共享：pnpm monorepo，采用“`app-web` 单宿主 + `packages/*` 多包能力层”的组织方式
+- 关键文档：`等保2.0要求清单.md`、`docs/contracts.md`、`docs/workflow-editor-validation-matrix.md`、`docs/plan-*.md`、`docs/coze/`
 
 ## 架构与目录
 
@@ -26,7 +26,13 @@
 - 运行拓扑：`PlatformHost` 是平台控制面与 API 网关，`AppHost` 是应用运行时数据面；当前前端宿主只有 `app-web`
 - 共享契约：`docs/contracts.md` 定义 API / 画布 / 运行时契约，跨宿主共享类型优先沉淀到 `Atlas.Shared.Contracts` 与前端 workspace packages
 
-完整结构与依赖以仓库实际目录、各项目 `.csproj` / `package.json` 以及 `docs/contracts.md` 为准。
+完整结构与依赖以仓库实际目录、各项目 `.csproj` / `package.json`、`.cursor/environment.json` 以及 `docs/contracts.md` 为准。
+
+## 文档优先级
+
+- 指令冲突时按以下优先级判断：`AGENTS.md` > 当前代码 / `package.json` / `.csproj` / `.cursor/environment.json` > `docs/contracts.md` 与 `docs/plan-*.md` > `CLAUDE.md` / `README.md`
+- `README.md` 与 `CLAUDE.md` 中仍可能残留旧前端形态（如 Vue / `platform-web` / `Atlas.WebApi` 等历史信息），禁止直接据此覆盖当前实现判断。
+- 涉及运行命令、端口、宿主数量、workspace 包名时，必须先以实际目录和脚本为准再执行。
 
 ## 构建与开发命令
 
@@ -78,11 +84,11 @@ pnpm run format                 # 格式化所有项目
 ## 文档驱动开发
 
 - **开发方式：** 按文档驱动实施，先有产品架构清单，再针对每个小需求完整跟踪实现。
-- **需求文档：** `docs/plan-*.md` 为实施计划，`docs/prd-case-*.md` 为具体需求用例。
+- **需求文档：** `docs/plan-*.md` 为实施计划；如存在专题说明或迁移文档，优先结合 `docs/coze/`、`docs/coze-workflow-migration.md`、`docs/contracts.md` 一并阅读。
 - **Plan 模式：** 需求需拆分为前端与后端实现计划，小步慢跑完成；每个任务需可闭环。
 - **任务拆分：** 将需求梳理为很小的 case，每个 case 可独立完成并验证；实现过程中须满足等保要求。
 - **完整性：** 按要求文档完成所有任务，确保前后端、契约、测试文件同步更新。
-- **新增功能：** 完整步骤见 `CLAUDE.md` 的 Development Workflow 章节。
+- **新增功能：** 先核对当前代码、契约文档与实施计划，再按最小闭环补齐实现、测试、`.http` 示例与文档。
 
 ## 开发约束
 
@@ -99,7 +105,7 @@ pnpm run format                 # 格式化所有项目
 - 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/apps/app-web/src/app/i18n.tsx`）。
 - **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认线上/本地使用的是否为最新 **`pnpm run build`** 产物（避免旧 bundle 缺少新版词条）。
 - **中英键对齐**：在各应用目录下对比 `zh-CN.ts` / `en-US.ts` 是否同步更新，避免新增 key 漏翻。
-- 未使用 `useI18n` 的 `.vue` 审计清单见 **`docs/frontend-i18n-vue-without-useI18n.md`**。
+- **当前前端形态**：现有前端以 React / TSX 为主；排查 i18n 时优先检查 `useAppI18n`、消息表和 `packages/*` 中的共享文案，而不是沿用历史 Vue 审计路径。
 
 ## 前后端约束
 
@@ -171,14 +177,14 @@ pnpm run format                 # 格式化所有项目
 
 ## 表格视图（个人）支持
 
-- 员工/角色/权限/菜单/部门/职位/项目/应用管理页面均已接入 Ant Design Vue `a-table` 的个人视图能力（见 `docs/contracts.md` “表格视图（个人）”章节）。
+- 员工/角色/权限/菜单/部门/职位/项目/应用管理页面均已接入统一表格个人视图能力（见 `docs/contracts.md` “表格视图（个人）”章节）。
 - 视图只绑定当前登录用户（后台以 `tenant_id + user_id` 识别，前端不可传递用户标识），对每个 `tableKey` 仅保存用户自己的视图与默认映射。
 - `TableViewConfig` 支持列配置、密度、分页等项，所有写接口（POST/PUT/PATCH/DELETE 等）要求 `Idempotency-Key` + `X-CSRF-TOKEN`，相关 HTTP 测试存在于 `src/backend/Atlas.PlatformHost/Bosch.http/TableViews.http`。
 - 默认配置由 `TableViewDefaultOptions`（`appsettings.json` 的 `TableViewDefaults` 节）定义，需要调整请同步更新后端配置与 `docs/contracts.md` 的描述。
 
-## 登录页 UX 规范
+## 登录与 UX 说明
 
-- 登录页的详细结构与状态控制在 `docs/login-prd.md` 中记录，包含控件尺寸、校验规则、状态图、错误文案与多租户/组织切换行为，可直接给前端落地。
+- 当前仓库未固定 `docs/login-prd.md` 入口；涉及登录页或入口体验调整时，必须先检查 `src/frontend/apps/app-web` 的现有实现、对应 i18n 文案、认证接口与相关计划文档，再决定改动范围。
 
 ## Cursor Cloud specific instructions
 
@@ -228,4 +234,57 @@ dotnet run --project src/backend/Atlas.AppHost
 
 ### 构建与 Lint 命令参考
 
-标准命令见 `CLAUDE.md` 和 `AGENTS.md` 的"构建与开发命令"章节。
+标准命令以 `AGENTS.md`、`.cursor/environment.json` 与实际 `package.json` / `.csproj` 为准；`CLAUDE.md` 仅作补充背景参考。
+
+## AI 助理执行约束
+
+- 所有回复必须使用中文。
+- 修改前必须先阅读相关文件，理解现有架构、分层、契约与既有实现模式。
+- 先分析，再实施；先给出最小可行方案，再进行代码修改。
+- 严禁擅自扩需求、重构无关模块、替换技术栈或引入未要求依赖。
+- 必须遵循现有分层与边界：
+  - Controller / 页面层只负责编排，不直接落数据库、不直接写业务核心逻辑。
+  - 数据访问必须通过 Repository / Service。
+  - 前端宿主 `apps/*` 只做装配、路由、页面编排与环境适配，共享能力优先沉淀到 `packages/*`。
+- 优先做最小化修改，保持 diff 可审查、可回滚、可验证。
+- 遇到问题先做系统性诊断：先看架构、边界、契约、复用与数据流，再决定是否局部修补。
+- 每完成一个阶段都必须验证：
+  - 后端改动至少执行相关 `dotnet build` / `dotnet test`
+  - 前端改动至少执行相关 `pnpm run build` / `pnpm run test:unit` / `pnpm run i18n:check`
+- 不得声称“已完成”“已修复”“可用”，除非已实际完成对应验证。
+- 新增或修改 API 时，必须同步更新对应 `.http` 文件、相关契约文档与必要测试。
+- 修改前后端共享契约时，必须同步更新 `docs/contracts.md` 与类型定义。
+- 新增用户可见文案必须走 i18n，禁止硬编码。
+- 如无法完整完成，必须明确说明阻塞点、已完成部分、风险与下一步建议，不得伪造结果。
+
+## 长任务执行规则
+
+- 长任务必须先拆分为多个里程碑，按“分析 → 实施 → 验证 → 自动进入下一里程碑”的方式闭环推进。
+- 开始编码前，必须先输出：
+  - 任务理解
+  - 范围边界
+  - 里程碑拆分
+  - 涉及文件
+  - 验证方式
+- 每个里程碑都必须遵循：
+  - 先做最小可行实现
+  - 完成后立即执行相关构建、测试、i18n 校验或接口验证
+  - 记录修改文件、关键改动、验证结果
+- 当前里程碑验证通过后，默认自动进入下一个里程碑继续执行，不因阶段性完成而中断。
+- 只有在以下情况才停止并汇报：
+  - 遇到明确阻塞，无法继续推进
+  - 继续执行会违反现有架构、契约、安全或本文件约束
+  - 需求本身存在冲突，继续实现会产生错误结果
+- 如发生阻塞，必须明确说明：
+  - 阻塞点
+  - 已完成部分
+  - 未完成部分
+  - 风险
+  - 建议下一步
+- 不得把长任务只完成一部分就当作整体完成；除非所有里程碑完成并通过验证，否则不得宣称任务完成。
+- 最终必须输出：
+  - 里程碑完成情况
+  - 修改文件清单
+  - 执行过的命令
+  - 验证结果
+  - 剩余风险与后续建议

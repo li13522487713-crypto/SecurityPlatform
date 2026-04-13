@@ -117,6 +117,85 @@ public sealed class AiAppsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:long}/publish-records")]
+    [Authorize(Policy = PermissionPolicies.AiAppView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AiAppPublishRecordItem>>>> GetPublishRecords(
+        long id,
+        [FromQuery] int top = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _service.GetPublishRecordsAsync(tenantId, id, top, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AiAppPublishRecordItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/conversation-templates")]
+    [Authorize(Policy = PermissionPolicies.AiAppView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AiAppConversationTemplateListItem>>>> GetConversationTemplates(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _service.GetConversationTemplatesAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AiAppConversationTemplateListItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/conversation-templates")]
+    [Authorize(Policy = PermissionPolicies.AiAppUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> CreateConversationTemplate(
+        long id,
+        [FromBody] AiAppConversationTemplateCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var templateId = await _service.CreateConversationTemplateAsync(
+            tenantId,
+            id,
+            currentUser.UserId,
+            request,
+            cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = templateId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/conversation-templates/{templateId:long}")]
+    [Authorize(Policy = PermissionPolicies.AiAppUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateConversationTemplate(
+        long id,
+        long templateId,
+        [FromBody] AiAppConversationTemplateUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        await _service.UpdateConversationTemplateAsync(
+            tenantId,
+            id,
+            templateId,
+            currentUser.UserId,
+            request,
+            cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = templateId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{id:long}/conversation-templates/{templateId:long}")]
+    [Authorize(Policy = PermissionPolicies.AiAppUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteConversationTemplate(
+        long id,
+        long templateId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        await _service.DeleteConversationTemplateAsync(
+            tenantId,
+            id,
+            templateId,
+            currentUser.UserId,
+            cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = templateId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:long}/version-check")]
     [Authorize(Policy = PermissionPolicies.AiAppView)]
     public async Task<ActionResult<ApiResponse<AiAppVersionCheckResult>>> CheckVersion(
