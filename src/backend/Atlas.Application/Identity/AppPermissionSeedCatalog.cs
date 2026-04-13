@@ -133,10 +133,22 @@ public static class AppPermissionSeedCatalog
     [
         PermissionCodes.AppUser,
         PermissionCodes.AppsView,
+        PermissionCodes.AgentView,
+        PermissionCodes.AgentCreate,
+        PermissionCodes.AgentUpdate,
+        PermissionCodes.AgentDelete,
         PermissionCodes.AppMembersView,
         PermissionCodes.AppMembersUpdate,
         PermissionCodes.AppRolesView,
         PermissionCodes.AppRolesUpdate,
+        PermissionCodes.KnowledgeBaseView,
+        PermissionCodes.KnowledgeBaseCreate,
+        PermissionCodes.KnowledgeBaseUpdate,
+        PermissionCodes.KnowledgeBaseDelete,
+        PermissionCodes.ModelConfigView,
+        PermissionCodes.ModelConfigCreate,
+        PermissionCodes.ModelConfigUpdate,
+        PermissionCodes.ModelConfigDelete,
         PermissionCodes.UsersView,
         PermissionCodes.UsersCreate,
         PermissionCodes.UsersUpdate,
@@ -167,7 +179,16 @@ public static class AppPermissionSeedCatalog
         PermissionCodes.MenusCreate,
         PermissionCodes.MenusUpdate,
         PermissionCodes.MenusDelete,
-        PermissionCodes.DataScopeManage
+        PermissionCodes.DataScopeManage,
+        PermissionCodes.AiWorkflowView,
+        PermissionCodes.AiWorkflowCreate,
+        PermissionCodes.AiWorkflowUpdate,
+        PermissionCodes.AiWorkflowDelete,
+        PermissionCodes.AiWorkflowExecute,
+        PermissionCodes.AiWorkflowDebug,
+        PermissionCodes.WorkflowView,
+        PermissionCodes.WorkflowDesign,
+        PermissionCodes.AiMarketplaceView
     ];
 
     private static readonly IReadOnlyList<string> AuditAdminPermissionCodes =

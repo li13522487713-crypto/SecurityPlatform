@@ -1,8 +1,6 @@
-using Atlas.Application.Identity;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Infrastructure.Caching;
 using Atlas.Infrastructure.Options;
@@ -17,7 +15,7 @@ namespace Atlas.SecurityPlatform.Tests.Services;
 public sealed class NavigationProjectionServiceTests
 {
     [Fact]
-    public async Task GetWorkspaceProjectionAsync_ShouldIncludeAppCapabilities_ForSystemAdmin()
+    public async Task GetWorkspaceProjectionAsync_ShouldIncludeAppCapabilities_WhenAppSetupSeededPermissionsExist()
     {
         var dbPath = CreateTempDbPath();
         SqlSugarClient? db = null;
@@ -50,7 +48,6 @@ public sealed class NavigationProjectionServiceTests
             var tenantId = new TenantId(Guid.Parse("88888888-8888-8888-8888-888888888888"));
             const long userId = 1001;
             const long roleId = 2001;
-            const long permissionId = 3001;
             const long appId = 4001;
 
             await db.Insertable(new LowCodeApp(
@@ -65,10 +62,33 @@ public sealed class NavigationProjectionServiceTests
                     now: DateTimeOffset.UtcNow))
                 .ExecuteCommandAsync();
 
-            await db.Insertable(new UserRole(tenantId, userId, roleId, 5001)).ExecuteCommandAsync();
-            await db.Insertable(new RolePermission(tenantId, roleId, permissionId, 5002)).ExecuteCommandAsync();
-            await db.Insertable(new Permission(tenantId, "系统管理员", PermissionCodes.SystemAdmin, "Api", permissionId))
-                .ExecuteCommandAsync();
+            await db.Ado.ExecuteCommandAsync(
+                """
+                INSERT INTO "AppRole" ("TenantIdValue","Id","AppId","Name","Code","Description","IsSystem","DataScope","DeptIds")
+                VALUES (@tenantIdValue, @roleId, @appId, '安全管理员', 'SecurityAdmin', NULL, 0, 'CurrentApp', NULL);
+                """,
+                new SugarParameter("@tenantIdValue", tenantId.Value.ToString()),
+                new SugarParameter("@roleId", roleId),
+                new SugarParameter("@appId", appId));
+
+            await db.Ado.ExecuteCommandAsync(
+                """
+                INSERT INTO "AppUserRole" ("TenantIdValue","Id","AppId","UserId","RoleId")
+                VALUES (@tenantIdValue, 5001, @appId, @userId, @roleId);
+                """,
+                new SugarParameter("@tenantIdValue", tenantId.Value.ToString()),
+                new SugarParameter("@appId", appId),
+                new SugarParameter("@userId", userId),
+                new SugarParameter("@roleId", roleId));
+
+            await db.Ado.ExecuteCommandAsync(
+                """
+                INSERT INTO "AppRolePermission" ("TenantIdValue","Id","AppId","RoleId","PermissionCode")
+                VALUES (@tenantIdValue, 5002, @appId, @roleId, 'departments:view');
+                """,
+                new SugarParameter("@tenantIdValue", tenantId.Value.ToString()),
+                new SugarParameter("@appId", appId),
+                new SugarParameter("@roleId", roleId));
 
             var service = new NavigationProjectionService(db, registry, cache);
 
@@ -135,29 +155,32 @@ public sealed class NavigationProjectionServiceTests
                     "MenuConfigJson" TEXT NULL
                   );
 
-                  CREATE TABLE "UserRole"(
+                  CREATE TABLE "AppRole"(
                     "TenantIdValue" TEXT NOT NULL,
                     "Id" INTEGER PRIMARY KEY,
+                    "AppId" INTEGER NOT NULL,
+                    "Name" TEXT NOT NULL,
+                    "Code" TEXT NOT NULL,
+                    "Description" TEXT NULL,
+                    "IsSystem" INTEGER NOT NULL,
+                    "DataScope" TEXT NOT NULL,
+                    "DeptIds" TEXT NULL
+                  );
+
+                  CREATE TABLE "AppUserRole"(
+                    "TenantIdValue" TEXT NOT NULL,
+                    "Id" INTEGER PRIMARY KEY,
+                    "AppId" INTEGER NOT NULL,
                     "UserId" INTEGER NOT NULL,
                     "RoleId" INTEGER NOT NULL
                   );
 
-                  CREATE TABLE "RolePermission"(
+                  CREATE TABLE "AppRolePermission"(
                     "TenantIdValue" TEXT NOT NULL,
                     "Id" INTEGER PRIMARY KEY,
+                    "AppId" INTEGER NOT NULL,
                     "RoleId" INTEGER NOT NULL,
-                    "PermissionId" INTEGER NOT NULL
-                  );
-
-                  CREATE TABLE "Permission"(
-                    "TenantIdValue" TEXT NOT NULL,
-                    "Id" INTEGER PRIMARY KEY,
-                    "Name" TEXT NOT NULL,
-                    "Code" TEXT NOT NULL,
-                    "Type" TEXT NOT NULL,
-                    "Description" TEXT NULL,
-                    "CreatedAt" TEXT NULL,
-                    "UpdatedAt" TEXT NULL
+                    "PermissionCode" TEXT NOT NULL
                   );
                   """;
 

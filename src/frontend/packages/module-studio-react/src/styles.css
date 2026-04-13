@@ -101,6 +101,56 @@
   gap: 18px;
 }
 
+.module-studio__model-dialog {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+  gap: 18px;
+}
+
+.module-studio__model-switches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.module-studio__form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.module-studio__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.module-studio__field > span {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.module-studio__field--full {
+  grid-column: 1 / -1;
+}
+
+.module-studio__switch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.module-studio__number-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
 .module-studio__ide-layout {
   align-items: stretch;
 }
@@ -129,6 +179,14 @@
   .module-studio__ide-layout {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .module-studio__model-dialog {
+    grid-template-columns: 1fr;
+  }
+
+  .module-studio__form-grid {
+    grid-template-columns: 1fr;
   }
 
   .module-studio__develop-toolbar .semi-input-wrapper {

@@ -147,7 +147,16 @@ import {
   updateAgent
 } from "@/services/api-agent";
 import { generateByAiAssistant } from "@/services/api-ai-assistant";
-import { getModelConfigsPaged } from "@/services/api-model-config";
+import {
+  createModelConfig,
+  createModelConfigPromptTestStream,
+  deleteModelConfig,
+  getModelConfigById,
+  getModelConfigStats,
+  getModelConfigsPaged,
+  testModelConfigConnection,
+  updateModelConfig
+} from "@/services/api-model-config";
 import {
   getConversationsPaged,
   getMessages
@@ -360,7 +369,60 @@ function createStudioApi(appKey: string): StudioModuleApi {
     listConversations: agentId => getConversationsPaged(appKey, { pageIndex: 1, pageSize: 20 }, agentId),
     getMessages: conversationId => getMessages(appKey, conversationId),
     generateAssistant: (kind, description) => generateByAiAssistant(appKey, kind, description),
-    listModelConfigs: () => getModelConfigsPaged({ pageIndex: 1, pageSize: 20 })
+    listModelConfigs: () => getModelConfigsPaged({ pageIndex: 1, pageSize: 50 }),
+    getModelConfig: getModelConfigById,
+    getModelConfigStats,
+    createModelConfig,
+    updateModelConfig,
+    deleteModelConfig,
+    testModelConfigConnection,
+    runModelConfigPromptTest: async request => {
+      const { fetchPromise } = createModelConfigPromptTestStream(request);
+      const response = await fetchPromise;
+      if (!response.ok || !response.body) {
+        throw new Error("Prompt test failed");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentEvent = "message";
+      let text = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const lines = frame.split("\n");
+          const dataLines: string[] = [];
+          currentEvent = "message";
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              currentEvent = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+
+          const payload = dataLines.join("\n");
+          if (!payload || currentEvent === "done" || payload === "[DONE]") {
+            continue;
+          }
+
+          text += payload;
+        }
+      }
+
+      return text.trim();
+    }
   };
 }
 

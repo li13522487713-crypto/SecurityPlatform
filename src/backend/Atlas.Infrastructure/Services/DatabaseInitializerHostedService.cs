@@ -1982,7 +1982,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 "MaxTokens",
                 "TopP",
                 "FrequencyPenalty",
-                "PresencePenalty")
+                "PresencePenalty",
+                "UpdatedAt")
             && !RequiresMissingColumnFix<ModelConfig>(
                 db,
                 "ModelId",
@@ -1996,7 +1997,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 "MaxTokens",
                 "TopP",
                 "FrequencyPenalty",
-                "PresencePenalty"))
+                "PresencePenalty",
+                "UpdatedAt"))
         {
             return;
         }
@@ -2952,5 +2954,4 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         bool IsSystem,
         int SortOrder);
 }
-
 

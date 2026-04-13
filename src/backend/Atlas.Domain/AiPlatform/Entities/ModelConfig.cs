@@ -1,5 +1,6 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -41,12 +42,25 @@ public sealed class ModelConfig : TenantEntity
         CreatedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(Length = 128)]
     public string Name { get; private set; }
+
+    [SugarColumn(Length = 64)]
     public string ProviderType { get; private set; }
+
+    [SugarColumn(ColumnDataType = "TEXT")]
     public string ApiKey { get; private set; }
+
+    [SugarColumn(Length = 512)]
     public string BaseUrl { get; private set; }
+
+    [SugarColumn(Length = 256)]
     public string DefaultModel { get; private set; }
+
+    [SugarColumn(Length = 256)]
     public string ModelId { get; private set; }
+
+    [SugarColumn(ColumnDataType = "TEXT", IsNullable = true)]
     public string? SystemPrompt { get; private set; }
     public bool IsEnabled { get; private set; }
     public bool SupportsEmbedding { get; private set; }
@@ -55,12 +69,24 @@ public sealed class ModelConfig : TenantEntity
     public bool EnableTools { get; private set; }
     public bool EnableVision { get; private set; }
     public bool EnableJsonMode { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public float? Temperature { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public int? MaxTokens { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public float? TopP { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public float? FrequencyPenalty { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public float? PresencePenalty { get; private set; }
+
     public DateTime CreatedAt { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public DateTime? UpdatedAt { get; private set; }
 
     public void Update(

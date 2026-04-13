@@ -116,13 +116,14 @@ export async function getModelConfigStats(keyword?: string): Promise<ModelConfig
 }
 
 export async function createModelConfig(request: ModelConfigCreateRequest): Promise<string> {
-  const response = await requestApi<ApiResponse<{ id: string }>>("/model-configs", {
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>("/model-configs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
   });
-  if (!response.success || !response.data?.id) throw new Error(response.message || "Failed to create model config");
-  return response.data.id;
+  const id = response.data?.id ?? response.data?.Id;
+  if (!response.success || !id) throw new Error(response.message || "Failed to create model config");
+  return id;
 }
 
 export async function updateModelConfig(id: number, request: ModelConfigUpdateRequest): Promise<void> {

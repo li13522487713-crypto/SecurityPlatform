@@ -12,14 +12,9 @@
       "description": "启动应用后端服务 (:5002)"
     },
     {
-      "name": "PlatformWeb Dev",
-      "command": "pnpm run dev:platform-web --prefix src/frontend",
-      "description": "启动平台前端开发服务器 (:5180)"
-    },
-    {
       "name": "AppWeb Dev",
       "command": "pnpm run dev:app-web --prefix src/frontend",
-      "description": "启动应用前端开发服务器 (:5181)"
+      "description": "启动当前唯一前端开发服务器 app-web (:5181)"
     }
   ]
 }

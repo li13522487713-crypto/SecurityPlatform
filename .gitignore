@@ -402,10 +402,22 @@ src/backend/Atlas.WebApi/*.db-shm
 src/backend/Atlas.WebApi/*.db-wal
 src/backend/Atlas.WebApi/backups/*.db
 src/backend/Atlas.WebApi/backups/*.db.sha256
+src/backend/Atlas.PlatformHost/*.db
+src/backend/Atlas.PlatformHost/*.db-shm
+src/backend/Atlas.PlatformHost/*.db-wal
+src/backend/Atlas.PlatformHost/backups/
+src/backend/Atlas.PlatformHost/setup-state.json
+src/backend/Atlas.AppHost/*.db
+src/backend/Atlas.AppHost/*.db-shm
+src/backend/Atlas.AppHost/*.db-wal
+src/backend/Atlas.AppHost/backups/
+src/backend/Atlas.AppHost/app-setup-state.json
 /.tmp-build/webapi-check
 /.tmp-build/infra-check
 SecurityPlatform.zip
 /SecurityPlatform-source-docs.zip
+**/.bam-mark
+src/frontend/packages/project-ide/view/src/components/scroll-bar/lib/
 
 # Frontend build artifacts
 **/dist/

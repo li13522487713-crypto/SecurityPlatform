@@ -68,7 +68,7 @@ test.describe.serial("Workflow Complete Flow", () => {
     await expect(page.getByTestId("workflow.detail.node.testrun.result-panel")).toBeVisible();
 
     await page.getByTestId("workflow.detail.title.back").click();
-    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`), {
+    await expect(page).toHaveURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`), {
       timeout: 30_000
     });
     await expect(page.getByTestId("app-workflows-page")).toBeVisible({ timeout: 30_000 });

@@ -6,10 +6,9 @@
 
 ## 项目概览
 
-**Atlas Security Platform** — 符合等保2.0（GB/T 22239-2019）的安全支撑平台，当前已演进为“平台控制面 + 应用运行时 + 双壳前端 + 多 package 能力层”的架构，支持多租户、AI 工作流、知识库与严格安全控制。
+**Atlas Security Platform** — 符合等保2.0（GB/T 22239-2019）的安全支撑平台，当前已演进为“平台控制面 + 应用运行时 + React 应用壳前端 + 多 package 能力层”的架构，支持多租户、AI 工作流、知识库与严格安全控制。
 
 - 后端：.NET 10 + ASP.NET Core + SqlSugar + SQLite，结合 Hangfire、YARP、OpenTelemetry、Semantic Kernel、WorkflowCore / WorkflowCore.DSL、MassTransit、Qdrant / MinIO 等运行时能力
-- PlatformWeb：Vue 3 + TypeScript + Ant Design Vue + Vite 8，允许通过 Veaury 承载 React 能力包
 - AppWeb：React 18 + TypeScript + Semi Design + Vite 8，支持 `platform` / `direct` 双运行模式
 - 前端共享：pnpm monorepo，采用 `apps/* + packages/*` 的双壳多包架构
 - 关键文档：`等保2.0要求清单.md`、`docs/contracts.md`、`docs/workflow-editor-validation-matrix.md`、`docs/plan-*.md`
@@ -21,11 +20,10 @@
 - 后端纵向模块：在基础层之上按能力拆分为 `Workflow`、`LogicFlow`、`BatchProcess`、`AgentTeam`、`Approval`、`Assets`、`Audit`、`Alert` 等模块
 - 前端结构：`src/frontend/apps/*` 为宿主壳应用，`src/frontend/packages/*` 为共享核心、协议、编辑器、能力层与业务模块包
 - 前端当前重点包：
-  - 平台/宿主：`app-shell-shared`、`appbridge-console`、`navigation-projection`
-  - 能力与协议：`capability-core`、`capability-ui`、`schema-protocol`、`shared-core`、`shared-kernel`
-  - 设计与工作流：`designer-core`、`designer-vue`、`workflow-editor-react`、`workflow-editor`
-  - 应用模块：`coze-shell-react`、`library-module-react`、`module-admin-react`、`module-explore-react`、`module-studio-react`、`module-workflow-react`
-- 运行拓扑：`PlatformHost` 是平台控制面与 API 网关，`AppHost` 是应用运行时数据面；`app-web` 可经 `PlatformHost` 代理访问，也可 `direct` 直连 `AppHost`
+  - 宿主与路由：`app-shell-shared`
+  - 协议与共享：`schema-protocol`、`shared-react-core`
+  - Shell 与业务模块：`coze-shell-react`、`library-module-react`、`module-admin-react`、`module-explore-react`、`module-studio-react`、`module-workflow-react`、`workflow-core-react`、`workflow-editor-react`
+- 运行拓扑：`PlatformHost` 是平台控制面与 API 网关，`AppHost` 是应用运行时数据面；当前前端宿主只有 `app-web`
 - 共享契约：`docs/contracts.md` 定义 API / 画布 / 运行时契约，跨宿主共享类型优先沉淀到 `Atlas.Shared.Contracts` 与前端 workspace packages
 
 完整结构与依赖以仓库实际目录、各项目 `.csproj` / `package.json` 以及 `docs/contracts.md` 为准。
@@ -44,18 +42,13 @@ dotnet restore
 ```bash
 cd src/frontend
 pnpm install                    # 安装所有 workspace 依赖
-pnpm run dev:platform-web       # PlatformWeb 开发服务器 http://localhost:5180
 pnpm run dev:app-web            # AppWeb 开发服务器 http://localhost:5181
 pnpm run dev:app-web:platform   # AppWeb 以平台代理模式启动
 pnpm run dev:app-web:direct     # AppWeb 以直连模式启动
 pnpm run build                  # 构建所有前端项目
-pnpm run build:platform-web     # 仅构建 PlatformWeb
 pnpm run build:app-web          # 仅构建 AppWeb
 pnpm run test:unit              # 运行前端单元测试
-pnpm run test:e2e:setup         # 运行初始化/配置向导 E2E
 pnpm run test:e2e:app           # 运行应用壳 E2E
-pnpm run test:e2e:all           # 运行全链路 E2E
-pnpm --filter @atlas/workflow-editor-react run test:smoke   # 工作流编辑器烟测
 pnpm run i18n:check             # 校验中英文词条与 i18n 对齐
 pnpm run lint                   # Lint 所有项目
 pnpm run format                 # 格式化所有项目
@@ -74,7 +67,6 @@ pnpm run format                 # 格式化所有项目
 
 - **文档：** 标题层级连续（`#`、`##`、`###`），短句、 bullet 列表；文件名与现有模式一致（如 `等保2.0要求清单.md`）。
 - **.NET：** 4 空格缩进，PascalCase 类型/公开成员，camelCase 局部变量/字段；File-scoped namespaces；启用 Nullable reference types。
-- **PlatformWeb（Vue/TS）：** 2 空格缩进，Vue SFC 文件 kebab-case（如 `login-page.vue`），组件名 PascalCase；TypeScript 严格模式，禁止 `any`。
 - **AppWeb / React Packages（React/TSX）：** 2 空格缩进，优先沿用现有 kebab-case 页面/路由文件命名与 PascalCase 组件导出；hooks 使用 `useXxx`，context 使用 `XxxContext`；TypeScript 严格模式，禁止 `any`。
 - **安全与设计：** 强调安全编码与 OOP；优先清晰、可测试的抽象；避免过度抽象与不必要的模式。
 - **异步与仓储：** 所有 I/O 必须 async/await；控制器不得直接访问数据库，必须通过 Repository 与 Service。
@@ -103,7 +95,7 @@ pnpm run format                 # 格式化所有项目
 
 ### 前端界面语言与排查
 
-- 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/apps/platform-web/src/i18n/index.ts` 与 `src/frontend/apps/app-web/src/app/i18n.tsx`）。
+- 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/apps/app-web/src/app/i18n.tsx`）。
 - **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认线上/本地使用的是否为最新 **`pnpm run build`** 产物（避免旧 bundle 缺少新版词条）。
 - **中英键对齐**：在各应用目录下对比 `zh-CN.ts` / `en-US.ts` 是否同步更新，避免新增 key 漏翻。
 - 未使用 `useI18n` 的 `.vue` 审计清单见 **`docs/frontend-i18n-vue-without-useI18n.md`**。
@@ -114,7 +106,7 @@ pnpm run format                 # 格式化所有项目
 - 后端：后台接口操作数据库时不允许在循环内执行数据库操作；优先使用批量查询、批量更新、批量删除，并通过字典或集合聚合减少往返次数。
 - 前端：禁止使用 `any`、`unknown` 或运行时 `eval`/动态注入脚本；必须使用 TypeScript 全量类型标注，组件 props/emit/状态均需强类型定义，API 客户端与接口契约保持类型对齐。
 - 前端：搜索下拉框默认展示 20 条结果，必须提供搜索框并支持远程检索。
-- 前端：跨壳共享协议、类型、宿主桥接与能力注册逻辑，优先沉淀到 `shared-core`、`shared-kernel`、`schema-protocol`、`app-shell-shared`、`capability-*` 等 workspace 包，避免在 `apps/*` 中重复定义。
+- 前端：跨模块共享协议、类型、宿主桥接与能力注册逻辑，优先沉淀到 `shared-react-core`、`schema-protocol`、`app-shell-shared` 等 workspace 包，避免在 `apps/*` 中重复定义。
 - 合同：前后端共享的数据契约需集中于 `docs/contracts.md` 并保持与实现同步，修改契约时同步更新类型定义与相关校验。
 
 ## API 测试文件
@@ -134,13 +126,13 @@ pnpm run format                 # 格式化所有项目
 ## 测试与验证
 
 - **后端：** 使用 xUnit，测试项目位于 `tests/Atlas.WorkflowCore.Tests` 与 `tests/Atlas.SecurityPlatform.Tests`；接口验证仍需配套 REST Client `.http` 文件。
-- **前端：** 使用 Vitest 进行单元测试、Playwright 进行 E2E 测试，并通过 `pnpm run i18n:check` 做词条完整性校验；`workflow-editor-react` 额外维护独立烟测。
+- **前端：** 使用 Vitest 进行单元测试、Playwright 进行 E2E 测试，并通过 `pnpm run i18n:check` 做词条完整性校验。
 - **新增测试时：** 优先复用现有 xUnit / Vitest / Playwright 体系，记录命名模式（如 `*Tests.cs`、`*.spec.ts`）与运行命令。
 
 ## Workflow V2（Coze 复刻）补充约束
 
 - WorkflowV2 引擎必须保持与 LogicFlow 表达式能力对齐，节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
-- `workflow-editor-react` 是工作流画布与节点表单的单一前端实现，`platform-web` / `app-web` 如需工作流编辑能力，优先复用该包，禁止复制分叉实现。
+- `workflow-editor-react` 是工作流画布与节点表单的单一前端实现，`app-web` 如需工作流编辑能力，优先复用该包，禁止复制分叉实现。
 - DAG 运行时需保障以下能力长期可回归：
   - Batch 子图执行
   - Loop + Break/Continue
@@ -200,7 +192,6 @@ pnpm run format                 # 格式化所有项目
 |---|---|---|
 | PlatformHost | 5001 | `dotnet run --project src/backend/Atlas.PlatformHost` |
 | AppHost | 5002 | `dotnet run --project src/backend/Atlas.AppHost` |
-| PlatformWeb 开发服务器 | 5180 | `cd src/frontend && pnpm run dev:platform-web` |
 | AppWeb 开发服务器 | 5181 | `cd src/frontend && pnpm run dev:app-web` |
 
 `app-web` 默认以 `platform` 模式启动；如需直连 `AppHost`，使用 `cd src/frontend && pnpm run dev:app-web:direct`。
@@ -229,8 +220,7 @@ dotnet run --project src/backend/Atlas.AppHost
 - 后端单元/领域测试：`dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Integration"`
 - 后端集成测试：`dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName~Integration"`（使用 `WebApplicationFactory`，需正确配置 Hangfire SQLite）
 - 前端单元测试：`cd src/frontend && pnpm run test:unit`
-- 前端 E2E：`cd src/frontend && pnpm run test:e2e:setup`、`cd src/frontend && pnpm run test:e2e:app`、`cd src/frontend && pnpm run test:e2e:all`
-- 工作流编辑器烟测：`cd src/frontend && pnpm --filter @atlas/workflow-editor-react run test:smoke`
+- 前端 E2E：`cd src/frontend && pnpm run test:e2e:app`
 - 前端国际化校验：`cd src/frontend && pnpm run i18n:check`
 - 前端构建与 Lint：`cd src/frontend && pnpm run build`、`cd src/frontend && pnpm run lint`
 
