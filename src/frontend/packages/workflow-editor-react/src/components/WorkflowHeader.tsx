@@ -53,6 +53,7 @@ export function WorkflowHeader(props: WorkflowHeaderProps) {
             disabled={props.readOnly}
             onChange={(event) => props.onNameChange(event.target.value)}
             className="wf-react-name"
+            data-testid="workflow.detail.meta.name"
           />
           <Tag color={props.dirty ? "orange" : "green"} className="wf-react-save-tag">
             {saveText}

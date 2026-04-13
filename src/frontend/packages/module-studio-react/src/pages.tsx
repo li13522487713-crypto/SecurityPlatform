@@ -630,25 +630,51 @@ export function DevelopPage({
   const [submitting, setSubmitting] = useState(false);
 
   const load = async () => {
-    const [agentsResult, modelResult, workspaceResult, workspaceSummaryResult, workspaceResourcesResult] = await Promise.all([
-      api.listAgents({ pageIndex: 1, pageSize: 20, keyword: deferredKeyword || undefined }),
-      api.listModelConfigs(),
-      api.getWorkspaceOverview(),
-      api.getWorkspaceSummary(),
-      api.listWorkspaceResources({
-        keyword: deferredKeyword || undefined,
-        favoriteOnly,
-        pageIndex: 1,
-        pageSize: 120
-      })
-    ]);
-    setItems(agentsResult.items);
-    setModels(modelResult.items);
-    setWorkspaceOverview(workspaceResult);
-    setWorkspaceSummary(workspaceSummaryResult);
-    setWorkspaceResources(workspaceResourcesResult.items);
-    const applicationResources = workspaceResourcesResult.items.filter(item => item.resourceType === "app");
-    setSelectedApplicationId(current => current || applicationResources[0]?.resourceId || "");
+    try {
+      const [agentsResult, modelResult, workspaceResult, workspaceSummaryResult, workspaceResourcesResult] = await Promise.all([
+        api.listAgents({ pageIndex: 1, pageSize: 20, keyword: deferredKeyword || undefined }),
+        api.listModelConfigs(),
+        api.getWorkspaceOverview(),
+        api.getWorkspaceSummary(),
+        api.listWorkspaceResources({
+          keyword: deferredKeyword || undefined,
+          favoriteOnly,
+          pageIndex: 1,
+          pageSize: 120
+        })
+      ]);
+      setItems(agentsResult.items);
+      setModels(modelResult.items);
+      setWorkspaceOverview(workspaceResult);
+      setWorkspaceSummary(workspaceSummaryResult);
+      setWorkspaceResources(workspaceResourcesResult.items);
+      const applicationResources = workspaceResourcesResult.items.filter(item => item.resourceType === "app");
+      setSelectedApplicationId(current => current || applicationResources[0]?.resourceId || "");
+    } catch (error) {
+      setWorkspaceOverview(current => current ?? {
+        appId: "",
+        memberCount: 0,
+        roleCount: 0,
+        departmentCount: 0,
+        positionCount: 0,
+        projectCount: 0,
+        uncoveredMemberCount: 0,
+        applications: []
+      });
+      setWorkspaceSummary(current => current ?? {
+        appCount: 0,
+        agentCount: 0,
+        workflowCount: 0,
+        chatflowCount: 0,
+        pluginCount: 0,
+        knowledgeBaseCount: 0,
+        databaseCount: 0,
+        favoriteCount: 0,
+        recentCount: 0
+      });
+      setWorkspaceResources([]);
+      Toast.error(error instanceof Error ? error.message : "加载开发台数据失败。");
+    }
   };
 
   useEffect(() => {

@@ -89,7 +89,6 @@ type ConversationDialogState = {
 };
 
 const DEFAULT_DATABASE_SCHEMA = JSON.stringify([{ name: "id" }, { name: "value" }], null, 2);
-const WORKFLOW_NAME_REGEX = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
 const VARIABLE_KEY_REGEX = /^(?!\d)[A-Za-z0-9$_]+$/;
 
 function safeParseCanvas(canvasJson?: string): CanvasSchema {
@@ -850,7 +849,7 @@ export function WorkflowEditorShell({
       setCreateDialog(prev => ({ ...prev, error: copy.requiredField }));
       return;
     }
-    if ((createDialog.kind === "workflow" || createDialog.kind === "chatflow") && !WORKFLOW_NAME_REGEX.test(name)) {
+    if ((createDialog.kind === "workflow" || createDialog.kind === "chatflow") && (name.length < 2 || name.length > 100)) {
       setCreateDialog(prev => ({ ...prev, error: copy.workflowNameValidation }));
       return;
     }

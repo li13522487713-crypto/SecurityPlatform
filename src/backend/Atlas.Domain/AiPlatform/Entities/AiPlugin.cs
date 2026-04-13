@@ -12,6 +12,8 @@ public sealed class AiPlugin : TenantEntity
         Description = string.Empty;
         Icon = string.Empty;
         Category = string.Empty;
+        ManifestJson = "{}";
+        ServerUrl = string.Empty;
         DefinitionJson = "{}";
         AuthConfigJson = "{}";
         ToolSchemaJson = "{}";
@@ -41,6 +43,8 @@ public sealed class AiPlugin : TenantEntity
         Description = description ?? string.Empty;
         Icon = icon ?? string.Empty;
         Category = category ?? string.Empty;
+        ManifestJson = "{}";
+        ServerUrl = string.Empty;
         Type = type;
         DefinitionJson = string.IsNullOrWhiteSpace(definitionJson) ? "{}" : definitionJson;
         SourceType = sourceType;
@@ -58,6 +62,8 @@ public sealed class AiPlugin : TenantEntity
     public string? Description { get; private set; }
     public string? Icon { get; private set; }
     public string? Category { get; private set; }
+    public string ManifestJson { get; private set; }
+    public string? ServerUrl { get; private set; }
     public AiPluginType Type { get; private set; }
     public AiPluginSourceType SourceType { get; private set; }
     public AiPluginAuthType AuthType { get; private set; }
@@ -66,7 +72,9 @@ public sealed class AiPlugin : TenantEntity
     public string AuthConfigJson { get; private set; }
     public string ToolSchemaJson { get; private set; }
     public string OpenApiSpecJson { get; private set; }
+    public int PublishedVersion { get; private set; }
     public bool IsLocked { get; private set; }
+    public long? LockOwnerId { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public DateTime? PublishedAt { get; private set; }
@@ -82,12 +90,16 @@ public sealed class AiPlugin : TenantEntity
         AiPluginAuthType authType,
         string? authConfigJson,
         string? toolSchemaJson,
-        string? openApiSpecJson)
+        string? openApiSpecJson,
+        string? manifestJson = null,
+        string? serverUrl = null)
     {
         Name = name;
         Description = description ?? string.Empty;
         Icon = icon ?? string.Empty;
         Category = category ?? string.Empty;
+        ManifestJson = string.IsNullOrWhiteSpace(manifestJson) ? "{}" : manifestJson;
+        ServerUrl = serverUrl ?? string.Empty;
         Type = type;
         DefinitionJson = string.IsNullOrWhiteSpace(definitionJson) ? "{}" : definitionJson;
         SourceType = sourceType;
@@ -101,19 +113,22 @@ public sealed class AiPlugin : TenantEntity
     public void Publish()
     {
         Status = AiPluginStatus.Published;
+        PublishedVersion++;
         PublishedAt = DateTime.UtcNow;
         UpdatedAt = PublishedAt;
     }
 
-    public void Lock()
+    public void Lock(long? ownerId = null)
     {
         IsLocked = true;
+        LockOwnerId = ownerId;
         UpdatedAt = DateTime.UtcNow;
     }
 
     public void Unlock()
     {
         IsLocked = false;
+        LockOwnerId = null;
         UpdatedAt = DateTime.UtcNow;
     }
 }

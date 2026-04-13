@@ -1,0 +1,8 @@
+{
+  "status": "Failed",
+  "completedAt": null,
+  "failedAt": "2026-04-13T14:32:04.1805471+00:00",
+  "failureMessage": "IdGenerator.Mappings \u672A\u914D\u7F6E\uFF0C\u65E0\u6CD5\u751F\u6210ID\u3002",
+  "database": null,
+  "platformSetupCompleted": false
+}

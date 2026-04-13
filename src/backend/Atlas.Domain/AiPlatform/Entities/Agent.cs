@@ -21,7 +21,12 @@ public sealed class Agent : TenantEntity
         PresetQuestionsJson = "[]";
         DatabaseBindingsJson = "[]";
         VariableBindingsJson = "[]";
+        LayoutConfigJson = "{}";
+        DebugConfigJson = "{}";
+        PublishedConnectorConfigJson = "{}";
         ModelName = string.Empty;
+        Mode = AgentMode.Single;
+        PromptVersion = string.Empty;
         UpdatedAt = DateTime.UnixEpoch;
         PublishedAt = DateTime.UnixEpoch;
         Status = AgentStatus.Draft;
@@ -52,6 +57,11 @@ public sealed class Agent : TenantEntity
         PresetQuestionsJson = "[]";
         DatabaseBindingsJson = "[]";
         VariableBindingsJson = "[]";
+        LayoutConfigJson = "{}";
+        DebugConfigJson = "{}";
+        PublishedConnectorConfigJson = "{}";
+        PromptVersion = string.Empty;
+        Mode = AgentMode.Single;
     }
 
     public string Name { get; private set; }
@@ -67,6 +77,12 @@ public sealed class Agent : TenantEntity
     public string PresetQuestionsJson { get; private set; }
     public string DatabaseBindingsJson { get; private set; }
     public string VariableBindingsJson { get; private set; }
+    public AgentMode Mode { get; private set; }
+    public long? PromptTemplateId { get; private set; }
+    public string PromptVersion { get; private set; }
+    public string LayoutConfigJson { get; private set; }
+    public string DebugConfigJson { get; private set; }
+    public string PublishedConnectorConfigJson { get; private set; }
     public long? ModelConfigId { get; private set; }
     public string? ModelName { get; private set; }
     public float? Temperature { get; private set; }
@@ -107,7 +123,13 @@ public sealed class Agent : TenantEntity
         bool? enableMemory = null,
         bool? enableShortTermMemory = null,
         bool? enableLongTermMemory = null,
-        int? longTermMemoryTopK = null)
+        int? longTermMemoryTopK = null,
+        AgentMode? mode = null,
+        long? promptTemplateId = null,
+        string? promptVersion = null,
+        string? layoutConfigJson = null,
+        string? debugConfigJson = null,
+        string? publishedConnectorConfigJson = null)
     {
         Name = name;
         Description = description ?? string.Empty;
@@ -122,6 +144,12 @@ public sealed class Agent : TenantEntity
         PresetQuestionsJson = string.IsNullOrWhiteSpace(presetQuestionsJson) ? "[]" : presetQuestionsJson;
         DatabaseBindingsJson = string.IsNullOrWhiteSpace(databaseBindingsJson) ? "[]" : databaseBindingsJson;
         VariableBindingsJson = string.IsNullOrWhiteSpace(variableBindingsJson) ? "[]" : variableBindingsJson;
+        Mode = mode ?? Mode;
+        PromptTemplateId = promptTemplateId;
+        PromptVersion = promptVersion ?? string.Empty;
+        LayoutConfigJson = string.IsNullOrWhiteSpace(layoutConfigJson) ? "{}" : layoutConfigJson;
+        DebugConfigJson = string.IsNullOrWhiteSpace(debugConfigJson) ? "{}" : debugConfigJson;
+        PublishedConnectorConfigJson = string.IsNullOrWhiteSpace(publishedConnectorConfigJson) ? "{}" : publishedConnectorConfigJson;
         ModelConfigId = modelConfigId;
         if (!ModelConfigId.HasValue)
         {
@@ -224,4 +252,10 @@ public enum AgentStatus
     Draft = 0,
     Published = 1,
     Disabled = 2
+}
+
+public enum AgentMode
+{
+    Single = 0,
+    Workflow = 1
 }

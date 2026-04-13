@@ -63,6 +63,7 @@ import {
   rememberConfiguredAppKey,
   setUnauthorizedHandler
 } from "@/services/api-core";
+import { getLowCodeAppByKey } from "@/services/api-lowcode-runtime";
 import {
   exportLibraryItem,
   getLibraryPaged,
@@ -218,6 +219,7 @@ import {
   listWorkflows,
   workflowV2Api
 } from "@/services/api-workflow";
+import { getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
 import { executeWorkflowTask } from "@/services/api-workflow-playground";
 
 const libraryApi: LibraryKnowledgeApi = {
@@ -553,6 +555,22 @@ async function* createAgentMessageStream(
   }
 }
 
+async function resolveCurrentStudioAppId(appKey: string): Promise<string> {
+  const storedAppId = getCurrentAppIdFromStorage();
+  if (storedAppId?.trim()) {
+    return storedAppId.trim();
+  }
+
+  const detail = await getLowCodeAppByKey(appKey);
+  const resolvedAppId = String(detail.id ?? "").trim();
+  if (!resolvedAppId) {
+    throw new Error("当前应用实例未找到有效的 appId。");
+  }
+
+  setCurrentAppIdToStorage(resolvedAppId);
+  return resolvedAppId;
+}
+
 function createStudioApi(appKey: string): StudioModuleApi {
   return {
     listAgents: getAgentsPaged,
@@ -560,8 +578,9 @@ function createStudioApi(appKey: string): StudioModuleApi {
     createAgent,
     updateAgent,
     getWorkspaceOverview: async () => {
+      const appId = await resolveCurrentStudioAppId(appKey);
       const [workspace, summary] = await Promise.all([
-        getOrganizationWorkspace(appKey, { pageIndex: 1, pageSize: 8 }),
+        getOrganizationWorkspace(appId, { pageIndex: 1, pageSize: 8 }),
         getWorkspaceIdeSummary()
       ]);
       return {

@@ -6,15 +6,12 @@ namespace Atlas.Application.AiPlatform.Validators;
 
 public sealed class WorkflowV2CreateRequestValidator : AbstractValidator<WorkflowV2CreateRequest>
 {
-    private const string WorkflowNamePattern = "^[A-Za-z][A-Za-z0-9_]{0,29}$";
-
     public WorkflowV2CreateRequestValidator()
     {
         RuleFor(x => x.Name)
             .NotEmpty()
-            .MaximumLength(30)
-            .Matches(WorkflowNamePattern)
-            .WithMessage("工作流名称只允许字母、数字和下划线，并以字母开头，最多 30 个字符。");
+            .MinimumLength(2)
+            .MaximumLength(100);
         RuleFor(x => x.Description)
             .NotEmpty()
             .MaximumLength(2000);

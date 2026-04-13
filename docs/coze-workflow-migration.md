@@ -44,3 +44,16 @@
   - 工作流编辑器顶部头部按钮与底部工具栏的细节视觉继续对齐 Coze
   - 右侧属性面板、变量面板、Trace 面板的内容布局进一步按 Coze 拆分
 
+## Round 2 落仓约束
+
+- 第 2 轮不再把工作流当作孤立迁移点，而是把它纳入 `Atlas.Application.AiPlatform`、`Atlas.Domain.AiPlatform`、`module-studio-react`、`module-explore-react`、`module-workflow-react` 的统一规划。
+- 工作流后续需要和以下能力一起落地：
+  - 智能体 IDE
+  - 应用 IDE
+  - 资源库
+  - 项目会话模板
+  - 发布记录与 Connector
+  - AppHost 运行态与 OpenAPI
+- 详细说明见：
+  - [Coze Atlas Round 2 落仓实施说明](./plan-coze-atlas-round2.md)
+  - [AI Platform ER 草案](./ai-platform-er.md)

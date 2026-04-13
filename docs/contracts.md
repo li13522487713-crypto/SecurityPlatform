@@ -318,6 +318,46 @@
   - `documentName`
   - `documentCreatedAt`
 
+## AI Platform Round 2 落仓约束
+
+### 宿主分工
+
+- `PlatformHost`：
+  - 工作台 / 资源库 / 市场 / 设计态 / 发布态 / PAT / OpenAPI 项目管理
+- `AppHost`：
+  - 对话 / Agent 调试 / Workflow 运行 / Embed Chat / OpenAPI 运行
+
+### 统一资源域
+
+- 智能体：`Agent`
+- 应用：`AiApp`
+- 工作流：`WorkflowMeta`、`WorkflowDraft`、`WorkflowVersion`
+- 插件：`AiPlugin`、`AiPluginApi`
+- 知识库：`KnowledgeBase`、`KnowledgeDocument`、`DocumentChunk`
+- 数据库：`AiDatabase`、`AiDatabaseRecord`
+- 变量：`AiVariable`、`AiVariableInstance`
+- 会话：`Conversation`、`ConversationSection`、`ChatMessage`、`ChatRunRecord`
+
+### 结构化设计约束
+
+- 编辑态读草稿，运行态读发布快照。
+- 旧 JSON 绑定字段仅保留为兼容缓存，不再作为唯一事实来源。
+- 新增绑定事实表：
+  - `AgentWorkflowBinding`
+  - `AgentDatabaseBinding`
+  - `AgentVariableBinding`
+  - `AgentPromptBinding`
+  - `AiAppResourceBinding`
+  - `AiAppConversationTemplate`
+  - `AiAppConnectorBinding`
+  - `WorkflowReference`
+  - `WorkflowPublishedReference`
+
+### 文档索引
+
+- 第 2 轮具体落仓方案见：[plan-coze-atlas-round2.md](./plan-coze-atlas-round2.md)
+- 资源关系图见：[ai-platform-er.md](./ai-platform-er.md)
+
 ## App Workbench API（AppHost-only）
 
 ### Draft Agent 与默认工作流绑定

@@ -170,7 +170,7 @@ function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
       : kind === "workflow" ? "Create workflow" : kind === "chatflow" ? "Create chatflow" : kind === "plugin" ? "Create plugin" : kind === "knowledge-base" ? "Create knowledge base" : "Create database",
     createDialogConfirm: kind => zh ? (kind === "workflow" || kind === "chatflow" ? "确认" : "保存") : (kind === "workflow" || kind === "chatflow" ? "Confirm" : "Save"),
     createDialogGlyph: kind => kind === "workflow" ? "W" : kind === "chatflow" ? "C" : kind === "plugin" ? "P" : kind === "knowledge-base" ? "K" : "D",
-    workflowNameValidation: zh ? "工作流名称只允许字母、数字和下划线，并以字母开头，最多 30 个字符。" : "Workflow names must start with a letter and contain only letters, numbers, and underscores, up to 30 characters.",
+    workflowNameValidation: zh ? "工作流名称长度需在 2 到 100 个字符之间。" : "Workflow names must be between 2 and 100 characters.",
     variableKeyValidation: zh ? "变量名首字符不能为数字，且只能包含字母、数字、$ 和 _。" : "Variable keys cannot start with a number and may only contain letters, numbers, $ and _.",
     databaseSchemaValidationFailed: zh ? "数据库 Schema 校验失败。" : "Database schema validation failed.",
     requiredField: zh ? "请填写必填项。" : "This field is required.",

@@ -29,7 +29,7 @@ import { ensureChatflowGlobals, readChatflowRoleConfig, validateChatflowRoleConf
 import { buildVariableSuggestions } from "./smoke-utils";
 import { validateTestRunPayload, type TestRunValidationIssueCode } from "./test-run-validation";
 import type { CanvasConnection, CanvasNode } from "./workflow-editor-state";
-import { NODE_HEIGHT, NODE_WIDTH, toCanvasJson, type WorkflowViewportState } from "./workflow-editor-state";
+import { NODE_HEIGHT, NODE_WIDTH, parseCanvasJson, toCanvasJson, type WorkflowViewportState } from "./workflow-editor-state";
 import { useNodeSideSheetStore } from "../stores/node-side-sheet-store";
 import { useWorkflowEditorStore } from "../stores/workflow-editor-store";
 import { WorkflowDragService, WorkflowEditService, WorkflowOperationService, WorkflowRunService, WorkflowSaveService } from "../services";
@@ -249,6 +249,17 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     }
     return store.nodeTypesMeta.map((item) => String(item.key));
   }, [store.nodeTypesMeta]);
+
+  const automationCanvasJson = useMemo(
+    () =>
+      toCanvasJson(
+        store.canvasNodes,
+        store.canvasConnections,
+        store.canvasGlobals,
+        { x: store.pan.x, y: store.pan.y, zoom: store.zoom }
+      ),
+    [store.canvasConnections, store.canvasGlobals, store.canvasNodes, store.pan.x, store.pan.y, store.zoom]
+  );
 
   const lineSegments = useMemo(() => {
     const nodeMap = new Map(store.canvasNodes.map((node) => [node.key, node]));
@@ -619,6 +630,41 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         onSave={() => void handleSave()}
         onPublish={() => void handlePublish()}
       />
+      <div className="wf-react-automation-bridge">
+        <label className="wf-react-automation-field">
+          <span>画布 JSON</span>
+          <textarea
+            data-testid="workflow.detail.canvas-json"
+            value={automationCanvasJson}
+            readOnly={isReadOnly}
+            onChange={(event) => {
+              if (isReadOnly) {
+                return;
+              }
+
+              const parsed = parseCanvasJson(event.target.value);
+              store.setCanvasSnapshot({
+                nodes: parsed.nodes,
+                connections: parsed.connections,
+                globals: parsed.globals,
+                viewport: parsed.viewport ?? { x: store.pan.x, y: store.pan.y, zoom: store.zoom },
+                workflowName: store.workflowName,
+                isDirty: true
+              });
+              setCanvasValidation(null);
+              saveService.listenContentChange({ type: "META_CHANGE" });
+            }}
+          />
+        </label>
+        <label className="wf-react-automation-field">
+          <span>试运行输入</span>
+          <textarea
+            data-testid="workflow.detail.run-inputs"
+            value={store.testInputJson}
+            onChange={(event) => store.setTestInputJson(event.target.value)}
+          />
+        </label>
+      </div>
       <div
         ref={canvasShellRef}
         className="wf-react-canvas-shell"

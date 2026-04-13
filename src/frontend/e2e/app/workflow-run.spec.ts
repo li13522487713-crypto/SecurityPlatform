@@ -44,7 +44,7 @@ test.describe.serial("Workflow Run E2E", () => {
         },
         { timeout: 30_000 }
       )
-      .toContain("状态");
+      .toContain("save_draft");
   });
 
   test("should allow updating run input json before rerun", async ({ page, request, ensureLoggedInSession }) => {
