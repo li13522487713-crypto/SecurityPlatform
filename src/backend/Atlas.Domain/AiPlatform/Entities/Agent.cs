@@ -19,6 +19,8 @@ public sealed class Agent : TenantEntity
         Constraints = string.Empty;
         OpeningMessage = string.Empty;
         PresetQuestionsJson = "[]";
+        DatabaseBindingsJson = "[]";
+        VariableBindingsJson = "[]";
         ModelName = string.Empty;
         UpdatedAt = DateTime.UnixEpoch;
         PublishedAt = DateTime.UnixEpoch;
@@ -48,6 +50,8 @@ public sealed class Agent : TenantEntity
         EnableLongTermMemory = true;
         LongTermMemoryTopK = 3;
         PresetQuestionsJson = "[]";
+        DatabaseBindingsJson = "[]";
+        VariableBindingsJson = "[]";
     }
 
     public string Name { get; private set; }
@@ -61,6 +65,8 @@ public sealed class Agent : TenantEntity
     public string? Constraints { get; private set; }
     public string? OpeningMessage { get; private set; }
     public string PresetQuestionsJson { get; private set; }
+    public string DatabaseBindingsJson { get; private set; }
+    public string VariableBindingsJson { get; private set; }
     public long? ModelConfigId { get; private set; }
     public string? ModelName { get; private set; }
     public float? Temperature { get; private set; }
@@ -90,6 +96,8 @@ public sealed class Agent : TenantEntity
         string? constraints,
         string? openingMessage,
         string? presetQuestionsJson,
+        string? databaseBindingsJson,
+        string? variableBindingsJson,
         long? modelConfigId,
         string? modelName,
         float? temperature,
@@ -112,6 +120,8 @@ public sealed class Agent : TenantEntity
         Constraints = constraints ?? string.Empty;
         OpeningMessage = openingMessage ?? string.Empty;
         PresetQuestionsJson = string.IsNullOrWhiteSpace(presetQuestionsJson) ? "[]" : presetQuestionsJson;
+        DatabaseBindingsJson = string.IsNullOrWhiteSpace(databaseBindingsJson) ? "[]" : databaseBindingsJson;
+        VariableBindingsJson = string.IsNullOrWhiteSpace(variableBindingsJson) ? "[]" : variableBindingsJson;
         ModelConfigId = modelConfigId;
         if (!ModelConfigId.HasValue)
         {
@@ -193,6 +203,8 @@ public sealed class Agent : TenantEntity
             Constraints,
             OpeningMessage,
             PresetQuestionsJson,
+            DatabaseBindingsJson,
+            VariableBindingsJson,
             ModelConfigId,
             ModelName,
             Temperature,

@@ -20,6 +20,10 @@ public sealed class AgentCreateRequestValidator : AbstractValidator<AgentCreateR
         RuleFor(x => x.PresetQuestions).Must(questions => questions is null || questions.Count <= 6)
             .WithMessage("PresetQuestions 最多 6 条。");
         RuleForEach(x => x.PresetQuestions).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.DatabaseBindingIds).Must(ids => ids is null || ids.Count <= 20)
+            .WithMessage("DatabaseBindingIds 最多 20 项。");
+        RuleFor(x => x.VariableBindingIds).Must(ids => ids is null || ids.Count <= 50)
+            .WithMessage("VariableBindingIds 最多 50 项。");
         RuleFor(x => x.ModelName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.ModelName));
         RuleFor(x => x.Temperature).InclusiveBetween(0f, 2f).When(x => x.Temperature.HasValue);
         RuleFor(x => x.MaxTokens).InclusiveBetween(1, 128000).When(x => x.MaxTokens.HasValue);
@@ -56,6 +60,10 @@ public sealed class AgentUpdateRequestValidator : AbstractValidator<AgentUpdateR
         RuleFor(x => x.PresetQuestions).Must(questions => questions is null || questions.Count <= 6)
             .WithMessage("PresetQuestions 最多 6 条。");
         RuleForEach(x => x.PresetQuestions).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.DatabaseBindingIds).Must(ids => ids is null || ids.Count <= 20)
+            .WithMessage("DatabaseBindingIds 最多 20 项。");
+        RuleFor(x => x.VariableBindingIds).Must(ids => ids is null || ids.Count <= 50)
+            .WithMessage("VariableBindingIds 最多 50 项。");
         RuleFor(x => x.ModelName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.ModelName));
         RuleFor(x => x.Temperature).InclusiveBetween(0f, 2f).When(x => x.Temperature.HasValue);
         RuleFor(x => x.MaxTokens).InclusiveBetween(1, 128000).When(x => x.MaxTokens.HasValue);

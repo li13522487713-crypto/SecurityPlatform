@@ -208,6 +208,8 @@ public sealed class AgentPublicationService : IAgentPublicationService
                 agent.Constraints,
                 agent.OpeningMessage,
                 agent.PresetQuestionsJson,
+                agent.DatabaseBindingsJson,
+                agent.VariableBindingsJson,
                 agent.ModelConfigId,
                 agent.ModelName,
                 agent.Temperature,

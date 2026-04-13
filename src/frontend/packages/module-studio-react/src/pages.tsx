@@ -1301,6 +1301,14 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const [longTermMemoryTopK, setLongTermMemoryTopK] = useState<number | undefined>(3);
   const [modelConfigs, setModelConfigs] = useState<ModelConfigItem[]>([]);
   const [workflowOptions, setWorkflowOptions] = useState<WorkflowListItem[]>([]);
+  const [pluginOptions, setPluginOptions] = useState<Array<{ id: number; name: string; category?: string; status: number }>>([]);
+  const [knowledgeBaseOptions, setKnowledgeBaseOptions] = useState<Array<{ id: number; name: string; type: number }>>([]);
+  const [databaseOptions, setDatabaseOptions] = useState<Array<{ id: number; name: string; botId?: number }>>([]);
+  const [variableOptions, setVariableOptions] = useState<Array<{ id: number; key: string; scopeId?: number }>>([]);
+  const [selectedKnowledgeBaseIds, setSelectedKnowledgeBaseIds] = useState<number[]>([]);
+  const [selectedPluginIds, setSelectedPluginIds] = useState<number[]>([]);
+  const [selectedDatabaseIds, setSelectedDatabaseIds] = useState<number[]>([]);
+  const [selectedVariableIds, setSelectedVariableIds] = useState<number[]>([]);
   const [conversationId, setConversationId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [messageInput, setMessageInput] = useState("");
@@ -1330,10 +1338,14 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     setWorkbenchError(null);
 
     try {
-      const [nextDetail, modelResult, workflows] = await Promise.all([
+      const [nextDetail, modelResult, workflows, plugins, knowledgeBases, databases, variables] = await Promise.all([
         api.getAgent(botId),
         api.listModelConfigs(),
-        api.listWorkflows({ status: "all" })
+        api.listWorkflows({ status: "all" }),
+        api.listPlugins(),
+        api.listKnowledgeBases(),
+        api.listDatabases(),
+        api.listBotVariables(botId)
       ]);
 
       if (requestId !== workbenchRequestIdRef.current) {
@@ -1373,6 +1385,14 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
           String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? ""))
         )
       );
+      setPluginOptions(plugins);
+      setKnowledgeBaseOptions(knowledgeBases);
+      setDatabaseOptions(databases);
+      setVariableOptions(variables);
+      setSelectedKnowledgeBaseIds(nextDetail.knowledgeBaseIds ?? []);
+      setSelectedPluginIds((nextDetail.pluginBindings ?? []).filter(item => item.isEnabled).map(item => item.pluginId));
+      setSelectedDatabaseIds(nextDetail.databaseBindingIds ?? []);
+      setSelectedVariableIds(nextDetail.variableBindingIds ?? []);
 
       const conversationResult = await api.listConversations(botId);
       if (requestId !== workbenchRequestIdRef.current) {
@@ -1474,6 +1494,15 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
         constraints: promptSections.constraints.trim() || undefined,
         openingMessage: openingMessage.trim() || promptSections.opening.trim() || undefined,
         presetQuestions: presetQuestions.length > 0 ? presetQuestions : undefined,
+        knowledgeBaseIds: selectedKnowledgeBaseIds,
+        pluginBindings: selectedPluginIds.map((pluginId, index) => ({
+          pluginId,
+          sortOrder: index,
+          isEnabled: true,
+          toolConfigJson: "{}"
+        })),
+        databaseBindingIds: selectedDatabaseIds,
+        variableBindingIds: selectedVariableIds,
         modelConfigId,
         modelName: selectedModel?.defaultModel,
         defaultWorkflowId: workflowId,
@@ -1496,6 +1525,15 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
         constraints: promptSections.constraints.trim() || undefined,
         openingMessage: openingMessage.trim() || promptSections.opening.trim() || undefined,
         presetQuestions: presetQuestions.length > 0 ? presetQuestions : undefined,
+        knowledgeBaseIds: selectedKnowledgeBaseIds,
+        pluginBindings: selectedPluginIds.map((pluginId, index) => ({
+          pluginId,
+          sortOrder: index,
+          isEnabled: true,
+          toolConfigJson: "{}"
+        })),
+        databaseBindingIds: selectedDatabaseIds,
+        variableBindingIds: selectedVariableIds,
         modelConfigId,
         modelName: selectedModel?.defaultModel,
         defaultWorkflowId: workflowId,
@@ -1785,6 +1823,70 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
                 onChange={value => setWorkflowId(typeof value === "string" ? value : undefined)}
                 disabled={!resourceReady || saving}
                 data-testid="app-bot-ide-workflow-select"
+              />
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>插件</span>
+              <Select
+                multiple
+                value={selectedPluginIds}
+                placeholder="选择插件能力"
+                optionList={pluginOptions.map(item => ({
+                  label: `${item.name}${item.category ? ` / ${item.category}` : ""}`,
+                  value: item.id
+                }))}
+                onChange={value => setSelectedPluginIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                disabled={!resourceReady || saving}
+                data-testid="app-bot-ide-plugins"
+              />
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>知识库</span>
+              <Select
+                multiple
+                value={selectedKnowledgeBaseIds}
+                placeholder="选择知识库"
+                optionList={knowledgeBaseOptions.map(item => ({
+                  label: `${item.name} / type:${item.type}`,
+                  value: item.id
+                }))}
+                onChange={value => setSelectedKnowledgeBaseIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                disabled={!resourceReady || saving}
+                data-testid="app-bot-ide-knowledge-bases"
+              />
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>数据库</span>
+              <Select
+                multiple
+                value={selectedDatabaseIds}
+                placeholder="选择数据库"
+                optionList={databaseOptions.map(item => ({
+                  label: `${item.name}${item.botId ? " / 已绑定" : ""}`,
+                  value: item.id
+                }))}
+                onChange={value => setSelectedDatabaseIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                disabled={!resourceReady || saving}
+                data-testid="app-bot-ide-databases"
+              />
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>变量</span>
+              <Select
+                multiple
+                value={selectedVariableIds}
+                placeholder="选择 Bot 变量"
+                optionList={variableOptions.map(item => ({
+                  label: item.key,
+                  value: item.id
+                }))}
+                onChange={value => setSelectedVariableIds(Array.isArray(value) ? value.map(item => Number(item)) : [])}
+                disabled={!resourceReady || saving}
+                data-testid="app-bot-ide-variables"
               />
             </div>
 

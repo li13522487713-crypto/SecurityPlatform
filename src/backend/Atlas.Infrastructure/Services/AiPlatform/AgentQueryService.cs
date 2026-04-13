@@ -68,6 +68,8 @@ public sealed class AgentQueryService : IAgentQueryService
             NullIfEmpty(entity.Constraints),
             NullIfEmpty(entity.OpeningMessage),
             ParsePresetQuestions(entity.PresetQuestionsJson),
+            ParseIdList(entity.DatabaseBindingsJson),
+            ParseIdList(entity.VariableBindingsJson),
             NullIfNonPositive(entity.ModelConfigId),
             NullIfEmpty(entity.ModelName),
             NullIfZero(entity.Temperature),
@@ -147,6 +149,23 @@ public sealed class AgentQueryService : IAgentQueryService
         catch
         {
             return Array.Empty<string>();
+        }
+    }
+
+    private static IReadOnlyList<long> ParseIdList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<long>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<long[]>(json, JsonOptions) ?? Array.Empty<long>();
+        }
+        catch
+        {
+            return Array.Empty<long>();
         }
     }
 }

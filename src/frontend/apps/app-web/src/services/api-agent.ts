@@ -14,6 +14,8 @@ export interface AgentDetail {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  databaseBindingIds?: number[];
+  variableBindingIds?: number[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -46,6 +48,8 @@ export interface AgentCreateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  databaseBindingIds?: number[];
+  variableBindingIds?: number[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -70,6 +74,8 @@ export interface AgentUpdateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  databaseBindingIds?: number[];
+  variableBindingIds?: number[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;

@@ -19,6 +19,8 @@ public sealed class AgentCommandService : IAgentCommandService
     private readonly AgentPluginBindingRepository _pluginBindingRepository;
     private readonly AgentPublicationRepository _publicationRepository;
     private readonly AiPluginRepository _pluginRepository;
+    private readonly AiDatabaseRepository _databaseRepository;
+    private readonly AiVariableRepository _variableRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly IWorkflowMetaRepository _workflowMetaRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
@@ -30,6 +32,8 @@ public sealed class AgentCommandService : IAgentCommandService
         AgentPluginBindingRepository pluginBindingRepository,
         AgentPublicationRepository publicationRepository,
         AiPluginRepository pluginRepository,
+        AiDatabaseRepository databaseRepository,
+        AiVariableRepository variableRepository,
         ModelConfigRepository modelConfigRepository,
         IWorkflowMetaRepository workflowMetaRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
@@ -40,6 +44,8 @@ public sealed class AgentCommandService : IAgentCommandService
         _pluginBindingRepository = pluginBindingRepository;
         _publicationRepository = publicationRepository;
         _pluginRepository = pluginRepository;
+        _databaseRepository = databaseRepository;
+        _variableRepository = variableRepository;
         _modelConfigRepository = modelConfigRepository;
         _workflowMetaRepository = workflowMetaRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -64,6 +70,16 @@ public sealed class AgentCommandService : IAgentCommandService
             request.DefaultWorkflowId,
             request.DefaultWorkflowName,
             cancellationToken);
+        var databaseBindingIds = await BuildValidatedDatabaseBindingIdsAsync(
+            tenantId,
+            botId: null,
+            request.DatabaseBindingIds,
+            cancellationToken);
+        var variableBindingIds = await BuildValidatedVariableBindingIdsAsync(
+            tenantId,
+            botId: null,
+            request.VariableBindingIds,
+            cancellationToken);
         var entity = new Agent(tenantId, request.Name, creatorId, _idGeneratorAccessor.NextId());
         entity.Update(
             request.Name,
@@ -77,6 +93,8 @@ public sealed class AgentCommandService : IAgentCommandService
             request.Constraints,
             request.OpeningMessage,
             SerializePresetQuestions(request.PresetQuestions),
+            SerializeIdCollection(databaseBindingIds),
+            SerializeIdCollection(variableBindingIds),
             modelConfigId,
             request.ModelName,
             request.Temperature,
@@ -88,7 +106,11 @@ public sealed class AgentCommandService : IAgentCommandService
             request.EnableLongTermMemory,
             request.LongTermMemoryTopK);
 
-        await _agentRepository.AddAsync(entity, cancellationToken);
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await _agentRepository.AddAsync(entity, cancellationToken);
+            await SyncDatabaseBindingsAsync(tenantId, entity.Id, databaseBindingIds, cancellationToken);
+        }, cancellationToken);
         return entity.Id;
     }
 
@@ -115,6 +137,8 @@ public sealed class AgentCommandService : IAgentCommandService
             request.Constraints,
             request.OpeningMessage,
             SerializePresetQuestions(request.PresetQuestions),
+            SerializeIdCollection(request.DatabaseBindingIds),
+            SerializeIdCollection(request.VariableBindingIds),
             modelConfigId,
             request.ModelName,
             request.Temperature,
@@ -136,10 +160,21 @@ public sealed class AgentCommandService : IAgentCommandService
             id,
             request.PluginBindings,
             cancellationToken);
+        var databaseBindingIds = await BuildValidatedDatabaseBindingIdsAsync(
+            tenantId,
+            id,
+            request.DatabaseBindingIds,
+            cancellationToken);
+        var variableBindingIds = await BuildValidatedVariableBindingIdsAsync(
+            tenantId,
+            id,
+            request.VariableBindingIds,
+            cancellationToken);
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _agentRepository.UpdateAsync(entity, cancellationToken);
+            await SyncDatabaseBindingsAsync(tenantId, id, databaseBindingIds, cancellationToken);
             await _linkRepository.DeleteByAgentIdAsync(tenantId, id, cancellationToken);
             if (knowledgeIds.Length == 0)
             {
@@ -187,6 +222,8 @@ public sealed class AgentCommandService : IAgentCommandService
             entity.Constraints,
             entity.OpeningMessage,
             entity.PresetQuestionsJson,
+            entity.DatabaseBindingsJson,
+            entity.VariableBindingsJson,
             entity.ModelConfigId,
             entity.ModelName,
             entity.Temperature,
@@ -209,6 +246,15 @@ public sealed class AgentCommandService : IAgentCommandService
             .Select(item => item.Trim())
             .Distinct(StringComparer.Ordinal)
             .Take(6)
+            .ToArray() ?? [];
+        return JsonSerializer.Serialize(normalized, JsonOptions);
+    }
+
+    private static string SerializeIdCollection(IReadOnlyList<long>? ids)
+    {
+        var normalized = ids?
+            .Where(item => item > 0)
+            .Distinct()
             .ToArray() ?? [];
         return JsonSerializer.Serialize(normalized, JsonOptions);
     }
@@ -356,5 +402,109 @@ public sealed class AgentCommandService : IAgentCommandService
                 binding.ToolConfigJson,
                 _idGeneratorAccessor.NextId()))
             .ToArray();
+    }
+
+    private async Task<long[]> BuildValidatedDatabaseBindingIdsAsync(
+        TenantId tenantId,
+        long? botId,
+        IReadOnlyList<long>? databaseBindingIds,
+        CancellationToken cancellationToken)
+    {
+        var normalizedIds = databaseBindingIds?
+            .Where(item => item > 0)
+            .Distinct()
+            .ToArray() ?? [];
+
+        if (normalizedIds.Length == 0)
+        {
+            return normalizedIds;
+        }
+
+        var databases = await _databaseRepository.QueryByIdsAsync(tenantId, normalizedIds, cancellationToken);
+        if (databases.Count != normalizedIds.Length)
+        {
+            throw new BusinessException("存在无效的数据库绑定。", ErrorCodes.ValidationError);
+        }
+
+        if (botId.HasValue && botId.Value > 0)
+        {
+            var conflict = databases.FirstOrDefault(item => item.BotId.HasValue && item.BotId.Value > 0 && item.BotId.Value != botId.Value);
+            if (conflict is not null)
+            {
+                throw new BusinessException("存在已绑定到其他智能体的数据库。", ErrorCodes.ValidationError);
+            }
+        }
+
+        return normalizedIds;
+    }
+
+    private async Task<long[]> BuildValidatedVariableBindingIdsAsync(
+        TenantId tenantId,
+        long? botId,
+        IReadOnlyList<long>? variableBindingIds,
+        CancellationToken cancellationToken)
+    {
+        var normalizedIds = variableBindingIds?
+            .Where(item => item > 0)
+            .Distinct()
+            .ToArray() ?? [];
+
+        if (normalizedIds.Length == 0)
+        {
+            return normalizedIds;
+        }
+
+        var variables = await _variableRepository.QueryByIdsAsync(tenantId, normalizedIds, cancellationToken);
+        if (variables.Count != normalizedIds.Length)
+        {
+            throw new BusinessException("存在无效的变量绑定。", ErrorCodes.ValidationError);
+        }
+
+        if (botId.HasValue && botId.Value > 0)
+        {
+            var invalidScope = variables.FirstOrDefault(item => item.Scope != AiVariableScope.Bot || item.ScopeId != botId.Value);
+            if (invalidScope is not null)
+            {
+                throw new BusinessException("变量绑定必须属于当前智能体作用域。", ErrorCodes.ValidationError);
+            }
+        }
+
+        return normalizedIds;
+    }
+
+    private async Task SyncDatabaseBindingsAsync(
+        TenantId tenantId,
+        long botId,
+        IReadOnlyCollection<long> selectedDatabaseIds,
+        CancellationToken cancellationToken)
+    {
+        var (currentItems, _) = await _databaseRepository.GetPagedAsync(tenantId, keyword: null, pageIndex: 1, pageSize: 500, cancellationToken);
+        var boundItems = currentItems
+            .Where(item => item.BotId.HasValue && item.BotId.Value == botId)
+            .ToArray();
+
+        foreach (var database in boundItems)
+        {
+            if (!selectedDatabaseIds.Contains(database.Id))
+            {
+                database.UnbindBot();
+                await _databaseRepository.UpdateAsync(database, cancellationToken);
+            }
+        }
+
+        if (selectedDatabaseIds.Count == 0)
+        {
+            return;
+        }
+
+        var selectedEntities = await _databaseRepository.QueryByIdsAsync(tenantId, selectedDatabaseIds.ToArray(), cancellationToken);
+        foreach (var database in selectedEntities)
+        {
+            if (database.BotId != botId)
+            {
+                database.BindBot(botId);
+                await _databaseRepository.UpdateAsync(database, cancellationToken);
+            }
+        }
     }
 }

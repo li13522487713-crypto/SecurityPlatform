@@ -27,6 +27,10 @@ export interface AgentDetail {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBaseIds?: number[];
+  pluginBindings?: Array<{ pluginId: number; sortOrder: number; isEnabled: boolean; toolConfigJson?: string }>;
+  databaseBindingIds?: number[];
+  variableBindingIds?: number[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -52,6 +56,10 @@ export interface AgentCreateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBaseIds?: number[];
+  pluginBindings?: Array<{ pluginId: number; sortOrder: number; isEnabled: boolean; toolConfigJson?: string }>;
+  databaseBindingIds?: number[];
+  variableBindingIds?: number[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -76,6 +84,10 @@ export interface AgentUpdateRequest {
   constraints?: string;
   openingMessage?: string;
   presetQuestions?: string[];
+  knowledgeBaseIds?: number[];
+  pluginBindings?: Array<{ pluginId: number; sortOrder: number; isEnabled: boolean; toolConfigJson?: string }>;
+  databaseBindingIds?: number[];
+  variableBindingIds?: number[];
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
@@ -356,6 +368,10 @@ export interface StudioModuleApi {
     request: { role: "system" | "user" | "assistant" | "tool"; content: string; metadata?: string }
   ) => Promise<string>;
   listWorkflows: (params?: { keyword?: string; status?: "draft" | "published" | "all" }) => Promise<WorkflowListItem[]>;
+  listPlugins: () => Promise<Array<{ id: number; name: string; category?: string; status: number }>>;
+  listKnowledgeBases: () => Promise<Array<{ id: number; name: string; type: number }>>;
+  listDatabases: () => Promise<Array<{ id: number; name: string; botId?: number }>>;
+  listBotVariables: (botId: string) => Promise<Array<{ id: number; key: string; scopeId?: number }>>;
   bindAgentWorkflow: (agentId: string, workflowId?: string) => Promise<WorkflowBinding>;
   runWorkflowTask: (
     workflowId: string,

@@ -168,9 +168,9 @@ import {
 } from "@/services/api-explore";
 import {
   createAiDatabase,
+  getAiDatabasesPaged,
   deleteAiDatabase,
   getAiDatabaseById,
-  getAiDatabasesPaged,
   updateAiDatabase,
   validateAiDatabaseSchema
 } from "@/services/api-ai-database";
@@ -626,6 +626,42 @@ function createStudioApi(appKey: string): StudioModuleApi {
           latestVersionNumber: item.latestVersionNumber,
           updatedAt: item.updatedAt
         }));
+    },
+    listPlugins: async () => {
+      const result = await getAiPluginsPaged({ pageIndex: 1, pageSize: 50 });
+      return result.items.map(item => ({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        status: item.status
+      }));
+    },
+    listKnowledgeBases: async () => {
+      const result = await getKnowledgeBasesPaged({ pageIndex: 1, pageSize: 50 });
+      return result.items.map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.type
+      }));
+    },
+    listDatabases: async () => {
+      const result = await getAiDatabasesPaged({ pageIndex: 1, pageSize: 50 });
+      return result.items.map(item => ({
+        id: item.id,
+        name: item.name,
+        botId: item.botId
+      }));
+    },
+    listBotVariables: async (currentBotId: string) => {
+      const result = await getAiVariablesPaged(
+        { pageIndex: 1, pageSize: 100 },
+        { scope: 2, scopeId: Number(currentBotId) }
+      );
+      return result.items.map(item => ({
+        id: item.id,
+        key: item.key,
+        scopeId: item.scopeId
+      }));
     },
     bindAgentWorkflow: (agentId, workflowId) => bindAgentWorkflow(agentId, workflowId),
     runWorkflowTask: (workflowId, incident) => executeWorkflowTask(workflowId, {
