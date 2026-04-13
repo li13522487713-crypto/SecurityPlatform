@@ -18,6 +18,10 @@ type CopyTree = {
   updatedAt: string;
   actions: string;
   open: string;
+  openWorkflow: string;
+  openPublish: string;
+  publish: string;
+  downloadTemplate: string;
   delete: string;
   resegment: string;
   upload: string;
@@ -82,6 +86,10 @@ const zhCN: CopyTree = {
   updatedAt: "最近更新",
   actions: "操作",
   open: "打开",
+  openWorkflow: "打开工作流",
+  openPublish: "进入发布页",
+  publish: "发布插件",
+  downloadTemplate: "下载模板",
   delete: "删除",
   resegment: "重分段",
   upload: "上传文档",
@@ -169,6 +177,10 @@ const enUS: CopyTree = {
   updatedAt: "Updated",
   actions: "Actions",
   open: "Open",
+  openWorkflow: "Open Workflow",
+  openPublish: "Open Publish",
+  publish: "Publish Plugin",
+  downloadTemplate: "Download Template",
   delete: "Delete",
   resegment: "Resegment",
   upload: "Upload",

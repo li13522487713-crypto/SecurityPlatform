@@ -56,21 +56,49 @@ export function normalizeResourcePath(path: string, appKey: string, spaceId: str
     return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/develop`;
   }
 
+  const agentDetailMatch = path.match(/^\/ai\/agents\/([^/]+)\/edit$/);
+  if (agentDetailMatch) {
+    return `/apps/${encodeURIComponent(appKey)}/studio/assistants/${agentDetailMatch[1]}`;
+  }
+
+  const appDetailMatch = path.match(/^\/ai\/apps\/([^/]+)\/edit$/);
+  if (appDetailMatch) {
+    return `/apps/${encodeURIComponent(appKey)}/studio/apps/${appDetailMatch[1]}`;
+  }
+
   if (path.startsWith("/ai/knowledge-bases/")) {
     const id = path.slice("/ai/knowledge-bases/".length);
-    return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${id}`;
+    return `/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${id}`;
   }
 
   if (path.startsWith("/ai/agents")) {
-    return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/develop?focus=agents`;
+    return `/apps/${encodeURIComponent(appKey)}/studio/assistants`;
   }
 
   if (path.startsWith("/ai/workflows")) {
     return `/apps/${encodeURIComponent(appKey)}/work_flow`;
   }
 
+  if (path.startsWith("/ai/plugins/")) {
+    const id = path.slice("/ai/plugins/".length);
+    return `/apps/${encodeURIComponent(appKey)}/studio/plugins/${id}`;
+  }
+
+  if (path.startsWith("/ai/databases/")) {
+    const id = path.slice("/ai/databases/".length);
+    return `/apps/${encodeURIComponent(appKey)}/studio/databases/${id}`;
+  }
+
+  if (path.startsWith("/ai/plugins")) {
+    return `/apps/${encodeURIComponent(appKey)}/studio/plugins`;
+  }
+
+  if (path.startsWith("/ai/databases")) {
+    return `/apps/${encodeURIComponent(appKey)}/studio/databases`;
+  }
+
   if (path.startsWith("/ai/prompts")) {
-    return `/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/assistant`;
+    return `/apps/${encodeURIComponent(appKey)}/studio/assistant-tools`;
   }
 
   return path;

@@ -28,8 +28,15 @@ import {
   AppPublishPage,
   AssistantPublishPage,
   BotIdePage,
+  DataResourcesPage,
+  DatabaseDetailPage,
   DevelopPage,
+  DatabasesPage,
+  KnowledgeBasesPage,
   ModelConfigsPage,
+  PluginDetailPage,
+  PluginsPage,
+  VariablesPage,
   type DevelopFocus,
   type DevelopResourceSummary,
   type StudioModuleApi
@@ -53,15 +60,25 @@ import {
   studioAppsPath,
   studioAppDetailPath,
   studioAppPublishPath,
+  studioAssistantToolsPath,
   studioAssistantsPath,
   studioAssistantPublishPath,
+  studioDataPath,
+  studioDatabasesPath,
+  studioDatabaseDetailPath,
+  studioKnowledgeBaseDetailPath,
+  studioKnowledgeBaseUploadPath,
+  studioKnowledgeBasesPath,
+  studioLibraryPath,
+  studioPluginDetailPath,
+  studioPluginsPath,
+  studioVariablesPath,
   workflowEditorPath,
   workflowListPath,
   workspaceAssistantPath,
   workspaceBotPath,
   workspaceChatPath,
   workspaceDevelopPath,
-  workspaceLibraryPath,
   workspaceModelConfigsPath
 } from "@atlas/app-shell-shared";
 import { AuthProvider, useAuth } from "./auth-context";
@@ -186,9 +203,16 @@ import {
 } from "@/services/api-explore";
 import {
   createAiDatabase,
+  createAiDatabaseRecord,
+  downloadAiDatabaseTemplate,
+  deleteAiDatabaseRecord,
   getAiDatabasesPaged,
   deleteAiDatabase,
   getAiDatabaseById,
+  getAiDatabaseImportProgress,
+  getAiDatabaseRecordsPaged,
+  submitAiDatabaseImport,
+  updateAiDatabaseRecord,
   updateAiDatabase,
   validateAiDatabaseSchema
 } from "@/services/api-ai-database";
@@ -268,7 +292,16 @@ const libraryApi: LibraryKnowledgeApi = {
   createChunk,
   updateChunk,
   deleteChunk,
-  runRetrievalTest: testKnowledgeRetrieval
+  runRetrievalTest: testKnowledgeRetrieval,
+  getApplicationDetail: async (appId) => {
+    const detail = await getAiAppById(String(appId));
+    return {
+      id: Number(detail.id),
+      workflowId: detail.workflowId ? Number(detail.workflowId) : null
+    };
+  },
+  downloadDatabaseTemplate: downloadAiDatabaseTemplate,
+  publishPlugin: publishAiPlugin
 };
 
 const WORKFLOW_TEMPLATE_REGISTRY: WorkflowTemplateSummary[] = [
@@ -676,6 +709,27 @@ function createStudioApi(appKey: string): StudioModuleApi {
       createAiAppConversationTemplate(id, request),
     deleteApplicationConversationTemplate: (id, templateId) =>
       deleteAiAppConversationTemplate(id, templateId),
+    listVariables: params => getAiVariablesPaged(
+      {
+        pageIndex: params?.pageIndex ?? 1,
+        pageSize: params?.pageSize ?? 20
+      },
+      {
+        keyword: params?.keyword,
+        scope: typeof params?.scope === "number" ? params.scope as 0 | 1 | 2 : undefined,
+        scopeId: params?.scopeId
+      }
+    ),
+    createVariable: request => createAiVariable({
+      ...request,
+      scope: request.scope as 0 | 1 | 2
+    }),
+    updateVariable: (id, request) => updateAiVariable(id, {
+      ...request,
+      scope: request.scope as 0 | 1 | 2
+    }),
+    deleteVariable: deleteAiVariable,
+    listSystemVariables: getAiSystemVariableDefinitions,
     toggleWorkspaceFavorite: (resourceType, resourceId, isFavorite) =>
       updateWorkspaceIdeFavorite(resourceType, resourceId, isFavorite),
     recordWorkspaceActivity: request =>
@@ -748,16 +802,32 @@ function createStudioApi(appKey: string): StudioModuleApi {
       return {
         id: detail.id,
         name: detail.name,
+        description: detail.description,
         category: detail.category,
+        type: detail.type,
+        sourceType: detail.sourceType,
+        authType: detail.authType,
+        status: detail.status,
+        isLocked: detail.isLocked,
+        createdAt: detail.createdAt,
+        updatedAt: detail.updatedAt,
+        publishedAt: detail.publishedAt,
+        definitionJson: detail.definitionJson,
+        authConfigJson: detail.authConfigJson,
+        toolSchemaJson: detail.toolSchemaJson,
+        openApiSpecJson: detail.openApiSpecJson,
         apis: detail.apis.map(api => ({
           id: api.id,
           name: api.name,
+          method: api.method,
+          path: api.path,
           requestSchemaJson: api.requestSchemaJson,
           timeoutSeconds: api.timeoutSeconds,
           isEnabled: api.isEnabled
         }))
       };
     },
+    publishPlugin: publishAiPlugin,
     listKnowledgeBases: async () => {
       const result = await getKnowledgeBasesPaged({ pageIndex: 1, pageSize: 50 });
       return result.items.map(item => ({
@@ -766,6 +836,7 @@ function createStudioApi(appKey: string): StudioModuleApi {
         type: item.type
       }));
     },
+    getKnowledgeBase: getKnowledgeBaseById,
     listDatabases: async () => {
       const result = await getAiDatabasesPaged({ pageIndex: 1, pageSize: 50 });
       return result.items.map(item => ({
@@ -774,6 +845,19 @@ function createStudioApi(appKey: string): StudioModuleApi {
         botId: item.botId
       }));
     },
+    getDatabaseDetail: getAiDatabaseById,
+    listDatabaseRecords: (id, params) =>
+      getAiDatabaseRecordsPaged(id, {
+        pageIndex: params?.pageIndex ?? 1,
+        pageSize: params?.pageSize ?? 10
+      }),
+    createDatabaseRecord: createAiDatabaseRecord,
+    updateDatabaseRecord: updateAiDatabaseRecord,
+    deleteDatabaseRecord: deleteAiDatabaseRecord,
+    validateDatabaseSchemaDraft: validateAiDatabaseSchema,
+    submitDatabaseImport: submitAiDatabaseImport,
+    getDatabaseImportProgress: getAiDatabaseImportProgress,
+    downloadDatabaseTemplate: downloadAiDatabaseTemplate,
     listBotVariables: async (currentBotId: string) => {
       const result = await getAiVariablesPaged(
         { pageIndex: 1, pageSize: 100 },
@@ -1002,9 +1086,156 @@ function StudioAppsAliasRedirect() {
 }
 
 function StudioLibraryAliasRedirect() {
-  const { appKey = "" } = useParams();
+  const { appKey = "", spaceId = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
   const bootstrap = useBootstrap();
-  return <Navigate to={workspaceLibraryPath(appKey, bootstrap.spaceId)} replace />;
+  const effectiveSpaceId = spaceId || bootstrap.spaceId;
+  return <LibraryPage api={libraryApi} locale={locale} appKey={appKey} spaceId={effectiveSpaceId} onNavigate={navigate} />;
+}
+
+function StudioVariablesRoute() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  return <VariablesPage api={studioApi} locale={locale} />;
+}
+
+function StudioPluginsRoute() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <PluginsPage
+      api={studioApi}
+      locale={locale}
+      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+      onOpenExplore={() => navigate(explorePath(appKey, "plugin"))}
+      onOpenDetail={pluginId => navigate(studioPluginDetailPath(appKey, pluginId))}
+    />
+  );
+}
+
+function StudioPluginDetailRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <PluginDetailPage
+      api={studioApi}
+      locale={locale}
+      pluginId={Number(id)}
+      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+      onOpenExplore={() => navigate(explorePath(appKey, "plugin"))}
+    />
+  );
+}
+
+function StudioAssistantToolsRoute() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  return <AiAssistantPage api={studioApi} locale={locale} />;
+}
+
+function StudioDataRoute() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <DataResourcesPage
+      api={studioApi}
+      locale={locale}
+      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+    />
+  );
+}
+
+function StudioKnowledgeBasesRoute() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <KnowledgeBasesPage
+      api={studioApi}
+      locale={locale}
+      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+      onOpenDetail={knowledgeBaseId => navigate(studioKnowledgeBaseDetailPath(appKey, knowledgeBaseId))}
+      onOpenUpload={(knowledgeBaseId, type) => navigate(studioKnowledgeBaseUploadPath(appKey, knowledgeBaseId, {
+        type: type === 1 ? "table" : type === 2 ? "image" : "text"
+      }))}
+    />
+  );
+}
+
+function StudioKnowledgeBaseDetailRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const bootstrap = useBootstrap();
+  return (
+    <KnowledgeDetailPage
+      api={libraryApi}
+      locale={locale}
+      appKey={appKey}
+      spaceId={bootstrap.spaceId}
+      knowledgeBaseId={Number(id)}
+      onNavigate={navigate}
+    />
+  );
+}
+
+function StudioKnowledgeBaseUploadRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const bootstrap = useBootstrap();
+  return (
+    <KnowledgeUploadPage
+      api={libraryApi}
+      locale={locale}
+      appKey={appKey}
+      spaceId={bootstrap.spaceId}
+      knowledgeBaseId={Number(id)}
+      initialType={searchParams.get("type")}
+      onNavigate={navigate}
+    />
+  );
+}
+
+function StudioDatabasesRoute() {
+  const { appKey = "" } = useParams();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <DatabasesPage
+      api={studioApi}
+      locale={locale}
+      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+      onOpenDetail={databaseId => navigate(studioDatabaseDetailPath(appKey, databaseId))}
+    />
+  );
+}
+
+function StudioDatabaseDetailRoute() {
+  const { appKey = "", id = "" } = useParams();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <DatabaseDetailPage
+      api={studioApi}
+      locale={locale}
+      databaseId={Number(id)}
+      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+    />
+  );
 }
 
 function WorkflowsAliasRedirect() {
@@ -1139,15 +1370,36 @@ function AppShellRoute() {
               key: "plugins",
               label: locale === "zh-CN" ? "插件" : "Plugins",
               icon: navGlyph("PL"),
-              path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=plugins`,
+              path: studioPluginsPath(appKey),
               testId: "app-sidebar-item-plugins"
             },
             {
               key: "data",
               label: locale === "zh-CN" ? "数据" : "Data",
               icon: navGlyph("DT"),
-              path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=data`,
+              path: studioDataPath(appKey),
               testId: "app-sidebar-item-data"
+            },
+            {
+              key: "knowledge-bases",
+              label: locale === "zh-CN" ? "知识库" : "Knowledge Bases",
+              icon: navGlyph("KB"),
+              path: studioKnowledgeBasesPath(appKey),
+              testId: "app-sidebar-item-knowledge-bases"
+            },
+            {
+              key: "databases",
+              label: locale === "zh-CN" ? "数据库" : "Databases",
+              icon: navGlyph("DBX"),
+              path: studioDatabasesPath(appKey),
+              testId: "app-sidebar-item-databases"
+            },
+            {
+              key: "variables",
+              label: locale === "zh-CN" ? "变量" : "Variables",
+              icon: navGlyph("VAR"),
+              path: studioVariablesPath(appKey),
+              testId: "app-sidebar-item-variables"
             }
           ]
         },
@@ -1159,7 +1411,7 @@ function AppShellRoute() {
               key: "library",
               label: locale === "zh-CN" ? "资源库" : "Library",
               icon: navGlyph("L"),
-              path: workspaceLibraryPath(appKey, bootstrap.spaceId),
+              path: studioLibraryPath(appKey),
               testId: "app-sidebar-item-library"
             },
             {
@@ -1173,7 +1425,7 @@ function AppShellRoute() {
               key: "assistant",
               label: locale === "zh-CN" ? "AI 助手" : "AI Assistant",
               icon: navGlyph("AI"),
-              path: workspaceAssistantPath(appKey, bootstrap.spaceId),
+              path: studioAssistantToolsPath(appKey),
               testId: "app-sidebar-item-ai-assistant"
             },
             {
@@ -1360,7 +1612,7 @@ function DevelopRoute() {
       onOpenRoles={() => navigate(adminPath(appKey, "roles"))}
       onOpenDepartments={() => navigate(adminPath(appKey, "departments"))}
       onOpenPositions={() => navigate(adminPath(appKey, "positions"))}
-      onOpenLibrary={() => navigate(workspaceLibraryPath(appKey, bootstrap.spaceId))}
+      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
       onOpenApplicationDetail={appId => navigate(studioAppDetailPath(appKey, appId))}
       onOpenApplicationPublish={appId => navigate(studioAppPublishPath(appKey, appId))}
       onCreateWorkflow={() => navigate(`${workflowListPath(appKey)}?create=1`)}
@@ -1612,6 +1864,16 @@ export function AppRouter() {
           <Route path="studio/apps/:id" element={<StudioAppDetailRoute />} />
           <Route path="studio/apps/:id/publish" element={<StudioAppPublishRoute />} />
           <Route path="studio/library" element={<StudioLibraryAliasRedirect />} />
+          <Route path="studio/plugins/:id" element={<StudioPluginDetailRoute />} />
+          <Route path="studio/plugins" element={<StudioPluginsRoute />} />
+          <Route path="studio/assistant-tools" element={<StudioAssistantToolsRoute />} />
+          <Route path="studio/data" element={<StudioDataRoute />} />
+          <Route path="studio/knowledge-bases/:id/upload" element={<StudioKnowledgeBaseUploadRoute />} />
+          <Route path="studio/knowledge-bases/:id" element={<StudioKnowledgeBaseDetailRoute />} />
+          <Route path="studio/knowledge-bases" element={<StudioKnowledgeBasesRoute />} />
+          <Route path="studio/databases/:id" element={<StudioDatabaseDetailRoute />} />
+          <Route path="studio/databases" element={<StudioDatabasesRoute />} />
+          <Route path="studio/variables" element={<StudioVariablesRoute />} />
           <Route path="workflows" element={<WorkflowsAliasRedirect />} />
           <Route path="workflows/:id/editor" element={<WorkflowEditorAliasRedirect />} />
           <Route path="chatflows" element={<ChatflowsAliasRedirect />} />

@@ -403,6 +403,110 @@ export interface StudioAssistantPublishResult {
   embedTokenExpiresAt: string;
 }
 
+export interface StudioVariableItem {
+  id: number;
+  key: string;
+  value?: string;
+  scope: number;
+  scopeId?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface StudioSystemVariableDefinition {
+  key: string;
+  name: string;
+  description: string;
+  defaultValue?: string;
+}
+
+export interface StudioKnowledgeBaseDetail {
+  id: number;
+  name: string;
+  description?: string;
+  type: number;
+  documentCount: number;
+  chunkCount: number;
+  createdAt: string;
+}
+
+export interface StudioDatabaseDetail {
+  id: number;
+  name: string;
+  description?: string;
+  botId?: number;
+  recordCount: number;
+  createdAt: string;
+  updatedAt?: string;
+  tableSchema: string;
+}
+
+export interface StudioDatabaseRecordItem {
+  id: number;
+  databaseId: number;
+  dataJson: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface StudioDatabaseRecordUpsertRequest {
+  dataJson: string;
+}
+
+export interface StudioDatabaseSchemaValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
+export interface StudioDatabaseImportProgress {
+  taskId: number;
+  databaseId: number;
+  status: number;
+  totalRows: number;
+  succeededRows: number;
+  failedRows: number;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface StudioPluginApiSummary {
+  id: number;
+  name: string;
+  method: string;
+  path: string;
+  requestSchemaJson: string;
+  timeoutSeconds: number;
+  isEnabled: boolean;
+}
+
+export interface StudioPluginDetail {
+  id: number;
+  name: string;
+  description?: string;
+  category?: string;
+  type: number;
+  sourceType: number;
+  authType: number;
+  status: number;
+  isLocked: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  publishedAt?: string;
+  definitionJson?: string;
+  authConfigJson?: string;
+  toolSchemaJson?: string;
+  openApiSpecJson?: string;
+  apis: StudioPluginApiSummary[];
+}
+
+export interface StudioVariableCreateRequest {
+  key: string;
+  value?: string;
+  scope: number;
+  scopeId?: number;
+}
+
 export interface StudioApplicationCreateRequest {
   name: string;
   description?: string;
@@ -478,6 +582,11 @@ export interface StudioModuleApi {
   getApplicationConversationTemplates: (id: string) => Promise<StudioApplicationConversationTemplate[]>;
   createApplicationConversationTemplate: (id: string, request: StudioApplicationConversationTemplateCreateRequest) => Promise<string>;
   deleteApplicationConversationTemplate: (id: string, templateId: string) => Promise<void>;
+  listVariables: (params?: { pageIndex?: number; pageSize?: number; keyword?: string; scope?: number; scopeId?: number }) => Promise<PagedResult<StudioVariableItem>>;
+  createVariable: (request: StudioVariableCreateRequest) => Promise<number>;
+  updateVariable: (id: number, request: StudioVariableCreateRequest) => Promise<void>;
+  deleteVariable: (id: number) => Promise<void>;
+  listSystemVariables: () => Promise<StudioSystemVariableDefinition[]>;
   toggleWorkspaceFavorite: (resourceType: WorkspaceIdeResourceType, resourceId: string, isFavorite: boolean) => Promise<void>;
   recordWorkspaceActivity: (request: { resourceType: WorkspaceIdeResourceType; resourceId: number; resourceTitle: string; entryRoute: string }) => Promise<void>;
   getAgentPublications: (agentId: string) => Promise<StudioAssistantPublication[]>;
@@ -499,14 +608,20 @@ export interface StudioModuleApi {
   ) => Promise<string>;
   listWorkflows: (params?: { keyword?: string; status?: "draft" | "published" | "all" }) => Promise<WorkflowListItem[]>;
   listPlugins: () => Promise<Array<{ id: number; name: string; category?: string; status: number }>>;
-  getPluginDetail: (pluginId: number) => Promise<{
-    id: number;
-    name: string;
-    category?: string;
-    apis: Array<{ id: number; name: string; requestSchemaJson: string; timeoutSeconds: number; isEnabled: boolean }>;
-  }>;
+  getPluginDetail: (pluginId: number) => Promise<StudioPluginDetail>;
+  publishPlugin: (pluginId: number) => Promise<void>;
   listKnowledgeBases: () => Promise<Array<{ id: number; name: string; type: number }>>;
+  getKnowledgeBase: (id: number) => Promise<StudioKnowledgeBaseDetail>;
   listDatabases: () => Promise<Array<{ id: number; name: string; botId?: number }>>;
+  getDatabaseDetail: (id: number) => Promise<StudioDatabaseDetail>;
+  listDatabaseRecords: (id: number, params?: { pageIndex?: number; pageSize?: number }) => Promise<PagedResult<StudioDatabaseRecordItem>>;
+  createDatabaseRecord: (id: number, request: StudioDatabaseRecordUpsertRequest) => Promise<number>;
+  updateDatabaseRecord: (id: number, recordId: number, request: StudioDatabaseRecordUpsertRequest) => Promise<void>;
+  deleteDatabaseRecord: (id: number, recordId: number) => Promise<void>;
+  validateDatabaseSchemaDraft: (schemaJson: string) => Promise<StudioDatabaseSchemaValidationResult>;
+  submitDatabaseImport: (id: number, file: File) => Promise<number>;
+  getDatabaseImportProgress: (id: number) => Promise<StudioDatabaseImportProgress | null>;
+  downloadDatabaseTemplate: (id: number) => Promise<void>;
   listBotVariables: (botId: string) => Promise<Array<{ id: number; key: string; scopeId?: number }>>;
   bindAgentWorkflow: (agentId: string, workflowId?: string) => Promise<WorkflowBinding>;
   runWorkflowTask: (

@@ -134,7 +134,7 @@ export function KnowledgeUploadPage({
     <div className="atlas-library-page" data-testid="app-knowledge-upload-page">
       <div className="atlas-page-header">
         <Space spacing={8}>
-          <Button icon={<IconArrowLeft />} onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${knowledgeBaseId}?biz=library`)}>
+          <Button icon={<IconArrowLeft />} onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${knowledgeBaseId}`)}>
             {copy.backToLibrary}
           </Button>
           <div>

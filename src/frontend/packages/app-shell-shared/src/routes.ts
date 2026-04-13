@@ -126,6 +126,46 @@ export function studioLibraryPath(appKey: string): string {
   return `${studioBasePath(appKey)}/library`;
 }
 
+export function studioDataPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/data`;
+}
+
+export function studioPluginsPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/plugins`;
+}
+
+export function studioPluginDetailPath(appKey: string, pluginId: string | number): string {
+  return `${studioPluginsPath(appKey)}/${encodeSegment(pluginId)}`;
+}
+
+export function studioAssistantToolsPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/assistant-tools`;
+}
+
+export function studioKnowledgeBasesPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/knowledge-bases`;
+}
+
+export function studioKnowledgeBaseDetailPath(appKey: string, knowledgeBaseId: string | number): string {
+  return `${studioKnowledgeBasesPath(appKey)}/${encodeSegment(knowledgeBaseId)}`;
+}
+
+export function studioKnowledgeBaseUploadPath(
+  appKey: string,
+  knowledgeBaseId: string | number,
+  query?: Record<string, string | null | undefined>
+): string {
+  return withQuery(`${studioKnowledgeBaseDetailPath(appKey, knowledgeBaseId)}/upload`, query);
+}
+
+export function studioDatabasesPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/databases`;
+}
+
+export function studioDatabaseDetailPath(appKey: string, databaseId: string | number): string {
+  return `${studioDatabasesPath(appKey)}/${encodeSegment(databaseId)}`;
+}
+
 export function studioVariablesPath(appKey: string): string {
   return `${studioBasePath(appKey)}/variables`;
 }

@@ -133,6 +133,9 @@ export interface LibraryKnowledgeApi {
     knowledgeBaseId: number,
     request: KnowledgeRetrievalTestRequest
   ) => Promise<KnowledgeRetrievalTestItem[]>;
+  getApplicationDetail?: (appId: number) => Promise<{ id: number; workflowId?: number | null }>;
+  downloadDatabaseTemplate?: (databaseId: number) => Promise<void>;
+  publishPlugin?: (pluginId: number) => Promise<void>;
 }
 
 export interface LibraryPageProps {

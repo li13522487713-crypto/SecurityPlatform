@@ -35,6 +35,12 @@ import type {
   StudioApplicationPublishRecord,
   StudioApplicationSummary,
   StudioAssistantPublication,
+  StudioDatabaseDetail,
+  StudioDatabaseRecordItem,
+  StudioKnowledgeBaseDetail,
+  StudioSystemVariableDefinition,
+  StudioVariableCreateRequest,
+  StudioVariableItem,
   StudioWorkspaceOverview,
   DevelopFocus,
   DevelopResourceSummary,
@@ -135,6 +141,18 @@ function formatDate(value?: string) {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function tryFormatJson(value?: string): string {
+  if (!value) {
+    return "{}";
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
 }
 
 function toModelConfigDraft(item?: ModelConfigItem): ModelConfigDraft {
@@ -3387,6 +3405,231 @@ export function AiAssistantPage({ api }: StudioPageProps) {
   );
 }
 
+export function PluginsPage({
+  api,
+  onOpenLibrary,
+  onOpenExplore,
+  onOpenDetail
+}: StudioPageProps & {
+  onOpenLibrary: () => void;
+  onOpenExplore: () => void;
+  onOpenDetail: (pluginId: number) => void;
+}) {
+  const [items, setItems] = useState<Array<{ id: number; name: string; category?: string; status: number }>>([]);
+  const [keyword, setKeyword] = useState("");
+
+  useEffect(() => {
+    void api.listPlugins().then(result => {
+      const normalizedKeyword = keyword.trim().toLowerCase();
+      const filtered = normalizedKeyword
+        ? result.filter(item =>
+            `${item.name} ${item.category ?? ""}`.toLowerCase().includes(normalizedKeyword)
+          )
+        : result;
+      setItems(filtered);
+    }).catch(error => {
+      Toast.error(error instanceof Error ? error.message : "加载插件列表失败。");
+    });
+  }, [api, keyword]);
+
+  return (
+    <Surface
+      title="插件中心"
+      subtitle="统一查看当前工作空间插件，并进入资源库或插件市场。"
+      testId="app-studio-plugins-page"
+      toolbar={
+        <Input
+          value={keyword}
+          onChange={setKeyword}
+          placeholder="搜索插件"
+          showClear
+          data-testid="app-studio-plugins-search"
+        />
+      }
+    >
+      <div className="module-studio__stack">
+        <Space>
+          <Button theme="solid" type="primary" onClick={onOpenLibrary}>进入资源库</Button>
+          <Button onClick={onOpenExplore}>打开插件市场</Button>
+        </Space>
+        <CardGrid
+          testId="app-studio-plugins-grid"
+          items={items}
+          render={(item) => (
+            <article key={item.id} className="module-studio__coze-card">
+              <div className="module-studio__card-head">
+                <div>
+                  <Tag color="orange">Plugin</Tag>
+                  <strong>{item.name}</strong>
+                </div>
+                <Tag color={item.status === 1 ? "green" : "blue"}>{item.status === 1 ? "Published" : "Draft"}</Tag>
+              </div>
+              <p>{item.category || "工作空间插件能力"}</p>
+              <Space wrap>
+                <Button onClick={onOpenLibrary}>在资源库中管理</Button>
+                <Button theme="solid" type="primary" onClick={() => onOpenDetail(item.id)}>打开详情</Button>
+                <Button theme="light" onClick={onOpenExplore}>查看市场</Button>
+              </Space>
+            </article>
+          )}
+        />
+      </div>
+    </Surface>
+  );
+}
+
+export function PluginDetailPage({
+  api,
+  pluginId,
+  onOpenLibrary,
+  onOpenExplore
+}: StudioPageProps & {
+  pluginId: number;
+  onOpenLibrary: () => void;
+  onOpenExplore: () => void;
+}) {
+  const [detail, setDetail] = useState<Awaited<ReturnType<StudioPageProps["api"]["getPluginDetail"]>> | null>(null);
+  const [publishing, setPublishing] = useState(false);
+
+  async function load() {
+    await api.getPluginDetail(pluginId).then(setDetail).catch(error => {
+      Toast.error(error instanceof Error ? error.message : "加载插件详情失败。");
+    });
+  }
+
+  useEffect(() => {
+    void load();
+  }, [api, pluginId]);
+
+  async function handlePublish() {
+    setPublishing(true);
+    try {
+      await api.publishPlugin(pluginId);
+      await load();
+      Toast.success("插件已发布。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "发布插件失败。");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  const enabledApiCount = detail?.apis.filter(item => item.isEnabled).length ?? 0;
+  const openApiText = detail?.openApiSpecJson?.trim() ?? "";
+  const authConfigText = detail?.authConfigJson?.trim() ?? "";
+  const toolSchemaText = detail?.toolSchemaJson?.trim() ?? "";
+  const definitionText = detail?.definitionJson?.trim() ?? "";
+  const openApiLineCount = openApiText ? openApiText.split(/\r?\n/).length : 0;
+  const authModeLabel = detail ? ({
+    0: "无鉴权",
+    1: "API Key",
+    2: "Bearer",
+    3: "OAuth",
+    4: "自定义"
+  }[detail.authType] ?? `类型 ${detail.authType}`) : "-";
+  const sourceTypeLabel = detail ? ({
+    0: "手工定义",
+    1: "OpenAPI 导入",
+    2: "内置插件"
+  }[detail.sourceType] ?? `类型 ${detail.sourceType}`) : "-";
+
+  return (
+    <Surface title="插件详情" subtitle="查看插件 API 与基础信息。" testId="app-studio-plugin-detail-page">
+      {detail ? (
+        <div className="module-studio__chat-layout">
+          <section className="module-studio__coze-agent-panel">
+            <div className="module-studio__section-head">
+              <div>
+                <Typography.Title heading={5} style={{ margin: 0 }}>{detail.name}</Typography.Title>
+                <Typography.Text type="tertiary">{detail.description || detail.category || "插件能力"}</Typography.Text>
+              </div>
+              <Space>
+                <Tag color="orange">Plugin</Tag>
+                <Tag color={detail.status === 1 ? "green" : "blue"}>{detail.status === 1 ? "Published" : "Draft"}</Tag>
+                <Tag color={detail.isLocked ? "red" : "grey"}>{detail.isLocked ? "Locked" : "Unlocked"}</Tag>
+              </Space>
+            </div>
+            <div className="module-studio__coze-inspector-card">
+              <Descriptions
+                size="small"
+                align="left"
+                data={[
+                  { key: "id", value: detail.id },
+                  { key: "category", value: detail.category || "-" },
+                  { key: "apiCount", value: detail.apis.length },
+                  { key: "enabledApiCount", value: enabledApiCount },
+                  { key: "authType", value: authModeLabel },
+                  { key: "sourceType", value: sourceTypeLabel },
+                  { key: "publishedAt", value: formatDate(detail.publishedAt) },
+                  { key: "updatedAt", value: formatDate(detail.updatedAt || detail.createdAt) }
+                ]}
+              />
+            </div>
+            <div className="module-studio__coze-inspector-card">
+              <div className="module-studio__card-head">
+                <strong>发布与规格摘要</strong>
+                <Space>
+                  <Tag color={openApiText ? "green" : "grey"}>{openApiText ? `OpenAPI ${openApiLineCount} 行` : "无 OpenAPI 规格"}</Tag>
+                  <Tag color={authConfigText ? "cyan" : "grey"}>{authConfigText ? "已配置鉴权" : "未配置鉴权"}</Tag>
+                  <Tag color={toolSchemaText ? "violet" : "grey"}>{toolSchemaText ? "含工具 Schema" : "无工具 Schema"}</Tag>
+                </Space>
+              </div>
+              <Typography.Text type="tertiary">
+                这里汇总插件当前的发布态、来源类型、鉴权方式以及 OpenAPI/Tool/Definition 配置是否齐备。
+              </Typography.Text>
+            </div>
+            <CardGrid
+              testId="app-studio-plugin-apis-grid"
+              items={detail.apis}
+              render={(apiItem) => (
+                <article key={apiItem.id} className="module-studio__coze-card">
+                  <div className="module-studio__card-head">
+                    <strong>{apiItem.name}</strong>
+                    <Tag color={apiItem.isEnabled ? "green" : "grey"}>{apiItem.isEnabled ? "启用" : "停用"}</Tag>
+                  </div>
+                  <p>{apiItem.method} {apiItem.path}</p>
+                  <p>Timeout: {apiItem.timeoutSeconds}s</p>
+                  <pre className="module-studio__message-content">{apiItem.requestSchemaJson}</pre>
+                </article>
+              )}
+            />
+          </section>
+          <aside className="module-studio__coze-agent-preview">
+            <div className="module-studio__coze-inspector-card">
+              <Space wrap>
+                <Button theme="solid" type="primary" loading={publishing} onClick={() => void handlePublish()}>
+                  发布插件
+                </Button>
+                <Button theme="solid" type="primary" onClick={onOpenLibrary}>进入资源库</Button>
+                <Button onClick={onOpenExplore}>打开插件市场</Button>
+              </Space>
+            </div>
+            {openApiText ? (
+              <div className="module-studio__coze-inspector-card">
+                <div className="module-studio__card-head">
+                  <strong>OpenAPI 摘要</strong>
+                  <Tag color="green">Spec</Tag>
+                </div>
+                <pre className="module-studio__message-content">{tryFormatJson(openApiText)}</pre>
+              </div>
+            ) : null}
+            {definitionText ? (
+              <div className="module-studio__coze-inspector-card">
+                <div className="module-studio__card-head">
+                  <strong>Definition</strong>
+                </div>
+                <pre className="module-studio__message-content">{tryFormatJson(definitionText)}</pre>
+              </div>
+            ) : null}
+          </aside>
+        </div>
+      ) : (
+        <Empty title="未找到插件" image={null} />
+      )}
+    </Surface>
+  );
+}
+
 export function AppDetailPage({
   api,
   appId,
@@ -3783,6 +4026,834 @@ export function AssistantPublishPage({
             </div>
           )}
         </div>
+      </div>
+    </Surface>
+  );
+}
+
+export function VariablesPage({ api }: StudioPageProps) {
+  const [items, setItems] = useState<StudioVariableItem[]>([]);
+  const [systemItems, setSystemItems] = useState<StudioSystemVariableDefinition[]>([]);
+  const [keyword, setKeyword] = useState("");
+  const [scope, setScope] = useState<number | undefined>(undefined);
+  const [draft, setDraft] = useState<StudioVariableCreateRequest>({
+    key: "",
+    value: "",
+    scope: 1
+  });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    try {
+      const [paged, systemDefs] = await Promise.all([
+        api.listVariables({
+          pageIndex: 1,
+          pageSize: 100,
+          keyword: keyword.trim() || undefined,
+          scope
+        }),
+        api.listSystemVariables()
+      ]);
+      setItems(paged.items);
+      setSystemItems(systemDefs);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载变量失败。");
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, [api, keyword, scope]);
+
+  function resetDraft() {
+    setDraft({
+      key: "",
+      value: "",
+      scope: 1
+    });
+    setEditingId(null);
+  }
+
+  async function handleSave() {
+    if (!draft.key.trim()) {
+      Toast.warning("请先填写变量键。");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingId) {
+        await api.updateVariable(editingId, {
+          ...draft,
+          key: draft.key.trim(),
+          value: draft.value?.trim() || undefined
+        });
+        Toast.success("变量已更新。");
+      } else {
+        await api.createVariable({
+          ...draft,
+          key: draft.key.trim(),
+          value: draft.value?.trim() || undefined
+        });
+        Toast.success("变量已创建。");
+      }
+      resetDraft();
+      await load();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "保存变量失败。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    try {
+      await api.deleteVariable(id);
+      Toast.success("变量已删除。");
+      await load();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "删除变量失败。");
+    }
+  }
+
+  return (
+    <Surface
+      title="变量中心"
+      subtitle="统一管理应用、智能体和系统变量。"
+      testId="app-studio-variables-page"
+      toolbar={
+        <Space>
+          <Input
+            value={keyword}
+            onChange={setKeyword}
+            placeholder="搜索变量键"
+            showClear
+            data-testid="app-studio-variables-search"
+          />
+          <Select
+            value={scope}
+            placeholder="作用域"
+            optionList={[
+              { label: "全部", value: undefined as unknown as string },
+              { label: "系统", value: 0 },
+              { label: "应用", value: 1 },
+              { label: "智能体", value: 2 }
+            ]}
+            onChange={value => setScope(typeof value === "number" ? value : undefined)}
+          />
+        </Space>
+      }
+    >
+      <div className="module-studio__chat-layout">
+        <section className="module-studio__coze-agent-panel">
+          <div className="module-studio__section-head">
+            <div>
+              <Typography.Title heading={5} style={{ margin: 0 }}>变量列表</Typography.Title>
+              <Typography.Text type="tertiary">按作用域查看当前可编辑变量。</Typography.Text>
+            </div>
+            <Button theme="borderless" onClick={resetDraft}>重置表单</Button>
+          </div>
+          <CardGrid
+            testId="app-studio-variables-grid"
+            items={items}
+            render={(item: StudioVariableItem) => (
+              <article key={item.id} className="module-studio__coze-card">
+                <div className="module-studio__card-head">
+                  <div>
+                    <Tag color={item.scope === 0 ? "orange" : item.scope === 1 ? "blue" : "cyan"}>
+                      {item.scope === 0 ? "系统" : item.scope === 1 ? "应用" : "智能体"}
+                    </Tag>
+                    <strong>{item.key}</strong>
+                  </div>
+                  <span className="module-studio__meta">{formatDate(item.updatedAt || item.createdAt)}</span>
+                </div>
+                <p>{item.value || "无默认值"}</p>
+                <Space wrap>
+                  <Button
+                    onClick={() => {
+                      setEditingId(item.id);
+                      setDraft({
+                        key: item.key,
+                        value: item.value,
+                        scope: item.scope,
+                        scopeId: item.scopeId
+                      });
+                    }}
+                  >
+                    编辑
+                  </Button>
+                  <Button type="danger" theme="borderless" onClick={() => void handleDelete(item.id)}>
+                    删除
+                  </Button>
+                </Space>
+              </article>
+            )}
+          />
+        </section>
+
+        <aside className="module-studio__coze-agent-preview">
+          <div className="module-studio__coze-inspector-card">
+            <Typography.Title heading={6}>新建 / 编辑变量</Typography.Title>
+            <div className="module-studio__stack">
+              <Input
+                value={draft.key}
+                onChange={value => setDraft(current => ({ ...current, key: value }))}
+                placeholder="变量键"
+              />
+              <Input
+                value={draft.value ?? ""}
+                onChange={value => setDraft(current => ({ ...current, value }))}
+                placeholder="默认值"
+              />
+              <Select
+                value={draft.scope}
+                optionList={[
+                  { label: "系统", value: 0 },
+                  { label: "应用", value: 1 },
+                  { label: "智能体", value: 2 }
+                ]}
+                onChange={value => setDraft(current => ({ ...current, scope: Number(value) }))}
+              />
+              <InputNumber
+                value={draft.scopeId}
+                onNumberChange={value => setDraft(current => ({ ...current, scopeId: typeof value === "number" ? value : undefined }))}
+                placeholder="作用域 ID（可选）"
+              />
+              <Button theme="solid" type="primary" loading={saving} onClick={() => void handleSave()}>
+                {editingId ? "保存变量" : "创建变量"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <span>系统变量定义</span>
+              <Tag color="light-blue">{systemItems.length}</Tag>
+            </div>
+            {systemItems.length === 0 ? (
+              <Typography.Text type="tertiary">当前没有系统变量定义。</Typography.Text>
+            ) : (
+              <div className="module-studio__stack">
+                {systemItems.map(item => (
+                  <div key={item.key} className="module-studio__coze-linkrow">
+                    <div>
+                      <strong>{item.key}</strong>
+                      <div className="module-studio__meta">{item.name}</div>
+                      <div className="module-studio__meta">{item.description}</div>
+                    </div>
+                    <Tag color="orange">System</Tag>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
+    </Surface>
+  );
+}
+
+export function DataResourcesPage({
+  api,
+  onOpenLibrary
+}: StudioPageProps & {
+  onOpenLibrary: () => void;
+}) {
+  const [knowledgeItems, setKnowledgeItems] = useState<Array<{ id: number; name: string; type: number }>>([]);
+  const [databaseItems, setDatabaseItems] = useState<Array<{ id: number; name: string; botId?: number }>>([]);
+
+  useEffect(() => {
+    void Promise.all([
+      api.listKnowledgeBases(),
+      api.listDatabases()
+    ]).then(([knowledge, databases]) => {
+      setKnowledgeItems(knowledge);
+      setDatabaseItems(databases);
+    }).catch(error => {
+      Toast.error(error instanceof Error ? error.message : "加载数据资源失败。");
+    });
+  }, [api]);
+
+  return (
+    <Surface title="数据资源" subtitle="知识库与数据库统一入口。" testId="app-studio-data-page">
+      <div className="module-studio__chat-layout">
+        <section className="module-studio__coze-agent-panel">
+          <div className="module-studio__section-head">
+            <div>
+              <Typography.Title heading={5} style={{ margin: 0 }}>知识库</Typography.Title>
+              <Typography.Text type="tertiary">管理文本、表格和图像知识库。</Typography.Text>
+            </div>
+            <Button onClick={onOpenLibrary}>进入资源库</Button>
+          </div>
+          <CardGrid
+            testId="app-studio-data-knowledge-grid"
+            items={knowledgeItems}
+            render={(item) => (
+              <article key={item.id} className="module-studio__coze-card">
+                <div className="module-studio__card-head">
+                  <div>
+                    <Tag color="green">知识库</Tag>
+                    <strong>{item.name}</strong>
+                  </div>
+                  <span className="module-studio__meta">type:{item.type}</span>
+                </div>
+                <p>统一的知识检索与文档处理入口。</p>
+                <Button onClick={onOpenLibrary}>查看详情</Button>
+              </article>
+            )}
+          />
+        </section>
+
+        <aside className="module-studio__coze-agent-preview">
+          <div className="module-studio__section-head">
+            <div>
+              <Typography.Title heading={5} style={{ margin: 0 }}>数据库</Typography.Title>
+              <Typography.Text type="tertiary">结构化表和导入任务管理。</Typography.Text>
+            </div>
+            <Button onClick={onOpenLibrary}>进入资源库</Button>
+          </div>
+          <CardGrid
+            testId="app-studio-data-database-grid"
+            items={databaseItems}
+            render={(item) => (
+              <article key={item.id} className="module-studio__coze-card">
+                <div className="module-studio__card-head">
+                  <div>
+                    <Tag color="blue">数据库</Tag>
+                    <strong>{item.name}</strong>
+                  </div>
+                  <span className="module-studio__meta">{item.botId ? `Bot:${item.botId}` : "未绑定"}</span>
+                </div>
+                <p>结构化数据表、记录和导入模板。</p>
+                <Button onClick={onOpenLibrary}>查看详情</Button>
+              </article>
+            )}
+          />
+        </aside>
+      </div>
+    </Surface>
+  );
+}
+
+export function KnowledgeBasesPage({
+  api,
+  onOpenDetail,
+  onOpenUpload,
+  onOpenLibrary
+}: StudioPageProps & {
+  onOpenDetail: (knowledgeBaseId: number) => void;
+  onOpenUpload: (knowledgeBaseId: number, type: number) => void;
+  onOpenLibrary: () => void;
+}) {
+  const [items, setItems] = useState<Array<{ id: number; name: string; type: number }>>([]);
+  const [keyword, setKeyword] = useState("");
+
+  useEffect(() => {
+    void api.listKnowledgeBases().then(result => {
+      const normalizedKeyword = keyword.trim().toLowerCase();
+      const filtered = normalizedKeyword
+        ? result.filter(item => item.name.toLowerCase().includes(normalizedKeyword))
+        : result;
+      setItems(filtered);
+    }).catch(error => {
+      Toast.error(error instanceof Error ? error.message : "加载知识库失败。");
+    });
+  }, [api, keyword]);
+
+  return (
+    <Surface
+      title="知识库中心"
+      subtitle="统一管理文本、表格和图像知识库。"
+      testId="app-studio-knowledge-bases-page"
+      toolbar={
+        <Input
+          value={keyword}
+          onChange={setKeyword}
+          placeholder="搜索知识库"
+          showClear
+          data-testid="app-studio-knowledge-search"
+        />
+      }
+    >
+      <div className="module-studio__stack">
+        <Space>
+          <Button theme="solid" type="primary" onClick={onOpenLibrary}>进入资源库</Button>
+        </Space>
+        <CardGrid
+          testId="app-studio-knowledge-grid"
+          items={items}
+          render={(item) => (
+            <article key={item.id} className="module-studio__coze-card">
+              <div className="module-studio__card-head">
+                <div>
+                  <Tag color="green">知识库</Tag>
+                  <strong>{item.name}</strong>
+                </div>
+                <span className="module-studio__meta">type:{item.type}</span>
+              </div>
+              <p>查看知识文档、分片和检索测试。</p>
+              <Space wrap>
+                <Button theme="solid" type="primary" onClick={() => onOpenDetail(item.id)}>
+                  打开详情
+                </Button>
+                <Button onClick={() => onOpenUpload(item.id, item.type)}>
+                  上传文档
+                </Button>
+                <Button onClick={onOpenLibrary}>进入资源库</Button>
+              </Space>
+            </article>
+          )}
+        />
+      </div>
+    </Surface>
+  );
+}
+
+export function DatabaseDetailPage({
+  api,
+  databaseId,
+  onOpenLibrary
+}: StudioPageProps & {
+  databaseId: number;
+  onOpenLibrary: () => void;
+}) {
+  const [detail, setDetail] = useState<StudioDatabaseDetail | null>(null);
+  const [records, setRecords] = useState<StudioDatabaseRecordItem[]>([]);
+  const [pageIndex, setPageIndex] = useState(1);
+  const [pageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [editingRecordId, setEditingRecordId] = useState<number | null>(null);
+  const [recordDialogVisible, setRecordDialogVisible] = useState(false);
+  const [recordDraft, setRecordDraft] = useState("{\n  \n}");
+  const [recordSaving, setRecordSaving] = useState(false);
+  const [schemaChecking, setSchemaChecking] = useState(false);
+  const [schemaValidation, setSchemaValidation] = useState<{ isValid: boolean; errors: string[] } | null>(null);
+  const [importProgress, setImportProgress] = useState<Awaited<ReturnType<StudioPageProps["api"]["getDatabaseImportProgress"]>>>(null);
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  const loadDetail = async () => {
+    try {
+      const nextDetail = await api.getDatabaseDetail(databaseId);
+      setDetail(nextDetail);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载数据库详情失败。");
+    }
+  };
+
+  const loadRecords = async (currentPageIndex: number) => {
+    setLoadingRecords(true);
+    try {
+      const result = await api.listDatabaseRecords(databaseId, {
+        pageIndex: currentPageIndex,
+        pageSize
+      });
+      setRecords(result.items);
+      setTotal(result.total);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载数据库记录失败。");
+    } finally {
+      setLoadingRecords(false);
+    }
+  };
+
+  const loadImportProgress = async () => {
+    try {
+      const result = await api.getDatabaseImportProgress(databaseId);
+      setImportProgress(result);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "加载导入进度失败。");
+    }
+  };
+
+  useEffect(() => {
+    void loadDetail();
+  }, [api, databaseId]);
+
+  useEffect(() => {
+    void loadRecords(pageIndex);
+  }, [api, databaseId, pageIndex, pageSize]);
+
+  useEffect(() => {
+    void loadImportProgress();
+  }, [api, databaseId]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const openCreateRecordDialog = () => {
+    setEditingRecordId(null);
+    setRecordDraft("{\n  \n}");
+    setRecordDialogVisible(true);
+  };
+
+  const openEditRecordDialog = (record: StudioDatabaseRecordItem) => {
+    setEditingRecordId(record.id);
+    setRecordDraft(tryFormatJson(record.dataJson));
+    setRecordDialogVisible(true);
+  };
+
+  const handleSaveRecord = async () => {
+    let normalizedJson = "{}";
+    try {
+      const parsed = JSON.parse(recordDraft);
+      if (!isRecord(parsed)) {
+        Toast.error("数据库记录必须是 JSON 对象。");
+        return;
+      }
+
+      normalizedJson = JSON.stringify(parsed);
+    } catch {
+      Toast.error("记录 JSON 格式不合法。");
+      return;
+    }
+
+    setRecordSaving(true);
+    try {
+      if (editingRecordId) {
+        await api.updateDatabaseRecord(databaseId, editingRecordId, {
+          dataJson: normalizedJson
+        });
+        Toast.success("数据库记录已更新。");
+      } else {
+        await api.createDatabaseRecord(databaseId, {
+          dataJson: normalizedJson
+        });
+        Toast.success("数据库记录已创建。");
+      }
+
+      setRecordDialogVisible(false);
+      await Promise.all([loadDetail(), loadRecords(pageIndex)]);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "保存数据库记录失败。");
+    } finally {
+      setRecordSaving(false);
+    }
+  };
+
+  const handleDeleteRecord = async (recordId: number) => {
+    if (!window.confirm("确认删除这条数据库记录吗？")) {
+      return;
+    }
+
+    try {
+      await api.deleteDatabaseRecord(databaseId, recordId);
+      const nextTotal = Math.max(0, total - 1);
+      const nextPageIndex = nextTotal > 0 && pageIndex > Math.ceil(nextTotal / pageSize)
+        ? Math.max(1, pageIndex - 1)
+        : pageIndex;
+      setPageIndex(nextPageIndex);
+      await Promise.all([loadDetail(), loadRecords(nextPageIndex)]);
+      Toast.success("数据库记录已删除。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "删除数据库记录失败。");
+    }
+  };
+
+  const handleValidateSchema = async () => {
+    if (!detail) {
+      return;
+    }
+
+    setSchemaChecking(true);
+    try {
+      const result = await api.validateDatabaseSchemaDraft(detail.tableSchema);
+      setSchemaValidation(result);
+      Toast.success(result.isValid ? "Schema 校验通过。" : "Schema 校验未通过。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "校验数据库 Schema 失败。");
+    } finally {
+      setSchemaChecking(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await api.downloadDatabaseTemplate(databaseId);
+      Toast.success("模板下载已开始。");
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "下载数据库模板失败。");
+    }
+  };
+
+  const handlePickImportFile = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const taskId = await api.submitDatabaseImport(databaseId, file);
+      await Promise.all([loadImportProgress(), loadDetail()]);
+      Toast.success(`导入任务已提交，任务号 ${taskId}。`);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "提交导入任务失败。");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Surface title="数据库详情" subtitle="查看数据库结构与绑定信息。" testId="app-studio-database-detail-page">
+      {detail ? (
+        <div className="module-studio__stack">
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <strong>{detail.name}</strong>
+              <Tag color="blue">数据库</Tag>
+            </div>
+            <Typography.Text type="tertiary">{detail.description || "当前数据库还没有补充描述。"}</Typography.Text>
+            <Descriptions
+              size="small"
+              align="left"
+              data={[
+                { key: "id", value: detail.id },
+                { key: "recordCount", value: detail.recordCount },
+                { key: "botId", value: detail.botId || "-" },
+                { key: "updatedAt", value: formatDate(detail.updatedAt || detail.createdAt) }
+              ]}
+            />
+            <Space wrap>
+              <Button onClick={onOpenLibrary}>进入资源库</Button>
+              <Button theme="solid" type="primary" icon={<IconPlus />} onClick={openCreateRecordDialog}>
+                新增记录
+              </Button>
+              <Button onClick={() => void handleDownloadTemplate()}>
+                下载模板
+              </Button>
+              <Button loading={importing} onClick={handlePickImportFile}>
+                导入数据
+              </Button>
+            </Space>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: "none" }}
+              onChange={event => void handleImportFileChange(event)}
+            />
+          </div>
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <strong>表结构</strong>
+              <Space>
+                <Button loading={schemaChecking} onClick={() => void handleValidateSchema()}>
+                  校验当前 Schema
+                </Button>
+                {schemaValidation ? (
+                  <Tag color={schemaValidation.isValid ? "green" : "red"}>
+                    {schemaValidation.isValid ? "Valid" : `Invalid · ${schemaValidation.errors.length}`}
+                  </Tag>
+                ) : null}
+              </Space>
+            </div>
+            <pre className="module-studio__message-content">{tryFormatJson(detail.tableSchema)}</pre>
+            {schemaValidation && !schemaValidation.isValid ? (
+              <div className="module-studio__stack">
+                {schemaValidation.errors.map(error => (
+                  <Banner key={error} type="danger" bordered={false} closeIcon={null} description={error} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <strong>最近导入任务</strong>
+              <Space>
+                <Button onClick={() => void loadImportProgress()}>
+                  刷新进度
+                </Button>
+                {importProgress ? (
+                  <Tag color={
+                    importProgress.status === 2 ? "green"
+                      : importProgress.status === 3 ? "red"
+                      : importProgress.status === 1 ? "blue"
+                      : "grey"
+                  }>
+                    {importProgress.status === 0
+                      ? "Pending"
+                      : importProgress.status === 1
+                        ? "Running"
+                        : importProgress.status === 2
+                          ? "Completed"
+                          : "Failed"}
+                  </Tag>
+                ) : null}
+              </Space>
+            </div>
+            {importProgress ? (
+              <div className="module-studio__stack">
+                <Descriptions
+                  size="small"
+                  align="left"
+                  data={[
+                    { key: "taskId", value: importProgress.taskId },
+                    { key: "totalRows", value: importProgress.totalRows },
+                    { key: "succeededRows", value: importProgress.succeededRows },
+                    { key: "failedRows", value: importProgress.failedRows },
+                    { key: "updatedAt", value: formatDate(importProgress.updatedAt || importProgress.createdAt) }
+                  ]}
+                />
+                {importProgress.errorMessage ? (
+                  <Banner type="danger" bordered={false} closeIcon={null} description={importProgress.errorMessage} />
+                ) : (
+                  <Typography.Text type="tertiary">
+                    导入任务会先上传 CSV 文件，再异步写入当前数据库资源的记录表。
+                  </Typography.Text>
+                )}
+              </div>
+            ) : (
+              <Empty title="暂无导入任务" image={null} />
+            )}
+          </div>
+          <div className="module-studio__coze-inspector-card">
+            <div className="module-studio__card-head">
+              <strong>数据记录</strong>
+              <Typography.Text type="tertiary">
+                第 {pageIndex} / {totalPages} 页，共 {total} 条
+              </Typography.Text>
+            </div>
+            {loadingRecords ? (
+              <Typography.Text type="tertiary">正在加载数据库记录...</Typography.Text>
+            ) : records.length === 0 ? (
+              <Empty title="暂无数据库记录" image={null} />
+            ) : (
+              <div className="module-studio__stack">
+                {records.map(record => (
+                  <article key={record.id} className="module-studio__coze-card">
+                    <div className="module-studio__card-head">
+                      <div>
+                        <Tag color="cyan">Record</Tag>
+                        <strong>#{record.id}</strong>
+                      </div>
+                      <Typography.Text type="tertiary">
+                        {formatDate(record.updatedAt || record.createdAt)}
+                      </Typography.Text>
+                    </div>
+                    <pre className="module-studio__message-content">{tryFormatJson(record.dataJson)}</pre>
+                    <Space wrap>
+                      <Button onClick={() => openEditRecordDialog(record)}>编辑</Button>
+                      <Button type="danger" theme="borderless" onClick={() => void handleDeleteRecord(record.id)}>
+                        删除
+                      </Button>
+                    </Space>
+                  </article>
+                ))}
+                <Space>
+                  <Button disabled={pageIndex <= 1} onClick={() => setPageIndex(current => Math.max(1, current - 1))}>
+                    上一页
+                  </Button>
+                  <Button disabled={pageIndex >= totalPages} onClick={() => setPageIndex(current => Math.min(totalPages, current + 1))}>
+                    下一页
+                  </Button>
+                </Space>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <Empty title="未找到数据库" image={null} />
+      )}
+      <Modal
+        title={editingRecordId ? `编辑记录 #${editingRecordId}` : "新增数据库记录"}
+        visible={recordDialogVisible}
+        onCancel={() => {
+          if (!recordSaving) {
+            setRecordDialogVisible(false);
+          }
+        }}
+        onOk={() => void handleSaveRecord()}
+        okText={editingRecordId ? "保存" : "创建"}
+        cancelText="取消"
+        confirmLoading={recordSaving}
+      >
+        <div className="module-studio__stack">
+          <Typography.Text type="tertiary">
+            请输入 JSON 对象作为记录内容，字段应与当前表结构保持一致。
+          </Typography.Text>
+          <textarea
+            rows={14}
+            className="module-studio__textarea"
+            value={recordDraft}
+            onChange={event => setRecordDraft(event.target.value)}
+          />
+        </div>
+      </Modal>
+    </Surface>
+  );
+}
+
+export function DatabasesPage({
+  api,
+  onOpenDetail,
+  onOpenLibrary
+}: StudioPageProps & {
+  onOpenDetail: (databaseId: number) => void;
+  onOpenLibrary: () => void;
+}) {
+  const [items, setItems] = useState<Array<{ id: number; name: string; botId?: number }>>([]);
+  const [keyword, setKeyword] = useState("");
+
+  useEffect(() => {
+    void api.listDatabases().then(result => {
+      const normalizedKeyword = keyword.trim().toLowerCase();
+      const filtered = normalizedKeyword
+        ? result.filter(item => item.name.toLowerCase().includes(normalizedKeyword))
+        : result;
+      setItems(filtered);
+    }).catch(error => {
+      Toast.error(error instanceof Error ? error.message : "加载数据库失败。");
+    });
+  }, [api, keyword]);
+
+  return (
+    <Surface
+      title="数据库中心"
+      subtitle="统一管理结构化数据表、记录与导入任务。"
+      testId="app-studio-databases-page"
+      toolbar={
+        <Input
+          value={keyword}
+          onChange={setKeyword}
+          placeholder="搜索数据库"
+          showClear
+          data-testid="app-studio-databases-search"
+        />
+      }
+    >
+      <div className="module-studio__stack">
+        <Space>
+          <Button theme="solid" type="primary" onClick={onOpenLibrary}>进入资源库</Button>
+        </Space>
+        <CardGrid
+          testId="app-studio-databases-grid"
+          items={items}
+          render={(item) => (
+            <article key={item.id} className="module-studio__coze-card">
+              <div className="module-studio__card-head">
+                <div>
+                  <Tag color="blue">数据库</Tag>
+                  <strong>{item.name}</strong>
+                </div>
+                <span className="module-studio__meta">{item.botId ? `Bot:${item.botId}` : "未绑定"}</span>
+              </div>
+              <p>查看表结构、记录和导入任务。</p>
+              <Space wrap>
+                <Button theme="solid" type="primary" onClick={() => onOpenDetail(item.id)}>
+                  打开详情
+                </Button>
+                <Button onClick={onOpenLibrary}>进入资源库</Button>
+              </Space>
+            </article>
+          )}
+        />
       </div>
     </Surface>
   );

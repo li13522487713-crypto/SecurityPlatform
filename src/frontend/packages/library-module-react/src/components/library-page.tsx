@@ -1,4 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import {
   Banner,
@@ -28,6 +29,7 @@ import {
   formatDateTime,
   isKnowledgeType,
   mapKnowledgeBaseToLibraryItem,
+  mapKnowledgeType,
   normalizeResourcePath,
   resolveKnowledgeStatus
 } from "../utils";
@@ -182,23 +184,132 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
     {
       title: copy.actions,
       dataIndex: "path",
-      width: 120,
-      render: (_value: unknown, record: AiLibraryItem) => (
-        <Button
-          theme="borderless"
-          onClick={event => {
-            event.stopPropagation();
-            if (isKnowledgeType(record.resourceType)) {
-              onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${record.resourceId}?biz=library`);
+      width: 240,
+      render: (_value: unknown, record: AiLibraryItem) => {
+        const openDetail = (event: MouseEvent) => {
+          event.stopPropagation();
+          if (isKnowledgeType(record.resourceType)) {
+            onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${record.resourceId}`);
+            return;
+          }
+
+          onNavigate(normalizeResourcePath(record.path, appKey, spaceId));
+        };
+
+        const openKnowledgeUpload = (event: MouseEvent) => {
+          event.stopPropagation();
+          onNavigate(
+            `/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${record.resourceId}/upload?type=${mapKnowledgeType(
+              record.resourceSubType === "table" ? 1 : record.resourceSubType === "image" ? 2 : 0
+            )}`
+          );
+        };
+
+        const downloadDatabaseTemplate = async (event: MouseEvent) => {
+          event.stopPropagation();
+          if (!api.downloadDatabaseTemplate) {
+            return;
+          }
+
+          try {
+            await api.downloadDatabaseTemplate(record.resourceId);
+            Toast.success(copy.downloadTemplate);
+          } catch (error) {
+            Toast.error((error as Error).message);
+          }
+        };
+
+        const publishPlugin = async (event: MouseEvent) => {
+          event.stopPropagation();
+          if (!api.publishPlugin) {
+            return;
+          }
+
+          try {
+            await api.publishPlugin(record.resourceId);
+            Toast.success(copy.publish);
+          } catch (error) {
+            Toast.error((error as Error).message);
+          }
+        };
+
+        const openAgentPublish = (event: MouseEvent) => {
+          event.stopPropagation();
+          const match = record.path.match(/^\/ai\/agents\/([^/]+)\/edit$/);
+          if (!match) {
+            return;
+          }
+
+          onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/assistants/${match[1]}/publish`);
+        };
+
+        const openAppPublish = (event: MouseEvent) => {
+          event.stopPropagation();
+          const match = record.path.match(/^\/ai\/apps\/([^/]+)\/edit$/);
+          if (!match) {
+            return;
+          }
+
+          onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/apps/${match[1]}/publish`);
+        };
+
+        const openAppWorkflow = async (event: MouseEvent) => {
+          event.stopPropagation();
+          if (!api.getApplicationDetail) {
+            return;
+          }
+
+          try {
+            const detail = await api.getApplicationDetail(record.resourceId);
+            if (!detail.workflowId) {
+              Toast.warning("当前应用还没有关联主工作流。");
               return;
             }
 
-            onNavigate(normalizeResourcePath(record.path, appKey, spaceId));
-          }}
-        >
-          {copy.open}
-        </Button>
-      )
+            onNavigate(`/apps/${encodeURIComponent(appKey)}/work_flow/${detail.workflowId}/editor`);
+          } catch (error) {
+            Toast.error((error as Error).message);
+          }
+        };
+
+        return (
+          <Space spacing={4} wrap>
+            <Button theme="borderless" onClick={openDetail}>
+              {copy.open}
+            </Button>
+            {isKnowledgeType(record.resourceType) ? (
+              <Button theme="borderless" onClick={openKnowledgeUpload}>
+                {copy.upload}
+              </Button>
+            ) : null}
+            {record.resourceType === "database" ? (
+              <Button theme="borderless" onClick={event => void downloadDatabaseTemplate(event)}>
+                {copy.downloadTemplate}
+              </Button>
+            ) : null}
+            {record.resourceType === "plugin" ? (
+              <Button theme="borderless" onClick={event => void publishPlugin(event)}>
+                {copy.publish}
+              </Button>
+            ) : null}
+            {record.resourceType === "agent" ? (
+              <Button theme="borderless" onClick={openAgentPublish}>
+                {copy.openPublish}
+              </Button>
+            ) : null}
+            {record.resourceType === "app" ? (
+              <Button theme="borderless" onClick={event => void openAppWorkflow(event)}>
+                {copy.openWorkflow}
+              </Button>
+            ) : null}
+            {record.resourceType === "app" ? (
+              <Button theme="borderless" onClick={openAppPublish}>
+                {copy.openPublish}
+              </Button>
+            ) : null}
+          </Space>
+        );
+      }
     }
   ], [appKey, copy, onNavigate]);
 
@@ -218,7 +329,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
       setCreateVisible(false);
       setForm(DEFAULT_CREATE_FORM);
       Toast.success(copy.createKnowledge);
-      onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${id}?biz=library`);
+      onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${id}`);
     } catch (error) {
       Toast.error((error as Error).message);
     } finally {
@@ -335,7 +446,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
                 }
 
                 if (record.resourceType === "knowledge-base") {
-                  onNavigate(`/apps/${encodeURIComponent(appKey)}/space/${encodeURIComponent(spaceId)}/knowledge/${record.resourceId}?biz=library`);
+                  onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${record.resourceId}`);
                   return;
                 }
 
