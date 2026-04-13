@@ -71,31 +71,16 @@ public sealed class SetupStateController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>获取平台和应用两级 setup 状态</summary>
+    /// <summary>获取应用宿主 setup 状态。应用宿主独立部署时，平台状态固定视为 Ready。</summary>
     [HttpGet("state")]
-    public async Task<ActionResult<ApiResponse<AppHostSetupStateResponse>>> GetState(CancellationToken cancellationToken)
+    public ActionResult<ApiResponse<AppHostSetupStateResponse>> GetState()
     {
-        var platformState = ResolvePlatformState();
-        if (!IsPlatformReady(platformState))
-        {
-            var configuredDatabase = TryResolveConfiguredDatabase();
-            if (configuredDatabase is not null)
-            {
-                platformState = await EnsurePlatformStateReadyAsync(
-                    configuredDatabase.Value.ConnectionString,
-                    configuredDatabase.Value.DbType,
-                    preferredAdminUsername: null,
-                    cancellationToken);
-            }
-        }
-
-        var platformReady = IsPlatformReady(platformState);
         var appState = _appSetupStateProvider.GetState();
         var configuredAppKey = ResolveSetupAppKey();
         return Ok(ApiResponse<AppHostSetupStateResponse>.Ok(
             new AppHostSetupStateResponse(
-                platformReady ? SetupState.Ready.ToString() : platformState.Status.ToString(),
-                platformReady,
+                SetupState.Ready.ToString(),
+                true,
                 appState.Status.ToString(),
                 _appSetupStateProvider.IsReady,
                 appState.AppKey,
@@ -294,7 +279,8 @@ public sealed class SetupStateController : ControllerBase
     }
 
     /// <summary>
-    /// 执行应用级初始化：验证数据库连接、确认平台已初始化、创建/绑定应用实例并播种应用组织数据。
+    /// 执行应用级初始化：验证数据库连接、创建/绑定应用实例并播种应用组织数据。
+    /// 应用宿主支持独立部署，不再强制依赖平台 setup 状态。
     /// </summary>
     [HttpPost("initialize")]
     public async Task<ActionResult<ApiResponse<AppSetupInitializeResponse>>> Initialize(
@@ -313,19 +299,8 @@ public sealed class SetupStateController : ControllerBase
         var requestedDbType = DataSourceDriverRegistry.NormalizeDriverCode(request.Database.DriverCode);
         var runtimeConnectionString = ResolveRuntimeConnectionString(requestedConnectionString, requestedDbType);
         var configuredPlatformDatabase = TryResolveConfiguredDatabase();
-        var platformConnectionString = configuredPlatformDatabase?.ConnectionString ?? runtimeConnectionString;
-        var platformDbType = configuredPlatformDatabase?.DbType ?? requestedDbType;
-
-        var platformState = await EnsurePlatformStateReadyAsync(
-            platformConnectionString,
-            platformDbType,
-            request.Admin.AdminUsername,
-            cancellationToken);
-        if (!IsPlatformReady(platformState))
-        {
-            return BadRequest(ApiResponse<AppSetupInitializeResponse>.Fail(
-                "PLATFORM_NOT_READY", "Platform setup must be completed first.", HttpContext.TraceIdentifier));
-        }
+        var platformConnectionString = configuredPlatformDatabase?.ConnectionString;
+        var platformDbType = configuredPlatformDatabase?.DbType;
 
         if (_appSetupStateProvider.IsReady)
         {
@@ -346,7 +321,7 @@ public sealed class SetupStateController : ControllerBase
             var adminBound = false;
 
             using var db = _setupDbClientFactory.Create(runtimeConnectionString, requestedDbType);
-            using var platformDb = _setupDbClientFactory.Create(platformConnectionString, platformDbType);
+            ISqlSugarClient? platformDb = null;
 
             try
             {
@@ -389,14 +364,20 @@ public sealed class SetupStateController : ControllerBase
                 }
             }
 
-            try
+            if (!string.IsNullOrWhiteSpace(platformConnectionString)
+                && !string.IsNullOrWhiteSpace(platformDbType)
+                && !AreSameDatabase(runtimeConnectionString, platformConnectionString))
             {
-                await platformDb.Ado.GetScalarAsync("SELECT 1");
-            }
-            catch (Exception platformDbEx)
-            {
-                verificationErrors.Add($"Platform database connection failed: {platformDbEx.Message}");
-                _logger.LogError(platformDbEx, "[AppSetup] 平台数据库连接验证失败");
+                try
+                {
+                    platformDb = _setupDbClientFactory.Create(platformConnectionString, platformDbType);
+                    await platformDb.Ado.GetScalarAsync("SELECT 1");
+                }
+                catch (Exception platformDbEx)
+                {
+                    platformDb = null;
+                    _logger.LogWarning(platformDbEx, "[AppSetup] 平台数据库不可用，跳过平台主库同步。");
+                }
             }
 
             if (verificationErrors.Count == 0)
@@ -475,7 +456,9 @@ public sealed class SetupStateController : ControllerBase
                 // 当应用库与平台主库不同时，AppDbScopeFactory 从主库查询 AppDataRoutePolicy 来判断路由模式。
                 // 必须将 LowCodeApp 与 AppDataRoutePolicy 同步写入平台主库，否则动态表等依赖 GetAppClientAsync 的功能
                 // 会因找不到 MainOnly 策略而尝试查找 TenantAppDataSourceBinding，导致 "未绑定可用数据源" 异常。
-                if (!AreSameDatabase(runtimeConnectionString, platformConnectionString))
+                if (platformDb is not null
+                    && !string.IsNullOrWhiteSpace(platformConnectionString)
+                    && !AreSameDatabase(runtimeConnectionString, platformConnectionString))
                 {
                     EnsurePlatformRoutingTables(platformDb);
                     await SyncAppInstanceToPlatformDbAsync(platformDb, tenantId, app, cancellationToken);
@@ -512,13 +495,11 @@ public sealed class SetupStateController : ControllerBase
                 positionsCreated,
                 adminBound);
 
-            platformState = ResolvePlatformState();
-            var platformReady = IsPlatformReady(platformState);
             var appState = _appSetupStateProvider.GetState();
             return Ok(ApiResponse<AppSetupInitializeResponse>.Ok(
                 new AppSetupInitializeResponse(
-                    platformReady ? SetupState.Ready.ToString() : platformState.Status.ToString(),
-                    platformReady,
+                    SetupState.Ready.ToString(),
+                    true,
                     appState.Status.ToString(),
                     true,
                     dbConnected,

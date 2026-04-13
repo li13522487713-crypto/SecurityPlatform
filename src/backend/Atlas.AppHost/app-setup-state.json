@@ -1,1 +1,9 @@
-{}
+{
+  "status": "Ready",
+  "completedAt": "2026-04-13T07:50:39.3621878+00:00",
+  "failedAt": null,
+  "failureMessage": null,
+  "appName": "\u6D4B\u8BD5123",
+  "adminUsername": "admin",
+  "appKey": "app-default"
+}

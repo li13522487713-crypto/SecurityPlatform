@@ -108,7 +108,6 @@ function formatBooleanFlag(value: boolean | undefined): string {
 }
 
 export function PlatformNotReadyPage() {
-  const navigate = useNavigate();
   const { t } = useAppI18n();
   const { loading, platformReady, appReady, refresh } = useBootstrap();
   const [checking, setChecking] = useState(false);
@@ -163,7 +162,9 @@ export function PlatformNotReadyPage() {
           <button
             type="button"
             className="atlas-button atlas-button--primary"
-            onClick={() => navigate("/app-setup")}
+            onClick={() => {
+              window.location.href = "/app-setup";
+            }}
           >
             {t("platformNotReadyGoToAppSetup")}
           </button>
@@ -248,6 +249,17 @@ export function AppSetupPage() {
 
     return departmentsValid && positionsValid && !initializing;
   }, [initializing, organizationForm.departments, organizationForm.positions]);
+
+  useEffect(() => {
+    setCurrentStep(0);
+    setTestingConnection(false);
+    setConnectionTestResult(null);
+    setConnectionTestMessage("");
+    setInitializing(false);
+    setCompleted(false);
+    setSetupError(null);
+    setInitReport(null);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -406,6 +418,13 @@ export function AppSetupPage() {
       <div className="atlas-setup-card">
         <h1 className="atlas-setup-card__title">{t("appSetupTitle")}</h1>
         <p className="atlas-setup-card__subtitle">{t("appSetupSubtitle")}</p>
+
+        {!loading && !platformReady ? (
+          <div className="atlas-warning-banner atlas-warning-banner--compact">
+            <strong>{t("platformNotReadyTitle")}</strong>
+            <p>{t("platformNotReadyDesc")}</p>
+          </div>
+        ) : null}
 
         <SetupSteps currentStep={currentStep} />
 
