@@ -189,6 +189,13 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     [store.canvasNodes]
   );
 
+  const enabledNodeTypes = useMemo(() => {
+    if (store.nodeTypesMeta.length === 0) {
+      return undefined;
+    }
+    return store.nodeTypesMeta.map((item) => String(item.key));
+  }, [store.nodeTypesMeta]);
+
   const lineSegments = useMemo(() => {
     const nodeMap = new Map(store.canvasNodes.map((node) => [node.key, node]));
     return store.canvasConnections
@@ -698,6 +705,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         <NodePanelPopover
           visible={showNodePanel}
           nodes={WORKFLOW_NODE_CATALOG}
+          enabledTypes={enabledNodeTypes}
           onDragStart={(nodeType) => {
             setDraggingCatalogNodeType(nodeType);
             dragService.startDrag({ type: nodeType });
