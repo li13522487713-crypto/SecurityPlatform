@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Banner,
   Button,
   Descriptions,
+  Dropdown,
   Empty,
   Input,
   InputNumber,
@@ -22,6 +23,10 @@ import type {
   AgentDetail,
   ChatMessageItem,
   ConversationItem,
+  StudioApplicationCreateRequest,
+  StudioApplicationSummary,
+  StudioApplicationUpdateRequest,
+  StudioWorkspaceOverview,
   DevelopFocus,
   DevelopResourceSummary,
   ModelConfigConnectionTestRequest,
@@ -348,18 +353,104 @@ function parseTraceSummary(metadata?: string): WorkbenchTrace | null {
   };
 }
 
+const APPLICATION_CODE_REGEX = /^[A-Za-z][A-Za-z0-9_-]{1,31}$/;
+
+interface AgentPromptSections {
+  persona: string;
+  goals: string;
+  skills: string;
+  workflow: string;
+  outputFormat: string;
+  constraints: string;
+  opening: string;
+}
+
+const EMPTY_AGENT_PROMPT_SECTIONS: AgentPromptSections = {
+  persona: "",
+  goals: "",
+  skills: "",
+  workflow: "",
+  outputFormat: "",
+  constraints: "",
+  opening: ""
+};
+
+const AGENT_PROMPT_SECTION_MAP: Array<{ title: string; key: keyof AgentPromptSections }> = [
+  { title: "角色", key: "persona" },
+  { title: "目标", key: "goals" },
+  { title: "技能", key: "skills" },
+  { title: "工作流", key: "workflow" },
+  { title: "输出格式", key: "outputFormat" },
+  { title: "限制", key: "constraints" },
+  { title: "开场白", key: "opening" }
+];
+
+function parseAgentPromptSections(systemPrompt?: string): AgentPromptSections {
+  if (!systemPrompt?.trim()) {
+    return { ...EMPTY_AGENT_PROMPT_SECTIONS };
+  }
+
+  const sections = { ...EMPTY_AGENT_PROMPT_SECTIONS };
+  let currentKey: keyof AgentPromptSections | null = null;
+
+  for (const line of systemPrompt.split(/\r?\n/)) {
+    const matched = AGENT_PROMPT_SECTION_MAP.find(section => line.trim() === `## ${section.title}`);
+    if (matched) {
+      currentKey = matched.key;
+      continue;
+    }
+
+    if (!currentKey) {
+      continue;
+    }
+
+    sections[currentKey] = sections[currentKey]
+      ? `${sections[currentKey]}\n${line}`
+      : line;
+  }
+
+  const hasParsedSection = AGENT_PROMPT_SECTION_MAP.some(section => sections[section.key].trim().length > 0);
+  if (!hasParsedSection) {
+    return {
+      ...EMPTY_AGENT_PROMPT_SECTIONS,
+      persona: systemPrompt.trim()
+    };
+  }
+
+  return sections;
+}
+
+function composeAgentPromptSections(sections: AgentPromptSections): string {
+  return AGENT_PROMPT_SECTION_MAP
+    .map(section => {
+      const value = sections[section.key].trim();
+      if (!value) {
+        return "";
+      }
+
+      return `## ${section.title}\n${value}`;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export function DevelopPage({
   api,
   focus = "overview",
   workflowItems,
   chatflowItems,
   onOpenBot,
+  onOpenUsers,
+  onOpenRoles,
+  onOpenDepartments,
+  onOpenPositions,
   onOpenWorkflow,
   onOpenChatflow,
   onOpenWorkflows,
   onOpenChatflows,
   onOpenAgentChat,
   onOpenModelConfigs,
+  onOpenLibrary,
   onCreateWorkflow,
   onCreateChatflow
 }: StudioPageProps & {
@@ -367,36 +458,64 @@ export function DevelopPage({
   workflowItems: DevelopResourceSummary[];
   chatflowItems: DevelopResourceSummary[];
   onOpenBot: (botId: string) => void;
+  onOpenUsers: () => void;
+  onOpenRoles: () => void;
+  onOpenDepartments: () => void;
+  onOpenPositions: () => void;
   onOpenWorkflow: (workflowId: string) => void;
   onOpenChatflow: (workflowId: string) => void;
   onOpenWorkflows: () => void;
   onOpenChatflows: () => void;
   onOpenAgentChat: () => void;
   onOpenModelConfigs: () => void;
+  onOpenLibrary: () => void;
   onCreateWorkflow: () => void;
   onCreateChatflow: () => void;
 }) {
   const [items, setItems] = useState<AgentListItem[]>([]);
   const [models, setModels] = useState<ModelConfigItem[]>([]);
+  const [workspaceOverview, setWorkspaceOverview] = useState<StudioWorkspaceOverview | null>(null);
   const [activeFocus, setActiveFocus] = useState<DevelopFocus>(focus);
   const [keyword, setKeyword] = useState("");
+  const deferredKeyword = useDeferredValue(keyword);
+  const [agentDialogVisible, setAgentDialogVisible] = useState(false);
+  const [applicationDialogVisible, setApplicationDialogVisible] = useState(false);
+  const [applicationEditing, setApplicationEditing] = useState<StudioApplicationSummary | null>(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState("");
+  const [agentDraft, setAgentDraft] = useState({ name: "", description: "" });
+  const [applicationDraft, setApplicationDraft] = useState<StudioApplicationCreateRequest>({
+    code: "",
+    name: "",
+    description: "",
+    isActive: true
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   const load = async () => {
-    const [agentsResult, modelResult] = await Promise.all([
-      api.listAgents({ pageIndex: 1, pageSize: 20, keyword: keyword || undefined }),
-      api.listModelConfigs()
+    const [agentsResult, modelResult, workspaceResult] = await Promise.all([
+      api.listAgents({ pageIndex: 1, pageSize: 20, keyword: deferredKeyword || undefined }),
+      api.listModelConfigs(),
+      api.getWorkspaceOverview()
     ]);
     setItems(agentsResult.items);
     setModels(modelResult.items);
+    setWorkspaceOverview(workspaceResult);
+    setSelectedApplicationId(current => current || workspaceResult.applications[0]?.id || "");
   };
 
   useEffect(() => {
     void load();
-  }, [keyword]);
+  }, [api, deferredKeyword]);
 
   useEffect(() => {
     setActiveFocus(focus);
   }, [focus]);
+
+  const applications = workspaceOverview?.applications ?? [];
+  const selectedApplication = useMemo(
+    () => applications.find(item => item.id === selectedApplicationId) ?? applications[0] ?? null,
+    [applications, selectedApplicationId]
+  );
 
   const recentResources = useMemo(() => {
     const recentAgents = items.slice(0, 3).map((item) => ({
@@ -414,6 +533,14 @@ export function DevelopPage({
   }, [chatflowItems, items, workflowItems]);
 
   const summaryCards = [
+    {
+      key: "projects",
+      title: "应用",
+      description: "把项目资源、组织协作和编排能力收拢到同一个应用工作台里。",
+      count: applications.length,
+      actionLabel: "查看应用",
+      onClick: () => setActiveFocus("projects")
+    },
     {
       key: "agents",
       title: "Agent",
@@ -445,61 +572,196 @@ export function DevelopPage({
       count: models.length,
       actionLabel: "打开模型配置",
       onClick: onOpenModelConfigs
+    },
+    {
+      key: "members",
+      title: "组织成员",
+      description: "组织架构能力并入 Coze 菜单，开发和治理不再割裂。",
+      count: workspaceOverview?.memberCount ?? 0,
+      actionLabel: "成员管理",
+      onClick: onOpenUsers
     }
   ];
 
   const filteredAgents = useMemo(
-    () => items.filter((item) => !keyword || item.name.toLowerCase().includes(keyword.toLowerCase())),
-    [items, keyword]
+    () => items.filter((item) => !deferredKeyword || item.name.toLowerCase().includes(deferredKeyword.toLowerCase())),
+    [deferredKeyword, items]
+  );
+  const filteredApplications = useMemo(
+    () =>
+      applications.filter((item) =>
+        !deferredKeyword ||
+        item.name.toLowerCase().includes(deferredKeyword.toLowerCase()) ||
+        item.code.toLowerCase().includes(deferredKeyword.toLowerCase())
+      ),
+    [applications, deferredKeyword]
   );
   const filteredWorkflows = useMemo(
-    () => workflowItems.filter((item) => !keyword || item.title.toLowerCase().includes(keyword.toLowerCase())),
-    [keyword, workflowItems]
+    () => workflowItems.filter((item) => !deferredKeyword || item.title.toLowerCase().includes(deferredKeyword.toLowerCase())),
+    [deferredKeyword, workflowItems]
   );
   const filteredChatflows = useMemo(
-    () => chatflowItems.filter((item) => !keyword || item.title.toLowerCase().includes(keyword.toLowerCase())),
-    [chatflowItems, keyword]
+    () => chatflowItems.filter((item) => !deferredKeyword || item.title.toLowerCase().includes(deferredKeyword.toLowerCase())),
+    [chatflowItems, deferredKeyword]
   );
 
-  async function handleCreateAgent() {
-    const botId = await api.createAgent({
-      name: `Agent_${Date.now().toString().slice(-6)}`,
-      description: "通过 Develop 中心创建"
+  function openCreateAgentDialog() {
+    setAgentDraft({ name: "", description: "" });
+    setAgentDialogVisible(true);
+  }
+
+  function openCreateApplicationDialog() {
+    setApplicationEditing(null);
+    setApplicationDraft({
+      code: "",
+      name: "",
+      description: "",
+      isActive: true
     });
-    onOpenBot(botId);
+    setApplicationDialogVisible(true);
+  }
+
+  function openEditApplicationDialog(item: StudioApplicationSummary) {
+    setApplicationEditing(item);
+    setApplicationDraft({
+      code: item.code,
+      name: item.name,
+      description: item.description ?? "",
+      isActive: item.isActive
+    });
+    setApplicationDialogVisible(true);
+  }
+
+  async function handleCreateAgent() {
+    if (!agentDraft.name.trim()) {
+      Toast.warning("请先填写智能体名称。");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const botId = await api.createAgent({
+        name: agentDraft.name.trim(),
+        description: agentDraft.description.trim() || undefined,
+        systemPrompt: composeAgentPromptSections({
+          ...EMPTY_AGENT_PROMPT_SECTIONS,
+          persona: agentDraft.description.trim() || `${agentDraft.name.trim()} 的角色说明`
+        }),
+        enableMemory: true,
+        enableShortTermMemory: true,
+        enableLongTermMemory: true,
+        longTermMemoryTopK: 3
+      });
+      setAgentDialogVisible(false);
+      Toast.success("智能体已创建。");
+      await load();
+      onOpenBot(botId);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "创建智能体失败。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSaveApplication() {
+    if (!applicationDraft.name.trim()) {
+      Toast.warning("请先填写应用名称。");
+      return;
+    }
+
+    if (!APPLICATION_CODE_REGEX.test(applicationDraft.code.trim())) {
+      Toast.warning("应用编码需以字母开头，只能包含字母、数字、下划线或中划线，长度 2-32。");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (applicationEditing) {
+        await api.updateApplication(applicationEditing.id, {
+          name: applicationDraft.name.trim(),
+          description: applicationDraft.description?.trim() || undefined,
+          isActive: applicationDraft.isActive
+        });
+        Toast.success("应用信息已更新。");
+      } else {
+        await api.createApplication({
+          code: applicationDraft.code.trim(),
+          name: applicationDraft.name.trim(),
+          description: applicationDraft.description?.trim() || undefined,
+          isActive: applicationDraft.isActive
+        });
+        Toast.success("应用已创建。");
+      }
+      setApplicationDialogVisible(false);
+      await load();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "保存应用失败。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteApplication(item: StudioApplicationSummary) {
+    Modal.confirm({
+      title: "删除应用",
+      content: `确定删除应用 ${item.name} 吗？`,
+      onOk: async () => {
+        try {
+          await api.deleteApplication(item.id);
+          Toast.success("应用已删除。");
+          await load();
+        } catch (error) {
+          Toast.error(error instanceof Error ? error.message : "删除应用失败。");
+        }
+      }
+    });
   }
 
   return (
     <Surface
-      title="Develop"
-      subtitle="应用端 Coze 风格开发台，统一管理 Agent、Workflow、Chatflow 与模型配置。"
+      title="项目开发"
+      subtitle="按 Coze 风格把应用、智能体、工作流与组织协作放进同一套开发台。"
       testId="app-develop-page"
       toolbar={
-        <Space>
-          <Button icon={<IconPlus />} onClick={() => void handleCreateAgent()} data-testid="app-develop-create-agent">新建 Agent</Button>
-          <Button onClick={onCreateWorkflow} data-testid="app-develop-create-workflow">新建 Workflow</Button>
-          <Button onClick={onCreateChatflow} data-testid="app-develop-create-chatflow">新建 Chatflow</Button>
-        </Space>
+        <Dropdown
+          position="bottomRight"
+          render={
+            <div className="module-studio__coze-menu">
+              <button type="button" className="module-studio__coze-menu-item" onClick={openCreateApplicationDialog}>新建应用</button>
+              <button type="button" className="module-studio__coze-menu-item" onClick={openCreateAgentDialog}>新建智能体</button>
+              <button type="button" className="module-studio__coze-menu-item" onClick={onCreateWorkflow}>新建工作流</button>
+              <button type="button" className="module-studio__coze-menu-item" onClick={onCreateChatflow}>新建对话流</button>
+            </div>
+          }
+        >
+          <Button icon={<IconPlus />} theme="solid" type="primary" data-testid="app-develop-create-menu">
+            创建
+          </Button>
+        </Dropdown>
       }
     >
-      <div className="module-studio__develop-stack">
-        <div className="module-studio__hero">
-          <div>
-            <Typography.Title heading={3} style={{ margin: 0 }}>连续开发台</Typography.Title>
-            <Typography.Text type="tertiary">从这里进入应用端 Agent、Workflow、Chatflow、模型配置与对话调试，不回平台侧。</Typography.Text>
+      <div className="module-studio__coze-page">
+        <section className="module-studio__coze-hero">
+          <div className="module-studio__coze-hero-copy">
+            <span className="module-studio__coze-kicker">Workspace IDE</span>
+            <Typography.Title heading={2} style={{ margin: 0 }}>用 Coze 风格工作空间组织应用、智能体和团队协作</Typography.Title>
+            <Typography.Text type="tertiary">
+              从这里直接进入应用卡片、智能体编排、工作流资源、模型配置和组织治理，不需要在多个后台之间来回切换。
+            </Typography.Text>
           </div>
-          <Space>
-            <Button theme="solid" type="primary" onClick={onOpenAgentChat}>进入对话调试</Button>
+          <div className="module-studio__coze-hero-actions">
+            <Button theme="solid" type="primary" onClick={onOpenAgentChat}>预览与调试</Button>
+            <Button onClick={onOpenLibrary}>资源库</Button>
             <Button onClick={onOpenModelConfigs}>模型配置</Button>
-          </Space>
-        </div>
+          </div>
+        </section>
 
         <CardGrid
           testId="app-develop-summary-grid"
           items={summaryCards}
-          render={(item) => (
-            <article key={item.key} className="module-studio__card module-studio__summary-card">
-              <Tag color="light-blue">{item.title}</Tag>
+          render={item => (
+            <article key={item.key} className="module-studio__coze-metric">
+              <span className="module-studio__coze-metric-label">{item.title}</span>
               <strong>{item.count}</strong>
               <p>{item.description}</p>
               <Button onClick={item.onClick}>{item.actionLabel}</Button>
@@ -507,24 +769,24 @@ export function DevelopPage({
           )}
         />
 
-        <Banner
-          type="info"
-          bordered={false}
-          fullMode={false}
-          title="创建建议"
-          description="Workflow 与 Chatflow 均通过模板化入口创建，后续在独立编辑器中完成调试、保存与发布。"
-        />
-
-        <div className="module-studio__develop-toolbar">
+        <div className="module-studio__coze-toolbar">
           <Input
             value={keyword}
             onChange={setKeyword}
-            placeholder="搜索 Agent / Workflow / Chatflow"
+            placeholder="搜索应用、智能体、工作流、对话流"
             showClear
             data-testid="app-develop-search"
           />
-          <Radio.Group type="button" value={activeFocus} onChange={(event) => setActiveFocus(event.target.value as DevelopFocus)}>
+          <Radio.Group
+            type="button"
+            value={activeFocus}
+            onChange={event => {
+              const nextFocus = event.target.value as DevelopFocus;
+              startTransition(() => setActiveFocus(nextFocus));
+            }}
+          >
             <Radio value="overview">总览</Radio>
+            <Radio value="projects">应用</Radio>
             <Radio value="agents">Agent</Radio>
             <Radio value="workflow">Workflow</Radio>
             <Radio value="chatflow">Chatflow</Radio>
@@ -533,133 +795,326 @@ export function DevelopPage({
           </Radio.Group>
         </div>
 
-        {(activeFocus === "overview" || activeFocus === "agents") ? (
-          <section className="module-studio__section-block">
-            <div className="module-studio__section-head">
-              <Typography.Title heading={6}>Agent</Typography.Title>
-              <Button theme="borderless" onClick={() => setActiveFocus("agents")}>查看全部</Button>
-            </div>
-            <CardGrid
-              testId="app-develop-agents-grid"
-              items={filteredAgents}
-              render={(item: AgentListItem) => (
-                <article key={item.id} className="module-studio__card">
-                  <div className="module-studio__card-head">
-                    <strong>{item.name}</strong>
-                    <Tag color="blue">{item.status}</Tag>
+        <div className="module-studio__coze-board">
+          <div className="module-studio__coze-board-main">
+            {(activeFocus === "overview" || activeFocus === "projects") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>应用</Typography.Title>
+                    <Typography.Text type="tertiary">应用卡片承载项目级组织、资源入口和业务编排上下文。</Typography.Text>
                   </div>
-                  <p>{item.description || item.modelName || "暂无描述"}</p>
-                  <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
-                  <Button onClick={() => onOpenBot(item.id)}>打开 IDE</Button>
-                </article>
-              )}
-            />
-          </section>
-        ) : null}
+                  <Space>
+                    <Button onClick={openCreateApplicationDialog}>新建应用</Button>
+                    <Button theme="borderless" onClick={() => setActiveFocus("projects")}>查看全部</Button>
+                  </Space>
+                </div>
+                <CardGrid
+                  testId="app-develop-projects-grid"
+                  items={filteredApplications}
+                  render={(item: StudioApplicationSummary) => (
+                    <article key={item.id} className={`module-studio__coze-card${selectedApplication?.id === item.id ? " is-active" : ""}`}>
+                      <div className="module-studio__card-head">
+                        <div>
+                          <Tag color="light-blue">应用</Tag>
+                          <strong>{item.name}</strong>
+                        </div>
+                        <Tag color={item.isActive ? "green" : "grey"}>{item.isActive ? "启用" : "停用"}</Tag>
+                      </div>
+                      <p>{item.description || `项目编码：${item.code}`}</p>
+                      <span className="module-studio__meta">编码：{item.code}</span>
+                      <div className="module-studio__actions">
+                        <Button onClick={() => setSelectedApplicationId(item.id)}>查看详情</Button>
+                        <Button theme="borderless" onClick={() => openEditApplicationDialog(item)}>编辑</Button>
+                        <Button theme="borderless" type="danger" onClick={() => void handleDeleteApplication(item)}>删除</Button>
+                      </div>
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
 
-        {(activeFocus === "overview" || activeFocus === "workflow") ? (
-          <section className="module-studio__section-block">
-            <div className="module-studio__section-head">
-              <Typography.Title heading={6}>Workflow</Typography.Title>
-              <Space>
-                <Button onClick={onCreateWorkflow}>新建 Workflow</Button>
-                <Button theme="borderless" onClick={onOpenWorkflows}>资源列表</Button>
-              </Space>
-            </div>
-            <CardGrid
-              testId="app-develop-workflows-grid"
-              items={filteredWorkflows}
-              render={(item: DevelopResourceSummary) => (
-                <article key={item.id} className="module-studio__card">
-                  <div className="module-studio__card-head">
-                    <strong>{item.title}</strong>
-                    {item.status ? <Tag color="green">{item.status}</Tag> : null}
+            {(activeFocus === "overview" || activeFocus === "agents") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>智能体</Typography.Title>
+                    <Typography.Text type="tertiary">把模型、记忆和工作流绑定在智能体上，进入专属 IDE 做调试和发布。</Typography.Text>
                   </div>
-                  <p>{item.description || item.meta || "暂无描述"}</p>
-                  <span className="module-studio__meta">最近更新：{formatDate(item.updatedAt)}</span>
-                  <Button onClick={() => onOpenWorkflow(item.id)}>打开编辑器</Button>
-                </article>
-              )}
-            />
-          </section>
-        ) : null}
+                  <Button theme="borderless" onClick={() => setActiveFocus("agents")}>查看全部</Button>
+                </div>
+                <CardGrid
+                  testId="app-develop-agents-grid"
+                  items={filteredAgents}
+                  render={(item: AgentListItem) => (
+                    <article key={item.id} className="module-studio__coze-card">
+                      <div className="module-studio__card-head">
+                        <div>
+                          <Tag color="cyan">智能体</Tag>
+                          <strong>{item.name}</strong>
+                        </div>
+                        <Tag color="blue">{item.status}</Tag>
+                      </div>
+                      <p>{item.description || item.modelName || "暂无描述"}</p>
+                      <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
+                      <Button onClick={() => onOpenBot(item.id)}>打开 IDE</Button>
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
 
-        {(activeFocus === "overview" || activeFocus === "chatflow") ? (
-          <section className="module-studio__section-block">
-            <div className="module-studio__section-head">
-              <Typography.Title heading={6}>Chatflow</Typography.Title>
-              <Space>
-                <Button onClick={onCreateChatflow}>新建 Chatflow</Button>
-                <Button theme="borderless" onClick={onOpenChatflows}>资源列表</Button>
-              </Space>
-            </div>
-            <CardGrid
-              testId="app-develop-chatflows-grid"
-              items={filteredChatflows}
-              render={(item: DevelopResourceSummary) => (
-                <article key={item.id} className="module-studio__card">
-                  <div className="module-studio__card-head">
-                    <strong>{item.title}</strong>
-                    {item.status ? <Tag color="purple">{item.status}</Tag> : null}
+            {(activeFocus === "overview" || activeFocus === "workflow") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>工作流</Typography.Title>
+                    <Typography.Text type="tertiary">从业务编排、数据库处理到知识库检索，把可执行逻辑沉淀成标准工作流资产。</Typography.Text>
                   </div>
-                  <p>{item.description || item.meta || "暂无描述"}</p>
-                  <span className="module-studio__meta">最近更新：{formatDate(item.updatedAt)}</span>
-                  <Button onClick={() => onOpenChatflow(item.id)}>打开编辑器</Button>
-                </article>
-              )}
-            />
-          </section>
-        ) : null}
+                  <Space>
+                    <Button onClick={onCreateWorkflow}>新建工作流</Button>
+                    <Button theme="borderless" onClick={onOpenWorkflows}>资源列表</Button>
+                  </Space>
+                </div>
+                <CardGrid
+                  testId="app-develop-workflows-grid"
+                  items={filteredWorkflows}
+                  render={(item: DevelopResourceSummary) => (
+                    <article key={item.id} className="module-studio__coze-card">
+                      <div className="module-studio__card-head">
+                        <div>
+                          <Tag color="blue">Workflow</Tag>
+                          <strong>{item.title}</strong>
+                        </div>
+                        {item.status ? <Tag color="green">{item.status}</Tag> : null}
+                      </div>
+                      <p>{item.description || item.meta || "暂无描述"}</p>
+                      <span className="module-studio__meta">最近更新：{formatDate(item.updatedAt)}</span>
+                      <Button onClick={() => onOpenWorkflow(item.id)}>打开编辑器</Button>
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
 
-        {(activeFocus === "overview" || activeFocus === "models") ? (
-          <section className="module-studio__section-block">
-            <div className="module-studio__section-head">
-              <Typography.Title heading={6}>模型配置</Typography.Title>
-              <Button theme="borderless" onClick={onOpenModelConfigs}>管理模型</Button>
-            </div>
-            <CardGrid
-              testId="app-develop-models-grid"
-              items={models}
-              render={(item: ModelConfigItem) => (
-                <article key={item.id} className="module-studio__card">
-                  <div className="module-studio__card-head">
-                    <strong>{item.name}</strong>
-                    <Tag color={item.isEnabled ? "green" : "grey"}>{item.isEnabled ? "启用" : "停用"}</Tag>
+            {(activeFocus === "overview" || activeFocus === "chatflow") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>对话流</Typography.Title>
+                    <Typography.Text type="tertiary">适合多轮交互、用户引导和 Agent 场景，把会话意图转成流程节点。</Typography.Text>
                   </div>
-                  <p>{item.providerType} / {item.defaultModel}</p>
-                  <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
-                </article>
-              )}
-            />
-          </section>
-        ) : null}
+                  <Space>
+                    <Button onClick={onCreateChatflow}>新建对话流</Button>
+                    <Button theme="borderless" onClick={onOpenChatflows}>资源列表</Button>
+                  </Space>
+                </div>
+                <CardGrid
+                  testId="app-develop-chatflows-grid"
+                  items={filteredChatflows}
+                  render={(item: DevelopResourceSummary) => (
+                    <article key={item.id} className="module-studio__coze-card">
+                      <div className="module-studio__card-head">
+                        <div>
+                          <Tag color="purple">Chatflow</Tag>
+                          <strong>{item.title}</strong>
+                        </div>
+                        {item.status ? <Tag color="purple">{item.status}</Tag> : null}
+                      </div>
+                      <p>{item.description || item.meta || "暂无描述"}</p>
+                      <span className="module-studio__meta">最近更新：{formatDate(item.updatedAt)}</span>
+                      <Button onClick={() => onOpenChatflow(item.id)}>打开编辑器</Button>
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
 
-        {(activeFocus === "overview" || activeFocus === "chat") ? (
-          <section className="module-studio__section-block">
-            <div className="module-studio__section-head">
-              <Typography.Title heading={6}>最近编辑</Typography.Title>
-              <Button theme="borderless" onClick={onOpenAgentChat}>进入对话调试</Button>
-            </div>
-            <CardGrid
-              testId="app-develop-recent-grid"
-              items={recentResources}
-              render={(item: DevelopResourceSummary) => (
-                <article key={`${item.kind}-${item.id}`} className="module-studio__card module-studio__recent-card">
-                  <Tag color={item.kind === "chatflow" ? "purple" : item.kind === "workflow" ? "blue" : item.kind === "model" ? "green" : "cyan"}>
-                    {item.kind}
+            {(activeFocus === "overview" || activeFocus === "models") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>模型配置</Typography.Title>
+                    <Typography.Text type="tertiary">统一管理模型供应商、推理能力、工具调用和提示词测试。</Typography.Text>
+                  </div>
+                  <Button theme="borderless" onClick={onOpenModelConfigs}>管理模型</Button>
+                </div>
+                <CardGrid
+                  testId="app-develop-models-grid"
+                  items={models}
+                  render={(item: ModelConfigItem) => (
+                    <article key={item.id} className="module-studio__coze-card">
+                      <div className="module-studio__card-head">
+                        <div>
+                          <Tag color="green">Model</Tag>
+                          <strong>{item.name}</strong>
+                        </div>
+                        <Tag color={item.isEnabled ? "green" : "grey"}>{item.isEnabled ? "启用" : "停用"}</Tag>
+                      </div>
+                      <p>{item.providerType} / {item.defaultModel}</p>
+                      <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
+
+            {(activeFocus === "overview" || activeFocus === "chat") ? (
+              <section className="module-studio__coze-section">
+                <div className="module-studio__section-head">
+                  <div>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>最近编辑</Typography.Title>
+                    <Typography.Text type="tertiary">回到最近访问过的资源，继续编辑、调试或发布。</Typography.Text>
+                  </div>
+                  <Button theme="borderless" onClick={onOpenAgentChat}>进入对话调试</Button>
+                </div>
+                <CardGrid
+                  testId="app-develop-recent-grid"
+                  items={recentResources}
+                  render={(item: DevelopResourceSummary) => (
+                    <article key={`${item.kind}-${item.id}`} className="module-studio__coze-card module-studio__coze-card--compact">
+                      <Tag color={item.kind === "chatflow" ? "purple" : item.kind === "workflow" ? "blue" : item.kind === "model" ? "green" : "cyan"}>
+                        {item.kind}
+                      </Tag>
+                      <strong>{item.title}</strong>
+                      <p>{item.description || item.meta || "最近访问资源"}</p>
+                      <span className="module-studio__meta">最近时间：{formatDate(item.updatedAt)}</span>
+                      {item.kind === "agent" ? <Button onClick={() => onOpenBot(item.id)}>继续编辑</Button> : null}
+                      {item.kind === "workflow" ? <Button onClick={() => onOpenWorkflow(item.id)}>继续编辑</Button> : null}
+                      {item.kind === "chatflow" ? <Button onClick={() => onOpenChatflow(item.id)}>继续编辑</Button> : null}
+                      {item.kind === "model" ? <Button onClick={onOpenModelConfigs}>查看模型</Button> : null}
+                    </article>
+                  )}
+                />
+              </section>
+            ) : null}
+          </div>
+
+          <aside className="module-studio__coze-board-side">
+            <section className="module-studio__coze-sidepanel">
+              <Typography.Title heading={6}>应用详情</Typography.Title>
+              {selectedApplication ? (
+                <div className="module-studio__stack">
+                  <Tag color={selectedApplication.isActive ? "green" : "grey"}>
+                    {selectedApplication.isActive ? "已启用" : "已停用"}
                   </Tag>
-                  <strong>{item.title}</strong>
-                  <p>{item.description || item.meta || "最近访问资源"}</p>
-                  <span className="module-studio__meta">最近时间：{formatDate(item.updatedAt)}</span>
-                  {item.kind === "agent" ? <Button onClick={() => onOpenBot(item.id)}>继续编辑</Button> : null}
-                  {item.kind === "workflow" ? <Button onClick={() => onOpenWorkflow(item.id)}>继续编辑</Button> : null}
-                  {item.kind === "chatflow" ? <Button onClick={() => onOpenChatflow(item.id)}>继续编辑</Button> : null}
-                  {item.kind === "model" ? <Button onClick={onOpenModelConfigs}>查看模型</Button> : null}
-                </article>
+                  <strong>{selectedApplication.name}</strong>
+                  <Typography.Text type="tertiary">{selectedApplication.description || "当前应用还没有补充描述。"}</Typography.Text>
+                  <span className="module-studio__meta">编码：{selectedApplication.code}</span>
+                  <Space wrap>
+                    <Button theme="solid" type="primary" onClick={onOpenWorkflows}>资源编排</Button>
+                    <Button onClick={() => openEditApplicationDialog(selectedApplication)}>编辑应用</Button>
+                  </Space>
+                </div>
+              ) : (
+                <Empty title="暂无应用" image={null} />
               )}
+            </section>
+
+            <section className="module-studio__coze-sidepanel">
+              <Typography.Title heading={6}>组织架构</Typography.Title>
+              <div className="module-studio__coze-linklist">
+                <button type="button" className="module-studio__coze-linkrow" onClick={onOpenUsers}>
+                  <span>成员管理</span>
+                  <strong>{workspaceOverview?.memberCount ?? 0}</strong>
+                </button>
+                <button type="button" className="module-studio__coze-linkrow" onClick={onOpenRoles}>
+                  <span>角色管理</span>
+                  <strong>{workspaceOverview?.roleCount ?? 0}</strong>
+                </button>
+                <button type="button" className="module-studio__coze-linkrow" onClick={onOpenDepartments}>
+                  <span>部门管理</span>
+                  <strong>{workspaceOverview?.departmentCount ?? 0}</strong>
+                </button>
+                <button type="button" className="module-studio__coze-linkrow" onClick={onOpenPositions}>
+                  <span>岗位管理</span>
+                  <strong>{workspaceOverview?.positionCount ?? 0}</strong>
+                </button>
+              </div>
+              {(workspaceOverview?.uncoveredMemberCount ?? 0) > 0 ? (
+                <Banner
+                  type="warning"
+                  bordered={false}
+                  fullMode={false}
+                  title="组织治理提醒"
+                  description={`当前仍有 ${workspaceOverview?.uncoveredMemberCount ?? 0} 个成员未被角色权限覆盖。`}
+                />
+              ) : null}
+            </section>
+
+            <section className="module-studio__coze-sidepanel">
+              <Typography.Title heading={6}>快速入口</Typography.Title>
+              <div className="module-studio__coze-linklist">
+                <button type="button" className="module-studio__coze-linkrow" onClick={onOpenLibrary}>
+                  <span>资源库</span>
+                  <strong>Open</strong>
+                </button>
+                <button type="button" className="module-studio__coze-linkrow" onClick={onOpenAgentChat}>
+                  <span>预览与调试</span>
+                  <strong>Chat</strong>
+                </button>
+                <button type="button" className="module-studio__coze-linkrow" onClick={onOpenModelConfigs}>
+                  <span>模型配置</span>
+                  <strong>{models.length}</strong>
+                </button>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <Modal
+          title="新建智能体"
+          visible={agentDialogVisible}
+          onCancel={() => {
+            if (!submitting) {
+              setAgentDialogVisible(false);
+            }
+          }}
+          onOk={() => void handleCreateAgent()}
+          okText="创建"
+          cancelText="取消"
+          confirmLoading={submitting}
+        >
+          <div className="module-studio__stack">
+            <Input value={agentDraft.name} onChange={value => setAgentDraft(current => ({ ...current, name: value }))} placeholder="智能体名称" />
+            <Input value={agentDraft.description} onChange={value => setAgentDraft(current => ({ ...current, description: value }))} placeholder="角色描述" />
+          </div>
+        </Modal>
+
+        <Modal
+          title={applicationEditing ? "编辑应用" : "新建应用"}
+          visible={applicationDialogVisible}
+          onCancel={() => {
+            if (!submitting) {
+              setApplicationDialogVisible(false);
+            }
+          }}
+          onOk={() => void handleSaveApplication()}
+          okText={applicationEditing ? "保存" : "创建"}
+          cancelText="取消"
+          confirmLoading={submitting}
+        >
+          <div className="module-studio__stack">
+            <Input value={applicationDraft.name} onChange={value => setApplicationDraft(current => ({ ...current, name: value }))} placeholder="应用名称" />
+            <Input
+              value={applicationDraft.code}
+              onChange={value => setApplicationDraft(current => ({ ...current, code: value }))}
+              placeholder="应用编码"
+              disabled={Boolean(applicationEditing)}
             />
-          </section>
-        ) : null}
+            <Input
+              value={applicationDraft.description ?? ""}
+              onChange={value => setApplicationDraft(current => ({ ...current, description: value }))}
+              placeholder="应用描述"
+            />
+            <Switch
+              checked={applicationDraft.isActive}
+              onChange={checked => setApplicationDraft(current => ({ ...current, isActive: checked }))}
+              checkedText="启用"
+              uncheckedText="停用"
+            />
+          </div>
+        </Modal>
       </div>
     </Surface>
   );
@@ -670,8 +1125,13 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [promptSections, setPromptSections] = useState<AgentPromptSections>({ ...EMPTY_AGENT_PROMPT_SECTIONS });
   const [modelConfigId, setModelConfigId] = useState<string | undefined>(undefined);
   const [workflowId, setWorkflowId] = useState<string | undefined>(undefined);
+  const [enableMemory, setEnableMemory] = useState(true);
+  const [enableShortTermMemory, setEnableShortTermMemory] = useState(true);
+  const [enableLongTermMemory, setEnableLongTermMemory] = useState(true);
+  const [longTermMemoryTopK, setLongTermMemoryTopK] = useState<number | undefined>(3);
   const [modelConfigs, setModelConfigs] = useState<ModelConfigItem[]>([]);
   const [workflowOptions, setWorkflowOptions] = useState<WorkflowListItem[]>([]);
   const [conversationId, setConversationId] = useState<string>("");
@@ -717,8 +1177,13 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       setName(nextDetail.name);
       setDescription(nextDetail.description || "");
       setSystemPrompt(nextDetail.systemPrompt || "");
+      setPromptSections(parseAgentPromptSections(nextDetail.systemPrompt || ""));
       setModelConfigId(nextDetail.modelConfigId);
       setWorkflowId(nextDetail.defaultWorkflowId);
+      setEnableMemory(nextDetail.enableMemory ?? true);
+      setEnableShortTermMemory(nextDetail.enableShortTermMemory ?? true);
+      setEnableLongTermMemory(nextDetail.enableLongTermMemory ?? true);
+      setLongTermMemoryTopK(nextDetail.longTermMemoryTopK ?? 3);
       setModelConfigs(
         [...modelResult.items].sort((left, right) =>
           String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? ""))
@@ -810,27 +1275,37 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
       return;
     }
 
+    const nextSystemPrompt = composeAgentPromptSections(promptSections);
     setSaving(true);
     try {
       await api.updateAgent(botId, {
         name: name.trim(),
         description: description.trim() || undefined,
-        systemPrompt: systemPrompt.trim() || undefined,
+        systemPrompt: nextSystemPrompt || undefined,
         modelConfigId,
         modelName: selectedModel?.defaultModel,
         defaultWorkflowId: workflowId,
-        defaultWorkflowName: selectedWorkflow?.name
+        defaultWorkflowName: selectedWorkflow?.name,
+        enableMemory,
+        enableShortTermMemory,
+        enableLongTermMemory,
+        longTermMemoryTopK
       });
       setDetail(current => current ? {
         ...current,
         name: name.trim(),
         description: description.trim() || undefined,
-        systemPrompt: systemPrompt.trim() || undefined,
+        systemPrompt: nextSystemPrompt || undefined,
         modelConfigId,
         modelName: selectedModel?.defaultModel,
         defaultWorkflowId: workflowId,
-        defaultWorkflowName: selectedWorkflow?.name
+        defaultWorkflowName: selectedWorkflow?.name,
+        enableMemory,
+        enableShortTermMemory,
+        enableLongTermMemory,
+        longTermMemoryTopK
       } : current);
+      setSystemPrompt(nextSystemPrompt);
       await loadWorkbench(conversationIdRef.current || undefined);
       Toast.success("Agent 配置已保存。");
     } catch (error) {
@@ -943,85 +1418,148 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
     }
   }
 
+  function updatePromptSection(key: keyof AgentPromptSections, value: string) {
+    setPromptSections(current => ({ ...current, [key]: value }));
+  }
+
   return (
-    <Surface title="Agent Workbench" subtitle="模型配置、工作流绑定、真实对话和任务执行都在同一工作台完成。" testId="app-bot-ide-page">
+    <Surface title="智能体编排" subtitle="角色设定、记忆开关、工作流绑定和实时调试集中在一个 Coze 风格界面里。" testId="app-bot-ide-page">
       {workbenchLoading ? (
-        <Banner
-          type="info"
-          bordered={false}
-          fullMode={false}
-          title="正在加载工作台资源"
-          description="正在同步模型配置、工作流列表和最近会话，请稍候。"
-        />
+        <Banner type="info" bordered={false} fullMode={false} title="正在加载工作台资源" description="正在同步模型配置、工作流列表和最近会话，请稍候。" />
       ) : null}
       {workbenchError ? (
-        <Banner
-          type="danger"
-          bordered={false}
-          fullMode={false}
-          title="工作台资源加载失败"
-          description={workbenchError}
-        />
+        <Banner type="danger" bordered={false} fullMode={false} title="工作台资源加载失败" description={workbenchError} />
       ) : null}
       {!canChat ? (
         <Banner
           type="warning"
           bordered={false}
           fullMode={false}
-          title="当前 Agent 还不能发送消息"
+          title="当前智能体还不能发送消息"
           description="请先绑定一个已启用的模型配置；如果模型尚未通过测试，请先到模型配置页完成连接测试和 Prompt 测试。"
         />
       ) : null}
-      <div className="module-studio__workbench-grid">
-        <section className="module-studio__stack module-studio__ide-panel">
-          <Typography.Title heading={6}>Bot 配置</Typography.Title>
-          <div className="module-studio__meta" data-testid="app-bot-ide-resource-status">
-            {workbenchLoading
-              ? "资源加载中"
-              : `模型 ${modelConfigs.length} 个 / 工作流 ${workflowOptions.length} 个`}
-          </div>
-          <Input value={name} onChange={setName} placeholder="Agent 名称" />
-          <Input value={description} onChange={setDescription} placeholder="Agent 描述" />
-          <Select
-            value={modelConfigId}
-            placeholder="选择模型配置"
-            optionList={modelConfigs.map(item => ({
-              label: `${item.name} / ${item.defaultModel}`,
-              value: String(item.id)
-            }))}
-            onChange={value => setModelConfigId(typeof value === "string" ? value : undefined)}
-            disabled={!resourceReady || saving}
-            data-testid="app-bot-ide-model-config"
-          />
-          <Select
-            value={workflowId}
-            placeholder="绑定默认工作流"
-            optionList={workflowOptions.map(item => ({
-              label: `${item.name}${item.status === 1 ? " / 已发布" : " / 草稿"}`,
-              value: item.id
-            }))}
-            onChange={value => setWorkflowId(typeof value === "string" ? value : undefined)}
-            disabled={!resourceReady || saving}
-            data-testid="app-bot-ide-workflow-select"
-          />
-          <textarea value={systemPrompt} onChange={event => setSystemPrompt(event.target.value)} rows={10} className="module-studio__textarea" disabled={saving} />
-          <Space>
-            <Button theme="solid" type="primary" onClick={() => void handleSave()} loading={saving} disabled={!resourceReady} data-testid="app-bot-ide-save">
-              保存配置
-            </Button>
-            <Button onClick={() => void handleBindWorkflow()} disabled={!resourceReady || !workflowId} data-testid="app-bot-ide-bind-workflow">
-              绑定工作流
-            </Button>
-          </Space>
-        </section>
-
-        <section className="module-studio__stack module-studio__workbench-main">
+      <div className="module-studio__coze-agent-layout">
+        <section className="module-studio__coze-agent-panel">
           <div className="module-studio__section-head">
             <div>
-              <Typography.Title heading={6}>对话工作台</Typography.Title>
-              <Typography.Text type="tertiary">
-                先发送消息拿到模型回复，再显式触发“安全事件处置任务生成”工作流。
-              </Typography.Text>
+              <Typography.Title heading={5} style={{ margin: 0 }}>人设与回复逻辑</Typography.Title>
+              <Typography.Text type="tertiary">按照 Coze 的角色编排方式，把智能体的职责、技能、输出格式和限制拆分成清晰段落。</Typography.Text>
+            </div>
+            <Tag color="cyan">{detail?.status || "draft"}</Tag>
+          </div>
+          <div className="module-studio__stack">
+            <Input value={name} onChange={setName} placeholder="角色名称" />
+            <Input value={description} onChange={setDescription} placeholder="角色概述" />
+            {AGENT_PROMPT_SECTION_MAP.map(section => (
+              <div key={section.key} className="module-studio__field">
+                <span>{section.title}</span>
+                <textarea
+                  value={promptSections[section.key]}
+                  onChange={event => updatePromptSection(section.key, event.target.value)}
+                  rows={section.key === "persona" ? 5 : 4}
+                  className="module-studio__textarea"
+                  disabled={saving}
+                />
+              </div>
+            ))}
+            <Space wrap>
+              <Button theme="solid" type="primary" onClick={() => void handleSave()} loading={saving} disabled={!resourceReady} data-testid="app-bot-ide-save">
+                保存配置
+              </Button>
+              <Button onClick={() => void handleBindWorkflow()} disabled={!resourceReady || !workflowId} data-testid="app-bot-ide-bind-workflow">
+                绑定工作流
+              </Button>
+            </Space>
+          </div>
+        </section>
+
+        <section className="module-studio__coze-agent-panel">
+          <div className="module-studio__section-head">
+            <div>
+              <Typography.Title heading={5} style={{ margin: 0 }}>技能与记忆</Typography.Title>
+              <Typography.Text type="tertiary">把模型、工作流和记忆策略组合成可执行智能体能力。</Typography.Text>
+            </div>
+            <div className="module-studio__meta" data-testid="app-bot-ide-resource-status">
+              {workbenchLoading ? "资源加载中" : `模型 ${modelConfigs.length} 个 / 工作流 ${workflowOptions.length} 个`}
+            </div>
+          </div>
+
+          <div className="module-studio__coze-inspector-list">
+            <div className="module-studio__coze-inspector-card">
+              <span>模型</span>
+              <Select
+                value={modelConfigId}
+                placeholder="选择模型配置"
+                optionList={modelConfigs.map(item => ({
+                  label: `${item.name} / ${item.defaultModel}`,
+                  value: String(item.id)
+                }))}
+                onChange={value => setModelConfigId(typeof value === "string" ? value : undefined)}
+                disabled={!resourceReady || saving}
+                data-testid="app-bot-ide-model-config"
+              />
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>工作流</span>
+              <Select
+                value={workflowId}
+                placeholder="绑定默认工作流"
+                optionList={workflowOptions.map(item => ({
+                  label: `${item.name}${item.status === 1 ? " / 已发布" : " / 草稿"}`,
+                  value: item.id
+                }))}
+                onChange={value => setWorkflowId(typeof value === "string" ? value : undefined)}
+                disabled={!resourceReady || saving}
+                data-testid="app-bot-ide-workflow-select"
+              />
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>记忆开关</span>
+              <div className="module-studio__model-switches">
+                <div className="module-studio__switch-item">
+                  <span>启用记忆</span>
+                  <Switch checked={enableMemory} onChange={setEnableMemory} />
+                </div>
+                <div className="module-studio__switch-item">
+                  <span>短期记忆</span>
+                  <Switch checked={enableShortTermMemory} onChange={setEnableShortTermMemory} disabled={!enableMemory} />
+                </div>
+                <div className="module-studio__switch-item">
+                  <span>长期记忆</span>
+                  <Switch checked={enableLongTermMemory} onChange={setEnableLongTermMemory} disabled={!enableMemory} />
+                </div>
+              </div>
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>长期记忆召回数量</span>
+              <InputNumber value={longTermMemoryTopK} min={1} max={20} onNumberChange={value => setLongTermMemoryTopK(value ?? 3)} disabled={!enableMemory || !enableLongTermMemory} />
+            </div>
+
+            <div className="module-studio__coze-inspector-card">
+              <span>当前绑定</span>
+              <Descriptions
+                data={[
+                  { key: "agent", value: detail?.name || "-" },
+                  { key: "model", value: selectedModel ? `${selectedModel.providerType} / ${selectedModel.defaultModel}` : "尚未绑定模型" },
+                  { key: "workflow", value: selectedWorkflow?.name || detail?.defaultWorkflowName || "尚未绑定工作流" },
+                  { key: "memory", value: enableMemory ? `${enableLongTermMemory ? "长期" : ""}${enableShortTermMemory ? "短期" : ""}` || "已启用" : "未启用" }
+                ]}
+                size="small"
+                align="left"
+              />
+            </div>
+          </div>
+        </section>
+
+        <aside className="module-studio__coze-agent-preview">
+          <div className="module-studio__section-head">
+            <div>
+              <Typography.Title heading={5} style={{ margin: 0 }}>预览与调试</Typography.Title>
+              <Typography.Text type="tertiary">真实会话消息、模型流式响应和工作流运行痕迹都在这里查看。</Typography.Text>
             </div>
             <Tag color={conversationId ? "green" : "grey"}>{conversationId ? "已创建会话" : "未创建会话"}</Tag>
           </div>
@@ -1054,56 +1592,32 @@ export function BotIdePage({ api, botId }: StudioPageProps & { botId: string }) 
           <textarea
             value={messageInput}
             onChange={event => setMessageInput(event.target.value)}
-            rows={5}
+            rows={4}
             className="module-studio__textarea"
-            placeholder="输入消息，测试当前 Agent 是否能通过已绑定模型正常回复。"
+            placeholder="输入消息，测试当前智能体是否能通过已绑定模型正常回复。"
             disabled={!canChat || saving || workbenchLoading || sending || Boolean(workbenchError)}
             data-testid="app-bot-ide-message-input"
           />
-          <Button
-            theme="solid"
-            type="primary"
-            onClick={() => void handleSendMessage()}
-            loading={sending}
-            disabled={!canChat || saving || workbenchLoading || Boolean(workbenchError)}
-            data-testid="app-bot-ide-send"
-          >
+          <Button theme="solid" type="primary" onClick={() => void handleSendMessage()} loading={sending} disabled={!canChat || saving || workbenchLoading || Boolean(workbenchError)} data-testid="app-bot-ide-send">
             发送消息
           </Button>
 
-          <Typography.Title heading={6}>安全事件处置任务生成</Typography.Title>
-          <textarea
-            value={workflowInput}
-            onChange={event => setWorkflowInput(event.target.value)}
-            rows={5}
-            className="module-studio__textarea"
-            placeholder="输入事件描述，例如：主机检测到可疑 PowerShell 横向移动行为，需要立即安排处置。"
-            disabled={!workflowId || saving || workbenchLoading || runningWorkflow || Boolean(workbenchError)}
-            data-testid="app-bot-ide-workflow-input"
-          />
-          <Button
-            onClick={() => void handleRunWorkflow()}
-            loading={runningWorkflow}
-            disabled={!workflowId || saving || workbenchLoading || Boolean(workbenchError)}
-            data-testid="app-bot-ide-run-workflow"
-          >
-            执行安全事件任务
-          </Button>
-        </section>
+          <div className="module-studio__coze-agent-runbox">
+            <Typography.Title heading={6}>工作流试运行</Typography.Title>
+            <textarea
+              value={workflowInput}
+              onChange={event => setWorkflowInput(event.target.value)}
+              rows={4}
+              className="module-studio__textarea"
+              placeholder="输入事件描述，例如：主机检测到可疑 PowerShell 横向移动行为，需要立即安排处置。"
+              disabled={!workflowId || saving || workbenchLoading || runningWorkflow || Boolean(workbenchError)}
+              data-testid="app-bot-ide-workflow-input"
+            />
+            <Button onClick={() => void handleRunWorkflow()} loading={runningWorkflow} disabled={!workflowId || saving || workbenchLoading || Boolean(workbenchError)} data-testid="app-bot-ide-run-workflow">
+              执行安全事件任务
+            </Button>
+          </div>
 
-        <aside className="module-studio__ide-sidecard">
-          <Typography.Title heading={6}>当前绑定</Typography.Title>
-          <Descriptions
-            data={[
-              { key: "agent", value: detail?.name || "-" },
-              { key: "model", value: selectedModel ? `${selectedModel.providerType} / ${selectedModel.defaultModel}` : "尚未绑定模型" },
-              { key: "workflow", value: selectedWorkflow?.name || detail?.defaultWorkflowName || "尚未绑定工作流" },
-              { key: "status", value: canChat ? "ready" : "draft" }
-            ]}
-            size="small"
-            align="left"
-          />
-          <Typography.Title heading={6}>运行痕迹</Typography.Title>
           <div className="module-studio__trace-panel" data-testid="app-bot-ide-trace">
             {thoughts.length > 0 ? (
               <div className="module-studio__stack">

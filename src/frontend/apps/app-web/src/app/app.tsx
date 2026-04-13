@@ -139,6 +139,12 @@ import {
   saveProfile
 } from "@/services/api-admin";
 import {
+  createProject,
+  deleteProject,
+  getOrganizationWorkspace,
+  updateProject
+} from "@/services/api-org-management";
+import {
   getAiPluginBuiltInMetadata,
   getAiPluginById,
   getAiPluginsPaged,
@@ -529,6 +535,28 @@ function createStudioApi(appKey: string): StudioModuleApi {
     getAgent: getAgentById,
     createAgent,
     updateAgent,
+    getWorkspaceOverview: async () => {
+      const workspace = await getOrganizationWorkspace(appKey, { pageIndex: 1, pageSize: 8 });
+      return {
+        appId: workspace.appId,
+        memberCount: workspace.members.total,
+        roleCount: workspace.roles.length,
+        departmentCount: workspace.departments.length,
+        positionCount: workspace.positions.length,
+        projectCount: workspace.projects.length,
+        uncoveredMemberCount: workspace.roleGovernance.uncoveredMembers,
+        applications: workspace.projects.map(project => ({
+          id: project.id,
+          code: project.code,
+          name: project.name,
+          description: project.description ?? undefined,
+          isActive: project.isActive
+        }))
+      };
+    },
+    createApplication: request => createProject(appKey, request),
+    updateApplication: (id, request) => updateProject(appKey, id, request),
+    deleteApplication: id => deleteProject(appKey, id),
     listConversations: agentId => getConversationsPaged(appKey, { pageIndex: 1, pageSize: 20 }, agentId),
     getMessages: conversationId => getMessages(appKey, conversationId),
     createConversation: (agentId, title) => createConversation(appKey, agentId, title),
@@ -789,8 +817,8 @@ function AppShellRoute() {
   const secondarySections = primaryKey === "workspace"
     ? [
         {
-          key: "workspace",
-          title: locale === "zh-CN" ? "工作空间" : "Workspace",
+          key: "workspace-develop",
+          title: locale === "zh-CN" ? "项目开发" : "Project Development",
           items: [
             {
               key: "develop",
@@ -802,11 +830,40 @@ function AppShellRoute() {
             },
             {
               key: "agents",
-              label: locale === "zh-CN" ? "Agent" : "Agent",
+              label: locale === "zh-CN" ? "智能体" : "Agents",
               icon: navGlyph("A"),
               path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=agents`,
               testId: "app-sidebar-item-agents"
             },
+            {
+              key: "projects",
+              label: locale === "zh-CN" ? "应用" : "Applications",
+              icon: navGlyph("APP"),
+              path: `${workspaceDevelopPath(appKey, bootstrap.spaceId)}?focus=projects`,
+              testId: "app-sidebar-item-projects"
+            },
+            {
+              key: "workflow",
+              label: locale === "zh-CN" ? "工作流" : "Workflow",
+              icon: navGlyph("W"),
+              badge: "Flow",
+              path: workflowListPath(appKey),
+              testId: "app-sidebar-item-workflows"
+            },
+            {
+              key: "chatflow",
+              label: locale === "zh-CN" ? "对话流" : "Chatflow",
+              icon: navGlyph("CF"),
+              badge: "Flow",
+              path: `/apps/${encodeURIComponent(appKey)}/chat_flow`,
+              testId: "app-sidebar-item-chatflows"
+            }
+          ]
+        },
+        {
+          key: "workspace-resources",
+          title: locale === "zh-CN" ? "资源与调试" : "Resources & Debug",
+          items: [
             {
               key: "library",
               label: locale === "zh-CN" ? "资源库" : "Library",
@@ -834,23 +891,35 @@ function AppShellRoute() {
               icon: navGlyph("M"),
               path: workspaceModelConfigsPath(appKey, bootstrap.spaceId),
               testId: "app-sidebar-item-model-configs"
-            },
-            {
-              key: "workflow",
-              label: locale === "zh-CN" ? "工作流" : "Workflow",
-              icon: navGlyph("W"),
-              badge: "Flow",
-              path: workflowListPath(appKey),
-              testId: "app-sidebar-item-workflows"
-            },
-            {
-              key: "chatflow",
-              label: locale === "zh-CN" ? "Chatflow" : "Chatflow",
-              icon: navGlyph("CF"),
-              badge: "Flow",
-              path: `/apps/${encodeURIComponent(appKey)}/chat_flow`,
-              testId: "app-sidebar-item-chatflows"
             }
+          ]
+        },
+        {
+          key: "workspace-organization",
+          title: locale === "zh-CN" ? "组织架构" : "Organization",
+          items: [
+            { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
+            { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
+            { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
+            { key: "positions", label: locale === "zh-CN" ? "岗位管理" : "Positions", icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
+          ]
+        },
+        {
+          key: "workspace-operations",
+          title: locale === "zh-CN" ? "平台运营" : "Operations",
+          items: [
+            { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
+            { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", icon: navGlyph("RP"), path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
+            { key: "dashboards", label: locale === "zh-CN" ? "仪表盘" : "Dashboards", icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
+            { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Monitoring", icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" }
+          ]
+        },
+        {
+          key: "workspace-personal",
+          title: locale === "zh-CN" ? "个人与设置" : "Personal & Settings",
+          items: [
+            { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", icon: navGlyph("S"), path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
+            { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", icon: navGlyph("ME"), path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
           ]
         }
       ]
@@ -994,6 +1063,11 @@ function DevelopRoute() {
       onOpenChatflows={() => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow`)}
       onOpenAgentChat={() => navigate(workspaceChatPath(appKey, bootstrap.spaceId))}
       onOpenModelConfigs={() => navigate(workspaceModelConfigsPath(appKey, bootstrap.spaceId))}
+      onOpenUsers={() => navigate(adminPath(appKey, "users"))}
+      onOpenRoles={() => navigate(adminPath(appKey, "roles"))}
+      onOpenDepartments={() => navigate(adminPath(appKey, "departments"))}
+      onOpenPositions={() => navigate(adminPath(appKey, "positions"))}
+      onOpenLibrary={() => navigate(workspaceLibraryPath(appKey, bootstrap.spaceId))}
       onCreateWorkflow={() => navigate(`${workflowListPath(appKey)}?create=1`)}
       onCreateChatflow={() => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow?create=1`)}
     />

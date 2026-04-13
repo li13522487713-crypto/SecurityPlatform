@@ -1,7 +1,7 @@
 import type { PagedResult } from "@atlas/shared-react-core/types";
 
 export type StudioLocale = "zh-CN" | "en-US";
-export type DevelopFocus = "overview" | "agents" | "workflow" | "chatflow" | "models" | "chat";
+export type DevelopFocus = "overview" | "agents" | "projects" | "workflow" | "chatflow" | "models" | "chat";
 export type DevelopResourceKind = "agent" | "workflow" | "chatflow" | "model";
 
 export interface AgentListItem {
@@ -25,12 +25,17 @@ export interface AgentDetail {
   maxTokens?: number;
   defaultWorkflowId?: string;
   defaultWorkflowName?: string;
+  enableMemory?: boolean;
+  enableShortTermMemory?: boolean;
+  enableLongTermMemory?: boolean;
+  longTermMemoryTopK?: number;
   status: string;
 }
 
 export interface AgentCreateRequest {
   name: string;
   description?: string;
+  avatarUrl?: string;
   systemPrompt?: string;
   modelConfigId?: string;
   modelName?: string;
@@ -38,6 +43,10 @@ export interface AgentCreateRequest {
   maxTokens?: number;
   defaultWorkflowId?: string;
   defaultWorkflowName?: string;
+  enableMemory?: boolean;
+  enableShortTermMemory?: boolean;
+  enableLongTermMemory?: boolean;
+  longTermMemoryTopK?: number;
 }
 
 export interface AgentUpdateRequest {
@@ -51,6 +60,10 @@ export interface AgentUpdateRequest {
   maxTokens?: number;
   defaultWorkflowId?: string;
   defaultWorkflowName?: string;
+  enableMemory?: boolean;
+  enableShortTermMemory?: boolean;
+  enableLongTermMemory?: boolean;
+  longTermMemoryTopK?: number;
 }
 
 export interface ConversationItem {
@@ -220,11 +233,47 @@ export interface DevelopResourceSummary {
   meta?: string;
 }
 
+export interface StudioApplicationSummary {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface StudioApplicationCreateRequest {
+  code: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface StudioApplicationUpdateRequest {
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface StudioWorkspaceOverview {
+  appId: string;
+  memberCount: number;
+  roleCount: number;
+  departmentCount: number;
+  positionCount: number;
+  projectCount: number;
+  uncoveredMemberCount: number;
+  applications: StudioApplicationSummary[];
+}
+
 export interface StudioModuleApi {
   listAgents: (params?: { pageIndex?: number; pageSize?: number; keyword?: string; status?: string }) => Promise<PagedResult<AgentListItem>>;
   getAgent: (id: string) => Promise<AgentDetail>;
   createAgent: (request: AgentCreateRequest) => Promise<string>;
   updateAgent: (id: string, request: AgentUpdateRequest) => Promise<void>;
+  getWorkspaceOverview: () => Promise<StudioWorkspaceOverview>;
+  createApplication: (request: StudioApplicationCreateRequest) => Promise<void>;
+  updateApplication: (id: string, request: StudioApplicationUpdateRequest) => Promise<void>;
+  deleteApplication: (id: string) => Promise<void>;
   listConversations: (agentId?: string) => Promise<PagedResult<ConversationItem>>;
   getMessages: (conversationId: string) => Promise<ChatMessageItem[]>;
   createConversation: (agentId: string, title?: string) => Promise<string>;

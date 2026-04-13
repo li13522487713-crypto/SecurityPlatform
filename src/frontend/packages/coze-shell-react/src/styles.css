@@ -88,8 +88,8 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 28px 18px 22px;
-  background: rgba(255, 255, 255, 0.72);
+  padding: 24px 16px 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.7));
   border-right: 1px solid rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(18px);
 }
@@ -97,19 +97,28 @@
 .coze-shell__secondary-header {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  padding: 8px 10px 0;
 }
 
 .coze-shell__secondary-sections {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .coze-shell__section {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.03);
 }
 
 .coze-shell__section-title {
@@ -143,9 +152,10 @@
 
 .coze-shell__secondary-item:hover,
 .coze-shell__secondary-item.is-active {
-  background: #eef3ff;
+  background: linear-gradient(180deg, rgba(238, 243, 255, 0.96), rgba(232, 240, 255, 0.92));
   border-color: rgba(59, 130, 246, 0.18);
   color: #2457d6;
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.08);
 }
 
 .coze-shell__secondary-item-icon {
@@ -169,7 +179,7 @@
   justify-content: space-between;
   gap: 24px;
   align-items: flex-start;
-  padding: 28px 32px 20px;
+  padding: 28px 32px 18px;
 }
 
 .coze-shell__header-copy {
@@ -219,5 +229,9 @@
 @media (max-width: 1200px) {
   .coze-shell {
     grid-template-columns: 80px 236px minmax(0, 1fr);
+  }
+
+  .coze-shell__section {
+    padding: 10px;
   }
 }
