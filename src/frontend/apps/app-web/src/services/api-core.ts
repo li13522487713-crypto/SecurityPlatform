@@ -1,6 +1,7 @@
 import { createApiClient } from "@atlas/shared-react-core/api";
 import type { RequestOptions } from "@atlas/shared-react-core/api";
 import { appSignPath } from "@atlas/app-shell-shared";
+import { clearAuthStorage } from "@atlas/shared-react-core/utils";
 
 export type AppRuntimeMode = "app";
 
@@ -72,6 +73,8 @@ function getCurrentRouteAppKey(): string {
 }
 
 async function forceLogout() {
+  clearAuthStorage();
+
   if (unauthorizedHandler) {
     await unauthorizedHandler();
     return;

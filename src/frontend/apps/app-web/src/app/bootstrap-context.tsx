@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
 import { getSetupState } from "@/services/api-setup";
 import { getConfiguredAppKey, rememberConfiguredAppKey } from "@/services/api-core";
 import { getAppInstanceIdByAppKey } from "@/services/api-lowcode-runtime";
@@ -48,7 +49,9 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
       setAppKey(nextAppKey);
       rememberConfiguredAppKey(nextAppKey);
 
-      if (nextPlatformReady && nextAppReady && nextAppKey) {
+      const hasAuthContext = Boolean(getAccessToken() && getTenantId());
+
+      if (nextPlatformReady && nextAppReady && nextAppKey && hasAuthContext) {
         setWorkspaceLabel(nextAppKey);
         try {
           const resolvedAppInstanceId = await getAppInstanceIdByAppKey(nextAppKey);

@@ -339,28 +339,13 @@ public sealed class SetupStateController : ControllerBase
             {
                 try
                 {
-                    db.CodeFirst.InitTables(
-                        typeof(LowCodeApp),
-                        typeof(AppDataRoutePolicy),
-                        typeof(AppRole),
-                        typeof(AppRolePermission),
-                        typeof(AppPermission),
-                        typeof(AppDepartment),
-                        typeof(AppPosition),
-                        typeof(AppMember),
-                        typeof(AppUserRole),
-                        typeof(AppMemberDepartment),
-                        typeof(AppMemberPosition));
-                    db.CodeFirst.InitTables(
-                        typeof(UserAccount),
-                        typeof(Role),
-                        typeof(UserRole));
-                    _logger.LogInformation("[AppSetup] 应用核心表初始化完成");
+                    AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db);
+                    _logger.LogInformation("[AppSetup] 应用运行时 ORM 表初始化完成，共 {Count} 张", AtlasOrmSchemaCatalog.RuntimeEntities.Count);
                 }
                 catch (Exception appSchemaEx)
                 {
                     verificationErrors.Add($"App schema initialization failed: {appSchemaEx.Message}");
-                    _logger.LogError(appSchemaEx, "[AppSetup] 应用核心表初始化失败");
+                    _logger.LogError(appSchemaEx, "[AppSetup] 应用运行时 ORM 表初始化失败");
                 }
             }
 
@@ -384,25 +369,18 @@ public sealed class SetupStateController : ControllerBase
             {
                 try
                 {
-                    var tables = db.DbMaintenance.GetTableInfoList();
-                    var tableNames = tables
-                        .Select(t => t.Name)
-                        .Where(name => !string.IsNullOrWhiteSpace(name))
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var userTableName = db.EntityMaintenance.GetTableName<UserAccount>();
-                    var roleTableName = db.EntityMaintenance.GetTableName<Role>();
-                    coreTablesVerified =
-                        tableNames.Contains(userTableName) &&
-                        tableNames.Contains(roleTableName);
+                    var missingCriticalTables = AtlasOrmSchemaCatalog.GetMissingCriticalTableNames(db);
+                    coreTablesVerified = missingCriticalTables.Count == 0;
 
                     if (!coreTablesVerified)
                     {
                         verificationErrors.Add(
-                            $"Core tables ({userTableName}, {roleTableName}) not found in application database. Application initialization may be incomplete.");
+                            $"Critical ORM tables missing in application database: {string.Join(", ", missingCriticalTables)}");
                     }
                     else
                     {
-                        _logger.LogInformation("[AppSetup] 应用核心身份表验证通过，共 {Count} 张表", tables.Count);
+                        var tableCount = db.DbMaintenance.GetTableInfoList().Count;
+                        _logger.LogInformation("[AppSetup] 应用运行时关键表验证通过，共 {Count} 张表", tableCount);
                     }
                 }
                 catch (Exception tableEx)

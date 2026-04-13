@@ -25,29 +25,6 @@ public sealed class AppDatabaseProvisioningService
         CancellationToken cancellationToken = default)
     {
         var db = await _appDbScopeFactory.GetAppClientAsync(tenantId, appInstanceId, cancellationToken);
-        db.CodeFirst.InitTables(
-            typeof(DynamicTable),
-            typeof(DynamicField),
-            typeof(DynamicIndex),
-            typeof(DynamicRelation),
-            typeof(FieldPermission),
-            typeof(MigrationRecord),
-            typeof(DynamicSchemaMigration),
-            typeof(AppMember),
-            typeof(AppRole),
-            typeof(AppUserRole),
-            typeof(AppRolePermission),
-            typeof(AppPermission),
-            typeof(AppRolePage),
-            typeof(AppDepartment),
-            typeof(AppPosition),
-            typeof(AppProject),
-            typeof(RuntimeRoute),
-            typeof(WorkflowMeta),
-            typeof(WorkflowDraft),
-            typeof(WorkflowVersion),
-            typeof(WorkflowExecution),
-            typeof(WorkflowNodeExecution),
-            typeof(AppDatabaseSchemaVersion));
+        AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db);
     }
 }

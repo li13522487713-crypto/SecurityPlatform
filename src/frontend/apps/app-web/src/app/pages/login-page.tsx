@@ -6,6 +6,10 @@ import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 
+const HARDCODED_DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+const HARDCODED_DEFAULT_USERNAME = "admin";
+const HARDCODED_DEFAULT_PASSWORD = "P@ssw0rd!";
+
 function LocaleSwitchButton() {
   const { locale, setLocale, t } = useAppI18n();
 
@@ -134,12 +138,14 @@ export function LoginPage() {
   const auth = useAuth();
   const { t } = useAppI18n();
   const { appKey: configuredAppKey, spaceId } = useBootstrap();
-  const defaultTenantId = String(import.meta.env.VITE_DEFAULT_TENANT_ID ?? "").trim();
-  const defaultUsername = String(import.meta.env.VITE_DEFAULT_USERNAME ?? "").trim();
-  const isDev = import.meta.env.DEV;
+  const defaultTenantId =
+    String(import.meta.env.VITE_DEFAULT_TENANT_ID ?? "").trim() || HARDCODED_DEFAULT_TENANT_ID;
+  const defaultUsername =
+    String(import.meta.env.VITE_DEFAULT_USERNAME ?? "").trim() || HARDCODED_DEFAULT_USERNAME;
+  const defaultPassword = HARDCODED_DEFAULT_PASSWORD;
   const [tenantId, setTenantId] = useState(getTenantId() || defaultTenantId);
-  const [username, setUsername] = useState(isDev && defaultUsername ? defaultUsername : "");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(defaultUsername);
+  const [password, setPassword] = useState(defaultPassword);
   const [errorMessage, setErrorMessage] = useState("");
 
   const redirectTarget = searchParams.get("redirect");
@@ -212,9 +218,9 @@ export function LoginPage() {
               <span>{appKey}</span>
             </div>
 
-            {isDev && defaultTenantId ? (
+            {defaultTenantId ? (
               <div className="atlas-login-dev-hint">
-                <strong>{t("appLoginDevModeHint")}</strong>
+                <strong>{t("appLoginDefaultCredentialHint")}</strong>
                 <div className="atlas-login-dev-hint__items">
                   <span>
                     Tenant: <code>{defaultTenantId}</code>

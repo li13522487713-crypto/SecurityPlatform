@@ -409,6 +409,23 @@ var instanceConfigLoader = app.Services.GetRequiredService<AppInstanceConfigurat
 var instanceConfig = instanceConfigLoader.Load();
 var version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "1.0.0";
 
+if (appSetupStateProvider.IsReady)
+{
+    using var schemaScope = app.Services.CreateScope();
+    var schemaLogger = schemaScope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("AppHostSchemaBootstrap");
+
+    try
+    {
+        var db = schemaScope.ServiceProvider.GetRequiredService<SqlSugar.ISqlSugarClient>();
+        Atlas.Infrastructure.Services.AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db);
+        schemaLogger.LogInformation("[AppHostSchemaBootstrap] 已按统一 ORM 目录完成运行时 Schema 自愈。");
+    }
+    catch (Exception ex)
+    {
+        schemaLogger.LogWarning(ex, "[AppHostSchemaBootstrap] 运行时 Schema 自愈失败。");
+    }
+}
+
 // ─── Middleware pipeline ───
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<AppSetupModeMiddleware>();
@@ -425,6 +442,8 @@ app.UseResponseCompression();
 app.UseRequestLocalization();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseWhen(
     context =>
     {
@@ -440,12 +459,10 @@ app.UseWhen(
     },
     runtime =>
     {
-        runtime.UseAuthentication();
         runtime.UseMiddleware<AppContextMiddleware>();
         runtime.UseMiddleware<AntiforgeryValidationMiddleware>();
         runtime.UseMiddleware<TenantContextMiddleware>();
         runtime.UseMiddleware<ApiVersionRewriteMiddleware>();
-        runtime.UseAuthorization();
     });
 
 app.MapHealthChecks("/internal/health/live");

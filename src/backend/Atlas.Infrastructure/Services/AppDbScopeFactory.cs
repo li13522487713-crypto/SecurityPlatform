@@ -237,28 +237,10 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
 
     private static void EnsureAppSchema(ISqlSugarClient db)
     {
-        // 应用数据面首次切换到新库（或缓存命中空库）时，兜底创建必需表，避免 no such table 异常。
+        // 应用数据面首次切换到新库（或缓存命中空库）时，按统一 ORM 目录兜底创建运行时表，避免 no such table 异常。
         if (!db.DbMaintenance.IsAnyTable("DynamicTable", false))
         {
-            db.CodeFirst.InitTables(
-                typeof(DynamicTable),
-                typeof(DynamicField),
-                typeof(DynamicIndex),
-                typeof(DynamicRelation),
-                typeof(FieldPermission),
-                typeof(MigrationRecord),
-                typeof(DynamicSchemaMigration),
-                typeof(AppMember),
-                typeof(AppRole),
-                typeof(AppUserRole),
-                typeof(AppRolePermission),
-                typeof(AppPermission),
-                typeof(AppRolePage),
-                typeof(AppDepartment),
-                typeof(AppPosition),
-                typeof(AppProject),
-                typeof(RuntimeRoute),
-                typeof(AppDatabaseSchemaVersion));
+            AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db);
         }
         else
         {
