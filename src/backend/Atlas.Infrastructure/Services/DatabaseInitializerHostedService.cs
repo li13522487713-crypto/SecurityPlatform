@@ -166,6 +166,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         // 关键兼容迁移：平台管理员标记字段缺失会导致登录链路失败，需始终检查并补齐。
         await EnsureUserAccountSchemaAsync(db, cancellationToken);
         await EnsureModelConfigSchemaAsync(db, cancellationToken);
+        await EnsureAgentSchemaAsync(db, cancellationToken);
         var appMembershipAlignment = await EnsureAppMembershipSchemaAsync(db, cancellationToken);
         if (appMembershipAlignment is not null)
         {
@@ -182,6 +183,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 _logger.LogInformation("[DatabaseInitializer][SqliteAlignment] {Message}", alignmentMessage);
             }
         }
+        await EnsureAppPermissionSeedBackfillAsync(
+            db,
+            scope.ServiceProvider.GetRequiredService<IIdGeneratorProvider>(),
+            appContextAccessor.GetAppId(),
+            cancellationToken);
         await EnsureSystemConfigSchemaAsync(db, cancellationToken);
         await EnsureAssetSchemaAsync(db, cancellationToken);
         await EnsureDynamicTableSchemaAsync(db, cancellationToken);
@@ -1968,6 +1974,153 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         return null;
     }
 
+    private static async Task EnsureAppPermissionSeedBackfillAsync(
+        ISqlSugarClient db,
+        IIdGeneratorProvider idGeneratorProvider,
+        string generatorAppId,
+        CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AppRole", false)
+            || !db.DbMaintenance.IsAnyTable("AppPermission", false)
+            || !db.DbMaintenance.IsAnyTable("AppRolePermission", false))
+        {
+            return;
+        }
+
+        var permissionSeeds = AppPermissionSeedCatalog.PermissionSeeds;
+        if (permissionSeeds.Count == 0)
+        {
+            return;
+        }
+
+        var roles = await db.Queryable<AppRole>().ToListAsync(cancellationToken);
+        var existingPermissions = await db.Queryable<AppPermission>().ToListAsync(cancellationToken);
+        if (roles.Count == 0 && existingPermissions.Count == 0)
+        {
+            return;
+        }
+
+        var appScopes = roles
+            .Select(role => new AppPermissionScope(role.TenantIdValue, role.AppId))
+            .Concat(existingPermissions.Select(permission => new AppPermissionScope(permission.TenantIdValue, permission.AppId)))
+            .Distinct()
+            .ToArray();
+        if (appScopes.Length == 0)
+        {
+            return;
+        }
+
+        var permissionByKey = existingPermissions.ToDictionary(
+            permission => BuildAppPermissionKey(permission.TenantIdValue, permission.AppId, permission.Code),
+            StringComparer.OrdinalIgnoreCase);
+        var newPermissions = new List<AppPermission>();
+        var permissionsToUpdate = new List<AppPermission>();
+
+        foreach (var appScope in appScopes)
+        {
+            var tenantId = new TenantId(appScope.TenantIdValue);
+            foreach (var seed in permissionSeeds)
+            {
+                var permissionKey = BuildAppPermissionKey(appScope.TenantIdValue, appScope.AppId, seed.Code);
+                if (permissionByKey.TryGetValue(permissionKey, out var existingPermission))
+                {
+                    if (!string.Equals(existingPermission.Name, seed.Name, StringComparison.Ordinal)
+                        || !string.Equals(existingPermission.Type, seed.Type, StringComparison.Ordinal))
+                    {
+                        existingPermission.Update(seed.Name, seed.Type, existingPermission.Description);
+                        permissionsToUpdate.Add(existingPermission);
+                    }
+
+                    continue;
+                }
+
+                var permission = new AppPermission(
+                    tenantId,
+                    appScope.AppId,
+                    seed.Name,
+                    seed.Code,
+                    seed.Type,
+                    idGeneratorProvider.NextId(tenantId, generatorAppId));
+                newPermissions.Add(permission);
+                permissionByKey[permissionKey] = permission;
+            }
+        }
+
+        if (newPermissions.Count > 0)
+        {
+            await db.Insertable(newPermissions).ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (permissionsToUpdate.Count > 0)
+        {
+            await db.Updateable(permissionsToUpdate)
+                .WhereColumns(permission => new
+                {
+                    permission.TenantIdValue,
+                    permission.AppId,
+                    permission.Code
+                })
+                .UpdateColumns(permission => new
+                {
+                    permission.Name,
+                    permission.Type,
+                    permission.Description
+                })
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (roles.Count == 0)
+        {
+            return;
+        }
+
+        var existingRolePermissions = await db.Queryable<AppRolePermission>().ToListAsync(cancellationToken);
+        var existingRolePermissionKeys = existingRolePermissions
+            .Select(permission => BuildAppRolePermissionKey(
+                permission.TenantIdValue,
+                permission.AppId,
+                permission.RoleId,
+                permission.PermissionCode))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newRolePermissions = new List<AppRolePermission>();
+
+        foreach (var role in roles)
+        {
+            var tenantId = new TenantId(role.TenantIdValue);
+            var grantedPermissionCodes = AppPermissionSeedCatalog.GetPermissionCodesForRole(role.Code);
+            foreach (var permissionCode in grantedPermissionCodes)
+            {
+                var permissionKey = BuildAppPermissionKey(role.TenantIdValue, role.AppId, permissionCode);
+                if (!permissionByKey.ContainsKey(permissionKey))
+                {
+                    continue;
+                }
+
+                var rolePermissionKey = BuildAppRolePermissionKey(
+                    role.TenantIdValue,
+                    role.AppId,
+                    role.Id,
+                    permissionCode);
+                if (!existingRolePermissionKeys.Add(rolePermissionKey))
+                {
+                    continue;
+                }
+
+                newRolePermissions.Add(new AppRolePermission(
+                    tenantId,
+                    role.AppId,
+                    role.Id,
+                    permissionCode,
+                    idGeneratorProvider.NextId(tenantId, generatorAppId)));
+            }
+        }
+
+        if (newRolePermissions.Count > 0)
+        {
+            await db.Insertable(newRolePermissions).ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
     private static async Task EnsureModelConfigSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("ModelConfig", false))
@@ -2004,6 +2157,21 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<ModelConfig>(db, cancellationToken);
+    }
+
+    private static async Task EnsureAgentSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("Agent", false))
+        {
+            return;
+        }
+
+        if (!RequiresMissingColumnFix<Agent>(db, "DefaultWorkflowId", "DefaultWorkflowName"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<Agent>(db, cancellationToken);
     }
 
     private static async Task EnsureAssetSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -2947,11 +3115,18 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         public bool IsActive { get; set; }
     }
 
+    private static string BuildAppPermissionKey(Guid tenantIdValue, long appId, string permissionCode)
+        => $"{tenantIdValue:N}:{appId}:{permissionCode}";
+
+    private static string BuildAppRolePermissionKey(Guid tenantIdValue, long appId, long roleId, string permissionCode)
+        => $"{tenantIdValue:N}:{appId}:{roleId}:{permissionCode}";
+
     private sealed record ResolvedPositionSeed(
         string Name,
         string Code,
         string Description,
         bool IsSystem,
         int SortOrder);
-}
 
+    private readonly record struct AppPermissionScope(Guid TenantIdValue, long AppId);
+}

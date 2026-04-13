@@ -57,6 +57,9 @@ export function CozeShell({
   onLogout,
   children,
 }: CozeShellProps) {
+  const profileLabel = "个人中心";
+  const logoutLabel = "退出登录";
+
   return (
     <div className="coze-shell">
       <aside className="coze-shell__primary" data-testid="app-primary-nav">
@@ -169,16 +172,27 @@ export function CozeShell({
             <Dropdown
               position="bottomRight"
               render={
-                <Dropdown.Menu>
+                <div className="coze-shell__user-menu" role="menu">
                   {onOpenProfile ? (
-                    <Dropdown.Item onClick={onOpenProfile} data-testid="app-header-menu-profile">
-                      个人中心
-                    </Dropdown.Item>
+                    <button
+                      type="button"
+                      className="coze-shell__user-menu-item"
+                      onClick={onOpenProfile}
+                      data-testid="app-header-menu-profile"
+                    >
+                      {profileLabel}
+                    </button>
                   ) : null}
-                  <Dropdown.Item icon={<IconExit />} onClick={onLogout} data-testid="app-header-menu-logout">
-                    退出登录
-                  </Dropdown.Item>
-                </Dropdown.Menu>
+                  <button
+                    type="button"
+                    className="coze-shell__user-menu-item"
+                    onClick={onLogout}
+                    data-testid="app-header-menu-logout"
+                  >
+                    <IconExit />
+                    <span>{logoutLabel}</span>
+                  </button>
+                </div>
               }
             >
               <Button theme="light" icon={<IconTreeTriangleDown />} data-testid="app-header-user-menu">

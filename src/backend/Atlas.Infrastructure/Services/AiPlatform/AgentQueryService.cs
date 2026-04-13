@@ -63,6 +63,8 @@ public sealed class AgentQueryService : IAgentQueryService
             NullIfEmpty(entity.ModelName),
             NullIfZero(entity.Temperature),
             NullIfNonPositive(entity.MaxTokens),
+            NullIfNonPositive(entity.DefaultWorkflowId),
+            NullIfEmpty(entity.DefaultWorkflowName),
             entity.Status.ToString(),
             entity.CreatorId,
             entity.CreatedAt,

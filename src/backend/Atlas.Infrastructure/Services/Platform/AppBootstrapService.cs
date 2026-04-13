@@ -47,10 +47,10 @@ public sealed class AppBootstrapService : IAppBootstrapService
     {
         var now = DateTimeOffset.UtcNow;
 
-        var permissions = new List<AppPermission>();
-        foreach (var code in AppPermissionSeedCatalog.AllPermissionCodes)
+        var permissions = new List<AppPermission>(AppPermissionSeedCatalog.PermissionSeeds.Count);
+        foreach (var seed in AppPermissionSeedCatalog.PermissionSeeds)
         {
-            permissions.Add(new AppPermission(tenantId, appId, code, code, "Api", _idGenerator.NextId()));
+            permissions.Add(new AppPermission(tenantId, appId, seed.Name, seed.Code, seed.Type, _idGenerator.NextId()));
         }
         foreach (var perm in permissions)
         {

@@ -198,6 +198,68 @@ public sealed class WorkflowCanvasValidatorTests
         Assert.Contains(result.Errors, e => e.Code == "VARIABLE_REFERENCE_SCOPE_INVALID");
     }
 
+    [Fact]
+    public void ValidateCanvas_ShouldAcceptEditorCanvasPayload()
+    {
+        const string json = """
+            {
+              "nodes": [
+                {
+                  "key": "entry_1",
+                  "type": "Entry",
+                  "title": "开始",
+                  "configs": {
+                    "entryVariable": "incident",
+                    "entryAutoSaveHistory": true
+                  },
+                  "layout": { "x": 120, "y": 80, "width": 160, "height": 60 }
+                },
+                {
+                  "key": "text_1",
+                  "type": "TextProcessor",
+                  "title": "文本处理",
+                  "configs": {
+                    "template": "{{incident}}",
+                    "outputKey": "result"
+                  },
+                  "layout": { "x": 360, "y": 80, "width": 220, "height": 80 }
+                },
+                {
+                  "key": "exit_1",
+                  "type": "Exit",
+                  "title": "结束",
+                  "configs": {
+                    "exitTerminateMode": "return",
+                    "exitTemplate": "{{result}}"
+                  },
+                  "layout": { "x": 660, "y": 80, "width": 160, "height": 60 }
+                }
+              ],
+              "connections": [
+                {
+                  "fromNode": "entry_1",
+                  "fromPort": "output",
+                  "toNode": "text_1",
+                  "toPort": "input",
+                  "condition": null
+                },
+                {
+                  "fromNode": "text_1",
+                  "fromPort": "output",
+                  "toNode": "exit_1",
+                  "toPort": "input",
+                  "condition": null
+                }
+              ]
+            }
+            """;
+
+        var result = _validator.ValidateCanvas(json);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
+    }
+
     private static NodeSchema BuildNode(string key, WorkflowNodeType nodeType)
     {
         return new NodeSchema(

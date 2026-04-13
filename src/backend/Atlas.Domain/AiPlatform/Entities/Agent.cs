@@ -50,6 +50,8 @@ public sealed class Agent : TenantEntity
     public string? ModelName { get; private set; }
     public float? Temperature { get; private set; }
     public int? MaxTokens { get; private set; }
+    public long? DefaultWorkflowId { get; private set; }
+    public string? DefaultWorkflowName { get; private set; }
     public AgentStatus Status { get; private set; }
     public long CreatorId { get; private set; }
     public DateTime CreatedAt { get; private set; }
@@ -70,6 +72,8 @@ public sealed class Agent : TenantEntity
         string? modelName,
         float? temperature,
         int? maxTokens,
+        long? defaultWorkflowId = null,
+        string? defaultWorkflowName = null,
         bool? enableMemory = null,
         bool? enableShortTermMemory = null,
         bool? enableLongTermMemory = null,
@@ -96,6 +100,14 @@ public sealed class Agent : TenantEntity
         {
             MaxTokens = 0;
         }
+
+        DefaultWorkflowId = defaultWorkflowId;
+        if (!DefaultWorkflowId.HasValue)
+        {
+            DefaultWorkflowId = 0;
+        }
+
+        DefaultWorkflowName = defaultWorkflowName ?? string.Empty;
 
         if (enableMemory.HasValue)
         {
@@ -149,6 +161,8 @@ public sealed class Agent : TenantEntity
             ModelName,
             Temperature,
             MaxTokens,
+            DefaultWorkflowId,
+            DefaultWorkflowName,
             EnableMemory,
             EnableShortTermMemory,
             EnableLongTermMemory,

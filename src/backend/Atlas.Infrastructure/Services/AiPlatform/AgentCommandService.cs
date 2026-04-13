@@ -1,5 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.AiPlatform.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
@@ -17,6 +18,7 @@ public sealed class AgentCommandService : IAgentCommandService
     private readonly AgentPublicationRepository _publicationRepository;
     private readonly AiPluginRepository _pluginRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
+    private readonly IWorkflowMetaRepository _workflowMetaRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -27,6 +29,7 @@ public sealed class AgentCommandService : IAgentCommandService
         AgentPublicationRepository publicationRepository,
         AiPluginRepository pluginRepository,
         ModelConfigRepository modelConfigRepository,
+        IWorkflowMetaRepository workflowMetaRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork)
     {
@@ -36,6 +39,7 @@ public sealed class AgentCommandService : IAgentCommandService
         _publicationRepository = publicationRepository;
         _pluginRepository = pluginRepository;
         _modelConfigRepository = modelConfigRepository;
+        _workflowMetaRepository = workflowMetaRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
     }
@@ -53,6 +57,11 @@ public sealed class AgentCommandService : IAgentCommandService
         }
 
         var modelConfigId = await ResolveModelConfigIdAsync(tenantId, request.ModelConfigId, cancellationToken);
+        var workflowBinding = await ResolveWorkflowBindingAsync(
+            tenantId,
+            request.DefaultWorkflowId,
+            request.DefaultWorkflowName,
+            cancellationToken);
         var entity = new Agent(tenantId, request.Name, creatorId, _idGeneratorAccessor.NextId());
         entity.Update(
             request.Name,
@@ -63,6 +72,8 @@ public sealed class AgentCommandService : IAgentCommandService
             request.ModelName,
             request.Temperature,
             request.MaxTokens,
+            workflowBinding.WorkflowId,
+            workflowBinding.WorkflowName,
             request.EnableMemory,
             request.EnableShortTermMemory,
             request.EnableLongTermMemory,
@@ -78,6 +89,11 @@ public sealed class AgentCommandService : IAgentCommandService
             ?? throw new BusinessException("AgentNotFound", ErrorCodes.NotFound);
 
         var modelConfigId = await ResolveModelConfigIdAsync(tenantId, request.ModelConfigId, cancellationToken);
+        var workflowBinding = await ResolveWorkflowBindingAsync(
+            tenantId,
+            request.DefaultWorkflowId,
+            request.DefaultWorkflowName,
+            cancellationToken);
         entity.Update(
             request.Name,
             request.Description,
@@ -87,6 +103,8 @@ public sealed class AgentCommandService : IAgentCommandService
             request.ModelName,
             request.Temperature,
             request.MaxTokens,
+            workflowBinding.WorkflowId,
+            workflowBinding.WorkflowName,
             request.EnableMemory,
             request.EnableShortTermMemory,
             request.EnableLongTermMemory,
@@ -130,6 +148,35 @@ public sealed class AgentCommandService : IAgentCommandService
                 await _pluginBindingRepository.AddRangeAsync(pluginBindings, cancellationToken);
             }
         }, cancellationToken);
+    }
+
+    public async Task<WorkflowBindingDto> BindWorkflowAsync(
+        TenantId tenantId,
+        long id,
+        long? workflowId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await _agentRepository.FindByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new BusinessException("AgentNotFound", ErrorCodes.NotFound);
+        var workflowBinding = await ResolveWorkflowBindingAsync(tenantId, workflowId, null, cancellationToken);
+        entity.Update(
+            entity.Name,
+            entity.Description,
+            entity.AvatarUrl,
+            entity.SystemPrompt,
+            entity.ModelConfigId,
+            entity.ModelName,
+            entity.Temperature,
+            entity.MaxTokens,
+            workflowBinding.WorkflowId,
+            workflowBinding.WorkflowName,
+            entity.EnableMemory,
+            entity.EnableShortTermMemory,
+            entity.EnableLongTermMemory,
+            entity.LongTermMemoryTopK);
+
+        await _agentRepository.UpdateAsync(entity, cancellationToken);
+        return workflowBinding;
     }
 
     public async Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
@@ -216,6 +263,24 @@ public sealed class AgentCommandService : IAgentCommandService
 
         var enabled = await _modelConfigRepository.GetAllEnabledAsync(tenantId, cancellationToken);
         return enabled.FirstOrDefault()?.Id;
+    }
+
+    private async Task<WorkflowBindingDto> ResolveWorkflowBindingAsync(
+        TenantId tenantId,
+        long? workflowId,
+        string? workflowName,
+        CancellationToken cancellationToken)
+    {
+        if (!workflowId.HasValue || workflowId.Value <= 0)
+        {
+            return new WorkflowBindingDto(null, null);
+        }
+
+        var workflow = await _workflowMetaRepository.FindActiveByIdAsync(tenantId, workflowId.Value, cancellationToken)
+            ?? throw new BusinessException("WorkflowNotFound", ErrorCodes.ValidationError);
+        return new WorkflowBindingDto(
+            workflow.Id,
+            string.IsNullOrWhiteSpace(workflowName) ? workflow.Name : workflowName.Trim());
     }
 
     private async Task<AgentPluginBinding[]> BuildValidatedPluginBindingsAsync(

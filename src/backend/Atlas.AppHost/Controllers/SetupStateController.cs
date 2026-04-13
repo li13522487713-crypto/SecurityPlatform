@@ -871,7 +871,8 @@ public sealed class SetupStateController : ControllerBase
             rolesCreated = newRoles.Count;
         }
 
-        var permissionCodes = AppPermissionSeedCatalog.AllPermissionCodes.ToArray();
+        var permissionSeeds = AppPermissionSeedCatalog.PermissionSeeds.ToArray();
+        var permissionCodes = permissionSeeds.Select(seed => seed.Code).ToArray();
         var existingPermissions = permissionCodes.Length == 0
             ? []
             : await db.Queryable<AppPermission>()
@@ -881,9 +882,9 @@ public sealed class SetupStateController : ControllerBase
                     && SqlFunc.ContainsArray(permissionCodes, permission.Code))
                 .ToListAsync(cancellationToken);
         var permissionByCode = existingPermissions.ToDictionary(permission => permission.Code, StringComparer.OrdinalIgnoreCase);
-        var newPermissions = permissionCodes
-            .Where(code => !permissionByCode.ContainsKey(code))
-            .Select(code => new AppPermission(tenantId, appId, code, code, "Api", _idGeneratorAccessor.NextId()))
+        var newPermissions = permissionSeeds
+            .Where(seed => !permissionByCode.ContainsKey(seed.Code))
+            .Select(seed => new AppPermission(tenantId, appId, seed.Name, seed.Code, seed.Type, _idGeneratorAccessor.NextId()))
             .ToList();
         if (newPermissions.Count > 0)
         {

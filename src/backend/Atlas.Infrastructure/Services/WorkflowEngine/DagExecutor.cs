@@ -401,22 +401,9 @@ public sealed class DagExecutor
     /// </summary>
     public static CanvasSchema? ParseCanvas(string canvasJson)
     {
-        if (string.IsNullOrWhiteSpace(canvasJson))
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<CanvasSchema>(canvasJson, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-        }
-        catch
-        {
-            return null;
-        }
+        return WorkflowCanvasJsonBridge.TryParseCanvas(canvasJson, out var canvas)
+            ? canvas
+            : null;
     }
 
     private static (IReadOnlyDictionary<string, NodeSchema> NodeMap, CompiledCanvas Topology) GetOrCompileCanvas(CanvasSchema canvas)

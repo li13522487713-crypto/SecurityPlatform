@@ -1,4 +1,5 @@
 using Atlas.Application.Options;
+using Atlas.Core.Utilities;
 using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
@@ -117,7 +118,7 @@ public sealed class XssProtectionMiddleware
         }
     }
 
-    private static object? SanitizeJsonElement(JsonElement element, string? propertyName = null)
+    private object? SanitizeJsonElement(JsonElement element, string? propertyName = null)
     {
         return element.ValueKind switch
         {
@@ -134,7 +135,7 @@ public sealed class XssProtectionMiddleware
         };
     }
 
-    private static Dictionary<string, object?> SanitizeObject(JsonElement element)
+    private Dictionary<string, object?> SanitizeObject(JsonElement element)
     {
         var result = new Dictionary<string, object?>();
         foreach (var property in element.EnumerateObject())
@@ -144,7 +145,7 @@ public sealed class XssProtectionMiddleware
         return result;
     }
 
-    private static List<object?> SanitizeArray(JsonElement element)
+    private List<object?> SanitizeArray(JsonElement element)
     {
         var result = new List<object?>();
         foreach (var item in element.EnumerateArray())
@@ -154,7 +155,7 @@ public sealed class XssProtectionMiddleware
         return result;
     }
 
-    private static object SanitizeStringValue(string input, string? propertyName)
+    private object SanitizeStringValue(string input, string? propertyName)
     {
         if (ShouldPreserveStructuredJson(propertyName)
             && TrySanitizeStructuredJson(input, out var sanitizedJson))
@@ -165,28 +166,34 @@ public sealed class XssProtectionMiddleware
         return SanitizeString(input);
     }
 
-    private static bool ShouldPreserveStructuredJson(string? propertyName)
+    private bool ShouldPreserveStructuredJson(string? propertyName)
     {
         if (string.IsNullOrWhiteSpace(propertyName))
         {
             return false;
         }
 
-        return propertyName.EndsWith("Json", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(propertyName, "aiConfig", StringComparison.OrdinalIgnoreCase);
+        if (_options.StructuredJsonPropertyNames.Any(name =>
+                string.Equals(name, propertyName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return _options.StructuredJsonPropertySuffixes.Any(suffix =>
+            propertyName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool TrySanitizeStructuredJson(string input, out string sanitizedJson)
+    private bool TrySanitizeStructuredJson(string input, out string sanitizedJson)
     {
         sanitizedJson = string.Empty;
-        if (string.IsNullOrWhiteSpace(input))
+        if (!StructuredJsonStringUtility.TryNormalizeJsonString(input, out var normalizedJson))
         {
             return false;
         }
 
         try
         {
-            using var doc = JsonDocument.Parse(input);
+            using var doc = JsonDocument.Parse(normalizedJson);
             var sanitized = SanitizeJsonElement(doc.RootElement);
             sanitizedJson = JsonSerializer.Serialize(sanitized);
             return true;

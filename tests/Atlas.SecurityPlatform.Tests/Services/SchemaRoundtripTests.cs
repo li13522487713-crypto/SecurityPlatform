@@ -205,6 +205,60 @@ public sealed class SchemaRoundtripTests
         Assert.Equal("text_inner", loopNode.ChildCanvas.Nodes[0].Key);
     }
 
+    [Fact]
+    public void ParseCanvas_WithEditorCanvasPayload_ShouldNormalizeToRuntimeSchema()
+    {
+        var json = """
+            {
+              "nodes": [
+                {
+                  "key": "entry_1",
+                  "type": "Entry",
+                  "title": "开始",
+                  "configs": {
+                    "entryVariable": "incident"
+                  },
+                  "inputMappings": {
+                    "incident": "input.incident"
+                  },
+                  "layout": { "x": 120, "y": 80, "width": 160, "height": 60 }
+                },
+                {
+                  "key": "text_1",
+                  "type": "TextProcessor",
+                  "title": "文本处理",
+                  "configs": {
+                    "template": "{{incident}}",
+                    "outputKey": "result"
+                  },
+                  "layout": { "x": 360, "y": 80, "width": 220, "height": 80 }
+                }
+              ],
+              "connections": [
+                {
+                  "fromNode": "entry_1",
+                  "fromPort": "output",
+                  "toNode": "text_1",
+                  "toPort": "input",
+                  "condition": null
+                }
+              ]
+            }
+            """;
+
+        var canvas = DagExecutor.ParseCanvas(json);
+
+        Assert.NotNull(canvas);
+        Assert.Equal(2, canvas.Nodes.Count);
+        Assert.Equal(WorkflowNodeType.Entry, canvas.Nodes[0].Type);
+        Assert.Equal("开始", canvas.Nodes[0].Label);
+        Assert.True(canvas.Nodes[0].Config.ContainsKey("entryVariable"));
+        Assert.True(canvas.Nodes[0].Config.ContainsKey("inputMappings"));
+        Assert.Single(canvas.Connections);
+        Assert.Equal("entry_1", canvas.Connections[0].SourceNodeKey);
+        Assert.Equal("text_1", canvas.Connections[0].TargetNodeKey);
+    }
+
     // ─── Roundtrip: serialize → deserialize ──────────────────────────────────
 
     [Fact]

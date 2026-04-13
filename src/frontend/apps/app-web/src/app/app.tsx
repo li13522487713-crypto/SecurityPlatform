@@ -141,6 +141,7 @@ import {
   searchAi
 } from "@/services/api-explore";
 import {
+  bindAgentWorkflow,
   createAgent,
   getAgentById,
   getAgentsPaged,
@@ -158,6 +159,9 @@ import {
   updateModelConfig
 } from "@/services/api-model-config";
 import {
+  appendConversationMessage,
+  createAgentChatStream,
+  createConversation,
   getConversationsPaged,
   getMessages
 } from "@/services/api-conversation";
@@ -169,6 +173,7 @@ import {
   listWorkflows,
   workflowV2Api
 } from "@/services/api-workflow";
+import { executeWorkflowTask } from "@/services/api-workflow-playground";
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: getLibraryPaged,
@@ -360,6 +365,76 @@ function createExploreApi(): ExploreModuleApi {
   };
 }
 
+async function* createAgentMessageStream(
+  appKey: string,
+  agentId: string,
+  request: { conversationId?: string; message: string; enableRag?: boolean }
+): AsyncIterable<{ type: "chunk" | "final" | "thought"; content: string }> {
+  const { fetchPromise } = createAgentChatStream(
+    appKey,
+    agentId,
+    {
+      conversationId: request.conversationId,
+      message: request.message,
+      enableRag: request.enableRag
+    },
+    "react"
+  );
+  const response = await fetchPromise;
+  if (!response.ok || !response.body) {
+    throw new Error("Agent chat stream failed");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      const lines = frame.split("\n");
+      let eventType = "message";
+      const dataLines: string[] = [];
+
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          eventType = line.slice(6).trim();
+          continue;
+        }
+
+        if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5).trimStart());
+        }
+      }
+
+      const payload = dataLines.join("\n").trim();
+      if (!payload || eventType === "done" || payload === "[DONE]") {
+        continue;
+      }
+
+      if (eventType === "thought") {
+        yield { type: "thought", content: payload };
+        continue;
+      }
+
+      if (eventType === "final") {
+        yield { type: "final", content: payload };
+        continue;
+      }
+
+      yield { type: "chunk", content: payload };
+    }
+  }
+}
+
 function createStudioApi(appKey: string): StudioModuleApi {
   return {
     listAgents: getAgentsPaged,
@@ -368,6 +443,35 @@ function createStudioApi(appKey: string): StudioModuleApi {
     updateAgent,
     listConversations: agentId => getConversationsPaged(appKey, { pageIndex: 1, pageSize: 20 }, agentId),
     getMessages: conversationId => getMessages(appKey, conversationId),
+    createConversation: (agentId, title) => createConversation(appKey, agentId, title),
+    sendAgentMessage: (agentId, request) => createAgentMessageStream(appKey, agentId, request),
+    appendConversationMessage: (conversationId, request) => appendConversationMessage(appKey, conversationId, request),
+    listWorkflows: async params => {
+      const response = await listWorkflows(1, 100, params?.keyword);
+      const status = params?.status ?? "all";
+      return (response.data?.items ?? [])
+        .filter(item => item.mode === 0)
+        .filter(item => {
+          if (status === "all") {
+            return true;
+          }
+
+          return status === "published" ? item.status === 1 : item.status !== 1;
+        })
+        .map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          status: item.status,
+          latestVersionNumber: item.latestVersionNumber,
+          updatedAt: item.updatedAt
+        }));
+    },
+    bindAgentWorkflow: (agentId, workflowId) => bindAgentWorkflow(agentId, workflowId),
+    runWorkflowTask: (workflowId, incident) => executeWorkflowTask(workflowId, {
+      incident,
+      source: "draft"
+    }),
     generateAssistant: (kind, description) => generateByAiAssistant(appKey, kind, description),
     listModelConfigs: () => getModelConfigsPaged({ pageIndex: 1, pageSize: 50 }),
     getModelConfig: getModelConfigById,
@@ -821,19 +925,19 @@ function WorkflowEditorRoute({ mode = "workflow" }: { mode?: WorkflowResourceMod
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const { workflowApi } = useAppApis(appKey);
+  const backPath = mode === "chatflow"
+    ? `/apps/${encodeURIComponent(appKey)}/chat_flow`
+    : workflowListPath(appKey);
   return (
     <WorkflowEditorPage
       api={workflowApi}
       locale={locale}
       workflowId={id}
       mode={mode}
-      onBack={() =>
-        navigate(
-          mode === "chatflow"
-            ? `/apps/${encodeURIComponent(appKey)}/chat_flow`
-            : workflowListPath(appKey)
-        )
-      }
+      backPath={backPath}
+      onBack={() => {
+        navigate(backPath, { replace: true });
+      }}
     />
   );
 }

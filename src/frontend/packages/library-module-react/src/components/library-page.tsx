@@ -73,7 +73,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
 
           startTransition(() => {
             setItems(response.items.map(mapKnowledgeBaseToLibraryItem));
-            setTotal(response.total);
+            setTotal(Number(response.total ?? 0));
           });
           return;
         }
@@ -89,7 +89,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
 
         startTransition(() => {
           setItems(response.items);
-          setTotal(response.total);
+          setTotal(Number(response.total ?? 0));
         });
       } catch (error) {
         if (!disposed) {

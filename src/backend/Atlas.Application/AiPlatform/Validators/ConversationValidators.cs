@@ -20,6 +20,21 @@ public sealed class ConversationUpdateRequestValidator : AbstractValidator<Conve
     }
 }
 
+public sealed class ConversationAppendMessageRequestValidator : AbstractValidator<ConversationAppendMessageRequest>
+{
+    private static readonly string[] AllowedRoles = ["system", "user", "assistant", "tool"];
+
+    public ConversationAppendMessageRequestValidator()
+    {
+        RuleFor(x => x.Role)
+            .NotEmpty()
+            .Must(role => AllowedRoles.Contains(role.Trim(), StringComparer.OrdinalIgnoreCase))
+            .WithMessage("消息角色必须为 system/user/assistant/tool 之一。");
+        RuleFor(x => x.Content).NotEmpty().MaximumLength(32000);
+        RuleFor(x => x.Metadata).MaximumLength(500000).When(x => !string.IsNullOrWhiteSpace(x.Metadata));
+    }
+}
+
 public sealed class AgentChatRequestValidator : AbstractValidator<AgentChatRequest>
 {
     public AgentChatRequestValidator()

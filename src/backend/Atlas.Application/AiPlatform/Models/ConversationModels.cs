@@ -13,6 +13,11 @@ public sealed record ConversationCreateRequest(long AgentId, string? Title = nul
 
 public sealed record ConversationUpdateRequest(string Title);
 
+public sealed record ConversationAppendMessageRequest(
+    string Role,
+    string Content,
+    string? Metadata = null);
+
 public sealed record ChatMessageDto(
     long Id,
     string Role,

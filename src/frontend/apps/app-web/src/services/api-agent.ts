@@ -11,6 +11,8 @@ export interface AgentDetail {
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
+  defaultWorkflowId?: string;
+  defaultWorkflowName?: string;
   status: string;
 }
 
@@ -33,6 +35,8 @@ export interface AgentCreateRequest {
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
+  defaultWorkflowId?: string;
+  defaultWorkflowName?: string;
   enableMemory?: boolean;
   enableShortTermMemory?: boolean;
   enableLongTermMemory?: boolean;
@@ -48,6 +52,8 @@ export interface AgentUpdateRequest {
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
+  defaultWorkflowId?: string;
+  defaultWorkflowName?: string;
   enableMemory?: boolean;
   enableShortTermMemory?: boolean;
   enableLongTermMemory?: boolean;
@@ -112,6 +118,30 @@ export async function updateAgent(id: string, request: AgentUpdateRequest): Prom
   if (!response.success) {
     throw new Error(response.message || "Failed to update agent");
   }
+}
+
+export async function bindAgentWorkflow(
+  id: string,
+  workflowId?: string
+): Promise<{ workflowId?: string; workflowName?: string }> {
+  const response = await requestApi<ApiResponse<{ workflowId?: string | number; workflowName?: string }>>(
+    `/draft-agents/${id}/workflow-bindings`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workflowId: workflowId ? Number(workflowId) : null
+      })
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "Failed to bind workflow");
+  }
+
+  return {
+    workflowId: response.data.workflowId !== undefined ? String(response.data.workflowId) : undefined,
+    workflowName: response.data.workflowName
+  };
 }
 
 export async function deleteAgent(id: string): Promise<void> {

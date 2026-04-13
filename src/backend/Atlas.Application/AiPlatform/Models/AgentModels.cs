@@ -20,6 +20,8 @@ public sealed record AgentDetail(
     string? ModelName,
     float? Temperature,
     int? MaxTokens,
+    long? DefaultWorkflowId,
+    string? DefaultWorkflowName,
     string Status,
     long CreatorId,
     DateTime CreatedAt,
@@ -41,6 +43,8 @@ public sealed record AgentCreateRequest(
     string? ModelName,
     float? Temperature,
     int? MaxTokens,
+    long? DefaultWorkflowId,
+    string? DefaultWorkflowName,
     bool? EnableMemory,
     bool? EnableShortTermMemory,
     bool? EnableLongTermMemory,
@@ -55,6 +59,8 @@ public sealed record AgentUpdateRequest(
     string? ModelName,
     float? Temperature,
     int? MaxTokens,
+    long? DefaultWorkflowId,
+    string? DefaultWorkflowName,
     bool? EnableMemory,
     bool? EnableShortTermMemory,
     bool? EnableLongTermMemory,
@@ -73,3 +79,10 @@ public sealed record AgentPluginBindingInput(
     int SortOrder,
     bool IsEnabled,
     string? ToolConfigJson);
+
+public sealed record WorkflowBindingDto(
+    long? WorkflowId,
+    string? WorkflowName);
+
+public sealed record WorkflowBindingUpdateRequest(
+    long? WorkflowId);

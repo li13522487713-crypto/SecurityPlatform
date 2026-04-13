@@ -283,3 +283,64 @@
   - `score`
   - `documentName`
   - `documentCreatedAt`
+
+## App Workbench API（AppHost-only）
+
+### Draft Agent 与默认工作流绑定
+
+- `GET /api/v1/draft-agents`
+- `GET /api/v1/draft-agents/{id}`
+- `POST /api/v1/draft-agents`
+- `PUT /api/v1/draft-agents/{id}`
+- `POST /api/v1/draft-agents/{id}/workflow-bindings`
+- `AgentDetail` / `AgentCreateRequest` / `AgentUpdateRequest` 新增字段：
+  - `defaultWorkflowId`
+  - `defaultWorkflowName`
+- `WorkflowBindingUpdateRequest`
+  - `workflowId`
+- `WorkflowBindingDto`
+  - `workflowId`
+  - `workflowName`
+
+### Agent Session 与工作台消息
+
+- `POST /api/v1/agent-sessions`
+- `GET /api/v1/agent-sessions/{sessionId}/messages`
+- `POST /api/v1/agent-sessions/{sessionId}/messages`
+- `ConversationAppendMessageRequest`
+  - `role`：`system | user | assistant | tool`
+  - `content`
+  - `metadata?`
+- 工作流显式调用结果以 `tool` 消息追加到同一会话历史，用于 App 端工作台展示与继续追问。
+
+### 工作台工作流执行（AppHost 聚合）
+
+- `POST /api/v1/workflow-playground/{id}/execute`
+- 说明：
+  - 此接口用于 App 端聊天工作台显式执行已绑定工作流。
+  - `app-web` 不再自行拼装 `/api/v2/workflows/{id}/run + process + trace`。
+  - AppHost 负责把 incident 描述标准化为运行输入，并一次性返回执行摘要与 trace。
+- `WorkflowWorkbenchExecuteRequest`
+  - `incident`
+  - `source?`：`draft | published`，默认 `draft`
+- `WorkflowWorkbenchExecuteResultDto`
+  - `execution`
+  - `trace?`
+- `execution`
+  - `executionId`
+  - `status`
+  - `outputsJson`
+  - `errorMessage`
+- `trace`
+  - `executionId`
+  - `status`
+  - `startedAt`
+  - `completedAt`
+  - `durationMs`
+  - `steps[]`
+- `steps[]`
+  - `nodeKey`
+  - `status`
+  - `nodeType`
+  - `durationMs`
+  - `errorMessage`

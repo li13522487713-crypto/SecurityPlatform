@@ -7,6 +7,8 @@ const appWebPort = process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181";
 export const appBaseUrl = `http://127.0.0.1:${appWebPort}`;
 export const platformApiBase = "http://127.0.0.1:5001";
 export const appApiBase = "http://127.0.0.1:5002";
+const appWebMode = (process.env.PLAYWRIGHT_APP_WEB_MODE ?? "direct").toLowerCase();
+const usesPlatformControlPlane = appWebMode === "platform";
 
 export const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 export const defaultUsername = "admin";
@@ -280,7 +282,9 @@ export async function ensurePlatformSetup(request: APIRequestContext) {
 }
 
 export async function ensureAppSetup(request: APIRequestContext): Promise<string> {
-  await ensurePlatformSetup(request);
+  if (usesPlatformControlPlane) {
+    await ensurePlatformSetup(request);
+  }
 
   const stateResp = await request.get(`${appApiBase}/api/v1/setup/state`);
   const statePayload = await stateResp.json();

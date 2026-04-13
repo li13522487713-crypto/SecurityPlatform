@@ -54,6 +54,13 @@ public interface IConversationService
         int? limit,
         CancellationToken cancellationToken);
 
+    Task<long> AppendMessageAsync(
+        TenantId tenantId,
+        long userId,
+        long conversationId,
+        ConversationAppendMessageRequest request,
+        CancellationToken cancellationToken);
+
     Task DeleteMessageAsync(
         TenantId tenantId,
         long userId,

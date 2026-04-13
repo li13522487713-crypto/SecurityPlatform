@@ -321,8 +321,9 @@ export function WorkflowEditorPage({
   locale,
   workflowId,
   onBack,
+  backPath,
   mode = "workflow"
-}: WorkflowPageProps & { workflowId: string; onBack: () => void; mode?: WorkflowResourceMode }) {
+}: WorkflowPageProps & { workflowId: string; onBack: () => void; backPath?: string; mode?: WorkflowResourceMode }) {
   const title = mode === "chatflow" ? "Chatflow Editor" : "Workflow Editor";
   return (
     <section className="module-workflow__page module-workflow__editor-page" data-testid={mode === "chatflow" ? "app-chatflow-editor-page" : "app-workflow-editor-page"}>
@@ -335,12 +336,13 @@ export function WorkflowEditorPage({
         </Typography.Text>
       </div>
       <WorkflowEditorShell
-        api={api}
-        locale={locale}
-        workflowId={workflowId}
-        onBack={onBack}
-        mode={mode}
-      />
+      api={api}
+      locale={locale}
+      workflowId={workflowId}
+      onBack={onBack}
+      backPath={backPath}
+      mode={mode}
+    />
     </section>
   );
 }

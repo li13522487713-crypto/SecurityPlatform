@@ -13,6 +13,12 @@ public interface IAgentCommandService
 
     Task UpdateAsync(TenantId tenantId, long id, AgentUpdateRequest request, CancellationToken cancellationToken);
 
+    Task<WorkflowBindingDto> BindWorkflowAsync(
+        TenantId tenantId,
+        long id,
+        long? workflowId,
+        CancellationToken cancellationToken);
+
     Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
     Task<long> DuplicateAsync(TenantId tenantId, long creatorId, long id, CancellationToken cancellationToken);

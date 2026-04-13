@@ -23,6 +23,8 @@ export interface AgentDetail {
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
+  defaultWorkflowId?: string;
+  defaultWorkflowName?: string;
   status: string;
 }
 
@@ -30,16 +32,25 @@ export interface AgentCreateRequest {
   name: string;
   description?: string;
   systemPrompt?: string;
+  modelConfigId?: string;
+  modelName?: string;
+  temperature?: number;
+  maxTokens?: number;
+  defaultWorkflowId?: string;
+  defaultWorkflowName?: string;
 }
 
 export interface AgentUpdateRequest {
   name: string;
   description?: string;
+  avatarUrl?: string;
   systemPrompt?: string;
   modelConfigId?: string;
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
+  defaultWorkflowId?: string;
+  defaultWorkflowName?: string;
 }
 
 export interface ConversationItem {
@@ -51,9 +62,53 @@ export interface ConversationItem {
 
 export interface ChatMessageItem {
   id: string;
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
   createdAt: string;
+  metadata?: string;
+}
+
+export interface AgentChatStreamChunk {
+  type: "chunk" | "final" | "thought";
+  content: string;
+}
+
+export interface WorkflowListItem {
+  id: string;
+  name: string;
+  description?: string;
+  status?: number;
+  latestVersionNumber?: number;
+  updatedAt?: string;
+}
+
+export interface WorkflowBinding {
+  workflowId?: string;
+  workflowName?: string;
+}
+
+export interface WorkflowExecutionSummary {
+  executionId: string;
+  status?: string;
+  outputsJson?: string;
+  errorMessage?: string;
+}
+
+export interface WorkbenchTraceStep {
+  nodeKey: string;
+  status?: string;
+  nodeType?: string;
+  durationMs?: number;
+  errorMessage?: string;
+}
+
+export interface WorkbenchTrace {
+  executionId: string;
+  status?: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  steps: WorkbenchTraceStep[];
 }
 
 export interface ModelConfigItem {
@@ -172,6 +227,21 @@ export interface StudioModuleApi {
   updateAgent: (id: string, request: AgentUpdateRequest) => Promise<void>;
   listConversations: (agentId?: string) => Promise<PagedResult<ConversationItem>>;
   getMessages: (conversationId: string) => Promise<ChatMessageItem[]>;
+  createConversation: (agentId: string, title?: string) => Promise<string>;
+  sendAgentMessage: (
+    agentId: string,
+    request: { conversationId?: string; message: string; enableRag?: boolean }
+  ) => AsyncIterable<AgentChatStreamChunk>;
+  appendConversationMessage: (
+    conversationId: string,
+    request: { role: "system" | "user" | "assistant" | "tool"; content: string; metadata?: string }
+  ) => Promise<string>;
+  listWorkflows: (params?: { keyword?: string; status?: "draft" | "published" | "all" }) => Promise<WorkflowListItem[]>;
+  bindAgentWorkflow: (agentId: string, workflowId?: string) => Promise<WorkflowBinding>;
+  runWorkflowTask: (
+    workflowId: string,
+    incident: string
+  ) => Promise<{ execution: WorkflowExecutionSummary; trace?: WorkbenchTrace }>;
   generateAssistant: (kind: "form" | "sql" | "workflow", description: string) => Promise<{ result: string; explanation: string } | null>;
   listModelConfigs: () => Promise<PagedResult<ModelConfigItem>>;
   getModelConfig: (id: number) => Promise<ModelConfigItem>;

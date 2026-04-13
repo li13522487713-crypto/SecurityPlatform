@@ -41,6 +41,7 @@ public sealed class AgentChatService : IAgentChatService
     private readonly IKernelFactory _kernelFactory;
     private readonly AgentKernelAugmentationService _agentKernelAugmentationService;
     private readonly ILongTermMemoryExtractionService _longTermMemoryExtractionService;
+    private readonly IConversationOwnerResolver _conversationOwnerResolver;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IOptionsMonitor<AgentFrameworkOptions> _optionsMonitor;
@@ -55,6 +56,7 @@ public sealed class AgentChatService : IAgentChatService
         IKernelFactory kernelFactory,
         AgentKernelAugmentationService agentKernelAugmentationService,
         ILongTermMemoryExtractionService longTermMemoryExtractionService,
+        IConversationOwnerResolver conversationOwnerResolver,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
         IOptionsMonitor<AgentFrameworkOptions> optionsMonitor,
@@ -68,6 +70,7 @@ public sealed class AgentChatService : IAgentChatService
         _kernelFactory = kernelFactory;
         _agentKernelAugmentationService = agentKernelAugmentationService;
         _longTermMemoryExtractionService = longTermMemoryExtractionService;
+        _conversationOwnerResolver = conversationOwnerResolver;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
         _optionsMonitor = optionsMonitor;
@@ -153,10 +156,11 @@ public sealed class AgentChatService : IAgentChatService
         long conversationId,
         CancellationToken cancellationToken)
     {
+        var effectiveUserId = await _conversationOwnerResolver.ResolveAsync(tenantId, userId, cancellationToken);
         var conversation = await _conversationRepository.FindByIdAsync(tenantId, conversationId, cancellationToken)
             ?? throw new BusinessException("ConversationNotFound", ErrorCodes.NotFound);
 
-        if (conversation.UserId != userId)
+        if (conversation.UserId != effectiveUserId)
         {
             throw new BusinessException("ConversationForbidden", ErrorCodes.Forbidden);
         }
@@ -184,7 +188,8 @@ public sealed class AgentChatService : IAgentChatService
     {
         var agent = await _agentRepository.FindByIdAsync(tenantId, agentId, cancellationToken)
             ?? throw new BusinessException("AgentNotFound", ErrorCodes.NotFound);
-        var conversation = await EnsureConversationAsync(tenantId, userId, agent, request, cancellationToken);
+        var effectiveUserId = await _conversationOwnerResolver.ResolveAsync(tenantId, userId, cancellationToken);
+        var conversation = await EnsureConversationAsync(tenantId, effectiveUserId, agent, request, cancellationToken);
 
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         while (true)

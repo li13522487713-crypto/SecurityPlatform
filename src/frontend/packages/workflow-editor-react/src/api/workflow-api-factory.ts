@@ -442,7 +442,7 @@ function toBackendCanvasJson(editorCanvasJson: string): string {
   }
 
   if (isEditorCanvasPayload(parsed)) {
-    return JSON.stringify(normalizeEditorCanvasPayload(parsed));
+    parsed = normalizeEditorCanvasPayload(parsed);
   }
 
   if (isLegacyBackendCanvasPayload(parsed)) {

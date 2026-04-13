@@ -20,7 +20,7 @@ export interface ConversationDto {
 
 export interface ChatMessageDto {
   id: SnowflakeId;
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
   metadata?: string;
   createdAt: string;
@@ -126,6 +126,29 @@ export async function getMessages(
   );
   if (!response.data) throw new Error(response.message || "Failed to query messages");
   return response.data;
+}
+
+export async function appendConversationMessage(
+  appKey: string,
+  conversationId: SnowflakeId,
+  request: {
+    role: "system" | "user" | "assistant" | "tool";
+    content: string;
+    metadata?: string;
+  }
+): Promise<string> {
+  const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>(
+    `${convBase(appKey)}/${conversationId}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success || !response.data) {
+    throw new Error(response.message || "Failed to append conversation message");
+  }
+
+  return response.data.id ?? response.data.Id ?? "";
 }
 
 export function createAgentChatStream(

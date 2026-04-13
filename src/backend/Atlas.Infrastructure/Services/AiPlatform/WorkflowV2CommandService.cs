@@ -8,6 +8,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using System.Text.Json;
+using Atlas.Infrastructure.Services.WorkflowEngine;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -144,7 +145,8 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
 
-        draft.Save(request.CanvasJson, request.CommitId);
+        var normalizedCanvasJson = WorkflowCanvasJsonBridge.NormalizeToBackendCanvasJson(request.CanvasJson);
+        draft.Save(normalizedCanvasJson, request.CommitId);
         await _draftRepo.UpdateAsync(draft, cancellationToken);
     }
 
@@ -167,7 +169,14 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
 
-        var canvasValidation = _canvasValidator.ValidateCanvas(draft.CanvasJson);
+        var normalizedDraftCanvasJson = WorkflowCanvasJsonBridge.NormalizeToBackendCanvasJson(draft.CanvasJson);
+        if (!string.Equals(normalizedDraftCanvasJson, draft.CanvasJson, StringComparison.Ordinal))
+        {
+            draft.Save(normalizedDraftCanvasJson, draft.CommitId);
+            await _draftRepo.UpdateAsync(draft, cancellationToken);
+        }
+
+        var canvasValidation = _canvasValidator.ValidateCanvas(normalizedDraftCanvasJson);
         if (!canvasValidation.IsValid)
         {
             var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));
@@ -176,7 +185,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
 
         var newVersionNumber = meta.LatestVersionNumber + 1;
         var version = new WorkflowVersion(
-            tenantId, meta.Id, newVersionNumber, draft.CanvasJson, request.ChangeLog, userId, _idGenerator.NextId());
+            tenantId, meta.Id, newVersionNumber, normalizedDraftCanvasJson, request.ChangeLog, userId, _idGenerator.NextId());
         await _versionRepo.AddAsync(version, cancellationToken);
 
         meta.MarkPublished(newVersionNumber);
@@ -204,7 +213,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         var newMeta = new WorkflowMeta(tenantId, $"{meta.Name}-副本", meta.Description, meta.Mode, creatorId, newMetaId);
         await _metaRepo.AddAsync(newMeta, cancellationToken);
 
-        var canvasJson = draft?.CanvasJson ?? StarterCanvasJson;
+        var canvasJson = WorkflowCanvasJsonBridge.NormalizeToBackendCanvasJson(draft?.CanvasJson ?? StarterCanvasJson);
         var newDraft = new WorkflowDraft(tenantId, newMetaId, canvasJson, _idGenerator.NextId());
         await _draftRepo.AddAsync(newDraft, cancellationToken);
 
@@ -227,14 +236,15 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
 
         var newVersionNumber = meta.LatestVersionNumber + 1;
         var rollbackChangeLog = $"回滚至版本 v{targetVersion.VersionNumber}";
+        var normalizedCanvasJson = WorkflowCanvasJsonBridge.NormalizeToBackendCanvasJson(targetVersion.CanvasJson);
         var newVersion = new WorkflowVersion(
-            tenantId, workflowId, newVersionNumber, targetVersion.CanvasJson, rollbackChangeLog, userId, _idGenerator.NextId());
+            tenantId, workflowId, newVersionNumber, normalizedCanvasJson, rollbackChangeLog, userId, _idGenerator.NextId());
         await _versionRepo.AddAsync(newVersion, cancellationToken);
 
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
         if (draft is not null)
         {
-            draft.Save(targetVersion.CanvasJson, newVersion.Id.ToString());
+            draft.Save(normalizedCanvasJson, newVersion.Id.ToString());
             await _draftRepo.UpdateAsync(draft, cancellationToken);
         }
 

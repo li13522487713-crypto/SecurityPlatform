@@ -159,6 +159,80 @@
   flex: 1;
 }
 
+.module-studio__workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr) minmax(280px, 320px);
+  gap: 18px;
+  align-items: start;
+}
+
+.module-studio__ide-panel,
+.module-studio__workbench-main {
+  min-width: 0;
+}
+
+.module-studio__message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 320px;
+  max-height: 560px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.module-studio__message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.96);
+}
+
+.module-studio__message--assistant {
+  background: rgba(239, 246, 255, 0.98);
+}
+
+.module-studio__message--tool {
+  background: rgba(240, 253, 244, 0.98);
+}
+
+.module-studio__message-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.module-studio__message-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  color: rgba(15, 23, 42, 0.86);
+}
+
+.module-studio__trace-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.module-studio__trace-step {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.92);
+  font-size: 12px;
+}
+
 .module-studio__ide-sidecard {
   display: flex;
   flex-direction: column;
@@ -182,6 +256,10 @@
   }
 
   .module-studio__model-dialog {
+    grid-template-columns: 1fr;
+  }
+
+  .module-studio__workbench-grid {
     grid-template-columns: 1fr;
   }
 

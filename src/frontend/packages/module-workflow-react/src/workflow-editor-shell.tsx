@@ -12,6 +12,7 @@ import type { WorkflowPageProps, WorkflowResourceMode } from "./types";
 interface WorkflowEditorShellProps extends WorkflowPageProps {
   workflowId: string;
   onBack: () => void;
+  backPath?: string;
   mode?: WorkflowResourceMode;
 }
 
@@ -108,6 +109,7 @@ export function WorkflowEditorShell({
   api,
   workflowId,
   onBack,
+  backPath,
   mode = "workflow"
 }: WorkflowEditorShellProps) {
   const apiClient = api.apiClient;
@@ -264,6 +266,15 @@ export function WorkflowEditorShell({
     }
   }
 
+  function handleBack() {
+    if (backPath) {
+      window.location.assign(backPath);
+      return;
+    }
+
+    onBack();
+  }
+
   return (
     <section className="module-workflow__shell" data-testid={mode === "chatflow" ? "app-chatflow-editor-shell" : "app-workflow-editor-shell"}>
       <div className="module-workflow__editor-banner">
@@ -276,7 +287,7 @@ export function WorkflowEditorShell({
           </Typography.Text>
         </div>
         <Space wrap>
-          <Button onClick={onBack} data-testid="workflow.detail.title.back">返回列表</Button>
+          <Button htmlType="button" onClick={handleBack} data-testid="workflow.detail.title.back">返回列表</Button>
           <Button onClick={() => void handleValidate()}>校验</Button>
           <Button loading={saving} onClick={() => void handleSave()} data-testid="workflow.detail.title.save-draft">
             保存草稿

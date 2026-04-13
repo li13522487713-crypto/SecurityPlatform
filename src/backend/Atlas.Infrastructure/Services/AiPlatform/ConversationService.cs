@@ -1,12 +1,11 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
-using Atlas.Application.Identity.Abstractions;
-using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Core.Utilities;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Repositories;
 using ChatMessageEntity = Atlas.Domain.AiPlatform.Entities.ChatMessage;
@@ -18,30 +17,24 @@ public sealed class ConversationService : IConversationService
     private readonly ConversationRepository _conversationRepository;
     private readonly ChatMessageRepository _chatMessageRepository;
     private readonly AgentRepository _agentRepository;
+    private readonly IConversationOwnerResolver _conversationOwnerResolver;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IAppContextAccessor _appContextAccessor;
-    private readonly ITenantDataScopeFilter _tenantDataScopeFilter;
-    private readonly IAppDataScopeFilter _appDataScopeFilter;
 
     public ConversationService(
         ConversationRepository conversationRepository,
         ChatMessageRepository chatMessageRepository,
         AgentRepository agentRepository,
+        IConversationOwnerResolver conversationOwnerResolver,
         IIdGeneratorAccessor idGeneratorAccessor,
-        IUnitOfWork unitOfWork,
-        IAppContextAccessor appContextAccessor,
-        ITenantDataScopeFilter tenantDataScopeFilter,
-        IAppDataScopeFilter appDataScopeFilter)
+        IUnitOfWork unitOfWork)
     {
         _conversationRepository = conversationRepository;
         _chatMessageRepository = chatMessageRepository;
         _agentRepository = agentRepository;
+        _conversationOwnerResolver = conversationOwnerResolver;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
-        _appContextAccessor = appContextAccessor;
-        _tenantDataScopeFilter = tenantDataScopeFilter;
-        _appDataScopeFilter = appDataScopeFilter;
     }
 
     public async Task<long> CreateAsync(
@@ -59,10 +52,11 @@ public sealed class ConversationService : IConversationService
         var title = string.IsNullOrWhiteSpace(request.Title)
             ? $"与 {agent.Name} 的会话"
             : request.Title.Trim();
+        var effectiveUserId = await _conversationOwnerResolver.ResolveAsync(tenantId, userId, cancellationToken);
         var entity = new Conversation(
             tenantId,
             request.AgentId,
-            userId,
+            effectiveUserId,
             title,
             _idGeneratorAccessor.NextId());
 
@@ -78,7 +72,7 @@ public sealed class ConversationService : IConversationService
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
+        var effectiveUserId = await _conversationOwnerResolver.ResolveAsync(tenantId, userId, cancellationToken);
         var (items, total) = await _conversationRepository.GetPagedByAgentAsync(
             tenantId,
             agentId,
@@ -96,7 +90,7 @@ public sealed class ConversationService : IConversationService
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
+        var effectiveUserId = await _conversationOwnerResolver.ResolveAsync(tenantId, userId, cancellationToken);
         var (items, total) = await _conversationRepository.GetPagedByUserAsync(
             tenantId,
             effectiveUserId,
@@ -112,7 +106,7 @@ public sealed class ConversationService : IConversationService
         long conversationId,
         CancellationToken cancellationToken)
     {
-        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
+        var effectiveUserId = await _conversationOwnerResolver.ResolveAsync(tenantId, userId, cancellationToken);
         var entity = await _conversationRepository.FindByIdAsync(tenantId, conversationId, cancellationToken);
         if (entity is not null && entity.UserId != effectiveUserId)
         {
@@ -196,6 +190,33 @@ public sealed class ConversationService : IConversationService
         return filtered.Select(MapMessage).ToList();
     }
 
+    public async Task<long> AppendMessageAsync(
+        TenantId tenantId,
+        long userId,
+        long conversationId,
+        ConversationAppendMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var conversation = await RequireConversationAsync(tenantId, userId, conversationId, cancellationToken);
+        var entity = new ChatMessageEntity(
+            tenantId,
+            conversationId,
+            request.Role.Trim().ToLowerInvariant(),
+            request.Content.Trim(),
+            string.IsNullOrWhiteSpace(request.Metadata) ? null : request.Metadata.Trim(),
+            isContextCleared: false,
+            _idGeneratorAccessor.NextId());
+
+        conversation.AddMessage(entity.CreatedAt);
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await _chatMessageRepository.AddAsync(entity, cancellationToken);
+            await _conversationRepository.UpdateAsync(conversation, cancellationToken);
+        }, cancellationToken);
+
+        return entity.Id;
+    }
+
     public async Task DeleteMessageAsync(
         TenantId tenantId,
         long userId,
@@ -234,7 +255,7 @@ public sealed class ConversationService : IConversationService
         long conversationId,
         CancellationToken cancellationToken)
     {
-        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
+        var effectiveUserId = await _conversationOwnerResolver.ResolveAsync(tenantId, userId, cancellationToken);
         var conversation = await _conversationRepository.FindByIdAsync(tenantId, conversationId, cancellationToken)
             ?? throw new BusinessException("ConversationNotFound", ErrorCodes.NotFound);
         if (conversation.UserId != effectiveUserId)
@@ -244,33 +265,6 @@ public sealed class ConversationService : IConversationService
 
         return conversation;
     }
-
-    private async Task<long?> ResolveDataScopeOwnerUserIdAsync(CancellationToken cancellationToken)
-    {
-        var appId = _appContextAccessor.ResolveAppId();
-        if (appId is > 0)
-        {
-            return await _appDataScopeFilter.GetOwnerFilterIdAsync(appId.Value, cancellationToken);
-        }
-
-        return await _tenantDataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// 平台级 <see cref="ITenantDataScopeFilter"/> 与应用级 <see cref="IAppDataScopeFilter"/> 的仅本人范围需与请求用户一致；
-    /// 命中时查询与校验均使用数据权限要求的用户 ID（对话创建者 <see cref="Conversation.UserId"/>）。
-    /// </summary>
-    private async Task<long> RequireEffectiveConversationUserIdAsync(long userId, CancellationToken cancellationToken)
-    {
-        var ownerFilter = await ResolveDataScopeOwnerUserIdAsync(cancellationToken);
-        if (ownerFilter.HasValue && userId != ownerFilter.Value)
-        {
-            throw new BusinessException("NoPermissionAccessConversation", ErrorCodes.Forbidden);
-        }
-
-        return ownerFilter ?? userId;
-    }
-
     private static ConversationDto MapConversation(Conversation entity)
         => new(
             entity.Id,
@@ -286,7 +280,19 @@ public sealed class ConversationService : IConversationService
             entity.Id,
             entity.Role,
             entity.Content,
-            entity.Metadata,
+            NormalizeMetadata(entity.Metadata),
             entity.CreatedAt,
             entity.IsContextCleared);
+
+    private static string? NormalizeMetadata(string? metadata)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+        {
+            return metadata;
+        }
+
+        return StructuredJsonStringUtility.TryNormalizeJsonString(metadata, out var normalizedJson)
+            ? normalizedJson
+            : metadata;
+    }
 }

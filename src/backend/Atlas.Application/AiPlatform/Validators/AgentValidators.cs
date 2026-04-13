@@ -13,6 +13,8 @@ public sealed class AgentCreateRequestValidator : AbstractValidator<AgentCreateR
         RuleFor(x => x.ModelName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.ModelName));
         RuleFor(x => x.Temperature).InclusiveBetween(0f, 2f).When(x => x.Temperature.HasValue);
         RuleFor(x => x.MaxTokens).InclusiveBetween(1, 128000).When(x => x.MaxTokens.HasValue);
+        RuleFor(x => x.DefaultWorkflowId).GreaterThan(0).When(x => x.DefaultWorkflowId.HasValue);
+        RuleFor(x => x.DefaultWorkflowName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.DefaultWorkflowName));
         RuleFor(x => x.LongTermMemoryTopK).InclusiveBetween(1, 10).When(x => x.LongTermMemoryTopK.HasValue);
     }
 }
@@ -38,7 +40,17 @@ public sealed class AgentUpdateRequestValidator : AbstractValidator<AgentUpdateR
         RuleFor(x => x.ModelName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.ModelName));
         RuleFor(x => x.Temperature).InclusiveBetween(0f, 2f).When(x => x.Temperature.HasValue);
         RuleFor(x => x.MaxTokens).InclusiveBetween(1, 128000).When(x => x.MaxTokens.HasValue);
+        RuleFor(x => x.DefaultWorkflowId).GreaterThan(0).When(x => x.DefaultWorkflowId.HasValue);
+        RuleFor(x => x.DefaultWorkflowName).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.DefaultWorkflowName));
         RuleFor(x => x.LongTermMemoryTopK).InclusiveBetween(1, 10).When(x => x.LongTermMemoryTopK.HasValue);
         RuleForEach(x => x.PluginBindings).SetValidator(new AgentPluginBindingInputValidator());
+    }
+}
+
+public sealed class WorkflowBindingUpdateRequestValidator : AbstractValidator<WorkflowBindingUpdateRequest>
+{
+    public WorkflowBindingUpdateRequestValidator()
+    {
+        RuleFor(x => x.WorkflowId).GreaterThan(0).When(x => x.WorkflowId.HasValue);
     }
 }

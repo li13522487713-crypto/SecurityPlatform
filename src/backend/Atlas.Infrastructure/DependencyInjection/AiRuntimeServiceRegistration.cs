@@ -38,6 +38,7 @@ public static class AiRuntimeServiceRegistration
         services.AddScoped<IExecutionRunRepository>(sp => sp.GetRequiredService<ExecutionRunRepository>());
         services.AddScoped<INodeRunRepository>(sp => sp.GetRequiredService<NodeRunRepository>());
 
+        services.AddScoped<IConversationOwnerResolver, ConversationOwnerResolver>();
         services.AddScoped<IAgentChatService, AgentChatService>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IMultiAgentOrchestrationService, MultiAgentOrchestrationService>();

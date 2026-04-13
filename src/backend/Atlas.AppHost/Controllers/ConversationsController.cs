@@ -20,19 +20,22 @@ public sealed class ConversationsController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<ConversationCreateRequest> _createValidator;
     private readonly IValidator<ConversationUpdateRequest> _updateValidator;
+    private readonly IValidator<ConversationAppendMessageRequest> _appendValidator;
 
     public ConversationsController(
         IConversationService conversationService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<ConversationCreateRequest> createValidator,
-        IValidator<ConversationUpdateRequest> updateValidator)
+        IValidator<ConversationUpdateRequest> updateValidator,
+        IValidator<ConversationAppendMessageRequest> appendValidator)
     {
         _conversationService = conversationService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _appendValidator = appendValidator;
     }
 
     [HttpGet]
@@ -164,6 +167,20 @@ public sealed class ConversationsController : ControllerBase
             limit,
             cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<ChatMessageDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/messages")]
+    [Authorize(Policy = PermissionPolicies.ConversationCreate)]
+    public async Task<ActionResult<ApiResponse<object>>> AppendMessage(
+        long id,
+        [FromBody] ConversationAppendMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        _appendValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var messageId = await _conversationService.AppendMessageAsync(tenantId, userId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = messageId.ToString() }, HttpContext.TraceIdentifier));
     }
 
     [HttpDelete("{id:long}/messages/{msgId:long}")]
