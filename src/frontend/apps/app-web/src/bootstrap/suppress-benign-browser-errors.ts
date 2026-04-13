@@ -1,7 +1,8 @@
 const BENIGN_BROWSER_WARNINGS = [
   "findDOMNode is deprecated and will be removed in the next major release.",
   "ResizeObserver loop completed with undelivered notifications.",
-  "ResizeObserver loop limit exceeded"
+  "ResizeObserver loop limit exceeded",
+  "React Router Future Flag Warning"
 ];
 
 declare global {

@@ -48,7 +48,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
       setAppKey(nextAppKey);
       rememberConfiguredAppKey(nextAppKey);
 
-      if (nextAppKey) {
+      if (nextPlatformReady && nextAppReady && nextAppKey) {
         setWorkspaceLabel(nextAppKey);
         try {
           const resolvedAppInstanceId = await getAppInstanceIdByAppKey(nextAppKey);
@@ -57,6 +57,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
           setAppInstanceId(null);
         }
       } else {
+        setWorkspaceLabel(nextAppKey || "Workspace");
         setAppInstanceId(null);
       }
     } catch {

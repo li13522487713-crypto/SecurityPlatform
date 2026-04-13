@@ -294,7 +294,7 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     expect(appPositionsCreated).toBeGreaterThan(0);
 
     await page.getByTestId("app-setup-enter-workspace").click();
-    await page.waitForURL(/http:\/\/127\.0\.0\.1:5181\/apps\/[^/]+\/login/);
+    await page.waitForURL(/http:\/\/127\.0\.0\.1:5181\/apps\/[^/]+\/sign/);
 
     await expect
       .poll(async () => {
