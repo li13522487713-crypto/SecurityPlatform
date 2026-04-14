@@ -2,6 +2,7 @@
   min-height: 100vh;
   display: grid;
   grid-template-columns: 88px 288px minmax(0, 1fr);
+  grid-template-areas: "primary secondary content";
   background:
     radial-gradient(circle at top left, rgba(47, 129, 247, 0.14), transparent 24%),
     linear-gradient(180deg, #f4f8ff 0%, #f7f8fb 40%, #fbfbfd 100%);
@@ -9,6 +10,7 @@
 }
 
 .coze-shell__primary {
+  grid-area: primary;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -75,6 +77,9 @@
 .coze-shell__primary-item-label {
   font-size: 12px;
   line-height: 16px;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .coze-shell__primary-item-badge {
@@ -85,6 +90,7 @@
 }
 
 .coze-shell__secondary {
+  grid-area: secondary;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -129,6 +135,8 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #64748b;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .coze-shell__section-items {
@@ -138,9 +146,9 @@
 }
 
 .coze-shell__secondary-item {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
+  width: 100%;
   min-height: 40px;
   gap: 10px;
   padding: 0 10px;
@@ -186,16 +194,30 @@
 }
 
 .coze-shell__secondary-item-icon {
+  flex: 0 0 20px;
+  width: 20px;
+  min-width: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .coze-shell__secondary-item-label {
+  flex: 1 1 auto;
+  min-width: 0;
   text-align: left;
+  line-height: 20px;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.coze-shell__secondary-item .semi-tag {
+  flex: 0 0 auto;
 }
 
 .coze-shell__content {
+  grid-area: content;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -256,9 +278,94 @@
 @media (max-width: 1200px) {
   .coze-shell {
     grid-template-columns: 80px 236px minmax(0, 1fr);
+    grid-template-areas: "primary secondary content";
   }
 
   .coze-shell__section {
     padding: 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  .coze-shell {
+    grid-template-columns: 76px minmax(0, 1fr);
+    grid-template-areas:
+      "primary secondary"
+      "primary content";
+  }
+
+  .coze-shell__primary {
+    gap: 16px;
+    padding: 16px 10px;
+  }
+
+  .coze-shell__brand-copy,
+  .coze-shell__primary-item-label,
+  .coze-shell__primary-item-badge {
+    display: none;
+  }
+
+  .coze-shell__primary-item {
+    gap: 0;
+    min-height: 44px;
+    padding: 10px 6px;
+  }
+
+  .coze-shell__secondary {
+    min-width: 0;
+    padding: 18px 12px 14px;
+  }
+
+  .coze-shell__secondary-header {
+    padding-inline: 4px;
+  }
+
+  .coze-shell__section {
+    padding: 12px 4px 0;
+  }
+
+  .coze-shell__secondary-item {
+    min-height: 38px;
+    padding: 0 8px;
+  }
+
+  .coze-shell__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 20px 20px 14px;
+  }
+
+  .coze-shell__main {
+    padding: 0 20px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .coze-shell {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+
+  .coze-shell__primary {
+    padding-inline: 8px;
+  }
+
+  .coze-shell__back {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+  }
+
+  .coze-shell__secondary {
+    padding-inline: 10px;
+  }
+
+  .coze-shell__section-overflow {
+    padding-left: 10px;
+  }
+
+  .coze-shell__header,
+  .coze-shell__main {
+    padding-inline: 16px;
   }
 }

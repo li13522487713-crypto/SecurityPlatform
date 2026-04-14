@@ -1092,14 +1092,11 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         }
 
         var roleIds = roles.Select(item => item.Id).ToArray();
-        var permissionsTask = _appRolePermissionRepository.QueryByRoleIdsAsync(tenantId, appId, roleIds, cancellationToken);
-        var userRoleMappingsTask = _appUserRoleRepository.QueryByRoleIdsAsync(tenantId, appId, roleIds, cancellationToken);
-        var appMembersTask = _appMemberRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
-        await Task.WhenAll(permissionsTask, userRoleMappingsTask, appMembersTask);
-
-        var permissions = permissionsTask.Result;
-        var userRoleMappings = userRoleMappingsTask.Result;
-        var appMembers = appMembersTask.Result;
+        // 同一应用库的 SqlSugarScope 在 SQLite 上并发读会放大连接关闭阶段的异常概率，
+        // 治理总览这里改为顺序读取，优先保证查询稳定性。
+        var permissions = await _appRolePermissionRepository.QueryByRoleIdsAsync(tenantId, appId, roleIds, cancellationToken);
+        var userRoleMappings = await _appUserRoleRepository.QueryByRoleIdsAsync(tenantId, appId, roleIds, cancellationToken);
+        var appMembers = await _appMemberRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
 
         var permissionCountByRoleId = permissions
             .GroupBy(item => item.RoleId)

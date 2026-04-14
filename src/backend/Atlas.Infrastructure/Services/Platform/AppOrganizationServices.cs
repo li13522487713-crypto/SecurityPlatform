@@ -33,26 +33,29 @@ public sealed class AppOrganizationQueryService : IAppOrganizationQueryService
         CancellationToken cancellationToken = default)
     {
         var memberQuery = new PagedRequest(request.PageIndex, request.PageSize, request.Keyword);
-        var membersTask = roleId.HasValue
-            ? _memberQueryService.QueryByRoleAsync(tenantId, appId, roleId.Value, memberQuery, cancellationToken)
-            : _memberQueryService.QueryAsync(tenantId, appId, memberQuery, cancellationToken);
-        var roleOverviewTask = _roleQueryService.GetGovernanceOverviewAsync(tenantId, appId, cancellationToken);
-        var rolesTask = _roleQueryService.QueryAsync(tenantId, appId, new PagedRequest(1, 200, null), isSystem: null, cancellationToken);
-        var departmentsTask = _appOrgQueryService.GetAllDepartmentsAsync(tenantId, appId, cancellationToken);
-        var positionsTask = _appOrgQueryService.GetAllPositionsAsync(tenantId, appId, cancellationToken);
-        var projectsTask = _appOrgQueryService.GetAllProjectsAsync(tenantId, appId, cancellationToken);
-
-        await Task.WhenAll(membersTask, roleOverviewTask, rolesTask, departmentsTask, positionsTask, projectsTask);
-
-        var rolesPaged = await rolesTask;
+        // SqlSugarScope + SQLite 在同一应用库连接上并发异步查询时存在稳定性问题，
+        // 这里按顺序装配工作区数据，避免共享连接在 Close() 阶段触发空引用异常。
+        var members = roleId.HasValue
+            ? await _memberQueryService.QueryByRoleAsync(tenantId, appId, roleId.Value, memberQuery, cancellationToken)
+            : await _memberQueryService.QueryAsync(tenantId, appId, memberQuery, cancellationToken);
+        var roleOverview = await _roleQueryService.GetGovernanceOverviewAsync(tenantId, appId, cancellationToken);
+        var rolesPaged = await _roleQueryService.QueryAsync(
+            tenantId,
+            appId,
+            new PagedRequest(1, 200, null),
+            isSystem: null,
+            cancellationToken);
+        var departments = await _appOrgQueryService.GetAllDepartmentsAsync(tenantId, appId, cancellationToken);
+        var positions = await _appOrgQueryService.GetAllPositionsAsync(tenantId, appId, cancellationToken);
+        var projects = await _appOrgQueryService.GetAllProjectsAsync(tenantId, appId, cancellationToken);
         return new AppOrganizationWorkspaceResponse(
             appId.ToString(),
-            await membersTask,
-            await roleOverviewTask,
+            members,
+            roleOverview,
             rolesPaged.Items,
-            await departmentsTask,
-            await positionsTask,
-            await projectsTask);
+            departments,
+            positions,
+            projects);
     }
 }
 
