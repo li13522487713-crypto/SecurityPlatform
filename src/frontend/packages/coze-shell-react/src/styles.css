@@ -87,8 +87,8 @@
 .coze-shell__secondary {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 24px 16px 18px;
+  gap: 14px;
+  padding: 22px 14px 18px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.7));
   border-right: 1px solid rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(18px);
@@ -98,13 +98,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 10px 0;
+  padding: 6px 8px 2px;
 }
 
 .coze-shell__secondary-sections {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
@@ -113,18 +113,20 @@
 .coze-shell__section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: rgba(255, 255, 255, 0.62);
-  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.03);
+  gap: 8px;
+  padding: 14px 8px 0;
+}
+
+.coze-shell__section + .coze-shell__section {
+  margin-top: 14px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .coze-shell__section-title {
-  font-size: 12px;
+  padding: 0 8px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #64748b;
 }
@@ -132,18 +134,18 @@
 .coze-shell__section-items {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .coze-shell__secondary-item {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 42px;
+  min-height: 40px;
   gap: 10px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: #1f2937;
   font-weight: 500;
@@ -152,10 +154,10 @@
 
 .coze-shell__secondary-item:hover,
 .coze-shell__secondary-item.is-active {
-  background: linear-gradient(180deg, rgba(238, 243, 255, 0.96), rgba(232, 240, 255, 0.92));
+  background: linear-gradient(180deg, rgba(241, 245, 255, 0.96), rgba(234, 241, 255, 0.92));
   border-color: rgba(59, 130, 246, 0.18);
   color: #2457d6;
-  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.08);
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.06);
 }
 
 .coze-shell__secondary-item-icon {

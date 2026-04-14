@@ -1589,181 +1589,184 @@ function AppShellRoute() {
     }
   ];
 
-  const secondarySections = primaryKey === "workspace"
-    ? [
+  const workspaceSecondarySections = [
+    {
+      key: "workspace-build",
+      title: locale === "zh-CN" ? "创作与构建" : "Create & Build",
+      items: [
         {
-          key: "workspace-develop",
-          title: locale === "zh-CN" ? "项目开发" : "Project Development",
-          items: [
-            {
-              key: "develop",
-              label: locale === "zh-CN" ? "开发台" : "Develop",
-              icon: navGlyph("D"),
-              badge: "Core",
-              path: workspaceDevelopPath(appKey, bootstrap.spaceId),
-              testId: "app-sidebar-item-develop"
-            },
-            {
-              key: "agents",
-              label: locale === "zh-CN" ? "智能体" : "Agents",
-              icon: navGlyph("A"),
-              path: studioAssistantsPath(appKey),
-              testId: "app-sidebar-item-agents"
-            },
-            {
-              key: "projects",
-              label: locale === "zh-CN" ? "应用" : "Applications",
-              icon: navGlyph("APP"),
-              path: studioAppsPath(appKey),
-              testId: "app-sidebar-item-projects"
-            },
-            {
-              key: "workflow",
-              label: locale === "zh-CN" ? "工作流" : "Workflow",
-              icon: navGlyph("W"),
-              badge: "Flow",
-              path: workflowListPath(appKey),
-              testId: "app-sidebar-item-workflows"
-            },
-            {
-              key: "chatflow",
-              label: locale === "zh-CN" ? "对话流" : "Chatflow",
-              icon: navGlyph("CF"),
-              badge: "Flow",
-              path: `/apps/${encodeURIComponent(appKey)}/chat_flow`,
-              testId: "app-sidebar-item-chatflows"
-            },
-            {
-              key: "plugins",
-              label: locale === "zh-CN" ? "插件" : "Plugins",
-              icon: navGlyph("PL"),
-              path: studioPluginsPath(appKey),
-              testId: "app-sidebar-item-plugins"
-            },
-            {
-              key: "data",
-              label: locale === "zh-CN" ? "数据" : "Data",
-              icon: navGlyph("DT"),
-              path: studioDataPath(appKey),
-              testId: "app-sidebar-item-data"
-            },
-            {
-              key: "knowledge-bases",
-              label: locale === "zh-CN" ? "知识库" : "Knowledge Bases",
-              icon: navGlyph("KB"),
-              path: studioKnowledgeBasesPath(appKey),
-              testId: "app-sidebar-item-knowledge-bases"
-            },
-            {
-              key: "databases",
-              label: locale === "zh-CN" ? "数据库" : "Databases",
-              icon: navGlyph("DBX"),
-              path: studioDatabasesPath(appKey),
-              testId: "app-sidebar-item-databases"
-            },
-            {
-              key: "variables",
-              label: locale === "zh-CN" ? "变量" : "Variables",
-              icon: navGlyph("VAR"),
-              path: studioVariablesPath(appKey),
-              testId: "app-sidebar-item-variables"
-            }
-          ]
+          key: "develop",
+          label: locale === "zh-CN" ? "开发台" : "Develop",
+          icon: navGlyph("D"),
+          path: workspaceDevelopPath(appKey, bootstrap.spaceId),
+          testId: "app-sidebar-item-develop"
         },
         {
-          key: "workspace-resources",
-          title: locale === "zh-CN" ? "资源与调试" : "Resources & Debug",
-          items: [
-            {
-              key: "library",
-              label: locale === "zh-CN" ? "资源库" : "Library",
-              icon: navGlyph("L"),
-              path: studioLibraryPath(appKey),
-              testId: "app-sidebar-item-library"
-            },
-            {
-              key: "chat",
-              label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat",
-              icon: navGlyph("C"),
-              path: workspaceChatPath(appKey, bootstrap.spaceId),
-              testId: "app-sidebar-item-agent-chat"
-            },
-            {
-              key: "assistant",
-              label: locale === "zh-CN" ? "AI 助手" : "AI Assistant",
-              icon: navGlyph("AI"),
-              path: studioAssistantToolsPath(appKey),
-              testId: "app-sidebar-item-ai-assistant"
-            },
-            {
-              key: "model-configs",
-              label: locale === "zh-CN" ? "模型配置" : "Model Configs",
-              icon: navGlyph("M"),
-              path: workspaceModelConfigsPath(appKey, bootstrap.spaceId),
-              testId: "app-sidebar-item-model-configs"
-            }
-          ]
+          key: "agents",
+          label: locale === "zh-CN" ? "智能体" : "Agents",
+          icon: navGlyph("A"),
+          path: studioAssistantsPath(appKey),
+          testId: "app-sidebar-item-agents"
         },
         {
-          key: "workspace-organization",
-          title: locale === "zh-CN" ? "组织架构" : "Organization",
-          items: [
-            { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
-            { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
-            { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
-            { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
-            { key: "positions", label: locale === "zh-CN" ? "岗位管理" : "Positions", icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
-          ]
+          key: "projects",
+          label: locale === "zh-CN" ? "应用" : "Applications",
+          icon: navGlyph("APP"),
+          path: studioAppsPath(appKey),
+          testId: "app-sidebar-item-projects"
         },
         {
-          key: "workspace-operations",
-          title: locale === "zh-CN" ? "平台运营" : "Operations",
-          items: [
-            { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
-            { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", icon: navGlyph("RP"), path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
-            { key: "dashboards", label: locale === "zh-CN" ? "仪表盘" : "Dashboards", icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
-            { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Monitoring", icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" }
-          ]
+          key: "workflow",
+          label: locale === "zh-CN" ? "工作流" : "Workflow",
+          icon: navGlyph("W"),
+          path: workflowListPath(appKey),
+          testId: "app-sidebar-item-workflows"
         },
         {
-          key: "workspace-personal",
-          title: locale === "zh-CN" ? "个人与设置" : "Personal & Settings",
-          items: [
-            { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", icon: navGlyph("S"), path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
-            { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", icon: navGlyph("ME"), path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
-          ]
+          key: "chatflow",
+          label: locale === "zh-CN" ? "对话流" : "Chatflow",
+          icon: navGlyph("CF"),
+          path: `/apps/${encodeURIComponent(appKey)}/chat_flow`,
+          testId: "app-sidebar-item-chatflows"
         }
       ]
+    },
+    {
+      key: "workspace-resources",
+      title: locale === "zh-CN" ? "资源与运行" : "Resources & Runtime",
+      items: [
+        {
+          key: "library",
+          label: locale === "zh-CN" ? "资源库" : "Library",
+          icon: navGlyph("L"),
+          path: studioLibraryPath(appKey),
+          testId: "app-sidebar-item-library"
+        },
+        {
+          key: "plugins",
+          label: locale === "zh-CN" ? "插件" : "Plugins",
+          icon: navGlyph("PL"),
+          path: studioPluginsPath(appKey),
+          testId: "app-sidebar-item-plugins"
+        },
+        {
+          key: "data",
+          label: locale === "zh-CN" ? "数据" : "Data",
+          icon: navGlyph("DT"),
+          path: studioDataPath(appKey),
+          testId: "app-sidebar-item-data"
+        },
+        {
+          key: "knowledge-bases",
+          label: locale === "zh-CN" ? "知识库" : "Knowledge Bases",
+          icon: navGlyph("KB"),
+          path: studioKnowledgeBasesPath(appKey),
+          testId: "app-sidebar-item-knowledge-bases"
+        },
+        {
+          key: "databases",
+          label: locale === "zh-CN" ? "数据库" : "Databases",
+          icon: navGlyph("DBX"),
+          path: studioDatabasesPath(appKey),
+          testId: "app-sidebar-item-databases"
+        },
+        {
+          key: "variables",
+          label: locale === "zh-CN" ? "变量" : "Variables",
+          icon: navGlyph("VAR"),
+          path: studioVariablesPath(appKey),
+          testId: "app-sidebar-item-variables"
+        },
+        {
+          key: "chat",
+          label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat",
+          icon: navGlyph("C"),
+          path: workspaceChatPath(appKey, bootstrap.spaceId),
+          testId: "app-sidebar-item-agent-chat"
+        },
+        {
+          key: "assistant",
+          label: locale === "zh-CN" ? "AI 助手" : "AI Assistant",
+          icon: navGlyph("AI"),
+          path: studioAssistantToolsPath(appKey),
+          testId: "app-sidebar-item-ai-assistant"
+        },
+        {
+          key: "model-configs",
+          label: locale === "zh-CN" ? "模型配置" : "Model Configs",
+          icon: navGlyph("M"),
+          path: workspaceModelConfigsPath(appKey, bootstrap.spaceId),
+          testId: "app-sidebar-item-model-configs"
+        }
+      ]
+    },
+    {
+      key: "workspace-governance",
+      title: locale === "zh-CN" ? "团队与治理" : "Team & Governance",
+      items: [
+        { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
+        { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
+        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
+        { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
+        { key: "positions", label: locale === "zh-CN" ? "岗位管理" : "Positions", icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" },
+        { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
+        { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", icon: navGlyph("RP"), path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
+        { key: "dashboards", label: locale === "zh-CN" ? "仪表盘" : "Dashboards", icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
+        { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Monitoring", icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" },
+        { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", icon: navGlyph("S"), path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
+        { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", icon: navGlyph("ME"), path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
+      ]
+    }
+  ];
+
+  const exploreSecondarySections = [
+    {
+      key: "explore",
+      title: locale === "zh-CN" ? "探索与模板" : "Explore & Templates",
+      items: [
+        { key: "plugin", label: locale === "zh-CN" ? "插件商店" : "Plugin Store", path: explorePath(appKey, "plugin"), testId: "app-sidebar-item-explore-plugins" },
+        { key: "template", label: locale === "zh-CN" ? "模板商店" : "Template Store", path: explorePath(appKey, "template"), testId: "app-sidebar-item-explore-templates" }
+      ]
+    }
+  ];
+
+  const adminSecondarySections = [
+    {
+      key: "admin-organization",
+      title: locale === "zh-CN" ? "组织与权限" : "Org & Access",
+      items: [
+        { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
+        { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
+        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
+        { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
+        { key: "positions", label: locale === "zh-CN" ? "职位管理" : "Positions", path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
+      ]
+    },
+    {
+      key: "admin-operations",
+      title: locale === "zh-CN" ? "运营与监控" : "Operations & Monitoring",
+      items: [
+        { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
+        { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
+        { key: "dashboards", label: locale === "zh-CN" ? "仪表盘管理" : "Dashboards", path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
+        { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Visualization", path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" }
+      ]
+    },
+    {
+      key: "admin-settings",
+      title: locale === "zh-CN" ? "个人与设置" : "Personal & Settings",
+      items: [
+        { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
+        { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
+      ]
+    }
+  ];
+
+  const secondarySections = primaryKey === "workspace"
+    ? workspaceSecondarySections
     : primaryKey === "explore"
-      ? [
-          {
-            key: "explore",
-            title: locale === "zh-CN" ? "探索" : "Explore",
-            items: [
-              { key: "plugin", label: locale === "zh-CN" ? "插件商店" : "Plugin Store", path: explorePath(appKey, "plugin"), testId: "app-sidebar-item-explore-plugins" },
-              { key: "template", label: locale === "zh-CN" ? "模板商店" : "Template Store", path: explorePath(appKey, "template"), testId: "app-sidebar-item-explore-templates" }
-            ]
-          }
-        ]
-      : [
-          {
-            key: "admin",
-            title: locale === "zh-CN" ? "管理" : "Management",
-            items: [
-              { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
-              { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
-              { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
-              { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
-              { key: "positions", label: locale === "zh-CN" ? "职位管理" : "Positions", path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" },
-              { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
-              { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
-              { key: "dashboards", label: locale === "zh-CN" ? "仪表盘管理" : "Dashboards", path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
-              { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Visualization", path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" },
-              { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
-              { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
-            ]
-          }
-        ];
+      ? exploreSecondarySections
+      : adminSecondarySections;
 
   const activeSecondaryItem = secondarySections
     .flatMap(section => section.items)

@@ -128,6 +128,9 @@ test.describe.serial("@smoke App Navigation", () => {
   test("app navigation should render in zh-CN", async ({ page }) => {
     await seedLocale(page, "zh-CN");
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
+    await expect(page.getByText("创作与构建")).toBeVisible();
+    await expect(page.getByText("资源与运行")).toBeVisible();
+    await expect(page.getByText("团队与治理")).toBeVisible();
     await expect(page.getByTestId("app-sidebar-item-develop")).toContainText("开发台");
     await expect(page.getByTestId("app-sidebar-item-library")).toContainText("资源库");
     await expect(page.getByTestId("app-sidebar-item-agent-chat")).toContainText("Agent 对话");
@@ -139,6 +142,9 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-organization-overview")).toContainText("组织概览");
 
     await page.getByTestId("app-primary-item-admin").click();
+    await expect(page.getByText("组织与权限")).toBeVisible();
+    await expect(page.getByText("运营与监控")).toBeVisible();
+    await expect(page.getByText("个人与设置")).toBeVisible();
     await expect(page.getByTestId("app-sidebar-item-users")).toContainText("用户");
     await expect(page.getByTestId("app-sidebar-item-roles")).toContainText("角色");
     await expect(page.getByTestId("app-sidebar-item-departments")).toContainText("部门");
@@ -150,6 +156,7 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
 
     await page.getByTestId("app-primary-item-explore").click();
+    await expect(page.getByText("探索与模板")).toBeVisible();
     await expect(page.getByTestId("app-sidebar-item-explore-plugins")).toContainText("插件商店");
     await expect(page.getByTestId("app-sidebar-item-explore-templates")).toContainText("模板商店");
   });
