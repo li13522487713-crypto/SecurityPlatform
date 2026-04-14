@@ -1609,18 +1609,22 @@ function AppShellRoute() {
           testId: "app-sidebar-item-agents"
         },
         {
-          key: "projects",
-          label: locale === "zh-CN" ? "应用" : "Applications",
-          icon: navGlyph("APP"),
-          path: studioAppsPath(appKey),
-          testId: "app-sidebar-item-projects"
-        },
-        {
           key: "workflow",
           label: locale === "zh-CN" ? "工作流" : "Workflow",
           icon: navGlyph("W"),
           path: workflowListPath(appKey),
           testId: "app-sidebar-item-workflows"
+        }
+      ],
+      overflowLabel: locale === "zh-CN" ? "更多" : "More",
+      overflowTestId: "app-sidebar-section-more-workspace-build",
+      overflowItems: [
+        {
+          key: "projects",
+          label: locale === "zh-CN" ? "应用" : "Applications",
+          icon: navGlyph("APP"),
+          path: studioAppsPath(appKey),
+          testId: "app-sidebar-item-projects"
         },
         {
           key: "chatflow",
@@ -1650,6 +1654,31 @@ function AppShellRoute() {
           testId: "app-sidebar-item-plugins"
         },
         {
+          key: "chat",
+          label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat",
+          icon: navGlyph("C"),
+          path: workspaceChatPath(appKey, bootstrap.spaceId),
+          testId: "app-sidebar-item-agent-chat"
+        },
+        {
+          key: "model-configs",
+          label: locale === "zh-CN" ? "模型配置" : "Model Configs",
+          icon: navGlyph("M"),
+          path: workspaceModelConfigsPath(appKey, bootstrap.spaceId),
+          testId: "app-sidebar-item-model-configs"
+        }
+      ],
+      overflowLabel: locale === "zh-CN" ? "更多" : "More",
+      overflowTestId: "app-sidebar-section-more-workspace-resources",
+      overflowItems: [
+        {
+          key: "assistant",
+          label: locale === "zh-CN" ? "AI 助手" : "AI Assistant",
+          icon: navGlyph("AI"),
+          path: studioAssistantToolsPath(appKey),
+          testId: "app-sidebar-item-ai-assistant"
+        },
+        {
           key: "data",
           label: locale === "zh-CN" ? "数据" : "Data",
           icon: navGlyph("DT"),
@@ -1676,27 +1705,6 @@ function AppShellRoute() {
           icon: navGlyph("VAR"),
           path: studioVariablesPath(appKey),
           testId: "app-sidebar-item-variables"
-        },
-        {
-          key: "chat",
-          label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat",
-          icon: navGlyph("C"),
-          path: workspaceChatPath(appKey, bootstrap.spaceId),
-          testId: "app-sidebar-item-agent-chat"
-        },
-        {
-          key: "assistant",
-          label: locale === "zh-CN" ? "AI 助手" : "AI Assistant",
-          icon: navGlyph("AI"),
-          path: studioAssistantToolsPath(appKey),
-          testId: "app-sidebar-item-ai-assistant"
-        },
-        {
-          key: "model-configs",
-          label: locale === "zh-CN" ? "模型配置" : "Model Configs",
-          icon: navGlyph("M"),
-          path: workspaceModelConfigsPath(appKey, bootstrap.spaceId),
-          testId: "app-sidebar-item-model-configs"
         }
       ]
     },
@@ -1776,12 +1784,263 @@ function AppShellRoute() {
     .flatMap(section => [...section.items, ...(section.overflowItems ?? [])])
     .find(item => activeShellPath === item.path || activeShellPath.startsWith(`${item.path}/`) || activeShellPath.includes(item.path));
 
-  const headerTitle = activeSecondaryItem?.label
-    ?? (primaryKey === "workspace"
-      ? (locale === "zh-CN" ? "工作空间" : "Workspace")
-      : primaryKey === "explore"
-        ? (locale === "zh-CN" ? "探索" : "Explore")
-        : (locale === "zh-CN" ? "管理" : "Management"));
+  const workspaceLabel = bootstrap.workspaceLabel || appKey;
+
+  const shellHeaderCopyMap: Record<string, { title: string; subtitle: string }> = locale === "zh-CN"
+    ? {
+        develop: {
+          title: "AI 工作台",
+          subtitle: `从 ${workspaceLabel} 继续创作、调试与发布你的 AI 资产。`
+        },
+        agents: {
+          title: "智能体创作",
+          subtitle: "设计角色、工具、记忆与调试链路，持续打磨智能体体验。"
+        },
+        projects: {
+          title: "应用装配",
+          subtitle: "把智能体与工作流组织成可交付、可发布的应用体验。"
+        },
+        workflow: {
+          title: "工作流编排",
+          subtitle: "连接节点、数据与工具，构建可运行的自动化流程。"
+        },
+        chatflow: {
+          title: "对话流设计",
+          subtitle: "围绕多轮交互编排消息路径、状态流转与用户引导。"
+        },
+        library: {
+          title: "资源接入",
+          subtitle: "统一管理可复用的工具、知识、数据与外部能力。"
+        },
+        plugins: {
+          title: "插件能力",
+          subtitle: "连接外部工具与 API，为智能体和流程提供可调用能力。"
+        },
+        chat: {
+          title: "调试对话",
+          subtitle: "通过真实对话验证 Agent、工具调用与工作流行为。"
+        },
+        "model-configs": {
+          title: "模型接入",
+          subtitle: "管理模型供应商、推理能力与运行策略。"
+        },
+        assistant: {
+          title: "AI 助手",
+          subtitle: "在工作区里完成问答、生成、整理与协作辅助。"
+        },
+        data: {
+          title: "数据资产",
+          subtitle: "集中查看结构化数据、知识与变量等可复用资源。"
+        },
+        "knowledge-bases": {
+          title: "知识库空间",
+          subtitle: "沉淀可被智能体与工作流长期复用的知识内容。"
+        },
+        databases: {
+          title: "数据库连接",
+          subtitle: "管理数据库资源与运行时数据接入。"
+        },
+        variables: {
+          title: "变量配置",
+          subtitle: "维护流程与应用共享的上下文变量和运行参数。"
+        },
+        overview: {
+          title: "团队协作",
+          subtitle: "查看空间成员、权限分工与整体治理状态。"
+        },
+        users: {
+          title: "成员管理",
+          subtitle: "邀请成员并维护工作区访问范围与协作权限。"
+        },
+        roles: {
+          title: "权限策略",
+          subtitle: "通过角色定义协作边界、菜单能力与访问权限。"
+        },
+        departments: {
+          title: "组织结构",
+          subtitle: "维护团队层级、归属关系与组织视图。"
+        },
+        positions: {
+          title: "岗位配置",
+          subtitle: "定义岗位职责并对齐组织内的权限分配。"
+        },
+        approval: {
+          title: "审批协作",
+          subtitle: "跟进业务审批、发布流转与待处理协作任务。"
+        },
+        reports: {
+          title: "运营洞察",
+          subtitle: "查看关键报表、业务趋势与阶段性运营结果。"
+        },
+        dashboards: {
+          title: "指标看板",
+          subtitle: "聚合核心指标，快速把握空间与业务运行态势。"
+        },
+        visualization: {
+          title: "运行观测",
+          subtitle: "监控任务状态、异常波动与运行过程。"
+        },
+        settings: {
+          title: "工作区设置",
+          subtitle: "调整空间规则、偏好与系统配置项。"
+        },
+        profile: {
+          title: "个人中心",
+          subtitle: "管理账号资料、偏好与个人工作设置。"
+        },
+        plugin: {
+          title: "插件发现",
+          subtitle: "浏览可接入的插件能力与生态资源。"
+        },
+        template: {
+          title: "模板发现",
+          subtitle: "挑选模板，加速搭建应用、智能体与流程。"
+        }
+      }
+    : {
+        develop: {
+          title: "AI Workspace",
+          subtitle: `Continue creating, debugging, and publishing assets in ${workspaceLabel}.`
+        },
+        agents: {
+          title: "Agent Creation",
+          subtitle: "Design roles, tools, memory, and debugging flows for your agents."
+        },
+        projects: {
+          title: "App Assembly",
+          subtitle: "Package agents and workflows into deliverable product experiences."
+        },
+        workflow: {
+          title: "Workflow Orchestration",
+          subtitle: "Connect nodes, data, and tools into runnable automation flows."
+        },
+        chatflow: {
+          title: "Chatflow Design",
+          subtitle: "Shape multi-turn interactions, message routing, and user guidance."
+        },
+        library: {
+          title: "Resource Hub",
+          subtitle: "Manage reusable tools, knowledge, data, and external capabilities."
+        },
+        plugins: {
+          title: "Plugin Capabilities",
+          subtitle: "Connect external tools and APIs for agents and workflows."
+        },
+        chat: {
+          title: "Debug Chat",
+          subtitle: "Validate agent behavior, tool calls, and workflow outcomes through chat."
+        },
+        "model-configs": {
+          title: "Model Access",
+          subtitle: "Manage model providers, inference capabilities, and runtime strategy."
+        },
+        assistant: {
+          title: "AI Assistant",
+          subtitle: "Use in-workspace AI support for drafting, organizing, and collaboration."
+        },
+        data: {
+          title: "Data Assets",
+          subtitle: "Review structured data, knowledge, and variables in one place."
+        },
+        "knowledge-bases": {
+          title: "Knowledge Space",
+          subtitle: "Maintain reusable knowledge for agents and workflows."
+        },
+        databases: {
+          title: "Database Connections",
+          subtitle: "Manage databases and runtime data access."
+        },
+        variables: {
+          title: "Variable Config",
+          subtitle: "Maintain shared context variables and runtime parameters."
+        },
+        overview: {
+          title: "Team Collaboration",
+          subtitle: "View members, permissions, and the overall governance state."
+        },
+        users: {
+          title: "Member Management",
+          subtitle: "Invite members and manage workspace access scopes."
+        },
+        roles: {
+          title: "Permission Strategy",
+          subtitle: "Define collaboration boundaries and access policies with roles."
+        },
+        departments: {
+          title: "Organization Structure",
+          subtitle: "Maintain team hierarchy, ownership, and structure."
+        },
+        positions: {
+          title: "Position Setup",
+          subtitle: "Define job responsibilities and align permission assignments."
+        },
+        approval: {
+          title: "Approval Collaboration",
+          subtitle: "Track approval flows, releases, and pending collaboration tasks."
+        },
+        reports: {
+          title: "Operational Insights",
+          subtitle: "Review reports, trends, and milestone outcomes."
+        },
+        dashboards: {
+          title: "Metrics Dashboard",
+          subtitle: "Monitor the most important signals in one place."
+        },
+        visualization: {
+          title: "Runtime Observability",
+          subtitle: "Monitor jobs, anomalies, and execution status across the workspace."
+        },
+        settings: {
+          title: "Workspace Settings",
+          subtitle: "Adjust workspace rules, preferences, and system options."
+        },
+        profile: {
+          title: "Profile Center",
+          subtitle: "Manage your account profile, preferences, and personal settings."
+        },
+        plugin: {
+          title: "Plugin Discovery",
+          subtitle: "Explore ecosystem plugins and integration options."
+        },
+        template: {
+          title: "Template Discovery",
+          subtitle: "Browse templates to speed up apps, agents, and workflows."
+        }
+      };
+
+  const defaultHeaderCopy = primaryKey === "workspace"
+    ? (locale === "zh-CN"
+      ? {
+          title: "AI 工作空间",
+          subtitle: `围绕 ${workspaceLabel} 统一完成创作、运行与团队协作。`
+        }
+      : {
+          title: "AI Workspace",
+          subtitle: `Create, operate, and collaborate around ${workspaceLabel} in one place.`
+        })
+    : primaryKey === "explore"
+      ? (locale === "zh-CN"
+        ? {
+            title: "生态发现",
+            subtitle: "浏览模板、插件与可复用生态资源。"
+          }
+        : {
+            title: "Explore Ecosystem",
+            subtitle: "Browse templates, plugins, and reusable ecosystem resources."
+          })
+      : (locale === "zh-CN"
+        ? {
+            title: "团队治理",
+            subtitle: "统一管理成员、权限、运营与空间设置。"
+          }
+        : {
+            title: "Team Governance",
+            subtitle: "Manage members, permissions, operations, and workspace settings."
+          });
+
+  const shellHeaderCopy = activeSecondaryItem
+    ? shellHeaderCopyMap[activeSecondaryItem.key] ?? defaultHeaderCopy
+    : defaultHeaderCopy;
 
   return (
     <>
@@ -1793,8 +2052,8 @@ function AppShellRoute() {
         activePrimaryKey={primaryKey}
         primaryItems={primaryItems}
         secondarySections={secondarySections}
-        headerTitle={headerTitle}
-        headerSubtitle={bootstrap.workspaceLabel || (locale === "zh-CN" ? "应用宿主" : "App Host")}
+        headerTitle={shellHeaderCopy.title}
+        headerSubtitle={shellHeaderCopy.subtitle}
         localeLabel={locale === "zh-CN" ? "English" : "中文"}
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
         profileLabel={locale === "zh-CN" ? "个人中心" : "Profile"}

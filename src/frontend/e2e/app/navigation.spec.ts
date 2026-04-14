@@ -58,7 +58,8 @@ test.describe.serial("@smoke App Navigation", () => {
     await expectNoI18nKeyLeak(page, "app-workflows-page");
 
     await expect(page.getByTestId("app-sidebar-item-plugins")).toBeVisible();
-    await expect(page.getByTestId("app-sidebar-item-data")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-section-more-workspace-resources")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-item-data")).toHaveCount(0);
     await expect(page.getByTestId("app-sidebar-item-organization-overview")).toBeVisible();
 
     await navigateBySidebar(page, "users", {
@@ -128,26 +129,43 @@ test.describe.serial("@smoke App Navigation", () => {
   test("app navigation should render in zh-CN", async ({ page }) => {
     await seedLocale(page, "zh-CN");
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("AI 工作台");
+    await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("继续创作、调试与发布");
     await expect(page.getByText("创作与构建")).toBeVisible();
     await expect(page.getByText("资源与运行")).toBeVisible();
     await expect(page.getByText("团队与治理")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-section-more-workspace-build")).toContainText("更多");
+    await expect(page.getByTestId("app-sidebar-section-more-workspace-resources")).toContainText("更多");
     await expect(page.getByTestId("app-sidebar-section-more-workspace-governance")).toContainText("更多");
     await expect(page.getByTestId("app-sidebar-item-develop")).toContainText("开发台");
+    await expect(page.getByTestId("app-sidebar-item-agents")).toContainText("智能体");
+    await expect(page.getByTestId("app-sidebar-item-workflows")).toContainText("工作流");
     await expect(page.getByTestId("app-sidebar-item-library")).toContainText("资源库");
     await expect(page.getByTestId("app-sidebar-item-agent-chat")).toContainText("Agent 对话");
-    await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toContainText("AI 助手");
     await expect(page.getByTestId("app-sidebar-item-model-configs")).toContainText("模型配置");
-    await expect(page.getByTestId("app-sidebar-item-workflows")).toContainText("工作流");
     await expect(page.getByTestId("app-sidebar-item-plugins")).toContainText("插件");
-    await expect(page.getByTestId("app-sidebar-item-data")).toContainText("数据");
+    await expect(page.getByTestId("app-sidebar-item-projects")).toHaveCount(0);
+    await expect(page.getByTestId("app-sidebar-item-chatflows")).toHaveCount(0);
+    await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toHaveCount(0);
+    await expect(page.getByTestId("app-sidebar-item-data")).toHaveCount(0);
     await expect(page.getByTestId("app-sidebar-item-organization-overview")).toContainText("组织概览");
     await expect(page.getByTestId("app-sidebar-item-approval")).toHaveCount(0);
+
+    await page.getByTestId("app-sidebar-section-more-workspace-build").click();
+    await expect(page.getByTestId("app-sidebar-item-projects")).toContainText("应用");
+    await expect(page.getByTestId("app-sidebar-item-chatflows")).toContainText("对话流");
+
+    await page.getByTestId("app-sidebar-section-more-workspace-resources").click();
+    await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toContainText("AI 助手");
+    await expect(page.getByTestId("app-sidebar-item-data")).toContainText("数据");
 
     await page.getByTestId("app-sidebar-section-more-workspace-governance").click();
     await expect(page.getByTestId("app-sidebar-item-approval")).toContainText("审批工作台");
     await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
 
     await page.getByTestId("app-primary-item-admin").click();
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("团队协作");
+    await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("成员、权限");
     await expect(page.getByText("组织与权限")).toBeVisible();
     await expect(page.getByText("运营与监控")).toBeVisible();
     await expect(page.getByText("个人与设置")).toBeVisible();
@@ -162,6 +180,8 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
 
     await page.getByTestId("app-primary-item-explore").click();
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("插件发现");
+    await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("插件能力");
     await expect(page.getByText("探索与模板")).toBeVisible();
     await expect(page.getByTestId("app-sidebar-item-explore-plugins")).toContainText("插件商店");
     await expect(page.getByTestId("app-sidebar-item-explore-templates")).toContainText("模板商店");

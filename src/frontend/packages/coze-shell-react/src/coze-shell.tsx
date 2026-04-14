@@ -200,9 +200,13 @@ export function CozeShell({
         <header className="coze-shell__header">
           <div className="coze-shell__header-copy">
             <Typography.Title heading={4} style={{ margin: 0 }}>
-              {headerTitle}
+              <span data-testid="app-shell-header-title">{headerTitle}</span>
             </Typography.Title>
-            {headerSubtitle ? <Typography.Text type="tertiary">{headerSubtitle}</Typography.Text> : null}
+            {headerSubtitle ? (
+              <Typography.Text type="tertiary">
+                <span data-testid="app-shell-header-subtitle">{headerSubtitle}</span>
+              </Typography.Text>
+            ) : null}
           </div>
 
           <Space spacing={12}>
