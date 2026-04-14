@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
 import { IconGlobe, IconGridView1, IconUserGroup } from "@douyinfe/semi-icons";
-import { CozeShell } from "@atlas/coze-shell-react";
+import { CozeShell, type CozeSecondaryNavSection } from "@atlas/coze-shell-react";
 import { LibraryPage, KnowledgeDetailPage, KnowledgeUploadPage, type LibraryKnowledgeApi } from "@atlas/library-module-react";
 import {
   OrganizationOverviewPage,
@@ -1589,7 +1589,7 @@ function AppShellRoute() {
     }
   ];
 
-  const workspaceSecondarySections = [
+  const workspaceSecondarySections: CozeSecondaryNavSection[] = [
     {
       key: "workspace-build",
       title: locale === "zh-CN" ? "创作与构建" : "Create & Build",
@@ -1706,7 +1706,11 @@ function AppShellRoute() {
       items: [
         { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
         { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
-        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
+        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" }
+      ],
+      overflowLabel: locale === "zh-CN" ? "更多" : "More",
+      overflowTestId: "app-sidebar-section-more-workspace-governance",
+      overflowItems: [
         { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
         { key: "positions", label: locale === "zh-CN" ? "岗位管理" : "Positions", icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" },
         { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
@@ -1719,7 +1723,7 @@ function AppShellRoute() {
     }
   ];
 
-  const exploreSecondarySections = [
+  const exploreSecondarySections: CozeSecondaryNavSection[] = [
     {
       key: "explore",
       title: locale === "zh-CN" ? "探索与模板" : "Explore & Templates",
@@ -1730,7 +1734,7 @@ function AppShellRoute() {
     }
   ];
 
-  const adminSecondarySections = [
+  const adminSecondarySections: CozeSecondaryNavSection[] = [
     {
       key: "admin-organization",
       title: locale === "zh-CN" ? "组织与权限" : "Org & Access",
@@ -1769,7 +1773,7 @@ function AppShellRoute() {
       : adminSecondarySections;
 
   const activeSecondaryItem = secondarySections
-    .flatMap(section => section.items)
+    .flatMap(section => [...section.items, ...(section.overflowItems ?? [])])
     .find(item => activeShellPath === item.path || activeShellPath.startsWith(`${item.path}/`) || activeShellPath.includes(item.path));
 
   const headerTitle = activeSecondaryItem?.label

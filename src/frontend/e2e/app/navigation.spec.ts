@@ -131,6 +131,7 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByText("创作与构建")).toBeVisible();
     await expect(page.getByText("资源与运行")).toBeVisible();
     await expect(page.getByText("团队与治理")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-section-more-workspace-governance")).toContainText("更多");
     await expect(page.getByTestId("app-sidebar-item-develop")).toContainText("开发台");
     await expect(page.getByTestId("app-sidebar-item-library")).toContainText("资源库");
     await expect(page.getByTestId("app-sidebar-item-agent-chat")).toContainText("Agent 对话");
@@ -140,6 +141,11 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-plugins")).toContainText("插件");
     await expect(page.getByTestId("app-sidebar-item-data")).toContainText("数据");
     await expect(page.getByTestId("app-sidebar-item-organization-overview")).toContainText("组织概览");
+    await expect(page.getByTestId("app-sidebar-item-approval")).toHaveCount(0);
+
+    await page.getByTestId("app-sidebar-section-more-workspace-governance").click();
+    await expect(page.getByTestId("app-sidebar-item-approval")).toContainText("审批工作台");
+    await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
 
     await page.getByTestId("app-primary-item-admin").click();
     await expect(page.getByText("组织与权限")).toBeVisible();

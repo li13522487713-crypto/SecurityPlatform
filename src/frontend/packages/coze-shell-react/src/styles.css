@@ -160,6 +160,31 @@
   box-shadow: 0 8px 16px rgba(59, 130, 246, 0.06);
 }
 
+.coze-shell__secondary-item--more {
+  color: #475569;
+}
+
+.coze-shell__secondary-item--more.is-expanded {
+  background: rgba(241, 245, 249, 0.8);
+  border-color: rgba(148, 163, 184, 0.16);
+  color: #1e40af;
+  box-shadow: none;
+}
+
+.coze-shell__section-overflow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+  padding-left: 14px;
+  border-left: 1px dashed rgba(148, 163, 184, 0.32);
+}
+
+.coze-shell__secondary-item--overflow {
+  min-height: 36px;
+  padding-left: 8px;
+}
+
 .coze-shell__secondary-item-icon {
   display: inline-flex;
   align-items: center;

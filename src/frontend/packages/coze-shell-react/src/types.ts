@@ -23,6 +23,9 @@ export interface CozeSecondaryNavSection {
   key: string;
   title: string;
   items: CozeSecondaryNavItem[];
+  overflowItems?: CozeSecondaryNavItem[];
+  overflowLabel?: string;
+  overflowTestId?: string;
 }
 
 export interface CozeHeaderAction {

@@ -405,14 +405,31 @@ export async function navigateBySidebar(
 ) {
   const sidebar = page.getByTestId("app-sidebar");
   await expect(sidebar).toBeVisible({ timeout: 30_000 });
+  const itemProbe = page.getByTestId(`app-sidebar-item-${itemKey}`);
 
   const primaryKey = primaryNavBySidebarItem[itemKey];
   if (primaryKey) {
-    const itemProbe = page.getByTestId(`app-sidebar-item-${itemKey}`);
     if (!(await itemProbe.isVisible().catch(() => false))) {
       await page.getByTestId(`app-primary-item-${primaryKey}`).click();
-      await expect(itemProbe).toBeVisible({ timeout: 30_000 });
       await page.waitForTimeout(gazeShiftDelay());
+    }
+  }
+
+  if (!(await itemProbe.isVisible().catch(() => false))) {
+    const moreButtons = sidebar.locator('[data-testid^="app-sidebar-section-more-"]');
+    const count = await moreButtons.count();
+    for (let index = 0; index < count; index += 1) {
+      const button = moreButtons.nth(index);
+      if (!(await button.isVisible().catch(() => false))) {
+        continue;
+      }
+
+      await button.click();
+      await page.waitForTimeout(randomBetween(40, 100));
+
+      if (await itemProbe.isVisible().catch(() => false)) {
+        break;
+      }
     }
   }
 

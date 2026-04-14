@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Space, Typography, Tag } from "@douyinfe/semi-ui";
-import { IconChevronLeft, IconGlobe, IconTreeTriangleDown, IconExit } from "@douyinfe/semi-icons";
+import { IconChevronLeft, IconGlobe, IconTreeTriangleDown, IconExit, IconPlus, IconMinus } from "@douyinfe/semi-icons";
 import type {
   CozeHeaderAction,
   CozePrimaryNavItem,
@@ -67,6 +67,8 @@ export function CozeShell({
   onLogout,
   children,
 }: CozeShellProps) {
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
   return (
     <div className="coze-shell">
       <aside className="coze-shell__primary" data-testid="app-primary-nav">
@@ -119,29 +121,78 @@ export function CozeShell({
         </div>
 
         <div className="coze-shell__secondary-sections">
-          {secondarySections.map(section => (
-            <section key={section.key} className="coze-shell__section">
-              <div className="coze-shell__section-title">{section.title}</div>
-              <div className="coze-shell__section-items">
-                {section.items.map(item => {
-                  const active = isActiveSecondary(item, activePath);
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      className={`coze-shell__secondary-item${active ? " is-active" : ""}`}
-                      onClick={() => onNavigate(item.path)}
-                      data-testid={item.testId}
-                    >
-                      {item.icon ? <span className="coze-shell__secondary-item-icon">{item.icon}</span> : null}
-                      <span className="coze-shell__secondary-item-label">{item.label}</span>
-                      {item.badge ? <Tag size="small" color="light-blue">{item.badge}</Tag> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+          {secondarySections.map(section => {
+            const overflowItems = section.overflowItems ?? [];
+            const hasOverflow = overflowItems.length > 0;
+            const activeOverflow = overflowItems.some(item => isActiveSecondary(item, activePath));
+            const expanded = expandedSections[section.key] || activeOverflow;
+
+            return (
+              <section key={section.key} className="coze-shell__section">
+                <div className="coze-shell__section-title">{section.title}</div>
+                <div className="coze-shell__section-items">
+                  {section.items.map(item => {
+                    const active = isActiveSecondary(item, activePath);
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={`coze-shell__secondary-item${active ? " is-active" : ""}`}
+                        onClick={() => onNavigate(item.path)}
+                        data-testid={item.testId}
+                      >
+                        {item.icon ? <span className="coze-shell__secondary-item-icon">{item.icon}</span> : null}
+                        <span className="coze-shell__secondary-item-label">{item.label}</span>
+                        {item.badge ? <Tag size="small" color="light-blue">{item.badge}</Tag> : null}
+                      </button>
+                    );
+                  })}
+
+                  {hasOverflow ? (
+                    <>
+                      <button
+                        type="button"
+                        className={`coze-shell__secondary-item coze-shell__secondary-item--more${expanded ? " is-expanded" : ""}`}
+                        data-testid={section.overflowTestId}
+                        onClick={() => {
+                          setExpandedSections(current => ({
+                            ...current,
+                            [section.key]: !expanded
+                          }));
+                        }}
+                      >
+                        <span className="coze-shell__secondary-item-icon">
+                          {expanded ? <IconMinus /> : <IconPlus />}
+                        </span>
+                        <span className="coze-shell__secondary-item-label">{section.overflowLabel ?? "更多"}</span>
+                      </button>
+
+                      {expanded ? (
+                        <div className="coze-shell__section-overflow">
+                          {overflowItems.map(item => {
+                            const active = isActiveSecondary(item, activePath);
+                            return (
+                              <button
+                                key={item.key}
+                                type="button"
+                                className={`coze-shell__secondary-item coze-shell__secondary-item--overflow${active ? " is-active" : ""}`}
+                                onClick={() => onNavigate(item.path)}
+                                data-testid={item.testId}
+                              >
+                                {item.icon ? <span className="coze-shell__secondary-item-icon">{item.icon}</span> : null}
+                                <span className="coze-shell__secondary-item-label">{item.label}</span>
+                                {item.badge ? <Tag size="small" color="light-blue">{item.badge}</Tag> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+              </section>
+            );
+          })}
         </div>
       </aside>
 
