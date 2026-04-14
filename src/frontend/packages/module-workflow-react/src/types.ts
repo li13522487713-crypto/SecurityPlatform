@@ -2,6 +2,7 @@ import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import type { WorkflowApiClient } from "@atlas/workflow-core-react";
 
 export type WorkflowResourceMode = "workflow" | "chatflow";
+export type WorkflowWorkbenchContentMode = "canvas" | "variables" | "session";
 export type WorkflowCreateSource = "blank" | "template" | "duplicate";
 export type WorkflowStatusFilter = "all" | "draft" | "published";
 export type ResourceIdeGroup = "workflow" | "plugin" | "data" | "settings";
@@ -371,4 +372,13 @@ export interface WorkflowModuleApi {
 export interface WorkflowPageProps {
   api: WorkflowModuleApi;
   locale: "zh-CN" | "en-US";
+}
+
+export interface WorkflowWorkbenchNavigation {
+  selectedWorkflowId?: string;
+  onSelectWorkflow?: (workflowId: string, mode: WorkflowResourceMode) => void;
+  resolveWorkflowHref?: (workflowId: string, mode: WorkflowResourceMode) => string;
+  contentMode?: WorkflowWorkbenchContentMode;
+  onSelectContentMode?: (mode: WorkflowWorkbenchContentMode) => void;
+  projectTitle?: string;
 }

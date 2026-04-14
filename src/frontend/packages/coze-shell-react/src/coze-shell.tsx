@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Space, Typography, Tag } from "@douyinfe/semi-ui";
-import { IconChevronLeft, IconChevronRight, IconGlobe, IconTreeTriangleDown, IconExit, IconPlus, IconMinus } from "@douyinfe/semi-icons";
+import { IconChevronLeft, IconGlobe, IconTreeTriangleDown, IconExit, IconPlus, IconMinus } from "@douyinfe/semi-icons";
 import type {
   CozeHeaderAction,
   CozeNavItem,
@@ -78,7 +78,7 @@ export function CozeShell({
             data-testid="app-sidebar-toggle"
             title={collapsed ? "展开侧边栏" : "收起侧边栏"}
           >
-            {collapsed ? <IconChevronRight size="small" /> : <IconChevronLeft size="small" />}
+            {collapsed ? <IconPlus size="small" /> : <IconMinus size="small" />}
           </button>
         </div>
 

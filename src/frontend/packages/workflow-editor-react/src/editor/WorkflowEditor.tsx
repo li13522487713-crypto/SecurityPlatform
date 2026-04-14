@@ -112,13 +112,16 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   useEffect(() => {
     const selectedNodeKey = store.selectedNodeKeys[0];
     if (!selectedNodeKey) {
-      sideSheetStore.closeSideSheet();
+      if (sideSheetStore.isVisible) {
+        sideSheetStore.closeSideSheet();
+      }
+      layoutService.close("NodeForm");
       return;
     }
     sideSheetStore.openSideSheet(selectedNodeKey);
     layoutService.open("NodeForm", { nodeKey: selectedNodeKey });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store.selectedNodeKeys]);
+  }, [layoutService, sideSheetStore, store.selectedNodeKeys]);
 
   const selectedNodeKey = store.selectedNodeKeys[0] ?? "";
   const selectedNode = useMemo(() => store.canvasNodes.find((item) => item.key === selectedNodeKey) ?? null, [selectedNodeKey, store.canvasNodes]);
@@ -609,62 +612,67 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         canvasValidation.canvasIssues.length > 0 ||
         canvasValidation.nodeResults.some((item) => item.issues.length > 0))
   );
+  const embeddedChrome = props.chromeMode === "embedded";
 
   return (
-    <div className="wf-react-editor-page">
-      <WorkflowHeader
-        name={store.workflowName}
-        dirty={store.isDirty}
-        savedAt={store.lastSavedAt}
-        readOnly={isReadOnly || store.saving}
-        mode={props.mode}
-        onNameChange={(value) => {
-          if (isReadOnly) {
-            return;
-          }
-          store.setWorkflowName(value);
-          store.setDirty(true);
-        }}
-        onBack={() => props.onBack?.()}
-        onDuplicate={() => void handleDuplicate()}
-        onSave={() => void handleSave()}
-        onPublish={() => void handlePublish()}
-      />
-      <div className="wf-react-automation-bridge">
-        <label className="wf-react-automation-field">
-          <span>画布 JSON</span>
-          <textarea
-            data-testid="workflow.detail.canvas-json"
-            value={automationCanvasJson}
-            readOnly={isReadOnly}
-            onChange={(event) => {
+    <div className={`wf-react-editor-page${embeddedChrome ? " wf-react-editor-page--embedded" : ""}`}>
+      {!embeddedChrome ? (
+        <>
+          <WorkflowHeader
+            name={store.workflowName}
+            dirty={store.isDirty}
+            savedAt={store.lastSavedAt}
+            readOnly={isReadOnly || store.saving}
+            mode={props.mode}
+            onNameChange={(value) => {
               if (isReadOnly) {
                 return;
               }
-
-              const parsed = parseCanvasJson(event.target.value);
-              store.setCanvasSnapshot({
-                nodes: parsed.nodes,
-                connections: parsed.connections,
-                globals: parsed.globals,
-                viewport: parsed.viewport ?? { x: store.pan.x, y: store.pan.y, zoom: store.zoom },
-                workflowName: store.workflowName,
-                isDirty: true
-              });
-              setCanvasValidation(null);
-              saveService.listenContentChange({ type: "META_CHANGE" });
+              store.setWorkflowName(value);
+              store.setDirty(true);
             }}
+            onBack={() => props.onBack?.()}
+            onDuplicate={() => void handleDuplicate()}
+            onSave={() => void handleSave()}
+            onPublish={() => void handlePublish()}
           />
-        </label>
-        <label className="wf-react-automation-field">
-          <span>试运行输入</span>
-          <textarea
-            data-testid="workflow.detail.run-inputs"
-            value={store.testInputJson}
-            onChange={(event) => store.setTestInputJson(event.target.value)}
-          />
-        </label>
-      </div>
+          <div className="wf-react-automation-bridge">
+            <label className="wf-react-automation-field">
+              <span>画布 JSON</span>
+              <textarea
+                data-testid="workflow.detail.canvas-json"
+                value={automationCanvasJson}
+                readOnly={isReadOnly}
+                onChange={(event) => {
+                  if (isReadOnly) {
+                    return;
+                  }
+
+                  const parsed = parseCanvasJson(event.target.value);
+                  store.setCanvasSnapshot({
+                    nodes: parsed.nodes,
+                    connections: parsed.connections,
+                    globals: parsed.globals,
+                    viewport: parsed.viewport ?? { x: store.pan.x, y: store.pan.y, zoom: store.zoom },
+                    workflowName: store.workflowName,
+                    isDirty: true
+                  });
+                  setCanvasValidation(null);
+                  saveService.listenContentChange({ type: "META_CHANGE" });
+                }}
+              />
+            </label>
+            <label className="wf-react-automation-field">
+              <span>试运行输入</span>
+              <textarea
+                data-testid="workflow.detail.run-inputs"
+                value={store.testInputJson}
+                onChange={(event) => store.setTestInputJson(event.target.value)}
+              />
+            </label>
+          </div>
+        </>
+      ) : null}
       <div
         ref={canvasShellRef}
         className="wf-react-canvas-shell"

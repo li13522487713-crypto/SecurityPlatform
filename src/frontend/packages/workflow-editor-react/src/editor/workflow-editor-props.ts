@@ -101,6 +101,7 @@ export interface WorkflowEditorReactProps {
   locale?: string;
   readOnly?: boolean;
   mode?: "workflow" | "chatflow";
+  chromeMode?: "standalone" | "embedded";
   detailQuery?: WorkflowDetailQuery;
   apiClient: WorkflowApiClient;
   onBack?: () => void;

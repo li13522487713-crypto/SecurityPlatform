@@ -45,10 +45,12 @@ import type {
   WorkflowTraceStepSummary,
   WorkflowListItem,
   WorkflowPageProps,
+  WorkflowWorkbenchContentMode,
+  WorkflowWorkbenchNavigation,
   WorkflowResourceMode
 } from "./types";
 
-interface WorkflowEditorShellProps extends WorkflowPageProps {
+interface WorkflowEditorShellProps extends WorkflowPageProps, WorkflowWorkbenchNavigation {
   workflowId: string;
   onBack: () => void;
   backPath?: string;
@@ -214,7 +216,12 @@ export function WorkflowEditorShell({
   workflowId,
   onBack,
   backPath,
-  mode = "workflow"
+  mode = "workflow",
+  onSelectWorkflow,
+  resolveWorkflowHref,
+  contentMode = "canvas",
+  onSelectContentMode,
+  projectTitle
 }: WorkflowEditorShellProps) {
   const copy = getWorkflowModuleCopy(locale);
   const chatflowRoleLabel = locale === "zh-CN" ? "角色" : "Role";
@@ -305,7 +312,7 @@ export function WorkflowEditorShell({
   const [selectedTraceStep, setSelectedTraceStep] = useState<WorkflowTraceStepSummary | null>(null);
   const [focusNodeKey, setFocusNodeKey] = useState("");
   const [highlightVariableKey, setHighlightVariableKey] = useState(readSearchParam("variableKey"));
-  const [variableRefPanelOpen, setVariableRefPanelOpen] = useState(true);
+  const [variableRefPanelOpen, setVariableRefPanelOpen] = useState(false);
   const [resourceContextMenu, setResourceContextMenu] = useState<ResourceContextMenuState>(null);
   const [templateSources, setTemplateSources] = useState<Record<string, ExploreCreatedTemplateState>>(() => readExploreCreatedTemplateStateMap());
 
@@ -323,6 +330,24 @@ export function WorkflowEditorShell({
     () => Object.values(templateSources).find(source => source.workflowId === workflowId),
     [templateSources, workflowId]
   );
+  const projectDisplayTitle = projectTitle ?? detail?.name ?? workflowId;
+
+  const navigateToWorkflow = useCallback((targetWorkflowId: string, targetMode: WorkflowResourceMode) => {
+    if (onSelectWorkflow) {
+      onSelectWorkflow(targetWorkflowId, targetMode);
+      return;
+    }
+
+    window.location.assign(buildEditorPath(targetWorkflowId, targetMode));
+  }, [onSelectWorkflow]);
+
+  const getWorkflowHref = useCallback((targetWorkflowId: string, targetMode: WorkflowResourceMode) => {
+    return resolveWorkflowHref?.(targetWorkflowId, targetMode) ?? buildEditorPath(targetWorkflowId, targetMode);
+  }, [resolveWorkflowHref]);
+
+  const navigateToContentMode = useCallback((nextMode: WorkflowWorkbenchContentMode) => {
+    onSelectContentMode?.(nextMode);
+  }, [onSelectContentMode]);
 
   const loadContext = useCallback(async (keyword = "") => {
     setLoading(true);
@@ -408,6 +433,53 @@ export function WorkflowEditorShell({
       return tab;
     }));
   }, [copy.conversationManagement, copy.problemsLabel, copy.referencesTitle, copy.traceLabel, copy.variablesLabel, databaseItems, knowledgeItems, pluginItems]);
+
+  useEffect(() => {
+    setTabs(prev => {
+      const workflowTab: ResourceIdeTab = {
+        key: workflowTabKey,
+        kind: mode === "chatflow" ? "chatflow-editor" : "workflow-editor",
+        resourceId: workflowId,
+        title: detail?.name ?? workflowId,
+        closable: false,
+        mode
+      };
+      const variablesTab: ResourceIdeTab = {
+        key: "variables",
+        kind: "variables",
+        title: copy.variablesLabel,
+        closable: false
+      };
+      const conversationsTab: ResourceIdeTab = {
+        key: "conversations",
+        kind: "conversations",
+        title: copy.conversationManagement,
+        closable: false
+      };
+      const rest = prev.filter(tab => tab.key !== workflowTabKey && tab.key !== "variables" && tab.key !== "conversations");
+      return [workflowTab, variablesTab, conversationsTab, ...rest];
+    });
+  }, [copy.conversationManagement, copy.variablesLabel, detail?.name, mode, workflowId, workflowTabKey]);
+
+  useEffect(() => {
+    const desiredTabKey = contentMode === "variables"
+      ? "variables"
+      : contentMode === "session"
+        ? "conversations"
+        : workflowTabKey;
+
+    setActiveTabKey(prev => {
+      if (prev === desiredTabKey) {
+        return prev;
+      }
+
+      if (contentMode === "canvas" && prev !== "variables" && prev !== "conversations" && prev !== workflowTabKey) {
+        return prev;
+      }
+
+      return desiredTabKey;
+    });
+  }, [contentMode, workflowTabKey]);
 
   useEffect(() => {
     if (tabs.some(tab => tab.key === activeTabKey)) {
@@ -644,7 +716,7 @@ export function WorkflowEditorShell({
       if (!tab.resourceId) {
         return;
       }
-      window.location.assign(buildEditorPath(tab.resourceId, tab.kind === "chatflow-editor" ? "chatflow" : "workflow"));
+      navigateToWorkflow(tab.resourceId, tab.kind === "chatflow-editor" ? "chatflow" : "workflow");
       return;
     }
     setTabs(prev => prev.some(item => item.key === tab.key) ? prev : [...prev, tab]);
@@ -667,28 +739,18 @@ export function WorkflowEditorShell({
     sourceNodeKeys?: string[];
   }) {
     if (item.resourceType === "workflow") {
-      window.location.assign(buildEditorPath(item.resourceId, "workflow"));
+      navigateToWorkflow(item.resourceId, "workflow");
       return;
     }
 
     if (item.resourceType === "variable") {
       setHighlightVariableKey(item.resourceId);
-      openTab({
-        key: "variables",
-        kind: "variables",
-        title: copy.variablesLabel,
-        closable: true
-      });
+      navigateToContentMode("variables");
       return;
     }
 
     if (item.resourceType === "conversation") {
-      openTab({
-        key: "conversations",
-        kind: "conversations",
-        title: copy.conversationManagement,
-        closable: true
-      });
+      navigateToContentMode("session");
       if (conversationItems.some(conversation => conversation.id === item.resourceId)) {
         setSelectedConversationId(item.resourceId);
         return;
@@ -921,7 +983,7 @@ export function WorkflowEditorShell({
     try {
       if (createDialog.kind === "workflow" || createDialog.kind === "chatflow") {
         const id = await api.createWorkflow({ name, description, mode: createDialog.kind, createSource: "blank" });
-        window.location.assign(buildEditorPath(id, createDialog.kind));
+        navigateToWorkflow(id, createDialog.kind);
         return;
       }
       if (createDialog.kind === "plugin") {
@@ -960,7 +1022,7 @@ export function WorkflowEditorShell({
       await loadContext(sidebarKeyword);
       if (result.resourceType === "workflow") {
         const importedMode = selected?.resourceSubType === "chatflow" || selected?.path.includes("/chat_flow/") ? "chatflow" : "workflow";
-        window.location.assign(buildEditorPath(String(result.resourceId), importedMode));
+        navigateToWorkflow(String(result.resourceId), importedMode);
         return;
       }
       openTab({
@@ -1082,8 +1144,10 @@ export function WorkflowEditorShell({
             }))
           }
         ];
+    const pinnedSettings = sections.find(section => section.key === "settings");
+    const mainSections = sections.filter(section => section.key !== "settings");
 
-    return sections.map(section => (
+    const renderSection = (section: WorkflowSidebarSection) => (
       <section key={section.key} className="module-workflow__coze-section">
         <div className="module-workflow__coze-section-head">
           <span>{section.title}</span>
@@ -1161,10 +1225,18 @@ export function WorkflowEditorShell({
                   return;
                 }
                 if (item.action.type === "route") {
-                  window.location.assign(buildEditorPath(item.action.workflowId, item.action.mode));
+                  navigateToWorkflow(item.action.workflowId, item.action.mode);
                   return;
                 }
                 if (item.action.type === "tab") {
+                  if (item.action.tab.kind === "variables") {
+                    navigateToContentMode("variables");
+                    return;
+                  }
+                  if (item.action.tab.kind === "conversations") {
+                    navigateToContentMode("session");
+                    return;
+                  }
                   openTab(item.action.tab);
                 }
               }}
@@ -1179,7 +1251,16 @@ export function WorkflowEditorShell({
           ))}
         </div>
       </section>
-    ));
+    );
+
+    return (
+      <>
+        <div className="module-workflow__coze-sidebar-scroll">
+          {mainSections.map(renderSection)}
+        </div>
+        {pinnedSettings ? <div className="module-workflow__coze-sidebar-footer">{renderSection(pinnedSettings)}</div> : null}
+      </>
+    );
   }
 
   async function handleContextDelete() {
@@ -1244,9 +1325,27 @@ export function WorkflowEditorShell({
   }
 
   function renderResourceTabs() {
+    const primaryTabs = [
+      { key: workflowTabKey, label: detail?.name ?? workflowId, contentKey: "canvas" as const, kind: "workflow" as const },
+      { key: "variables", label: copy.variablesLabel, contentKey: "variables" as const, kind: "variables" as const },
+      { key: "conversations", label: copy.conversationManagement, contentKey: "session" as const, kind: "conversations" as const }
+    ];
+    const secondaryTabs = tabs.filter(tab => !primaryTabs.some(primary => primary.key === tab.key));
+
     return (
       <div className="module-workflow__coze-resource-tabs">
-        {tabs.map(tab => (
+        {primaryTabs.map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            className={`module-workflow__coze-resource-tab module-workflow__coze-resource-tab--primary${tab.key === activeTabKey ? " is-active" : ""}`}
+            onClick={() => navigateToContentMode(tab.contentKey)}
+          >
+            <span className={`module-workflow__coze-resource-tab-icon module-workflow__coze-resource-tab-icon--${tab.kind}`} />
+            <span>{tab.label}</span>
+          </button>
+        ))}
+        {secondaryTabs.map(tab => (
           <div key={tab.key} className={`module-workflow__coze-resource-tab${tab.key === activeTabKey ? " is-active" : ""}`}>
             <button type="button" onClick={() => openTab(tab)}>{tab.title}</button>
             {tab.closable ? <span role="button" tabIndex={0} onClick={() => closeTab(tab.key)}>×</span> : null}
@@ -1513,15 +1612,111 @@ export function WorkflowEditorShell({
       );
     }
     if (activeTab?.kind === "variables") {
+      const appVariables = variables.filter(item => item.scope !== 2);
+      const userVariables = variables.filter(item => item.scope === 2);
       return (
-        <div className="module-workflow__coze-resource-panel">
-          <div className="module-workflow__coze-panel-toolbar">
-            <Typography.Title heading={5} style={{ margin: 0 }}>{copy.variablesLabel}</Typography.Title>
-            <Button theme="solid" type="secondary" onClick={() => setVariableDialog({ visible: true, key: "", value: "", scope: 0, scopeId: "", submitting: false })}>{copy.variableCreateLabel}</Button>
+        <div className="module-workflow__coze-page-panel module-workflow__coze-page-panel--variables">
+          <div className="module-workflow__coze-subtabs">
+            <button type="button" className="is-active">{copy.variablesSettingsTab}</button>
+            <button type="button">{copy.variablesTestDataTab}</button>
           </div>
-          <div className="module-workflow__coze-two-column">
-            <div className="module-workflow__coze-list-card">{variables.map(item => <div key={item.id} className={`module-workflow__coze-list-row${highlightVariableKey === item.key ? " is-selected" : ""}`}><div><strong>{item.key}</strong><small>{item.value || copy.noDescription}</small></div><div className="module-workflow__coze-list-row-actions"><button type="button" onClick={() => setVariableDialog({ visible: true, editingId: item.id, key: item.key, value: item.value ?? "", scope: item.scope, scopeId: item.scopeId ? String(item.scopeId) : "", submitting: false })}>{copy.editLabel}</button><button type="button" onClick={() => void handleDeleteVariable(item.id)}>{copy.deleteLabel}</button></div></div>)}</div>
-            <div className="module-workflow__coze-list-card">{systemVariables.map(item => <div key={item.key} className="module-workflow__coze-list-row"><div><strong>{item.key}</strong><small>{item.description}</small></div><Tag color="grey">{copy.systemVariableReadonly}</Tag></div>)}</div>
+          <div className="module-workflow__coze-config-surface">
+            <section className="module-workflow__coze-config-section">
+              <div className="module-workflow__coze-config-head">
+                <div>
+                  <strong>{copy.variableApplicationTitle}</strong>
+                  <small>{copy.variableApplicationDescription}</small>
+                </div>
+              </div>
+              <div className="module-workflow__coze-config-table">
+                <div className="module-workflow__coze-config-table-head">
+                  <span>{copy.variableTableNameLabel}</span>
+                  <span>{copy.variableTableDescriptionLabel}</span>
+                  <span>{copy.variableTableTypeLabel}</span>
+                  <span>{copy.variableTableDefaultLabel}</span>
+                  <span>{copy.variableTableActionsLabel}</span>
+                </div>
+                {appVariables.map(item => (
+                  <div key={item.id} className={`module-workflow__coze-config-row${highlightVariableKey === item.key ? " is-selected" : ""}`}>
+                    <span>{item.key}</span>
+                    <span>{item.scopeId ? `scope:${item.scopeId}` : "-"}</span>
+                    <span>{item.scope === 1 ? copy.variableScopeProjectText : copy.variableScopeGlobalText}</span>
+                    <span>{item.value || "-"}</span>
+                    <span className="module-workflow__coze-config-actions">
+                      <button type="button" onClick={() => setVariableDialog({ visible: true, editingId: item.id, key: item.key, value: item.value ?? "", scope: item.scope, scopeId: item.scopeId ? String(item.scopeId) : "", submitting: false })}>{copy.editLabel}</button>
+                      <button type="button" onClick={() => void handleDeleteVariable(item.id)}>{copy.deleteLabel}</button>
+                    </span>
+                  </div>
+                ))}
+                <div className="module-workflow__coze-config-create">
+                  <Button theme="light" onClick={() => setVariableDialog({ visible: true, key: "", value: "", scope: 0, scopeId: "", submitting: false })}>{`+ ${copy.variableCreateItemLabel}`}</Button>
+                </div>
+              </div>
+            </section>
+
+            <section className="module-workflow__coze-config-section">
+              <div className="module-workflow__coze-config-head">
+                <div>
+                  <strong>{copy.variableUserTitle}</strong>
+                  <small>{copy.variableUserDescription}</small>
+                </div>
+              </div>
+              <div className="module-workflow__coze-config-table">
+                <div className="module-workflow__coze-config-table-head">
+                  <span>{copy.variableTableNameLabel}</span>
+                  <span>{copy.variableTableDescriptionLabel}</span>
+                  <span>{copy.variableTableDefaultLabel}</span>
+                  <span>{copy.variableTableActionsLabel}</span>
+                </div>
+                {userVariables.map(item => (
+                  <div key={item.id} className={`module-workflow__coze-config-row module-workflow__coze-config-row--four${highlightVariableKey === item.key ? " is-selected" : ""}`}>
+                    <span>{item.key}</span>
+                    <span>{item.scopeId ? `scope:${item.scopeId}` : "-"}</span>
+                    <span>{item.value || "-"}</span>
+                    <span className="module-workflow__coze-config-actions">
+                      <button type="button" onClick={() => setVariableDialog({ visible: true, editingId: item.id, key: item.key, value: item.value ?? "", scope: item.scope, scopeId: item.scopeId ? String(item.scopeId) : "", submitting: false })}>{copy.editLabel}</button>
+                      <button type="button" onClick={() => void handleDeleteVariable(item.id)}>{copy.deleteLabel}</button>
+                    </span>
+                  </div>
+                ))}
+                <div className="module-workflow__coze-config-create">
+                  <Button theme="light" onClick={() => setVariableDialog({ visible: true, key: "", value: "", scope: 2, scopeId: "", submitting: false })}>{`+ ${copy.variableCreateItemLabel}`}</Button>
+                </div>
+              </div>
+            </section>
+
+            <section className="module-workflow__coze-config-section">
+              <div className="module-workflow__coze-config-head">
+                <div>
+                  <strong>{copy.variableSystemTitle}</strong>
+                  <small>{copy.variableSystemDescription}</small>
+                </div>
+              </div>
+              <div className="module-workflow__coze-config-table">
+                <div className="module-workflow__coze-config-table-head">
+                  <span>{copy.variableTableNameLabel}</span>
+                  <span>{copy.variableTableDescriptionLabel}</span>
+                  <span>{copy.variableTableTypeLabel}</span>
+                  <span>{copy.variableTableDefaultLabel}</span>
+                  <span>{copy.variableTableChannelLabel}</span>
+                  <span>{copy.variableTableActionsLabel}</span>
+                </div>
+                {systemVariables.map(item => (
+                  <div key={item.key} className="module-workflow__coze-config-row module-workflow__coze-config-row--system">
+                    <span>{item.key}</span>
+                    <span>{item.description}</span>
+                    <span>{copy.variableSystemTitle}</span>
+                    <span>{item.defaultValue || "-"}</span>
+                    <span>{copy.allLabel}</span>
+                    <span><Tag color="grey">{copy.systemVariableReadonly}</Tag></span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="module-workflow__coze-config-footer">
+              <Button theme="solid" type="primary" disabled>{copy.saveLabel}</Button>
+            </div>
           </div>
         </div>
       );
@@ -1529,55 +1724,164 @@ export function WorkflowEditorShell({
     if (activeTab?.kind === "conversations") {
       const messages = selectedConversationId ? (conversationMessages[selectedConversationId] ?? []) : [];
       return (
-        <div className="module-workflow__coze-resource-panel">
-          <div className="module-workflow__coze-panel-toolbar">
-            <Typography.Title heading={5} style={{ margin: 0 }}>{copy.conversationManagement}</Typography.Title>
-            <div className="module-workflow__coze-panel-actions">
-              <Button theme="light" onClick={() => void handleClearConversation("context")}>{copy.clearContextLabel}</Button>
-              <Button theme="light" onClick={() => void handleClearConversation("history")}>{copy.clearHistoryLabel}</Button>
-              <Button theme="solid" type="secondary" onClick={() => setConversationDialog({ visible: true, title: "", agentId: agents[0]?.id ?? "", submitting: false })}>{copy.conversationCreateLabel}</Button>
-            </div>
-          </div>
-          <div className="module-workflow__coze-two-column">
-            <div className="module-workflow__coze-list-card">{conversationItems.map(item => <div key={item.id} className={`module-workflow__coze-list-row${selectedConversationId === item.id ? " is-selected" : ""}`}><button type="button" onClick={() => void handleSelectConversation(item.id)}><strong>{item.title || `${copy.conversationLabel} ${item.id}`}</strong><small>{item.messageCount} / {formatDateTime(item.lastMessageAt ?? item.createdAt, locale)}</small></button><div className="module-workflow__coze-list-row-actions"><button type="button" onClick={() => void handleDeleteConversation(item.id)}>{copy.deleteLabel}</button></div></div>)}</div>
-            <div className="module-workflow__coze-list-card"><div className="module-workflow__coze-message-list">{messages.map(item => <div key={item.id} className="module-workflow__coze-message"><Tag color={item.role === "user" ? "blue" : "green"}>{item.role}</Tag><p>{item.content}</p></div>)}</div><div className="module-workflow__coze-message-compose"><textarea value={conversationDraft} onChange={event => setConversationDraft(event.target.value)} rows={4} /><Button theme="solid" type="secondary" onClick={() => { if (!selectedConversationId || !conversationDraft.trim()) { return; } void api.appendConversationMessage(selectedConversationId, { role: "user", content: conversationDraft.trim() }).then(() => api.listConversationMessages(selectedConversationId)).then(result => { setConversationMessages(prev => ({ ...prev, [selectedConversationId]: result })); setConversationDraft(""); }).catch(error => Toast.error(error instanceof Error ? error.message : copy.conversationLoadFailure)); }}>{copy.appendMessageLabel}</Button></div></div>
+        <div className="module-workflow__coze-page-panel module-workflow__coze-page-panel--conversation">
+          <div className="module-workflow__coze-debug-title">{copy.debugDataTitle}</div>
+          <div className="module-workflow__coze-conversation-layout">
+            <section className="module-workflow__coze-conversation-side">
+              <div className="module-workflow__coze-conversation-side-head">
+                <strong>{copy.conversationManagement}</strong>
+                <small>Chatflow 调试产生的对话数据，数据不会影响线上数据，发布后请在对应渠道查看线上产生的对话数据</small>
+              </div>
+              <div className="module-workflow__coze-conversation-toolbar">
+                <span>会话列表</span>
+                <Button theme="light" type="tertiary" onClick={() => setConversationDialog({ visible: true, title: "", agentId: agents[0]?.id ?? "", submitting: false })}>+</Button>
+              </div>
+              <div className="module-workflow__coze-conversation-list">
+                {conversationItems.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`module-workflow__coze-conversation-item${selectedConversationId === item.id ? " is-active" : ""}`}
+                    onClick={() => void handleSelectConversation(item.id)}
+                  >
+                    <strong>{item.title || `${copy.conversationLabel} ${item.id}`}</strong>
+                    <small>{item.messageCount} / {formatDateTime(item.lastMessageAt ?? item.createdAt, locale)}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="module-workflow__coze-conversation-empty">
+                <div className="module-workflow__coze-empty-icon">[]</div>
+                <strong>{copy.conversationEmptyDynamicTitle}</strong>
+                <small>{copy.conversationEmptyDynamicDescription}</small>
+              </div>
+            </section>
+            <section className="module-workflow__coze-conversation-main">
+              <div className="module-workflow__coze-conversation-main-head">
+                <div className="module-workflow__coze-conversation-main-badge">+</div>
+                <div className="module-workflow__coze-conversation-main-title">{selectedConversationId ? (conversationItems.find(item => item.id === selectedConversationId)?.title || copy.defaultConversationTitle) : copy.defaultConversationTitle}</div>
+              </div>
+              <div className="module-workflow__coze-conversation-main-actions">
+                <Button theme="light" onClick={() => void handleClearConversation("context")}>{copy.clearContextLabel}</Button>
+                <Button theme="light" onClick={() => void handleClearConversation("history")}>{copy.clearHistoryLabel}</Button>
+                <Button theme="solid" type="primary" onClick={() => setConversationDialog({ visible: true, title: "", agentId: agents[0]?.id ?? "", submitting: false })}>{copy.conversationCreateLabel}</Button>
+              </div>
+              {messages.length > 0 ? (
+                <div className="module-workflow__coze-conversation-detail">
+                  <div className="module-workflow__coze-message-list">
+                    {messages.map(item => (
+                      <div key={item.id} className="module-workflow__coze-message">
+                        <Tag color={item.role === "user" ? "blue" : "green"}>{item.role}</Tag>
+                        <p>{item.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="module-workflow__coze-message-compose">
+                    <textarea value={conversationDraft} onChange={event => setConversationDraft(event.target.value)} rows={4} />
+                    <Button theme="solid" type="primary" onClick={() => { if (!selectedConversationId || !conversationDraft.trim()) { return; } void api.appendConversationMessage(selectedConversationId, { role: "user", content: conversationDraft.trim() }).then(() => api.listConversationMessages(selectedConversationId)).then(result => { setConversationMessages(prev => ({ ...prev, [selectedConversationId]: result })); setConversationDraft(""); }).catch(error => Toast.error(error instanceof Error ? error.message : copy.conversationLoadFailure)); }}>{copy.appendMessageLabel}</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="module-workflow__coze-conversation-placeholder">
+                  <div className="module-workflow__coze-conversation-main-badge">+</div>
+                  <div className="module-workflow__coze-conversation-main-title">{copy.defaultConversationTitle}</div>
+                </div>
+              )}
+            </section>
           </div>
         </div>
       );
     }
-    return <WorkflowEditor workflowId={workflowId} apiClient={apiClient} locale={locale} mode={mode} panelCommand={panelCommand} focusNodeKey={focusNodeKey} onValidationChange={setCanvasValidation} onTraceStepsChange={setTraceSteps} onBack={() => { if (backPath) { window.location.assign(backPath); return; } onBack(); }} />;
+    return <WorkflowEditor workflowId={workflowId} apiClient={apiClient} locale={locale} mode={mode} chromeMode="embedded" panelCommand={panelCommand} focusNodeKey={focusNodeKey} onValidationChange={setCanvasValidation} onTraceStepsChange={setTraceSteps} onBack={() => { if (backPath) { window.location.assign(backPath); return; } onBack(); }} />;
   }
 
   return (
     <section className="module-workflow__coze-editor" data-testid={mode === "chatflow" ? "app-chatflow-editor-shell" : "app-workflow-editor-shell"}>
-      <div className="module-workflow__coze-workspace-tabs">
-        <button type="button" className={`module-workflow__coze-workspace-tab${workspaceView === "logic" ? " is-active" : ""}`} onClick={() => setWorkspaceView("logic")}>{copy.editorTabLogic}</button>
-        <button type="button" className={`module-workflow__coze-workspace-tab${workspaceView === "ui" ? " is-active" : ""}`} onClick={() => setWorkspaceView("ui")}>{copy.editorTabUi}</button>
-      </div>
+      <header className="module-workflow__coze-project-header">
+        <div className="module-workflow__coze-project-left">
+          <button type="button" className="module-workflow__coze-icon-button" onClick={onBack} aria-label="back">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M9.5 3.5L5 8l4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <div className="module-workflow__coze-project-logo">+</div>
+          <div className="module-workflow__coze-project-copy">
+            <strong>{projectDisplayTitle}</strong>
+          </div>
+          <button type="button" className="module-workflow__coze-icon-button module-workflow__coze-icon-button--ghost" aria-label="edit">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M11.8 2.8l1.4 1.4c.4.4.4 1 0 1.4L6.2 12.6 3 13l.4-3.2L10.4 2.8c.4-.4 1-.4 1.4 0Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="module-workflow__coze-workspace-tabs">
+          <button type="button" className={`module-workflow__coze-workspace-tab${workspaceView === "logic" ? " is-active" : ""}`} onClick={() => setWorkspaceView("logic")}>{copy.editorTabLogic}</button>
+          <button type="button" className={`module-workflow__coze-workspace-tab${workspaceView === "ui" ? " is-active" : ""}`} onClick={() => setWorkspaceView("ui")}>{copy.editorTabUi}</button>
+        </div>
+
+        <div className="module-workflow__coze-project-actions">
+          <button type="button" className="module-workflow__coze-icon-button" onClick={() => void loadContext(sidebarKeyword)} aria-label="save-history">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="3" y="3" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M5.5 6h5M5.5 8h5M5.5 10h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button type="button" className="module-workflow__coze-icon-button" onClick={() => void loadContext(sidebarKeyword)} aria-label="history">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3.5 8a4.5 4.5 0 1 0 1.3-3.2L3.5 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M8 5.5V8l1.8 1.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </button>
+          <Button theme="solid" type="primary" className="module-workflow__coze-publish-button">{copy.publishLabel}</Button>
+          <button type="button" className="module-workflow__coze-icon-button" aria-label="more">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <circle cx="4" cy="8" r="1.2" />
+              <circle cx="8" cy="8" r="1.2" />
+              <circle cx="12" cy="8" r="1.2" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
       <div className="module-workflow__coze-layout">
         <aside className="module-workflow__coze-sidebar">
           <div className="module-workflow__coze-sidebar-top">
-            <div className="module-workflow__coze-sidebar-tabs">
-              <button type="button" className={sidebarTab === "resources" ? "is-active" : ""} onClick={() => setSidebarTab("resources")}>{copy.resourcesTab}</button>
-              <button type="button" className={sidebarTab === "references" ? "is-active" : ""} onClick={() => setSidebarTab("references")}>{copy.referencesTab}</button>
+            <div className="module-workflow__coze-sidebar-headline">
+              <div className="module-workflow__coze-sidebar-tabs">
+                <button type="button" className={sidebarTab === "resources" ? "is-active" : ""} onClick={() => setSidebarTab("resources")}>{copy.resourcesTab}</button>
+                <button type="button" className={sidebarTab === "references" ? "is-active" : ""} onClick={() => setSidebarTab("references")}>{copy.referencesTab}</button>
+              </div>
+              <button type="button" className="module-workflow__coze-icon-button module-workflow__coze-icon-button--ghost" aria-label="collapse-sidebar">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M12.5 4H7M12.5 8H5.5M12.5 12H7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  <path d="M3.5 4.5 2 6l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
             </div>
-            {sidebarTab === "resources" ? <Input value={sidebarKeyword} onChange={setSidebarKeyword} placeholder={copy.sidebarSearchPlaceholder} showClear /> : null}
           </div>
           <div className="module-workflow__coze-sidebar-body">{loading ? <div className="module-workflow__coze-loading"><Spin /></div> : renderSidebar()}</div>
         </aside>
         <div className="module-workflow__coze-workspace">
           {renderResourceTabs()}
           <div className="module-workflow__coze-workspace-header">
-            <div className="module-workflow__coze-workspace-chip"><span className="module-workflow__coze-workspace-dot" /><strong>{activeTab?.title ?? detail?.name ?? workflowId}</strong></div>
-            {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "problems", kind: "problems", title: copy.problemsLabel, closable: true })}>{copy.problemsLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "trace-list", kind: "trace-list", title: copy.traceLabel, closable: true })}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "references", kind: "references", title: copy.referencesTitle, closable: true })}>{copy.referencesTab}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button><Button theme="borderless" onClick={() => setVariableRefPanelOpen((value) => !value)}>{variableRefPanelOpen ? copy.variableRefToggleHide : copy.variableRefToggleShow}</Button>{mode === "chatflow" ? <Button theme="borderless" onClick={() => emitPanelCommand("openRoleConfig")}>{chatflowRoleLabel}</Button> : null}<Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
-          </div>
-          {isWorkflowTab && templateSource ? (
-            <div className="module-workflow__coze-status-strip">
-              <span><Tag color="green">来自模板市场</Tag></span>
-              <span>模板：{templateSource.templateName || `模板#${templateSource.templateId}`}</span>
-              <span>创建时间：{formatDateTime(templateSource.createdAt, locale)}</span>
+            <div className="module-workflow__coze-workspace-chip">
+              <span className="module-workflow__coze-workspace-dot" />
+              <strong>{activeTab?.title ?? detail?.name ?? workflowId}</strong>
             </div>
-          ) : null}
+            <div className="module-workflow__coze-workspace-actions">
+              <button type="button" className="module-workflow__coze-icon-button module-workflow__coze-icon-button--ghost" onClick={() => void loadContext(sidebarKeyword)} aria-label="refresh">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M12.5 8A4.5 4.5 0 1 1 11 4.7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  <path d="M11 2.8v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button type="button" className="module-workflow__coze-icon-button module-workflow__coze-icon-button--ghost" aria-label="expand">
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M10 3.5h2.5V6M12.5 3.5 9 7M6 12.5H3.5V10M3.5 12.5 7 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
           <div
             className={`module-workflow__coze-workspace-main${
               isWorkflowTab && activeTabKey === workflowTabKey && workspaceView === "logic" && variableRefPanelOpen
@@ -1604,13 +1908,6 @@ export function WorkflowEditorShell({
                   runningHint={copy.traceDockRunningHint}
                 />
               ) : null}
-              {isWorkflowTab ? (
-                <div className="module-workflow__coze-status-strip">
-                  <span>{copy.versionLabel}: v{detail?.latestVersionNumber ?? 0}</span>
-                  <span>{copy.testRunLabel}: {processSnapshot?.status ? copy.publishedStatus : copy.draftStatus}</span>
-                  <span>{copy.updatedAtLabel}: {formatDateTime(detail?.updatedAt, locale)}</span>
-                </div>
-              ) : null}
             </div>
             {isWorkflowTab && activeTabKey === workflowTabKey && workspaceView === "logic" && variableRefPanelOpen ? (
               <WorkflowVariableRefPanel
@@ -1626,8 +1923,7 @@ export function WorkflowEditorShell({
                   sourceNodes: copy.variableRefSourceNodes
                 }}
                 onOpenVariablesTab={() => {
-                  emitPanelCommand("openVariables");
-                  openTab({ key: "variables", kind: "variables", title: copy.variablesLabel, closable: true });
+                  navigateToContentMode("variables");
                 }}
               />
             ) : null}
@@ -1677,7 +1973,7 @@ export function WorkflowEditorShell({
             type="button"
             onClick={() => {
               if (resourceContextMenu.action.type === "route") {
-                window.location.assign(buildEditorPath(resourceContextMenu.action.workflowId, resourceContextMenu.action.mode));
+                navigateToWorkflow(resourceContextMenu.action.workflowId, resourceContextMenu.action.mode);
               } else if (resourceContextMenu.action.type === "tab") {
                 openTab(resourceContextMenu.action.tab);
               }
@@ -1690,7 +1986,7 @@ export function WorkflowEditorShell({
             type="button"
             onClick={() => {
               if (resourceContextMenu.action.type === "route") {
-                window.open(buildEditorPath(resourceContextMenu.action.workflowId, resourceContextMenu.action.mode), "_blank", "noopener,noreferrer");
+                window.open(getWorkflowHref(resourceContextMenu.action.workflowId, resourceContextMenu.action.mode), "_blank", "noopener,noreferrer");
               } else if (resourceContextMenu.action.type === "tab") {
                 openTab(resourceContextMenu.action.tab);
               }

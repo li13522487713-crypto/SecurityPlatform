@@ -7,6 +7,10 @@
   background: #f2f3f5;
 }
 
+.wf-react-editor-page--embedded {
+  background: transparent;
+}
+
 .wf-react-header {
   display: flex;
   align-items: center;
@@ -99,18 +103,15 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(129, 140, 248, 0.08), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.08), transparent 22%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  background: #f8f9fc;
   cursor: default;
 }
 
 .wf-react-dot-grid {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle at 1px 1px, #d9dde4 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 .wf-flowgram-root {
@@ -1223,7 +1224,7 @@
 .wf-react-toolbar {
   pointer-events: none;
   position: absolute;
-  bottom: 16px;
+  bottom: 18px;
   left: 0;
   width: 100%;
   display: flex;
@@ -1249,13 +1250,13 @@
 .wf-react-toolbar-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(18px);
+  gap: 10px;
+  padding: 6px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .wf-react-tools-section {
@@ -1263,10 +1264,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  height: 42px;
   padding: 0 8px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(217, 222, 234, 0.92);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 12px;
 }
 
@@ -1303,6 +1304,11 @@
 
 .wf-react-editor-page {
   background: linear-gradient(180deg, #f7f8fc 0%, #f4f6fb 100%);
+}
+
+.wf-react-editor-page--embedded .wf-react-validation-banner {
+  left: 24px;
+  bottom: 88px;
 }
 
 .wf-react-header {
@@ -1363,9 +1369,7 @@
 }
 
 .wf-react-canvas-shell {
-  background:
-    radial-gradient(circle at top left, rgba(129, 140, 248, 0.08), transparent 18%),
-    linear-gradient(180deg, #f7f8fd 0%, #f3f5fb 100%);
+  background: #f8f9fc;
 }
 
 .wf-react-toolbar {
@@ -1373,10 +1377,10 @@
 }
 
 .wf-react-toolbar-wrap {
-  gap: 12px;
+  gap: 10px;
   padding: 6px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
   border-color: rgba(15, 23, 42, 0.1);
 }
 
@@ -1387,13 +1391,17 @@
 }
 
 .wf-react-tools-section:last-child {
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(84, 85, 246, 0.06);
 }
 
 .wf-react-tools-section :where(.ant-btn-primary.ant-btn-background-ghost) {
   color: #16a34a;
   border-color: rgba(22, 163, 74, 0.28);
   background: #f0fdf4;
+}
+
+.wf-react-editor-page--embedded .wf-react-toolbar-wrap {
+  border-radius: 18px;
 }
 
 @media (max-width: 900px) {

@@ -17,6 +17,7 @@ import type {
   WorkflowCreateRequest,
   WorkflowListItem,
   WorkflowPageProps,
+  WorkflowWorkbenchNavigation,
   WorkflowResourceMode,
   WorkflowStatusFilter,
   WorkflowTemplateSummary
@@ -109,9 +110,15 @@ export function WorkflowListPage({
   api,
   locale,
   onOpenEditor,
+  selectedWorkflowId,
+  onSelectWorkflow,
+  resolveWorkflowHref,
+  contentMode = "canvas",
+  onSelectContentMode,
+  projectTitle,
   mode = "workflow",
   initialCreateVisible = false
-}: WorkflowPageProps & { onOpenEditor: (workflowId: string) => void; mode?: WorkflowResourceMode; initialCreateVisible?: boolean }) {
+}: WorkflowPageProps & WorkflowWorkbenchNavigation & { onOpenEditor: (workflowId: string) => void; mode?: WorkflowResourceMode; initialCreateVisible?: boolean }) {
   const copy = getWorkflowModuleCopy(locale);
   const [items, setItems] = useState<WorkflowListItem[]>([]);
   const [keyword, setKeyword] = useState("");
@@ -147,6 +154,18 @@ export function WorkflowListPage({
     () => items.filter((item) => normalizeItemMode(item) === mode && matchesStatus(item, status)),
     [items, mode, status]
   );
+
+  const selectedItem = useMemo(() => {
+    if (filteredItems.length === 0) {
+      return null;
+    }
+
+    if (selectedWorkflowId) {
+      return filteredItems.find(item => item.id === selectedWorkflowId) ?? filteredItems[0];
+    }
+
+    return filteredItems[0];
+  }, [filteredItems, selectedWorkflowId]);
 
   const title = mode === "chatflow" ? copy.chatflowLabel : copy.workflowLabel;
   const subtitle = mode === "chatflow" ? copy.listSubtitleChatflow : copy.listSubtitleWorkflow;
@@ -192,6 +211,37 @@ export function WorkflowListPage({
         await load();
       }
     });
+  }
+
+  useEffect(() => {
+    if (!selectedItem || !onSelectWorkflow) {
+      return;
+    }
+
+    if (selectedWorkflowId === selectedItem.id) {
+      return;
+    }
+
+    onSelectWorkflow(selectedItem.id, mode);
+  }, [mode, onSelectWorkflow, selectedItem, selectedWorkflowId]);
+
+  if (selectedItem) {
+    return (
+      <section className="module-workflow__page module-workflow__editor-page" data-testid={mode === "chatflow" ? "app-chatflows-page" : "app-workflows-page"}>
+        <WorkflowEditorShell
+          api={api}
+          locale={locale}
+          workflowId={selectedItem.id}
+          mode={mode}
+          contentMode={contentMode}
+          onSelectContentMode={onSelectContentMode}
+          projectTitle={projectTitle}
+          onBack={() => window.history.back()}
+          onSelectWorkflow={onSelectWorkflow}
+          resolveWorkflowHref={resolveWorkflowHref}
+        />
+      </section>
+    );
   }
 
   return (
@@ -338,8 +388,9 @@ export function WorkflowEditorPage({
   workflowId,
   onBack,
   backPath,
+  projectTitle,
   mode = "workflow"
-}: WorkflowPageProps & { workflowId: string; onBack: () => void; backPath?: string; mode?: WorkflowResourceMode }) {
+}: WorkflowPageProps & { workflowId: string; onBack: () => void; backPath?: string; mode?: WorkflowResourceMode; projectTitle?: string }) {
   return (
     <section className="module-workflow__page module-workflow__editor-page" data-testid={mode === "chatflow" ? "app-chatflow-editor-page" : "app-workflow-editor-page"}>
       <WorkflowEditorShell
@@ -348,6 +399,7 @@ export function WorkflowEditorPage({
         workflowId={workflowId}
         onBack={onBack}
         backPath={backPath}
+        projectTitle={projectTitle}
         mode={mode}
       />
     </section>

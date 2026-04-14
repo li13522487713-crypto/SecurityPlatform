@@ -153,6 +153,27 @@ export interface WorkflowModuleCopy {
   variableRefSourceNodes: string;
   variableRefToggleShow: string;
   variableRefToggleHide: string;
+  variablesSettingsTab: string;
+  variablesTestDataTab: string;
+  variableApplicationTitle: string;
+  variableApplicationDescription: string;
+  variableUserTitle: string;
+  variableUserDescription: string;
+  variableSystemTitle: string;
+  variableSystemDescription: string;
+  variableTableNameLabel: string;
+  variableTableDescriptionLabel: string;
+  variableTableTypeLabel: string;
+  variableTableDefaultLabel: string;
+  variableTableChannelLabel: string;
+  variableTableActionsLabel: string;
+  variableCreateItemLabel: string;
+  variableScopeProjectText: string;
+  variableScopeGlobalText: string;
+  debugDataTitle: string;
+  conversationEmptyDynamicTitle: string;
+  conversationEmptyDynamicDescription: string;
+  defaultConversationTitle: string;
 }
 
 function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
@@ -312,7 +333,28 @@ function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
     variableRefOpenVariables: zh ? "管理变量" : "Manage variables",
     variableRefSourceNodes: zh ? "来源节点" : "Source nodes",
     variableRefToggleShow: zh ? "引用侧栏" : "Ref panel",
-    variableRefToggleHide: zh ? "隐藏引用" : "Hide refs"
+    variableRefToggleHide: zh ? "隐藏引用" : "Hide refs",
+    variablesSettingsTab: zh ? "变量设置" : "Variable Settings",
+    variablesTestDataTab: zh ? "测试数据" : "Test Data",
+    variableApplicationTitle: zh ? "应用变量" : "Application Variables",
+    variableApplicationDescription: zh ? "用于配置应用中多处开发场景需要访问的数据，每次新请求均会初始化为默认值。" : "Configure data that multiple app development scenarios need to access. Each new request starts from the default value.",
+    variableUserTitle: zh ? "用户变量" : "User Variables",
+    variableUserDescription: zh ? "用于存储每个用户使用项目过程中，需要持久化存储和读取的数据，如用户的语言偏好、个性化设置等。" : "Store per-user data that needs to be persisted and read during project usage, such as language preferences or personalized settings.",
+    variableSystemTitle: zh ? "系统变量" : "System Variables",
+    variableSystemDescription: zh ? "可选择开启你需要获取的，系统在用户请求自动产生的数据，仅可读不可修改。" : "System generated request data that can be enabled when needed. Read only and cannot be modified.",
+    variableTableNameLabel: zh ? "名称*" : "Name*",
+    variableTableDescriptionLabel: zh ? "描述" : "Description",
+    variableTableTypeLabel: zh ? "类型" : "Type",
+    variableTableDefaultLabel: zh ? "默认值" : "Default Value",
+    variableTableChannelLabel: zh ? "支持渠道" : "Channels",
+    variableTableActionsLabel: zh ? "操作" : "Actions",
+    variableCreateItemLabel: zh ? "新增子项" : "Add Item",
+    variableScopeProjectText: zh ? "项目" : "Project",
+    variableScopeGlobalText: zh ? "全局" : "Global",
+    debugDataTitle: zh ? "调试数据" : "Debug Data",
+    conversationEmptyDynamicTitle: zh ? "暂时没有动态创建的会话" : "No dynamically created conversations yet",
+    conversationEmptyDynamicDescription: zh ? "展示通过“创建会话节点”创建的会话" : "Shows conversations created through the create conversation node.",
+    defaultConversationTitle: "Default"
   };
 }
 

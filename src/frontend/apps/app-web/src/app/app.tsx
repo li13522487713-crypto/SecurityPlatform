@@ -46,11 +46,11 @@ import {
   type StudioModuleApi
 } from "@atlas/module-studio-react";
 import {
-  WorkflowEditorPage,
   WorkflowListPage,
   type WorkflowCreateRequest as WorkflowModuleCreateRequest,
   type WorkflowListQuery,
   type WorkflowModuleApi,
+  type WorkflowWorkbenchContentMode,
   type WorkflowResourceMode,
   type WorkflowTemplateSummary
 } from "@atlas/module-workflow-react";
@@ -81,7 +81,6 @@ import {
   studioPluginsPath,
   studioPublishCenterPath,
   studioVariablesPath,
-  workflowEditorPath,
   workflowListPath,
   workspaceBasePath,
   workspaceBotPath,
@@ -653,8 +652,8 @@ function createExploreApi(appKey: string): ExploreModuleApi {
         workflowId,
         mode,
         route: mode === "chatflow"
-          ? `/apps/${encodeURIComponent(appKey)}/chat_flow/${encodeURIComponent(workflowId)}/editor`
-          : `/apps/${encodeURIComponent(appKey)}/work_flow/${encodeURIComponent(workflowId)}/editor`
+          ? buildChatflowWorkbenchPath(appKey, workflowId)
+          : buildWorkflowWorkbenchPath(appKey, workflowId)
       };
     },
     search: searchAi,
@@ -1310,7 +1309,7 @@ function StudioAppsAliasRedirect() {
       locale={locale}
       onOpenDetail={appId => navigate(studioAppDetailPath(appKey, appId))}
       onOpenPublish={appId => navigate(studioAppPublishPath(appKey, appId))}
-      onOpenWorkflow={workflowId => navigate(workflowEditorPath(appKey, workflowId))}
+      onOpenWorkflow={workflowId => navigate(buildWorkflowWorkbenchPath(appKey, workflowId))}
     />
   );
 }
@@ -1375,7 +1374,7 @@ function StudioPublishCenterRoute() {
       apiBase={typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "/api/v1"}
       onOpenAgent={id => navigate(studioAssistantDetailPath(appKey, id))}
       onOpenApp={id => navigate(studioAppDetailPath(appKey, id))}
-      onOpenWorkflow={id => navigate(workflowEditorPath(appKey, id))}
+      onOpenWorkflow={id => navigate(buildWorkflowWorkbenchPath(appKey, id))}
       onOpenPlugin={id => navigate(studioPluginDetailPath(appKey, id))}
     />
   );
@@ -1500,9 +1499,35 @@ function WorkflowsAliasRedirect() {
   return <Navigate to={workflowListPath(appKey)} replace />;
 }
 
+function buildWorkflowWorkbenchPath(appKey: string, workflowId?: string, contentMode: WorkflowWorkbenchContentMode = "canvas") {
+  const basePath = workflowListPath(appKey);
+  const pathname = contentMode === "canvas"
+    ? basePath
+    : `${basePath}/${contentMode === "session" ? "session" : "variables"}`;
+  const params = new URLSearchParams();
+  if (workflowId) {
+    params.set("workflow_id", workflowId);
+  }
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+function buildChatflowWorkbenchPath(appKey: string, workflowId?: string, contentMode: WorkflowWorkbenchContentMode = "canvas") {
+  const basePath = `/apps/${encodeURIComponent(appKey)}/chat_flow`;
+  const pathname = contentMode === "canvas"
+    ? basePath
+    : `${basePath}/${contentMode === "session" ? "session" : "variables"}`;
+  const params = new URLSearchParams();
+  if (workflowId) {
+    params.set("workflow_id", workflowId);
+  }
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
 function WorkflowEditorAliasRedirect() {
   const { appKey = "", id = "" } = useParams();
-  return <Navigate to={workflowEditorPath(appKey, id)} replace />;
+  return <Navigate to={buildWorkflowWorkbenchPath(appKey, id)} replace />;
 }
 
 function ChatflowsAliasRedirect() {
@@ -1512,7 +1537,7 @@ function ChatflowsAliasRedirect() {
 
 function ChatflowEditorAliasRedirect() {
   const { appKey = "", id = "" } = useParams();
-  return <Navigate to={`/apps/${encodeURIComponent(appKey)}/chat_flow/${encodeURIComponent(id)}/editor`} replace />;
+  return <Navigate to={buildChatflowWorkbenchPath(appKey, id)} replace />;
 }
 
 function AppShellRoute() {
@@ -1874,6 +1899,21 @@ function AppShellRoute() {
     ? shellHeaderCopyMap[activeNavItem.key] ?? defaultHeaderCopy
     : defaultHeaderCopy;
 
+  const isWorkflowWorkbenchRoute =
+    location.pathname.includes("/work_flow") ||
+    location.pathname.includes("/chat_flow");
+
+  if (isWorkflowWorkbenchRoute) {
+    return (
+      <>
+        <UnauthorizedNavigationBridge />
+        <StudioContextProvider api={studioApi}>
+          <Outlet />
+        </StudioContextProvider>
+      </>
+    );
+  }
+
   return (
     <>
       <UnauthorizedNavigationBridge />
@@ -1967,8 +2007,8 @@ function DevelopRoute() {
       workflowItems={workflowItems}
       chatflowItems={chatflowItems}
       onOpenBot={botId => navigate(workspaceBotPath(appKey, bootstrap.spaceId, botId))}
-      onOpenWorkflow={workflowId => navigate(workflowEditorPath(appKey, workflowId))}
-      onOpenChatflow={workflowId => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow/${encodeURIComponent(workflowId)}/editor`)}
+      onOpenWorkflow={workflowId => navigate(buildWorkflowWorkbenchPath(appKey, workflowId))}
+      onOpenChatflow={workflowId => navigate(buildChatflowWorkbenchPath(appKey, workflowId))}
       onOpenWorkflows={() => navigate(workflowListPath(appKey))}
       onOpenChatflows={() => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow`)}
       onOpenAgentChat={() => navigate(workspaceChatPath(appKey, bootstrap.spaceId))}
@@ -1999,7 +2039,7 @@ function DashboardRoute() {
       onNavigateToResource={(type, id) => {
         if (type === "agent") navigate(studioAssistantDetailPath(appKey, id));
         else if (type === "app") navigate(studioAppDetailPath(appKey, id));
-        else if (type === "workflow") navigate(workflowEditorPath(appKey, id));
+        else if (type === "workflow") navigate(buildWorkflowWorkbenchPath(appKey, id));
         else if (type === "plugin") navigate(studioPluginDetailPath(appKey, id));
       }}
       onNavigateToModels={() => navigate(workspaceModelConfigsPath(appKey, spaceId))}
@@ -2053,7 +2093,7 @@ function StudioAppDetailRoute() {
       api={studioApi}
       locale={locale}
       appId={id}
-      onOpenWorkflow={workflowId => navigate(workflowEditorPath(appKey, workflowId))}
+      onOpenWorkflow={workflowId => navigate(buildWorkflowWorkbenchPath(appKey, workflowId))}
       onOpenPublish={() => navigate(studioAppPublishPath(appKey, id))}
     />
   );
@@ -2095,25 +2135,55 @@ function ModelConfigsRoute() {
   return <ModelConfigsPage api={studioApi} locale={locale} />;
 }
 
-function WorkflowListRoute({ mode = "workflow" }: { mode?: WorkflowResourceMode }) {
+function WorkflowListRoute({
+  mode = "workflow",
+  contentMode = "canvas"
+}: { mode?: WorkflowResourceMode; contentMode?: WorkflowWorkbenchContentMode }) {
   const { appKey = "" } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
+  const bootstrap = useBootstrap();
   const { workflowApi } = useAppApis(appKey);
   const isChatflow = mode === "chatflow";
+  const selectedWorkflowId = searchParams.get("workflow_id") ?? undefined;
+
+  const navigateWithinWorkbench = (workflowId: string, nextMode: WorkflowResourceMode) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("workflow_id", workflowId);
+    const targetPath = nextMode === "chatflow"
+      ? buildChatflowWorkbenchPath(appKey, workflowId, contentMode)
+      : buildWorkflowWorkbenchPath(appKey, workflowId, contentMode);
+    navigate(targetPath, { replace: true });
+  };
+
+  const resolveWorkbenchHref = (workflowId: string, nextMode: WorkflowResourceMode) => {
+    return nextMode === "chatflow"
+      ? buildChatflowWorkbenchPath(appKey, workflowId, contentMode)
+      : buildWorkflowWorkbenchPath(appKey, workflowId, contentMode);
+  };
+
+  const navigateContentMode = (nextContentMode: WorkflowWorkbenchContentMode) => {
+    const targetPath = isChatflow
+      ? buildChatflowWorkbenchPath(appKey, selectedWorkflowId, nextContentMode)
+      : buildWorkflowWorkbenchPath(appKey, selectedWorkflowId, nextContentMode);
+    navigate(targetPath, { replace: true });
+  };
+
   return (
     <WorkflowListPage
       api={workflowApi}
       locale={locale}
       mode={mode}
+      selectedWorkflowId={selectedWorkflowId}
+      contentMode={contentMode}
+      projectTitle={bootstrap.workspaceLabel || appKey}
       initialCreateVisible={searchParams.get("create") === "1"}
+      onSelectWorkflow={navigateWithinWorkbench}
+      onSelectContentMode={navigateContentMode}
+      resolveWorkflowHref={resolveWorkbenchHref}
       onOpenEditor={id =>
-        navigate(
-          isChatflow
-            ? `/apps/${encodeURIComponent(appKey)}/chat_flow/${encodeURIComponent(id)}/editor`
-            : workflowEditorPath(appKey, id)
-        )
+        navigate(isChatflow ? buildChatflowWorkbenchPath(appKey, id, contentMode) : buildWorkflowWorkbenchPath(appKey, id, contentMode))
       }
     />
   );
@@ -2121,24 +2191,7 @@ function WorkflowListRoute({ mode = "workflow" }: { mode?: WorkflowResourceMode 
 
 function WorkflowEditorRoute({ mode = "workflow" }: { mode?: WorkflowResourceMode }) {
   const { appKey = "", id = "" } = useParams();
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
-  const { workflowApi } = useAppApis(appKey);
-  const backPath = mode === "chatflow"
-    ? `/apps/${encodeURIComponent(appKey)}/chat_flow`
-    : workflowListPath(appKey);
-  return (
-    <WorkflowEditorPage
-      api={workflowApi}
-      locale={locale}
-      workflowId={id}
-      mode={mode}
-      backPath={backPath}
-      onBack={() => {
-        navigate(backPath, { replace: true });
-      }}
-    />
-  );
+  return <Navigate to={mode === "chatflow" ? buildChatflowWorkbenchPath(appKey, id) : buildWorkflowWorkbenchPath(appKey, id)} replace />;
 }
 
 function AdminUsersRoute() {
@@ -2335,9 +2388,13 @@ export function AppRouter() {
           <Route path="explore/template" element={<ExploreTemplatesRoute />} />
           <Route path="search/:word" element={<ExploreSearchRoute />} />
           <Route path="entry" element={<EntryGatewayPage />} />
-          <Route path="work_flow" element={<WorkflowListRoute mode="workflow" />} />
+          <Route path="work_flow" element={<WorkflowListRoute mode="workflow" contentMode="canvas" />} />
+          <Route path="work_flow/variables" element={<WorkflowListRoute mode="workflow" contentMode="variables" />} />
+          <Route path="work_flow/session" element={<WorkflowListRoute mode="workflow" contentMode="session" />} />
           <Route path="work_flow/:id/editor" element={<WorkflowEditorRoute mode="workflow" />} />
-          <Route path="chat_flow" element={<WorkflowListRoute mode="chatflow" />} />
+          <Route path="chat_flow" element={<WorkflowListRoute mode="chatflow" contentMode="canvas" />} />
+          <Route path="chat_flow/variables" element={<WorkflowListRoute mode="chatflow" contentMode="variables" />} />
+          <Route path="chat_flow/session" element={<WorkflowListRoute mode="chatflow" contentMode="session" />} />
           <Route path="chat_flow/:id/editor" element={<WorkflowEditorRoute mode="chatflow" />} />
           <Route path="admin/overview" element={<AdminOverviewRoute />} />
           <Route path="admin/users" element={<AdminUsersRoute />} />
