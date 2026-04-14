@@ -54,6 +54,12 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
   let refreshPromise: Promise<boolean> | null = null;
   let antiforgeryPromise: Promise<string | null> | null = null;
 
+  function extractAntiforgeryToken(
+    response: ApiResponse<{ token?: string; Token?: string } | null | undefined>
+  ): string | null {
+    return response.data?.token ?? response.data?.Token ?? null;
+  }
+
   function isUnsafeMethod(method: string) {
     return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
   }
@@ -85,10 +91,10 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
     if (antiforgeryPromise) return antiforgeryPromise;
     antiforgeryPromise = (async () => {
       try {
-        const response = await requestApi<ApiResponse<{ token: string }>>("/secure/antiforgery", {
+        const response = await requestApi<ApiResponse<{ token?: string; Token?: string }>>("/secure/antiforgery", {
           method: "GET"
         }, { disableAutoRefresh: true });
-        const token = response.data?.token ?? null;
+        const token = extractAntiforgeryToken(response);
         if (token) setAntiforgeryToken(token);
         return token;
       } catch {

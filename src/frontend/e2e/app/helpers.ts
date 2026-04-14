@@ -371,36 +371,6 @@ export async function ensureAppWorkspace(page: Page, appKey: string) {
   await expect(page.getByTestId("app-develop-page")).toBeVisible();
 }
 
-const primaryNavBySidebarItem: Record<string, "workspace" | "explore" | "admin"> = {
-  develop: "workspace",
-  agents: "workspace",
-  projects: "workspace",
-  chatflows: "workspace",
-  plugins: "workspace",
-  data: "workspace",
-  library: "workspace",
-  "agent-chat": "workspace",
-  "ai-assistant": "workspace",
-  "model-configs": "workspace",
-  workflows: "workspace",
-  "knowledge-bases": "workspace",
-  databases: "workspace",
-  variables: "workspace",
-  "organization-overview": "workspace",
-  "explore-plugins": "explore",
-  "explore-templates": "explore",
-  users: "admin",
-  roles: "admin",
-  departments: "admin",
-  positions: "admin",
-  approval: "admin",
-  reports: "admin",
-  dashboards: "admin",
-  visualization: "admin",
-  settings: "admin",
-  profile: "admin"
-};
-
 export async function navigateBySidebar(
   page: Page,
   itemKey: string,
@@ -412,14 +382,6 @@ export async function navigateBySidebar(
   const sidebar = page.getByTestId("app-sidebar");
   await expect(sidebar).toBeVisible({ timeout: 30_000 });
   const itemProbe = page.getByTestId(`app-sidebar-item-${itemKey}`);
-
-  const primaryKey = primaryNavBySidebarItem[itemKey];
-  if (primaryKey) {
-    if (!(await itemProbe.isVisible().catch(() => false))) {
-      await page.getByTestId(`app-primary-item-${primaryKey}`).click();
-      await page.waitForTimeout(gazeShiftDelay());
-    }
-  }
 
   if (!(await itemProbe.isVisible().catch(() => false))) {
     const moreButtons = sidebar.locator('[data-testid^="app-sidebar-section-more-"]');

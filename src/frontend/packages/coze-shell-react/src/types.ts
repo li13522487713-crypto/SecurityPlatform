@@ -1,16 +1,6 @@
 import type { ReactNode } from "react";
 
-export interface CozePrimaryNavItem {
-  key: string;
-  label: string;
-  icon: ReactNode;
-  path: string;
-  activePrefixes?: string[];
-  badge?: string;
-  testId?: string;
-}
-
-export interface CozeSecondaryNavItem {
+export interface CozeNavItem {
   key: string;
   label: string;
   path: string;
@@ -19,11 +9,11 @@ export interface CozeSecondaryNavItem {
   testId?: string;
 }
 
-export interface CozeSecondaryNavSection {
+export interface CozeNavSection {
   key: string;
   title: string;
-  items: CozeSecondaryNavItem[];
-  overflowItems?: CozeSecondaryNavItem[];
+  items: CozeNavItem[];
+  overflowItems?: CozeNavItem[];
   overflowLabel?: string;
   overflowTestId?: string;
 }

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
-import { IconGlobe, IconGridView1, IconUserGroup } from "@douyinfe/semi-icons";
-import { CozeShell, type CozeSecondaryNavSection } from "@atlas/coze-shell-react";
+import { CozeShell, type CozeNavSection } from "@atlas/coze-shell-react";
 import { LibraryPage, KnowledgeDetailPage, KnowledgeUploadPage, type LibraryKnowledgeApi } from "@atlas/library-module-react";
 import {
   OrganizationOverviewPage,
@@ -1557,222 +1556,63 @@ function AppShellRoute() {
   }
 
   const primaryKey = inferPrimaryArea(location.pathname);
-  const primaryItems = [
+  const navSections: CozeNavSection[] = [
     {
       key: "workspace",
-      label: locale === "zh-CN" ? "工作空间" : "Workspace",
-      icon: <IconGridView1 />,
-      path: workspaceDevelopPath(appKey, bootstrap.spaceId),
-      testId: "app-primary-item-workspace"
+      title: locale === "zh-CN" ? "工作空间" : "Workspace",
+      items: [
+        { key: "develop", label: locale === "zh-CN" ? "开发台" : "Develop", icon: navGlyph("D"), path: workspaceDevelopPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-develop" },
+        { key: "agents", label: locale === "zh-CN" ? "智能体" : "Agents", icon: navGlyph("A"), path: studioAssistantsPath(appKey), testId: "app-sidebar-item-agents" },
+        { key: "workflow", label: locale === "zh-CN" ? "工作流" : "Workflow", icon: navGlyph("W"), path: workflowListPath(appKey), testId: "app-sidebar-item-workflows" },
+        { key: "library", label: locale === "zh-CN" ? "资源库" : "Library", icon: navGlyph("L"), path: studioLibraryPath(appKey), testId: "app-sidebar-item-library" },
+        { key: "plugins", label: locale === "zh-CN" ? "插件" : "Plugins", icon: navGlyph("PL"), path: studioPluginsPath(appKey), testId: "app-sidebar-item-plugins" },
+        { key: "chat", label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat", icon: navGlyph("C"), path: workspaceChatPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-agent-chat" },
+        { key: "model-configs", label: locale === "zh-CN" ? "模型配置" : "Model Configs", icon: navGlyph("M"), path: workspaceModelConfigsPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-model-configs" }
+      ],
+      overflowLabel: locale === "zh-CN" ? "更多" : "More",
+      overflowTestId: "app-sidebar-section-more-workspace",
+      overflowItems: [
+        { key: "projects", label: locale === "zh-CN" ? "应用" : "Applications", icon: navGlyph("APP"), path: studioAppsPath(appKey), testId: "app-sidebar-item-projects" },
+        { key: "chatflow", label: locale === "zh-CN" ? "对话流" : "Chatflow", icon: navGlyph("CF"), path: `/apps/${encodeURIComponent(appKey)}/chat_flow`, testId: "app-sidebar-item-chatflows" },
+        { key: "assistant", label: locale === "zh-CN" ? "AI 助手" : "AI Assistant", icon: navGlyph("AI"), path: studioAssistantToolsPath(appKey), testId: "app-sidebar-item-ai-assistant" },
+        { key: "data", label: locale === "zh-CN" ? "数据" : "Data", icon: navGlyph("DT"), path: studioDataPath(appKey), testId: "app-sidebar-item-data" },
+        { key: "knowledge-bases", label: locale === "zh-CN" ? "知识库" : "Knowledge Bases", icon: navGlyph("KB"), path: studioKnowledgeBasesPath(appKey), testId: "app-sidebar-item-knowledge-bases" },
+        { key: "databases", label: locale === "zh-CN" ? "数据库" : "Databases", icon: navGlyph("DBX"), path: studioDatabasesPath(appKey), testId: "app-sidebar-item-databases" },
+        { key: "variables", label: locale === "zh-CN" ? "变量" : "Variables", icon: navGlyph("VAR"), path: studioVariablesPath(appKey), testId: "app-sidebar-item-variables" }
+      ]
     },
     {
       key: "explore",
-      label: locale === "zh-CN" ? "探索" : "Explore",
-      icon: <IconGlobe />,
-      path: explorePath(appKey, "plugin"),
-      testId: "app-primary-item-explore"
+      title: locale === "zh-CN" ? "探索" : "Explore",
+      items: [
+        { key: "plugin", label: locale === "zh-CN" ? "插件商店" : "Plugin Store", icon: navGlyph("PL"), path: explorePath(appKey, "plugin"), testId: "app-sidebar-item-explore-plugins" },
+        { key: "template", label: locale === "zh-CN" ? "模板商店" : "Template Store", icon: navGlyph("TP"), path: explorePath(appKey, "template"), testId: "app-sidebar-item-explore-templates" }
+      ]
     },
     {
       key: "admin",
-      label: locale === "zh-CN" ? "管理" : "Management",
-      icon: <IconUserGroup />,
-      path: adminPath(appKey, "overview"),
-      testId: "app-primary-item-admin"
-    }
-  ];
-
-  const workspaceSecondarySections: CozeSecondaryNavSection[] = [
-    {
-      key: "workspace-build",
-      title: locale === "zh-CN" ? "创作与构建" : "Create & Build",
-      items: [
-        {
-          key: "develop",
-          label: locale === "zh-CN" ? "开发台" : "Develop",
-          icon: navGlyph("D"),
-          path: workspaceDevelopPath(appKey, bootstrap.spaceId),
-          testId: "app-sidebar-item-develop"
-        },
-        {
-          key: "agents",
-          label: locale === "zh-CN" ? "智能体" : "Agents",
-          icon: navGlyph("A"),
-          path: studioAssistantsPath(appKey),
-          testId: "app-sidebar-item-agents"
-        },
-        {
-          key: "workflow",
-          label: locale === "zh-CN" ? "工作流" : "Workflow",
-          icon: navGlyph("W"),
-          path: workflowListPath(appKey),
-          testId: "app-sidebar-item-workflows"
-        }
-      ],
-      overflowLabel: locale === "zh-CN" ? "更多" : "More",
-      overflowTestId: "app-sidebar-section-more-workspace-build",
-      overflowItems: [
-        {
-          key: "projects",
-          label: locale === "zh-CN" ? "应用" : "Applications",
-          icon: navGlyph("APP"),
-          path: studioAppsPath(appKey),
-          testId: "app-sidebar-item-projects"
-        },
-        {
-          key: "chatflow",
-          label: locale === "zh-CN" ? "对话流" : "Chatflow",
-          icon: navGlyph("CF"),
-          path: `/apps/${encodeURIComponent(appKey)}/chat_flow`,
-          testId: "app-sidebar-item-chatflows"
-        }
-      ]
-    },
-    {
-      key: "workspace-resources",
-      title: locale === "zh-CN" ? "资源与运行" : "Resources & Runtime",
-      items: [
-        {
-          key: "library",
-          label: locale === "zh-CN" ? "资源库" : "Library",
-          icon: navGlyph("L"),
-          path: studioLibraryPath(appKey),
-          testId: "app-sidebar-item-library"
-        },
-        {
-          key: "plugins",
-          label: locale === "zh-CN" ? "插件" : "Plugins",
-          icon: navGlyph("PL"),
-          path: studioPluginsPath(appKey),
-          testId: "app-sidebar-item-plugins"
-        },
-        {
-          key: "chat",
-          label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat",
-          icon: navGlyph("C"),
-          path: workspaceChatPath(appKey, bootstrap.spaceId),
-          testId: "app-sidebar-item-agent-chat"
-        },
-        {
-          key: "model-configs",
-          label: locale === "zh-CN" ? "模型配置" : "Model Configs",
-          icon: navGlyph("M"),
-          path: workspaceModelConfigsPath(appKey, bootstrap.spaceId),
-          testId: "app-sidebar-item-model-configs"
-        }
-      ],
-      overflowLabel: locale === "zh-CN" ? "更多" : "More",
-      overflowTestId: "app-sidebar-section-more-workspace-resources",
-      overflowItems: [
-        {
-          key: "assistant",
-          label: locale === "zh-CN" ? "AI 助手" : "AI Assistant",
-          icon: navGlyph("AI"),
-          path: studioAssistantToolsPath(appKey),
-          testId: "app-sidebar-item-ai-assistant"
-        },
-        {
-          key: "data",
-          label: locale === "zh-CN" ? "数据" : "Data",
-          icon: navGlyph("DT"),
-          path: studioDataPath(appKey),
-          testId: "app-sidebar-item-data"
-        },
-        {
-          key: "knowledge-bases",
-          label: locale === "zh-CN" ? "知识库" : "Knowledge Bases",
-          icon: navGlyph("KB"),
-          path: studioKnowledgeBasesPath(appKey),
-          testId: "app-sidebar-item-knowledge-bases"
-        },
-        {
-          key: "databases",
-          label: locale === "zh-CN" ? "数据库" : "Databases",
-          icon: navGlyph("DBX"),
-          path: studioDatabasesPath(appKey),
-          testId: "app-sidebar-item-databases"
-        },
-        {
-          key: "variables",
-          label: locale === "zh-CN" ? "变量" : "Variables",
-          icon: navGlyph("VAR"),
-          path: studioVariablesPath(appKey),
-          testId: "app-sidebar-item-variables"
-        }
-      ]
-    },
-    {
-      key: "workspace-governance",
-      title: locale === "zh-CN" ? "团队与治理" : "Team & Governance",
+      title: locale === "zh-CN" ? "管理" : "Management",
       items: [
         { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
         { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
-        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" }
+        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
+        { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
+        { key: "positions", label: locale === "zh-CN" ? "职位管理" : "Positions", icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
       ],
       overflowLabel: locale === "zh-CN" ? "更多" : "More",
-      overflowTestId: "app-sidebar-section-more-workspace-governance",
+      overflowTestId: "app-sidebar-section-more-admin",
       overflowItems: [
-        { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
-        { key: "positions", label: locale === "zh-CN" ? "岗位管理" : "Positions", icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" },
         { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
         { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", icon: navGlyph("RP"), path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
-        { key: "dashboards", label: locale === "zh-CN" ? "仪表盘" : "Dashboards", icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
-        { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Monitoring", icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" },
+        { key: "dashboards", label: locale === "zh-CN" ? "仪表盘管理" : "Dashboards", icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
+        { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Visualization", icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" },
         { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", icon: navGlyph("S"), path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
         { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", icon: navGlyph("ME"), path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
       ]
     }
   ];
 
-  const exploreSecondarySections: CozeSecondaryNavSection[] = [
-    {
-      key: "explore",
-      title: locale === "zh-CN" ? "探索与模板" : "Explore & Templates",
-      items: [
-        { key: "plugin", label: locale === "zh-CN" ? "插件商店" : "Plugin Store", path: explorePath(appKey, "plugin"), testId: "app-sidebar-item-explore-plugins" },
-        { key: "template", label: locale === "zh-CN" ? "模板商店" : "Template Store", path: explorePath(appKey, "template"), testId: "app-sidebar-item-explore-templates" }
-      ]
-    }
-  ];
-
-  const adminSecondarySections: CozeSecondaryNavSection[] = [
-    {
-      key: "admin-organization",
-      title: locale === "zh-CN" ? "组织与权限" : "Org & Access",
-      items: [
-        { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
-        { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
-        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
-        { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
-        { key: "positions", label: locale === "zh-CN" ? "职位管理" : "Positions", path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
-      ]
-    },
-    {
-      key: "admin-operations",
-      title: locale === "zh-CN" ? "运营与监控" : "Operations & Monitoring",
-      items: [
-        { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
-        { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
-        { key: "dashboards", label: locale === "zh-CN" ? "仪表盘管理" : "Dashboards", path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
-        { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Visualization", path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" }
-      ]
-    },
-    {
-      key: "admin-settings",
-      title: locale === "zh-CN" ? "个人与设置" : "Personal & Settings",
-      items: [
-        { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
-        { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
-      ]
-    }
-  ];
-
-  const secondarySections = primaryKey === "workspace"
-    ? workspaceSecondarySections
-    : primaryKey === "explore"
-      ? exploreSecondarySections
-      : adminSecondarySections;
-
-  const activeSecondaryItem = secondarySections
+  const activeNavItem = navSections
     .flatMap(section => [...section.items, ...(section.overflowItems ?? [])])
     .find(item => activeShellPath === item.path || activeShellPath.startsWith(`${item.path}/`) || activeShellPath.includes(item.path));
 
@@ -2030,8 +1870,8 @@ function AppShellRoute() {
             subtitle: "Manage members, permissions, operations, and workspace settings."
           });
 
-  const shellHeaderCopy = activeSecondaryItem
-    ? shellHeaderCopyMap[activeSecondaryItem.key] ?? defaultHeaderCopy
+  const shellHeaderCopy = activeNavItem
+    ? shellHeaderCopyMap[activeNavItem.key] ?? defaultHeaderCopy
     : defaultHeaderCopy;
 
   return (
@@ -2041,9 +1881,7 @@ function AppShellRoute() {
         appKey={appKey}
         workspaceLabel={bootstrap.workspaceLabel || appKey}
         activePath={activeShellPath}
-        activePrimaryKey={primaryKey}
-        primaryItems={primaryItems}
-        secondarySections={secondarySections}
+        navSections={navSections}
         headerTitle={shellHeaderCopy.title}
         headerSubtitle={shellHeaderCopy.subtitle}
         localeLabel={locale === "zh-CN" ? "English" : "中文"}

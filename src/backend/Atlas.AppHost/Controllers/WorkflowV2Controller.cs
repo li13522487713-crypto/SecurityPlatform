@@ -183,6 +183,22 @@ public sealed class WorkflowV2Controller : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<WorkflowV2VersionDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:long}/dependencies")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
+    public async Task<ActionResult<ApiResponse<WorkflowV2DependencyDto>>> GetDependencies(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await GetQueryService().GetDependenciesAsync(tenantId, id, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse<WorkflowV2DependencyDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"), HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<WorkflowV2DependencyDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:long}/versions/{fromId:long}/diff/{toId:long}")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
     public async Task<ActionResult<ApiResponse<WorkflowVersionDiff>>> GetVersionDiff(

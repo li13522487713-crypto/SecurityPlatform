@@ -482,9 +482,10 @@
   - `outputs`
   - `trace?`
 
-### Workflow 依赖查询（PlatformHost）
+### Workflow 依赖查询（PlatformHost / AppHost）
 
 - `GET /api/v2/workflows/{id}/dependencies`
+- `PlatformHost` 与 `AppHost` 均提供同构接口；`app-web` 直连模式默认命中 `AppHost`。
 - 返回：`ApiResponse<WorkflowV2DependencyDto>`
 - `WorkflowV2DependencyDto`
   - `workflowId`

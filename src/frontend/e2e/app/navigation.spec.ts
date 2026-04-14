@@ -62,7 +62,6 @@ test.describe.serial("@smoke App Navigation", () => {
   });
 
   test("header user menu should open and route profile", async ({ page }) => {
-    await page.getByTestId("app-primary-item-admin").click();
     await page.getByTestId("app-header-user-menu").click();
     await page.getByTestId("app-header-menu-profile").click();
     await expect(page).toHaveURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/profile(?:\\?.*)?$`));
@@ -75,12 +74,11 @@ test.describe.serial("@smoke App Navigation", () => {
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
     await expect(page.getByTestId("app-shell-header-title")).toHaveText("AI 工作空间");
     await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("统一完成创作、运行与团队协作");
-    await expect(page.getByText("创作与构建")).toBeVisible();
-    await expect(page.getByText("资源与运行")).toBeVisible();
-    await expect(page.getByText("团队与治理")).toBeVisible();
-    await expect(page.getByTestId("app-sidebar-section-more-workspace-build")).toContainText("更多");
-    await expect(page.getByTestId("app-sidebar-section-more-workspace-resources")).toContainText("更多");
-    await expect(page.getByTestId("app-sidebar-section-more-workspace-governance")).toContainText("更多");
+    await expect(page.getByText("工作空间")).toBeVisible();
+    await expect(page.getByText("探索")).toBeVisible();
+    await expect(page.getByText("管理")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-section-more-workspace")).toContainText("更多");
+    await expect(page.getByTestId("app-sidebar-section-more-admin")).toContainText("更多");
     await expect(page.getByTestId("app-sidebar-item-develop")).toContainText("开发台");
     await expect(page.getByTestId("app-sidebar-item-agents")).toContainText("智能体");
     await expect(page.getByTestId("app-sidebar-item-workflows")).toContainText("工作流");
@@ -98,41 +96,34 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-organization-overview")).toContainText("组织概览");
     await expect(page.getByTestId("app-sidebar-item-approval")).toHaveCount(0);
 
-    await page.getByTestId("app-sidebar-section-more-workspace-build").click();
+    await page.getByTestId("app-sidebar-section-more-workspace").click();
     await expect(page.getByTestId("app-sidebar-item-projects")).toContainText("应用");
     await expect(page.getByTestId("app-sidebar-item-chatflows")).toContainText("对话流");
-
-    await page.getByTestId("app-sidebar-section-more-workspace-resources").click();
     await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toContainText("AI 助手");
     await expect(page.getByTestId("app-sidebar-item-data")).toContainText("数据");
     await expect(page.getByTestId("app-sidebar-item-knowledge-bases")).toContainText("知识库");
     await expect(page.getByTestId("app-sidebar-item-databases")).toContainText("数据库");
     await expect(page.getByTestId("app-sidebar-item-variables")).toContainText("变量");
-
-    await page.getByTestId("app-sidebar-section-more-workspace-governance").click();
     await expect(page.getByTestId("app-sidebar-item-approval")).toContainText("审批工作台");
     await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
 
-    await page.getByTestId("app-primary-item-admin").click();
-    await expect(page.getByTestId("app-shell-header-title")).toHaveText("团队协作");
-    await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("成员、权限");
-    await expect(page.getByText("组织与权限")).toBeVisible();
-    await expect(page.getByText("运营与监控")).toBeVisible();
-    await expect(page.getByText("个人与设置")).toBeVisible();
+    await page.getByTestId("app-sidebar-item-users").click();
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("成员管理");
+    await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("邀请成员");
     await expect(page.getByTestId("app-sidebar-item-users")).toContainText("用户管理");
     await expect(page.getByTestId("app-sidebar-item-roles")).toContainText("角色管理");
     await expect(page.getByTestId("app-sidebar-item-departments")).toContainText("部门管理");
     await expect(page.getByTestId("app-sidebar-item-positions")).toContainText("职位管理");
+    await page.getByTestId("app-sidebar-section-more-admin").click();
     await expect(page.getByTestId("app-sidebar-item-approval")).toContainText("审批工作台");
     await expect(page.getByTestId("app-sidebar-item-reports")).toContainText("报表管理");
     await expect(page.getByTestId("app-sidebar-item-dashboards")).toContainText("仪表盘管理");
     await expect(page.getByTestId("app-sidebar-item-visualization")).toContainText("运行监控");
     await expect(page.getByTestId("app-sidebar-item-settings")).toContainText("设置");
 
-    await page.getByTestId("app-primary-item-explore").click();
+    await page.getByTestId("app-sidebar-item-explore-plugins").click();
     await expect(page.getByTestId("app-shell-header-title")).toHaveText("插件发现");
     await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("插件能力");
-    await expect(page.getByText("探索与模板")).toBeVisible();
     await expect(page.getByTestId("app-sidebar-item-explore-plugins")).toContainText("插件商店");
     await expect(page.getByTestId("app-sidebar-item-explore-templates")).toContainText("模板商店");
   });

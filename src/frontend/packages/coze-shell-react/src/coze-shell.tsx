@@ -1,20 +1,17 @@
 import { useState, type ReactNode } from "react";
 import { Avatar, Button, Dropdown, Space, Typography, Tag } from "@douyinfe/semi-ui";
-import { IconChevronLeft, IconGlobe, IconTreeTriangleDown, IconExit, IconPlus, IconMinus } from "@douyinfe/semi-icons";
+import { IconChevronLeft, IconChevronRight, IconGlobe, IconTreeTriangleDown, IconExit, IconPlus, IconMinus } from "@douyinfe/semi-icons";
 import type {
   CozeHeaderAction,
-  CozePrimaryNavItem,
-  CozeSecondaryNavItem,
-  CozeSecondaryNavSection,
+  CozeNavItem,
+  CozeNavSection,
 } from "./types";
 
 interface CozeShellProps {
   appKey: string;
   workspaceLabel: string;
   activePath: string;
-  activePrimaryKey: string;
-  primaryItems: CozePrimaryNavItem[];
-  secondarySections: CozeSecondaryNavSection[];
+  navSections: CozeNavSection[];
   headerTitle: string;
   headerSubtitle?: string;
   localeLabel: string;
@@ -29,7 +26,7 @@ interface CozeShellProps {
   children: ReactNode;
 }
 
-function isActiveSecondary(item: CozeSecondaryNavItem, activePath: string): boolean {
+function isActiveNavItem(item: CozeNavItem, activePath: string): boolean {
   if (activePath === item.path || activePath.startsWith(`${item.path}/`)) {
     return true;
   }
@@ -39,21 +36,11 @@ function isActiveSecondary(item: CozeSecondaryNavItem, activePath: string): bool
   return activePathname === itemPathname && activePath.includes(item.path);
 }
 
-function isActivePrimary(item: CozePrimaryNavItem, activePath: string): boolean {
-  if (activePath === item.path || activePath.startsWith(`${item.path}/`)) {
-    return true;
-  }
-
-  return (item.activePrefixes ?? []).some(prefix => activePath.startsWith(prefix));
-}
-
 export function CozeShell({
   appKey,
   workspaceLabel,
   activePath,
-  activePrimaryKey,
-  primaryItems,
-  secondarySections,
+  navSections,
   headerTitle,
   headerSubtitle,
   localeLabel,
@@ -68,18 +55,32 @@ export function CozeShell({
   children,
 }: CozeShellProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="coze-shell">
-      <aside className="coze-shell__primary" data-testid="app-primary-nav">
-        <button
-          type="button"
-          className="coze-shell__back"
-          onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}`)}
-          data-testid="app-shell-back"
-        >
-          <IconChevronLeft size="large" />
-        </button>
+    <div className={`coze-shell${collapsed ? " coze-shell--sidebar-collapsed" : ""}`}>
+      <aside className="coze-shell__sidebar" data-testid="app-sidebar">
+        <div className="coze-shell__sidebar-toolbar">
+          <button
+            type="button"
+            className="coze-shell__back"
+            onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}`)}
+            data-testid="app-shell-back"
+            title="返回应用"
+          >
+            <IconChevronLeft size="large" />
+          </button>
+
+          <button
+            type="button"
+            className="coze-shell__collapse"
+            onClick={() => setCollapsed(current => !current)}
+            data-testid="app-sidebar-toggle"
+            title={collapsed ? "展开侧边栏" : "收起侧边栏"}
+          >
+            {collapsed ? <IconChevronRight size="small" /> : <IconChevronLeft size="small" />}
+          </button>
+        </div>
 
         <div className="coze-shell__brand">
           <Avatar size="small" color="light-blue">
@@ -91,40 +92,10 @@ export function CozeShell({
           </div>
         </div>
 
-        <nav className="coze-shell__primary-nav">
-          {primaryItems.map(item => {
-            const active = item.key === activePrimaryKey || isActivePrimary(item, activePath);
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={`coze-shell__primary-item${active ? " is-active" : ""}`}
-                onClick={() => onNavigate(item.path)}
-                data-testid={item.testId}
-                title={item.label}
-              >
-                <span className="coze-shell__primary-item-icon">{item.icon}</span>
-                <span className="coze-shell__primary-item-label">{item.label}</span>
-                {item.badge ? <span className="coze-shell__primary-item-badge">{item.badge}</span> : null}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-
-      <aside className="coze-shell__secondary" data-testid="app-sidebar">
-        <div className="coze-shell__secondary-header">
-          <Typography.Title heading={6} style={{ margin: 0 }}>
-            {headerTitle}
-          </Typography.Title>
-          {headerSubtitle ? <Typography.Text type="tertiary">{headerSubtitle}</Typography.Text> : null}
-        </div>
-
-        <div className="coze-shell__secondary-sections">
-          {secondarySections.map(section => {
+        <div className="coze-shell__sidebar-nav">
+          {navSections.map(section => {
             const overflowItems = section.overflowItems ?? [];
-            const hasOverflow = overflowItems.length > 0;
-            const activeOverflow = overflowItems.some(item => isActiveSecondary(item, activePath));
+            const activeOverflow = overflowItems.some(item => isActiveNavItem(item, activePath));
             const expanded = expandedSections[section.key] || activeOverflow;
 
             return (
@@ -132,7 +103,7 @@ export function CozeShell({
                 <div className="coze-shell__section-title">{section.title}</div>
                 <div className="coze-shell__section-items">
                   {section.items.map(item => {
-                    const active = isActiveSecondary(item, activePath);
+                    const active = isActiveNavItem(item, activePath);
                     return (
                       <button
                         key={item.key}
@@ -140,6 +111,7 @@ export function CozeShell({
                         className={`coze-shell__secondary-item${active ? " is-active" : ""}`}
                         onClick={() => onNavigate(item.path)}
                         data-testid={item.testId}
+                        title={item.label}
                       >
                         {item.icon ? <span className="coze-shell__secondary-item-icon">{item.icon}</span> : null}
                         <span className="coze-shell__secondary-item-label">{item.label}</span>
@@ -148,12 +120,13 @@ export function CozeShell({
                     );
                   })}
 
-                  {hasOverflow ? (
+                  {overflowItems.length > 0 ? (
                     <>
                       <button
                         type="button"
                         className={`coze-shell__secondary-item coze-shell__secondary-item--more${expanded ? " is-expanded" : ""}`}
                         data-testid={section.overflowTestId}
+                        title={section.overflowLabel ?? "更多"}
                         onClick={() => {
                           setExpandedSections(current => ({
                             ...current,
@@ -170,7 +143,7 @@ export function CozeShell({
                       {expanded ? (
                         <div className="coze-shell__section-overflow">
                           {overflowItems.map(item => {
-                            const active = isActiveSecondary(item, activePath);
+                            const active = isActiveNavItem(item, activePath);
                             return (
                               <button
                                 key={item.key}
@@ -178,6 +151,7 @@ export function CozeShell({
                                 className={`coze-shell__secondary-item coze-shell__secondary-item--overflow${active ? " is-active" : ""}`}
                                 onClick={() => onNavigate(item.path)}
                                 data-testid={item.testId}
+                                title={item.label}
                               >
                                 {item.icon ? <span className="coze-shell__secondary-item-icon">{item.icon}</span> : null}
                                 <span className="coze-shell__secondary-item-label">{item.label}</span>
