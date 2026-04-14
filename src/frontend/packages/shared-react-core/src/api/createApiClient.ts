@@ -79,7 +79,19 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
   function tryParsePayload(text: string): { code?: string; message?: string; title?: string } | null {
     if (!text) return null;
     try {
-      return JSON.parse(text);
+      const parsed = JSON.parse(text) as {
+        code?: string;
+        Code?: string;
+        message?: string;
+        Message?: string;
+        title?: string;
+        Title?: string;
+      };
+      return {
+        code: parsed.code ?? parsed.Code,
+        message: parsed.message ?? parsed.Message,
+        title: parsed.title ?? parsed.Title
+      };
     } catch {
       return null;
     }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type PropsWithChildren, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type PropsWithChildren, type ReactNode } from "react";
 
 export type LayoutPanelKey = "NodeForm" | "ProblemPanel" | "TracePanel" | "TestRunPanel";
 
@@ -12,19 +12,23 @@ const FloatLayoutContext = createContext<FloatLayoutState | null>(null);
 
 export function FloatLayoutProvider(props: PropsWithChildren) {
   const [rightPanel, setRightPanel] = useState<{ key: LayoutPanelKey; payload?: unknown } | null>(null);
+  const open = useCallback((key: LayoutPanelKey, payload?: unknown) => {
+    setRightPanel({ key, payload });
+  }, []);
+  const close = useCallback((key?: LayoutPanelKey) => {
+    if (!key) {
+      setRightPanel(null);
+      return;
+    }
+    setRightPanel((prev) => (prev?.key === key ? null : prev));
+  }, []);
   const value = useMemo<FloatLayoutState>(
     () => ({
       rightPanel,
-      open: (key, payload) => setRightPanel({ key, payload }),
-      close: (key) => {
-        if (!key) {
-          setRightPanel(null);
-          return;
-        }
-        setRightPanel((prev) => (prev?.key === key ? null : prev));
-      }
+      open,
+      close
     }),
-    [rightPanel]
+    [close, open, rightPanel]
   );
   return <FloatLayoutContext.Provider value={value}>{props.children}</FloatLayoutContext.Provider>;
 }

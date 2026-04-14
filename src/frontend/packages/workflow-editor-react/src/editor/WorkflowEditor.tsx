@@ -1,5 +1,5 @@
 import { message } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CanvasToolbar } from "../components/CanvasToolbar";
 import { ChatflowRolePanel } from "../components/ChatflowRolePanel";
@@ -56,6 +56,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   const { t } = useTranslation();
   const isReadOnly = Boolean(props.readOnly);
   const layoutService = useFloatLayoutService();
+  const { open: openLayoutPanel, close: closeLayoutPanel } = layoutService;
   const dragService = useService<WorkflowDragService>(WORKFLOW_EDITOR_DI.workflowDragService);
   const operationService = useService<WorkflowOperationService>(WORKFLOW_EDITOR_DI.workflowOperationService);
   const editService = useService<WorkflowEditService>(WORKFLOW_EDITOR_DI.workflowEditService);
@@ -64,7 +65,10 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   const lineService = useService<WorkflowLineService>(WORKFLOW_EDITOR_DI.workflowLineService);
 
   const store = useWorkflowEditorStore();
-  const sideSheetStore = useNodeSideSheetStore();
+  const sideSheetVisible = useNodeSideSheetStore((state) => state.isVisible);
+  const sideSheetNodeKey = useNodeSideSheetStore((state) => state.currentNodeKey);
+  const openSideSheet = useNodeSideSheetStore((state) => state.openSideSheet);
+  const closeSideSheet = useNodeSideSheetStore((state) => state.closeSideSheet);
 
   const [showNodePanel, setShowNodePanel] = useState(false);
   const [showTestPanel, setShowTestPanel] = useState(false);
@@ -84,6 +88,12 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   const panRef = useRef({ x: 0, y: 0 });
   const zoomRef = useRef(100);
   const canvasShellRef = useRef<HTMLDivElement | null>(null);
+  const selectedNodeKey = store.selectedNodeKeys[0] ?? "";
+  const panelCommand = props.panelCommand;
+  const focusNodeKey = props.focusNodeKey;
+  const workflowMode = props.mode;
+  const onValidationChange = props.onValidationChange;
+  const onTraceStepsChange = props.onTraceStepsChange;
 
   useEffect(() => {
     operationService.bindProps(props);
@@ -110,20 +120,19 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   }, [store.zoom]);
 
   useEffect(() => {
-    const selectedNodeKey = store.selectedNodeKeys[0];
     if (!selectedNodeKey) {
-      if (sideSheetStore.isVisible) {
-        sideSheetStore.closeSideSheet();
+      if (sideSheetVisible) {
+        closeSideSheet();
       }
-      layoutService.close("NodeForm");
+      closeLayoutPanel("NodeForm");
       return;
     }
-    sideSheetStore.openSideSheet(selectedNodeKey);
-    layoutService.open("NodeForm", { nodeKey: selectedNodeKey });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layoutService, sideSheetStore, store.selectedNodeKeys]);
+    if (sideSheetNodeKey !== selectedNodeKey || !sideSheetVisible) {
+      openSideSheet(selectedNodeKey);
+    }
+    openLayoutPanel("NodeForm", { nodeKey: selectedNodeKey });
+  }, [closeLayoutPanel, closeSideSheet, openLayoutPanel, openSideSheet, selectedNodeKey, sideSheetNodeKey, sideSheetVisible]);
 
-  const selectedNodeKey = store.selectedNodeKeys[0] ?? "";
   const selectedNode = useMemo(() => store.canvasNodes.find((item) => item.key === selectedNodeKey) ?? null, [selectedNodeKey, store.canvasNodes]);
 
   useEffect(() => {
@@ -134,7 +143,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   }, [selectedNode]);
 
   useEffect(() => {
-    const command = props.panelCommand;
+    const command = panelCommand;
     if (!command) {
       return;
     }
@@ -145,11 +154,11 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         break;
       case "openTestRun":
         setShowTestPanel(true);
-        layoutService.open("TestRunPanel");
+        openLayoutPanel("TestRunPanel");
         break;
       case "openTrace":
         setShowTracePanel(true);
-        layoutService.open("TracePanel");
+        openLayoutPanel("TracePanel");
         break;
       case "openVariables":
         setShowVariablePanel(true);
@@ -162,31 +171,31 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         break;
       case "openProblems":
         setShowProblemPanel(true);
-        layoutService.open("ProblemPanel");
+        openLayoutPanel("ProblemPanel");
         break;
       default:
         break;
     }
-  }, [layoutService, props.panelCommand]);
+  }, [openLayoutPanel, panelCommand]);
 
   useEffect(() => {
-    props.onValidationChange?.(canvasValidation);
-  }, [canvasValidation, props]);
+    onValidationChange?.(canvasValidation);
+  }, [canvasValidation, onValidationChange]);
 
   useEffect(() => {
-    props.onTraceStepsChange?.(store.traceSteps);
-  }, [props, store.traceSteps]);
+    onTraceStepsChange?.(store.traceSteps);
+  }, [onTraceStepsChange, store.traceSteps]);
 
   useEffect(() => {
-    if (!props.focusNodeKey) {
+    if (!focusNodeKey) {
       return;
     }
 
-    editService.focusNode(props.focusNodeKey);
-  }, [editService, props.focusNodeKey]);
+    editService.focusNode(focusNodeKey);
+  }, [editService, focusNodeKey]);
 
   useEffect(() => {
-    if (props.mode !== "chatflow") {
+    if (workflowMode !== "chatflow") {
       return;
     }
 
@@ -194,10 +203,10 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     if (normalizedGlobals !== store.canvasGlobals) {
       store.setCanvasGlobals(normalizedGlobals);
     }
-  }, [props.mode, store]);
+  }, [store.canvasGlobals, store.setCanvasGlobals, workflowMode]);
 
   useEffect(() => {
-    if (props.mode !== "chatflow") {
+    if (workflowMode !== "chatflow") {
       return;
     }
 
@@ -214,7 +223,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         )
       );
     }
-  }, [props.mode, store]);
+  }, [store.setTestInputJson, store.testInputJson, workflowMode]);
 
   const variableSuggestions = useMemo(
     () =>
@@ -400,7 +409,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     }
   }
 
-  async function handleSave(): Promise<void> {
+  const handleSave = useCallback(async (): Promise<void> => {
     if (isReadOnly) {
       message.warning("只读模式下不可保存。");
       return;
@@ -412,7 +421,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     } catch (error) {
       message.error(extractErrorMessage(error, "保存草稿失败，请稍后重试。"));
     }
-  }
+  }, [isReadOnly, saveService]);
 
   async function handlePublish(): Promise<void> {
     if (isReadOnly) {
@@ -459,28 +468,30 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     if (validation.issues.length > 0) {
       message.error(getTestRunIssueLabel(validation.issues[0]));
       setShowTestPanel(true);
-      layoutService.open("TestRunPanel");
-      return;
-    }
+        openLayoutPanel("TestRunPanel");
+        return;
+      }
 
-    await runService.testRun();
+      await runService.testRun();
   }
 
-  function buildClipboardSnapshot(): ClipboardSnapshot | null {
-    if (store.selectedNodeKeys.length === 0) {
+  const buildClipboardSnapshot = useCallback((): ClipboardSnapshot | null => {
+    const state = useWorkflowEditorStore.getState();
+    if (state.selectedNodeKeys.length === 0) {
       return null;
     }
-    const selectedSet = new Set(store.selectedNodeKeys);
-    const nodes = store.canvasNodes.filter((node) => selectedSet.has(node.key));
+    const selectedSet = new Set(state.selectedNodeKeys);
+    const nodes = state.canvasNodes.filter((node) => selectedSet.has(node.key));
     if (nodes.length === 0) {
       return null;
     }
-    const connections = store.canvasConnections.filter((line) => selectedSet.has(line.fromNode) && selectedSet.has(line.toNode));
+    const connections = state.canvasConnections.filter((line) => selectedSet.has(line.fromNode) && selectedSet.has(line.toNode));
     return { nodes: structuredClone(nodes), connections: structuredClone(connections) };
-  }
+  }, []);
 
-  function pasteClipboardSnapshot(snapshot: ClipboardSnapshot): string[] {
-    const usedKeys = new Set(store.canvasNodes.map((node) => node.key));
+  const pasteClipboardSnapshot = useCallback((snapshot: ClipboardSnapshot): string[] => {
+    const state = useWorkflowEditorStore.getState();
+    const usedKeys = new Set(state.canvasNodes.map((node) => node.key));
     const keyMap = new Map<string, string>();
     const buildNextKey = (baseType: string) => {
       let candidate = `${baseType.toLowerCase()}_${Date.now().toString(36)}`;
@@ -519,14 +530,15 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
       })
       .filter((item): item is CanvasConnection => item !== null);
 
-    store.setCanvasNodes([...store.canvasNodes, ...createdNodes]);
-    store.setCanvasConnections([...store.canvasConnections, ...createdConnections]);
-    store.setDirty(true);
+    state.setCanvasNodes([...state.canvasNodes, ...createdNodes]);
+    state.setCanvasConnections([...state.canvasConnections, ...createdConnections]);
+    state.setDirty(true);
     return createdNodes.map((node) => node.key);
-  }
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const state = useWorkflowEditorStore.getState();
       const element = event.target as HTMLElement | null;
       if (element && (element.closest("input, textarea, [contenteditable='true']") || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName))) {
         return;
@@ -546,7 +558,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
           return;
         }
         const createdNodeKeys = pasteClipboardSnapshot(clipboardRef.current);
-        store.setSelectedNodeKeys(createdNodeKeys);
+        state.setSelectedNodeKeys(createdNodeKeys);
         event.preventDefault();
       } else if (isMeta && lowerKey === "d" && !isReadOnly) {
         const snapshot = buildClipboardSnapshot();
@@ -555,16 +567,16 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
         }
         clipboardRef.current = snapshot;
         const createdNodeKeys = pasteClipboardSnapshot(snapshot);
-        store.setSelectedNodeKeys(createdNodeKeys);
+        state.setSelectedNodeKeys(createdNodeKeys);
         event.preventDefault();
       } else if (isMeta && lowerKey === "a") {
-        store.setSelectedNodeKeys(store.canvasNodes.map((node) => node.key));
+        state.setSelectedNodeKeys(state.canvasNodes.map((node) => node.key));
         event.preventDefault();
       } else if ((event.key === "Delete" || event.key === "Backspace") && !isReadOnly) {
-        if (store.selectedNodeKeys.length === 0) {
+        if (state.selectedNodeKeys.length === 0) {
           return;
         }
-        for (const key of store.selectedNodeKeys) {
+        for (const key of state.selectedNodeKeys) {
           editService.deleteNode(key);
         }
         event.preventDefault();
@@ -577,7 +589,7 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [editService, isReadOnly, store]);
+  }, [buildClipboardSnapshot, editService, handleSave, isReadOnly, pasteClipboardSnapshot]);
 
   const flowgramCanvasSchema: CanvasSchema = useMemo(() => ({
     nodes: store.canvasNodes.map((node) => ({
@@ -695,9 +707,10 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
               winner = { lineId: line.lineId, distance };
             }
           }
-          setHoveredLineId(winner?.lineId ?? null);
+          const nextHoveredLineId = winner?.lineId ?? null;
+          setHoveredLineId((current) => (current === nextHoveredLineId ? current : nextHoveredLineId));
         }}
-        onMouseLeave={() => setHoveredLineId(null)}
+        onMouseLeave={() => setHoveredLineId((current) => (current === null ? current : null))}
         onDragOver={(event) => {
           if (draggingCatalogNodeType) {
             event.preventDefault();
