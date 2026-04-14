@@ -89,6 +89,40 @@ async function chooseSemiOption(page: import("@playwright/test").Page, trigger: 
   await option.click();
 }
 
+async function openDevelopCreateAction(page: import("@playwright/test").Page, actionText: string) {
+  await page.getByTestId("app-develop-create-menu").click();
+  const action = page.locator(".module-studio__coze-menu-item").filter({ hasText: actionText }).last();
+  await expect(action).toBeVisible({ timeout: 30_000 });
+  await action.click();
+}
+
+async function createAgentFromDevelop(
+  page: import("@playwright/test").Page,
+  appKey: string,
+  agentName: string,
+  description = "用于 E2E 校验最新 Agent Workbench 结构。"
+) {
+  await navigateBySidebar(page, "develop", {
+    pageTestId: "app-develop-page",
+    urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`)
+  });
+
+  await openDevelopCreateAction(page, "新建智能体");
+  await page.getByPlaceholder("智能体名称").fill(agentName);
+  await page.getByPlaceholder("角色描述").fill(description);
+  await clickCrudSubmit(page);
+  await expect(page.getByTestId("app-bot-ide-page")).toBeVisible({ timeout: 30_000 });
+}
+
+function getCurrentAgentId(page: import("@playwright/test").Page): string {
+  const url = new URL(page.url());
+  const match =
+    url.pathname.match(/\/bot\/([^/]+)/) ??
+    url.pathname.match(/\/studio\/assistants\/([^/]+)/);
+  expect(match).toBeTruthy();
+  return decodeURIComponent((match as RegExpMatchArray)[1]);
+}
+
 test.describe.serial("App Agent Workbench DeepSeek + Workflow", () => {
   test.skip(!deepseekApiKey, "需要通过 PLAYWRIGHT_DEEPSEEK_API_KEY 提供真实 DeepSeek Key。");
 
@@ -142,7 +176,10 @@ test.describe.serial("App Agent Workbench DeepSeek + Workflow", () => {
       urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`)
     });
 
-    await page.getByTestId("app-develop-create-agent").click();
+    await openDevelopCreateAction(page, "新建智能体");
+    await page.getByPlaceholder("智能体名称").fill(uniqueName("DeepSeekBot"));
+    await page.getByPlaceholder("角色描述").fill("用于联调 DeepSeek 与工作流的智能体。");
+    await clickCrudSubmit(page);
     await expect(page.getByTestId("app-bot-ide-page")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("app-bot-ide-resource-status")).toContainText("模型", { timeout: 30_000 });
 
@@ -187,5 +224,80 @@ test.describe.serial("App Agent Workbench DeepSeek + Workflow", () => {
     await expect(page.getByTestId("app-bot-ide-messages")).toContainText("严重级别", { timeout: 60_000 });
     await expect(page.getByTestId("app-bot-ide-messages")).toContainText("SecurityAdmin", { timeout: 60_000 });
     await expect(page.getByTestId("app-bot-ide-trace")).toContainText("Execution", { timeout: 60_000 });
+  });
+});
+
+test.describe.serial("Agent Workbench New Components", () => {
+  let appKey = "";
+
+  test.beforeAll(async ({ request, ensureLoggedInSession }) => {
+    appKey = await ensureAppSetup(request);
+    await ensureLoggedInSession(appKey);
+  });
+
+  test("should cover segmented nav, synced config panel, debug area, version history, and publish modal", async ({ page }) => {
+    const agentName = uniqueName("WorkbenchNav");
+    await createAgentFromDevelop(page, appKey, agentName);
+
+    const agentId = getCurrentAgentId(page);
+    const publishRoute = new RegExp(`/api/v1/ai-assistants/${encodeURIComponent(agentId)}/publish(?:\\?.*)?$`);
+    const publishHandler = async (route: import("@playwright/test").Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          code: "SUCCESS",
+          message: "OK",
+          traceId: "agent-workbench-e2e",
+          data: {
+            publicationId: "pub-agent-workbench-e2e",
+            agentId,
+            version: 1,
+            embedToken: "embed-token-e2e-1234567890",
+            embedTokenExpiresAt: new Date("2026-12-31T00:00:00.000Z").toISOString()
+          }
+        })
+      });
+    };
+
+    await page.route(publishRoute, publishHandler);
+
+    try {
+      const nav = page.getByRole("navigation", { name: "Agent configuration" });
+      await expect(nav).toBeVisible();
+      await expect(nav.getByRole("tab", { name: "基础" })).toBeVisible();
+      await expect(nav.getByRole("tab", { name: "模型" })).toBeVisible();
+      await expect(nav.getByRole("tab", { name: "知识库" })).toBeVisible();
+      await expect(nav.getByRole("tab", { name: "变量" })).toBeVisible();
+
+      await nav.getByRole("tab", { name: "知识库" }).click();
+      await expect(page.getByText("知识库", { exact: true }).last()).toBeVisible();
+      await expect(page.getByText("选择知识库并配置检索参数。")).toBeVisible();
+
+      await nav.getByRole("tab", { name: "变量" }).click();
+      await expect(page.getByText("暴露给工具与编排的 Bot 变量。")).toBeVisible();
+      await expect(page.locator("[data-active-nav='variables']")).toBeVisible();
+
+      await expect(page.getByText("预览与调试")).toBeVisible();
+      await expect(page.getByTestId("app-bot-ide-messages")).toBeVisible();
+      await expect(page.getByText("当前还没有发布记录。")).toBeVisible();
+
+      const debugCard = page.locator(".module-studio__agent-debug-card").filter({ hasText: "发布与嵌入" }).first();
+      const publishResponsePromise = page.waitForResponse((response) => publishRoute.test(response.url()) && response.request().method() === "POST");
+      await debugCard.getByRole("button", { name: "发布" }).click();
+
+      await expect(page.getByRole("dialog")).toContainText("发布智能体");
+      await page.locator(".semi-modal-content textarea").fill("E2E 校验最新三栏工作台结构与发布弹窗。");
+      await page.getByRole("button", { name: "确认发布" }).click();
+      await publishResponsePromise;
+
+      await expect(page.getByRole("dialog")).toBeHidden({ timeout: 30_000 });
+      await expect(page.getByText("v1")).toBeVisible();
+      await expect(page.getByText("当前激活")).toBeVisible();
+      await expect(page.getByText("embed-token-e2")).toBeVisible();
+    } finally {
+      await page.unroute(publishRoute, publishHandler);
+    }
   });
 });
