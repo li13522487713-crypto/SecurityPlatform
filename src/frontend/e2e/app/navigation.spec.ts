@@ -21,100 +21,42 @@ test.describe.serial("@smoke App Navigation", () => {
   });
 
   test("sidebar should navigate to canonical pages", async ({ page }) => {
-    await navigateBySidebar(page, "develop", {
-      pageTestId: "app-develop-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-develop-page");
+    const navigationCases = [
+      { itemKey: "develop", pageTestId: "app-develop-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`) },
+      { itemKey: "agents", pageTestId: "app-studio-assistants-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/assistants(?:\\?.*)?$`) },
+      { itemKey: "workflows", pageTestId: "app-workflows-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`) },
+      { itemKey: "projects", pageTestId: "app-studio-apps-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/apps(?:\\?.*)?$`) },
+      { itemKey: "chatflows", pageTestId: "app-chatflows-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/chat_flow(?:\\?.*)?$`) },
+      { itemKey: "library", pageTestId: "app-library-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/library(?:\\?.*)?$`) },
+      { itemKey: "plugins", pageTestId: "app-studio-plugins-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/plugins(?:\\?.*)?$`) },
+      { itemKey: "agent-chat", pageTestId: "app-agent-chat-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/chat(?:\\?.*)?$`) },
+      { itemKey: "model-configs", pageTestId: "app-model-configs-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/model-configs(?:\\?.*)?$`) },
+      { itemKey: "ai-assistant", pageTestId: "app-ai-assistant-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/assistant-tools(?:\\?.*)?$`) },
+      { itemKey: "data", pageTestId: "app-studio-data-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/data(?:\\?.*)?$`) },
+      { itemKey: "knowledge-bases", pageTestId: "app-studio-knowledge-bases-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases(?:\\?.*)?$`) },
+      { itemKey: "databases", pageTestId: "app-studio-databases-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/databases(?:\\?.*)?$`) },
+      { itemKey: "variables", pageTestId: "app-studio-variables-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/studio/variables(?:\\?.*)?$`) },
+      { itemKey: "organization-overview", pageTestId: "app-organization-overview-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/overview(?:\\?.*)?$`) },
+      { itemKey: "users", pageTestId: "app-users-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/users(?:\\?.*)?$`) },
+      { itemKey: "roles", pageTestId: "app-roles-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/roles(?:\\?.*)?$`) },
+      { itemKey: "departments", pageTestId: "app-departments-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/departments(?:\\?.*)?$`) },
+      { itemKey: "positions", pageTestId: "app-positions-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/positions(?:\\?.*)?$`) },
+      { itemKey: "approval", pageTestId: "app-approval-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/approval(?:\\?.*)?$`) },
+      { itemKey: "reports", pageTestId: "app-reports-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/reports(?:\\?.*)?$`) },
+      { itemKey: "dashboards", pageTestId: "app-dashboards-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/dashboards(?:\\?.*)?$`) },
+      { itemKey: "visualization", pageTestId: "app-visualization-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/visualization(?:\\?.*)?$`) },
+      { itemKey: "settings", pageTestId: "app-settings-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/settings(?:\\?.*)?$`) },
+      { itemKey: "explore-plugins", pageTestId: "app-explore-plugins-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/explore/plugin(?:\\?.*)?$`) },
+      { itemKey: "explore-templates", pageTestId: "app-explore-templates-page", urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/explore/template(?:\\?.*)?$`) }
+    ];
 
-    await navigateBySidebar(page, "library", {
-      pageTestId: "app-library-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/library(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-library-page");
-
-    await navigateBySidebar(page, "agent-chat", {
-      pageTestId: "app-agent-chat-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/chat(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-agent-chat-page");
-
-    await navigateBySidebar(page, "ai-assistant", {
-      pageTestId: "app-ai-assistant-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/assistant(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-ai-assistant-page");
-
-    await navigateBySidebar(page, "model-configs", {
-      pageTestId: "app-model-configs-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/model-configs(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-model-configs-page");
-
-    await navigateBySidebar(page, "workflows", {
-      pageTestId: "app-workflows-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-workflows-page");
-
-    await expect(page.getByTestId("app-sidebar-item-plugins")).toBeVisible();
-    await expect(page.getByTestId("app-sidebar-section-more-workspace-resources")).toBeVisible();
-    await expect(page.getByTestId("app-sidebar-item-data")).toHaveCount(0);
-    await expect(page.getByTestId("app-sidebar-item-organization-overview")).toBeVisible();
-
-    await navigateBySidebar(page, "users", {
-      pageTestId: "app-users-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/users(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-users-page");
-
-    await navigateBySidebar(page, "roles", {
-      pageTestId: "app-roles-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/roles(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-roles-page");
-
-    await navigateBySidebar(page, "departments", {
-      pageTestId: "app-departments-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/departments(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-departments-page");
-
-    await navigateBySidebar(page, "positions", {
-      pageTestId: "app-positions-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/positions(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-positions-page");
-
-    await navigateBySidebar(page, "approval", {
-      pageTestId: "app-approval-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/approval(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-approval-page");
-
-    await navigateBySidebar(page, "reports", {
-      pageTestId: "app-reports-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/reports(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-reports-page");
-
-    await navigateBySidebar(page, "dashboards", {
-      pageTestId: "app-dashboards-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/dashboards(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-dashboards-page");
-
-    await navigateBySidebar(page, "visualization", {
-      pageTestId: "app-visualization-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/visualization(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-visualization-page");
-
-    await navigateBySidebar(page, "settings", {
-      pageTestId: "app-settings-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/settings(?:\\?.*)?$`)
-    });
-    await expectNoI18nKeyLeak(page, "app-settings-page");
+    for (const navigationCase of navigationCases) {
+      await navigateBySidebar(page, navigationCase.itemKey, {
+        pageTestId: navigationCase.pageTestId,
+        urlPattern: navigationCase.urlPattern
+      });
+      await expectNoI18nKeyLeak(page, navigationCase.pageTestId);
+    }
   });
 
   test("header user menu should open and route profile", async ({ page }) => {
@@ -148,6 +90,9 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByTestId("app-sidebar-item-chatflows")).toHaveCount(0);
     await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toHaveCount(0);
     await expect(page.getByTestId("app-sidebar-item-data")).toHaveCount(0);
+    await expect(page.getByTestId("app-sidebar-item-knowledge-bases")).toHaveCount(0);
+    await expect(page.getByTestId("app-sidebar-item-databases")).toHaveCount(0);
+    await expect(page.getByTestId("app-sidebar-item-variables")).toHaveCount(0);
     await expect(page.getByTestId("app-sidebar-item-organization-overview")).toContainText("组织概览");
     await expect(page.getByTestId("app-sidebar-item-approval")).toHaveCount(0);
 
@@ -158,6 +103,9 @@ test.describe.serial("@smoke App Navigation", () => {
     await page.getByTestId("app-sidebar-section-more-workspace-resources").click();
     await expect(page.getByTestId("app-sidebar-item-ai-assistant")).toContainText("AI 助手");
     await expect(page.getByTestId("app-sidebar-item-data")).toContainText("数据");
+    await expect(page.getByTestId("app-sidebar-item-knowledge-bases")).toContainText("知识库");
+    await expect(page.getByTestId("app-sidebar-item-databases")).toContainText("数据库");
+    await expect(page.getByTestId("app-sidebar-item-variables")).toContainText("变量");
 
     await page.getByTestId("app-sidebar-section-more-workspace-governance").click();
     await expect(page.getByTestId("app-sidebar-item-approval")).toContainText("审批工作台");
@@ -169,10 +117,10 @@ test.describe.serial("@smoke App Navigation", () => {
     await expect(page.getByText("组织与权限")).toBeVisible();
     await expect(page.getByText("运营与监控")).toBeVisible();
     await expect(page.getByText("个人与设置")).toBeVisible();
-    await expect(page.getByTestId("app-sidebar-item-users")).toContainText("用户");
-    await expect(page.getByTestId("app-sidebar-item-roles")).toContainText("角色");
-    await expect(page.getByTestId("app-sidebar-item-departments")).toContainText("部门");
-    await expect(page.getByTestId("app-sidebar-item-positions")).toContainText("职位");
+    await expect(page.getByTestId("app-sidebar-item-users")).toContainText("用户管理");
+    await expect(page.getByTestId("app-sidebar-item-roles")).toContainText("角色管理");
+    await expect(page.getByTestId("app-sidebar-item-departments")).toContainText("部门管理");
+    await expect(page.getByTestId("app-sidebar-item-positions")).toContainText("职位管理");
     await expect(page.getByTestId("app-sidebar-item-approval")).toContainText("审批工作台");
     await expect(page.getByTestId("app-sidebar-item-reports")).toContainText("报表管理");
     await expect(page.getByTestId("app-sidebar-item-dashboards")).toContainText("仪表盘管理");

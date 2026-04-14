@@ -35,14 +35,23 @@ public sealed class SnowflakeIdGeneratorProvider : IIdGeneratorProvider
         var key = (tenantId.Value, resolvedAppId);
         if (!_mapping.TryGetValue(key, out var generatorId))
         {
-            if (_options.FallbackGeneratorId is null)
+            var defaultKey = (tenantId.Value, _options.DefaultAppId.Trim());
+            if (!string.Equals(resolvedAppId, defaultKey.Item2, StringComparison.Ordinal)
+                && _mapping.TryGetValue(defaultKey, out var defaultGeneratorId))
+            {
+                generatorId = defaultGeneratorId;
+                key = defaultKey;
+            }
+            else if (_options.FallbackGeneratorId is not null)
+            {
+                generatorId = _options.FallbackGeneratorId.Value;
+            }
+            else
             {
                 throw new BusinessException(
                     $"Snowflake generator is not configured for tenant {tenantId.Value:D} and app {resolvedAppId}.",
                     ErrorCodes.ValidationError);
             }
-
-            generatorId = _options.FallbackGeneratorId.Value;
         }
 
         var generator = _generators.GetOrAdd(key, _ => new SnowflakeIdGenerator(generatorId, _generatorOptions));

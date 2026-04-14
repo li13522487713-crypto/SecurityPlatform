@@ -373,6 +373,9 @@ export async function ensureAppWorkspace(page: Page, appKey: string) {
 
 const primaryNavBySidebarItem: Record<string, "workspace" | "explore" | "admin"> = {
   develop: "workspace",
+  agents: "workspace",
+  projects: "workspace",
+  chatflows: "workspace",
   plugins: "workspace",
   data: "workspace",
   library: "workspace",
@@ -380,6 +383,9 @@ const primaryNavBySidebarItem: Record<string, "workspace" | "explore" | "admin">
   "ai-assistant": "workspace",
   "model-configs": "workspace",
   workflows: "workspace",
+  "knowledge-bases": "workspace",
+  databases: "workspace",
+  variables: "workspace",
   "organization-overview": "workspace",
   "explore-plugins": "explore",
   "explore-templates": "explore",
