@@ -7,6 +7,17 @@ import {
 } from "@playwright/test";
 import { appSignPath } from "@atlas/app-shell-shared";
 import { appBaseUrl, loginApp } from "../app/helpers";
+import {
+  clamp,
+  gazeDelay,
+  gazeShiftDelay,
+  moveMouseHumanLike,
+  pressHoldDuration,
+  randomBetween,
+  randomClickTarget,
+  setMousePosition,
+  typingCharDelay
+} from "./human-mouse";
 
 type SessionFixtures = {
   _sharedContext: BrowserContext;
@@ -22,11 +33,15 @@ let activeAppSessionKey: string | null = null;
 const appProfileStorageKey = "atlas_app_auth_profile";
 const appAccessTokenStorageKey = "atlas_app_access_token";
 const appTenantStorageKey = "atlas_app_tenant_id";
-const mousePositionMap = new WeakMap<Page, { x: number; y: number }>();
 const decoratedHandles = new WeakSet<object>();
 const rawClickSymbol = Symbol("raw-click");
 const rawDoubleClickSymbol = Symbol("raw-double-click");
 const rawHoverSymbol = Symbol("raw-hover");
+const rawFillSymbol = Symbol("raw-fill");
+const rawTypeSymbol = Symbol("raw-type");
+const rawSelectOptionSymbol = Symbol("raw-selectOption");
+const rawCheckSymbol = Symbol("raw-check");
+const rawUncheckSymbol = Symbol("raw-uncheck");
 
 type HumanClickOptions = {
   button?: "left" | "middle" | "right";
@@ -49,44 +64,9 @@ type HumanHoverOptions = {
   trial?: boolean;
 };
 
-function randomBetween(min: number, max: number) {
-  return min + Math.random() * (max - min);
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-async function moveMouseHumanLike(page: Page, destination: { x: number; y: number }) {
-  const viewport = page.viewportSize() ?? { width: 1440, height: 900 };
-  const start =
-    mousePositionMap.get(page) ?? {
-      x: randomBetween(24, Math.max(48, viewport.width * 0.18)),
-      y: randomBetween(24, Math.max(48, viewport.height * 0.16))
-    };
-
-  const deltaX = destination.x - start.x;
-  const deltaY = destination.y - start.y;
-  const distance = Math.hypot(deltaX, deltaY);
-  const steps = Math.max(16, Math.min(36, Math.round(distance / 20)));
-  let currentX = start.x;
-  let currentY = start.y;
-
-  for (let step = 1; step <= steps; step += 1) {
-    const progress = step / steps;
-    const easing = progress < 0.5
-      ? 2 * progress * progress
-      : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-    const jitterScale = (1 - progress) * 6;
-    currentX = start.x + deltaX * easing + randomBetween(-jitterScale, jitterScale);
-    currentY = start.y + deltaY * easing + randomBetween(-jitterScale, jitterScale);
-    await page.mouse.move(currentX, currentY, { steps: 1 });
-    await page.waitForTimeout(randomBetween(14, 30));
-  }
-
-  await page.mouse.move(destination.x, destination.y, { steps: 1 });
-  mousePositionMap.set(page, destination);
-}
+// ---------------------------------------------------------------------------
+// humanClick — move with Bezier path, gaze pause, log-normal press hold
+// ---------------------------------------------------------------------------
 
 async function humanClick(page: Page, locator: Locator, options?: HumanClickOptions): Promise<void> {
   const rawClick = (
@@ -133,23 +113,13 @@ async function humanClick(page: Page, locator: Locator, options?: HumanClickOpti
     return;
   }
 
-  const horizontalPadding = Math.min(18, Math.max(6, box.width * 0.18));
-  const verticalPadding = Math.min(16, Math.max(6, box.height * 0.18));
-  const destination = {
-    x: clamp(
-      box.x + (position?.x ?? randomBetween(horizontalPadding, Math.max(horizontalPadding, box.width - horizontalPadding))),
-      box.x + 1,
-      box.x + Math.max(1, box.width - 1)
-    ),
-    y: clamp(
-      box.y + (position?.y ?? randomBetween(verticalPadding, Math.max(verticalPadding, box.height - verticalPadding))),
-      box.y + 1,
-      box.y + Math.max(1, box.height - 1)
-    )
-  };
+  const destination = randomClickTarget(box, position);
+  const targetWidth = Math.min(box.width, box.height);
 
-  await moveMouseHumanLike(page, destination);
-  await page.waitForTimeout(randomBetween(32, 86));
+  await moveMouseHumanLike(page, destination, { targetWidth });
+
+  // Gaze delay — visual confirmation before clicking
+  await page.waitForTimeout(clamp(gazeDelay(), 32, 140));
 
   for (const modifier of modifiers ?? []) {
     await page.keyboard.down(modifier);
@@ -157,7 +127,7 @@ async function humanClick(page: Page, locator: Locator, options?: HumanClickOpti
 
   for (let index = 0; index < clickCount; index += 1) {
     await page.mouse.down({ button });
-    await page.waitForTimeout(delay > 0 ? delay : randomBetween(36, 92));
+    await page.waitForTimeout(delay > 0 ? delay : clamp(pressHoldDuration(), 28, 180));
     await page.mouse.up({ button });
     if (index < clickCount - 1) {
       await page.waitForTimeout(randomBetween(54, 128));
@@ -174,6 +144,10 @@ async function humanClick(page: Page, locator: Locator, options?: HumanClickOpti
     await page.waitForTimeout(randomBetween(18, 48));
   }
 }
+
+// ---------------------------------------------------------------------------
+// humanHover — Bezier move + gaze pause
+// ---------------------------------------------------------------------------
 
 async function humanHover(page: Page, locator: Locator, options?: HumanHoverOptions): Promise<void> {
   const rawHover = (
@@ -217,27 +191,15 @@ async function humanHover(page: Page, locator: Locator, options?: HumanHoverOpti
     return;
   }
 
-  const horizontalPadding = Math.min(18, Math.max(6, box.width * 0.18));
-  const verticalPadding = Math.min(16, Math.max(6, box.height * 0.18));
-  const destination = {
-    x: clamp(
-      box.x + (position?.x ?? randomBetween(horizontalPadding, Math.max(horizontalPadding, box.width - horizontalPadding))),
-      box.x + 1,
-      box.x + Math.max(1, box.width - 1)
-    ),
-    y: clamp(
-      box.y + (position?.y ?? randomBetween(verticalPadding, Math.max(verticalPadding, box.height - verticalPadding))),
-      box.y + 1,
-      box.y + Math.max(1, box.height - 1)
-    )
-  };
+  const destination = randomClickTarget(box, position);
+  const targetWidth = Math.min(box.width, box.height);
 
   for (const modifier of modifiers ?? []) {
     await page.keyboard.down(modifier);
   }
 
-  await moveMouseHumanLike(page, destination);
-    await page.waitForTimeout(randomBetween(34, 88));
+  await moveMouseHumanLike(page, destination, { targetWidth });
+  await page.waitForTimeout(randomBetween(34, 88));
 
   if (modifiers && modifiers.length > 0) {
     for (const modifier of modifiers) {
@@ -249,6 +211,147 @@ async function humanHover(page: Page, locator: Locator, options?: HumanHoverOpti
     await page.waitForTimeout(randomBetween(22, 48));
   }
 }
+
+// ---------------------------------------------------------------------------
+// humanFill — move to input, click to focus, then type with variable speed
+// ---------------------------------------------------------------------------
+
+async function humanFill(
+  page: Page,
+  locator: Locator,
+  value: string,
+  options?: { force?: boolean; noWaitAfter?: boolean; timeout?: number }
+): Promise<void> {
+  const rawFill = (
+    (locator as Record<PropertyKey, unknown>)[rawFillSymbol] as
+      | ((value: string, options?: Record<string, unknown>) => Promise<void>)
+      | undefined
+  )?.bind(locator);
+
+  await humanClick(page, locator, { timeout: options?.timeout });
+  await page.waitForTimeout(randomBetween(30, 70));
+
+  if (rawFill) {
+    await rawFill(value, options);
+  } else {
+    await locator.fill(value, options);
+  }
+
+  if (!options?.noWaitAfter) {
+    await page.waitForTimeout(randomBetween(20, 50));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// humanType — move to input, click, then type character-by-character
+// ---------------------------------------------------------------------------
+
+async function humanType(
+  page: Page,
+  locator: Locator,
+  text: string,
+  options?: { delay?: number; noWaitAfter?: boolean; timeout?: number }
+): Promise<void> {
+  const rawType = (
+    (locator as Record<PropertyKey, unknown>)[rawTypeSymbol] as
+      | ((text: string, options?: Record<string, unknown>) => Promise<void>)
+      | undefined
+  )?.bind(locator);
+
+  await humanClick(page, locator, { timeout: options?.timeout });
+  await page.waitForTimeout(randomBetween(30, 60));
+
+  if (options?.delay !== undefined) {
+    if (rawType) {
+      await rawType(text, options);
+    } else {
+      await locator.pressSequentially(text, { delay: options.delay });
+    }
+  } else {
+    for (const char of text) {
+      await page.keyboard.type(char, { delay: 0 });
+      await page.waitForTimeout(typingCharDelay(char));
+    }
+  }
+
+  if (!options?.noWaitAfter) {
+    await page.waitForTimeout(randomBetween(20, 40));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// humanSelectOption — hover to select, then delegate
+// ---------------------------------------------------------------------------
+
+async function humanSelectOption(
+  page: Page,
+  locator: Locator,
+  ...args: unknown[]
+): Promise<string[]> {
+  const rawSelectOption = (
+    (locator as Record<PropertyKey, unknown>)[rawSelectOptionSymbol] as
+      | ((...a: unknown[]) => Promise<string[]>)
+      | undefined
+  )?.bind(locator);
+
+  await humanHover(page, locator);
+  await page.waitForTimeout(randomBetween(20, 50));
+
+  if (rawSelectOption) {
+    return rawSelectOption(...args);
+  }
+  return locator.selectOption(args[0] as string, args[1] as Record<string, unknown> | undefined);
+}
+
+// ---------------------------------------------------------------------------
+// humanCheck / humanUncheck — hover then delegate
+// ---------------------------------------------------------------------------
+
+async function humanCheck(
+  page: Page,
+  locator: Locator,
+  options?: { force?: boolean; noWaitAfter?: boolean; position?: { x: number; y: number }; timeout?: number; trial?: boolean }
+): Promise<void> {
+  const rawCheck = (
+    (locator as Record<PropertyKey, unknown>)[rawCheckSymbol] as
+      | ((options?: Record<string, unknown>) => Promise<void>)
+      | undefined
+  )?.bind(locator);
+
+  await humanHover(page, locator, { position: options?.position, timeout: options?.timeout });
+  await page.waitForTimeout(randomBetween(16, 40));
+
+  if (rawCheck) {
+    await rawCheck(options);
+  } else {
+    await locator.check(options);
+  }
+}
+
+async function humanUncheck(
+  page: Page,
+  locator: Locator,
+  options?: { force?: boolean; noWaitAfter?: boolean; position?: { x: number; y: number }; timeout?: number; trial?: boolean }
+): Promise<void> {
+  const rawUncheck = (
+    (locator as Record<PropertyKey, unknown>)[rawUncheckSymbol] as
+      | ((options?: Record<string, unknown>) => Promise<void>)
+      | undefined
+  )?.bind(locator);
+
+  await humanHover(page, locator, { position: options?.position, timeout: options?.timeout });
+  await page.waitForTimeout(randomBetween(16, 40));
+
+  if (rawUncheck) {
+    await rawUncheck(options);
+  } else {
+    await locator.uncheck(options);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Handle decoration — intercept Locator methods to inject human behavior
+// ---------------------------------------------------------------------------
 
 function isWrappableHandle(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) {
@@ -312,6 +415,21 @@ function decorateInteractiveHandle<T extends object>(target: T, page: Page): T {
   wrapHandleMethod(target, "hover", rawHoverSymbol, (_original, args) =>
     humanHover(page, target as unknown as Locator, args[0] as HumanHoverOptions | undefined)
   );
+  wrapHandleMethod(target, "fill", rawFillSymbol, (_original, args) =>
+    humanFill(page, target as unknown as Locator, args[0] as string, args[1] as Record<string, unknown> | undefined)
+  );
+  wrapHandleMethod(target, "pressSequentially", rawTypeSymbol, (_original, args) =>
+    humanType(page, target as unknown as Locator, args[0] as string, args[1] as Record<string, unknown> | undefined)
+  );
+  wrapHandleMethod(target, "selectOption", rawSelectOptionSymbol, (_original, args) =>
+    humanSelectOption(page, target as unknown as Locator, ...args)
+  );
+  wrapHandleMethod(target, "check", rawCheckSymbol, (_original, args) =>
+    humanCheck(page, target as unknown as Locator, args[0] as Record<string, unknown> | undefined)
+  );
+  wrapHandleMethod(target, "uncheck", rawUncheckSymbol, (_original, args) =>
+    humanUncheck(page, target as unknown as Locator, args[0] as Record<string, unknown> | undefined)
+  );
 
   for (const methodName of [
     "locator",
@@ -341,6 +459,10 @@ function decorateInteractiveHandle<T extends object>(target: T, page: Page): T {
 function createHumanLikePage(page: Page): Page {
   return decorateInteractiveHandle(page, page);
 }
+
+// ---------------------------------------------------------------------------
+// ResizeObserver suppression + human cursor overlay (injected into page)
+// ---------------------------------------------------------------------------
 
 const initResizeObserverSuppression = () => {
   const resizeObserverMessages = [
@@ -437,39 +559,46 @@ const initResizeObserverSuppression = () => {
         top: 0;
         z-index: 2147483647;
         pointer-events: none;
-        transform: translate(-50%, -50%);
-        transition: transform 90ms ease, opacity 120ms ease;
+        transform: translate(-2px, -1px);
+        transition: opacity 120ms ease;
         opacity: 0;
-        font-size: 15px;
-        line-height: 1;
-        text-shadow: 0 2px 6px rgba(15, 23, 42, 0.24);
         will-change: transform, opacity;
+        filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.28));
       }
       #atlas-e2e-human-cursor.atlas-e2e-human-cursor-visible {
         opacity: 1;
       }
-      #atlas-e2e-human-cursor.atlas-e2e-human-cursor-pointer {
-        transform: translate(-46%, -46%) scale(1.06);
+      #atlas-e2e-human-cursor.atlas-e2e-human-cursor-pointer svg {
+        transform: scale(1.05);
+        transform-origin: 4px 1px;
+      }
+      #atlas-e2e-human-cursor.atlas-e2e-human-cursor-pressing svg {
+        transform: scale(0.92);
+        transform-origin: 4px 1px;
+        transition: transform 60ms cubic-bezier(0.34, 1.56, 0.64, 1);
       }
       .atlas-e2e-human-click-ripple {
         position: fixed;
-        width: 16px;
-        height: 16px;
-        border: 2px solid rgba(37, 99, 235, 0.55);
+        width: 18px;
+        height: 18px;
         border-radius: 999px;
         pointer-events: none;
-        transform: translate(-50%, -50%) scale(0.3);
-        animation: atlas-e2e-human-click-ripple 420ms ease-out forwards;
+        transform: translate(-50%, -50%) scale(0.2);
+        animation: atlas-e2e-human-click-ripple 480ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
         z-index: 2147483646;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.45) 0%, rgba(59, 130, 246, 0.12) 60%, transparent 100%);
       }
       @keyframes atlas-e2e-human-click-ripple {
         0% {
           opacity: 0.95;
-          transform: translate(-50%, -50%) scale(0.3);
+          transform: translate(-50%, -50%) scale(0.2);
+        }
+        60% {
+          opacity: 0.5;
         }
         100% {
           opacity: 0;
-          transform: translate(-50%, -50%) scale(2.8);
+          transform: translate(-50%, -50%) scale(3.2);
         }
       }
     `;
@@ -477,7 +606,10 @@ const initResizeObserverSuppression = () => {
 
     const cursor = document.createElement("div");
     cursor.id = "atlas-e2e-human-cursor";
-    cursor.textContent = "^";
+    cursor.innerHTML = `<svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 1L1 18.5L5.5 14.5L9.5 22L12.5 20.5L8.5 12.5L14 12.5L1 1Z"
+            fill="white" stroke="#222" stroke-width="1.4" stroke-linejoin="round"/>
+    </svg>`;
     document.documentElement.appendChild(cursor);
 
     const updateCursorType = (target: EventTarget | null) => {
@@ -489,7 +621,6 @@ const initResizeObserverSuppression = () => {
           window.getComputedStyle(element).cursor === "pointer"
         );
       cursor.classList.toggle("atlas-e2e-human-cursor-pointer", Boolean(clickable));
-      cursor.textContent = clickable ? "☞" : "^";
     };
 
     const spawnRipple = (clientX: number, clientY: number) => {
@@ -498,7 +629,7 @@ const initResizeObserverSuppression = () => {
       ripple.style.left = `${clientX}px`;
       ripple.style.top = `${clientY}px`;
       document.documentElement.appendChild(ripple);
-      window.setTimeout(() => ripple.remove(), 460);
+      window.setTimeout(() => ripple.remove(), 520);
     };
 
     window.addEventListener("mousemove", (event) => {
@@ -513,12 +644,12 @@ const initResizeObserverSuppression = () => {
     }, { passive: true });
 
     window.addEventListener("mousedown", (event) => {
-      cursor.style.transform = "translate(-42%, -42%) scale(0.92)";
+      cursor.classList.add("atlas-e2e-human-cursor-pressing");
       spawnRipple(event.clientX, event.clientY);
     });
 
     window.addEventListener("mouseup", () => {
-      cursor.style.transform = "";
+      cursor.classList.remove("atlas-e2e-human-cursor-pressing");
     });
 
     window.addEventListener("mouseleave", () => {
@@ -551,6 +682,10 @@ const initResizeObserverSuppression = () => {
     }
   });
 };
+
+// ---------------------------------------------------------------------------
+// Storage & auth helpers
+// ---------------------------------------------------------------------------
 
 async function clearStorageForOrigin(page: Page, url: string) {
   let lastError: unknown = null;
@@ -646,6 +781,10 @@ async function ensureFreshWorkspaceSession(page: Page, appKey: string): Promise<
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
 }
 
+// ---------------------------------------------------------------------------
+// Fixture definition
+// ---------------------------------------------------------------------------
+
 export const test = base.extend<SessionFixtures>({
   _sharedContext: [
     async ({ browser }, use) => {
@@ -700,5 +839,5 @@ export const test = base.extend<SessionFixtures>({
   }
 });
 
-export { expect };
-export type { APIRequestContext, BrowserContext, Page, TestInfo } from "@playwright/test";
+export { expect, gazeShiftDelay, setMousePosition };
+export type { APIRequestContext, BrowserContext, ConsoleMessage, Page, TestInfo } from "@playwright/test";

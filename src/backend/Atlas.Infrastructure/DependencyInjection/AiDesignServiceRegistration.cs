@@ -43,6 +43,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<AiPluginApiRepository>();
         services.AddScoped<AiAppRepository>();
         services.AddScoped<AiAppPublishRecordRepository>();
+        services.AddScoped<AiAppConversationTemplateRepository>();
         services.AddScoped<AgentPublicationRepository>();
         services.AddScoped<EvaluationDatasetRepository>();
         services.AddScoped<EvaluationCaseRepository>();

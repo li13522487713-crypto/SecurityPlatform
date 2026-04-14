@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
 import { appSignPath, workspaceDevelopPath } from "@atlas/app-shell-shared";
+import { gazeShiftDelay, randomBetween, thinkingPause } from "../fixtures/human-mouse";
 
 export const platformBaseUrl = "http://127.0.0.1:5180";
 const appWebPort = process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181";
@@ -350,8 +351,11 @@ export async function loginApp(
   const expectSuccess = options?.expectSuccess ?? true;
   await page.goto(`${appBaseUrl}${appSignPath(appKey)}`);
   await page.getByTestId("app-login-tenant").fill(defaultTenantId);
+  await page.waitForTimeout(gazeShiftDelay());
   await page.getByTestId("app-login-username").fill(defaultUsername);
+  await page.waitForTimeout(gazeShiftDelay());
   await page.getByTestId("app-login-password").fill(password);
+  await page.waitForTimeout(thinkingPause());
   await page.getByTestId("app-login-submit").click();
 
   if (!expectSuccess) {
@@ -408,6 +412,7 @@ export async function navigateBySidebar(
     if (!(await itemProbe.isVisible().catch(() => false))) {
       await page.getByTestId(`app-primary-item-${primaryKey}`).click();
       await expect(itemProbe).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(gazeShiftDelay());
     }
   }
 
@@ -416,6 +421,7 @@ export async function navigateBySidebar(
     timeout: 30_000
   });
 
+  await page.waitForTimeout(randomBetween(40, 100));
   const currentUrl = page.url();
   await item.click();
 
@@ -431,6 +437,7 @@ export async function navigateBySidebar(
 export async function clickCrudSubmit(page: Page) {
   const submit = page.locator(".semi-modal-footer .semi-button-primary").last();
   await expect(submit).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(thinkingPause());
   await submit.click();
 }
 

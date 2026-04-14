@@ -1,5 +1,12 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { appSignPath } from "@atlas/app-shell-shared";
+import {
+  clamp,
+  humanDrag,
+  moveMouseHumanLike,
+  randomBetween,
+  resolveLocatorPoint
+} from "../fixtures/human-mouse";
 import { clickCrudSubmit, ensureAppSetup, loginApp, navigateBySidebar } from "./helpers";
 
 export interface WorkflowSessionContext {
@@ -15,65 +22,6 @@ const workflowCanvasSelector = '[data-testid="app-workflow-editor-shell"], [data
 const workflowNodeSelector = ".module-workflow__node-card";
 const workflowEdgeSelector = ".wf-react-edge-path";
 let cachedWorkflowSession: WorkflowSessionContext | null = null;
-
-function randomBetween(min: number, max: number) {
-  return min + Math.random() * (max - min);
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-async function moveMouseHumanLike(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, stepsHint = 20) {
-  const deltaX = to.x - from.x;
-  const deltaY = to.y - from.y;
-  const distance = Math.hypot(deltaX, deltaY);
-  const steps = Math.max(14, Math.min(32, Math.max(stepsHint, Math.round(distance / 26))));
-
-  await page.mouse.move(from.x, from.y, { steps: 1 });
-
-  for (let step = 1; step <= steps; step += 1) {
-    const progress = step / steps;
-    const easing = progress < 0.5
-      ? 2 * progress * progress
-      : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-    const jitterScale = Math.max(0.75, (1 - progress) * 4);
-    const nextX = to.x === from.x ? to.x : from.x + deltaX * easing + randomBetween(-jitterScale, jitterScale);
-    const nextY = to.y === from.y ? to.y : from.y + deltaY * easing + randomBetween(-jitterScale, jitterScale);
-    await page.mouse.move(nextX, nextY, { steps: 1 });
-    await page.waitForTimeout(randomBetween(8, 20));
-  }
-
-  await page.mouse.move(to.x, to.y, { steps: 1 });
-}
-
-async function resolveLocatorPoint(
-  page: Page,
-  locator: Locator,
-  position?: { x: number; y: number }
-): Promise<{ x: number; y: number }> {
-  await expect(locator).toBeVisible({ timeout: 15_000 });
-  await locator.scrollIntoViewIfNeeded();
-  const box = await locator.boundingBox();
-  expect(box).toBeTruthy();
-  if (!box) {
-    throw new Error("目标元素未能解析出可交互区域。");
-  }
-
-  const x = clamp(
-    box.x + (position?.x ?? box.width / 2),
-    box.x + 1,
-    box.x + Math.max(1, box.width - 1)
-  );
-  const y = clamp(
-    box.y + (position?.y ?? box.height / 2),
-    box.y + 1,
-    box.y + Math.max(1, box.height - 1)
-  );
-
-  await page.mouse.move(x, y, { steps: 1 });
-  return { x, y };
-}
 
 async function ensureWorkflowListReady(
   page: Page,
@@ -151,12 +99,8 @@ export async function hoverCanvasAt(page: Page, offset: { x: number; y: number }
     x: clamp(box.x + offset.x, box.x + 6, box.x + Math.max(6, box.width - 6)),
     y: clamp(box.y + offset.y, box.y + 6, box.y + Math.max(6, box.height - 6))
   };
-  const start = {
-    x: clamp(box.x + Math.min(32, box.width * 0.08), box.x + 4, box.x + Math.max(4, box.width - 4)),
-    y: clamp(box.y + Math.min(32, box.height * 0.08), box.y + 4, box.y + Math.max(4, box.height - 4))
-  };
 
-  await moveMouseHumanLike(page, start, target);
+  await moveMouseHumanLike(page, target, { targetWidth: Math.min(box.width, box.height) });
   await page.waitForTimeout(randomBetween(18, 42));
 }
 
@@ -166,11 +110,7 @@ export async function humanHoverLocator(
   position?: { x: number; y: number }
 ): Promise<void> {
   const target = await resolveLocatorPoint(page, locator, position);
-  const start = {
-    x: Math.max(12, target.x - randomBetween(90, 160)),
-    y: Math.max(12, target.y - randomBetween(24, 72))
-  };
-  await moveMouseHumanLike(page, start, target);
+  await moveMouseHumanLike(page, target, { targetWidth: 24 });
   await page.waitForTimeout(randomBetween(20, 48));
 }
 
@@ -201,20 +141,11 @@ export async function dragNodeCatalogItemToCanvas(
     y: clamp(canvasBox.y + canvasOffset.y, canvasBox.y + 16, canvasBox.y + Math.max(16, canvasBox.height - 16))
   };
 
-  await moveMouseHumanLike(page, { x: source.x - randomBetween(60, 110), y: source.y - randomBetween(10, 34) }, source);
-  await page.waitForTimeout(randomBetween(18, 42));
-  await page.mouse.down();
-  await page.waitForTimeout(randomBetween(42, 88));
-
-  const dragTrigger = {
-    x: source.x + randomBetween(14, 24),
-    y: source.y + randomBetween(8, 18)
-  };
-  await moveMouseHumanLike(page, source, dragTrigger, 8);
-  await page.waitForTimeout(randomBetween(28, 56));
-  await moveMouseHumanLike(page, dragTrigger, target, 24);
-  await page.waitForTimeout(randomBetween(36, 72));
-  await page.mouse.up();
+  await humanDrag(page, source, target, {
+    stepsHint: 24,
+    gripDelay: { min: 42, max: 88 },
+    hesitateNearTarget: true
+  });
 
   await expect(panel).toBeHidden({ timeout: 15_000 });
 }
@@ -227,23 +158,11 @@ export async function connectWorkflowPorts(
   const source = await resolveLocatorPoint(page, sourcePort);
   const target = await resolveLocatorPoint(page, targetPort);
 
-  await moveMouseHumanLike(page, { x: source.x - randomBetween(70, 120), y: source.y - randomBetween(12, 40) }, source);
-  await page.waitForTimeout(randomBetween(16, 34));
-  await page.mouse.down();
-  await page.waitForTimeout(randomBetween(28, 60));
-  await moveMouseHumanLike(
-    page,
-    source,
-    {
-      x: source.x + randomBetween(18, 28),
-      y: source.y + randomBetween(-4, 4)
-    },
-    8
-  );
-  await page.waitForTimeout(randomBetween(18, 44));
-  await moveMouseHumanLike(page, source, target, 22);
-  await page.waitForTimeout(randomBetween(18, 44));
-  await page.mouse.up();
+  await humanDrag(page, source, target, {
+    stepsHint: 22,
+    gripDelay: { min: 28, max: 60 },
+    hesitateNearTarget: true
+  });
 }
 
 export async function loginToWorkflowList(
