@@ -224,6 +224,7 @@
 
 ### Explore / Marketplace 收口语义
 
+- `PlatformHost` 与 `AppHost` 均提供同构接口；`app-web` 直连模式默认命中 `AppHost`。
 - 插件市场前端统一消费：
   - `GET /api/v1/ai-marketplace/products`
   - `GET /api/v1/ai-marketplace/products/{id}`
@@ -388,6 +389,11 @@
 
 ## App Workbench API（AppHost-only）
 
+### AI Assistants 兼容入口（AppHost）
+
+- `AppHost` 提供与平台端兼容的 `GET/POST/PUT/DELETE /api/v1/ai-assistants...` 接口。
+- 请求 / 响应结构与 `PlatformHost` 现有 `ai-assistants` 契约保持一致，用于 `app-web` 直连模式。
+
 ### Draft Agent 与默认工作流绑定
 
 - `GET /api/v1/draft-agents`
@@ -542,7 +548,7 @@
   - `variableBindingIds[]` 继续保留
   - `ToolConfigJson` 继续作为数据库列存在，但前端不直接编辑裸 JSON
 
-## Workspace IDE API（PlatformHost）
+## Workspace IDE API（PlatformHost / AppHost）
 
 ### 工作空间摘要
 

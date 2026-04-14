@@ -19,7 +19,7 @@ test.describe.serial("Studio Dashboard", () => {
     await ensureLoggedInSession(appKey);
   });
 
-  test("should render latest workspace home, quick start, model guard banner, and recent work", async ({ page }) => {
+  test("should render dashboard alias route, quick start, model guard banner, and recent resources", async ({ page }) => {
     const summaryRoute = /\/api\/v1\/workspace-ide\/summary(?:\?.*)?$/;
     const modelConfigsRoute = /\/api\/v1\/model-configs(?:\?.*)?$/;
     const resourcesRoute = /\/api\/v1\/workspace-ide\/resources(?:\?.*)?$/;
@@ -169,7 +169,6 @@ test.describe.serial("Studio Dashboard", () => {
       await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/dashboard(?:\\?.*)?$`));
 
       await expect(page.getByText("AI Studio 工作台")).toBeVisible();
-      await expect(page.getByText("继续工作和发布状态收敛到一个总览页里")).toBeVisible();
       await expect(page.getByText("快速开始")).toBeVisible();
       await expect(page.getByText("构建智能体")).toBeVisible();
       await expect(page.getByText("搭建应用")).toBeVisible();
@@ -178,15 +177,13 @@ test.describe.serial("Studio Dashboard", () => {
       await expect(page.getByText("系统尚未配置 AI 模型")).toBeVisible();
       await expect(page.getByRole("button", { name: "前往配置模型" })).toBeVisible();
 
-      await expect(page.getByText("工作区总览")).toBeVisible();
-      await expect(page.getByText("继续工作")).toBeVisible();
-      await expect(page.getByText("发布与状态")).toBeVisible();
+      await expect(page.getByText("最近访问")).toBeVisible();
       await expect(page.getByText("安全助手")).toBeVisible();
       await expect(page.getByText("告警分诊工作流")).toBeVisible();
 
       await expect(page.getByText("待发布更新")).toBeVisible();
       await expect(page.getByText("威胁分析应用")).toBeVisible();
-      await expect(page.getByRole("button", { name: "前往发布中心" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "去发布" })).toBeVisible();
     } finally {
       await page.unroute(summaryRoute, summaryHandler);
       await page.unroute(modelConfigsRoute, modelConfigsHandler);

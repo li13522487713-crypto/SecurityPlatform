@@ -23,11 +23,32 @@ function normalizeApiPath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function resolveAbsoluteApiUrl(path: string): string | null {
+  if (!/^https?:\/\//i.test(API_BASE)) {
+    return null;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return new URL(normalizedPath, API_BASE).toString();
+}
+
 function resolveRequestUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
   if (path.startsWith("/app-host/")) return path;
-  if (path.startsWith("/api/")) return path;
+  if (path.startsWith("/api/")) return resolveAbsoluteApiUrl(path) ?? path;
   return `${API_BASE}${normalizeApiPath(path)}`;
+}
+
+export function resolveApiUrl(path: string): string {
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+
+  if (path.startsWith("/api/")) {
+    return resolveAbsoluteApiUrl(path) ?? path;
+  }
+
+  return resolveRequestUrl(path);
 }
 
 export function getAppRuntimeMode(): AppRuntimeMode {

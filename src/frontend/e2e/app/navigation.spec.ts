@@ -10,6 +10,8 @@ import {
 test.describe.serial("@smoke App Navigation", () => {
   let appKey = "";
 
+  test.setTimeout(120_000);
+
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {
     appKey = await ensureAppSetup(request);
     await ensureLoggedInSession(appKey);

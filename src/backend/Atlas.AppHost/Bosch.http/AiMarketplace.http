@@ -1,0 +1,47 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 查询市场商品分页
+GET {{baseUrl}}/api/v1/ai-marketplace/products?PageIndex=1&PageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建市场分类
+POST {{baseUrl}}/api/v1/ai-marketplace/categories
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "AppHost Category {{$timestamp}}",
+  "code": "apphost-category-{{$timestamp}}",
+  "description": "用于验证 AppHost AI Marketplace 兼容入口",
+  "sortOrder": 10
+}

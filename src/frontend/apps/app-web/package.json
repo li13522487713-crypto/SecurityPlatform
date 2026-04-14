@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "dev:platform": "vite --host 0.0.0.0",
-    "dev:direct": "vite --host 0.0.0.0",
+    "dev": "vite --mode direct --host 0.0.0.0",
+    "dev:platform": "vite --mode platform --host 0.0.0.0",
+    "dev:direct": "vite --mode direct --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,tsx}\""

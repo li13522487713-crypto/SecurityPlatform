@@ -10,7 +10,11 @@ const lodashRoot = path.dirname(require.resolve("lodash/pick"));
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const appWebPort = Number(env.VITE_APP_WEB_PORT || "5181");
-  const appHostTarget = env.VITE_APP_HOST_TARGET || "http://127.0.0.1:5002";
+  const apiBase = env.VITE_API_BASE?.trim();
+  const derivedAppHostTarget = apiBase && /^https?:\/\//i.test(apiBase)
+    ? new URL(apiBase).origin
+    : undefined;
+  const appHostTarget = env.VITE_APP_HOST_TARGET || derivedAppHostTarget || "http://127.0.0.1:5002";
 
   return {
     logLevel: "error",

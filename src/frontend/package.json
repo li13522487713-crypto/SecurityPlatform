@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "dev:app-web": "pnpm --filter atlas-app-web run dev",
-    "dev:app-web:platform": "pnpm --filter atlas-app-web run dev",
-    "dev:app-web:direct": "pnpm --filter atlas-app-web run dev",
+    "dev:app-web:platform": "pnpm --filter atlas-app-web run dev:platform",
+    "dev:app-web:direct": "pnpm --filter atlas-app-web run dev:direct",
     "build": "pnpm run build:app-web",
     "build:app-web": "pnpm --filter atlas-app-web run build",
     "lint": "pnpm --filter atlas-app-web run lint",

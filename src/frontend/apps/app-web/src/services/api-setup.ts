@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@atlas/shared-react-core/types";
+import { resolveApiUrl } from "./api-core";
 
 export interface SetupStateResponse {
   platformStatus: string;
@@ -86,7 +87,7 @@ export interface AppSetupInitializeRequest {
 }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(resolveApiUrl(url), {
     ...options,
     headers: {
       "Content-Type": "application/json",
