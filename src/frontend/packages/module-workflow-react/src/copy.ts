@@ -24,6 +24,9 @@ export interface WorkflowModuleCopy {
   createModalConfirm: (mode: WorkflowResourceMode) => string;
   createFromTemplateTitle: (mode: WorkflowResourceMode) => string;
   createFromTemplateDescription: (mode: WorkflowResourceMode) => string;
+  createWizardBlankMode: string;
+  createWizardTemplateMode: string;
+  createWizardTemplateSelect: string;
   createDialogTitle: (kind: CreateKind) => string;
   createDialogConfirm: (kind: CreateKind) => string;
   createDialogGlyph: (kind: CreateKind) => string;
@@ -136,6 +139,20 @@ export interface WorkflowModuleCopy {
   variableScopeBotLabel: string;
   clearContextLabel: string;
   clearHistoryLabel: string;
+  cancelLabel: string;
+  traceDockRunningHint: string;
+  traceDockClearTrace: string;
+  traceDockCollapse: string;
+  traceDockExpand: string;
+  variableRefTitle: string;
+  variableRefGlobalsTitle: string;
+  variableRefDependencyTitle: string;
+  variableRefEmptyGlobals: string;
+  variableRefEmptyDependencies: string;
+  variableRefOpenVariables: string;
+  variableRefSourceNodes: string;
+  variableRefToggleShow: string;
+  variableRefToggleHide: string;
 }
 
 function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
@@ -165,6 +182,9 @@ function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
     createModalConfirm: mode => zh ? `创建${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `Create ${mode === "chatflow" ? "Chatflow" : "Workflow"}`,
     createFromTemplateTitle: mode => zh ? `从模板开始构建${mode === "chatflow" ? "Chatflow" : "Workflow"}` : `Build ${mode === "chatflow" ? "chatflow" : "workflow"} from a template`,
     createFromTemplateDescription: mode => zh ? `当前支持空白模板与业务模板入口，默认创建草稿后直接进入 ${mode === "chatflow" ? "Chatflow" : "Workflow"} Editor。` : `Blank and business templates are available. New drafts open directly in the ${mode === "chatflow" ? "Chatflow" : "Workflow"} Editor.`,
+    createWizardBlankMode: zh ? "从空白创建" : "Create blank",
+    createWizardTemplateMode: zh ? "从模板创建" : "From template",
+    createWizardTemplateSelect: zh ? "选择模板" : "Template",
     createDialogTitle: kind => zh
       ? kind === "workflow" ? "创建工作流" : kind === "chatflow" ? "创建对话流" : kind === "plugin" ? "创建插件" : kind === "knowledge-base" ? "创建知识库" : "创建数据库"
       : kind === "workflow" ? "Create workflow" : kind === "chatflow" ? "Create chatflow" : kind === "plugin" ? "Create plugin" : kind === "knowledge-base" ? "Create knowledge base" : "Create database",
@@ -234,7 +254,7 @@ function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
     variableLoadFailure: zh ? "加载变量失败" : "Failed to load variables",
     variableSaveFailure: zh ? "保存变量失败" : "Failed to save variable",
     systemVariableReadonly: zh ? "只读" : "Read only",
-    traceLabel: "Trace",
+    traceLabel: zh ? "执行追踪" : "Trace",
     testRunLabel: zh ? "试运行" : "Test Run",
     problemsLabel: zh ? "问题" : "Problems",
     addNodeLabel: zh ? "添加节点" : "Add Node",
@@ -278,7 +298,21 @@ function createCopy(locale: "zh-CN" | "en-US"): WorkflowModuleCopy {
     variableScopeProjectLabel: zh ? "项目" : "Project",
     variableScopeBotLabel: zh ? "智能体" : "Bot",
     clearContextLabel: zh ? "清空上下文" : "Clear Context",
-    clearHistoryLabel: zh ? "清空历史" : "Clear History"
+    clearHistoryLabel: zh ? "清空历史" : "Clear History",
+    cancelLabel: zh ? "取消" : "Cancel",
+    traceDockRunningHint: zh ? "运行中…" : "Running…",
+    traceDockClearTrace: zh ? "清空追踪" : "Clear trace",
+    traceDockCollapse: zh ? "收起" : "Collapse",
+    traceDockExpand: zh ? "展开" : "Expand",
+    variableRefTitle: zh ? "变量引用" : "Variable references",
+    variableRefGlobalsTitle: zh ? "画布全局变量" : "Canvas globals",
+    variableRefDependencyTitle: zh ? "依赖变量" : "Dependency variables",
+    variableRefEmptyGlobals: zh ? "画布未配置全局变量。" : "No canvas globals configured.",
+    variableRefEmptyDependencies: zh ? "暂无变量依赖。" : "No variable dependencies.",
+    variableRefOpenVariables: zh ? "管理变量" : "Manage variables",
+    variableRefSourceNodes: zh ? "来源节点" : "Source nodes",
+    variableRefToggleShow: zh ? "引用侧栏" : "Ref panel",
+    variableRefToggleHide: zh ? "隐藏引用" : "Hide refs"
   };
 }
 

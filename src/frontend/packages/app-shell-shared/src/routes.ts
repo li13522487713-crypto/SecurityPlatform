@@ -98,6 +98,14 @@ export function studioDevelopPath(appKey: string): string {
   return `${studioBasePath(appKey)}/develop`;
 }
 
+export function studioDashboardPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/dashboard`;
+}
+
+export function studioPublishCenterPath(appKey: string): string {
+  return `${studioBasePath(appKey)}/publish-center`;
+}
+
 export function studioAssistantsPath(appKey: string): string {
   return `${studioBasePath(appKey)}/assistants`;
 }

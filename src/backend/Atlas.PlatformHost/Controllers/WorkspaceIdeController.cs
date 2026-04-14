@@ -39,6 +39,16 @@ public sealed class WorkspaceIdeController : ControllerBase
         return Ok(ApiResponse<WorkspaceIdeSummaryResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("dashboard-stats")]
+    [Authorize(Policy = PermissionPolicies.AgentView)]
+    public async Task<ActionResult<ApiResponse<WorkspaceIdeDashboardStatsResponse>>> GetDashboardStats(CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var result = await _service.GetDashboardStatsAsync(tenantId, userId, cancellationToken);
+        return Ok(ApiResponse<WorkspaceIdeDashboardStatsResponse>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("resources")]
     [Authorize(Policy = PermissionPolicies.AgentView)]
     public async Task<ActionResult<ApiResponse<PagedResult<WorkspaceIdeResourceCardResponse>>>> GetResources(
@@ -95,5 +105,28 @@ public sealed class WorkspaceIdeController : ControllerBase
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         await _service.RecordActivityAsync(tenantId, userId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { request.ResourceType, request.ResourceId }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("resources/{resourceType}/{resourceId}/references")]
+    [Authorize(Policy = PermissionPolicies.AgentView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkspaceIdeResourceReferenceResponse>>>> GetResourceReferences(
+        string resourceType,
+        string resourceId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _service.GetResourceReferencesAsync(tenantId, resourceType, resourceId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<WorkspaceIdeResourceReferenceResponse>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("publish-center/items")]
+    [Authorize(Policy = PermissionPolicies.AgentView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkspaceIdePublishCenterItemResponse>>>> GetPublishCenterItems(
+        [FromQuery] string? resourceType = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _service.GetPublishCenterItemsAsync(tenantId, resourceType, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<WorkspaceIdePublishCenterItemResponse>>.Ok(result, HttpContext.TraceIdentifier));
     }
 }

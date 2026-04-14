@@ -30,6 +30,7 @@ import {
   AssistantPublishPage,
   BotIdePage,
   DataResourcesPage,
+  DashboardPage,
   DatabaseDetailPage,
   DevelopPage,
   DatabasesPage,
@@ -37,6 +38,9 @@ import {
   ModelConfigsPage,
   PluginDetailPage,
   PluginsPage,
+  PublishCenterPage,
+  ResourceReferenceCard,
+  StudioContextProvider,
   VariablesPage,
   type DevelopFocus,
   type DevelopResourceSummary,
@@ -76,10 +80,11 @@ import {
   studioLibraryPath,
   studioPluginDetailPath,
   studioPluginsPath,
+  studioPublishCenterPath,
   studioVariablesPath,
   workflowEditorPath,
   workflowListPath,
-  workspaceAssistantPath,
+  workspaceBasePath,
   workspaceBotPath,
   workspaceChatPath,
   workspaceDevelopPath,
@@ -177,6 +182,7 @@ import {
 } from "@/services/api-org-management";
 import {
   deleteAiApp,
+  getAiAppBuilderConfig,
   getAiAppById,
   createAiAppConversationTemplate,
   deleteAiAppConversationTemplate,
@@ -184,10 +190,15 @@ import {
   getAiAppPublishRecords,
   getAiAppVersionCheck,
   publishAiApp,
+  runAiAppPreview,
+  updateAiAppBuilderConfig,
   updateAiApp
 } from "@/services/api-ai-app";
 import {
   createWorkspaceIdeApp,
+  getWorkspaceDashboardStats,
+  getWorkspacePublishCenterItems,
+  getWorkspaceResourceReferences,
   getWorkspaceIdeSummary,
   recordWorkspaceIdeActivity,
   updateWorkspaceIdeFavorite,
@@ -984,7 +995,8 @@ function createStudioApi(appKey: string): StudioModuleApi {
         id: item.id,
         name: item.name,
         category: item.category,
-        status: item.status
+        status: item.status,
+        sourceType: item.sourceType
       }));
     },
     getPluginDetail: async (pluginId) => {
@@ -1116,6 +1128,37 @@ function createStudioApi(appKey: string): StudioModuleApi {
       }
 
       return text.trim();
+    },
+    getDashboardStats: async () => {
+      const stats = await getWorkspaceDashboardStats();
+      return {
+        ...stats,
+        recentActivities: (stats.recentActivities ?? []).map(item => ({
+          ...item,
+          resourceId: String(item.resourceId)
+        }))
+      };
+    },
+    getResourceReferences: (resourceType, resourceId) =>
+      getWorkspaceResourceReferences(resourceType, resourceId),
+    getPublishCenterItems: (params) =>
+      getWorkspacePublishCenterItems(params?.resourceType),
+    getAppBuilderConfig: async (appId) => {
+      const config = await getAiAppBuilderConfig(appId);
+      return {
+        ...config,
+        inputs: config.inputs ?? [],
+        outputs: config.outputs ?? [],
+        layoutMode: config.layoutMode ?? "form"
+      };
+    },
+    updateAppBuilderConfig: (appId, config) =>
+      updateAiAppBuilderConfig(appId, config),
+    runAppPreview: (appId, inputs) =>
+      runAiAppPreview(appId, inputs),
+    listPromptTemplates: async () => {
+      // Mock implementation
+      return { items: [], total: 0, pageIndex: 1, pageSize: 20 };
     }
   };
 }
@@ -1244,6 +1287,12 @@ function StudioDevelopAliasRedirect() {
   return <Navigate to={workspaceDevelopPath(appKey, bootstrap.spaceId)} replace />;
 }
 
+function StudioDashboardAliasRedirect() {
+  const { appKey = "" } = useParams();
+  const { spaceId } = useBootstrap();
+  return <Navigate to={`${workspaceBasePath(appKey, spaceId)}/dashboard`} replace />;
+}
+
 function StudioAssistantsAliasRedirect() {
   const { appKey = "" } = useParams();
   const { locale } = useAppI18n();
@@ -1323,6 +1372,24 @@ function StudioPluginDetailRoute() {
   );
 }
 
+function StudioPublishCenterRoute() {
+  const { appKey = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  return (
+    <PublishCenterPage
+      api={studioApi}
+      locale={locale}
+      apiBase={typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "/api/v1"}
+      onOpenAgent={id => navigate(studioAssistantDetailPath(appKey, id))}
+      onOpenApp={id => navigate(studioAppDetailPath(appKey, id))}
+      onOpenWorkflow={id => navigate(workflowEditorPath(appKey, id))}
+      onOpenPlugin={id => navigate(studioPluginDetailPath(appKey, id))}
+    />
+  );
+}
+
 function StudioAssistantToolsRoute() {
   const { appKey = "" } = useParams();
   const { locale } = useAppI18n();
@@ -1367,6 +1434,7 @@ function StudioKnowledgeBaseDetailRoute() {
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const bootstrap = useBootstrap();
+  const { studioApi } = useAppApis(appKey);
   return (
     <KnowledgeDetailPage
       api={libraryApi}
@@ -1375,6 +1443,14 @@ function StudioKnowledgeBaseDetailRoute() {
       spaceId={bootstrap.spaceId}
       knowledgeBaseId={Number(id)}
       onNavigate={navigate}
+      resourceReferencesSlot={
+        <ResourceReferenceCard
+          api={studioApi}
+          locale={locale}
+          resourceType="knowledge-base"
+          resourceId={String(id)}
+        />
+      }
     />
   );
 }
@@ -1455,6 +1531,7 @@ function AppShellRoute() {
   const bootstrap = useBootstrap();
   const auth = useAuth();
   const { locale, setLocale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
   const activeShellPath = `${location.pathname}${location.search}`;
 
   useEffect(() => {
@@ -1722,7 +1799,9 @@ function AppShellRoute() {
           void auth.logout().then(() => navigate(appSignPath(appKey), { replace: true }));
         }}
       >
-        <Outlet />
+        <StudioContextProvider api={studioApi}>
+          <Outlet />
+        </StudioContextProvider>
       </CozeShell>
     </>
   );
@@ -1807,6 +1886,34 @@ function DevelopRoute() {
       onOpenApplicationPublish={appId => navigate(studioAppPublishPath(appKey, appId))}
       onCreateWorkflow={() => navigate(`${workflowListPath(appKey)}?create=1`)}
       onCreateChatflow={() => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow?create=1`)}
+    />
+  );
+}
+
+function DashboardRoute() {
+  const { appKey = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  const { spaceId } = useBootstrap();
+  return (
+    <DashboardPage
+      api={studioApi}
+      locale={locale}
+      onNavigateToResource={(type, id) => {
+        if (type === "agent") navigate(studioAssistantDetailPath(appKey, id));
+        else if (type === "app") navigate(studioAppDetailPath(appKey, id));
+        else if (type === "workflow") navigate(workflowEditorPath(appKey, id));
+        else if (type === "plugin") navigate(studioPluginDetailPath(appKey, id));
+      }}
+      onNavigateToModels={() => navigate(workspaceModelConfigsPath(appKey, spaceId))}
+      onNavigateToPublish={() => navigate(studioPublishCenterPath(appKey))}
+      onCreateAgent={() => {
+        // Simple routing mapping for now
+        navigate(studioAssistantsPath(appKey));
+      }}
+      onCreateApp={() => navigate(studioAppsPath(appKey))}
+      onCreateWorkflow={() => navigate(`${workflowListPath(appKey)}?create=1`)}
     />
   );
 }
@@ -2093,6 +2200,7 @@ export function AppRouter() {
         <Route path="/apps/:appKey/sign" element={<LoginPage />} />
         <Route path="/apps/:appKey" element={<AppShellRoute />}>
           <Route index element={<DefaultWorkspaceRedirect />} />
+          <Route path="studio/dashboard" element={<StudioDashboardAliasRedirect />} />
           <Route path="studio/develop" element={<StudioDevelopAliasRedirect />} />
           <Route path="studio/assistants" element={<StudioAssistantsAliasRedirect />} />
           <Route path="studio/assistants/:id" element={<StudioAssistantDetailRoute />} />
@@ -2110,11 +2218,13 @@ export function AppRouter() {
           <Route path="studio/knowledge-bases" element={<StudioKnowledgeBasesRoute />} />
           <Route path="studio/databases/:id" element={<StudioDatabaseDetailRoute />} />
           <Route path="studio/databases" element={<StudioDatabasesRoute />} />
+          <Route path="studio/publish-center" element={<StudioPublishCenterRoute />} />
           <Route path="studio/variables" element={<StudioVariablesRoute />} />
           <Route path="workflows" element={<WorkflowsAliasRedirect />} />
           <Route path="workflows/:id/editor" element={<WorkflowEditorAliasRedirect />} />
           <Route path="chatflows" element={<ChatflowsAliasRedirect />} />
           <Route path="chatflows/:id/editor" element={<ChatflowEditorAliasRedirect />} />
+          <Route path="space/:spaceId/dashboard" element={<DashboardRoute />} />
           <Route path="space/:spaceId/develop" element={<DevelopRoute />} />
           <Route path="space/:spaceId/chat" element={<AgentChatRoute />} />
           <Route path="space/:spaceId/assistant" element={<AiAssistantRoute />} />

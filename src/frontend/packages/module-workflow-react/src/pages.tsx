@@ -11,6 +11,7 @@ import {
   Toast,
   Typography
 } from "@douyinfe/semi-ui";
+import { CreateWizardModal } from "@atlas/module-studio-react";
 import type { TagColor } from "@douyinfe/semi-ui/lib/es/tag";
 import type {
   WorkflowCreateRequest,
@@ -104,31 +105,6 @@ function matchesStatus(item: WorkflowListItem, status: WorkflowStatusFilter) {
   return item.status !== 1;
 }
 
-function TemplateCard({
-  template,
-  active,
-  onClick
-}: {
-  template: WorkflowTemplateSummary;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`module-workflow__template${active ? " is-active" : ""}`}
-      onClick={onClick}
-      data-testid={`workflow-template-${template.id}`}
-    >
-      <div className="module-workflow__template-head">
-        <strong>{template.title}</strong>
-        {template.badge ? <Tag color="light-blue">{template.badge}</Tag> : null}
-      </div>
-      <p>{template.description}</p>
-    </button>
-  );
-}
-
 export function WorkflowListPage({
   api,
   locale,
@@ -142,10 +118,6 @@ export function WorkflowListPage({
   const [status, setStatus] = useState<WorkflowStatusFilter>("all");
   const [templates, setTemplates] = useState<WorkflowTemplateSummary[]>([]);
   const [createVisible, setCreateVisible] = useState(initialCreateVisible);
-  const [creating, setCreating] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [draftName, setDraftName] = useState("");
-  const [draftDescription, setDraftDescription] = useState("");
   const [createdTemplates, setCreatedTemplates] = useState<Record<string, ExploreCreatedTemplateState>>(() => readExploreCreatedTemplateStateMap());
 
   const load = async () => {
@@ -164,12 +136,6 @@ export function WorkflowListPage({
   useEffect(() => {
     void api.listTemplates(mode).then((next) => {
       setTemplates(next);
-      const first = next[0];
-      if (first) {
-        setSelectedTemplateId(first.id);
-        setDraftName(`${first.title}_${Date.now().toString().slice(-6)}`);
-        setDraftDescription(first.description);
-      }
     });
   }, [api, mode]);
 
@@ -182,25 +148,20 @@ export function WorkflowListPage({
     [items, mode, status]
   );
 
-  const selectedTemplate = useMemo(
-    () => templates.find((item) => item.id === selectedTemplateId) ?? null,
-    [selectedTemplateId, templates]
-  );
-
   const title = mode === "chatflow" ? copy.chatflowLabel : copy.workflowLabel;
   const subtitle = mode === "chatflow" ? copy.listSubtitleChatflow : copy.listSubtitleWorkflow;
 
-  async function handleCreate() {
-    const safeName = draftName.trim() || `${title}_${Date.now().toString().slice(-6)}`;
+  async function handleCreateWizardSubmit(values: { name: string; description: string; templateId?: string }) {
+    const safeName = values.name.trim() || `${title}_${Date.now().toString().slice(-6)}`;
+    const template = values.templateId ? templates.find((item) => item.id === values.templateId) : undefined;
     const request: WorkflowCreateRequest = {
       name: safeName,
-      description: draftDescription.trim() || selectedTemplate?.description,
+      description: values.description.trim() || template?.description,
       mode,
-      createSource: selectedTemplate ? selectedTemplate.createSource : "blank",
-      templateId: selectedTemplate?.id
+      createSource: template ? template.createSource : "blank",
+      templateId: template?.id
     };
 
-    setCreating(true);
     try {
       const workflowId = await api.createWorkflow(request);
       setCreateVisible(false);
@@ -208,8 +169,6 @@ export function WorkflowListPage({
       onOpenEditor(workflowId);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : copy.createFailure(mode));
-    } finally {
-      setCreating(false);
     }
   }
 
@@ -342,42 +301,33 @@ export function WorkflowListPage({
         </div>
       </div>
 
-      <Modal
-        title={copy.createModalTitle(mode)}
-        visible={createVisible}
-        onCancel={() => setCreateVisible(false)}
-        okText={copy.createModalConfirm(mode)}
-        confirmLoading={creating}
-        onOk={() => void handleCreate()}
-        data-testid={mode === "chatflow" ? "app-chatflows-create-modal" : "app-workflows-create-modal"}
-      >
-        <div className="module-workflow__create-modal">
-          <div className="module-workflow__create-fields">
-            <label>
-              <span>{copy.nameLabel}</span>
-              <Input value={draftName} onChange={setDraftName} placeholder={`${copy.nameLabel}${title}`} />
-            </label>
-            <label>
-              <span>{copy.descriptionLabel}</span>
-              <Input value={draftDescription} onChange={setDraftDescription} placeholder={copy.descriptionPlaceholder} />
-            </label>
-          </div>
-          <div className="module-workflow__template-grid">
-            {templates.map((template) => (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                active={template.id === selectedTemplateId}
-                onClick={() => {
-                  setSelectedTemplateId(template.id);
-                  setDraftName(`${template.title}_${Date.now().toString().slice(-6)}`);
-                  setDraftDescription(template.description);
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      </Modal>
+      <div data-testid={mode === "chatflow" ? "app-chatflows-create-modal" : "app-workflows-create-modal"}>
+        <CreateWizardModal
+          visible={createVisible}
+          title={copy.createModalTitle(mode)}
+          resourceType={mode === "chatflow" ? "chatflow" : "workflow"}
+          templates={templates.map((template) => ({
+            id: template.id,
+            name: template.title,
+            description: template.description
+          }))}
+          onCancel={() => setCreateVisible(false)}
+          onSubmit={async (values) => {
+            await handleCreateWizardSubmit(values);
+          }}
+          texts={{
+            okText: copy.createModalConfirm(mode),
+            cancelText: copy.cancelLabel,
+            blankMode: copy.createWizardBlankMode,
+            templateMode: copy.createWizardTemplateMode,
+            nameLabel: copy.nameLabel,
+            descriptionLabel: copy.descriptionLabel,
+            templateSelectLabel: copy.createWizardTemplateSelect,
+            namePlaceholder: `${copy.nameLabel} · ${title}`,
+            descriptionPlaceholder: copy.descriptionPlaceholder
+          }}
+        />
+      </div>
     </section>
   );
 }

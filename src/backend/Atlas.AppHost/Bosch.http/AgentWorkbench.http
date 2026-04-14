@@ -3,6 +3,7 @@
 @username = admin
 @password = P@ssw0rd!
 @agentId = 1
+@appId = 1
 @workflowId = 1
 @sessionId = 1
 
@@ -111,4 +112,18 @@ X-CSRF-TOKEN: {{csrfToken}}
 {
   "incident": "主机检测到可疑 PowerShell 横向移动行为，需要立即安排隔离、排查和取证。",
   "source": "draft"
+}
+
+### App Builder 预览运行（绑定工作流）
+POST {{baseUrl}}/api/v1/ai-apps/{{appId}}/preview-run
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "inputs": {
+    "question": "请总结最近一次告警处置流程"
+  }
 }

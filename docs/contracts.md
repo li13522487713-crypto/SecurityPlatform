@@ -460,6 +460,22 @@
   - `durationMs`
   - `errorMessage`
 
+### App Builder 配置与预览运行
+
+- `GET /api/v1/ai-apps/{id}/builder-config`（PlatformHost）
+- `PUT /api/v1/ai-apps/{id}/builder-config`（PlatformHost）
+- `POST /api/v1/ai-apps/{id}/preview-run`（AppHost）
+- `AiAppBuilderConfig`
+  - `inputs[]`
+  - `outputs[]`
+  - `boundWorkflowId`
+  - `layoutMode`：`form | chat | hybrid`
+- `AiAppPreviewRunRequest`
+  - `inputs`：`Record<string, unknown>`
+- `AiAppPreviewRunResult`
+  - `outputs`
+  - `trace?`
+
 ### Workflow 依赖查询（PlatformHost）
 
 - `GET /api/v2/workflows/{id}/dependencies`
@@ -568,6 +584,50 @@
   - `entryRoute`
   - `badge`
   - `linkedWorkflowId`
+
+### Dashboard 统计与发布聚合
+
+- `GET /api/v1/workspace-ide/dashboard-stats`
+- 返回：`ApiResponse<WorkspaceIdeDashboardStatsResponse>`
+- `WorkspaceIdeDashboardStatsResponse`
+  - `agentCount`
+  - `appCount`
+  - `workflowCount`
+  - `enabledModelCount`
+  - `pluginCount`
+  - `knowledgeBaseCount`
+  - `pendingPublishItems[]`
+  - `recentActivities[]`
+- `WorkspaceIdePendingPublishItem`
+  - `resourceType`：`agent | app | workflow | plugin`
+  - `resourceId`
+  - `resourceName`
+  - `updatedAt`
+- `GET /api/v1/workspace-ide/publish-center/items`
+- 查询参数：
+  - `resourceType?`：`agent | app | workflow | plugin`
+- 返回：`ApiResponse<WorkspaceIdePublishCenterItemResponse[]>`
+- `WorkspaceIdePublishCenterItemResponse`
+  - `resourceType`
+  - `resourceId`
+  - `resourceName`
+  - `currentVersion`
+  - `draftVersion`
+  - `lastPublishedAt`
+  - `status`：`draft | published | outdated`
+  - `apiEndpoint`
+  - `embedToken?`
+
+### 资源引用关系
+
+- `GET /api/v1/workspace-ide/resources/{resourceType}/{resourceId}/references`
+- `resourceType` 支持：`model-config | plugin | knowledge-base | database | variable | workflow | agent`
+- 返回：`ApiResponse<WorkspaceIdeResourceReferenceResponse[]>`
+- `WorkspaceIdeResourceReferenceResponse`
+  - `referrerType`：`agent | app | workflow`
+  - `referrerId`
+  - `referrerName`
+  - `bindingField`
 
 ### 工作空间应用复合创建
 

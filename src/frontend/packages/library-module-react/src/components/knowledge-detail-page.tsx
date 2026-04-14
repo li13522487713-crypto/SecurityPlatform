@@ -46,7 +46,8 @@ export function KnowledgeDetailPage({
   appKey,
   spaceId,
   knowledgeBaseId,
-  onNavigate
+  onNavigate,
+  resourceReferencesSlot
 }: KnowledgeDetailPageProps) {
   const copy = getLibraryCopy(locale);
   const [loading, setLoading] = useState(false);
@@ -430,6 +431,12 @@ export function KnowledgeDetailPage({
           </div>
         </div>
       </div>
+
+      {resourceReferencesSlot ? (
+        <div className="atlas-table-card semi-card semi-card-bordered semi-card-shadow" style={{ marginTop: 16 }}>
+          <div className="semi-card-body">{resourceReferencesSlot}</div>
+        </div>
+      ) : null}
 
       <div className="atlas-knowledge-detail-grid">
         <div className="atlas-table-card semi-card semi-card-bordered semi-card-shadow">

@@ -75,3 +75,50 @@ public sealed record AiAppResourceCopyTaskProgress(
     string? ErrorMessage,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
+
+public sealed record AiAppBuilderConfigOption(
+    string Label,
+    string Value);
+
+public sealed record AiAppBuilderInputComponent(
+    string Id,
+    string Type,
+    string Label,
+    string VariableKey,
+    bool Required,
+    string? DefaultValue,
+    IReadOnlyList<AiAppBuilderConfigOption>? Options);
+
+public sealed record AiAppBuilderOutputComponent(
+    string Id,
+    string Type,
+    string Label,
+    string SourceExpression);
+
+public sealed record AiAppBuilderConfig(
+    IReadOnlyList<AiAppBuilderInputComponent> Inputs,
+    IReadOnlyList<AiAppBuilderOutputComponent> Outputs,
+    string? BoundWorkflowId,
+    string LayoutMode);
+
+public sealed record AiAppPreviewRunRequest(
+    IReadOnlyDictionary<string, object?> Inputs);
+
+public sealed record AiAppPreviewTraceStep(
+    string NodeKey,
+    string? Status,
+    string? NodeType,
+    long? DurationMs,
+    string? ErrorMessage);
+
+public sealed record AiAppPreviewTrace(
+    string ExecutionId,
+    string? Status,
+    DateTime? StartedAt,
+    DateTime? CompletedAt,
+    long? DurationMs,
+    IReadOnlyList<AiAppPreviewTraceStep> Steps);
+
+public sealed record AiAppPreviewRunResult(
+    IReadOnlyDictionary<string, object?> Outputs,
+    AiAppPreviewTrace? Trace);

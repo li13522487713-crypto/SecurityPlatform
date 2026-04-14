@@ -34,8 +34,23 @@ GET {{baseUrl}}/api/v1/workspace-ide/summary
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 获取 Dashboard 统计卡片
+GET {{baseUrl}}/api/v1/workspace-ide/dashboard-stats
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 获取统一资源列表
 GET {{baseUrl}}/api/v1/workspace-ide/resources?pageIndex=1&pageSize=24&keyword=&resourceType=&favoriteOnly=false
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询资源被引用关系（示例：数据库）
+GET {{baseUrl}}/api/v1/workspace-ide/resources/database/1/references
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取发布中心聚合列表
+GET {{baseUrl}}/api/v1/workspace-ide/publish-center/items?resourceType=
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 

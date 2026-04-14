@@ -241,6 +241,9 @@ importers:
 
   packages/module-workflow-react:
     dependencies:
+      '@atlas/module-studio-react':
+        specifier: workspace:*
+        version: link:../module-studio-react
       '@atlas/shared-react-core':
         specifier: workspace:*
         version: link:../shared-react-core

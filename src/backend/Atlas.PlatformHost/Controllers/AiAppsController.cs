@@ -207,6 +207,29 @@ public sealed class AiAppsController : ControllerBase
         return Ok(ApiResponse<AiAppVersionCheckResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:long}/builder-config")]
+    [Authorize(Policy = PermissionPolicies.AiAppView)]
+    public async Task<ActionResult<ApiResponse<AiAppBuilderConfig>>> GetBuilderConfig(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _service.GetBuilderConfigAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<AiAppBuilderConfig>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/builder-config")]
+    [Authorize(Policy = PermissionPolicies.AiAppUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateBuilderConfig(
+        long id,
+        [FromBody] AiAppBuilderConfig request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _service.UpdateBuilderConfigAsync(tenantId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("{id:long}/resource-copy-tasks")]
     [Authorize(Policy = PermissionPolicies.AiAppUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> SubmitResourceCopy(

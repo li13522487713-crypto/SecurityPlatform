@@ -113,7 +113,7 @@ export interface AgentKnowledgeBinding {
   rewriteQueryTemplate?: string;
 }
 
-export interface AgentKnowledgeBindingInput extends AgentKnowledgeBinding {}
+export type AgentKnowledgeBindingInput = AgentKnowledgeBinding;
 
 export interface AgentDatabaseBinding {
   databaseId: number;
@@ -123,7 +123,7 @@ export interface AgentDatabaseBinding {
   isDefault: boolean;
 }
 
-export interface AgentDatabaseBindingInput extends AgentDatabaseBinding {}
+export type AgentDatabaseBindingInput = AgentDatabaseBinding;
 
 export interface AgentVariableBinding {
   variableId: number;
@@ -132,7 +132,7 @@ export interface AgentVariableBinding {
   defaultValueOverride?: string;
 }
 
-export interface AgentVariableBindingInput extends AgentVariableBinding {}
+export type AgentVariableBindingInput = AgentVariableBinding;
 
 export interface AgentPluginBinding {
   pluginId: number;
@@ -142,7 +142,7 @@ export interface AgentPluginBinding {
   toolBindings?: AgentPluginToolBinding[];
 }
 
-export interface AgentPluginBindingInput extends AgentPluginBinding {}
+export type AgentPluginBindingInput = AgentPluginBinding;
 
 export interface AgentPluginToolBinding {
   apiId: number;

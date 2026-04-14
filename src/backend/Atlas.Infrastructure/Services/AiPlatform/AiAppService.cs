@@ -8,6 +8,8 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -67,6 +69,15 @@ public sealed class AiAppService : IAiAppService
 
         var records = await _publishRecordRepository.GetByAppIdAsync(tenantId, id, top: 10, cancellationToken);
         return MapDetail(app, records);
+    }
+
+    public async Task<AiAppBuilderConfig> GetBuilderConfigAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var app = await GetAppOrThrowAsync(tenantId, id, cancellationToken);
+        return ParseBuilderConfig(app.UiBuilderSchemaJson, app.WorkflowId);
     }
 
     public async Task<IReadOnlyList<AiAppPublishRecordItem>> GetPublishRecordsAsync(
@@ -202,6 +213,34 @@ public sealed class AiAppService : IAiAppService
         await _appRepository.UpdateAsync(app, cancellationToken);
     }
 
+    public async Task UpdateBuilderConfigAsync(
+        TenantId tenantId,
+        long id,
+        AiAppBuilderConfig request,
+        CancellationToken cancellationToken)
+    {
+        var app = await GetAppOrThrowAsync(tenantId, id, cancellationToken);
+        ValidateLayoutMode(request.LayoutMode);
+
+        var normalizedConfig = NormalizeBuilderConfig(request, app.WorkflowId);
+        var nextWorkflowId = ParseNullableLong(normalizedConfig.BoundWorkflowId);
+        app.Update(
+            app.Name,
+            app.Description,
+            app.Icon,
+            app.AgentId,
+            nextWorkflowId,
+            app.PromptTemplateId,
+            primaryWorkflowId: nextWorkflowId ?? app.PrimaryWorkflowId,
+            entryConversationTemplateId: app.EntryConversationTemplateId,
+            uiBuilderSchemaJson: JsonSerializer.Serialize(normalizedConfig),
+            workspaceLayoutJson: app.WorkspaceLayoutJson,
+            publishedConnectorConfigJson: app.PublishedConnectorConfigJson,
+            lastPublishedSnapshotJson: app.LastPublishedSnapshotJson);
+
+        await _appRepository.UpdateAsync(app, cancellationToken);
+    }
+
     public async Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
     {
         await GetAppOrThrowAsync(tenantId, id, cancellationToken);
@@ -315,6 +354,100 @@ public sealed class AiAppService : IAiAppService
             task.MarkFailed(ex.Message);
             await taskRepository.UpdateAsync(task, cancellationToken);
         }
+    }
+
+    private static AiAppBuilderConfig ParseBuilderConfig(string? uiBuilderSchemaJson, long? fallbackWorkflowId)
+    {
+        if (string.IsNullOrWhiteSpace(uiBuilderSchemaJson))
+        {
+            return CreateDefaultBuilderConfig(fallbackWorkflowId);
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<AiAppBuilderConfig>(uiBuilderSchemaJson);
+            if (parsed is null)
+            {
+                return CreateDefaultBuilderConfig(fallbackWorkflowId);
+            }
+
+            return NormalizeBuilderConfig(parsed, fallbackWorkflowId);
+        }
+        catch (JsonException)
+        {
+            return CreateDefaultBuilderConfig(fallbackWorkflowId);
+        }
+    }
+
+    private static AiAppBuilderConfig NormalizeBuilderConfig(AiAppBuilderConfig source, long? fallbackWorkflowId)
+    {
+        var layoutMode = string.IsNullOrWhiteSpace(source.LayoutMode) ? "form" : source.LayoutMode.Trim().ToLowerInvariant();
+        if (layoutMode is not ("form" or "chat" or "hybrid"))
+        {
+            layoutMode = "form";
+        }
+
+        var boundWorkflowId = string.IsNullOrWhiteSpace(source.BoundWorkflowId)
+            ? fallbackWorkflowId?.ToString(CultureInfo.InvariantCulture)
+            : source.BoundWorkflowId.Trim();
+
+        var normalizedInputs = (source.Inputs ?? [])
+            .Select((item, index) => new AiAppBuilderInputComponent(
+                string.IsNullOrWhiteSpace(item.Id) ? $"input-{index + 1}" : item.Id.Trim(),
+                string.IsNullOrWhiteSpace(item.Type) ? "text" : item.Type.Trim().ToLowerInvariant(),
+                string.IsNullOrWhiteSpace(item.Label) ? $"Input {index + 1}" : item.Label.Trim(),
+                item.VariableKey?.Trim() ?? string.Empty,
+                item.Required,
+                item.DefaultValue,
+                item.Options?
+                    .Where(option => !string.IsNullOrWhiteSpace(option.Value))
+                    .Select(option => new AiAppBuilderConfigOption(
+                        option.Label?.Trim() ?? option.Value.Trim(),
+                        option.Value.Trim()))
+                    .ToArray()))
+            .ToArray();
+        var normalizedOutputs = (source.Outputs ?? [])
+            .Select((item, index) => new AiAppBuilderOutputComponent(
+                string.IsNullOrWhiteSpace(item.Id) ? $"output-{index + 1}" : item.Id.Trim(),
+                string.IsNullOrWhiteSpace(item.Type) ? "text" : item.Type.Trim().ToLowerInvariant(),
+                string.IsNullOrWhiteSpace(item.Label) ? $"Output {index + 1}" : item.Label.Trim(),
+                item.SourceExpression?.Trim() ?? string.Empty))
+            .ToArray();
+
+        return new AiAppBuilderConfig(normalizedInputs, normalizedOutputs, boundWorkflowId, layoutMode);
+    }
+
+    private static AiAppBuilderConfig CreateDefaultBuilderConfig(long? fallbackWorkflowId)
+    {
+        return new AiAppBuilderConfig(
+            Array.Empty<AiAppBuilderInputComponent>(),
+            Array.Empty<AiAppBuilderOutputComponent>(),
+            fallbackWorkflowId?.ToString(CultureInfo.InvariantCulture),
+            "form");
+    }
+
+    private static long? ParseNullableLong(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        return long.TryParse(rawValue.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            && parsed > 0
+                ? parsed
+                : null;
+    }
+
+    private static void ValidateLayoutMode(string? layoutMode)
+    {
+        var normalized = layoutMode?.Trim().ToLowerInvariant();
+        if (normalized is "form" or "chat" or "hybrid")
+        {
+            return;
+        }
+
+        throw new BusinessException("应用布局模式无效。", ErrorCodes.ValidationError);
     }
 
     private async Task<AiApp> GetAppOrThrowAsync(TenantId tenantId, long appId, CancellationToken cancellationToken)

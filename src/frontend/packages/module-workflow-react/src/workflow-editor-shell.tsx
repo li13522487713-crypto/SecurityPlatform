@@ -20,6 +20,8 @@ import {
   type WorkflowSidebarSection
 } from "./coze-adapter";
 import { getWorkflowModuleCopy } from "./copy";
+import { WorkflowTracePanel } from "./editor/workflow-trace-panel";
+import { WorkflowVariableRefPanel } from "./editor/workflow-variable-ref";
 import type {
   AgentSummaryItem,
   AiDatabaseDetail,
@@ -303,15 +305,20 @@ export function WorkflowEditorShell({
   const [selectedTraceStep, setSelectedTraceStep] = useState<WorkflowTraceStepSummary | null>(null);
   const [focusNodeKey, setFocusNodeKey] = useState("");
   const [highlightVariableKey, setHighlightVariableKey] = useState(readSearchParam("variableKey"));
+  const [variableRefPanelOpen, setVariableRefPanelOpen] = useState(true);
   const [resourceContextMenu, setResourceContextMenu] = useState<ResourceContextMenuState>(null);
   const [templateSources, setTemplateSources] = useState<Record<string, ExploreCreatedTemplateState>>(() => readExploreCreatedTemplateStateMap());
 
   const canvas = useMemo(() => safeParseCanvas(detail?.canvasJson), [detail?.canvasJson]);
+  const canvasGlobals = useMemo(() => (canvas.globals && typeof canvas.globals === "object" ? (canvas.globals as Record<string, unknown>) : {}), [canvas.globals]);
+  const traceRunActive = useMemo(() => traceSteps.some((step) => step.status === "running"), [traceSteps]);
   const activeTab = useMemo(
     () => tabs.find(tab => tab.key === activeTabKey) ?? tabs[0],
     [activeTabKey, tabs]
   );
   const isWorkflowTab = activeTab?.kind === "workflow-editor" || activeTab?.kind === "chatflow-editor";
+  const traceDockVisible =
+    Boolean(isWorkflowTab && activeTabKey === workflowTabKey && workspaceView === "logic" && (traceRunActive || traceSteps.length > 0));
   const templateSource = useMemo(
     () => Object.values(templateSources).find(source => source.workflowId === workflowId),
     [templateSources, workflowId]
@@ -1562,7 +1569,7 @@ export function WorkflowEditorShell({
           {renderResourceTabs()}
           <div className="module-workflow__coze-workspace-header">
             <div className="module-workflow__coze-workspace-chip"><span className="module-workflow__coze-workspace-dot" /><strong>{activeTab?.title ?? detail?.name ?? workflowId}</strong></div>
-            {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "problems", kind: "problems", title: copy.problemsLabel, closable: true })}>{copy.problemsLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "trace-list", kind: "trace-list", title: copy.traceLabel, closable: true })}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "references", kind: "references", title: copy.referencesTitle, closable: true })}>{copy.referencesTab}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button>{mode === "chatflow" ? <Button theme="borderless" onClick={() => emitPanelCommand("openRoleConfig")}>{chatflowRoleLabel}</Button> : null}<Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
+            {isWorkflowTab ? <div className="module-workflow__coze-workspace-actions"><Button theme="borderless" onClick={() => void loadContext(sidebarKeyword)}>{copy.refreshCanvasLabel}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openNodePanel")}>{copy.addNodeLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "problems", kind: "problems", title: copy.problemsLabel, closable: true })}>{copy.problemsLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "trace-list", kind: "trace-list", title: copy.traceLabel, closable: true })}>{copy.traceLabel}</Button><Button theme="borderless" onClick={() => openTab({ key: "references", kind: "references", title: copy.referencesTitle, closable: true })}>{copy.referencesTab}</Button><Button theme="borderless" onClick={() => emitPanelCommand("openVariables")}>{copy.variablesLabel}</Button><Button theme="borderless" onClick={() => setVariableRefPanelOpen((value) => !value)}>{variableRefPanelOpen ? copy.variableRefToggleHide : copy.variableRefToggleShow}</Button>{mode === "chatflow" ? <Button theme="borderless" onClick={() => emitPanelCommand("openRoleConfig")}>{chatflowRoleLabel}</Button> : null}<Button theme="light" type="tertiary" onClick={() => emitPanelCommand("openDebug")}>{copy.debugLabel}</Button><Button theme="solid" type="secondary" onClick={() => void handleQuickTestRun()}>{copy.testRunLabel}</Button></div> : null}
           </div>
           {isWorkflowTab && templateSource ? (
             <div className="module-workflow__coze-status-strip">
@@ -1571,8 +1578,60 @@ export function WorkflowEditorShell({
               <span>创建时间：{formatDateTime(templateSource.createdAt, locale)}</span>
             </div>
           ) : null}
-          <div className="module-workflow__coze-editor-surface">{renderActivePanel()}</div>
-          {isWorkflowTab ? <div className="module-workflow__coze-status-strip"><span>{copy.versionLabel}: v{detail?.latestVersionNumber ?? 0}</span><span>{copy.testRunLabel}: {processSnapshot?.status ? copy.publishedStatus : copy.draftStatus}</span><span>{copy.updatedAtLabel}: {formatDateTime(detail?.updatedAt, locale)}</span></div> : null}
+          <div
+            className={`module-workflow__coze-workspace-main${
+              isWorkflowTab && activeTabKey === workflowTabKey && workspaceView === "logic" && variableRefPanelOpen
+                ? ""
+                : " module-workflow__coze-workspace-main--single"
+            }`}
+          >
+            <div className="module-workflow__coze-editor-column">
+              <div
+                className={`module-workflow__coze-editor-surface${traceDockVisible ? " module-workflow__coze-editor-surface--flush-bottom" : ""}`}
+              >
+                {renderActivePanel()}
+              </div>
+              {isWorkflowTab && activeTabKey === workflowTabKey && workspaceView === "logic" ? (
+                <WorkflowTracePanel
+                  locale={locale}
+                  steps={traceSteps}
+                  runActive={traceRunActive}
+                  onClearSteps={() => setTraceSteps([])}
+                  title={copy.traceLabel}
+                  clearLabel={copy.traceDockClearTrace}
+                  collapseLabel={copy.traceDockCollapse}
+                  expandLabel={copy.traceDockExpand}
+                  runningHint={copy.traceDockRunningHint}
+                />
+              ) : null}
+              {isWorkflowTab ? (
+                <div className="module-workflow__coze-status-strip">
+                  <span>{copy.versionLabel}: v{detail?.latestVersionNumber ?? 0}</span>
+                  <span>{copy.testRunLabel}: {processSnapshot?.status ? copy.publishedStatus : copy.draftStatus}</span>
+                  <span>{copy.updatedAtLabel}: {formatDateTime(detail?.updatedAt, locale)}</span>
+                </div>
+              ) : null}
+            </div>
+            {isWorkflowTab && activeTabKey === workflowTabKey && workspaceView === "logic" && variableRefPanelOpen ? (
+              <WorkflowVariableRefPanel
+                globals={canvasGlobals}
+                dependencies={dependencies}
+                copy={{
+                  title: copy.variableRefTitle,
+                  globalsTitle: copy.variableRefGlobalsTitle,
+                  dependencyTitle: copy.variableRefDependencyTitle,
+                  emptyGlobals: copy.variableRefEmptyGlobals,
+                  emptyDependencies: copy.variableRefEmptyDependencies,
+                  openVariables: copy.variableRefOpenVariables,
+                  sourceNodes: copy.variableRefSourceNodes
+                }}
+                onOpenVariablesTab={() => {
+                  emitPanelCommand("openVariables");
+                  openTab({ key: "variables", kind: "variables", title: copy.variablesLabel, closable: true });
+                }}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
       <Modal title={copy.createDialogTitle(createDialog.kind)} visible={createDialog.visible} onCancel={() => setCreateDialog(prev => ({ ...prev, visible: false, submitting: false, error: "" }))} okText={copy.createDialogConfirm(createDialog.kind)} confirmLoading={createDialog.submitting} onOk={() => void handleCreateSubmit()} className="module-workflow__coze-modal">

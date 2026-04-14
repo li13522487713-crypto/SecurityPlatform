@@ -18,6 +18,7 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
+    "@atlas/module-studio-react": "workspace:*",
     "@atlas/shared-react-core": "workspace:*",
     "@atlas/workflow-core-react": "workspace:*",
     "@atlas/workflow-editor-react": "workspace:*",

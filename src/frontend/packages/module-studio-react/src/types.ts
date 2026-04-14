@@ -607,7 +607,7 @@ export interface StudioModuleApi {
     request: { role: "system" | "user" | "assistant" | "tool"; content: string; metadata?: string }
   ) => Promise<string>;
   listWorkflows: (params?: { keyword?: string; status?: "draft" | "published" | "all" }) => Promise<WorkflowListItem[]>;
-  listPlugins: () => Promise<Array<{ id: number; name: string; category?: string; status: number }>>;
+  listPlugins: () => Promise<Array<{ id: number; name: string; category?: string; status: number; sourceType?: number }>>;
   getPluginDetail: (pluginId: number) => Promise<StudioPluginDetail>;
   publishPlugin: (pluginId: number) => Promise<void>;
   listKnowledgeBases: () => Promise<Array<{ id: number; name: string; type: number }>>;
@@ -637,9 +637,85 @@ export interface StudioModuleApi {
   deleteModelConfig: (id: number) => Promise<void>;
   testModelConfigConnection: (request: ModelConfigConnectionTestRequest) => Promise<ModelConfigConnectionTestResult>;
   runModelConfigPromptTest: (request: ModelConfigPromptTestRequest) => Promise<string>;
+  getDashboardStats: () => Promise<DashboardStats>;
+  getResourceReferences: (resourceType: string, resourceId: string) => Promise<ResourceReference[]>;
+  getPublishCenterItems: (params?: { resourceType?: string }) => Promise<PublishCenterItem[]>;
+  getAppBuilderConfig: (appId: string) => Promise<AppBuilderConfig>;
+  updateAppBuilderConfig: (appId: string, config: AppBuilderConfig) => Promise<void>;
+  runAppPreview: (appId: string, inputs: Record<string, unknown>) => Promise<{ outputs: Record<string, unknown>; trace?: WorkbenchTrace }>;
+  listPromptTemplates: (params?: { keyword?: string }) => Promise<PagedResult<PromptTemplateItem>>;
 }
 
 export interface StudioPageProps {
   api: StudioModuleApi;
   locale: StudioLocale;
+}
+
+export interface PendingPublishItem {
+  resourceType: "agent" | "app" | "workflow" | "plugin";
+  resourceId: string;
+  resourceName: string;
+  updatedAt: string;
+}
+
+export interface DashboardStats {
+  agentCount: number;
+  appCount: number;
+  workflowCount: number;
+  enabledModelCount: number;
+  pluginCount: number;
+  knowledgeBaseCount: number;
+  pendingPublishItems: PendingPublishItem[];
+  recentActivities: WorkspaceIdeResource[];
+}
+
+export interface ResourceReference {
+  referrerType: "agent" | "app" | "workflow";
+  referrerId: string;
+  referrerName: string;
+  bindingField: string;
+}
+
+export interface PublishCenterItem {
+  resourceType: "agent" | "app" | "workflow" | "plugin";
+  resourceId: string;
+  resourceName: string;
+  currentVersion: number;
+  draftVersion: number;
+  lastPublishedAt?: string;
+  status: "draft" | "published" | "outdated";
+  apiEndpoint?: string;
+  embedToken?: string;
+}
+
+export interface AppInputComponent {
+  id: string;
+  type: "text" | "textarea" | "select" | "file" | "number" | "date";
+  label: string;
+  variableKey: string;
+  required: boolean;
+  defaultValue?: string;
+  options?: { label: string; value: string }[];
+}
+
+export interface AppOutputComponent {
+  id: string;
+  type: "text" | "markdown" | "json" | "table" | "chart";
+  label: string;
+  sourceExpression: string;
+}
+
+export interface AppBuilderConfig {
+  inputs: AppInputComponent[];
+  outputs: AppOutputComponent[];
+  boundWorkflowId?: string;
+  layoutMode: "form" | "chat" | "hybrid";
+}
+
+export interface PromptTemplateItem {
+  id: string;
+  name: string;
+  description?: string;
+  content: string;
+  variables: string[];
 }

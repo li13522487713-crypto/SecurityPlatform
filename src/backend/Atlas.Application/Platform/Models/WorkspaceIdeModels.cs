@@ -13,6 +13,22 @@ public sealed record WorkspaceIdeSummaryResponse(
     int FavoriteCount,
     int RecentCount);
 
+public sealed record WorkspaceIdePendingPublishItem(
+    string ResourceType,
+    string ResourceId,
+    string ResourceName,
+    DateTime UpdatedAt);
+
+public sealed record WorkspaceIdeDashboardStatsResponse(
+    int AgentCount,
+    int AppCount,
+    int WorkflowCount,
+    int EnabledModelCount,
+    int PluginCount,
+    int KnowledgeBaseCount,
+    IReadOnlyList<WorkspaceIdePendingPublishItem> PendingPublishItems,
+    IReadOnlyList<WorkspaceIdeResourceCardResponse> RecentActivities);
+
 public sealed record WorkspaceIdeResourceQueryRequest(
     string? Keyword,
     string? ResourceType,
@@ -54,3 +70,20 @@ public sealed record WorkspaceIdeCreateAppResult(
     string AppId,
     string WorkflowId,
     string EntryRoute);
+
+public sealed record WorkspaceIdeResourceReferenceResponse(
+    string ReferrerType,
+    string ReferrerId,
+    string ReferrerName,
+    string BindingField);
+
+public sealed record WorkspaceIdePublishCenterItemResponse(
+    string ResourceType,
+    string ResourceId,
+    string ResourceName,
+    int CurrentVersion,
+    int DraftVersion,
+    DateTime? LastPublishedAt,
+    string Status,
+    string? ApiEndpoint,
+    string? EmbedToken);

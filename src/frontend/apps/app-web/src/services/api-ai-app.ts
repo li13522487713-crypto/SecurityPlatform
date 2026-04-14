@@ -90,6 +90,57 @@ export interface AiAppConversationTemplateUpdateRequest {
   configJson?: string;
 }
 
+export interface AiAppBuilderConfigOption {
+  label: string;
+  value: string;
+}
+
+export interface AiAppBuilderInputComponent {
+  id: string;
+  type: "text" | "textarea" | "select" | "file" | "number" | "date";
+  label: string;
+  variableKey: string;
+  required: boolean;
+  defaultValue?: string;
+  options?: AiAppBuilderConfigOption[];
+}
+
+export interface AiAppBuilderOutputComponent {
+  id: string;
+  type: "text" | "markdown" | "json" | "table" | "chart";
+  label: string;
+  sourceExpression: string;
+}
+
+export interface AiAppBuilderConfig {
+  inputs: AiAppBuilderInputComponent[];
+  outputs: AiAppBuilderOutputComponent[];
+  boundWorkflowId?: string;
+  layoutMode: "form" | "chat" | "hybrid";
+}
+
+export interface AiAppPreviewTraceStep {
+  nodeKey: string;
+  status?: string;
+  nodeType?: string;
+  durationMs?: number;
+  errorMessage?: string;
+}
+
+export interface AiAppPreviewTrace {
+  executionId: string;
+  status?: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  steps: AiAppPreviewTraceStep[];
+}
+
+export interface AiAppPreviewRunResult {
+  outputs: Record<string, unknown>;
+  trace?: AiAppPreviewTrace;
+}
+
 export async function getAiAppsPaged(request: PagedRequest): Promise<PagedResult<AiAppListItem>> {
   const response = await requestApi<ApiResponse<PagedResult<AiAppListItem>>>(`/ai-apps?${toQuery(request)}`);
   if (!response.data) {
@@ -238,4 +289,33 @@ export async function deleteAiAppConversationTemplate(id: string, templateId: st
   if (!response.success) {
     throw new Error(response.message || "删除应用会话模板失败");
   }
+}
+
+export async function getAiAppBuilderConfig(id: string): Promise<AiAppBuilderConfig> {
+  const response = await requestApi<ApiResponse<AiAppBuilderConfig>>(`/ai-apps/${encodeURIComponent(id)}/builder-config`);
+  if (!response.data) {
+    throw new Error(response.message || "查询应用构建配置失败");
+  }
+  return response.data;
+}
+
+export async function updateAiAppBuilderConfig(id: string, request: AiAppBuilderConfig): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-apps/${encodeURIComponent(id)}/builder-config`, {
+    method: "PUT",
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "保存应用构建配置失败");
+  }
+}
+
+export async function runAiAppPreview(id: string, inputs: Record<string, unknown>): Promise<AiAppPreviewRunResult> {
+  const response = await requestApi<ApiResponse<AiAppPreviewRunResult>>(`/ai-apps/${encodeURIComponent(id)}/preview-run`, {
+    method: "POST",
+    body: JSON.stringify({ inputs })
+  });
+  if (!response.data) {
+    throw new Error(response.message || "应用预览运行失败");
+  }
+  return response.data;
 }

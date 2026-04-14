@@ -18,6 +18,11 @@ public interface IAiAppService
         long id,
         CancellationToken cancellationToken);
 
+    Task<AiAppBuilderConfig> GetBuilderConfigAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<AiAppPublishRecordItem>> GetPublishRecordsAsync(
         TenantId tenantId,
         long id,
@@ -60,6 +65,12 @@ public interface IAiAppService
         TenantId tenantId,
         long id,
         AiAppUpdateRequest request,
+        CancellationToken cancellationToken);
+
+    Task UpdateBuilderConfigAsync(
+        TenantId tenantId,
+        long id,
+        AiAppBuilderConfig request,
         CancellationToken cancellationToken);
 
     Task DeleteAsync(

@@ -13,7 +13,7 @@ export interface AiVariableListItem {
   updatedAt?: string;
 }
 
-export interface AiVariableDetail extends AiVariableListItem {}
+export type AiVariableDetail = AiVariableListItem;
 
 export interface AiVariableCreateRequest {
   key: string;

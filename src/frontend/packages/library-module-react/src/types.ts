@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 
 export type SupportedLocale = "zh-CN" | "en-US";
@@ -153,6 +154,8 @@ export interface KnowledgeDetailPageProps {
   spaceId: string;
   knowledgeBaseId: number;
   onNavigate: (path: string) => void;
+  /** Studio 侧扩展：例如资源引用卡片 */
+  resourceReferencesSlot?: ReactNode;
 }
 
 export interface KnowledgeUploadPageProps {

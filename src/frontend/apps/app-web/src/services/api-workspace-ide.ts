@@ -66,6 +66,43 @@ export interface WorkspaceIdeActivityCreateRequest {
   entryRoute: string;
 }
 
+export interface WorkspaceIdePendingPublishItemDto {
+  resourceType: "agent" | "app" | "workflow" | "plugin";
+  resourceId: string;
+  resourceName: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceIdeDashboardStatsDto {
+  agentCount: number;
+  appCount: number;
+  workflowCount: number;
+  enabledModelCount: number;
+  pluginCount: number;
+  knowledgeBaseCount: number;
+  pendingPublishItems: WorkspaceIdePendingPublishItemDto[];
+  recentActivities: WorkspaceIdeResourceCardDto[];
+}
+
+export interface WorkspaceIdeResourceReferenceDto {
+  referrerType: "agent" | "app" | "workflow";
+  referrerId: string;
+  referrerName: string;
+  bindingField: string;
+}
+
+export interface WorkspaceIdePublishCenterItemDto {
+  resourceType: "agent" | "app" | "workflow" | "plugin";
+  resourceId: string;
+  resourceName: string;
+  currentVersion: number;
+  draftVersion: number;
+  lastPublishedAt?: string;
+  status: "draft" | "published" | "outdated";
+  apiEndpoint?: string;
+  embedToken?: string;
+}
+
 export async function getWorkspaceIdeSummary(): Promise<WorkspaceIdeSummaryDto> {
   const response = await requestApi<ApiResponse<WorkspaceIdeSummaryDto>>("/workspace-ide/summary");
   if (!response.data) {
@@ -132,4 +169,37 @@ export async function recordWorkspaceIdeActivity(request: WorkspaceIdeActivityCr
   if (!response.success) {
     throw new Error(response.message || "记录最近编辑失败");
   }
+}
+
+export async function getWorkspaceDashboardStats(): Promise<WorkspaceIdeDashboardStatsDto> {
+  const response = await requestApi<ApiResponse<WorkspaceIdeDashboardStatsDto>>("/workspace-ide/dashboard-stats");
+  if (!response.data) {
+    throw new Error(response.message || "获取工作台统计失败");
+  }
+  return response.data;
+}
+
+export async function getWorkspaceResourceReferences(resourceType: string, resourceId: string): Promise<WorkspaceIdeResourceReferenceDto[]> {
+  const response = await requestApi<ApiResponse<WorkspaceIdeResourceReferenceDto[]>>(
+    `/workspace-ide/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}/references`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取资源引用关系失败");
+  }
+  return response.data;
+}
+
+export async function getWorkspacePublishCenterItems(resourceType?: string): Promise<WorkspaceIdePublishCenterItemDto[]> {
+  const params = new URLSearchParams();
+  if (resourceType) {
+    params.set("resourceType", resourceType);
+  }
+
+  const suffix = params.toString();
+  const path = suffix ? `/workspace-ide/publish-center/items?${suffix}` : "/workspace-ide/publish-center/items";
+  const response = await requestApi<ApiResponse<WorkspaceIdePublishCenterItemDto[]>>(path);
+  if (!response.data) {
+    throw new Error(response.message || "获取发布中心数据失败");
+  }
+  return response.data;
 }

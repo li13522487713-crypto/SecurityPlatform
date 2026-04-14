@@ -546,6 +546,150 @@
   border-radius: 24px;
   padding: 14px;
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.module-workflow__coze-workspace-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.module-workflow__coze-workspace-main--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.module-workflow__coze-editor-column {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  flex: 1;
+  gap: 0;
+}
+
+.module-workflow__trace-dock {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 0 18px 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: none;
+  background: rgba(255, 255, 255, 0.98);
+  max-height: 320px;
+}
+
+.module-workflow__trace-dock-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.module-workflow__trace-dock-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.module-workflow__trace-dock-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.module-workflow__trace-hint {
+  font-size: 12px;
+  color: #2563eb;
+}
+
+.module-workflow__trace-dock-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.module-workflow__trace-dock-body .wf-react-trace-panel {
+  border: none;
+  border-radius: 0;
+  max-height: 260px;
+}
+
+.module-workflow__variable-ref {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 12px 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.96);
+  overflow: auto;
+}
+
+.module-workflow__variable-ref-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.module-workflow__variable-ref-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.module-workflow__variable-ref-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.module-workflow__variable-ref-empty {
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 8px 0;
+}
+
+.module-workflow__variable-ref-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.module-workflow__variable-ref-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.module-workflow__variable-ref-key {
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.module-workflow__variable-ref-value {
+  font-size: 12px;
+  color: #475569;
+  word-break: break-all;
 }
 
 .module-workflow__coze-resource-tabs {
@@ -669,6 +813,11 @@
   background:
     radial-gradient(circle at top left, rgba(110, 122, 255, 0.05), transparent 28%),
     linear-gradient(180deg, rgba(247, 249, 254, 0.94), rgba(243, 246, 253, 0.96));
+}
+
+.module-workflow__coze-editor-surface--flush-bottom {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .module-workflow__coze-ui-placeholder {
