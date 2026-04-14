@@ -26,28 +26,28 @@ import { requestApi, toQuery } from "./api-core";
 
 const V2_BASE = "/api/v2/tenant-app-instances";
 
-function orgBase(appId: string): string {
-  return `${V2_BASE}/${encodeURIComponent(appId)}/organization`;
+function orgBase(appInstanceId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appInstanceId)}/organization`;
 }
 
-function rolesBase(appId: string): string {
-  return `${V2_BASE}/${encodeURIComponent(appId)}/roles`;
+function rolesBase(appInstanceId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appInstanceId)}/roles`;
 }
 
-function deptsBase(appId: string): string {
-  return `${V2_BASE}/${encodeURIComponent(appId)}/departments`;
+function deptsBase(appInstanceId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appInstanceId)}/departments`;
 }
 
-function positionsBase(appId: string): string {
-  return `${V2_BASE}/${encodeURIComponent(appId)}/positions`;
+function positionsBase(appInstanceId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appInstanceId)}/positions`;
 }
 
-function membersBase(appId: string): string {
-  return `${V2_BASE}/${encodeURIComponent(appId)}/members`;
+function membersBase(appInstanceId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appInstanceId)}/members`;
 }
 
-function projectsBase(appId: string): string {
-  return `${V2_BASE}/${encodeURIComponent(appId)}/projects`;
+function projectsBase(appInstanceId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appInstanceId)}/projects`;
 }
 
 // ========== Members (Users) ==========
@@ -339,7 +339,7 @@ export async function deleteProject(appId: string, id: string): Promise<void> {
 // ========== Organization Workspace ==========
 
 export async function getOrganizationWorkspace(
-  appId: string,
+  appInstanceId: string,
   params: PagedRequest,
   roleId?: string
 ): Promise<AppOrganizationWorkspaceResponse> {
@@ -347,7 +347,7 @@ export async function getOrganizationWorkspace(
   if (roleId) extra["roleId"] = roleId;
   const qs = toQuery(params, extra);
   const resp = await requestApi<ApiResponse<AppOrganizationWorkspaceResponse>>(
-    `${orgBase(appId)}/workspace?${qs}`
+    `${orgBase(appInstanceId)}/workspace?${qs}`
   );
   if (!resp.data) throw new Error(resp.message ?? "Failed to load workspace");
   return resp.data;
@@ -374,9 +374,9 @@ export interface AppOrganizationOverviewResponse {
   recentPositions: AppOrganizationOverviewItem[];
 }
 
-export async function getOrganizationOverview(appId: string): Promise<AppOrganizationOverviewResponse> {
+export async function getOrganizationOverview(appInstanceId: string): Promise<AppOrganizationOverviewResponse> {
   const resp = await requestApi<ApiResponse<AppOrganizationOverviewResponse>>(
-    `${orgBase(appId)}/overview`
+    `${orgBase(appInstanceId)}/overview`
   );
   if (!resp.data) throw new Error(resp.message ?? "Failed to load organization overview");
   return resp.data;

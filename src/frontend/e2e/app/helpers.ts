@@ -458,8 +458,12 @@ export async function navigateBySidebar(
 }
 
 export async function clickCrudSubmit(page: Page) {
-  const submit = page.locator(".semi-modal-footer .semi-button-primary").last();
+  const visibleModalSubmit = page.locator(".semi-modal:visible .semi-modal-footer .semi-button-primary").last();
+  const submit = await visibleModalSubmit.count()
+    ? visibleModalSubmit
+    : page.locator(".semi-modal-footer .semi-button-primary:visible").last();
   await expect(submit).toBeVisible({ timeout: 30_000 });
+  await expect(submit).toBeEnabled({ timeout: 30_000 });
   await page.waitForTimeout(thinkingPause());
   await submit.click();
 }

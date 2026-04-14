@@ -86,7 +86,10 @@ test.describe.serial("Publish Center", () => {
       await expect(page.getByText("告警编排工作流")).toBeVisible();
       await expect(page.getByText("威胁情报插件")).toBeVisible();
 
-      await page.getByRole("button", { name: "智能体" }).click();
+      await page
+        .getByTestId("studio-publish-center-page")
+        .getByRole("button", { name: "智能体", exact: true })
+        .click();
       await expect(page.getByText("SOC 智能体")).toBeVisible();
 
       await page.getByRole("tab", { name: "HTTP 接入" }).click();

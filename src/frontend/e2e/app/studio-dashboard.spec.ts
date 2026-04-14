@@ -183,7 +183,7 @@ test.describe.serial("Studio Dashboard", () => {
 
       await expect(page.getByText("待发布更新")).toBeVisible();
       await expect(page.getByText("威胁分析应用")).toBeVisible();
-      await expect(page.getByRole("button", { name: "去发布" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "前往发布中心" })).toBeVisible();
     } finally {
       await page.unroute(summaryRoute, summaryHandler);
       await page.unroute(modelConfigsRoute, modelConfigsHandler);

@@ -27,12 +27,7 @@ import type {
   WorkflowVersionItem
 } from "@atlas/workflow-core-react/types";
 import { API_BASE, requestApi } from "@/services/api-core";
-import { getLowCodeAppByKey } from "@/services/api-lowcode-runtime";
-import {
-  getCurrentAppIdFromStorage,
-  getCurrentAppKeyFromPath,
-  setCurrentAppIdToStorage
-} from "@/utils/app-context";
+import { getCachedAppInstanceId, resolveAppInstanceId } from "./app-instance-context";
 import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-core-react/api";
 
 type IdLike = string | number;
@@ -56,53 +51,20 @@ export interface WorkflowDependencies {
   conversations: WorkflowDependencyItem[];
 }
 
-const APP_ID_REGEX = /^[1-9]\d*$/;
-let appIdResolvingPromise: Promise<string | null> | null = null;
-
-async function ensureCurrentAppId(): Promise<string | null> {
-  const storedAppId = getCurrentAppIdFromStorage();
-  if (storedAppId && APP_ID_REGEX.test(storedAppId)) {
-    return storedAppId;
-  }
-
-  const appKey = getCurrentAppKeyFromPath();
-  if (!appKey) {
-    return null;
-  }
-
-  if (!appIdResolvingPromise) {
-    appIdResolvingPromise = getLowCodeAppByKey(appKey)
-      .then((detail) => {
-        const resolved = String(detail.id ?? "").trim();
-        if (APP_ID_REGEX.test(resolved)) {
-          setCurrentAppIdToStorage(resolved);
-          return resolved;
-        }
-        return null;
-      })
-      .catch(() => null)
-      .finally(() => {
-        appIdResolvingPromise = null;
-      });
-  }
-
-  return appIdResolvingPromise;
-}
-
-function createWorkflowRequestHeaders(appId: string | null, init?: RequestInit): Headers {
+function createWorkflowRequestHeaders(appInstanceId: string | null, init?: RequestInit): Headers {
   const headers = new Headers(init?.headers ?? {});
-  if (appId && APP_ID_REGEX.test(appId)) {
-    headers.set("X-App-Id", appId);
+  if (appInstanceId) {
+    headers.set("X-App-Id", appInstanceId);
     headers.set("X-App-Workspace", "1");
   }
   return headers;
 }
 
 const workflowRequest = async <T>(path: string, init?: RequestInit) => {
-  const appId = await ensureCurrentAppId();
+  const appInstanceId = await resolveAppInstanceId();
   return requestApi<T>(path, {
     ...init,
-    headers: createWorkflowRequestHeaders(appId, init)
+    headers: createWorkflowRequestHeaders(appInstanceId, init)
   });
 };
 
@@ -117,7 +79,7 @@ const baseWorkflowV2Api = createWorkflowApiFromRequest(workflowRequest, {
     }
     return path;
   },
-  resolveAppId: () => getCurrentAppIdFromStorage()
+  resolveAppId: () => getCachedAppInstanceId()
 });
 
 export async function getWorkflowModelCatalog(): Promise<ApiResponse<WorkflowModelCatalogItem[]>> {

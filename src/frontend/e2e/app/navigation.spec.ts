@@ -73,8 +73,8 @@ test.describe.serial("@smoke App Navigation", () => {
   test("app navigation should render in zh-CN", async ({ page }) => {
     await seedLocale(page, "zh-CN");
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
-    await expect(page.getByTestId("app-shell-header-title")).toHaveText("AI 工作台");
-    await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("继续创作、调试与发布");
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("AI 工作空间");
+    await expect(page.getByTestId("app-shell-header-subtitle")).toContainText("统一完成创作、运行与团队协作");
     await expect(page.getByText("创作与构建")).toBeVisible();
     await expect(page.getByText("资源与运行")).toBeVisible();
     await expect(page.getByText("团队与治理")).toBeVisible();

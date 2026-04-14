@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
 import { getSetupState } from "@/services/api-setup";
 import { getConfiguredAppKey, rememberConfiguredAppKey } from "@/services/api-core";
-import { getAppInstanceIdByAppKey } from "@/services/api-lowcode-runtime";
+import { resolveAppInstanceId } from "@/services/app-instance-context";
 
 interface BootstrapState {
   loading: boolean;
@@ -54,7 +54,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
       if (nextPlatformReady && nextAppReady && nextAppKey && hasAuthContext) {
         setWorkspaceLabel(nextAppKey);
         try {
-          const resolvedAppInstanceId = await getAppInstanceIdByAppKey(nextAppKey);
+          const resolvedAppInstanceId = await resolveAppInstanceId(nextAppKey);
           setAppInstanceId(resolvedAppInstanceId);
         } catch {
           setAppInstanceId(null);

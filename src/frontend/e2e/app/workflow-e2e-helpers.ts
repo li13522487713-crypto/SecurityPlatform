@@ -7,7 +7,7 @@ import {
   randomBetween,
   resolveLocatorPoint
 } from "../fixtures/human-mouse";
-import { clickCrudSubmit, ensureAppSetup, loginApp, navigateBySidebar } from "./helpers";
+import { clickCrudSubmit, ensureAppSetup, loginApp, navigateBySidebar, uniqueName } from "./helpers";
 
 export interface WorkflowSessionContext {
   appKey: string;
@@ -181,6 +181,7 @@ export async function loginToWorkflowList(
 export async function createWorkflowAndOpenEditor(page: Page, appKey: string): Promise<string> {
   await page.getByTestId("app-workflows-create").click();
   await expect(page.locator(".semi-modal-content").last()).toBeVisible({ timeout: 15_000 });
+  await page.getByPlaceholder(/名称/i).fill(uniqueName("E2EWorkflow"));
   const createResponsePromise = page.waitForResponse((response) => {
     return response.request().method() === "POST" && /\/api\/v2\/workflows$/.test(response.url());
   });

@@ -189,7 +189,7 @@ test.describe.serial("App Builder", () => {
       await page.getByRole("button", { name: "运行预览" }).click();
       await previewResponsePromise;
 
-      await expect(page.getByText("处置建议")).toBeVisible();
+      await expect(page.getByRole("strong").filter({ hasText: "处置建议" })).toBeVisible();
       await expect(page.getByText("已生成处置建议：先隔离主机，再执行凭证轮换与溯源。")).toBeVisible();
       await expect(page.getByText("执行轨迹")).toBeVisible();
       await expect(page.getByText("exec-builder-001")).toBeVisible();

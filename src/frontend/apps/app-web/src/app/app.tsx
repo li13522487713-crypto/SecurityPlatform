@@ -99,7 +99,7 @@ import {
   rememberConfiguredAppKey,
   setUnauthorizedHandler
 } from "@/services/api-core";
-import { getLowCodeAppByKey } from "@/services/api-lowcode-runtime";
+import { resolveAppInstanceId } from "@/services/app-instance-context";
 import {
   exportLibraryItem,
   getLibraryPaged,
@@ -178,8 +178,8 @@ import {
 } from "@/services/api-admin";
 import {
   getOrganizationOverview,
-  getOrganizationWorkspace,
 } from "@/services/api-org-management";
+import { getStudioWorkspaceOverview } from "@/services/studio-workspace-overview";
 import {
   deleteAiApp,
   getAiAppBuilderConfig,
@@ -286,7 +286,6 @@ import {
   saveWorkflowDraft,
   workflowV2Api
 } from "@/services/api-workflow";
-import { getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
 import { executeWorkflowTask } from "@/services/api-workflow-playground";
 
 const libraryApi: LibraryKnowledgeApi = {
@@ -443,8 +442,33 @@ function ProtectedPage({ permission, children }: { permission?: string; children
 }
 
 function createAdminApi(appKey: string): AdminModuleApi {
+  const createEmptyOrganizationOverview = (appInstanceId: string | null) => ({
+    appId: appInstanceId ?? "",
+    memberCount: 0,
+    roleCount: 0,
+    departmentCount: 0,
+    positionCount: 0,
+    projectCount: 0,
+    uncoveredMemberCount: 0,
+    recentMembers: [],
+    recentRoles: [],
+    recentDepartments: [],
+    recentPositions: []
+  });
+
   return {
-    getOrganizationOverview: () => getOrganizationOverview(appKey),
+    getOrganizationOverview: async () => {
+      const appInstanceId = await resolveAppInstanceId(appKey);
+      if (!appInstanceId) {
+        return createEmptyOrganizationOverview(null);
+      }
+
+      try {
+        return await getOrganizationOverview(appInstanceId);
+      } catch {
+        return createEmptyOrganizationOverview(appInstanceId);
+      }
+    },
     listUsers: getUsersPaged,
     getUserDetail,
     createUser,
@@ -809,45 +833,13 @@ async function* createAgentMessageStream(
   }
 }
 
-async function resolveCurrentStudioAppId(appKey: string): Promise<string> {
-  const storedAppId = getCurrentAppIdFromStorage();
-  if (storedAppId?.trim()) {
-    return storedAppId.trim();
-  }
-
-  const detail = await getLowCodeAppByKey(appKey);
-  const resolvedAppId = String(detail.id ?? "").trim();
-  if (!resolvedAppId) {
-    throw new Error("当前应用实例未找到有效的 appId。");
-  }
-
-  setCurrentAppIdToStorage(resolvedAppId);
-  return resolvedAppId;
-}
-
 function createStudioApi(appKey: string): StudioModuleApi {
   return {
     listAgents: getAiAssistantsPaged,
     getAgent: getAiAssistantById,
     createAgent: createAiAssistant,
     updateAgent: updateAiAssistant,
-    getWorkspaceOverview: async () => {
-      const appId = await resolveCurrentStudioAppId(appKey);
-      const [workspace, summary] = await Promise.all([
-        getOrganizationWorkspace(appId, { pageIndex: 1, pageSize: 8 }),
-        getWorkspaceIdeSummary()
-      ]);
-      return {
-        appId: workspace.appId,
-        memberCount: workspace.members.total,
-        roleCount: workspace.roles.length,
-        departmentCount: workspace.departments.length,
-        positionCount: workspace.positions.length,
-        projectCount: summary.appCount,
-        uncoveredMemberCount: workspace.roleGovernance.uncoveredMembers,
-        applications: []
-      };
-    },
+    getWorkspaceOverview: () => getStudioWorkspaceOverview(appKey),
     getWorkspaceSummary: getWorkspaceIdeSummary,
     listWorkspaceResources: async params => {
       const result = await getWorkspaceIdeResources(params);

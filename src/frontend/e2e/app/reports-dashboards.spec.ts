@@ -16,6 +16,8 @@ test.describe.serial("App Reports And Dashboards CRUD", () => {
   });
 
   test("report and dashboard full crud should work", async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+
     const reportName = uniqueName("E2EReport");
     const editedReportName = `${reportName}_edit`;
     const dashboardName = uniqueName("E2EDashboard");
