@@ -37,8 +37,8 @@ import {
 } from '@coze-arch/bot-semi';
 import { IconDeleteOutline, IconError } from '@coze-arch/bot-icons';
 
-import YAMLImg from '@/assets/yaml.png';
-import JsonImg from '@/assets/json-file.png';
+import YAMLImg from '../../assets/yaml.png';
+import JsonImg from '../../assets/json-file.png';
 
 import { getContent, getFileExtension } from './utils';
 import { ACCEPT_EXT, ACCEPT_FORMAT } from './const';

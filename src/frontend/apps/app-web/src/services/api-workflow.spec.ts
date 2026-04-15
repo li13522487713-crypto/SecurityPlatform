@@ -14,7 +14,7 @@ vi.mock("@atlas/workflow-core-react/api", () => ({
   createWorkflowApiFromRequest
 }));
 
-vi.mock("@/services/api-core", () => ({
+vi.mock("./api-core", () => ({
   API_BASE: "/api/v1",
   requestApi
 }));

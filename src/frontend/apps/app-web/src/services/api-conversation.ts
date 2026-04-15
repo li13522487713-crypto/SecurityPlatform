@@ -1,4 +1,4 @@
-import { extractResourceId, requestApi, toQuery, resolveAppHostPrefix } from "@/services/api-core";
+import { extractResourceId, requestApi, toQuery, resolveAppHostPrefix } from "./api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import {
   getAccessToken,

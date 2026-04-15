@@ -4,7 +4,7 @@ import { appSignPath, workspaceDevelopPath } from "../app-paths";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 import { useAuth } from "../auth-context";
-import { rememberConfiguredAppKey } from "@/services/api-core";
+import { rememberConfiguredAppKey } from "../../services/api-core";
 
 function HomeLogoMark() {
   return (

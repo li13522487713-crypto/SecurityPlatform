@@ -4,7 +4,7 @@ import type {
   WorkspaceMemberDto,
   WorkspaceResourceCardDto,
   WorkspaceRolePermissionDto
-} from "@/services/api-org-workspaces";
+} from "../../services/api-org-workspaces";
 import { useAppI18n } from "../i18n";
 
 type WorkspaceSettingsTab = "members" | "permissions";

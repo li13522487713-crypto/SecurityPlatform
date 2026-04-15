@@ -1,4 +1,4 @@
-import { requestApi } from "@/services/api-core";
+import { requestApi } from "./api-core";
 import type { ApiResponse } from "@atlas/shared-react-core/types";
 
 export interface WorkflowWorkbenchExecutionDto {

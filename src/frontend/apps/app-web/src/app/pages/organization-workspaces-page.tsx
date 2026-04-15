@@ -5,7 +5,7 @@ import type {
   WorkspaceCreateRequest,
   WorkspaceSummaryDto,
   WorkspaceUpdateRequest
-} from "@/services/api-org-workspaces";
+} from "../../services/api-org-workspaces";
 import { useAppI18n } from "../i18n";
 
 interface OrganizationWorkspacesPageProps {

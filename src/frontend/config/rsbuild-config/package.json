@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@coze-arch/bot-env": "workspace:*",
-    "@coze-arch/pkg-root-webpack-plugin": "workspace:*",
+    "@coze-arch/pkg-root-webpack-plugin-origin": "npm:@coze-arch/pkg-root-webpack-plugin@1.0.0-alpha.48aa2e",
     "@coze-arch/semi-theme-hand01": "0.0.6-alpha.346d77",
     "@coze-common/assets": "workspace:*",
     "@douyinfe/semi-rspack-plugin": "2.61.0",

@@ -3,7 +3,7 @@ import { Button, Empty, Input, Modal, Tag, TextArea, Typography } from "@douyinf
 import type {
   WorkspaceAppCardDto,
   WorkspaceResourceCardDto
-} from "@/services/api-org-workspaces";
+} from "../../services/api-org-workspaces";
 import { useAppI18n } from "../i18n";
 
 type WorkspaceSecondaryTab = "agents" | "workflow" | "chatflow" | "plugins" | "knowledge-base" | "database";

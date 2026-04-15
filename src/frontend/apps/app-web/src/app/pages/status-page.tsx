@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { appSignPath } from "../app-paths";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
-import { rememberConfiguredAppKey } from "@/services/api-core";
+import { rememberConfiguredAppKey } from "../../services/api-core";
 import {
   getDrivers,
   initializeApp,
@@ -12,7 +12,7 @@ import {
   type AppSetupInitializeResponse,
   type AppSetupPositionConfig,
   type DriverDefinition
-} from "@/services/api-setup";
+} from "../../services/api-setup";
 
 type SetupStep = 0 | 1 | 2 | 3 | 4;
 

@@ -21,7 +21,7 @@ import type {
   AppOrganizationAssignMembersRequest,
   AppOrganizationUpdateMemberRolesRequest,
   AppOrganizationResetMemberPasswordRequest,
-} from "@/types/organization";
+} from "../types/organization";
 import { requestApi, toQuery } from "./api-core";
 
 const V2_BASE = "/api/v2/tenant-app-instances";

@@ -1,4 +1,4 @@
-import { extractResourceId, requestApi } from "@/services/api-core";
+import { extractResourceId, requestApi } from "./api-core";
 import type { ApiResponse, PagedResult } from "@atlas/shared-react-core/types";
 
 export interface AgentDetail {

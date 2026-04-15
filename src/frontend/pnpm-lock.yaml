@@ -62,6 +62,9 @@ importers:
       '@atlas/workflow-core-react':
         specifier: workspace:*
         version: link:../../packages/workflow-core-react
+      '@coze-foundation/foundation-sdk':
+        specifier: workspace:*
+        version: link:../../packages/foundation/foundation-sdk
       '@douyinfe/semi-foundation':
         specifier: ^2.82.0
         version: 2.94.0
@@ -99,6 +102,27 @@ importers:
         specifier: ^0.23.2
         version: 0.23.2
     devDependencies:
+      '@coze-arch/bot-env':
+        specifier: workspace:*
+        version: link:../../packages/arch/bot-env
+      '@coze-arch/import-watch-loader':
+        specifier: workspace:*
+        version: link:../../infra/plugins/import-watch-loader
+      '@coze-arch/rsbuild-config':
+        specifier: workspace:*
+        version: link:../../config/rsbuild-config
+      '@rsbuild/core':
+        specifier: ~1.1.0
+        version: 1.1.13
+      '@rsbuild/plugin-less':
+        specifier: ~1.1.0
+        version: 1.1.1(@rsbuild/core@1.1.13)
+      '@rsbuild/plugin-react':
+        specifier: ~1.1.0
+        version: 1.1.1(@rsbuild/core@1.1.13)(webpack-hot-middleware@2.26.1)
+      '@rsbuild/plugin-svgr':
+        specifier: ~1.0.6
+        version: 1.0.7(@rsbuild/core@1.1.13)(typescript@5.9.3)(webpack-hot-middleware@2.26.1)
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.2
@@ -108,15 +132,12 @@ importers:
       '@types/react-dom':
         specifier: 18.2.15
         version: 18.2.15
-      '@vitejs/plugin-react':
-        specifier: ^5.1.0
-        version: 5.2.0(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
-      vite:
-        specifier: ^8.0.0
-        version: 8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
   config/eslint-config:
     dependencies:
@@ -317,9 +338,9 @@ importers:
       '@coze-arch/bot-env':
         specifier: workspace:*
         version: link:../../packages/arch/bot-env
-      '@coze-arch/pkg-root-webpack-plugin':
-        specifier: workspace:*
-        version: link:../../infra/plugins/pkg-root-webpack-plugin
+      '@coze-arch/pkg-root-webpack-plugin-origin':
+        specifier: npm:@coze-arch/pkg-root-webpack-plugin@1.0.0-alpha.48aa2e
+        version: '@coze-arch/pkg-root-webpack-plugin@1.0.0-alpha.48aa2e'
       '@coze-arch/semi-theme-hand01':
         specifier: 0.0.6-alpha.346d77
         version: 0.0.6-alpha.346d77
@@ -28411,9 +28432,6 @@ packages:
   '@rolldown/pluginutils@1.0.0-rc.12':
     resolution: {integrity: sha512-HHMwmarRKvoFsJorqYlFeFRzXZqCt2ETQlEDOb9aqssrnVBB1/+xgTGtuTrIk5vzLNX1MjMtTf7W9z3tsSbrxw==}
 
-  '@rolldown/pluginutils@1.0.0-rc.3':
-    resolution: {integrity: sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q==}
-
   '@rollup/plugin-commonjs@24.1.0':
     resolution: {integrity: sha512-eSL45hjhCWI0jCCXcNtLVqM5N1JlBGvlFfY0m6oOYnLCJ6N0qEXoZql4sY2MOUArzhH4SA/qBpTxvvZp2Sc+DQ==}
     engines: {node: '>=14.0.0'}
@@ -31154,12 +31172,6 @@ packages:
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
-
-  '@vitejs/plugin-react@5.2.0':
-    resolution: {integrity: sha512-YmKkfhOAi3wsB1PhJq5Scj3GXMn3WvtQ/JC0xoopuHoXSdmtdStOpFrYaT1kie2YgFBcIe64ROzMYRjCrYOdYw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    peerDependencies:
-      vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
 
   '@vitest/coverage-v8@3.0.9':
     resolution: {integrity: sha512-15OACZcBtQ34keIEn19JYTVuMFTlFrClclwWjHo/IRPg/8ELpkgNTl0o7WLP9WO9XGH6+tip9CPYtEOrIDJvBA==}
@@ -48040,8 +48052,6 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.0-rc.12': {}
 
-  '@rolldown/pluginutils@1.0.0-rc.3': {}
-
   '@rollup/plugin-commonjs@24.1.0(rollup@4.60.1)':
     dependencies:
       '@rollup/pluginutils': 5.3.0(rollup@4.60.1)
@@ -48219,6 +48229,20 @@ snapshots:
       '@svgr/core': 8.1.0(typescript@5.8.3)
       '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))
       '@svgr/plugin-svgo': 8.1.0(@svgr/core@8.1.0(typescript@5.8.3))(typescript@5.8.3)
+      deepmerge: 4.3.1
+      loader-utils: 2.0.4
+    transitivePeerDependencies:
+      - supports-color
+      - typescript
+      - webpack-hot-middleware
+
+  '@rsbuild/plugin-svgr@1.0.7(@rsbuild/core@1.1.13)(typescript@5.9.3)(webpack-hot-middleware@2.26.1)':
+    dependencies:
+      '@rsbuild/core': 1.1.13
+      '@rsbuild/plugin-react': 1.1.1(@rsbuild/core@1.1.13)(webpack-hot-middleware@2.26.1)
+      '@svgr/core': 8.1.0(typescript@5.9.3)
+      '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(typescript@5.9.3))
+      '@svgr/plugin-svgo': 8.1.0(@svgr/core@8.1.0(typescript@5.9.3))(typescript@5.9.3)
       deepmerge: 4.3.1
       loader-utils: 2.0.4
     transitivePeerDependencies:
@@ -52368,18 +52392,6 @@ snapshots:
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
       vite: 8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@18.18.9)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
-    transitivePeerDependencies:
-      - supports-color
-
-  '@vitejs/plugin-react@5.2.0(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
-    dependencies:
-      '@babel/core': 7.29.0
-      '@babel/plugin-transform-react-jsx-self': 7.27.1(@babel/core@7.29.0)
-      '@babel/plugin-transform-react-jsx-source': 7.27.1(@babel/core@7.29.0)
-      '@rolldown/pluginutils': 1.0.0-rc.3
-      '@types/babel__core': 7.20.5
-      react-refresh: 0.18.0
-      vite: 8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
     transitivePeerDependencies:
       - supports-color
 

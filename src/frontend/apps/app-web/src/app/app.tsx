@@ -113,19 +113,19 @@ import { BootstrapProvider, useBootstrap } from "./bootstrap-context";
 import { AppI18nProvider, useAppI18n } from "./i18n";
 import { OrganizationProvider, useOptionalOrganizationContext } from "./organization-context";
 import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
-import { APP_PERMISSIONS } from "@/constants/permissions";
+import { APP_PERMISSIONS } from "../constants/permissions";
 import {
   getConfiguredAppKey,
   rememberConfiguredAppKey,
   setUnauthorizedHandler
-} from "@/services/api-core";
-import { resolveAppInstanceId } from "@/services/app-instance-context";
+} from "../services/api-core";
+import { resolveAppInstanceId } from "../services/app-instance-context";
 import {
   exportLibraryItem,
   getLibraryPaged,
   importLibraryItem,
   moveLibraryItem
-} from "@/services/api-ai-workspace";
+} from "../services/api-ai-workspace";
 import {
   createChunk,
   createKnowledgeBase,
@@ -142,7 +142,7 @@ import {
   testKnowledgeRetrieval,
   updateChunk,
   updateKnowledgeBase
-} from "@/services/api-knowledge";
+} from "../services/api-knowledge";
 import { HomePage } from "./pages/home-page";
 import { LoginPage } from "./pages/login-page";
 import { EntryGatewayPage } from "./pages/entry-gateway-page";
@@ -153,12 +153,12 @@ import {
   getDatabaseInfo,
   listBackups,
   testConnection
-} from "@/services/api-db-maintenance";
+} from "../services/api-db-maintenance";
 import {
   getMyCopyRecordsPaged,
   getMyInstancesPaged,
   getMyTasksPaged
-} from "@/services/api-approval";
+} from "../services/api-approval";
 import {
   createDashboard,
   createReport,
@@ -168,8 +168,8 @@ import {
   getReportsPaged,
   updateDashboard,
   updateReport
-} from "@/services/api-reports";
-import { getVisualizationInstances } from "@/services/api-visualization";
+} from "../services/api-reports";
+import { getVisualizationInstances } from "../services/api-visualization";
 import {
   getProfile,
   getRolesPaged as getAppRolesPaged,
@@ -195,11 +195,11 @@ import {
   deletePosition,
   savePassword,
   saveProfile
-} from "@/services/api-admin";
+} from "../services/api-admin";
 import {
   getOrganizationOverview,
-} from "@/services/api-org-management";
-import { getStudioWorkspaceOverview } from "@/services/studio-workspace-overview";
+} from "../services/api-org-management";
+import { getStudioWorkspaceOverview } from "../services/studio-workspace-overview";
 import {
   deleteAiApp,
   getAiAppBuilderConfig,
@@ -213,7 +213,7 @@ import {
   runAiAppPreview,
   updateAiAppBuilderConfig,
   updateAiApp
-} from "@/services/api-ai-app";
+} from "../services/api-ai-app";
 import {
   createWorkspaceIdeApp,
   getWorkspaceDashboardStats,
@@ -223,7 +223,7 @@ import {
   recordWorkspaceIdeActivity,
   updateWorkspaceIdeFavorite,
   getWorkspaceIdeResources
-} from "@/services/api-workspace-ide";
+} from "../services/api-workspace-ide";
 import {
   getAiPluginBuiltInMetadata,
   getMarketplaceProductById,
@@ -242,7 +242,7 @@ import {
   searchAi,
   unfavoriteMarketplaceProduct,
   updateAiPlugin
-} from "@/services/api-explore";
+} from "../services/api-explore";
 import {
   createAiDatabase,
   createAiDatabaseRecord,
@@ -257,14 +257,14 @@ import {
   updateAiDatabaseRecord,
   updateAiDatabase,
   validateAiDatabaseSchema
-} from "@/services/api-ai-database";
+} from "../services/api-ai-database";
 import {
   createAiVariable,
   deleteAiVariable,
   getAiSystemVariableDefinitions,
   getAiVariablesPaged,
   updateAiVariable
-} from "@/services/api-ai-variable";
+} from "../services/api-ai-variable";
 import {
   generateByAiAssistant,
   bindAiAssistantWorkflow,
@@ -275,7 +275,7 @@ import {
   publishAiAssistant,
   regenerateAiAssistantEmbedToken,
   updateAiAssistant
-} from "@/services/api-ai-assistant";
+} from "../services/api-ai-assistant";
 import {
   createModelConfig,
   createModelConfigPromptTestStream,
@@ -285,7 +285,7 @@ import {
   getModelConfigsPaged,
   testModelConfigConnection,
   updateModelConfig
-} from "@/services/api-model-config";
+} from "../services/api-model-config";
 import {
   appendConversationMessage,
   clearConversationContext,
@@ -295,7 +295,7 @@ import {
   deleteConversation,
   getConversationsPaged,
   getMessages
-} from "@/services/api-conversation";
+} from "../services/api-conversation";
 import {
   copyWorkflow,
   createWorkflow as createWorkflowDefinition,
@@ -305,8 +305,8 @@ import {
   listWorkflows,
   saveWorkflowDraft,
   workflowV2Api
-} from "@/services/api-workflow";
-import { executeWorkflowTask } from "@/services/api-workflow-playground";
+} from "../services/api-workflow";
+import { executeWorkflowTask } from "../services/api-workflow-playground";
 import {
   addWorkspaceMember,
   createWorkspace,
@@ -328,11 +328,11 @@ import {
   updateWorkspace,
   updateWorkspaceMemberRole,
   updateWorkspaceResourcePermissions
-} from "@/services/api-org-workspaces";
+} from "../services/api-org-workspaces";
 import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page";
 import { WorkspaceDevelopPage } from "./pages/workspace-develop-page";
 import { WorkspaceSettingsPage } from "./pages/workspace-settings-page";
-import { setAppInstanceIdToStorage } from "@/utils/app-context";
+import { setAppInstanceIdToStorage } from "../utils/app-context";
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {

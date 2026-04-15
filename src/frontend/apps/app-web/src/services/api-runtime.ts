@@ -1,7 +1,7 @@
 import type { ApiResponse } from "@atlas/shared-react-core";
-import type { RuntimeMenuResponse } from "@/types/api";
-import type { LowCodePageRuntimeSchema } from "@/types/lowcode-runtime";
-import type { RuntimeManifest, RuntimeExecution, RuntimeAuditEvent } from "@/runtime/release/runtime-release-types";
+import type { RuntimeMenuResponse } from "../types/api";
+import type { LowCodePageRuntimeSchema } from "../types/lowcode-runtime";
+import type { RuntimeManifest, RuntimeExecution, RuntimeAuditEvent } from "../runtime/release/runtime-release-types";
 import { isDirectRuntimeMode, requestApi, resolveAppHostPrefix } from "./api-core";
 export { requestApi } from "./api-core";
 

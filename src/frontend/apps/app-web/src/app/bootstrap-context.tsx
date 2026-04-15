@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
-import { getSetupState } from "@/services/api-setup";
-import { getConfiguredAppKey, rememberConfiguredAppKey } from "@/services/api-core";
-import { resolveAppInstanceId } from "@/services/app-instance-context";
+import { getSetupState } from "../services/api-setup";
+import { getConfiguredAppKey, rememberConfiguredAppKey } from "../services/api-core";
+import { resolveAppInstanceId } from "../services/app-instance-context";
 
 interface BootstrapState {
   loading: boolean;

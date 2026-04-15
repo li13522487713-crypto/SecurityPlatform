@@ -1,4 +1,4 @@
-import { extractResourceId, requestApi, toQuery, API_BASE } from "@/services/api-core";
+import { extractResourceId, requestApi, toQuery, API_BASE } from "./api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
 

@@ -1,11 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["vite/client"],
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
+      "@coze-arch/bot-api": ["src/coze-shims/bot-api/index.ts"],
       "@atlas/shared-react-core": ["../../packages/shared-react-core/src/index.ts"],
       "@atlas/shared-react-core/*": ["../../packages/shared-react-core/src/*"]
     }
@@ -13,6 +13,6 @@
   "include": [
     "src/main.tsx",
     "src/**/*.d.ts",
-    "vite.config.ts"
+    "rsbuild.config.ts"
   ]
 }

@@ -26,7 +26,7 @@ import type {
   WorkflowVersionRollbackResult,
   WorkflowVersionItem
 } from "@atlas/workflow-core-react/types";
-import { API_BASE, requestApi } from "@/services/api-core";
+import { API_BASE, requestApi } from "./api-core";
 import { getCachedAppInstanceId, resolveAppInstanceId } from "./app-instance-context";
 import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-core-react/api";
 

@@ -14,7 +14,7 @@ import type {
   DynamicTableCreateRequest,
   DynamicTableListItem,
   DynamicTableSummary
-} from "@/types/dynamic-tables";
+} from "../types/dynamic-tables";
 
 const DYNAMIC_TABLES_MAX_PAGE_SIZE = 200;
 

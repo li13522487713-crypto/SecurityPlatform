@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { getWorkspaceByIdOrNull, type WorkspaceDetailDto } from "@/services/api-org-workspaces";
+import { getWorkspaceByIdOrNull, type WorkspaceDetailDto } from "../services/api-org-workspaces";
 
 interface WorkspaceContextValue extends WorkspaceDetailDto {
   loading: boolean;

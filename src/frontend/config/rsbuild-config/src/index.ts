@@ -22,8 +22,8 @@ import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginLess } from '@rsbuild/plugin-less';
 import { type RsbuildConfig, mergeRsbuildConfig } from '@rsbuild/core';
 import { SemiRspackPlugin } from '@douyinfe/semi-rspack-plugin';
-import { PkgRootWebpackPlugin } from '@coze-arch/pkg-root-webpack-plugin';
 import { GLOBAL_ENVS } from '@coze-arch/bot-env';
+import { PackageAtAliasResolverPlugin } from './package-at-alias-resolver-plugin';
 
 const getDefine = () => {
   const define = {};
@@ -58,6 +58,7 @@ const generateCdnPrefix = () => {
 export const defineConfig = (options: Partial<RsbuildConfig>) => {
   const cdnPrefix = generateCdnPrefix();
   const port = 8080;
+  const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
   const commonAssertsUrl = path.dirname(
     require.resolve('@coze-common/assets/package.json'),
   );
@@ -130,7 +131,9 @@ export const defineConfig = (options: Partial<RsbuildConfig>) => {
       },
       rspack: (_, { appendPlugins }) => {
         appendPlugins([
-          new PkgRootWebpackPlugin(),
+          new PackageAtAliasResolverPlugin({
+            workspaceRoot,
+          }),
           new SemiRspackPlugin({
             theme: '@coze-arch/semi-theme-hand01',
           }),

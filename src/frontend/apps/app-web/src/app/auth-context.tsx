@@ -8,9 +8,9 @@ import {
   getTenantId,
   setAuthProfile
 } from "@atlas/shared-react-core/utils";
-import { loginByAppEntry, logout as logoutApi } from "@/services/api-auth";
-import { getCurrentUser } from "@/services/api-profile";
-import { rememberConfiguredAppKey } from "@/services/api-core";
+import { loginByAppEntry, logout as logoutApi } from "../services/api-auth";
+import { getCurrentUser } from "../services/api-profile";
+import { rememberConfiguredAppKey } from "../services/api-core";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
