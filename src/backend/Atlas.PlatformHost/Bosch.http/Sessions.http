@@ -16,16 +16,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 查询在线会话
 # @name sessions
@@ -40,14 +36,10 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/sessions/{{sessionId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
-### 安全负向：缺少 Idempotency-Key（预期 400）
 DELETE {{baseUrl}}/api/v1/sessions/{{sessionId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 安全负向：缺少认证（预期 401）
 GET {{baseUrl}}/api/v1/sessions?pageIndex=1&pageSize=20

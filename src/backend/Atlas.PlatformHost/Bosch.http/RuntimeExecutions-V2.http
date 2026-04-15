@@ -55,29 +55,21 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/runtime-executions/1/cancel
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 
 ### 重试执行
 POST {{baseUrl}}/api/v2/runtime-executions/1/retry
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 
 ### 恢复执行
 POST {{baseUrl}}/api/v2/runtime-executions/1/resume
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 
 ### 单节点调试
 POST {{baseUrl}}/api/v2/runtime-executions/1/debug
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {

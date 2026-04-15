@@ -123,8 +123,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{host}}/api/v2/workflows/{{workflowId}}/versions/{{rollbackVersionId}}/rollback
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{loginAdmin.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 
 ### ── Copy Workflow ──
 # @name copyWorkflow

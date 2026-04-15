@@ -15,4 +15,4 @@
  */
 
 export { AuditErrorMessage } from './components/audit-error-message';
-export { UseBotInfoAuditorHook, BotInfoAuditFunc } from './interfaces';
+export type { UseBotInfoAuditorHook, BotInfoAuditFunc } from './interfaces';

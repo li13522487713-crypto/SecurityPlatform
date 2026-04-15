@@ -19,13 +19,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 创建多模态资产（图片 URL）
 # @name createImageAsset
@@ -33,8 +30,6 @@ POST {{baseUrl}}/api/v1/multimodal/assets
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "assetType": 0,
@@ -58,8 +53,6 @@ POST {{baseUrl}}/api/v1/multimodal/vision/analyze
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "assetId": {{assetId}},
@@ -71,8 +64,6 @@ POST {{baseUrl}}/api/v1/multimodal/asr/transcribe
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "audioUrl": "https://example.com/audio/meeting-001.wav",
@@ -85,8 +76,6 @@ POST {{baseUrl}}/api/v1/multimodal/tts/synthesize
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "text": "请立即完成高危弱口令整改并提交复核。",
@@ -100,8 +89,6 @@ POST {{baseUrl}}/api/v1/agents/1/chat
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": null,

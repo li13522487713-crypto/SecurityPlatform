@@ -18,16 +18,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 查询长期记忆（当前用户）
 GET {{baseUrl}}/api/v1/memories/long-term?PageIndex=1&PageSize=20
@@ -43,19 +39,13 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/memories/long-term/{{memoryId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 清空当前用户全部长期记忆
 DELETE {{baseUrl}}/api/v1/memories/long-term
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 清空指定 Agent 长期记忆
 DELETE {{baseUrl}}/api/v1/memories/long-term?agentId={{agentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

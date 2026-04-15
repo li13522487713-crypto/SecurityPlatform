@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-export { ModelOption, ModelOptionProps } from './model-option';
-export { ModelOptionGroup, ModelOptionGroupProps } from './model-option-group';
+export { ModelOption } from './model-option';
+export type { ModelOptionProps } from './model-option';
+export { ModelOptionGroup } from './model-option-group';
+export type { ModelOptionGroupProps } from './model-option-group';
 export { ModelOptionThumb } from './model-option-thumb';
-export { ModelSelectUI, ModelSelectUIProps } from './model-select-ui';
-export { ModelSelect, ModelSelectProps } from './model-select';
+export { ModelSelectUI } from './model-select-ui';
+export type { ModelSelectUIProps } from './model-select-ui';
+export { ModelSelect } from './model-select';
+export type { ModelSelectProps } from './model-select';

@@ -16,7 +16,9 @@
 
 export {
   TestRunReporterService,
-  PickReporterParams,
   EventName as ReporterEventName,
+} from './test-run-reporter-service';
+export type {
+  PickReporterParams,
   Params as ReporterParams,
 } from './test-run-reporter-service';

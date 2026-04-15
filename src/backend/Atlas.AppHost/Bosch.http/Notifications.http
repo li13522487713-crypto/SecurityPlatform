@@ -18,13 +18,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 用户通知列表
 GET {{baseUrl}}/api/v1/notifications/inbox?PageIndex=1&PageSize=20
@@ -40,5 +37,3 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v1/notifications/read-all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

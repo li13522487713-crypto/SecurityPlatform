@@ -2,24 +2,18 @@
 @token =
 @tenantId =
 @idempotencyKey = {{$guid}}
-@csrfToken =
 
 ### 获取 CSRF Token（执行写接口前先调用）
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 创建流程定义（需要权限: approval:flow:create）
 POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{idempotencyKey}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "请假审批流程",
@@ -30,24 +24,20 @@ X-CSRF-TOKEN: {{csrfToken}}
   "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程\",\"description\":\"员工请假审批流程\",\"category\":\"人事\",\"isQuickEntry\":false,\"isLowCodeFlow\":true},\"lfForm\":{\"formJson\":{\"widgetList\":[],\"formConfig\":{}},\"formFields\":[]},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"部门主管审批\",\"approverConfig\":{\"setType\":2,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"dept-leader\",\"name\":\"部门主管\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
 }
 
-### 安全负例：创建流程缺少 Idempotency-Key（应返回 400）
 POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "缺幂等键流程",
   "definitionJson": "{\"meta\":{\"flowName\":\"缺幂等键流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}"
 }
 
-### 安全负例：创建流程缺少 X-CSRF-TOKEN（应返回 403）
 POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
 
 {
   "name": "缺CSRF流程",
@@ -59,8 +49,6 @@ POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: same-key-conflict-demo
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "请假审批流程-版本A",
@@ -71,8 +59,6 @@ POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: same-key-conflict-demo
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "请假审批流程-版本B",
@@ -98,8 +84,6 @@ PUT {{baseUrl}}/api/v1/approval/flows/{flowId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "请假审批流程v2",
@@ -126,8 +110,6 @@ POST {{baseUrl}}/api/v1/approval/flows/{flowId}/publication
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "remark": "首次发布"
@@ -138,8 +120,6 @@ POST {{baseUrl}}/api/v1/approval/flows/{flowId}/deactivation
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {}
 
@@ -147,16 +127,12 @@ X-CSRF-TOKEN: {{csrfToken}}
 DELETE {{baseUrl}}/api/v1/approval/flows/{flowId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 复制流程定义为新草稿
 POST {{baseUrl}}/api/v1/approval/flows/{flowId}/copy
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "请假审批流程-复制版"
@@ -172,16 +148,12 @@ POST {{baseUrl}}/api/v1/approval/flows/import
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 复制流程定义为新草稿
 POST {{baseUrl}}/api/v1/approval/flows/{flowId}/copy
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "请假审批流程-复制版"
@@ -197,8 +169,6 @@ POST {{baseUrl}}/api/v1/approval/flows/import
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "导入的采购流程",
@@ -231,13 +201,9 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/approval/flows/{flowId}/rollback/{versionId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 弃用审批流定义（不允许新发起实例，运行中实例可继续）
 POST {{baseUrl}}/api/v1/approval/flows/{{flowId}}/deprecate
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Length: 0

@@ -41,8 +41,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v2/appbridge/apps/{{appInstanceId}}/exposure-policy
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -58,8 +56,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/commands
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{idempotencyCreate}}
 Content-Type: application/json
 
 {
@@ -76,8 +72,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/commands
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{idempotencyCreate}}
 Content-Type: application/json
 
 {
@@ -91,8 +85,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/commands
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{idempotencyConflict}}
 Content-Type: application/json
 
 {
@@ -106,8 +98,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/commands
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{idempotencyConflict}}
 Content-Type: application/json
 
 {
@@ -132,8 +122,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/appbridge/commands
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -165,8 +153,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/federated/register
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -183,8 +169,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/federated/heartbeat
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -202,8 +186,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/commands
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -225,8 +207,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/appbridge/federated/commands/{{federatedCommandId}}/ack
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -237,8 +217,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/appbridge/federated/commands/{{federatedCommandId}}/result
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {

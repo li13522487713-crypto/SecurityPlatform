@@ -19,16 +19,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 创建会话
 # @name createConversation
@@ -36,8 +32,6 @@ POST {{baseUrl}}/api/v1/conversations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "agentId": {{agentId}}
@@ -61,8 +55,6 @@ PUT {{baseUrl}}/api/v1/conversations/{{conversationId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "title": "会话标题-更新"
@@ -73,8 +65,6 @@ POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}},
@@ -89,8 +79,6 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 Accept: text/event-stream
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}},
@@ -106,8 +94,6 @@ X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 Accept: text/event-stream
 X-Stream-Event-Mode: react
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}},
@@ -120,8 +106,6 @@ POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat/cancel
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}}
@@ -137,8 +121,6 @@ POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}},
@@ -155,26 +137,18 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/conversations/{{conversationId}}/clear-context
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 清空历史
 POST {{baseUrl}}/api/v1/conversations/{{conversationId}}/clear-history
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 删除消息
 DELETE {{baseUrl}}/api/v1/conversations/{{conversationId}}/messages/{{messageId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 删除会话
 DELETE {{baseUrl}}/api/v1/conversations/{{conversationId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

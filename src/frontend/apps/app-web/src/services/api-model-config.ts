@@ -1,6 +1,6 @@
 import { extractResourceId, requestApi, toQuery, API_BASE } from "@/services/api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { getAccessToken, getAntiforgeryToken, getTenantId } from "@atlas/shared-react-core/utils";
+import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
 
 export interface ModelConfigDto {
   id: number;
@@ -166,8 +166,7 @@ export function createModelConfigPromptTestStream(request: ModelConfigPromptTest
   const abortController = new AbortController();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Accept: "text/event-stream",
-    "Idempotency-Key": crypto.randomUUID?.() ?? `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    Accept: "text/event-stream"
   };
 
   const accessToken = getAccessToken();
@@ -175,9 +174,6 @@ export function createModelConfigPromptTestStream(request: ModelConfigPromptTest
 
   const tenantId = getTenantId();
   if (tenantId) headers["X-Tenant-Id"] = tenantId;
-
-  const csrfToken = getAntiforgeryToken();
-  if (csrfToken) headers["X-CSRF-TOKEN"] = csrfToken;
 
   const fetchPromise = fetch(`${API_BASE}/model-configs/test/stream`, {
     method: "POST",

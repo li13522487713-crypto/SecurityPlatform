@@ -18,23 +18,21 @@ namespace Atlas.Infrastructure.Services.Platform;
 public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommandService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const string DeprecatedIdempotencyKey = "";
 
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly IIdempotencyRecordRepository _idempotencyRecordRepository;
     private readonly IAppCommandDispatcher _dispatcher;
     private readonly IAuditWriter _auditWriter;
 
     public AppBridgeService(
         ISqlSugarClient db,
         IIdGeneratorAccessor idGeneratorAccessor,
-        IIdempotencyRecordRepository idempotencyRecordRepository,
         IAppCommandDispatcher dispatcher,
         IAuditWriter auditWriter)
     {
         _db = db;
         _idGeneratorAccessor = idGeneratorAccessor;
-        _idempotencyRecordRepository = idempotencyRecordRepository;
         _dispatcher = dispatcher;
         _auditWriter = auditWriter;
     }
@@ -304,15 +302,8 @@ public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommand
         TenantId tenantId,
         long userId,
         AppCommandCreateRequest request,
-        string idempotencyKey,
         CancellationToken cancellationToken = default)
     {
-        var normalizedIdempotencyKey = idempotencyKey?.Trim() ?? string.Empty;
-        if (normalizedIdempotencyKey.Length == 0)
-        {
-            throw new BusinessException("缺少 Idempotency-Key。", ErrorCodes.ValidationError);
-        }
-
         if (!long.TryParse(request.AppInstanceId, out var appInstanceId))
         {
             throw new InvalidOperationException("appInstanceId invalid.");
@@ -339,60 +330,6 @@ public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommand
         {
             throw new BusinessException("高风险命令必须填写 reason。", ErrorCodes.ValidationError);
         }
-        const string apiName = "appbridge.commands.create";
-        var requestHash = BuildIdempotencyRequestHash(request);
-        var existing = await _idempotencyRecordRepository.FindActiveAsync(
-            tenantId,
-            userId,
-            apiName,
-            normalizedIdempotencyKey,
-            now,
-            cancellationToken);
-        if (existing is not null)
-        {
-            if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
-            {
-                throw new BusinessException("幂等键冲突：同一 Idempotency-Key 的请求体不一致。", ErrorCodes.ValidationError);
-            }
-
-            if (existing.Status == IdempotencyStatus.Completed
-                && long.TryParse(existing.ResourceId, out var existingCommandId))
-            {
-                return existingCommandId;
-            }
-
-            throw new BusinessException("命令正在处理中，请稍后重试。", ErrorCodes.ValidationError);
-        }
-
-        var idempotencyRecord = new IdempotencyRecord(
-            tenantId,
-            userId,
-            apiName,
-            normalizedIdempotencyKey,
-            requestHash,
-            now,
-            now.AddHours(24),
-            _idGeneratorAccessor.NextId());
-        var reserved = await _idempotencyRecordRepository.TryAddAsync(idempotencyRecord, cancellationToken);
-        if (!reserved)
-        {
-            var concurrentRecord = await _idempotencyRecordRepository.FindActiveAsync(
-                tenantId,
-                userId,
-                apiName,
-                normalizedIdempotencyKey,
-                now,
-                cancellationToken);
-            if (concurrentRecord is not null
-                && string.Equals(concurrentRecord.RequestHash, requestHash, StringComparison.Ordinal)
-                && concurrentRecord.Status == IdempotencyStatus.Completed
-                && long.TryParse(concurrentRecord.ResourceId, out var concurrentCommandId))
-            {
-                return concurrentCommandId;
-            }
-
-            throw new BusinessException("幂等请求冲突，请稍后重试。", ErrorCodes.ValidationError);
-        }
 
         var command = new AppCommand(
             tenantId,
@@ -402,7 +339,7 @@ public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommand
             string.IsNullOrWhiteSpace(request.PayloadJson) ? "{}" : request.PayloadJson,
             request.DryRun,
             riskLevel,
-            normalizedIdempotencyKey,
+            DeprecatedIdempotencyKey,
             userId.ToString(),
             request.Reason,
             now);
@@ -441,13 +378,6 @@ public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommand
             null,
             null);
         await _auditWriter.WriteAsync(audit, cancellationToken);
-        idempotencyRecord.Complete(
-            statusCode: 200,
-            responseBody: JsonSerializer.Serialize(new { id = command.Id }, JsonOptions),
-            responseContentType: "application/json",
-            resourceId: command.Id.ToString(),
-            completedAt: DateTimeOffset.UtcNow);
-        await _idempotencyRecordRepository.UpdateAsync(idempotencyRecord, cancellationToken);
 
         return command.Id;
     }

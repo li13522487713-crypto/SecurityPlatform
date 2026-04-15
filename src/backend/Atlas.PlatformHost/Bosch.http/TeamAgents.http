@@ -19,13 +19,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 查询 Team Agent 模板
 GET {{baseUrl}}/api/v1/team-agents/templates
@@ -38,8 +35,6 @@ POST {{baseUrl}}/api/v1/team-agents
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "数据建模团队",
@@ -91,8 +86,6 @@ PUT {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "数据建模团队（已发布前）",
@@ -122,8 +115,6 @@ POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/publish
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "releaseNote": "阶段二官方运行时与发布快照"
@@ -133,16 +124,12 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/duplicate
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 根据模板创建 Team Agent
 POST {{baseUrl}}/api/v1/team-agents/from-template
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "templateKey": "schema_builder",
@@ -172,8 +159,6 @@ POST {{baseUrl}}/api/v1/team-agents/migrations/multi-agent-orchestrations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "legacyIds": []
@@ -190,5 +175,3 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

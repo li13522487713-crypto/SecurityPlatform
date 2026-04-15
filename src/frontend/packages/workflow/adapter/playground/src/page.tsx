@@ -43,6 +43,7 @@ export function WorkflowPage(): React.ReactNode {
     nodeId,
     executeId,
     subExecuteId,
+    returnUrl,
   } = usePageParams();
 
   const [initOnce, setInitOnce] = useState(false);
@@ -95,10 +96,10 @@ export function WorkflowPage(): React.ReactNode {
         }}
         from={from}
         onBackClick={workflowState => {
-          navigateBack(workflowState, 'exit');
+          navigateBack(workflowState, 'exit', returnUrl);
         }}
         onPublish={workflowState => {
-          navigateBack(workflowState, 'publish');
+          navigateBack(workflowState, 'publish', returnUrl);
         }}
       />
     </>

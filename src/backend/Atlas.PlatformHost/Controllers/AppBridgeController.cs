@@ -100,8 +100,7 @@ public sealed class AppBridgeController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var idempotencyKey = HttpContext.Request.Headers["Idempotency-Key"].ToString();
-        var commandId = await _commandService.CreateCommandAsync(tenantId, currentUser.UserId, request, idempotencyKey, cancellationToken);
+        var commandId = await _commandService.CreateCommandAsync(tenantId, currentUser.UserId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = commandId.ToString() }, HttpContext.TraceIdentifier));
     }
 

@@ -1,9 +1,12 @@
 import type {
+  NodeExecutionDetailResponse,
   NodeTemplateMetadata,
   NodeTypeMetadata,
   RunTrace,
   WorkflowDetailQuery,
   WorkflowDetailResponse,
+  WorkflowExecutionDebugViewResponse,
+  WorkflowProcessResponse,
   WorkflowModelCatalogItem,
   WorkflowSaveRequest,
   WorkflowValidateRequest,
@@ -64,18 +67,10 @@ export interface WorkflowApiClient {
       onError?: (err: Event | Error) => void;
     }
   ) => { abort: () => void; done: Promise<void> };
-  getProcess?: (
-    executionId: string
-  ) => Promise<{
-    data?: {
-      status?: number;
-      startedAt?: string;
-      completedAt?: string;
-      errorMessage?: string;
-      nodeExecutions?: Array<{ nodeKey: string; status: number; errorMessage?: string }>;
-    };
-  }>;
+  getProcess?: (executionId: string) => Promise<{ data?: WorkflowProcessResponse }>;
   getTrace?: (executionId: string) => Promise<{ data?: RunTrace }>;
+  getNodeDetail?: (executionId: string, nodeKey: string) => Promise<{ data?: NodeExecutionDetailResponse }>;
+  getDebugView?: (executionId: string) => Promise<{ data?: WorkflowExecutionDebugViewResponse }>;
   cancel?: (executionId: string) => Promise<unknown>;
   debugNode?: (
     workflowId: string,
@@ -87,7 +82,7 @@ export interface WorkflowApiClient {
       source?: "published" | "draft";
       versionId?: string;
     }
-  ) => Promise<{ data?: { outputsJson?: string; status?: number; executionId?: string } }>;
+  ) => Promise<{ data?: { outputsJson?: string; status?: number; executionId?: string; errorMessage?: string } }>;
 }
 
 export interface WorkflowEditorReactProps {

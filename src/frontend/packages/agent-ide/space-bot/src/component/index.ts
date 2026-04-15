@@ -55,8 +55,8 @@ export {
   NavModal,
   NAV_MODAL_MAIN_CONTENT_HEIGHT,
   NavModalItem,
-  NavModalProps,
 } from './nav-modal';
+export type { NavModalProps } from './nav-modal';
 export { KvBindButton, DiffViewButton } from './connector-action';
 export { MemoryToolPane, type MemoryToolPaneProps } from './memory-tool-pane';
 

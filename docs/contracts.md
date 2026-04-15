@@ -1,5 +1,47 @@
 # Atlas Security Platform Contracts
 
+## Coze Workflow Host（独立子空间）
+
+- `app-web` 不再直接引用 `@coze-workflow/playground`、`@coze-agent-ide/space-bot` 源码图。
+- 原生 Coze Workflow 页面由独立 `src/coze-workflow-host` 承载。
+- Host 的推荐产物来源：
+  - 以上游 `D:/Code/coze-studio-main` 的 Rush 子空间为真源
+  - 优先通过 `rush deploy --project @coze-studio/app` 生成可运行闭包，而不是在当前仓直接生装整棵源码 workspace
+- Atlas 主宿主与 Coze Host 之间只传最小上下文：
+  - `workflowId`
+  - `mode`
+  - `readonly`
+  - `returnUrl`
+  - 可选 `versionId`
+  - 可选 `executeId`
+
+## Coze Workflow API 兼容层
+
+- `PlatformHost` 与 `AppHost` 额外提供原生 Coze 协议兼容入口：`/api/workflow_api/*`
+- 兼容层当前覆盖 workflow playground 必需接口：
+  - `canvas`
+  - `save`
+  - `publish`
+  - `node_type`
+  - `node_template_list`
+  - `old_validate`
+  - `test_run`
+  - `get_process`
+  - `test_resume`
+  - `cancel`
+  - `nodeDebug`
+  - `workflow_references`
+  - `released_workflows`
+  - `copy`
+- 兼容层内部统一复用 `/api/v2/workflows*` 与现有 WorkflowV2 服务，不在前端重复协议转换。
+
+## 写接口安全头基线
+
+- 当前仓库已废止公共 `Idempotency-Key` / `X-CSRF-TOKEN` 机制。
+- 所有写接口默认不再要求这两个请求头。
+- `GET /api/v1/secure/antiforgery` 已移除。
+- 旧版 `.http`、E2E、前端 API client 如仍依赖这两个头，应以当前实现为准完成迁移。
+
 ## Workflow V2 API（Coze 40+ 节点复刻）
 
 ### 工作流详情读取语义
@@ -146,6 +188,11 @@
   - `targetNodeKey`
   - `targetPort`
   - `status`
+    - `0 = idle`
+    - `1 = success`
+    - `2 = skipped`
+    - `3 = failed`
+    - `4 = incomplete`
   - `reason`
 
 ### 历史草稿兼容策略

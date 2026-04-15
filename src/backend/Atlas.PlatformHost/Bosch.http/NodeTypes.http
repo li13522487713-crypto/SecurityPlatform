@@ -56,8 +56,6 @@ POST {{host}}/api/v1/node-types
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: nt-create-001
-X-CSRF-TOKEN: test
 
 {
   "typeKey": "custom.my_processor",
@@ -116,8 +114,6 @@ PUT {{host}}/api/v1/node-types/{{nodeTypeId}}
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: nt-update-001
-X-CSRF-TOKEN: test
 
 {
   "displayName": "自定义处理器（已更新）",
@@ -148,5 +144,3 @@ X-CSRF-TOKEN: test
 DELETE {{host}}/api/v1/node-types/{{nodeTypeId}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: nt-delete-001
-X-CSRF-TOKEN: test

@@ -28,7 +28,6 @@ Accept-Language: {{localeZh}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 @refreshToken = {{login.response.body.$.data.refreshToken}}
-@csrfToken =
 
 ### Refresh Token
 POST {{baseUrl}}/api/v1/auth/refresh
@@ -45,8 +44,6 @@ Accept-Language: {{localeEn}}
 }
 
 ### Get CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-Client-Type: {{clientType}}
@@ -56,7 +53,6 @@ X-Client-Agent: {{clientAgent}}
 Accept-Language: {{localeZh}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Current User
 # 期望 data.isPlatformAdmin 返回布尔值，平台管理员应为 true
@@ -102,8 +98,6 @@ X-Client-Type: {{clientType}}
 X-Client-Platform: {{clientPlatform}}
 X-Client-Channel: {{clientChannel}}
 X-Client-Agent: {{clientAgent}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "displayName": "系统管理员（更新）",
@@ -117,8 +111,6 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "session.disable.demo",
@@ -158,8 +150,6 @@ PUT {{baseUrl}}/api/v1/users/{{disabledDemoUserId}}
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "displayName": "Session Disable Demo",
@@ -191,8 +181,6 @@ X-Client-Type: {{clientType}}
 X-Client-Platform: {{clientPlatform}}
 X-Client-Channel: {{clientChannel}}
 X-Client-Agent: {{clientAgent}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "self.register.user",
@@ -210,8 +198,6 @@ X-Client-Type: {{clientType}}
 X-Client-Platform: {{clientPlatform}}
 X-Client-Channel: {{clientChannel}}
 X-Client-Agent: {{clientAgent}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "currentPassword": "{{password}}",
@@ -228,8 +214,6 @@ X-Client-Type: {{clientType}}
 X-Client-Platform: {{clientPlatform}}
 X-Client-Channel: {{clientChannel}}
 X-Client-Agent: {{clientAgent}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### [安全回归] 连续失败 3 次（触发验证码阈值）
 # @skip-ci

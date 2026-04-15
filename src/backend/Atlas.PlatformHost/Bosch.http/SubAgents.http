@@ -20,13 +20,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 创建子代理
 # @name createSubAgent
@@ -34,8 +31,6 @@ POST {{baseUrl}}/api/v1/agent-teams/{{teamId}}/sub-agents
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "agentName": "研究员Agent",
@@ -69,8 +64,6 @@ PUT {{baseUrl}}/api/v1/agent-teams/{{teamId}}/sub-agents/{{subAgentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "agentName": "研究员Agent-更新",
@@ -95,5 +88,3 @@ X-CSRF-TOKEN: {{csrfToken}}
 DELETE {{baseUrl}}/api/v1/agent-teams/{{teamId}}/sub-agents/{{subAgentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

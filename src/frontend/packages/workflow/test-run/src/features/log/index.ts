@@ -36,4 +36,4 @@ export {
   isWorkflowLinkLog,
 } from './utils/field';
 
-export { Log, ConditionLog } from './types';
+export type { Log, ConditionLog } from './types';

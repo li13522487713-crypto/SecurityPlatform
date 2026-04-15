@@ -16,7 +16,7 @@
 
 /** formily api */
 export { useField, useForm, observer } from '@formily/react';
-export { DataField, ObjectField, Form } from '@formily/core';
+export type { DataField, ObjectField, Form } from '@formily/core';
 
 /**
  * formily materials

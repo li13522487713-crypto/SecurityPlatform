@@ -28,13 +28,10 @@ Accept-Language: {{localeZh}}
 @token = {{login.response.body.$.data.accessToken}}
 
 ### Get CSRF Token
-# @name antiforgery
-GET {{host}}/api/v1/secure/antiforgery
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Governance — quotas (list)
 GET {{host}}/api/v1/governance/quotas
@@ -52,8 +49,6 @@ Accept-Language: {{localeZh}}
 POST {{host}}/api/v1/governance/quotas/logic_flow_executions/consume
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 Accept-Language: {{localeZh}}
 
@@ -71,8 +66,6 @@ Accept-Language: {{localeZh}}
 PUT {{host}}/api/v1/governance/canary-releases/my_feature
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 Accept-Language: {{localeZh}}
 
@@ -96,8 +89,6 @@ Accept-Language: {{localeZh}}
 POST {{host}}/api/v1/governance/version-freezes
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 Accept-Language: {{localeZh}}
 
@@ -111,6 +102,4 @@ Accept-Language: {{localeZh}}
 DELETE {{host}}/api/v1/governance/version-freezes/logic_flow/1
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}

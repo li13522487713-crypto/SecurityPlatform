@@ -4,7 +4,6 @@
 @username = admin
 @password = P@ssw0rd!
 @idempotencyKey = {{$guid}}
-@csrfToken =
 
 ### 登录获取令牌（可选）
 # @name login
@@ -21,21 +20,16 @@ X-Tenant-Id: {{tenantId}}
 @token = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token（执行写接口前建议先调用）
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 发起流程实例
 POST {{baseUrl}}/api/v1/approval/instances
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{idempotencyKey}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "definitionId": 1,
@@ -43,12 +37,10 @@ X-CSRF-TOKEN: {{csrfToken}}
   "dataJson": "{\"leaveType\":\"sick\",\"startDate\":\"2026-02-01\",\"endDate\":\"2026-02-03\",\"reason\":\"感冒\"}"
 }
 
-### 安全负例：发起流程缺少 Idempotency-Key（应返回 400）
 POST {{baseUrl}}/api/v1/approval/instances
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "definitionId": 1,
@@ -56,12 +48,10 @@ X-CSRF-TOKEN: {{csrfToken}}
   "dataJson": "{\"leaveType\":\"annual\"}"
 }
 
-### 安全负例：发起流程缺少 X-CSRF-TOKEN（应返回 403）
 POST {{baseUrl}}/api/v1/approval/instances
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
 
 {
   "definitionId": 1,
@@ -75,8 +65,6 @@ POST {{baseUrl}}/api/v1/approval/instances
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{idemConflictStart}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "definitionId": 1,
@@ -89,8 +77,6 @@ POST {{baseUrl}}/api/v1/approval/instances
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{idemConflictStart}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "definitionId": 1,
@@ -128,17 +114,13 @@ POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/cancellation
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {}
 
-### 安全负例：取消流程缺少 X-CSRF-TOKEN（应返回 403）
 POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/cancellation
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
 
 {}
 
@@ -157,8 +139,6 @@ POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskI
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "operationType": 29,
@@ -170,8 +150,6 @@ POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskI
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "operationType": 21,
@@ -184,8 +162,6 @@ POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskI
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "operationType": 25,
@@ -198,8 +174,6 @@ POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskI
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "operationType": 18,
@@ -211,8 +185,6 @@ POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskI
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "operationType": 23,
@@ -225,8 +197,6 @@ POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskI
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "operationType": 32,
@@ -237,30 +207,22 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/submission
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 挂起流程实例
 POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/suspension
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 激活（恢复）流程实例
 POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/activation
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 强制终止流程实例（管理员操作，需要权限: approval:flow:manage）
 POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/termination
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 "管理员强制终止该流程"
 
@@ -269,8 +231,6 @@ POST {{baseUrl}}/api/v1/approval/instances/draft
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "definitionId": 1,

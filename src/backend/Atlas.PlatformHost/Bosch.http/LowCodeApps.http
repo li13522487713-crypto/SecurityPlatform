@@ -22,13 +22,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ###############################################
 # 应用管理
@@ -44,8 +41,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/lowcode-apps
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -84,8 +79,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v1/lowcode-apps/{{appId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -104,8 +97,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/entity-aliases
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -132,8 +123,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/datasource/test
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ###############################################
 # 页面管理
@@ -144,8 +133,6 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/pages
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -199,8 +186,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/environments
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -228,8 +213,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v1/lowcode-apps/environments/{{environmentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -244,15 +227,11 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/v1/lowcode-apps/environments/{{environmentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 更新页面（需幂等+CSRF）
 PUT {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -271,8 +250,6 @@ Content-Type: application/json
 PATCH {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/schema
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -283,22 +260,16 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/publish
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 回滚页面到历史版本（需幂等+CSRF）
 POST {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/rollback/1001
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 发布应用（需幂等+CSRF）
 POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/publish
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 闭环验收：发布后按 appKey/pageKey 获取运行态 schema
 GET {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/schema
@@ -329,8 +300,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/actions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -352,8 +321,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/versions/{{appVersionId}}/rollback
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 导出应用 JSON 包
 GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/export
@@ -364,8 +331,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/lowcode-apps/import
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -388,15 +353,11 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 删除应用（需幂等+CSRF）
 DELETE {{baseUrl}}/api/v1/lowcode-apps/{{appId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ###############################################
 # 迁移与兼容检查（SEC-91~94）

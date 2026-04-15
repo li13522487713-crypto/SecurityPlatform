@@ -19,13 +19,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### List Schema Change Tasks
 GET {{baseUrl}}/api/v1/apps/{{appId}}/schema-change-tasks
@@ -40,8 +37,6 @@ POST {{baseUrl}}/api/v1/apps/{{appId}}/schema-change-tasks
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "draftIds": []
@@ -61,5 +56,3 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/apps/{{appId}}/schema-change-tasks/{{taskId}}/cancel
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}

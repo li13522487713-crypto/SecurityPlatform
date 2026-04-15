@@ -17,7 +17,6 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure;
-using Atlas.Presentation.Shared.Filters;
 using Atlas.Presentation.Shared.Mappings;
 using Atlas.Presentation.Shared.Middlewares;
 using Atlas.WorkflowCore;
@@ -116,7 +115,6 @@ builder.Services.Configure<LockoutPolicyOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection("Security:BootstrapAdmin"));
 builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSection("Approval:SeedData"));
 builder.Services.Configure<Atlas.Presentation.Shared.Tenancy.TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
-builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
 builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSection("TableViewDefaults"));
 builder.Services.Configure<Atlas.Presentation.Shared.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>(builder.Configuration.GetSection("DatabaseInitializer"));
@@ -124,7 +122,6 @@ builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>
 // ─── Controllers ───
 var mvcBuilder = builder.Services.AddControllers(options =>
 {
-    options.Filters.Add<IdempotencyFilter>();
 })
 .AddJsonOptions(options =>
 {
@@ -222,9 +219,6 @@ builder.Services.AddScoped<ICurrentUserAccessor, AppHostCurrentUserAccessor>();
 builder.Services.AddScoped<IClientContextAccessor, AppHostClientContextAccessor>();
 builder.Services.AddScoped<IAppContextAccessor, AppHostAppContextAccessor>();
 builder.Services.AddScoped<IProjectContextAccessor, AppHostProjectContextAccessor>();
-builder.Services.AddScoped<IdempotencyFilter>();
-
-// ─── Antiforgery ───
 var securityOptions = builder.Configuration.GetSection("Security").Get<SecurityOptions>() ?? new SecurityOptions();
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 var signingKey = jwtOptions.SigningKey;
@@ -239,16 +233,6 @@ if (!builder.Environment.IsDevelopment())
         throw new InvalidOperationException("生产环境必须配置长度不少于32位且非占位值的JWT SigningKey。");
     }
 }
-builder.Services.AddAntiforgery(options =>
-{
-    options.HeaderName = "X-CSRF-TOKEN";
-    options.Cookie.Name = "XSRF-TOKEN";
-    options.Cookie.HttpOnly = false;
-    options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment()
-        ? CookieSecurePolicy.Always
-        : CookieSecurePolicy.None;
-});
 
 // ─── Authentication / Authorization ───
 builder.Services.AddAuthentication()
@@ -460,7 +444,6 @@ app.UseWhen(
     runtime =>
     {
         runtime.UseMiddleware<AppContextMiddleware>();
-        runtime.UseMiddleware<AntiforgeryValidationMiddleware>();
         runtime.UseMiddleware<TenantContextMiddleware>();
         runtime.UseMiddleware<ApiVersionRewriteMiddleware>();
     });

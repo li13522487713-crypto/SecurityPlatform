@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requestApi, getAppInstanceIdByAppKey } = vi.hoisted(() => ({
+const {
+  requestApi,
+  getAppInstanceIdByAppKey,
+  createWorkflowApiFromRequest
+} = vi.hoisted(() => ({
   requestApi: vi.fn(),
-  getAppInstanceIdByAppKey: vi.fn<(appKey: string) => Promise<string | null>>()
+  getAppInstanceIdByAppKey: vi.fn<(appKey: string) => Promise<string | null>>(),
+  createWorkflowApiFromRequest: vi.fn(() => ({}))
 }));
 
 vi.mock("@atlas/workflow-core-react/api", () => ({
-  createWorkflowApiFromRequest: vi.fn(() => ({}))
+  createWorkflowApiFromRequest
 }));
 
 vi.mock("@/services/api-core", () => ({
@@ -50,6 +55,7 @@ function installBrowserGlobals(): void {
 
 describe("api-workflow", () => {
   beforeEach(async () => {
+    vi.resetModules();
     installBrowserGlobals();
     localStorage.clear();
     vi.clearAllMocks();

@@ -35,8 +35,6 @@ Accept-Language: {{localeZh}}
 @adminToken = {{adminLogin.response.body.$.data.accessToken}}
 
 ### 获取 CSRF（后续管理员写操作需要）
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
 X-Client-Type: {{clientType}}
@@ -45,7 +43,6 @@ X-Client-Channel: {{clientChannel}}
 X-Client-Agent: {{clientAgent}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 准备：创建无任何平台角色的用户（用于 403 反向用例）
 # @name createNoPermUser
@@ -53,8 +50,6 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "{{noPermUsername}}",
@@ -144,8 +139,6 @@ POST {{baseUrl}}/api/v1/roles
 Content-Type: application/json
 Authorization: Bearer {{noPermToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "不应创建成功",
@@ -161,8 +154,6 @@ POST {{baseUrl}}/api/v1/permissions
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "HTTP 测试页面权限",
@@ -179,8 +170,6 @@ PUT {{baseUrl}}/api/v1/permissions/{{demoPermissionId}}
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "HTTP 测试页面权限（更新）",
@@ -194,8 +183,6 @@ POST {{baseUrl}}/api/v1/permissions
 Content-Type: application/json
 Authorization: Bearer {{noPermToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "不应创建",

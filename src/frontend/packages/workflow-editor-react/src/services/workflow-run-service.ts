@@ -1,5 +1,12 @@
 import { injectable } from "inversify";
 import { message } from "antd";
+import type { TraceStepItem } from "../components/TracePanel";
+import type {
+  NodeExecutionDetailResponse,
+  RunTrace,
+  WorkflowExecutionDebugViewResponse,
+  WorkflowProcessResponse
+} from "../types";
 import type { EdgeRuntimeState } from "../editor/workflow-editor-state";
 import { useWorkflowEditorStore } from "../stores/workflow-editor-store";
 import { WorkflowOperationService } from "./workflow-operation-service";
@@ -13,10 +20,27 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function safeJsonStringify(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 @injectable()
 export class WorkflowRunService {
   private paused = false;
   private abortHandle: (() => void) | null = null;
+  private currentExecutionId = "";
 
   constructor(
     private readonly operationService: WorkflowOperationService,
@@ -25,6 +49,11 @@ export class WorkflowRunService {
 
   private buildEdgeRuntimeKey(connection: { fromNode: string; fromPort: string; toNode: string; toPort: string }): string {
     return `${connection.fromNode}:${connection.fromPort}->${connection.toNode}:${connection.toPort}`;
+  }
+
+  private setCurrentExecutionId(executionId: string): void {
+    this.currentExecutionId = executionId;
+    useWorkflowEditorStore.getState().setLatestExecutionId(executionId);
   }
 
   private markNodeState(nodeKey: string, state: "idle" | "running" | "success" | "failed" | "skipped" | "blocked", hint?: string): void {
@@ -55,25 +84,143 @@ export class WorkflowRunService {
     }
   }
 
-  private markEdgeStateByRuntimeEdge(edge: {
-    sourceNodeKey?: string;
-    sourcePort?: string;
-    targetNodeKey?: string;
-    targetPort?: string;
-    status?: number;
-  }): void {
-    if (!edge.sourceNodeKey || !edge.sourcePort || !edge.targetNodeKey || !edge.targetPort) {
+  private mapEdgeStatus(status?: number): EdgeRuntimeState {
+    return status === 1
+      ? "success"
+      : status === 2
+        ? "skipped"
+        : status === 3
+          ? "failed"
+          : status === 4
+            ? "incomplete"
+            : "idle";
+  }
+
+  private mapTraceStatus(status?: number): TraceStepItem["status"] {
+    return status === 1
+      ? "running"
+      : status === 2
+        ? "success"
+        : status === 3
+          ? "failed"
+          : status === 6
+            ? "skipped"
+            : "blocked";
+  }
+
+  private formatTimestamp(value?: string): string {
+    if (!value) {
+      return new Date().toLocaleTimeString();
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleTimeString();
+  }
+
+  private buildTraceDetail(step: {
+    durationMs?: number;
+    errorMessage?: string;
+    branchDecision?: Record<string, unknown>;
+  }): string | undefined {
+    if (step.errorMessage) {
+      return step.errorMessage;
+    }
+
+    const selectedBranch =
+      typeof step.branchDecision?.selectedBranch === "string"
+        ? step.branchDecision.selectedBranch
+        : undefined;
+    if (selectedBranch) {
+      return `branch=${selectedBranch}`;
+    }
+
+    if (typeof step.durationMs === "number") {
+      return `${step.durationMs}ms`;
+    }
+
+    return undefined;
+  }
+
+  private updateProcessNodeDetails(nodeExecutions: WorkflowProcessResponse["nodeExecutions"] = []): void {
+    const details = Object.fromEntries(
+      nodeExecutions.map((item) => [item.nodeKey, item])
+    ) as Record<string, NodeExecutionDetailResponse>;
+    useWorkflowEditorStore.getState().setRuntimeNodeDetails(details);
+    this.updateExecuteState(nodeExecutions);
+  }
+
+  private syncTraceFromTraceResponse(trace?: RunTrace, process?: WorkflowProcessResponse): void {
+    if (!trace) {
       return;
     }
-    const mappedState: EdgeRuntimeState =
-      edge.status === 1 ? "success" : edge.status === 2 ? "skipped" : edge.status === 3 ? "failed" : "idle";
-    const key = this.buildEdgeRuntimeKey({
-      fromNode: edge.sourceNodeKey,
-      fromPort: edge.sourcePort,
-      toNode: edge.targetNodeKey,
-      toPort: edge.targetPort
+
+    const detailMap = new Map(
+      (process?.nodeExecutions ?? []).map((item) => [item.nodeKey, item] as const)
+    );
+    const steps: TraceStepItem[] = (trace.steps ?? []).map((step) => {
+      const detail = detailMap.get(step.nodeKey);
+      return {
+        timestamp: this.formatTimestamp(step.completedAt ?? step.startedAt),
+        nodeKey: step.nodeKey,
+        status: this.mapTraceStatus(step.status),
+        detail: this.buildTraceDetail(step),
+        nodeType: step.nodeType,
+        durationMs: step.durationMs,
+        errorMessage: step.errorMessage ?? detail?.errorMessage,
+        inputsJson: detail?.inputsJson ?? safeJsonStringify(step.inputs),
+        outputsJson: detail?.outputsJson ?? safeJsonStringify(step.outputs)
+      };
     });
-    useWorkflowEditorStore.getState().setEdgeState(key, mappedState);
+    useWorkflowEditorStore.getState().setTraceSteps(steps);
+  }
+
+  private applyDebugView(debugView?: WorkflowExecutionDebugViewResponse): void {
+    if (!debugView?.focusNode) {
+      return;
+    }
+
+    const state = debugView.focusNode.status;
+    const focusState =
+      state === 1
+        ? "running"
+        : state === 2
+          ? "success"
+          : state === 3
+            ? "failed"
+            : state === 6
+              ? "skipped"
+              : state === 7
+                ? "blocked"
+                : "idle";
+
+    this.markNodeState(debugView.focusNode.nodeKey, focusState, debugView.focusReason);
+    useWorkflowEditorStore.getState().appendLog(`debug_focus ${debugView.focusNode.nodeKey} ${debugView.focusReason}`);
+  }
+
+  private async hydrateExecutionArtifacts(executionId: string): Promise<void> {
+    if (!executionId) {
+      return;
+    }
+
+    const [processResult, traceResult, debugViewResult] = await Promise.allSettled([
+      this.operationService.getProcess(executionId),
+      this.operationService.getTrace(executionId),
+      this.operationService.getDebugView(executionId)
+    ]);
+
+    const process = processResult.status === "fulfilled" ? processResult.value?.data : undefined;
+    if (process) {
+      this.updateProcessNodeDetails(process.nodeExecutions ?? []);
+    }
+
+    const trace = traceResult.status === "fulfilled" ? traceResult.value?.data : undefined;
+    if (trace) {
+      this.syncTraceFromTraceResponse(trace, process);
+    }
+
+    if (debugViewResult.status === "fulfilled") {
+      this.applyDebugView(debugViewResult.value?.data);
+    }
   }
 
   pauseTestRun(): void {
@@ -93,7 +240,7 @@ export class WorkflowRunService {
   async loop(executionId: string): Promise<number | undefined> {
     const process = await this.operationService.getProcess(executionId);
     const status = process?.data?.status;
-    this.updateExecuteState(process?.data?.nodeExecutions ?? []);
+    this.updateProcessNodeDetails(process?.data?.nodeExecutions ?? []);
     if (status !== 1) {
       return status;
     }
@@ -105,7 +252,7 @@ export class WorkflowRunService {
     for (const item of nodeExecutions) {
       if (item.status === 1) {
         this.markNodeState(item.nodeKey, "running");
-        this.markOutgoingEdgesState(item.nodeKey, "running");
+        this.markOutgoingEdgesState(item.nodeKey, "incomplete");
       } else if (item.status === 2) {
         this.markNodeState(item.nodeKey, "success");
         this.markOutgoingEdgesState(item.nodeKey, "success");
@@ -117,7 +264,7 @@ export class WorkflowRunService {
         this.markOutgoingEdgesState(item.nodeKey, "skipped");
       } else if (item.status === 7) {
         this.markNodeState(item.nodeKey, "blocked", item.errorMessage);
-        this.markOutgoingEdgesState(item.nodeKey, "skipped");
+        this.markOutgoingEdgesState(item.nodeKey, "failed");
       }
     }
   }
@@ -125,8 +272,9 @@ export class WorkflowRunService {
   async cancelTestRun(executionId?: string): Promise<void> {
     this.abortHandle?.();
     this.abortHandle = null;
-    if (executionId) {
-      await this.operationService.cancel(executionId);
+    const activeExecutionId = executionId || useWorkflowEditorStore.getState().latestExecutionId;
+    if (activeExecutionId) {
+      await this.operationService.cancel(activeExecutionId);
     }
     useWorkflowEditorStore.getState().setTestRunning(false);
     useWorkflowEditorStore.getState().appendLog("execution_cancelled");
@@ -142,6 +290,7 @@ export class WorkflowRunService {
     await this.saveService.waitSaving();
     state.clearRuntimeState();
     state.setTestRunning(true);
+    this.currentExecutionId = "";
 
     let parsedInputs: unknown = {};
     if (state.testInputJson.trim()) {
@@ -161,10 +310,13 @@ export class WorkflowRunService {
           source: state.testRunSource
         },
         {
-          onExecutionStarted: (ev) => useWorkflowEditorStore.getState().appendLog(`execution_start ${ev.executionId}`),
+          onExecutionStarted: (ev) => {
+            this.setCurrentExecutionId(ev.executionId);
+            useWorkflowEditorStore.getState().appendLog(`execution_start ${ev.executionId}`);
+          },
           onNodeStarted: (ev) => {
             this.markNodeState(ev.nodeKey, "running");
-            this.markOutgoingEdgesState(ev.nodeKey, "running");
+            this.markOutgoingEdgesState(ev.nodeKey, "incomplete");
             useWorkflowEditorStore.getState().appendLog(`node_start ${ev.nodeKey}`);
           },
           onNodeOutput: (ev) => useWorkflowEditorStore.getState().appendLog(`node_output ${ev.nodeKey}`),
@@ -182,7 +334,7 @@ export class WorkflowRunService {
           },
           onNodeBlocked: (ev) => {
             this.markNodeState(ev.nodeKey, "blocked", ev.reason);
-            this.markOutgoingEdgesState(ev.nodeKey, "skipped");
+            this.markOutgoingEdgesState(ev.nodeKey, "failed");
           },
           onEdgeStatusChanged: (ev) => {
             this.markEdgeStateByRuntimeEdge(ev.edge ?? {});
@@ -220,6 +372,9 @@ export class WorkflowRunService {
         await handle.done;
         this.abortHandle = null;
       }
+      if (this.currentExecutionId) {
+        await this.hydrateExecutionArtifacts(this.currentExecutionId);
+      }
       useWorkflowEditorStore.getState().setTestRunning(false);
       return;
     }
@@ -230,10 +385,32 @@ export class WorkflowRunService {
     });
     const executionId = result.executionId;
     if (executionId) {
+      this.setCurrentExecutionId(executionId);
       await this.loop(executionId);
+      await this.hydrateExecutionArtifacts(executionId);
       useWorkflowEditorStore.getState().appendLog("execution_complete");
     }
     useWorkflowEditorStore.getState().setTestRunning(false);
+  }
+
+  private markEdgeStateByRuntimeEdge(edge: {
+    sourceNodeKey?: string;
+    sourcePort?: string;
+    targetNodeKey?: string;
+    targetPort?: string;
+    status?: number;
+  }): void {
+    if (!edge.sourceNodeKey || !edge.sourcePort || !edge.targetNodeKey || !edge.targetPort) {
+      return;
+    }
+
+    const key = this.buildEdgeRuntimeKey({
+      fromNode: edge.sourceNodeKey,
+      fromPort: edge.sourcePort,
+      toNode: edge.targetNodeKey,
+      toPort: edge.targetPort
+    });
+    useWorkflowEditorStore.getState().setEdgeState(key, this.mapEdgeStatus(edge.status));
   }
 
   async testRunOneNode(nodeKey: string, inputsJson?: string): Promise<void> {
@@ -245,8 +422,39 @@ export class WorkflowRunService {
     this.markNodeState(nodeKey, "running", "debug");
     try {
       const response = await this.operationService.testOneNode(nodeKey, inputsJson);
-      state.setDebugOutput(JSON.stringify(response?.data ?? {}, null, 2));
-      this.markNodeState(nodeKey, "success", "debug ok");
+      const executionId = response?.data?.executionId ?? "";
+      if (executionId) {
+        this.setCurrentExecutionId(executionId);
+      }
+
+      const [detailResult, debugViewResult] = await Promise.allSettled([
+        executionId ? this.operationService.getNodeDetail(executionId, nodeKey) : Promise.resolve(undefined),
+        executionId ? this.operationService.getDebugView(executionId) : Promise.resolve(undefined)
+      ]);
+
+      const nodeDetail = detailResult.status === "fulfilled" ? detailResult.value?.data : undefined;
+      if (nodeDetail) {
+        state.setRuntimeNodeDetail(nodeDetail);
+      }
+
+      const debugView = debugViewResult.status === "fulfilled" ? debugViewResult.value?.data : undefined;
+      if (debugView) {
+        this.applyDebugView(debugView);
+      }
+
+      const debugOutput = {
+        run: response?.data ?? {},
+        nodeDetail: nodeDetail ?? null,
+        debugView: debugView ?? null
+      };
+      state.setDebugOutput(JSON.stringify(debugOutput, null, 2));
+
+      const finalStatus = nodeDetail?.status ?? response?.data?.status ?? 2;
+      if (finalStatus === 3 || finalStatus === 7) {
+        this.markNodeState(nodeKey, "failed", nodeDetail?.errorMessage ?? response?.data?.errorMessage ?? "debug failed");
+      } else {
+        this.markNodeState(nodeKey, "success", debugView?.focusReason ?? "debug ok");
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "调试失败";
       state.setDebugOutput(errorMessage);

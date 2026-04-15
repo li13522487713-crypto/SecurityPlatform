@@ -18,13 +18,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 1.1 获取 Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 2. 查询审计日志列表（分页）
 GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=10
@@ -40,8 +37,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/audit/client-errors
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {

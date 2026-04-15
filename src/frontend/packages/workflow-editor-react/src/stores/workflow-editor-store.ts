@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TraceStepItem } from "../components/TracePanel";
+import type { NodeExecutionDetailResponse } from "../types";
 import type { NodeTemplateMetadata, NodeTypeMetadata, WorkflowModelCatalogItem } from "../types";
 import type { CanvasConnection, CanvasNode, EdgeRuntimeState, WorkflowViewportState } from "../editor/workflow-editor-state";
 import { INITIAL_CONNECTIONS, INITIAL_NODES } from "../editor/workflow-editor-state";
@@ -25,6 +26,8 @@ export interface WorkflowEditorState {
   readOnlyMode: boolean;
   logs: string[];
   traceSteps: TraceStepItem[];
+  latestExecutionId: string;
+  runtimeNodeDetailsByKey: Record<string, NodeExecutionDetailResponse>;
   executionStateByNodeKey: Record<string, NodeExecutionState>;
   edgeStateByConnectionKey: Record<string, EdgeRuntimeState>;
   saving: boolean;
@@ -50,6 +53,7 @@ export interface WorkflowEditorState {
   setNodeTemplates: (templates: NodeTemplateMetadata[]) => void;
   setModelCatalog: (catalog: WorkflowModelCatalogItem[]) => void;
   setReadOnlyMode: (readOnly: boolean) => void;
+  setLatestExecutionId: (executionId: string) => void;
   setSaving: (saving: boolean) => void;
   setTestRunning: (running: boolean) => void;
   setDebugRunning: (running: boolean) => void;
@@ -63,7 +67,10 @@ export interface WorkflowEditorState {
   addSaveVersion: () => void;
   appendLog: (line: string) => void;
   appendTrace: (step: TraceStepItem) => void;
+  setTraceSteps: (steps: TraceStepItem[]) => void;
   clearTrace: () => void;
+  setRuntimeNodeDetails: (details: Record<string, NodeExecutionDetailResponse>) => void;
+  setRuntimeNodeDetail: (detail: NodeExecutionDetailResponse) => void;
   setExecutionState: (nodeKey: string, next: NodeExecutionState) => void;
   setEdgeState: (lineKey: string, state: EdgeRuntimeState) => void;
   clearRuntimeState: () => void;
@@ -111,6 +118,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
   readOnlyMode: false,
   logs: [],
   traceSteps: [],
+  latestExecutionId: "",
+  runtimeNodeDetailsByKey: {},
   executionStateByNodeKey: {},
   edgeStateByConnectionKey: {},
   saving: false,
@@ -137,6 +146,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
   setNodeTemplates: (nodeTemplates) => set((state) => (state.nodeTemplates === nodeTemplates ? state : { nodeTemplates })),
   setModelCatalog: (modelCatalog) => set((state) => (state.modelCatalog === modelCatalog ? state : { modelCatalog })),
   setReadOnlyMode: (readOnlyMode) => set((state) => (state.readOnlyMode === readOnlyMode ? state : { readOnlyMode })),
+  setLatestExecutionId: (latestExecutionId) => set({ latestExecutionId }),
   setSaving: (saving) => set({ saving }),
   setTestRunning: (testRunning) => set({ testRunning }),
   setDebugRunning: (debugRunning) => set({ debugRunning }),
@@ -156,7 +166,16 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
     set((state) => ({
       traceSteps: [...state.traceSteps, step]
     })),
+  setTraceSteps: (traceSteps) => set({ traceSteps }),
   clearTrace: () => set({ traceSteps: [] }),
+  setRuntimeNodeDetails: (runtimeNodeDetailsByKey) => set({ runtimeNodeDetailsByKey }),
+  setRuntimeNodeDetail: (detail) =>
+    set((state) => ({
+      runtimeNodeDetailsByKey: {
+        ...state.runtimeNodeDetailsByKey,
+        [detail.nodeKey]: detail
+      }
+    })),
   setExecutionState: (nodeKey, next) =>
     set((state) => ({
       executionStateByNodeKey: {
@@ -175,7 +194,9 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
     set({
       executionStateByNodeKey: {},
       edgeStateByConnectionKey: {},
-      traceSteps: []
+      traceSteps: [],
+      runtimeNodeDetailsByKey: {},
+      latestExecutionId: ""
     }),
   setCanvasSnapshot: (payload) =>
     set({
@@ -205,6 +226,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>((set) => ({
       readOnlyMode: false,
       logs: [],
       traceSteps: [],
+      latestExecutionId: "",
+      runtimeNodeDetailsByKey: {},
       executionStateByNodeKey: {},
       edgeStateByConnectionKey: {},
       saving: false,

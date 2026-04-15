@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@atlas/shared-react-core": "workspace:*",
+    "@atlas/workflow-core-react": "workspace:*",
     "@flowgram.ai/free-layout-editor": "^1.0.8",
     "@flowgram.ai/playground-react": "^1.0.8",
     "@flowgram.ai/free-lines-plugin": "^1.0.8",

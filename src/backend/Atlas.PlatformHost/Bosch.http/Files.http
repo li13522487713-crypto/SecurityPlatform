@@ -19,24 +19,18 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 上传文件（按本地实际路径修改）
 # @name uploadFile
 POST {{baseUrl}}/api/v1/files
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: multipart/form-data; boundary=WebAppBoundary
 
 --WebAppBoundary
@@ -60,8 +54,6 @@ POST {{baseUrl}}/api/v1/files/upload/init
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "originalName": "chunked-sample.txt",
@@ -77,8 +69,6 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/files/upload/{{sessionId}}/part/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: multipart/form-data; boundary=WebAppBoundary
 
 --WebAppBoundary
@@ -92,8 +82,6 @@ hello
 POST {{baseUrl}}/api/v1/files/upload/{{sessionId}}/part/2
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: multipart/form-data; boundary=WebAppBoundary
 
 --WebAppBoundary
@@ -113,8 +101,6 @@ POST {{baseUrl}}/api/v1/files/upload/{{sessionId}}/complete
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "originalName": "chunked-sample.txt",
@@ -126,8 +112,6 @@ POST {{baseUrl}}/api/v1/files/images/apply
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "originalName": "avatar.png",
@@ -141,8 +125,6 @@ POST {{baseUrl}}/api/v1/files/images/commit
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "sessionId": {{sessionId}},
@@ -176,7 +158,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/files/tus
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
 Tus-Resumable: 1.0.0
 Upload-Length: 14
 Upload-Metadata: filename dHVzLXVwbG9hZC50eHQ=,contentType dGV4dC9wbGFpbg==
@@ -191,7 +172,6 @@ Tus-Resumable: 1.0.0
 PATCH {{baseUrl}}/api/v1/files/tus/{{tusSessionId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
 Tus-Resumable: 1.0.0
 Upload-Offset: 0
 Content-Type: application/offset+octet-stream
@@ -214,8 +194,6 @@ GET {{baseUrl}}{{signedPath}}
 DELETE {{baseUrl}}/api/v1/files/{{fileId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### ===== 版本历史 =====
 
@@ -240,8 +218,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/files/bind
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -256,8 +232,6 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/v1/files/unbind
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -267,11 +241,9 @@ Content-Type: application/json
   "fieldKey": "contract_scan"
 }
 
-### 安全负例：上传缺少 X-CSRF-TOKEN（预期 403）
 POST {{baseUrl}}/api/v1/files
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
 Content-Type: multipart/form-data; boundary=WebAppBoundary
 
 --WebAppBoundary

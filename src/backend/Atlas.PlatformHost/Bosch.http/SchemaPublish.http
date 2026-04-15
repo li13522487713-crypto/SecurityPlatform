@@ -44,8 +44,6 @@ POST {{host}}/api/v1/schema/snapshots
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{idempotencyKey}}
-X-CSRF-TOKEN: placeholder
 
 {
   "tableKey": "orders",

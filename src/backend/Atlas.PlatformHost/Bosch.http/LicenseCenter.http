@@ -20,20 +20,15 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 离线申请
 POST {{baseUrl}}/api/v1/licenses/offline-request
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -46,8 +41,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/licenses/import
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {

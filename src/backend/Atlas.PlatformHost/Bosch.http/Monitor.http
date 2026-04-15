@@ -18,13 +18,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 列表查询：服务监控快照
 GET {{baseUrl}}/api/v1/monitor/server-info
@@ -68,8 +65,6 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/monitor/compliance/evidence-package
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 > {%
   client.test("证据包导出请求携带幂等与 CSRF 头", function () {

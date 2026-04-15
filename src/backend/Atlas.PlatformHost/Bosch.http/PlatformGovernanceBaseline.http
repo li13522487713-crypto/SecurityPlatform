@@ -22,20 +22,15 @@ X-Tenant-Id: {{tenantA}}
 @tokenA = {{loginA.response.body.$.data.accessToken}}
 
 ### 获取 CSRF
-# @name antiforgeryA
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{tokenA}}
 X-Tenant-Id: {{tenantA}}
 
 ###
-@csrfA = {{antiforgeryA.response.body.$.data.token}}
 
 ### 幂等验证：第一次创建表格视图（应成功）
 POST {{baseUrl}}/api/v1/table-views
 Authorization: Bearer {{tokenA}}
 X-Tenant-Id: {{tenantA}}
-X-CSRF-TOKEN: {{csrfA}}
-Idempotency-Key: {{idemKey}}
 Content-Type: application/json
 
 {
@@ -52,8 +47,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/table-views
 Authorization: Bearer {{tokenA}}
 X-Tenant-Id: {{tenantA}}
-X-CSRF-TOKEN: {{csrfA}}
-Idempotency-Key: {{idemKey}}
 Content-Type: application/json
 
 {
@@ -70,8 +63,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/table-views
 Authorization: Bearer {{tokenA}}
 X-Tenant-Id: {{tenantA}}
-X-CSRF-TOKEN: {{csrfA}}
-Idempotency-Key: {{idemKey}}
 Content-Type: application/json
 
 {
@@ -88,7 +79,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/table-views
 Authorization: Bearer {{tokenA}}
 X-Tenant-Id: {{tenantA}}
-Idempotency-Key: {{$randomUUID}}
 Content-Type: application/json
 
 {

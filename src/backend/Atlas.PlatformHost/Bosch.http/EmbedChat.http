@@ -6,7 +6,6 @@
 POST {{baseUrl}}/api/v1/embed-chat/chat
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
 
 {
   "embedToken": "{{embedToken}}",
@@ -22,7 +21,6 @@ Content-Type: application/json
 Accept: text/event-stream
 X-Tenant-Id: {{tenantId}}
 X-Stream-Event-Mode: react
-Idempotency-Key: {{$guid}}
 
 {
   "embedToken": "{{embedToken}}",

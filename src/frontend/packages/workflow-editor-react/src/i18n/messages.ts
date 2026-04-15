@@ -26,6 +26,7 @@ export const workflowZhCN = {
     status: {
       ready: "就绪",
       running: "运行中",
+      incomplete: "未完成",
       success: "成功",
       failed: "失败",
       skipped: "跳过",
@@ -84,7 +85,21 @@ export const workflowZhCN = {
       node: "节点",
       status: "状态",
       detail: "详情",
+      type: "类型",
+      duration: "耗时",
+      inputs: "节点输入",
+      outputs: "节点输出",
+      error: "错误",
       close: "关闭"
+    },
+    debug: {
+      title: "单节点调试",
+      close: "关闭",
+      inputFields: "自动提取输入",
+      noExtractedFields: "当前节点未提取到结构化输入字段，可直接编辑原始 JSON。",
+      rawJson: "原始输入 JSON",
+      output: "调试输出",
+      run: "调试"
     },
     problem: {
       title: "问题列表",
@@ -200,6 +215,7 @@ export const workflowEnUS = {
     status: {
       ready: "Ready",
       running: "Running",
+      incomplete: "Incomplete",
       success: "Success",
       failed: "Failed",
       skipped: "Skipped",
@@ -258,7 +274,21 @@ export const workflowEnUS = {
       node: "Node",
       status: "Status",
       detail: "Detail",
+      type: "Type",
+      duration: "Duration",
+      inputs: "Node Inputs",
+      outputs: "Node Outputs",
+      error: "Error",
       close: "Close"
+    },
+    debug: {
+      title: "Node Debug",
+      close: "Close",
+      inputFields: "Extracted Inputs",
+      noExtractedFields: "No structured input fields were extracted for this node. Edit the raw JSON directly.",
+      rawJson: "Raw Input JSON",
+      output: "Debug Output",
+      run: "Debug"
     },
     problem: {
       title: "Problems",

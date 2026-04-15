@@ -1,0 +1,72 @@
+@host = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+@workflowId = 1
+@executionId = 1
+
+### 原生 Coze 兼容：获取画布
+POST {{host}}/api/workflow_api/canvas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow"
+}
+
+### 原生 Coze 兼容：保存草稿
+POST {{host}}/api/workflow_api/save
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow",
+  "schema": "{\"nodes\":[],\"connections\":[]}",
+  "submit_commit_id": "coze-compat-draft"
+}
+
+### 原生 Coze 兼容：试运行
+POST {{host}}/api/workflow_api/test_run
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow",
+  "input": {
+    "incident": "compat smoke"
+  }
+}
+
+### 原生 Coze 兼容：查询运行结果
+GET {{host}}/api/workflow_api/get_process?workflow_id={{workflowId}}&execute_id={{executionId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze 兼容：节点模板列表
+POST {{host}}/api/workflow_api/node_template_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "node_types": ["Entry", "Exit", "Llm"]
+}

@@ -6,7 +6,7 @@ export type WorkflowMode = 0 | 1; // 0=Standard, 1=ChatFlow
 export type WorkflowLifecycleStatus = 0 | 1 | 2; // 0=Draft, 1=Published, 2=Archived
 export type ExecutionStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7; // Pending, Running, Completed, Failed, Cancelled, Interrupted, Skipped, Blocked
 export type InterruptType = 0 | 1 | 2 | 3; // None, QuestionAnswer, ManualApproval, Timeout
-export type EdgeExecutionStatus = 0 | 1 | 2 | 3; // Idle, Success, Skipped, Failed
+export type EdgeExecutionStatus = 0 | 1 | 2 | 3 | 4; // Idle, Success, Skipped, Failed, Incomplete
 
 export const WORKFLOW_SCHEMA_VERSION = 2;
 

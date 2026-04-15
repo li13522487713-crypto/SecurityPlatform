@@ -307,7 +307,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         var fullCanvas = DagExecutor.ParseCanvas(resolvedCanvas.CanvasJson)
             ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
 
-        // 提取目标节点，构建 Entry → Target → Exit 最小子图
+        // 构建仅包含目标节点的最小运行子图，避免合成 Entry/Exit 影响单节点语义。
         var targetNode = fullCanvas.Nodes.FirstOrDefault(n =>
             string.Equals(n.Key, request.NodeKey, StringComparison.OrdinalIgnoreCase));
         if (targetNode is null)
@@ -315,41 +315,9 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             throw new BusinessException($"节点 {request.NodeKey} 不存在。", ErrorCodes.NotFound);
         }
 
-        var entryNode = new Domain.AiPlatform.ValueObjects.NodeSchema(
-            "__debug_entry__", Domain.AiPlatform.Enums.WorkflowNodeType.Entry, "Debug Entry",
-            new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase), new Domain.AiPlatform.ValueObjects.NodeLayout(0, 0, 100, 50));
-        var exitNode = new Domain.AiPlatform.ValueObjects.NodeSchema(
-            "__debug_exit__", Domain.AiPlatform.Enums.WorkflowNodeType.Exit, "Debug Exit",
-            new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase), new Domain.AiPlatform.ValueObjects.NodeLayout(300, 0, 100, 50));
-
-        var entryOutputPort = BuiltInWorkflowNodeDeclarations.GetDefaultOutputPortKey(WorkflowNodeType.Entry);
-        var exitInputPort = BuiltInWorkflowNodeDeclarations.GetDefaultInputPortKey(WorkflowNodeType.Exit);
-        var targetInputPort = BuiltInWorkflowNodeDeclarations.GetDefaultInputPortKey(targetNode.Type, fallback: string.Empty);
-        var targetOutputPort = BuiltInWorkflowNodeDeclarations.GetDefaultOutputPortKey(targetNode.Type, fallback: string.Empty);
-        var debugConnections = new List<Domain.AiPlatform.ValueObjects.ConnectionSchema>();
-        if (!string.IsNullOrWhiteSpace(targetInputPort))
-        {
-            debugConnections.Add(new Domain.AiPlatform.ValueObjects.ConnectionSchema(
-                "__debug_entry__",
-                entryOutputPort,
-                request.NodeKey,
-                targetInputPort,
-                null));
-        }
-
-        if (!string.IsNullOrWhiteSpace(targetOutputPort))
-        {
-            debugConnections.Add(new Domain.AiPlatform.ValueObjects.ConnectionSchema(
-                request.NodeKey,
-                targetOutputPort,
-                "__debug_exit__",
-                exitInputPort,
-                null));
-        }
-
         var debugCanvas = new Domain.AiPlatform.ValueObjects.CanvasSchema(
-            new[] { entryNode, targetNode, exitNode },
-            debugConnections);
+            new[] { targetNode },
+            Array.Empty<Domain.AiPlatform.ValueObjects.ConnectionSchema>());
 
         var inputs = MergeWithCanvasGlobals(fullCanvas, ParseInputs(request.InputsJson));
         var appId = _appContextAccessor.ResolveAppId();

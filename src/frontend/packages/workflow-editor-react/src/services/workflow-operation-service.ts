@@ -80,6 +80,18 @@ export class WorkflowOperationService {
     return this.apiClient?.getProcess?.(executionId);
   }
 
+  async getTrace(executionId: string) {
+    return this.apiClient?.getTrace?.(executionId);
+  }
+
+  async getNodeDetail(executionId: string, nodeKey: string) {
+    return this.apiClient?.getNodeDetail?.(executionId, nodeKey);
+  }
+
+  async getDebugView(executionId: string) {
+    return this.apiClient?.getDebugView?.(executionId);
+  }
+
   async cancel(executionId: string): Promise<void> {
     if (!executionId) {
       return;

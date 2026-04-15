@@ -20,13 +20,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### List Transform Jobs
 GET {{baseUrl}}/api/v1/dynamic-transform-jobs
@@ -40,8 +37,6 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-App-Id: {{appId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "appId": "{{appId}}",
@@ -66,8 +61,6 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-App-Id: {{appId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "订单同步任务-更新",
@@ -84,8 +77,6 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-App-Id: {{appId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {}
 
@@ -95,8 +86,6 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-App-Id: {{appId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {}
 
@@ -106,8 +95,6 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-App-Id: {{appId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {}
 
@@ -128,5 +115,3 @@ DELETE {{baseUrl}}/api/v1/dynamic-transform-jobs/{{jobKey}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-App-Id: {{appId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}

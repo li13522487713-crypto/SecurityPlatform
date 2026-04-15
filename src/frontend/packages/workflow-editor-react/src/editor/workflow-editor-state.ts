@@ -19,7 +19,7 @@ export interface CanvasNode {
 
 export interface CanvasConnection extends ConnectionRuntime {}
 
-export type EdgeRuntimeState = "idle" | "running" | "success" | "failed" | "skipped";
+export type EdgeRuntimeState = "idle" | "running" | "incomplete" | "success" | "failed" | "skipped";
 
 export interface WorkflowViewportState {
   x: number;

@@ -84,7 +84,6 @@ public static class CoreServiceRegistration
         services.AddHostedService<AuditRetentionHostedService>();
         services.AddHostedService<TenantExpirationHostedService>();
         services.AddHostedService<SessionCleanupHostedService>();
-        services.AddHostedService<IdempotencyCleanupHostedService>();
         services.AddHostedService<FileUploadSessionCleanupHostedService>();
         services.AddScoped<ApprovalSeedDataService>();
         services.AddScoped<TemplateSeedDataService>();
@@ -100,8 +99,6 @@ public static class CoreServiceRegistration
         // Auth Repositories
         services.AddScoped<IAuthSessionRepository, AuthSessionRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-        services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
-
         // Identity Repositories
         services.AddScoped<IUserAccountRepository, UserAccountRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();

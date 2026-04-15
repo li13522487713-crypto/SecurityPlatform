@@ -19,13 +19,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 全局搜索
 GET {{baseUrl}}/api/v1/ai-search?keyword=agent&limit=20
@@ -42,8 +39,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/ai-search/recent
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -60,5 +55,3 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/v1/ai-search/recent/{{recentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

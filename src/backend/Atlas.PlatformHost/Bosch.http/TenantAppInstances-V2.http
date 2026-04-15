@@ -18,7 +18,6 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken = {{login.response.headers.X-CSRF-TOKEN}}
 @idempotencyKey = {{$guid}}
 
 ### 查询实例列表
@@ -41,8 +40,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v2/tenant-app-instances/1/entity-aliases
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -84,8 +81,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v2/tenant-app-instances/1/file-storage
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -99,8 +94,6 @@ Content-Type: application/json
 PUT {{baseUrl}}/api/v2/tenant-app-instances/1/file-storage
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -119,8 +112,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/tenant-app-instances
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{idempotencyKey}}
 Content-Type: application/json
 
 {
@@ -155,8 +146,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -174,8 +163,6 @@ Content-Type: application/json
 PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles/{{tenantAppRoleId}}/permissions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -202,22 +189,16 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/start
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 
 ### 重启实例
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/restart
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 
 ### 停止实例
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/stop
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 
 ### 查询当前用户（提取 userId 供成员接口示例使用）
 # @name currentUser
@@ -233,8 +214,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/members
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -246,8 +225,6 @@ Content-Type: application/json
 PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -262,8 +239,6 @@ Content-Type: application/json
 PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -278,8 +253,6 @@ Content-Type: application/json
 PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -294,8 +267,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/publish
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 
 ### 导出实例
 GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/export
@@ -306,8 +277,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/tenant-app-instances/import
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -326,5 +295,3 @@ Content-Type: application/json
 DELETE {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}

@@ -311,6 +311,13 @@
   animation: wf-edge-dash 0.85s linear infinite;
 }
 
+.wf-react-edge-path-incomplete {
+  stroke: #2563eb;
+  stroke-dasharray: 10 6;
+  opacity: 0.95;
+  animation: wf-edge-dash 0.9s linear infinite;
+}
+
 .wf-react-edge-path-success {
   stroke: #16a34a;
 }
@@ -805,6 +812,51 @@
   z-index: 1150;
 }
 
+.wf-react-debug-fields {
+  margin-bottom: 12px;
+}
+
+.wf-react-debug-fields-title,
+.wf-react-debug-raw-label,
+.wf-react-debug-output-label {
+  margin: 8px 0 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wf-react-debug-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.wf-react-debug-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wf-react-debug-field span {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wf-react-debug-field small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.wf-react-debug-empty-hint {
+  margin: 8px 0 10px;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .wf-react-trace-panel {
   position: absolute;
   right: 16px;
@@ -818,6 +870,61 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
   padding: 12px;
   z-index: 1150;
+}
+
+.wf-react-trace-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wf-react-trace-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.wf-react-trace-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wf-react-trace-detail-block {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wf-react-trace-detail-block strong,
+.wf-react-trace-error strong {
+  color: #0f172a;
+}
+
+.wf-react-trace-detail-block pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0b1220;
+  color: #d1d5db;
+  font-size: 12px;
+  line-height: 1.5;
+  font-family: Consolas, "Courier New", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wf-react-trace-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 12px;
 }
 
 .wf-react-problem-panel {
@@ -1435,6 +1542,11 @@
   }
 
   .wf-react-test-preview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wf-react-debug-fields-grid,
+  .wf-react-trace-detail-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }

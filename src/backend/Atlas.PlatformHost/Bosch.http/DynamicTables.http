@@ -18,21 +18,16 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Create Dynamic Table
 POST {{baseUrl}}/api/v1/dynamic-tables
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "tableKey": "orders",
@@ -120,8 +115,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/orders/schema/alter
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "addFields": [
@@ -165,8 +158,6 @@ PUT {{baseUrl}}/api/v1/dynamic-tables/orders/relations
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "relations": [
@@ -190,8 +181,6 @@ PUT {{baseUrl}}/api/v1/dynamic-tables/orders/field-permissions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "permissions": [
@@ -230,8 +219,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "values": [
@@ -251,8 +238,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/orders/records/query
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "pageIndex": 1,
@@ -279,8 +264,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/orders/records/export
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "keyword": "SO",
@@ -301,8 +284,6 @@ PUT {{baseUrl}}/api/v1/dynamic-tables/orders/records/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "values": [
@@ -315,8 +296,6 @@ DELETE {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "ids": [1, 2]
@@ -327,8 +306,6 @@ PUT {{baseUrl}}/api/v1/dynamic-tables/orders/approval-binding
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "approvalFlowDefinitionId": 1,
@@ -339,34 +316,26 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/dynamic-tables/orders/records/1/approval
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### Delete Record
 DELETE {{baseUrl}}/api/v1/dynamic-tables/orders/records/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### Delete Dynamic Table
 DELETE {{baseUrl}}/api/v1/dynamic-tables/orders
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### Delete Check Dynamic Table（删除前引用检查）
 GET {{baseUrl}}/api/v1/dynamic-tables/orders/delete-check
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 安全负例：创建动态表缺少 X-CSRF-TOKEN（应返回 403）
 POST {{baseUrl}}/api/v1/dynamic-tables
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
 
 {
   "tableKey": "orders_csrf",
@@ -392,8 +361,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/orders/schema/alter
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "addFields": [],
@@ -407,12 +374,10 @@ X-CSRF-TOKEN: {{csrfToken}}
   "removeFields": []
 }
 
-### 安全负例：记录写入缺少 Idempotency-Key（应返回 400）
 POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "values": [
@@ -427,8 +392,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{idemConflictDynamic}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "values": [
@@ -442,8 +405,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{idemConflictDynamic}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "values": [
@@ -461,8 +422,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/dynamic-tables/test_table/migrations/12345/rollback
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: rollback-migration-001
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 未认证查询动态表（应返回 401）
 GET {{baseUrl}}/api/v1/dynamic-tables?pageIndex=1&pageSize=20
@@ -474,8 +433,6 @@ X-Tenant-Id: {{tenantId}}
 PATCH {{baseUrl}}/api/v1/dynamic-tables/orders/archive
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ###
 
@@ -483,8 +440,6 @@ X-CSRF-TOKEN: {{csrfToken}}
 PATCH {{baseUrl}}/api/v1/dynamic-tables/orders/restore
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ###
 
@@ -502,8 +457,6 @@ PATCH {{baseUrl}}/api/v1/dynamic-tables/orders/approval-binding
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "createFlowId": null,

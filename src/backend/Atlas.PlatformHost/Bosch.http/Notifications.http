@@ -16,16 +16,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 我的通知列表
 GET {{baseUrl}}/api/v1/notifications?pageIndex=1&pageSize=20
@@ -52,8 +48,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/notifications/manage
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -71,25 +65,17 @@ Content-Type: application/json
 PUT {{baseUrl}}/api/v1/notifications/{{notificationId}}/read
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 撤回公告（管理员）
 PUT {{baseUrl}}/api/v1/notifications/manage/{{notificationId}}/revoke
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 全部已读
 PUT {{baseUrl}}/api/v1/notifications/read-all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
-### 安全负向：缺少 Idempotency-Key（预期 400）
 PUT {{baseUrl}}/api/v1/notifications/read-all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}

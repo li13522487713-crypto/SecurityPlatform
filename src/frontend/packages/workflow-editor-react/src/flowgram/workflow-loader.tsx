@@ -21,7 +21,7 @@ interface WorkflowLoaderProps {
   canvas: CanvasSchema;
   readonly?: boolean;
   nodeTypesMeta: NodeTypeMetadata[];
-  edgeStateByKey?: Record<string, "idle" | "running" | "success" | "failed" | "skipped">;
+  edgeStateByKey?: Record<string, "idle" | "running" | "incomplete" | "success" | "failed" | "skipped">;
   onCanvasChange: (next: CanvasSchema) => void;
   onSelectionChange?: (nodeKeys: string[]) => void;
   onPortClick?: (params: { nodeKey: string; portKey: string; portType: "input" | "output" }) => void;
@@ -180,6 +180,9 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
 
         if (lineData?.processing || line.flowing || edgeState === "running") {
           return "wf-react-edge-path-running";
+        }
+        if (edgeState === "incomplete") {
+          return "wf-react-edge-path-incomplete";
         }
         if (edgeState === "success") {
           return "wf-react-edge-path-success";

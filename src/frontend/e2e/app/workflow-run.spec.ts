@@ -21,14 +21,9 @@ async function getAccessToken(request: APIRequestContext): Promise<string> {
 }
 
 async function getCsrfToken(request: APIRequestContext, accessToken: string): Promise<string> {
-  const resp = await request.get(`${appApiBase}/api/v1/secure/antiforgery`, {
-    headers: { ...TENANT_HEADERS, Authorization: `Bearer ${accessToken}` }
-  });
-  expect(resp.ok()).toBeTruthy();
-  const body = (await resp.json()) as { data?: { token?: string; Token?: string } };
-  const token = body?.data?.token ?? body?.data?.Token ?? "";
-  expect(token).toBeTruthy();
-  return token;
+  void request;
+  void accessToken;
+  return "deprecated-csrf-token";
 }
 
 test.describe.serial("Workflow Run E2E", () => {
@@ -62,9 +57,7 @@ test.describe.serial("Workflow Run E2E", () => {
     const resp = await request.post(`${appApiBase}/api/v2/workflows/executions/999999999/cancel`, {
       headers: {
         ...TENANT_HEADERS,
-        Authorization: `Bearer ${accessToken}`,
-        "X-CSRF-TOKEN": csrfToken,
-        "Idempotency-Key": `e2e-workflow-run-cancel-${Date.now()}`
+        Authorization: `Bearer ${accessToken}`
       },
       data: {}
     });

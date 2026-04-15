@@ -22,8 +22,3 @@ GET {{baseUrl}}/api/v1/secure/ping
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 获取 Antiforgery Token
-GET {{baseUrl}}/api/v1/secure/antiforgery
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-

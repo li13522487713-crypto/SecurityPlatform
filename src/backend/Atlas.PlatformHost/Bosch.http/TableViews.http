@@ -18,13 +18,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get Table Views (Paged)
 GET {{baseUrl}}/api/v1/table-views?pageIndex=1&pageSize=20&tableKey=system.users
@@ -46,8 +43,6 @@ POST {{baseUrl}}/api/v1/table-views
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "tableKey": "system.users",
@@ -72,8 +67,6 @@ PUT {{baseUrl}}/api/v1/table-views/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "我的视图（更新）",
@@ -97,8 +90,6 @@ PATCH {{baseUrl}}/api/v1/table-views/1/config
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "config": {
@@ -120,16 +111,12 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/table-views/1/set-default
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### Duplicate View
 POST {{baseUrl}}/api/v1/table-views/1/duplicate
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "我的视图（副本）"
@@ -139,5 +126,3 @@ X-CSRF-TOKEN: {{csrfToken}}
 DELETE {{baseUrl}}/api/v1/table-views/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}

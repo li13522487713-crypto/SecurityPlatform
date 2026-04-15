@@ -2,7 +2,6 @@ import { extractResourceId, requestApi, toQuery, resolveAppHostPrefix } from "@/
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import {
   getAccessToken,
-  getAntiforgeryToken,
   getTenantId
 } from "@atlas/shared-react-core/utils";
 
@@ -162,8 +161,7 @@ export function createAgentChatStream(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Accept: "text/event-stream",
-    "Idempotency-Key": crypto.randomUUID()
+    Accept: "text/event-stream"
   };
 
   const token = getAccessToken();
@@ -171,9 +169,6 @@ export function createAgentChatStream(
 
   const tenantId = getTenantId();
   if (tenantId) headers["X-Tenant-Id"] = tenantId;
-
-  const afToken = getAntiforgeryToken();
-  if (afToken) headers["X-CSRF-TOKEN"] = afToken;
 
   const base = agentBase(appKey);
   const streamUrl =

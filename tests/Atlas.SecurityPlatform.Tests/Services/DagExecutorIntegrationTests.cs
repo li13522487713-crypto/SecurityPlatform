@@ -73,12 +73,12 @@ public sealed class DagExecutorIntegrationTests
 
         Assert.NotEmpty(selectorEdgeEvents);
 
-        var trueEdge = selectorEdgeEvents.FirstOrDefault(x =>
+        var trueEdge = selectorEdgeEvents.LastOrDefault(x =>
         {
             var edge = x.GetProperty("edge");
             return edge.GetProperty("sourcePort").GetString() == "true";
         });
-        var falseEdge = selectorEdgeEvents.FirstOrDefault(x =>
+        var falseEdge = selectorEdgeEvents.LastOrDefault(x =>
         {
             var edge = x.GetProperty("edge");
             return edge.GetProperty("sourcePort").GetString() == "false";
@@ -88,6 +88,56 @@ public sealed class DagExecutorIntegrationTests
         Assert.NotEqual(JsonValueKind.Undefined, falseEdge.ValueKind);
         Assert.Equal((int)EdgeExecutionStatus.Success, trueEdge.GetProperty("edge").GetProperty("status").GetInt32());
         Assert.Equal((int)EdgeExecutionStatus.Skipped, falseEdge.GetProperty("edge").GetProperty("status").GetInt32());
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldEmitIncompleteEdgeStatus_WhenNodeStarts()
+    {
+        var dag = CreateDagExecutor(
+            out _,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new SlowTextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode("text_1", WorkflowNodeType.TextProcessor),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "text_1", "input", null),
+                new ConnectionSchema("text_1", "output", "exit_1", "input", null)
+            ]);
+
+        var eventChannel = Channel.CreateUnbounded<SseEvent>();
+        var execution = BuildExecution(30115L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel,
+            CancellationToken.None);
+
+        var events = await ReadEventsAsync(eventChannel);
+        var incompleteEdgeEvent = events
+            .Where(x => string.Equals(x.Event, "edge_status_changed", StringComparison.Ordinal))
+            .Select(x => JsonDocument.Parse(x.Data).RootElement)
+            .FirstOrDefault(x =>
+            {
+                if (!x.TryGetProperty("edge", out var edge))
+                {
+                    return false;
+                }
+
+                return string.Equals(edge.GetProperty("sourceNodeKey").GetString(), "text_1", StringComparison.OrdinalIgnoreCase) &&
+                       edge.GetProperty("status").GetInt32() == (int)EdgeExecutionStatus.Incomplete;
+            });
+
+        Assert.NotEqual(JsonValueKind.Undefined, incompleteEdgeEvent.ValueKind);
     }
 
     [Fact]
@@ -539,6 +589,63 @@ public sealed class DagExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldMaterializeInputMappings_IntoNodeExecutionContext()
+    {
+        var dag = CreateDagExecutor(
+            out _,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode(
+                    "text_1",
+                    WorkflowNodeType.TextProcessor,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["template"] = JsonSerializer.SerializeToElement("告警：{{incident.summary}}"),
+                        ["outputKey"] = JsonSerializer.SerializeToElement("rendered"),
+                        ["inputMappings"] = JsonSerializer.SerializeToElement(new Dictionary<string, string>
+                        {
+                            ["incident"] = "ticket.payload"
+                        })
+                    }),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "text_1", "input", null),
+                new ConnectionSchema("text_1", "output", "exit_1", "input", null)
+            ]);
+
+        var execution = BuildExecution(30116L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>
+            {
+                ["ticket"] = JsonSerializer.SerializeToElement(new
+                {
+                    payload = new
+                    {
+                        summary = "主机异常登录"
+                    }
+                })
+            },
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(ExecutionStatus.Completed, execution.Status);
+        Assert.NotNull(execution.OutputsJson);
+        using var doc = JsonDocument.Parse(execution.OutputsJson);
+        Assert.Equal("告警：主机异常登录", doc.RootElement.GetProperty("rendered").GetString());
+    }
+
+    [Fact]
     public async Task RunAsync_WithPreCompletedNodeKeys_ShouldSkipSpecifiedNode()
     {
         var dag = CreateDagExecutor(
@@ -763,14 +870,16 @@ public sealed class DagExecutorIntegrationTests
         string key,
         WorkflowNodeType type,
         Dictionary<string, JsonElement>? config = null,
-        CanvasSchema? childCanvas = null)
+        CanvasSchema? childCanvas = null,
+        IReadOnlyList<NodeFieldMapping>? inputSources = null)
         => new(
             key,
             type,
             key,
             config ?? new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase),
             new NodeLayout(0, 0, 160, 60),
-            childCanvas);
+            childCanvas,
+            InputSources: inputSources);
 
     private static DagExecutor CreateDagExecutor(
         out List<WorkflowNodeExecution> nodeExecutions,

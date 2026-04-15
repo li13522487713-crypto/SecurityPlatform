@@ -18,21 +18,16 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Create migration draft
 # @name createMigration
 POST {{baseUrl}}/api/v1/dynamic-migrations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -50,8 +45,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/dynamic-migrations/detect/orders
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -89,8 +82,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}/execute
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -101,15 +92,11 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}/precheck
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### Retry migration
 POST {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}/retry
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {

@@ -16,16 +16,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### Get CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get Positions (Paged)
 GET {{baseUrl}}/api/v1/positions?pageIndex=1&pageSize=10
@@ -47,8 +43,6 @@ POST {{baseUrl}}/api/v1/positions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "工程师",
@@ -63,8 +57,6 @@ PUT {{baseUrl}}/api/v1/positions/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "高级工程师",
@@ -77,6 +69,4 @@ X-CSRF-TOKEN: {{csrfToken}}
 DELETE {{baseUrl}}/api/v1/positions/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 

@@ -4,7 +4,6 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Authorization;
-using Atlas.Presentation.Shared.Filters;
 using Atlas.Presentation.Shared.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;

@@ -18,16 +18,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 获取工作空间摘要
 GET {{baseUrl}}/api/v1/workspace-ide/summary
@@ -60,8 +56,6 @@ POST {{baseUrl}}/api/v1/workspace-ide/apps
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "Coze 工作空间应用",
@@ -78,8 +72,6 @@ PUT {{baseUrl}}/api/v1/workspace-ide/favorites/app/{{workspaceAppId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "isFavorite": true
@@ -90,8 +82,6 @@ POST {{baseUrl}}/api/v1/workspace-ide/activities
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "resourceType": "app",

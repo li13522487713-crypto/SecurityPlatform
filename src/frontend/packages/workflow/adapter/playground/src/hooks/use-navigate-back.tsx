@@ -51,6 +51,7 @@ export const useNavigateBack = () => {
   const navigateBack = async (
     workflowState: WorkflowGlobalStateEntity,
     scene: NavigateScene,
+    returnUrl?: string,
   ) => {
     reporter.event({
       namespace: 'workflow',
@@ -130,6 +131,11 @@ export const useNavigateBack = () => {
           return;
         }
       }
+    }
+
+    if (returnUrl) {
+      window.location.assign(returnUrl);
+      return;
     }
 
     if (hasHistory()) {

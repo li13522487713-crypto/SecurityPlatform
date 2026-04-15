@@ -52,7 +52,6 @@ public sealed class FileStorageIntegrationTests
         using var createRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/files/tus");
         createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         createRequest.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
-        createRequest.Headers.Add("X-CSRF-TOKEN", csrfToken);
         createRequest.Headers.Add("Tus-Resumable", "1.0.0");
         createRequest.Headers.Add("Upload-Length", "14");
         createRequest.Headers.Add("Upload-Metadata", "filename dHVzLWRlbW8udHh0,contentType dGV4dC9wbGFpbg==");
@@ -76,7 +75,6 @@ public sealed class FileStorageIntegrationTests
         using var patchRequest = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/files/tus/{sessionId}");
         patchRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         patchRequest.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
-        patchRequest.Headers.Add("X-CSRF-TOKEN", csrfToken);
         patchRequest.Headers.Add("Tus-Resumable", "1.0.0");
         patchRequest.Headers.Add("Upload-Offset", "0");
         patchRequest.Content = new StringContent("tus demo data!", Encoding.UTF8, "application/offset+octet-stream");
@@ -165,3 +163,5 @@ public sealed class FileStorageIntegrationTests
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
+
+

@@ -27,7 +27,6 @@ public sealed class DynamicRecordsIntegrationTests
         request.Headers.Authorization = new("Bearer", accessToken);
         request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         request.Headers.Add("X-Project-Id", "1");
-        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
         request.Content = JsonContent.Create(new
         {
             values = new Dictionary<string, object?>
@@ -53,3 +52,5 @@ public sealed class DynamicRecordsIntegrationTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }
+
+

@@ -23,7 +23,7 @@ import type {
   WorkflowTemplateSummary
 } from "./types";
 import { getWorkflowModuleCopy } from "./copy";
-import { WorkflowEditorShell } from "./workflow-editor-shell";
+import { WorkflowDesignerShell } from "./workflow-designer-shell";
 
 function formatDate(value?: string) {
   if (!value) {
@@ -228,7 +228,7 @@ export function WorkflowListPage({
   if (selectedItem) {
     return (
       <section className="module-workflow__page module-workflow__editor-page" data-testid={mode === "chatflow" ? "app-chatflows-page" : "app-workflows-page"}>
-        <WorkflowEditorShell
+        <WorkflowDesignerShell
           api={api}
           locale={locale}
           workflowId={selectedItem.id}
@@ -393,7 +393,7 @@ export function WorkflowEditorPage({
 }: WorkflowPageProps & { workflowId: string; onBack: () => void; backPath?: string; mode?: WorkflowResourceMode; projectTitle?: string }) {
   return (
     <section className="module-workflow__page module-workflow__editor-page" data-testid={mode === "chatflow" ? "app-chatflow-editor-page" : "app-workflow-editor-page"}>
-      <WorkflowEditorShell
+      <WorkflowDesignerShell
         api={api}
         locale={locale}
         workflowId={workflowId}

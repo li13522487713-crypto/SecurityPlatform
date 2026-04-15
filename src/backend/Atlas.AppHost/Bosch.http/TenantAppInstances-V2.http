@@ -20,13 +20,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 实例列表（用于确认 appId）
 GET {{baseUrl}}/api/v2/tenant-app-instances?pageIndex=1&pageSize=10
@@ -67,8 +64,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -82,27 +77,19 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/publish
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 
 ### 设置页：启动实例
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/start
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 
 ### 设置页：停止实例
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/stop
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 
 ### 设置页：重启实例
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/restart
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 

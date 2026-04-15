@@ -27,7 +27,6 @@ public sealed class ApprovalFlowIntegrationTests
         request.Headers.Authorization = new("Bearer", accessToken);
         request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         request.Headers.Add("X-Project-Id", "1");
-        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
         request.Content = JsonContent.Create(new
         {
             name = "审批流-缺少幂等键",
@@ -56,3 +55,5 @@ public sealed class ApprovalFlowIntegrationTests
         Assert.Equal(JsonValueKind.Array, items.ValueKind);
     }
 }
+
+

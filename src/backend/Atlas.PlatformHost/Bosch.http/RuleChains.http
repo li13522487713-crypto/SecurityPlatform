@@ -26,8 +26,6 @@ POST {{host}}/api/v1/rule-chains
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: rc-create-001
-X-CSRF-TOKEN: test
 
 {
   "name": "discount_rule",
@@ -62,8 +60,6 @@ PUT {{host}}/api/v1/rule-chains/{{rcId}}
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: rc-update-001
-X-CSRF-TOKEN: test
 
 {
   "id": {{rcId}},
@@ -80,5 +76,3 @@ X-CSRF-TOKEN: test
 DELETE {{host}}/api/v1/rule-chains/{{rcId}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: rc-delete-001
-X-CSRF-TOKEN: test

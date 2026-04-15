@@ -19,16 +19,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.Token}}
 
 ### 数据库分页
 GET {{baseUrl}}/api/v1/ai-databases?PageIndex=1&PageSize=20
@@ -45,8 +41,6 @@ POST {{baseUrl}}/api/v1/ai-databases/schema-validations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"}]"
@@ -57,8 +51,6 @@ POST {{baseUrl}}/api/v1/ai-databases/{{databaseId}}/imports
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "fileId": {{fileId}}

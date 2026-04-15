@@ -38,14 +38,9 @@ async function getAccessToken(request: APIRequestContext): Promise<string> {
 // ─── Helper: get CSRF ────────────────────────────────────────────────────────
 
 async function getCsrfToken(request: APIRequestContext, accessToken: string): Promise<string> {
-  const resp = await request.get(`${API_BASE}/api/v1/secure/antiforgery`, {
-    headers: { ...TENANT_HEADERS, Authorization: `Bearer ${accessToken}` }
-  });
-  expect(resp.ok(), `Get CSRF token failed: ${resp.status()} ${await resp.text()}`).toBeTruthy();
-  const body = await resp.json() as { data?: { token?: string; Token?: string } };
-  const token = body?.data?.token ?? body?.data?.Token ?? "";
-  expect(token).toBeTruthy();
-  return token;
+  void request;
+  void accessToken;
+  return "deprecated-csrf-token";
 }
 
 // ─── Helper: create workflow ─────────────────────────────────────────────────
@@ -59,9 +54,7 @@ async function createWorkflow(
   const resp = await request.post(`${API_BASE}/api/v2/workflows`, {
     headers: {
       ...TENANT_HEADERS,
-      Authorization: `Bearer ${accessToken}`,
-      "X-CSRF-TOKEN": csrfToken,
-      "Idempotency-Key": `e2e-${name}-create`
+      Authorization: `Bearer ${accessToken}`
     },
     data: { name, description: "e2e test", mode: 0 }
   });
@@ -84,9 +77,7 @@ async function runWorkflow(
   const resp = await request.post(`${API_BASE}/api/v2/workflows/${workflowId}/run`, {
     headers: {
       ...TENANT_HEADERS,
-      Authorization: `Bearer ${accessToken}`,
-      "X-CSRF-TOKEN": csrfToken,
-      "Idempotency-Key": `e2e-${workflowId}-run-${Date.now()}`
+      Authorization: `Bearer ${accessToken}`
     },
     data: { source, inputsJson: JSON.stringify({ input: "e2e-test-input" }) }
   });
@@ -110,9 +101,7 @@ test("TS-16: 创建工作流并使用 draft 来源运行（返回 executionId）
   const runResp = await request.post(`${API_BASE}/api/v2/workflows/${wfId}/run`, {
     headers: {
       ...TENANT_HEADERS,
-      Authorization: `Bearer ${token}`,
-      "X-CSRF-TOKEN": csrf,
-      "Idempotency-Key": `e2e-ts16-verify-${Date.now()}`
+      Authorization: `Bearer ${token}`
     },
     data: { source: "draft", inputsJson: JSON.stringify({ input: "hello" }) }
   });
@@ -131,9 +120,7 @@ test("TS-17: 未发布的工作流使用 published 来源运行应返回 400", a
   const resp = await request.post(`${API_BASE}/api/v2/workflows/${wfId}/run`, {
     headers: {
       ...TENANT_HEADERS,
-      Authorization: `Bearer ${token}`,
-      "X-CSRF-TOKEN": csrf,
-      "Idempotency-Key": `e2e-ts17-${Date.now()}`
+      Authorization: `Bearer ${token}`
     },
     data: { source: "published", inputsJson: "{}" }
   });
@@ -152,9 +139,7 @@ test("TS-18: 取消不存在的执行 ID 应返回 404", async ({ request }) => 
   const resp = await request.post(`${API_BASE}/api/v2/workflows/executions/999999999/cancel`, {
     headers: {
       ...TENANT_HEADERS,
-      Authorization: `Bearer ${token}`,
-      "X-CSRF-TOKEN": csrf,
-      "Idempotency-Key": `e2e-ts18-cancel-${Date.now()}`
+      Authorization: `Bearer ${token}`
     },
     data: {}
   });
@@ -172,9 +157,7 @@ test("TS-19: 画布校验端点对不存在的工作流返回 404", async ({ req
   const resp = await request.post(`${API_BASE}/api/v2/workflows/999999999/validate`, {
     headers: {
       ...TENANT_HEADERS,
-      Authorization: `Bearer ${token}`,
-      "X-CSRF-TOKEN": csrf,
-      "Idempotency-Key": `e2e-ts19-validate-${Date.now()}`
+      Authorization: `Bearer ${token}`
     },
     data: {}
   });

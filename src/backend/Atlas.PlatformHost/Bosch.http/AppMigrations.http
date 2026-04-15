@@ -19,7 +19,6 @@ POST {{host}}/api/v1/app-migrations
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: app-migration-create-001
 
 {
   "appInstanceId": "10001",
@@ -33,7 +32,6 @@ POST {{host}}/api/v1/app-migrations/repair-primary-binding
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: app-migration-repair-binding-001
 
 {
   "appInstanceId": "10001"
@@ -48,13 +46,11 @@ X-Tenant-Id: {{tenantId}}
 POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/precheck
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: app-migration-precheck-001
 
 ### 启动迁移
 POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/start
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: app-migration-start-001
 
 ### 查询进度
 GET {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/progress
@@ -65,14 +61,12 @@ X-Tenant-Id: {{tenantId}}
 POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/validate
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: app-migration-validate-001
 
 ### 切换到应用独立库
 POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/cutover
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: app-migration-cutover-001
 
 {
   "enableReadOnlyWindow": true,
@@ -83,15 +77,14 @@ Idempotency-Key: app-migration-cutover-001
 POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/rollback
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: app-migration-rollback-001
 
 ### 失败任务重置（可重试）
 POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/reset
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: app-migration-reset-001
 
-### 失败任务容灾恢复（自动重置 + 重跑；SkipIdempotency，无需 Idempotency-Key）
+### 失败任务容灾恢复（自动重置 + 重跑）
 POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/recover
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+

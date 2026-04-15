@@ -20,16 +20,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 2) 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 3) 创建 PAT（仅返回一次明文）
 # @name createPat
@@ -37,8 +33,6 @@ POST {{baseUrl}}/api/v1/personal-access-tokens
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "Open Platform PAT",
@@ -145,8 +139,6 @@ POST {{baseUrl}}/api/v1/open-api-webhooks
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "Open Event Hook",
@@ -170,8 +162,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/open-api-webhooks/{{openWebhookId}}/test
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 16) 下载 TypeScript SDK 包模板
 GET {{baseUrl}}/api/v1/open-api-sdk/download?language=typescript

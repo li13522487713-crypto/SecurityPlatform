@@ -27,7 +27,6 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Atlas.Presentation.Shared.Authorization;
-using Atlas.Presentation.Shared.Filters;
 using Atlas.Presentation.Shared.Mappings;
 using Atlas.Presentation.Shared.Security;
 using Atlas.Application.Abstractions;
@@ -105,7 +104,6 @@ builder.Host.UseNLog();
 // ─── Controllers ───
 var mvcBuilder = builder.Services.AddControllers(options =>
 {
-    options.Filters.Add<IdempotencyFilter>();
 })
 .AddJsonOptions(options =>
 {
@@ -132,7 +130,6 @@ builder.Services.Configure<LockoutPolicyOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection("Security:BootstrapAdmin"));
 builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSection("Approval:SeedData"));
 builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
-builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
 builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSection("TableViewDefaults"));
 builder.Services.Configure<Atlas.Presentation.Shared.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>(builder.Configuration.GetSection("DatabaseInitializer"));
@@ -264,7 +261,6 @@ builder.Services.AddScoped<Atlas.Core.Identity.ICurrentUserAccessor, Atlas.Prese
 builder.Services.AddScoped<Atlas.Core.Identity.IClientContextAccessor, Atlas.Presentation.Shared.Identity.HttpContextClientContextAccessor>();
 builder.Services.AddScoped<Atlas.Core.Identity.IAppContextAccessor, Atlas.Presentation.Shared.Identity.HttpContextAppContextAccessor>();
 builder.Services.AddScoped<Atlas.Core.Identity.IProjectContextAccessor, Atlas.Presentation.Shared.Identity.HttpContextProjectContextAccessor>();
-builder.Services.AddScoped<IdempotencyFilter>();
 
 // ─── FluentValidation ───
 builder.Services.AddFluentValidationAutoValidation();
@@ -339,17 +335,6 @@ if (string.Equals(storageProvider, FileStorageOptions.ProviderLocal, StringCompa
     Directory.CreateDirectory(resolvedStoragePath);
 }
 
-// ─── Antiforgery ───
-builder.Services.AddAntiforgery(options =>
-{
-    options.HeaderName = "X-CSRF-TOKEN";
-    options.Cookie.Name = "XSRF-TOKEN";
-    options.Cookie.HttpOnly = false;
-    options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.SecurePolicy = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment()
-        ? CookieSecurePolicy.Always
-        : CookieSecurePolicy.None;
-});
 builder.Services.AddSingleton<Atlas.Presentation.Shared.Services.MigrationGovernanceMetricsStore>();
 
 // ─── Authentication / Authorization ───
@@ -696,7 +681,6 @@ app.UseWhen(
         runtime.UseMiddleware<TenantContextMiddleware>();
         runtime.UseAuthorization();
         runtime.UseMiddleware<AppContextMiddleware>();
-        runtime.UseMiddleware<AntiforgeryValidationMiddleware>();
         runtime.UseMiddleware<AppMembershipMiddleware>();
         runtime.UseMiddleware<ProjectContextMiddleware>();
         runtime.UseMiddleware<LicenseEnforcementMiddleware>();

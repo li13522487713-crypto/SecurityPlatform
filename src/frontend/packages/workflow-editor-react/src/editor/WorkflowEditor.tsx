@@ -26,10 +26,12 @@ import type { CanvasSchema } from "../types";
 import { validateCanvas, type CanvasValidationResult } from "./editor-validation";
 import type { WorkflowEditorReactProps } from "./workflow-editor-props";
 import { ensureChatflowGlobals, readChatflowRoleConfig, validateChatflowRoleConfig } from "./chatflow-role-config";
+import { extractNodeDebugFields } from "./node-debug-fields";
 import { buildVariableSuggestions } from "./smoke-utils";
 import { validateTestRunPayload, type TestRunValidationIssueCode } from "./test-run-validation";
 import type { CanvasConnection, CanvasNode } from "./workflow-editor-state";
 import { NODE_HEIGHT, NODE_WIDTH, parseCanvasJson, toCanvasJson, type WorkflowViewportState } from "./workflow-editor-state";
+import { getValueByPath, setValueByPath } from "../form-widgets/path-utils";
 import { useNodeSideSheetStore } from "../stores/node-side-sheet-store";
 import { useWorkflowEditorStore } from "../stores/workflow-editor-store";
 import { WorkflowDragService, WorkflowEditService, WorkflowOperationService, WorkflowRunService, WorkflowSaveService } from "../services";
@@ -50,6 +52,52 @@ interface PendingInsertContext {
 }
 
 const nodeRegistry = new NodeRegistry();
+
+function parseDebugFieldValue(raw: unknown): unknown {
+  if (typeof raw !== "string") {
+    return raw;
+  }
+
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed === "true") {
+    return true;
+  }
+  if (trimmed === "false") {
+    return false;
+  }
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      return raw;
+    }
+  }
+
+  return raw;
+}
+
+function parseJsonObject(raw: string): Record<string, unknown> {
+  if (!raw.trim()) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 function WorkflowEditorCore(props: WorkflowEditorReactProps) {
   ensureWorkflowI18n(props.locale ?? "zh-CN");
@@ -254,6 +302,17 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
       })),
     [store.canvasNodes]
   );
+  const debugNode = useMemo(
+    () => store.canvasNodes.find((node) => node.key === store.debugNodeKey) ?? null,
+    [store.canvasNodes, store.debugNodeKey]
+  );
+  const debugExtractedFields = useMemo(() => extractNodeDebugFields(debugNode), [debugNode]);
+  const debugExtractedValues = useMemo(() => {
+    const inputObject = parseJsonObject(store.debugInputJson);
+    return Object.fromEntries(
+      debugExtractedFields.map((field) => [field.path, getValueByPath(inputObject, field.path)])
+    );
+  }, [debugExtractedFields, store.debugInputJson]);
 
   const enabledNodeTypes = useMemo(() => {
     if (store.nodeTypesMeta.length === 0) {
@@ -473,6 +532,12 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
       }
 
       await runService.testRun();
+  }
+
+  function handleDebugExtractedFieldChange(path: string, value: unknown) {
+    const current = parseJsonObject(store.debugInputJson);
+    const next = setValueByPath(current, path, parseDebugFieldValue(value));
+    store.setDebugInputJson(JSON.stringify(next, null, 2));
   }
 
   const buildClipboardSnapshot = useCallback((): ClipboardSnapshot | null => {
@@ -1002,8 +1067,11 @@ function WorkflowEditorCore(props: WorkflowEditorReactProps) {
           selectedNodeKey={store.debugNodeKey}
           inputJson={store.debugInputJson}
           output={store.debugOutput}
+          extractedFields={debugExtractedFields}
+          extractedValues={debugExtractedValues}
           onNodeChange={store.setDebugNodeKey}
           onInputJsonChange={store.setDebugInputJson}
+          onExtractedFieldChange={handleDebugExtractedFieldChange}
           onRun={() => void runService.testRunOneNode(store.debugNodeKey, store.debugInputJson)}
           onClose={() => setShowDebugPanel(false)}
         />

@@ -28,13 +28,10 @@ Accept-Language: {{localeZh}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### List Batch Jobs (Paged)
 GET {{baseUrl}}/api/v1/batch-jobs?pageIndex=1&pageSize=10
@@ -60,8 +57,6 @@ POST {{baseUrl}}/api/v1/batch-jobs
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 {
@@ -85,8 +80,6 @@ PUT {{baseUrl}}/api/v1/batch-jobs/{{jobId}}
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 {
@@ -107,8 +100,6 @@ Accept-Language: {{localeZh}}
 POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/activate
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ### Trigger Batch Job Execution（experimental：默认关闭）
@@ -118,8 +109,6 @@ Accept-Language: {{localeZh}}
 POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/trigger
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ###
@@ -147,22 +136,16 @@ Accept-Language: {{localeZh}}
 POST {{baseUrl}}/api/v1/batch-jobs/executions/{{executionId}}/cancel
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ### Pause Batch Job
 POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/pause
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ### Archive Batch Job
 POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/archive
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}

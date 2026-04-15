@@ -38,7 +38,6 @@ public sealed class AssetsIntegrationTests
         request.Headers.Authorization = new("Bearer", accessToken);
         request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         request.Headers.Add("X-Project-Id", "1");
-        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
         request.Content = JsonContent.Create(new
         {
             name = $"asset-{Guid.NewGuid():N}".Substring(0, 10)
@@ -48,3 +47,5 @@ public sealed class AssetsIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 }
+
+

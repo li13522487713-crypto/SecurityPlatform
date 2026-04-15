@@ -546,8 +546,10 @@ public sealed class DagExecutor
             return NodeRunResult.SuccessResult(nodeKey, node.Type, EmptyOutputs);
         }
 
+        var inputMaterialization = NodeInputMaterializer.Materialize(node, inputVariables);
+        var preparedInputVariables = inputMaterialization.PreparedVariables;
         var nodeExec = new WorkflowNodeExecution(tenantId, executionId, nodeKey, node.Type, _idGenerator.NextId());
-        nodeExec.Start(JsonSerializer.Serialize(inputVariables));
+        nodeExec.Start(JsonSerializer.Serialize(inputMaterialization.Snapshot));
         await _nodeExecutionRepo.AddAsync(nodeExec, cancellationToken);
 
         if (eventChannel is not null)
@@ -560,12 +562,22 @@ public sealed class DagExecutor
                     nodeType = node.Type.ToString()
                 })),
                 cancellationToken);
+            await EmitEdgeStatusChangedAsync(
+                executionId,
+                nodeKey,
+                EdgeExecutionStatus.Incomplete,
+                reason: "node_running",
+                connectionsBySource,
+                node.Type,
+                outputs: null,
+                eventChannel,
+                cancellationToken);
         }
 
         var sw = Stopwatch.StartNew();
         var context = new NodeExecutionContext(
             node,
-            inputVariables,
+            preparedInputVariables,
             _serviceProvider,
             tenantId,
             workflowId,

@@ -6,7 +6,6 @@ const TENANT_ID_KEY = "tenant_id";
 const PROFILE_KEY = "auth_profile";
 const PROJECT_ID_KEY = "project_id";
 const PROJECT_SCOPE_KEY = "project_scope_enabled";
-const ANTIFORGERY_TOKEN_KEY = "antiforgery_token";
 
 let authStorageNamespace = "atlas";
 
@@ -58,16 +57,6 @@ export const setProjectScopeEnabled = (enabled: boolean) => {
   localStorage.setItem(getScopedKey(PROJECT_SCOPE_KEY), enabled ? "true" : "false");
 };
 
-export const getAntiforgeryToken = () => sessionStorage.getItem(getScopedKey(ANTIFORGERY_TOKEN_KEY));
-
-export const setAntiforgeryToken = (token: string) => {
-  sessionStorage.setItem(getScopedKey(ANTIFORGERY_TOKEN_KEY), token);
-};
-
-export const clearAntiforgeryToken = () => {
-  sessionStorage.removeItem(getScopedKey(ANTIFORGERY_TOKEN_KEY));
-};
-
 export const getAuthProfile = (): AuthProfile | null => {
   const key = getScopedKey(PROFILE_KEY);
   const raw = sessionStorage.getItem(key) ?? localStorage.getItem(key);
@@ -100,7 +89,6 @@ export const clearAuthStorage = () => {
   localStorage.removeItem(getScopedKey(PROFILE_KEY));
   localStorage.removeItem(getScopedKey(PROJECT_ID_KEY));
   localStorage.removeItem(getScopedKey(PROJECT_SCOPE_KEY));
-  sessionStorage.removeItem(getScopedKey(ANTIFORGERY_TOKEN_KEY));
 };
 
 export const isAdminRole = (profile: AuthProfile | null) => {

@@ -18,13 +18,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 查询 AI 管理配置
 GET {{baseUrl}}/api/v1/admin/ai-config
@@ -35,8 +32,6 @@ X-Tenant-Id: {{tenantId}}
 PUT {{baseUrl}}/api/v1/admin/ai-config
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {

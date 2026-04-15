@@ -24,8 +24,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/rag-feedback
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {

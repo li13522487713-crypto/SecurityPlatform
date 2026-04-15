@@ -49,8 +49,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/release-center/releases/1/rollback
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 
 ### 发布前检查（precheck）
 # 检查指定 manifestId 是否满足发布条件（页面数 + 表格数 > 0）
@@ -63,15 +61,11 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/release-center/releases/1/install/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 
 ### 按实例回滚指定发布
 POST {{baseUrl}}/api/v2/release-center/releases/1/rollback/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 
 ### 查询发布安装状态
 GET {{baseUrl}}/api/v2/release-center/releases/1/install-status/1

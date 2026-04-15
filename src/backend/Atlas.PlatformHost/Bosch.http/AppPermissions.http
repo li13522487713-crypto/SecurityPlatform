@@ -36,8 +36,6 @@ Accept-Language: {{localeZh}}
 @adminToken = {{adminLogin.response.body.$.data.accessToken}}
 
 ### CSRF
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
 X-Client-Type: {{clientType}}
@@ -46,7 +44,6 @@ X-Client-Channel: {{clientChannel}}
 X-Client-Agent: {{clientAgent}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 创建应用实例（触发 AppBootstrap：默认 AppAdmin/AppMember、应用权限码、根部门、创建者应用角色）
 # @name createTenantApp
@@ -54,8 +51,6 @@ POST {{baseUrl}}/api/v2/tenant-app-instances
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "appKey": "{{newAppKey}}",
@@ -117,8 +112,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appMemberRoleI
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "dataScope": 1,
@@ -150,8 +143,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/roles/{{appMemberRoleI
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "groups": []
@@ -167,8 +158,6 @@ POST {{baseUrl}}/api/v2/tenant-app-instances/{{testAppId}}/organization/members
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "userIds": ["1"],
@@ -184,8 +173,6 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "{{noAppPermUsername}}",

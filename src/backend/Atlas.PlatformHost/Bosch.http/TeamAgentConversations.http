@@ -31,13 +31,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 创建团队会话
 # @name createConversation
@@ -45,8 +42,6 @@ POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/conversations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "title": "客户合同管理建模"
@@ -66,8 +61,6 @@ POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/chat
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}},
@@ -96,8 +89,6 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 Accept: text/event-stream
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}},
@@ -112,8 +103,6 @@ POST {{baseUrl}}/api/v1/team-agents/{{groupChatTeamAgentId}}/conversations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "title": "GroupChat 运行时验证"
@@ -131,8 +120,6 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 Accept: text/event-stream
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{groupChatConversationId}},
@@ -147,8 +134,6 @@ POST {{baseUrl}}/api/v1/team-agents/{{workflowTeamAgentId}}/conversations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "title": "Workflow 运行时验证"
@@ -166,8 +151,6 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 Accept: text/event-stream
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{workflowConversationId}},
@@ -182,8 +165,6 @@ POST {{baseUrl}}/api/v1/team-agents/{{handoffTeamAgentId}}/conversations
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "title": "Handoff 运行时验证"
@@ -201,8 +182,6 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 Accept: text/event-stream
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{handoffConversationId}},
@@ -216,8 +195,6 @@ POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/chat/cancel
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "conversationId": {{conversationId}}
@@ -238,8 +215,6 @@ PUT {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "title": "客户合同管理建模会话"
@@ -249,19 +224,13 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}/clear-context
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 清空团队会话历史
 POST {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}/clear-history
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 删除团队会话
 DELETE {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

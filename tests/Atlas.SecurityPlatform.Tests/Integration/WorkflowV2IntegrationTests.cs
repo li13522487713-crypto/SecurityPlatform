@@ -16,7 +16,7 @@ public sealed class WorkflowV2IntegrationTests
     }
 
     [Fact]
-    public async Task RunWithPublishedSource_BeforePublish_ShouldFallbackToDraftExecution()
+    public async Task RunWithPublishedSource_BeforePublish_ShouldReturnValidationError()
     {
         var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
         var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
@@ -34,9 +34,7 @@ public sealed class WorkflowV2IntegrationTests
         });
 
         using var runResponse = await _client.SendAsync(runRequest);
-        var payload = await ApiResponseAssert.ReadSuccessAsync(runResponse);
-        Assert.True(payload.Data.TryGetProperty("executionId", out var executionId));
-        Assert.False(string.IsNullOrWhiteSpace(executionId.GetString()));
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, runResponse.StatusCode);
     }
 
     [Fact]

@@ -1,0 +1,10 @@
+packages:
+  - "."
+  - "vendor/*"
+  - "vendor/*/*"
+  - "../frontend/config/*"
+  - "../frontend/infra/*"
+  - "../frontend/infra/*/*"
+  - "../frontend/packages/{agent-ide,arch,common,community,components,data,devops,foundation,project-ide,studio,workflow}/*"
+  - "../frontend/packages/{agent-ide,arch,common,community,components,data,devops,foundation,project-ide,studio,workflow}/*/*"
+  - "../frontend/packages/{agent-ide,arch,common,community,components,data,devops,foundation,project-ide,studio,workflow}/*/*/*"

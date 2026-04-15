@@ -55,19 +55,13 @@ interface TenantDataSourceDto {
   isActive?: boolean;
 }
 
-function idempotencyKey(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
-}
-
 function toHeaders(accessToken: string, withIdempotencyPrefix?: string): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${accessToken}`,
     "X-Tenant-Id": defaultTenantId
   };
-  if (withIdempotencyPrefix) {
-    headers["Idempotency-Key"] = idempotencyKey(withIdempotencyPrefix);
-  }
+  void withIdempotencyPrefix;
   return headers;
 }
 

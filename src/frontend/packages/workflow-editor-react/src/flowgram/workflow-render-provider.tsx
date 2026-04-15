@@ -10,7 +10,7 @@ interface WorkflowRenderProviderProps {
   canvas: CanvasSchema;
   nodeTypesMeta: NodeTypeMetadata[];
   readonly?: boolean;
-  edgeStateByKey?: Record<string, "idle" | "running" | "success" | "failed" | "skipped">;
+  edgeStateByKey?: Record<string, "idle" | "running" | "incomplete" | "success" | "failed" | "skipped">;
   onCanvasChange: (next: CanvasSchema) => void;
   onSelectionChange?: (nodeKeys: string[]) => void;
   onPortClick?: (params: { nodeKey: string; portKey: string; portType: "input" | "output" }) => void;

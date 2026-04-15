@@ -8,7 +8,6 @@ using Atlas.Presentation.Shared.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Atlas.Presentation.Shared.Filters;
 
 namespace Atlas.Presentation.Shared.Controllers.Ai;
 

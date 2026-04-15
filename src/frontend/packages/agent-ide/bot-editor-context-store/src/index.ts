@@ -26,13 +26,13 @@ export {
   type ModelPresetValues,
   type NLPromptModalPosition,
 } from './store/type';
-export { ModelState, ModelAction } from './store/model';
+export type { ModelState, ModelAction } from './store/model';
 export type {
   NLPromptModalStore,
   NLPromptModalAction,
   NLPromptModalState,
 } from './store/nl-prompt-modal';
-export {
+export type {
   FreeGrabModalHierarchyAction,
   FreeGrabModalHierarchyState,
   FreeGrabModalHierarchyStore,

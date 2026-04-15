@@ -37,7 +37,7 @@ async function setLocaleForOrigin(page: Page, origin: string, locale: "zh-CN" | 
 async function clearStorageForCurrentOrigin(page: Page) {
   await page.evaluate(() => {
     const namespaces = ["atlas", "atlas_platform", "atlas_app"];
-    const sessionKeys = ["access_token", "auth_profile", "antiforgery_token"];
+    const sessionKeys = ["access_token", "auth_profile"];
     const localKeys = ["access_token", "refresh_token", "tenant_id", "auth_profile", "project_id", "project_scope_enabled"];
 
     for (const namespace of namespaces) {

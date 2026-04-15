@@ -24,8 +24,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/dlp/classifications
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -45,8 +43,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/dlp/labels
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -65,8 +61,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/dlp/policies
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -85,8 +79,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/dlp/outbound-channels
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -106,8 +98,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/dlp/bindings
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -120,8 +110,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/dlp/export-jobs
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -135,8 +123,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/dlp/download-jobs
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -150,8 +136,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/dlp/external-share-approvals
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -165,8 +149,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/dlp/outbound-checks
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {

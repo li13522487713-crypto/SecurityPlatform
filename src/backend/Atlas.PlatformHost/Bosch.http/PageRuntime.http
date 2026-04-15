@@ -22,13 +22,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 获取运行态已发布页面 Schema（按 appKey/pageKey）
 GET {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/schema
@@ -39,8 +36,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/records
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -54,8 +49,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/records
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
@@ -92,8 +85,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/runtime/tasks/1/actions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {

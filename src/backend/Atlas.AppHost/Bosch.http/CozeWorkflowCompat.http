@@ -1,0 +1,40 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+@workflowId = 1
+
+### 原生 Coze 兼容：画布详情
+POST {{host}}/api/workflow_api/canvas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow"
+}
+
+### 原生 Coze 兼容：引用关系
+POST {{host}}/api/workflow_api/workflow_references
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow"
+}

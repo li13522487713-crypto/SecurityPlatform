@@ -726,7 +726,6 @@ public interface IAppBridgeCommandService
         TenantId tenantId,
         long userId,
         AppCommandCreateRequest request,
-        string idempotencyKey,
         CancellationToken cancellationToken = default);
 
     Task AcknowledgeFederatedCommandAsync(

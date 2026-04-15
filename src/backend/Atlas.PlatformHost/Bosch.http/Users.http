@@ -16,16 +16,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### Get CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get Users (Paged)
 GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
@@ -42,8 +38,6 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "demo",
@@ -61,8 +55,6 @@ PUT {{baseUrl}}/api/v1/users/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "displayName": "Demo User",
@@ -79,8 +71,6 @@ PUT {{baseUrl}}/api/v1/users/1/roles
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "roleIds": []
@@ -91,8 +81,6 @@ PUT {{baseUrl}}/api/v1/users/1/departments
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "departmentIds": []
@@ -103,8 +91,6 @@ PUT {{baseUrl}}/api/v1/users/1/positions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "positionIds": []
@@ -114,15 +100,11 @@ X-CSRF-TOKEN: {{csrfToken}}
 DELETE {{baseUrl}}/api/v1/users/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
-### Security Negative: Missing Idempotency-Key (expect 400)
 POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "demo_missing_idem",
@@ -135,12 +117,10 @@ X-CSRF-TOKEN: {{csrfToken}}
   "departmentIds": []
 }
 
-### Security Negative: Missing X-CSRF-TOKEN (expect 403)
 POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
 
 {
   "username": "demo_missing_csrf",
@@ -159,8 +139,6 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{idemConflictUsers}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "demo_conflict_a",
@@ -179,8 +157,6 @@ POST {{baseUrl}}/api/v1/roles
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "即时生效测试角色",
@@ -197,8 +173,6 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "role.effect.user",
@@ -239,8 +213,6 @@ PUT {{baseUrl}}/api/v1/users/{{roleEffectUserId}}/roles
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "roleIds": []
@@ -256,8 +228,6 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{idemConflictUsers}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "demo_conflict_b",

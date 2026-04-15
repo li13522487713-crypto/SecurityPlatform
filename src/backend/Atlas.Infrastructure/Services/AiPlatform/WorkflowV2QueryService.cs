@@ -512,6 +512,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             ExecutionStatus.Failed => (EdgeExecutionStatus.Failed, "source_failed"),
             ExecutionStatus.Blocked => (EdgeExecutionStatus.Failed, "source_blocked"),
             ExecutionStatus.Skipped => (EdgeExecutionStatus.Skipped, "source_skipped"),
+            ExecutionStatus.Running => (EdgeExecutionStatus.Incomplete, "source_running"),
             ExecutionStatus.Completed => ResolveCompletedSourceEdgeStatus(executionStatus, targetExecution),
             _ => (EdgeExecutionStatus.Idle, null)
         };
@@ -526,6 +527,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             return executionStatus switch
             {
                 ExecutionStatus.Completed => (EdgeExecutionStatus.Success, null),
+                ExecutionStatus.Running => (EdgeExecutionStatus.Incomplete, "target_pending"),
                 ExecutionStatus.Failed or ExecutionStatus.Cancelled or ExecutionStatus.Interrupted => (EdgeExecutionStatus.Failed, "target_not_reached"),
                 _ => (EdgeExecutionStatus.Idle, null)
             };

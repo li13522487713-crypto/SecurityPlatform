@@ -2,16 +2,12 @@
 @token =
 @tenantId =
 @idempotencyKey = {{$guid}}
-@csrfToken =
 
 ### 获取 CSRF Token（执行写接口前先调用）
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 获取我的待办任务（需要权限: approval:flow:view）
 GET {{baseUrl}}/api/v1/approval/tasks/my?pageIndex=1&pageSize=10&status=Pending
@@ -33,8 +29,6 @@ POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{idempotencyKey}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "taskId": "{taskId}",
@@ -42,12 +36,10 @@ X-CSRF-TOKEN: {{csrfToken}}
   "comment": "同意，符合请假规范"
 }
 
-### 安全负例：缺少 Idempotency-Key（应返回 400）
 POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "taskId": "{taskId}",
@@ -55,12 +47,10 @@ X-CSRF-TOKEN: {{csrfToken}}
   "comment": "缺幂等键"
 }
 
-### 安全负例：缺少 X-CSRF-TOKEN（应返回 403）
 POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
 
 {
   "taskId": "{taskId}",
@@ -74,8 +64,6 @@ POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{idemConflictTaskDecision}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "taskId": "{taskId}",
@@ -88,8 +76,6 @@ POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{idemConflictTaskDecision}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "taskId": "{taskId}",
@@ -102,8 +88,6 @@ POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "taskId": "{taskId}",
@@ -116,8 +100,6 @@ POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/delegation?delegateeUserId={user
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 "委派处理说明"
 
@@ -125,16 +107,12 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/claim
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 催办任务
 POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/urge
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 "请尽快处理此审批任务"
 
@@ -143,8 +121,6 @@ POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/communication?recipientUserId={r
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 "需要和您沟通一下关于这个审批的情况"
 
@@ -153,8 +129,6 @@ POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/communication?recipientUserId={r
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 "<script>alert('xss')</script>请尽快沟通"
 
@@ -172,16 +146,12 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/viewed
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 委派归还（完成委派任务）
 POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/resolution
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 "委派任务处理完毕，归还原审批人"
 
@@ -189,5 +159,3 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/approval/tasks/batch-transfer?fromUserId={fromUserId}&toUserId={toUserId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

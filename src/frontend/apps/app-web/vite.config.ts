@@ -8,7 +8,7 @@ const semiFoundationRoot = path.resolve(path.dirname(require.resolve("@douyinfe/
 const lodashRoot = path.dirname(require.resolve("lodash/pick"));
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = loadEnv(mode, path.resolve(), "");
   const appWebPort = Number(env.VITE_APP_WEB_PORT || "5181");
   const apiBase = env.VITE_API_BASE?.trim();
   const derivedAppHostTarget = apiBase && /^https?:\/\//i.test(apiBase)

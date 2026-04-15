@@ -28,13 +28,10 @@ Accept-Language: {{localeZh}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### List Dead Letters (All)
 GET {{baseUrl}}/api/v1/batch-dead-letters?pageIndex=1&pageSize=10
@@ -64,8 +61,6 @@ Accept-Language: {{localeZh}}
 POST {{baseUrl}}/api/v1/batch-dead-letters/1/retry
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ### Retry Batch Dead Letters
@@ -73,8 +68,6 @@ POST {{baseUrl}}/api/v1/batch-dead-letters/batch-retry
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 {
@@ -85,8 +78,6 @@ Accept-Language: {{localeZh}}
 POST {{baseUrl}}/api/v1/batch-dead-letters/1/abandon
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ### Abandon Batch Dead Letters
@@ -94,8 +85,6 @@ POST {{baseUrl}}/api/v1/batch-dead-letters/batch-abandon
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 {

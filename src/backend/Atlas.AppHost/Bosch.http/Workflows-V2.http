@@ -16,16 +16,12 @@ X-Tenant-Id: {{tenantId}}
 ###
 @token = {{login.response.body.data.accessToken}}
 @workflowId = 1
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{host}}/api/v1/secure/antiforgery
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.Token}}
 
 ### 获取工作流依赖
 GET {{host}}/api/v2/workflows/{{workflowId}}/dependencies
@@ -37,8 +33,6 @@ PUT {{host}}/api/v2/workflows/{{workflowId}}/draft
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "canvasJson": "{\"nodes\":[],\"connections\":[]}",

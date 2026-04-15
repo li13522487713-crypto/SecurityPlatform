@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-export { ModelForm, ModelFormProps } from './components/model-form';
+export { ModelForm } from './components/model-form';
+export type { ModelFormProps } from './components/model-form';
 
 export { convertFormValueToModelInfo } from './utils/model/convert-form-value-to-model-info';
 export { convertModelInfoToFlatObject } from './utils/model/convert-model-info-to-flat-object';

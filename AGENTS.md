@@ -167,19 +167,18 @@ pnpm run format                 # 格式化所有项目
 - SqlSugar + SQLite：实施最小权限数据访问，敏感字段按清单要求加密存储。
 - 完整清单见 `等保2.0要求清单.md`；已实现安全控制见 `CLAUDE.md` 的 Security and Compliance 章节。
 
-### 幂等与防重放要求
+### 写接口安全基线（现行）
 
-- 关键写接口（创建/提交/开通/触发任务）必须要求客户端传 `Idempotency-Key`。
-- 服务端以 `tenant_id + user_id + api_name + idempotency_key` 作为唯一键；首次成功后保存处理结果（状态 + 资源ID/响应摘要）。
-- 重复请求应返回相同业务结果；同 key 不同 payload 必须拒绝并返回“幂等键冲突”。
-- 幂等记录需按配置保留 N 小时/天后过期并清理。
-- 受浏览器调用的写接口必须通过 Anti-Forgery 校验（Header: `X-CSRF-TOKEN`，由后端下发），前端需在写请求中携带。
+- 当前仓库已废止基于请求头的 `Idempotency-Key` 防重放机制。
+- 当前仓库已废止基于 `X-CSRF-TOKEN` 的浏览器 Anti-Forgery 校验机制。
+- 新增或修改写接口时，不得再把 `Idempotency-Key` / `X-CSRF-TOKEN` 作为公共前置要求写回实现、测试、`.http` 示例或契约文档。
+- 如需重新引入等效保护，必须先补一份新的替代安全方案与契约说明，再整体落地，禁止局部回滚到旧机制。
 
 ## 表格视图（个人）支持
 
 - 员工/角色/权限/菜单/部门/职位/项目/应用管理页面均已接入统一表格个人视图能力（见 `docs/contracts.md` “表格视图（个人）”章节）。
 - 视图只绑定当前登录用户（后台以 `tenant_id + user_id` 识别，前端不可传递用户标识），对每个 `tableKey` 仅保存用户自己的视图与默认映射。
-- `TableViewConfig` 支持列配置、密度、分页等项，所有写接口（POST/PUT/PATCH/DELETE 等）要求 `Idempotency-Key` + `X-CSRF-TOKEN`，相关 HTTP 测试存在于 `src/backend/Atlas.PlatformHost/Bosch.http/TableViews.http`。
+- `TableViewConfig` 支持列配置、密度、分页等项，相关 HTTP 测试存在于 `src/backend/Atlas.PlatformHost/Bosch.http/TableViews.http`。
 - 默认配置由 `TableViewDefaultOptions`（`appsettings.json` 的 `TableViewDefaults` 节）定义，需要调整请同步更新后端配置与 `docs/contracts.md` 的描述。
 
 ## 登录与 UX 说明

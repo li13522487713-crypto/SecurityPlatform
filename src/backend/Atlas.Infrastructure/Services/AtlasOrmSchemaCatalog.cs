@@ -44,7 +44,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(RoleMenu),
         typeof(TableView),
         typeof(UserTableViewDefault),
-        typeof(Atlas.Domain.Identity.Entities.IdempotencyRecord),
         typeof(AuditRecord),
         typeof(Asset),
         typeof(AlertRecord),

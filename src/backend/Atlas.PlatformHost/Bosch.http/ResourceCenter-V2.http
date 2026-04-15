@@ -50,8 +50,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v2/resource-center/datasource-consumption/repair/disable-invalid-binding
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -62,8 +60,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/resource-center/datasource-consumption/repair/switch-primary-binding
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {
@@ -76,8 +72,6 @@ Content-Type: application/json
 POST {{baseUrl}}/api/v2/resource-center/datasource-consumption/repair/unbind-orphan-binding
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
-Idempotency-Key: {{$guid}}
 Content-Type: application/json
 
 {

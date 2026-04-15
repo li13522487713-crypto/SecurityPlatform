@@ -1,16 +1,12 @@
 @baseUrl = http://localhost:5000
 @token =
 @tenantId =
-@csrfToken =
 
 ### 获取 CSRF Token（执行写接口前先调用）
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 获取我的抄送记录（全部）
 GET {{baseUrl}}/api/v1/approval/copy-records/my-copies?pageIndex=1&pageSize=10
@@ -31,6 +27,4 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/approval/copy-records/{copyRecordId}/mark-read
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 

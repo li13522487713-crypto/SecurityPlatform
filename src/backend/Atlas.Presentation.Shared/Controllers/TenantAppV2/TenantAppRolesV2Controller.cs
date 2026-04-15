@@ -9,7 +9,6 @@ using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Atlas.Presentation.Shared.Filters;
 using Atlas.Presentation.Shared.Helpers;
 
 namespace Atlas.Presentation.Shared.Controllers.TenantAppV2;

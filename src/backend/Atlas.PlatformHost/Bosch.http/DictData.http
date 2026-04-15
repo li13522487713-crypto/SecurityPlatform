@@ -27,8 +27,6 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -40,7 +38,6 @@ X-Tenant-Id: {{tenantId}}
 %}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 列表查询：按字典类型编码获取数据
 # @name listByCode
@@ -74,8 +71,6 @@ PUT {{baseUrl}}/api/v1/dict-data/{{dictDataId}}
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "label": "启用",
@@ -99,8 +94,6 @@ PUT {{baseUrl}}/api/v1/dict-data/999999999
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "label": "不存在",

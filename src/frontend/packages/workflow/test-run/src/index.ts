@@ -34,6 +34,8 @@ export {
 } from './components';
 export {
   InputNumberV2Adapter,
+} from './components/form-materials/input-number/base-input-number-v2';
+export type {
   InputNumberV2Props,
 } from './components/form-materials/input-number/base-input-number-v2';
 export { LazyFormCore } from './components/form-engine/lazy-form-core';
@@ -76,11 +78,13 @@ export { NodeStatusBar, LogImages } from './features/log';
 export {
   TestRunService,
   TestRunReporterService,
-  PickReporterParams,
   ReporterEventName,
-  ReporterParams,
   createTestRunPlugin,
   useTestFormService,
+} from './plugins/test-run-plugin';
+export type {
+  PickReporterParams,
+  ReporterParams,
 } from './plugins/test-run-plugin';
 
 export { type WorkflowLinkLogData } from './types';

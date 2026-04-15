@@ -26,8 +26,6 @@ POST {{host}}/api/v1/decision-tables
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: dt-create-001
-X-CSRF-TOKEN: test
 
 {
   "name": "age_risk_level",
@@ -64,8 +62,6 @@ PUT {{host}}/api/v1/decision-tables/{{dtId}}
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: dt-update-001
-X-CSRF-TOKEN: test
 
 {
   "id": {{dtId}},
@@ -84,5 +80,3 @@ X-CSRF-TOKEN: test
 DELETE {{host}}/api/v1/decision-tables/{{dtId}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: dt-delete-001
-X-CSRF-TOKEN: test

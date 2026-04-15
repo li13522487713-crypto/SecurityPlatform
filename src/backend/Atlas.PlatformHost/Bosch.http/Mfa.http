@@ -17,16 +17,12 @@ X-Tenant-Id: {{tenantId}}
 
 ### 提取令牌
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token（写接口必需）
-# @name antiforgery
-GET {{baseUrl}}/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ###############################################
 # MFA 设置流程
@@ -43,8 +39,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/mfa/setup
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 提取MFA密钥和URI
 @mfaSecretKey = {{setup.response.body.$.data.secretKey}}
@@ -65,8 +59,6 @@ POST {{baseUrl}}/mfa/verify-setup
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "code": "123456"
@@ -103,8 +95,6 @@ POST {{baseUrl}}/mfa/disable
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "code": "123456"
@@ -124,16 +114,12 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/mfa/setup
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 ### 10. 测试错误的TOTP验证码（应该失败）
 POST {{baseUrl}}/mfa/verify-setup
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "code": "000000"
@@ -145,8 +131,6 @@ POST {{baseUrl}}/mfa/verify-setup
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "code": "123456"
@@ -157,8 +141,6 @@ POST {{baseUrl}}/mfa/disable
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "code": "123456"

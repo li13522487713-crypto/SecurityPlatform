@@ -20,13 +20,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 列表查询：动态表记录分页
 GET {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records?pageIndex=1&pageSize=20
@@ -59,8 +56,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/export
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "keyword": "REC-",
@@ -85,8 +80,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "values": [
@@ -108,8 +101,6 @@ PUT {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/999999999
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "values": [
@@ -131,8 +122,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/import
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "format": "csv",
@@ -144,8 +133,6 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/import/analyze
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: multipart/form-data; boundary=BoundaryAtlasImport
 
 --BoundaryAtlasImport
@@ -166,8 +153,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/import/commit
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "sessionId": "replace-with-analyze-session-id",
@@ -184,8 +169,6 @@ POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/excel-paste
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "format": "excel",

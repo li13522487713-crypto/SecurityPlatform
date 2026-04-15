@@ -40,7 +40,6 @@ public sealed class DynamicTablesIntegrationTests
         request.Headers.Authorization = new("Bearer", accessToken);
         request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         request.Headers.Add("X-Project-Id", "1");
-        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
         request.Content = JsonContent.Create(new
         {
             tableKey = $"t_{Guid.NewGuid():N}".Substring(0, 12),
@@ -57,3 +56,5 @@ public sealed class DynamicTablesIntegrationTests
         Assert.False(string.IsNullOrWhiteSpace(body));
     }
 }
+
+

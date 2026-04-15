@@ -23,7 +23,8 @@ public enum EdgeExecutionStatus
     Idle = 0,
     Success = 1,
     Skipped = 2,
-    Failed = 3
+    Failed = 3,
+    Incomplete = 4
 }
 
 /// <summary>

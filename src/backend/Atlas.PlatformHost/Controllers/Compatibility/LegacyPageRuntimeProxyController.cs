@@ -15,8 +15,6 @@ public sealed class LegacyPageRuntimeProxyController : ControllerBase
         "Authorization",
         "Accept-Language",
         "X-Tenant-Id",
-        "Idempotency-Key",
-        "X-CSRF-TOKEN",
         "Cookie"
     ];
 

@@ -46,7 +46,8 @@ export {
 export { useSubscribeOnboardingAndUpdateChatArea } from './use-subscribe-onboarding-and-update-chat-area';
 export { useWorkflowPublishedModel } from './tools-publish-back-modal';
 export { useEditConfirm } from './use-edit-confirm';
-export { useInit, AgentInitCallback, AgentInitProps } from './use-init';
+export { useInit } from './use-init';
+export type { AgentInitCallback, AgentInitProps } from './use-init';
 export { useCurrentNodeId } from './use-node-id';
 export { useDataSetArea, Setting } from '../component/data-set/data-set-area';
 

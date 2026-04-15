@@ -1,7 +1,10 @@
-# Workflow Editor 校验矩阵（workflow-editor-react）
+# Workflow Editor 校验矩阵（当前 Atlas 主编辑器）
 
 ## 说明
 
+- 当前矩阵描述的是 Atlas 主编辑器现状：
+  - 当前运行主链仍是 `workflow-editor-react`
+  - `@coze-workflow/playground` 是后续唯一目标内核，但尚未成为 App 主入口
 - 本矩阵用于前端工作流编辑器校验覆盖清单，单一事实源依赖后端：
   - `GET /api/v2/workflows/node-types`（端口 + Schema）
   - `GET /api/v2/workflows/node-templates`（默认值）
@@ -9,6 +12,13 @@
   - 第 1 层：Schema 字段校验
   - 第 2 层：端口与 inputMappings 校验
   - 第 3 层：业务跨字段规则（definitions.validate）
+
+## 风险提示
+
+- 当前矩阵不代表 Coze playground 已接线。
+- 当主入口切到 Coze adapter 后，本矩阵需要迁移为：
+  - Coze registry/form-meta/node-test 校验矩阵
+  - Atlas adapter transformer 校验矩阵
 
 ## 全节点覆盖矩阵（40+）
 

@@ -28,13 +28,10 @@ Accept-Language: {{localeZh}}
 @token = {{login.response.body.$.data.accessToken}}
 
 ### Get CSRF Token
-# @name antiforgery
-GET {{host}}/api/v1/secure/antiforgery
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### List logic flows (paged)
 GET {{host}}/api/v1/logic-flows?pageIndex=1&pageSize=10
@@ -60,8 +57,6 @@ POST {{host}}/api/v1/logic-flows
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 {
@@ -89,8 +84,6 @@ PUT {{host}}/api/v1/logic-flows/{{logicFlowId}}
 Content-Type: application/json
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 {
@@ -115,22 +108,16 @@ Accept-Language: {{localeZh}}
 POST {{host}}/api/v1/logic-flows/{{logicFlowId}}/publish
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ### Archive logic flow
 POST {{host}}/api/v1/logic-flows/{{logicFlowId}}/archive
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
 ### Delete logic flow
 DELETE {{host}}/api/v1/logic-flows/{{logicFlowId}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}

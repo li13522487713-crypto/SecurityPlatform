@@ -40,6 +40,8 @@ interface SearchParams {
   execute_id?: string;
   /** subprocess execution id */
   sub_execute_id?: string;
+  /** Atlas host return url */
+  return_url?: string;
 }
 
 export function usePageParams() {
@@ -66,6 +68,7 @@ export function usePageParams() {
     node_id: nodeId,
     execute_id: executeId,
     sub_execute_id: subExecuteId,
+    return_url: returnUrl,
   } = searchParams;
 
   const optType = opt_type
@@ -112,5 +115,6 @@ export function usePageParams() {
     nodeId,
     executeId,
     subExecuteId,
+    returnUrl,
   };
 }

@@ -20,13 +20,10 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 获取 Anti-Forgery Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 查询模板（支持 keyword/category/tags/version）
 GET {{baseUrl}}/api/v1/templates?pageIndex=1&pageSize=20&keyword=模板&category=1&tags=page,list&version=1.0
@@ -38,8 +35,6 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/api/v1/templates
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {

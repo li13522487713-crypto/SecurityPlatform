@@ -17,16 +17,12 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
-@csrfToken =
 
 ### 获取 CSRF Token
-# @name antiforgery
-GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###
-@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 应用分页
 GET {{baseUrl}}/api/v1/ai-apps?PageIndex=1&PageSize=20
@@ -38,8 +34,6 @@ POST {{baseUrl}}/api/v1/ai-apps
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "客服助手应用",
@@ -65,8 +59,6 @@ PUT {{baseUrl}}/api/v1/ai-apps/{{appId}}/builder-config
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "inputs": [
@@ -95,8 +87,6 @@ PUT {{baseUrl}}/api/v1/ai-apps/{{appId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "客服助手应用V2",
@@ -112,8 +102,6 @@ POST {{baseUrl}}/api/v1/ai-apps/{{appId}}/publish
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "releaseNote": "首个可用版本"
@@ -129,8 +117,6 @@ POST {{baseUrl}}/api/v1/ai-apps/{{appId}}/resource-copy-tasks
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "sourceAppId": 2
@@ -145,5 +131,3 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/ai-apps/{{appId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}

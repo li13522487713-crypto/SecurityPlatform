@@ -85,7 +85,6 @@ POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-create-001
 
 {
   "code": "TESTER",
@@ -102,7 +101,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{newRoleId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-update-001
 
 {
   "name": "高级测试工程师",
@@ -114,7 +112,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{newRoleId}}/permis
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-perm-001
 
 {
   "permissionCodes": ["assets:view", "assets:create"]
@@ -145,7 +142,6 @@ POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/departments
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: dept-create-001
 
 {
   "name": "研发部",
@@ -167,7 +163,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/departments/{{newDeptId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: dept-update-001
 
 {
   "name": "研发中心",
@@ -201,7 +196,6 @@ POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/positions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: pos-create-001
 
 {
   "name": "高级工程师",
@@ -219,7 +213,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/positions/{{newPosId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: pos-update-001
 
 {
   "name": "资深工程师",
@@ -253,7 +246,6 @@ POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/projects
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: proj-create-001
 
 {
   "name": "安全平台 V2.0",
@@ -270,7 +262,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/projects/{{newProjId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: proj-update-001
 
 {
   "name": "安全平台 V2.0（升级版）",
@@ -299,7 +290,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{roleId}}/data-scop
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-scope-001
 
 {
   "dataScope": 0,
@@ -311,7 +301,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{roleId}}/data-scop
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-scope-002
 
 {
   "dataScope": 3,
@@ -357,7 +346,6 @@ POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/permissions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: app-perm-create-001
 
 {
   "name": "查看资产",
@@ -379,7 +367,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/permissions/{{newAppPermId
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: app-perm-update-001
 
 {
   "name": "查看资产（更新）",
@@ -411,7 +398,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{roleId}}/pages
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-pages-001
 
 {
   "pageIds": [1, 2, 3]
@@ -422,7 +408,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{roleId}}/pages
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-pages-002
 
 {
   "pageIds": []
@@ -442,7 +427,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{roleId}}/field-per
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-field-perm-001
 
 {
   "groups": [
@@ -469,7 +453,6 @@ PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{roleId}}/field-per
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
-Idempotency-Key: role-field-perm-002
 
 {
   "groups": []

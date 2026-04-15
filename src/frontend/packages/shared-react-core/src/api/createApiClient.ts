@@ -1,10 +1,8 @@
 import type { ApiResponse, AuthTokenResult, PagedRequest } from "../types/index";
 import {
-  clearAntiforgeryToken,
   clearAuthStorage,
   getAccessToken,
   getAuthProfile,
-  getAntiforgeryToken,
   getClientContextHeaders,
   getProjectId,
   getProjectScopeEnabled,
@@ -12,16 +10,12 @@ import {
   getTenantId,
   setTenantId,
   setAccessToken,
-  setAntiforgeryToken,
   setRefreshToken
 } from "../utils/index";
 
 export interface RequestOptions {
   disableAutoRefresh?: boolean;
   isRetry?: boolean;
-  idempotencyKey?: string;
-  antiforgeryToken?: string;
-  antiforgeryRetry?: boolean;
   suppressErrorMessage?: boolean;
 }
 
@@ -52,24 +46,6 @@ interface SharedApiClient {
 
 export function createApiClient(config: SharedApiClientConfig): SharedApiClient {
   let refreshPromise: Promise<boolean> | null = null;
-  let antiforgeryPromise: Promise<string | null> | null = null;
-
-  function extractAntiforgeryToken(
-    response: ApiResponse<{ token?: string; Token?: string } | null | undefined>
-  ): string | null {
-    return response.data?.token ?? response.data?.Token ?? null;
-  }
-
-  function isUnsafeMethod(method: string) {
-    return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
-  }
-
-  function generateIdempotencyKey(): string {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    return `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
 
   function persistTokenResult(result: AuthTokenResult) {
     setAccessToken(result.accessToken);
@@ -95,27 +71,6 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
     } catch {
       return null;
     }
-  }
-
-  async function ensureAntiforgeryToken(): Promise<string | null> {
-    const cached = getAntiforgeryToken();
-    if (cached) return cached;
-    if (antiforgeryPromise) return antiforgeryPromise;
-    antiforgeryPromise = (async () => {
-      try {
-        const response = await requestApi<ApiResponse<{ token?: string; Token?: string }>>("/secure/antiforgery", {
-          method: "GET"
-        }, { disableAutoRefresh: true });
-        const token = extractAntiforgeryToken(response);
-        if (token) setAntiforgeryToken(token);
-        return token;
-      } catch {
-        return null;
-      } finally {
-        antiforgeryPromise = null;
-      }
-    })();
-    return antiforgeryPromise;
   }
 
   async function tryRefreshTokens(): Promise<boolean> {
@@ -174,12 +129,7 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
       }
     }
 
-    if (shouldAttachSecurityHeaders && isUnsafeMethod(method)) {
-      const idempotencyKey = options?.idempotencyKey ?? generateIdempotencyKey();
-      headers.set("Idempotency-Key", idempotencyKey);
-      const csrfToken = options?.antiforgeryToken ?? (await ensureAntiforgeryToken()) ?? undefined;
-      if (csrfToken) headers.set("X-CSRF-TOKEN", csrfToken);
-    }
+    void shouldAttachSecurityHeaders;
   }
 
   async function requestApi<T>(path: string, init?: RequestInit, options?: RequestOptions): Promise<T> {
@@ -210,14 +160,6 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
     if (response.status === 403) {
       const errorText = await response.text();
       const payload = tryParsePayload(errorText);
-      if (payload?.code === "ANTIFORGERY_TOKEN_INVALID" && !options?.antiforgeryRetry) {
-        clearAntiforgeryToken();
-        return requestApi<T>(path, init, {
-          ...(options ?? {}),
-          antiforgeryRetry: true,
-          antiforgeryToken: undefined
-        });
-      }
       throw new Error(payload?.message ?? errorText ?? "Forbidden");
     }
 
@@ -259,14 +201,6 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
     if (response.status === 403) {
       const errorText = await response.text();
       const payload = tryParsePayload(errorText);
-      if (payload?.code === "ANTIFORGERY_TOKEN_INVALID" && !options?.antiforgeryRetry) {
-        clearAntiforgeryToken();
-        return requestApiBlob(path, init, {
-          ...(options ?? {}),
-          antiforgeryRetry: true,
-          antiforgeryToken: undefined
-        });
-      }
       throw new Error(payload?.message ?? errorText ?? "Forbidden");
     }
 
