@@ -15,6 +15,33 @@
     "noUnusedParameters": false,
     "erasableSyntaxOnly": false,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@coze-workflow/*-adapter": ["packages/workflow/adapter/*/src/index.tsx"],
+      "@coze-workflow/*-adapter/*": ["packages/workflow/adapter/*/src/*"],
+      "@coze-workflow/*": ["packages/workflow/*/src/index.ts", "packages/workflow/*/src/index.tsx"],
+      "@coze-workflow/*/*": ["packages/workflow/*/src/*"],
+      "@coze-arch/*": ["packages/arch/*/src/index.ts", "packages/arch/*/src/index.tsx"],
+      "@coze-arch/*/*": ["packages/arch/*/src/*"],
+      "@coze-agent-ide/*": ["packages/agent-ide/*/src/index.ts", "packages/agent-ide/*/src/index.tsx"],
+      "@coze-agent-ide/*/*": ["packages/agent-ide/*/src/*"],
+      "@coze-studio/*": ["packages/studio/*/src/index.ts", "packages/studio/*/src/index.tsx"],
+      "@coze-studio/*/*": ["packages/studio/*/src/*"],
+      "@coze-common/*": ["packages/common/*/src/index.ts", "packages/common/*/src/index.tsx"],
+      "@coze-common/*/*": ["packages/common/*/src/*"],
+      "@coze-data/*": ["packages/data/*/src/index.ts", "packages/data/*/src/index.tsx"],
+      "@coze-data/*/*": ["packages/data/*/src/*"],
+      "@coze-foundation/*": ["packages/foundation/*/src/index.ts", "packages/foundation/*/src/index.tsx"],
+      "@coze-foundation/*/*": ["packages/foundation/*/src/*"],
+      "@coze-project-ide/*": ["packages/project-ide/*/src/index.ts", "packages/project-ide/*/src/index.tsx"],
+      "@coze-project-ide/*/*": ["packages/project-ide/*/src/*"],
+      "@coze-editor/*": ["packages/editor/*/src/index.ts", "packages/editor/*/src/index.tsx"],
+      "@coze-editor/*/*": ["packages/editor/*/src/*"],
+      "@coze-devops/*": ["packages/devops/*/src/index.ts", "packages/devops/*/src/index.tsx"],
+      "@coze-devops/*/*": ["packages/devops/*/src/*"],
+      "@flowgram-adapter/*": ["packages/common/flowgram-adapter/*/src/index.ts", "packages/common/flowgram-adapter/*/src/index.tsx"],
+      "@flowgram-adapter/*/*": ["packages/common/flowgram-adapter/*/src/*"]
+    }
   }
 }

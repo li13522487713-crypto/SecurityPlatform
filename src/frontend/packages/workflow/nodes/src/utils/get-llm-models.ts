@@ -27,6 +27,7 @@ import {
   type GetTypeListRequest,
   type Model,
   type ModelParameter,
+  ModelParamType,
 } from '@coze-arch/bot-api/developer_api';
 import { DeveloperApi as developerApi } from '@coze-arch/bot-api';
 
@@ -66,6 +67,126 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+interface AtlasEnabledModelConfig {
+  id: number;
+  name: string;
+  providerType: string;
+  defaultModel: string;
+  modelId?: string;
+  systemPrompt?: string;
+  enableStreaming?: boolean;
+  enableReasoning?: boolean;
+  enableTools?: boolean;
+  enableVision?: boolean;
+  enableJsonMode?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+function buildAtlasModelParameter(
+  name: string,
+  label: string,
+  type: ModelParamType,
+  defaultValue: string,
+  options?: Array<{ label: string; value: string | number }>
+): ModelParameter {
+  return {
+    name,
+    label,
+    type,
+    min: type === ModelParamType.Float ? '0' : type === ModelParamType.Int ? '1' : '',
+    max: type === ModelParamType.Float ? '2' : type === ModelParamType.Int ? '32000' : '',
+    precision: type === ModelParamType.Float ? 1 : 0,
+    default_val: {
+      default_val: defaultValue,
+      creative: defaultValue,
+      balance: defaultValue,
+      precise: defaultValue,
+      customize: defaultValue,
+    } as ModelParameter['default_val'],
+    options: options as ModelParameter['options'],
+    param_class:
+      name === RESPONSE_FORMAT_NAME
+        ? { class_id: 3, label: 'Output format' }
+        : name === 'temperature'
+          ? { class_id: 1, label: 'Generation diversity' }
+          : { class_id: 2, label: 'Input and output length' },
+  };
+}
+
+function createAtlasModelParamList(item: AtlasEnabledModelConfig): ModelParameter[] {
+  return [
+    buildAtlasModelParameter(
+      'temperature',
+      'Temperature',
+      ModelParamType.Float,
+      String(item.temperature ?? 1),
+    ),
+    buildAtlasModelParameter(
+      'max_tokens',
+      'Max Tokens',
+      ModelParamType.Int,
+      String(item.maxTokens ?? 4096),
+    ),
+    buildAtlasModelParameter(
+      RESPONSE_FORMAT_NAME,
+      I18n.t('model_config_response_format'),
+      ModelParamType.Int,
+      String(ResponseFormat.JSON),
+      [
+        { label: I18n.t('model_config_history_text'), value: ResponseFormat.Text },
+        { label: I18n.t('model_config_history_markdown'), value: ResponseFormat.Markdown },
+        { label: I18n.t('model_config_history_json'), value: ResponseFormat.JSON },
+      ],
+    ),
+  ];
+}
+
+function mapAtlasModelConfigToModel(item: AtlasEnabledModelConfig): Model {
+  return {
+    name: item.defaultModel || item.modelId || item.name,
+    model_type: item.id,
+    model_name: item.modelId || item.defaultModel || item.name,
+    endpoint_name: item.providerType,
+    model_class_name: item.providerType,
+    model_brief_desc: item.systemPrompt || item.name,
+    model_desc: item.systemPrompt
+      ? [{ group_name: item.providerType, desc: [item.systemPrompt] }]
+      : [{ group_name: item.providerType, desc: [item.name] }],
+    model_params: createAtlasModelParamList(item),
+    model_ability: {
+      cot_display: Boolean(item.enableReasoning),
+      function_call: Boolean(item.enableTools),
+      image_understanding: Boolean(item.enableVision),
+      support_multi_modal: Boolean(item.enableVision),
+    },
+    model_status_details: {
+      is_free_model: true,
+    },
+  };
+}
+
+async function getAtlasEnabledModels(): Promise<Model[]> {
+  const response = await fetch('/api/v1/model-configs/enabled', {
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+      'x-requested-with': 'XMLHttpRequest',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`fetch atlas models failed: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as {
+    data?: AtlasEnabledModelConfig[];
+  };
+
+  return repairResponseFormatInModelList(
+    (payload.data ?? []).map(mapAtlasModelConfigToModel),
+  );
+}
 
 /**
  * 1. Complete the response_format parameter items for each model in the model list
@@ -151,8 +272,17 @@ export const getLLMModels = async ({
           getTypeListParams.model_scene = ModelScene.Douyin;
         }
 
-        const resp = await developerApi.GetTypeList(getTypeListParams);
-        const _modelList: Model[] = resp?.data?.model_list ?? [];
+        let _modelList: Model[] = [];
+        try {
+          const resp = await developerApi.GetTypeList(getTypeListParams);
+          _modelList = resp?.data?.model_list ?? [];
+        } catch (error) {
+          logger.warn({
+            error: error as Error,
+            eventName: 'api/bot/get_type_list fallback atlas model center',
+          });
+          _modelList = await getAtlasEnabledModels();
+        }
 
         // From here to return modelList is all about wiping the butt of the backend
         // There is hard code here, you need to set the default value of the output format to JSON

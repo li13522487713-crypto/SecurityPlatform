@@ -222,7 +222,7 @@ public static class VariableResolver
         string key,
         string defaultValue = "")
     {
-        if (!config.TryGetValue(key, out var raw))
+        if (!TryGetConfigValue(config, key, out var raw))
         {
             return defaultValue;
         }
@@ -242,7 +242,7 @@ public static class VariableResolver
         string key,
         int defaultValue = 0)
     {
-        if (!config.TryGetValue(key, out var raw))
+        if (!TryGetConfigValue(config, key, out var raw))
         {
             return defaultValue;
         }
@@ -263,7 +263,7 @@ public static class VariableResolver
         string key,
         long defaultValue = 0L)
     {
-        if (!config.TryGetValue(key, out var raw))
+        if (!TryGetConfigValue(config, key, out var raw))
         {
             return defaultValue;
         }
@@ -284,7 +284,7 @@ public static class VariableResolver
         string key,
         bool defaultValue = false)
     {
-        if (!config.TryGetValue(key, out var raw))
+        if (!TryGetConfigValue(config, key, out var raw))
         {
             return defaultValue;
         }
@@ -306,6 +306,11 @@ public static class VariableResolver
         out JsonElement value)
     {
         if (config.TryGetValue(key, out value))
+        {
+            return true;
+        }
+
+        if (TryGetConfigValueByPath(config, key, out value))
         {
             return true;
         }
@@ -346,6 +351,41 @@ public static class VariableResolver
     public static JsonElement CreateStringElement(string value)
     {
         return JsonSerializer.SerializeToElement(value ?? string.Empty);
+    }
+
+    private static bool TryGetConfigValueByPath(
+        IReadOnlyDictionary<string, JsonElement> config,
+        string key,
+        out JsonElement value)
+    {
+        value = default;
+        if (string.IsNullOrWhiteSpace(key) || !key.Contains('.', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var segments = key.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0)
+        {
+            return false;
+        }
+
+        if (!config.TryGetValue(segments[0], out var current))
+        {
+            return false;
+        }
+
+        for (var index = 1; index < segments.Length; index++)
+        {
+            if (current.ValueKind != JsonValueKind.Object ||
+                !TryGetPropertyValue(current, segments[index], out current))
+            {
+                return false;
+            }
+        }
+
+        value = current;
+        return true;
     }
 
     private static bool EvaluateAndExpression(string expression, IReadOnlyDictionary<string, JsonElement> variables)

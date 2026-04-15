@@ -31,7 +31,22 @@ const EmptySidebar = React.forwardRef<AddNodeRef, unknown>(
   (_props, _addNodeRef) => null,
 );
 
-export function WorkflowPage(): React.ReactNode {
+export interface WorkflowPageProps {
+  workflowId?: string;
+  spaceId?: string;
+  version?: string;
+  setVersion?: boolean;
+  from?: string;
+  optType?: number;
+  nodeId?: string;
+  executeId?: string;
+  subExecuteId?: string;
+  returnUrl?: string;
+  mode?: string;
+  onAtlasBack?: () => void;
+}
+
+export function WorkflowPage(props: WorkflowPageProps = {}): React.ReactNode {
   const workflowPlaygroundRef = useRef<WorkflowPlaygroundRef>(null);
   const {
     spaceId,
@@ -44,7 +59,7 @@ export function WorkflowPage(): React.ReactNode {
     executeId,
     subExecuteId,
     returnUrl,
-  } = usePageParams();
+  } = usePageParams(props);
 
   const [initOnce, setInitOnce] = useState(false);
   const { navigateBack } = useNavigateBack();
@@ -96,6 +111,10 @@ export function WorkflowPage(): React.ReactNode {
         }}
         from={from}
         onBackClick={workflowState => {
+          if (props.onAtlasBack) {
+            props.onAtlasBack();
+            return;
+          }
           navigateBack(workflowState, 'exit', returnUrl);
         }}
         onPublish={workflowState => {

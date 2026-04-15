@@ -4,6 +4,7 @@ using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -28,10 +29,31 @@ public sealed class LlmNodeExecutor : INodeExecutor
 
         var promptTemplate = context.GetConfigString("prompt");
         var systemPromptTemplate = context.GetConfigString("systemPrompt");
-        var model = context.GetConfigString("model", "gpt-4o-mini");
+        var model = context.GetConfigString("model.modelName", context.GetConfigString("model", "gpt-4o-mini"));
         var provider = context.GetConfigString("provider");
         var outputKey = context.GetConfigString("outputKey", "llm_output");
-        var stream = context.GetConfigBoolean("stream");
+        var modelConfig = await ResolveModelConfigAsync(context, cancellationToken);
+        if (modelConfig is not null)
+        {
+            if (string.IsNullOrWhiteSpace(provider))
+            {
+                provider = modelConfig.ProviderType;
+            }
+
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                model = string.IsNullOrWhiteSpace(modelConfig.ModelId)
+                    ? modelConfig.DefaultModel
+                    : modelConfig.ModelId;
+            }
+
+            if (string.IsNullOrWhiteSpace(systemPromptTemplate))
+            {
+                systemPromptTemplate = modelConfig.SystemPrompt ?? string.Empty;
+            }
+        }
+
+        var stream = context.GetConfigBoolean("stream", modelConfig?.EnableStreaming ?? false);
 
         // 变量替换
         var prompt = context.ReplaceVariables(promptTemplate);
@@ -46,8 +68,16 @@ public sealed class LlmNodeExecutor : INodeExecutor
         {
             var llmProvider = _llmProviderFactory.GetLlmProvider(provider);
 
-            float.TryParse(context.GetConfigString("temperature"), NumberStyles.Float, CultureInfo.InvariantCulture, out var temperature);
-            int.TryParse(context.GetConfigString("maxTokens"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxTokens);
+            float.TryParse(
+                context.GetConfigString("temperature", modelConfig?.Temperature?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var temperature);
+            int.TryParse(
+                context.GetConfigString("maxTokens", modelConfig?.MaxTokens?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var maxTokens);
 
             var messages = new List<ChatMessage>();
             if (!string.IsNullOrWhiteSpace(systemPrompt))
@@ -95,5 +125,24 @@ public sealed class LlmNodeExecutor : INodeExecutor
         {
             return new NodeExecutionResult(false, outputs, $"LLM 调用失败: {ex.Message}");
         }
+    }
+
+    private static async Task<ModelConfigDto?> ResolveModelConfigAsync(
+        NodeExecutionContext context,
+        CancellationToken cancellationToken)
+    {
+        var modelType = context.GetConfigInt64("model.modelType", 0L);
+        if (modelType <= 0)
+        {
+            return null;
+        }
+
+        var queryService = context.ServiceProvider.GetService<IModelConfigQueryService>();
+        if (queryService is null)
+        {
+            return null;
+        }
+
+        return await queryService.GetByIdAsync(context.TenantId, modelType, cancellationToken);
     }
 }

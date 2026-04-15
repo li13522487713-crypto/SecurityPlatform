@@ -64,7 +64,7 @@ export function createAPI<
     // Here, you can use the incoming req as the default mapping to reduce the need for manual binding in the customAPI
     if (useCustom) {
       const mappingKeys: string[] = Object.keys(meta.reqMapping)
-        .map(key => meta.reqMapping[key])
+        .map(key => meta.reqMapping[key as keyof typeof meta.reqMapping])
         .reduce((a, b) => [...a, ...b], []);
       const defaultFiled = Object.keys(req).filter(
         field => !mappingKeys.includes(field),

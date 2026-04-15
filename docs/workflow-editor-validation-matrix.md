@@ -2,12 +2,13 @@
 
 ## 说明
 
-- 当前矩阵描述的是 Atlas 主编辑器现状：
-  - 当前运行主链仍是 `workflow-editor-react`
-  - `@coze-workflow/playground` 是后续唯一目标内核，但尚未成为 App 主入口
+- 当前矩阵描述的是 Coze adapter 已接入后的主编辑器要求：
+  - `app-web` 主路径编辑入口以 `@coze-workflow/playground-adapter` 为准
+  - `workflow-editor-react` 仅作为迁移期遗留实现保留，不再是默认主入口
 - 本矩阵用于前端工作流编辑器校验覆盖清单，单一事实源依赖后端：
   - `GET /api/v2/workflows/node-types`（端口 + Schema）
   - `GET /api/v2/workflows/node-templates`（默认值）
+  - `GET /api/v1/model-configs/enabled`（模型目录）
 - 校验分层：
   - 第 1 层：Schema 字段校验
   - 第 2 层：端口与 inputMappings 校验
@@ -15,10 +16,9 @@
 
 ## 风险提示
 
-- 当前矩阵不代表 Coze playground 已接线。
-- 当主入口切到 Coze adapter 后，本矩阵需要迁移为：
-  - Coze registry/form-meta/node-test 校验矩阵
-  - Atlas adapter transformer 校验矩阵
+- 当前矩阵默认要求同时覆盖：
+  - Coze registry / form-meta / node-test 行为
+  - Atlas adapter 与模型目录映射行为
 
 ## 全节点覆盖矩阵（40+）
 
@@ -85,3 +85,4 @@
 - 字段级错误：属性面板字段就地提示
 - 节点级错误：属性面板顶部汇总
 - 画布级错误：保存/发布前统一阻断与定位
+- 模型节点：属性面板应直接显示模型中心选择器，不再暴露手填 provider / model 作为默认交互

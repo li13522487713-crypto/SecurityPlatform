@@ -95,6 +95,7 @@ const mockSpaceId = 'space-123';
 describe('getLLMModels', () => {
   let mockDocument: WorkflowDocument;
   let mockGetNodeRegistry: Mock;
+  let fetchMock: Mock;
 
   beforeEach(() => {
     mockGetNodeRegistry = vi.fn().mockReturnValue({
@@ -121,6 +122,8 @@ describe('getLLMModels', () => {
     mockDocument = {
       getNodeRegistry: mockGetNodeRegistry,
     } as unknown as WorkflowDocument;
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
     vi.mocked(developerApi.GetTypeList).mockResolvedValue(
       JSON.parse(JSON.stringify(mockLLMModels)),
     );
@@ -196,6 +199,7 @@ describe('getLLMModels', () => {
     const mockInfo = { schema_json: JSON.stringify(mockSchemaForLLM) };
     const apiError = new Error('API Error');
     vi.mocked(developerApi.GetTypeList).mockRejectedValue(apiError);
+    fetchMock.mockRejectedValue(apiError);
 
     // The previous interface has 3s cache, you need to wait 3s before calling it.
     await new Promise(resolve => setTimeout(resolve, 3100));
@@ -216,5 +220,47 @@ describe('getLLMModels', () => {
     expect(I18n.t).toHaveBeenCalledWith('workflow_detail_error_message', {
       msg: 'fetch error',
     });
+  });
+
+  it('should fallback to atlas model center when developer api fails', async () => {
+    const mockInfo = { schema_json: JSON.stringify(mockSchemaForLLM) };
+    vi.mocked(developerApi.GetTypeList).mockRejectedValue(new Error('GetTypeList unavailable'));
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 1001,
+            name: 'Atlas OpenAI',
+            providerType: 'openai',
+            defaultModel: 'gpt-4.1',
+            modelId: 'gpt-4.1',
+            systemPrompt: 'atlas prompt',
+            enableTools: true,
+            enableVision: true,
+            enableReasoning: true,
+            temperature: 0.7,
+            maxTokens: 8192,
+          },
+        ],
+      }),
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 3100));
+
+    const models = await getLLMModels({
+      info: mockInfo,
+      spaceId: mockSpaceId,
+      document: mockDocument,
+      isBindDouyin: false,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/model-configs/enabled', expect.objectContaining({
+      credentials: 'include',
+    }));
+    expect(models).toHaveLength(1);
+    expect(models[0].model_type).toBe(1001);
+    expect(models[0].endpoint_name).toBe('openai');
+    expect(models[0].model_ability?.function_call).toBe(true);
   });
 });

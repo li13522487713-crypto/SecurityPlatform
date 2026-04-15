@@ -184,15 +184,13 @@
 ### 模型目录来源
 
 - 工作流模型节点前端候选源固定复用 `GET /model-configs/enabled`。
-- 返回项映射为：
-  - `provider`
-  - `providerType`
-  - `model`
-  - `label`
-  - `systemPrompt`
-  - `temperature`
-  - `maxTokens`
-  - `enableStreaming`
+- Coze adapter / playground 内部统一将已启用模型配置映射为 `developer_api.Model` 风格对象：
+  - `model_type` = `ModelConfigDto.Id`
+  - `name` / `model_name` = `modelId || defaultModel || name`
+  - `endpoint_name` / `model_class_name` = `providerType`
+  - `model_params` 至少补齐 `temperature`、`max_tokens`、`response_format`
+  - `model_ability` 从 `enableTools` / `enableVision` / `enableReasoning` 等能力字段派生
+- 工作流节点面板中的模型选择不再要求手填 provider / model 字符串，统一从模型中心已启用配置中选择。
 
 ### 执行恢复（流式）
 

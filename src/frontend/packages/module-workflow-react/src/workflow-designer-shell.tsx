@@ -17,8 +17,8 @@ interface WorkflowDesignerShellProps extends WorkflowPageProps, WorkflowWorkbenc
 /**
  * 统一工作流编辑入口。
  *
- * 当前默认仍走 Atlas editor 实现；后续切换到 Coze playground 时，
- * 只需要替换这里的底层渲染分支，而不需要再次改动路由与宿主编排。
+ * 当前默认直接切到 Coze playground；如需回退 Atlas editor，
+ * 仍可通过环境变量、query 或 localStorage 显式覆盖。
  */
 export function WorkflowDesignerShell(props: WorkflowDesignerShellProps) {
   const resolvedEngine = resolveWorkflowDesignerEngine(props.engine);
@@ -43,7 +43,7 @@ function resolveWorkflowDesignerEngine(explicitEngine?: WorkflowDesignerEngine):
   }
 
   if (typeof window === "undefined") {
-    return "atlas-editor";
+    return "coze-playground";
   }
 
   const queryEngine = normalizeEngine(new URLSearchParams(window.location.search).get(WORKFLOW_ENGINE_QUERY_KEY));
@@ -56,7 +56,7 @@ function resolveWorkflowDesignerEngine(explicitEngine?: WorkflowDesignerEngine):
     return storageEngine;
   }
 
-  return "atlas-editor";
+  return "coze-playground";
 }
 
 function normalizeEngine(value: string | null | undefined): WorkflowDesignerEngine | null {

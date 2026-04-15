@@ -18,6 +18,7 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
+    "@coze-workflow/playground-adapter": "workspace:*",
     "@atlas/module-studio-react": "workspace:*",
     "@atlas/shared-react-core": "workspace:*",
     "@atlas/workflow-core-react": "workspace:*",
@@ -25,7 +26,7 @@
     "@douyinfe/semi-ui": "^2.82.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.13",
-    "@types/react-dom": "^19.2.3"
+    "@types/react": "18.2.37",
+    "@types/react-dom": "18.2.15"
   }
 }

@@ -21,6 +21,7 @@ import { type WorkflowPlaygroundProps } from '@coze-workflow/playground';
 import { OperateType } from '@coze-workflow/base/api';
 import { I18n } from '@coze-arch/i18n';
 import { Toast } from '@coze-arch/coze-design';
+import type { WorkflowPageProps } from '../page';
 
 /** Process details page parameters */
 interface SearchParams {
@@ -44,19 +45,61 @@ interface SearchParams {
   return_url?: string;
 }
 
-export function usePageParams() {
+export function usePageParams(overrides?: WorkflowPageProps) {
   const searchParams = useMemo(() => {
     const target: SearchParams = {
-      workflow_id: '',
-      space_id: '',
+      workflow_id: overrides?.workflowId ?? '',
+      space_id: overrides?.spaceId ?? '',
     };
     const params = new URLSearchParams(window.location.search);
     params.forEach((value, key) => {
       target[key] = value;
     });
 
+    if (overrides?.workflowId) {
+      target.workflow_id = overrides.workflowId;
+    }
+    if (overrides?.spaceId) {
+      target.space_id = overrides.spaceId;
+    }
+    if (overrides?.version) {
+      target.version = overrides.version;
+    }
+    if (typeof overrides?.setVersion === 'boolean') {
+      target.set_version = overrides.setVersion ? '1' : undefined;
+    }
+    if (typeof overrides?.optType === 'number') {
+      target.opt_type = String(overrides.optType);
+    }
+    if (overrides?.from) {
+      target.from = overrides.from as WorkflowPlaygroundProps['from'];
+    }
+    if (overrides?.nodeId) {
+      target.node_id = overrides.nodeId;
+    }
+    if (overrides?.executeId) {
+      target.execute_id = overrides.executeId;
+    }
+    if (overrides?.subExecuteId) {
+      target.sub_execute_id = overrides.subExecuteId;
+    }
+    if (overrides?.returnUrl) {
+      target.return_url = overrides.returnUrl;
+    }
+
     return target;
-  }, []);
+  }, [
+    overrides?.executeId,
+    overrides?.from,
+    overrides?.nodeId,
+    overrides?.optType,
+    overrides?.returnUrl,
+    overrides?.setVersion,
+    overrides?.spaceId,
+    overrides?.subExecuteId,
+    overrides?.version,
+    overrides?.workflowId,
+  ]);
 
   const {
     space_id: spaceId,

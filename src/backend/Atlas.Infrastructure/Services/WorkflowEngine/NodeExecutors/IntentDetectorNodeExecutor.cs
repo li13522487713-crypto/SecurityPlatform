@@ -3,6 +3,7 @@ using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -41,22 +42,42 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "IntentDetector 输入文本为空。");
         }
 
-        var model = context.GetConfigString("model", "gpt-4o-mini");
+        var model = context.GetConfigString("model.modelName", context.GetConfigString("model", "gpt-4o-mini"));
         var provider = context.GetConfigString("provider");
+        var modelConfig = await ResolveModelConfigAsync(context, cancellationToken);
+        if (modelConfig is not null)
+        {
+            if (string.IsNullOrWhiteSpace(provider))
+            {
+                provider = modelConfig.ProviderType;
+            }
+
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                model = string.IsNullOrWhiteSpace(modelConfig.ModelId)
+                    ? modelConfig.DefaultModel
+                    : modelConfig.ModelId;
+            }
+        }
+
         var systemPrompt = context.GetConfigString(
             "systemPrompt",
-            "你是意图分类器。只输出 JSON：{\"intent\":\"...\",\"confidence\":0.0~1.0,\"reason\":\"...\"}");
+            modelConfig?.SystemPrompt ?? "你是意图分类器。只输出 JSON：{\"intent\":\"...\",\"confidence\":0.0~1.0,\"reason\":\"...\"}");
 
         var prompt = BuildPrompt(systemPrompt, inputText, intents);
         try
         {
             var llmProvider = _llmProviderFactory.GetLlmProvider(provider);
-            float.TryParse(context.GetConfigString("temperature"), NumberStyles.Float, CultureInfo.InvariantCulture, out var temperature);
+            float.TryParse(
+                context.GetConfigString("temperature", modelConfig?.Temperature?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var temperature);
             var request = new ChatCompletionRequest(
                 model,
                 [new ChatMessage("user", prompt)],
                 temperature > 0 ? temperature : 0,
-                MaxTokens: 256,
+                MaxTokens: modelConfig?.MaxTokens ?? 256,
                 Provider: provider);
             var result = await llmProvider.ChatAsync(request, cancellationToken);
 
@@ -71,6 +92,25 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
         {
             return new NodeExecutionResult(false, outputs, $"IntentDetector 调用失败: {ex.Message}");
         }
+    }
+
+    private static async Task<ModelConfigDto?> ResolveModelConfigAsync(
+        NodeExecutionContext context,
+        CancellationToken cancellationToken)
+    {
+        var modelType = context.GetConfigInt64("model.modelType", 0L);
+        if (modelType <= 0)
+        {
+            return null;
+        }
+
+        var queryService = context.ServiceProvider.GetService<IModelConfigQueryService>();
+        if (queryService is null)
+        {
+            return null;
+        }
+
+        return await queryService.GetByIdAsync(context.TenantId, modelType, cancellationToken);
     }
 
     private static List<string> ResolveIntents(IReadOnlyDictionary<string, JsonElement> config)

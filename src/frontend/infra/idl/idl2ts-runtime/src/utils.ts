@@ -117,7 +117,7 @@ const ContentTypeMap = {
   json: 'application/json',
   urlencoded: 'application/x-www-form-urlencoded',
   form: 'multipart/form-data',
-};
+} as const;
 
 // eslint-disable-next-line complexity
 export function normalizeRequest(
@@ -142,10 +142,11 @@ export function normalizeRequest(
   }
   let uri = uriPrefix + apiUri;
   let headers: Record<string, string> = {};
+  const serializer = meta.serializer as keyof typeof ContentTypeMap | undefined;
 
   headers['Content-Type'] =
-    meta.serializer && ContentTypeMap[meta.serializer]
-      ? ContentTypeMap[meta.serializer]
+    serializer && ContentTypeMap[serializer]
+      ? ContentTypeMap[serializer]
       : 'application/json';
   if (option?.requestOptions?.headers) {
     headers = { ...headers, ...option.requestOptions.headers };
