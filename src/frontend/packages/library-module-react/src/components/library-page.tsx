@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
-import type { MouseEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import {
   Banner,
@@ -36,11 +36,72 @@ import {
 
 interface CreateFormState extends KnowledgeBaseCreateRequest {}
 
+interface PluginCreateFormState {
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  type: 0 | 1;
+  sourceType: 0 | 1 | 2;
+  authType: 0 | 1 | 2 | 3 | 4;
+  definitionJson: string;
+  authConfigJson: string;
+  toolSchemaJson: string;
+  openApiSpecJson: string;
+}
+
+interface DatabaseSchemaColumn {
+  id: string;
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  defaultValue: string;
+}
+
+interface DatabaseCreateFormState {
+  name: string;
+  description: string;
+  botId: string;
+  schemaMode: "structured" | "raw";
+  columns: DatabaseSchemaColumn[];
+  rawSchemaJson: string;
+}
+
 const DEFAULT_CREATE_FORM: CreateFormState = {
   name: "",
   description: "",
   type: 0
 };
+
+const DEFAULT_PLUGIN_FORM: PluginCreateFormState = {
+  name: "",
+  description: "",
+  icon: "",
+  category: "",
+  type: 0,
+  sourceType: 0,
+  authType: 0,
+  definitionJson: "{}",
+  authConfigJson: "{}",
+  toolSchemaJson: "{}",
+  openApiSpecJson: "{}"
+};
+
+const DEFAULT_DATABASE_COLUMNS: DatabaseSchemaColumn[] = [
+  { id: "col-id", name: "id", label: "", type: "string", required: true, defaultValue: "" }
+];
+
+const DEFAULT_DATABASE_FORM: DatabaseCreateFormState = {
+  name: "",
+  description: "",
+  botId: "",
+  schemaMode: "structured",
+  columns: DEFAULT_DATABASE_COLUMNS,
+  rawSchemaJson: '[{"name":"id","type":"string"}]'
+};
+
+type CreateResourceKind = "knowledge-base" | "plugin" | "database";
 
 export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: LibraryPageProps) {
   const copy = getLibraryCopy(locale);
@@ -54,7 +115,11 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
   const [total, setTotal] = useState(0);
   const [createVisible, setCreateVisible] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createKind, setCreateKind] = useState<CreateResourceKind>("knowledge-base");
   const [form, setForm] = useState<CreateFormState>(DEFAULT_CREATE_FORM);
+  const [pluginForm, setPluginForm] = useState<PluginCreateFormState>(DEFAULT_PLUGIN_FORM);
+  const [databaseForm, setDatabaseForm] = useState<DatabaseCreateFormState>(DEFAULT_DATABASE_FORM);
+  const [draggingColumnId, setDraggingColumnId] = useState<string>("");
   const deferredSearch = useDeferredValue(search.trim());
   const pageSize = 20;
 
@@ -121,6 +186,20 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
       return matchSubtype && matchStatus;
     })
   ), [items, statusFilter, subTypeFilter]);
+
+  const structuredDatabaseSchemaJson = useMemo(() => JSON.stringify(
+    databaseForm.columns
+      .filter(column => column.name.trim())
+      .map(column => ({
+        name: column.name.trim(),
+        label: column.label.trim() || undefined,
+        type: column.type.trim() || "string",
+        required: column.required,
+        defaultValue: column.defaultValue.trim() || undefined
+      })),
+    null,
+    2
+  ), [databaseForm.columns]);
 
   const columns = useMemo<ColumnProps<AiLibraryItem>[]>(() => [
     {
@@ -330,23 +409,113 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
     }
   ], [appKey, copy, onNavigate]);
 
-  async function handleCreateKnowledge() {
-    if (!form.name.trim()) {
-      Toast.warning(copy.createKnowledge);
+  function moveDatabaseColumn(columnId: string, direction: -1 | 1) {
+    setDatabaseForm(current => {
+      const index = current.columns.findIndex(item => item.id === columnId);
+      if (index < 0) {
+        return current;
+      }
+
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= current.columns.length) {
+        return current;
+      }
+
+      const nextColumns = [...current.columns];
+      const [currentColumn] = nextColumns.splice(index, 1);
+      nextColumns.splice(nextIndex, 0, currentColumn);
+      return {
+        ...current,
+        columns: nextColumns
+      };
+    });
+  }
+
+  function reorderDatabaseColumn(sourceId: string, targetId: string) {
+    if (!sourceId || sourceId === targetId) {
+      return;
+    }
+
+    setDatabaseForm(current => {
+      const sourceIndex = current.columns.findIndex(item => item.id === sourceId);
+      const targetIndex = current.columns.findIndex(item => item.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+        return current;
+      }
+
+      const nextColumns = [...current.columns];
+      const [sourceColumn] = nextColumns.splice(sourceIndex, 1);
+      nextColumns.splice(targetIndex, 0, sourceColumn);
+      return {
+        ...current,
+        columns: nextColumns
+      };
+    });
+  }
+
+  async function handleCreateResource() {
+    const normalizedName = createKind === "knowledge-base"
+      ? form.name.trim()
+      : createKind === "plugin"
+        ? pluginForm.name.trim()
+        : databaseForm.name.trim();
+
+    if (!normalizedName) {
+      Toast.warning(copy.createResource);
       return;
     }
 
     setCreating(true);
     try {
-      const id = await api.createKnowledgeBase({
-        name: form.name.trim(),
-        description: form.description?.trim(),
-        type: form.type
-      });
+      let id = 0;
+      if (createKind === "knowledge-base") {
+        id = await api.createKnowledgeBase({
+          name: form.name.trim(),
+          description: form.description?.trim(),
+          type: form.type
+        });
+      } else if (createKind === "plugin") {
+        if (!api.createPlugin) {
+          throw new Error(copy.createPlugin);
+        }
+        id = await api.createPlugin({
+          name: pluginForm.name.trim(),
+          description: pluginForm.description.trim() || undefined,
+          icon: pluginForm.icon.trim() || undefined,
+          category: pluginForm.category.trim() || undefined,
+          type: pluginForm.type,
+          sourceType: pluginForm.sourceType,
+          authType: pluginForm.authType,
+          definitionJson: pluginForm.definitionJson.trim() || "{}",
+          authConfigJson: pluginForm.authConfigJson.trim() || "{}",
+          toolSchemaJson: pluginForm.toolSchemaJson.trim() || "{}",
+          openApiSpecJson: pluginForm.openApiSpecJson.trim() || "{}"
+        });
+      } else {
+        if (!api.createDatabase) {
+          throw new Error(copy.createDatabase);
+        }
+        id = await api.createDatabase({
+          name: databaseForm.name.trim(),
+          description: databaseForm.description.trim() || undefined,
+          botId: databaseForm.botId.trim() ? Number(databaseForm.botId.trim()) : undefined,
+          tableSchema: databaseForm.schemaMode === "structured"
+            ? structuredDatabaseSchemaJson
+            : databaseForm.rawSchemaJson.trim()
+        });
+      }
       setCreateVisible(false);
       setForm(DEFAULT_CREATE_FORM);
-      Toast.success(copy.createKnowledge);
-      onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${id}`);
+      setPluginForm(DEFAULT_PLUGIN_FORM);
+      setDatabaseForm(DEFAULT_DATABASE_FORM);
+      Toast.success(createKind === "knowledge-base" ? copy.createKnowledge : createKind === "plugin" ? copy.createPlugin : copy.createDatabase);
+      if (createKind === "knowledge-base") {
+        onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${id}`);
+      } else if (createKind === "plugin") {
+        onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/plugins/${id}`);
+      } else {
+        onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/databases/${id}`);
+      }
     } catch (error) {
       Toast.error((error as Error).message);
     } finally {
@@ -370,9 +539,28 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           position="bottomRight"
           render={(
             <Dropdown.Menu>
-              <Dropdown.Item icon={<IconPlus />} onClick={() => setCreateVisible(true)}>
+              <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                setCreateKind("knowledge-base");
+                setCreateVisible(true);
+              }}>
                 {copy.createKnowledge}
               </Dropdown.Item>
+              {api.createPlugin ? (
+                <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                  setCreateKind("plugin");
+                  setCreateVisible(true);
+                }}>
+                  {copy.createPlugin}
+                </Dropdown.Item>
+              ) : null}
+              {api.createDatabase ? (
+                <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                  setCreateKind("database");
+                  setCreateVisible(true);
+                }}>
+                  {copy.createDatabase}
+                </Dropdown.Item>
+              ) : null}
             </Dropdown.Menu>
           )}
         >
@@ -475,39 +663,260 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
       </div>
 
       <Modal
-        title={copy.createKnowledge}
+        title={createKind === "knowledge-base" ? copy.createKnowledge : createKind === "plugin" ? copy.createPlugin : copy.createDatabase}
         visible={createVisible}
         confirmLoading={creating}
-        onOk={handleCreateKnowledge}
+        onOk={handleCreateResource}
         onCancel={() => {
           setCreateVisible(false);
           setForm(DEFAULT_CREATE_FORM);
+          setPluginForm(DEFAULT_PLUGIN_FORM);
+          setDatabaseForm(DEFAULT_DATABASE_FORM);
         }}
         okText={copy.create}
         cancelText={copy.cancel}
       >
         <Space vertical align="start" style={{ width: "100%" }}>
           <Input
-            value={form.name}
-            placeholder={copy.createKnowledge}
-            onChange={value => setForm((current: CreateFormState) => ({ ...current, name: value }))}
+            value={createKind === "knowledge-base" ? form.name : createKind === "plugin" ? pluginForm.name : databaseForm.name}
+            placeholder={createKind === "knowledge-base" ? copy.createKnowledge : createKind === "plugin" ? copy.createPlugin : copy.createDatabase}
+            onChange={value => {
+              if (createKind === "knowledge-base") {
+                setForm((current: CreateFormState) => ({ ...current, name: value }));
+              } else if (createKind === "plugin") {
+                setPluginForm(current => ({ ...current, name: value }));
+              } else {
+                setDatabaseForm(current => ({ ...current, name: value }));
+              }
+            }}
           />
-          <Select
-            value={form.type}
-            style={{ width: "100%" }}
-            optionList={[
-              { label: copy.typeLabels[0], value: 0 },
-              { label: copy.typeLabels[1], value: 1 },
-              { label: copy.typeLabels[2], value: 2 }
-            ]}
-            onChange={value => setForm((current: CreateFormState) => ({ ...current, type: Number(value) as KnowledgeBaseType }))}
-          />
-          <TextArea
-            autosize
-            value={form.description}
-            placeholder={copy.noDescription}
-            onChange={value => setForm((current: CreateFormState) => ({ ...current, description: value }))}
-          />
+          {createKind === "knowledge-base" ? (
+            <Select
+              value={form.type}
+              style={{ width: "100%" }}
+              optionList={[
+                { label: copy.typeLabels[0], value: 0 },
+                { label: copy.typeLabels[1], value: 1 },
+                { label: copy.typeLabels[2], value: 2 }
+              ]}
+              onChange={value => setForm((current: CreateFormState) => ({ ...current, type: Number(value) as KnowledgeBaseType }))}
+            />
+          ) : null}
+          {createKind === "plugin" ? (
+            <div className="atlas-library-create-stack">
+              <div className="atlas-library-create-section">
+                <Typography.Text strong>{copy.pluginBasicInfo}</Typography.Text>
+                <Input value={pluginForm.description} placeholder={copy.noDescription} onChange={value => setPluginForm(current => ({ ...current, description: value }))} />
+                <Input value={pluginForm.icon} placeholder="icon" onChange={value => setPluginForm(current => ({ ...current, icon: value }))} />
+                <Input value={pluginForm.category} placeholder={copy.resourceType} onChange={value => setPluginForm(current => ({ ...current, category: value }))} />
+              </div>
+              <div className="atlas-library-create-section">
+                <Typography.Text strong>{copy.pluginSourceAndAuth}</Typography.Text>
+                <Select
+                  value={pluginForm.type}
+                  optionList={[
+                    { label: "Custom", value: 0 },
+                    { label: "BuiltIn", value: 1 }
+                  ]}
+                  onChange={value => setPluginForm(current => ({ ...current, type: Number(value) as 0 | 1 }))}
+                />
+                <Select
+                  value={pluginForm.sourceType}
+                  optionList={[
+                    { label: "Manual", value: 0 },
+                    { label: "OpenApiImport", value: 1 },
+                    { label: "BuiltInCatalog", value: 2 }
+                  ]}
+                  onChange={value => setPluginForm(current => ({ ...current, sourceType: Number(value) as 0 | 1 | 2 }))}
+                />
+                <Select
+                  value={pluginForm.authType}
+                  optionList={[
+                    { label: "None", value: 0 },
+                    { label: "ApiKey", value: 1 },
+                    { label: "BearerToken", value: 2 },
+                    { label: "Basic", value: 3 },
+                    { label: "Custom", value: 4 }
+                  ]}
+                  onChange={value => setPluginForm(current => ({ ...current, authType: Number(value) as 0 | 1 | 2 | 3 | 4 }))}
+                />
+              </div>
+              {pluginForm.sourceType === 1 ? (
+                <div className="atlas-library-create-guide">
+                  <Typography.Text strong>{copy.pluginOpenApiGuide}</Typography.Text>
+                  <Typography.Text type="tertiary">{copy.pluginOpenApiHint}</Typography.Text>
+                  <Button
+                    theme="light"
+                    onClick={() => setPluginForm(current => ({
+                      ...current,
+                      openApiSpecJson: JSON.stringify({
+                        openapi: "3.0.0",
+                        info: { title: current.name || "Sample API", version: "1.0.0" },
+                        paths: {
+                          "/health": {
+                            get: {
+                              operationId: "healthCheck",
+                              responses: {
+                                "200": {
+                                  description: "OK"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }, null, 2)
+                    }))}
+                  >
+                    {copy.pluginPrefillOpenApi}
+                  </Button>
+                </div>
+              ) : null}
+              <div className="atlas-library-create-section">
+                <Typography.Text strong>{copy.pluginAdvancedConfig}</Typography.Text>
+                <TextArea autosize value={pluginForm.definitionJson} onChange={value => setPluginForm(current => ({ ...current, definitionJson: value }))} placeholder="definitionJson" />
+                {pluginForm.authType !== 0 ? (
+                  <TextArea autosize value={pluginForm.authConfigJson} onChange={value => setPluginForm(current => ({ ...current, authConfigJson: value }))} placeholder="authConfigJson" />
+                ) : null}
+                <TextArea autosize value={pluginForm.toolSchemaJson} onChange={value => setPluginForm(current => ({ ...current, toolSchemaJson: value }))} placeholder="toolSchemaJson" />
+                {pluginForm.sourceType === 1 ? (
+                  <TextArea autosize value={pluginForm.openApiSpecJson} onChange={value => setPluginForm(current => ({ ...current, openApiSpecJson: value }))} placeholder="openApiSpecJson" />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          {createKind === "knowledge-base" ? (
+            <TextArea
+              autosize
+              value={form.description}
+              placeholder={copy.noDescription}
+              onChange={value => setForm((current: CreateFormState) => ({ ...current, description: value }))}
+            />
+          ) : null}
+          {createKind === "database" ? (
+            <div className="atlas-library-create-stack">
+              <div className="atlas-library-create-section">
+                <Typography.Text strong>{copy.databaseBasicInfo}</Typography.Text>
+                <Input value={databaseForm.description} placeholder={copy.noDescription} onChange={value => setDatabaseForm(current => ({ ...current, description: value }))} />
+                <Input value={databaseForm.botId} placeholder="botId（可选）" onChange={value => setDatabaseForm(current => ({ ...current, botId: value }))} />
+              </div>
+              <div className="atlas-library-create-section">
+                <Typography.Text strong>{copy.databaseSchemaMode}</Typography.Text>
+                <Select
+                  value={databaseForm.schemaMode}
+                  optionList={[
+                    { label: copy.databaseSchemaStructured, value: "structured" },
+                    { label: copy.databaseSchemaRaw, value: "raw" }
+                  ]}
+                  onChange={value => setDatabaseForm(current => ({ ...current, schemaMode: String(value) as "structured" | "raw" }))}
+                />
+                {databaseForm.schemaMode === "structured" ? (
+                  <div className="atlas-library-database-columns">
+                    {databaseForm.columns.map(column => (
+                      <div
+                        key={column.id}
+                        className="atlas-library-database-columns__row"
+                        draggable
+                        onDragStart={(event: DragEvent<HTMLDivElement>) => {
+                          setDraggingColumnId(column.id);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={event => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        }}
+                        onDrop={event => {
+                          event.preventDefault();
+                          reorderDatabaseColumn(draggingColumnId, column.id);
+                          setDraggingColumnId("");
+                        }}
+                        onDragEnd={() => setDraggingColumnId("")}
+                      >
+                        <Input value={column.name} placeholder={copy.databaseFieldName} onChange={value => setDatabaseForm(current => ({
+                          ...current,
+                          columns: current.columns.map(item => item.id === column.id ? { ...item, name: value } : item)
+                        }))} />
+                        <Input value={column.label} placeholder={copy.databaseFieldLabel} onChange={value => setDatabaseForm(current => ({
+                          ...current,
+                          columns: current.columns.map(item => item.id === column.id ? { ...item, label: value } : item)
+                        }))} />
+                        <Select
+                          value={column.type}
+                          optionList={[
+                            { label: "string", value: "string" },
+                            { label: "number", value: "number" },
+                            { label: "boolean", value: "boolean" },
+                            { label: "json", value: "json" }
+                          ]}
+                          onChange={value => setDatabaseForm(current => ({
+                            ...current,
+                            columns: current.columns.map(item => item.id === column.id ? { ...item, type: String(value) } : item)
+                          }))}
+                        />
+                        <Select
+                          value={column.required ? "required" : "optional"}
+                          optionList={[
+                            { label: copy.databaseFieldRequired, value: "required" },
+                            { label: copy.databaseFieldOptional, value: "optional" }
+                          ]}
+                          onChange={value => setDatabaseForm(current => ({
+                            ...current,
+                            columns: current.columns.map(item => item.id === column.id ? { ...item, required: value === "required" } : item)
+                          }))}
+                        />
+                        <Input value={column.defaultValue} placeholder={copy.databaseFieldDefaultValue} onChange={value => setDatabaseForm(current => ({
+                          ...current,
+                          columns: current.columns.map(item => item.id === column.id ? { ...item, defaultValue: value } : item)
+                        }))} />
+                        <div className="atlas-library-database-columns__actions">
+                          <Button theme="borderless" onClick={() => moveDatabaseColumn(column.id, -1)}>{copy.databaseMoveUp}</Button>
+                          <Button theme="borderless" onClick={() => moveDatabaseColumn(column.id, 1)}>{copy.databaseMoveDown}</Button>
+                        </div>
+                        <Button
+                          theme="borderless"
+                          type="danger"
+                          onClick={() => setDatabaseForm(current => ({
+                            ...current,
+                            columns: current.columns.length <= 1
+                              ? current.columns
+                              : current.columns.filter(item => item.id !== column.id)
+                          }))}
+                        >
+                          {copy.databaseDeleteColumn}
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      theme="light"
+                      onClick={() => setDatabaseForm(current => ({
+                        ...current,
+                        columns: [...current.columns, {
+                          id: `col-${current.columns.length + 1}-${Date.now()}`,
+                          name: "",
+                          label: "",
+                          type: "string",
+                          required: false,
+                          defaultValue: ""
+                        }]
+                      }))}
+                    >
+                      {copy.databaseAddColumn}
+                    </Button>
+                    <div className="atlas-library-create-section">
+                      <Typography.Text strong>{copy.databaseSchemaPreview}</Typography.Text>
+                      <TextArea autosize value={structuredDatabaseSchemaJson} readOnly />
+                    </div>
+                  </div>
+                ) : (
+                  <TextArea
+                    autosize
+                    value={databaseForm.rawSchemaJson}
+                    placeholder='[{"name":"id","type":"string"}]'
+                    onChange={value => setDatabaseForm(current => ({ ...current, rawSchemaJson: value }))}
+                  />
+                )}
+              </div>
+            </div>
+          ) : null}
         </Space>
       </Modal>
     </div>

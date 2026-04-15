@@ -2377,6 +2377,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         var idGeneratorAccessor = serviceProvider.GetRequiredService<IIdGeneratorAccessor>();
+        var appContextAccessor = serviceProvider.GetRequiredService<IAppContextAccessor>();
         var tenantIds = await db.Queryable<UserAccount>()
             .Where(x => x.IsActive)
             .Select(x => x.TenantIdValue)
@@ -2387,6 +2388,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         {
             cancellationToken.ThrowIfCancellationRequested();
             var tenantId = new TenantId(tenantGuid);
+            using var appContextScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, tenantId));
             var activeUsers = await db.Queryable<UserAccount>()
                 .Where(x => x.TenantIdValue == tenantGuid && x.IsActive)
                 .OrderBy(x => x.Id, OrderByType.Asc)

@@ -13,14 +13,27 @@ interface WorkspaceSettingsPageProps {
   activeTab: WorkspaceSettingsTab;
   workspaceName: string;
   membersLoading: boolean;
+  memberSearchLoading: boolean;
+  memberSearchPageIndex: number;
+  memberSearchPageSize: number;
+  memberSearchTotal: number;
   permissionsLoading: boolean;
   resourcesLoading: boolean;
   members: WorkspaceMemberDto[];
+  memberSearchResults: Array<{
+    id: string;
+    username: string;
+    displayName: string;
+    isActive: boolean;
+    disabledReason?: string;
+    currentRoleCode?: string;
+  }>;
   resources: WorkspaceResourceCardDto[];
   selectedResourceKey: string;
   selectedPermissions: WorkspaceRolePermissionDto[];
   onSelectResource: (key: string) => void;
   onTabChange: (tab: WorkspaceSettingsTab) => void;
+  onSearchMembers: (keyword: string, pageIndex?: number) => void;
   onRefreshMembers: () => Promise<void>;
   onRefreshPermissions: () => Promise<void>;
   onAddMember: (request: { userId: string; roleCode: string }) => Promise<void>;
@@ -47,14 +60,20 @@ export function WorkspaceSettingsPage({
   activeTab,
   workspaceName,
   membersLoading,
+  memberSearchLoading,
+  memberSearchPageIndex,
+  memberSearchPageSize,
+  memberSearchTotal,
   permissionsLoading,
   resourcesLoading,
   members,
+  memberSearchResults,
   resources,
   selectedResourceKey,
   selectedPermissions,
   onSelectResource,
   onTabChange,
+  onSearchMembers,
   onRefreshMembers,
   onRefreshPermissions,
   onAddMember,
@@ -63,6 +82,7 @@ export function WorkspaceSettingsPage({
   onSavePermissions
 }: WorkspaceSettingsPageProps) {
   const { t } = useAppI18n();
+  const [memberSearchKeyword, setMemberSearchKeyword] = useState("");
   const [memberUserId, setMemberUserId] = useState("");
   const [memberRoleCode, setMemberRoleCode] = useState("Member");
   const [draftPermissions, setDraftPermissions] = useState<Array<{ roleCode: string; actions: string[] }>>([]);
@@ -78,6 +98,11 @@ export function WorkspaceSettingsPage({
     label: `${item.name} (${item.resourceType})`,
     value: `${item.resourceType}:${item.resourceId}`
   })), [resources]);
+
+  const selectedCandidate = useMemo(
+    () => memberSearchResults.find(item => item.id === memberUserId) ?? null,
+    [memberSearchResults, memberUserId]
+  );
 
   return (
     <div className="atlas-workspace-settings-page" data-testid="workspace-settings-page">
@@ -110,34 +135,136 @@ export function WorkspaceSettingsPage({
               </Button>
             </div>
 
-            <div className="atlas-workspace-settings-member-form">
-              <Input
-                value={memberUserId}
-                onChange={setMemberUserId}
-                placeholder={t("workspaceSettingsMemberUserPlaceholder")}
-              />
-              <Select
-                value={memberRoleCode}
-                optionList={roleOptions}
-                onChange={value => setMemberRoleCode(String(value))}
-              />
-              <Button
-                type="primary"
-                theme="solid"
-                disabled={!memberUserId.trim()}
-                onClick={() => {
-                  void onAddMember({
-                    userId: memberUserId.trim(),
-                    roleCode: memberRoleCode
-                  }).then(() => {
-                    setMemberUserId("");
-                    setMemberRoleCode("Member");
-                    Toast.success(t("workspaceSettingsMemberAdded"));
-                  });
-                }}
-              >
-                {t("workspaceSettingsMemberAdd")}
-              </Button>
+            <div className="atlas-workspace-settings-member-search">
+              <div className="atlas-workspace-settings-member-form">
+                <Input
+                  value={memberSearchKeyword}
+                  onChange={value => {
+                    setMemberSearchKeyword(value);
+                    onSearchMembers(value, 1);
+                  }}
+                  placeholder={t("workspaceSettingsMemberSearchPlaceholder")}
+                />
+                <Select
+                  value={memberRoleCode}
+                  optionList={roleOptions}
+                  onChange={value => setMemberRoleCode(String(value))}
+                />
+                <Button
+                  type="primary"
+                  theme="solid"
+                  disabled={!memberUserId.trim()}
+                  onClick={() => {
+                    if (selectedCandidate?.disabledReason) {
+                      Toast.warning(selectedCandidate.disabledReason);
+                      return;
+                    }
+                    void onAddMember({
+                      userId: memberUserId.trim(),
+                      roleCode: memberRoleCode
+                    }).then(() => {
+                      setMemberUserId("");
+                      setMemberRoleCode("Member");
+                      setMemberSearchKeyword("");
+                      Toast.success(t("workspaceSettingsMemberAdded"));
+                    });
+                  }}
+                >
+                  {t("workspaceSettingsMemberAdd")}
+                </Button>
+              </div>
+
+              {selectedCandidate ? (
+                <div className="atlas-workspace-settings-selected-candidate">
+                  <div>
+                    <strong>{selectedCandidate.displayName || selectedCandidate.username}</strong>
+                    <span>{selectedCandidate.username}</span>
+                  </div>
+                  <div className="atlas-workspace-settings-selected-candidate__meta">
+                    <Tag color={selectedCandidate.isActive ? "green" : "grey"}>
+                      {selectedCandidate.isActive ? t("workspaceSettingsMemberStatusActive") : t("workspaceSettingsMemberStatusInactive")}
+                    </Tag>
+                    {selectedCandidate.currentRoleCode ? (
+                      <Tag color="blue">{selectedCandidate.currentRoleCode}</Tag>
+                    ) : null}
+                    {selectedCandidate.disabledReason ? (
+                      <Tag color="orange">{selectedCandidate.disabledReason}</Tag>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {memberSearchKeyword.trim() ? (
+                <div className="atlas-workspace-settings-search-results">
+                  {memberSearchLoading ? (
+                    <div className="atlas-workspace-settings-search-empty">
+                      <Typography.Text type="tertiary">{t("loading")}</Typography.Text>
+                    </div>
+                  ) : memberSearchResults.length === 0 ? (
+                    <div className="atlas-workspace-settings-search-empty">
+                      <Typography.Text type="tertiary">{t("workspaceSettingsMemberSearchEmpty")}</Typography.Text>
+                    </div>
+                  ) : (
+                    memberSearchResults.map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`atlas-workspace-settings-search-item${memberUserId === item.id ? " is-active" : ""}${item.disabledReason ? " is-disabled" : ""}`}
+                        onClick={() => {
+                          if (item.disabledReason) {
+                            return;
+                          }
+                          setMemberUserId(item.id);
+                        }}
+                        disabled={Boolean(item.disabledReason)}
+                      >
+                        <div>
+                          <strong>{item.displayName || item.username}</strong>
+                          <span>{item.username}</span>
+                        </div>
+                        <div className="atlas-workspace-settings-search-item__meta">
+                          <Tag color={item.isActive ? "green" : "grey"}>
+                            {item.isActive ? t("workspaceSettingsMemberStatusActive") : t("workspaceSettingsMemberStatusInactive")}
+                          </Tag>
+                          {item.currentRoleCode ? (
+                            <Tag color="blue">{item.currentRoleCode}</Tag>
+                          ) : null}
+                          {item.disabledReason ? (
+                            <Tag color="orange">{item.disabledReason}</Tag>
+                          ) : null}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : null}
+
+              {memberSearchKeyword.trim() ? (
+                <div className="atlas-workspace-settings-search-pagination">
+                  <Typography.Text type="tertiary">
+                    {t("workspaceSettingsMemberSearchPagination")
+                      .replace("{from}", String(memberSearchTotal === 0 ? 0 : (memberSearchPageIndex - 1) * memberSearchPageSize + 1))
+                      .replace("{to}", String(Math.min(memberSearchPageIndex * memberSearchPageSize, memberSearchTotal)))
+                      .replace("{total}", String(memberSearchTotal))}
+                  </Typography.Text>
+                  <div className="atlas-workspace-settings-search-pagination__actions">
+                    <Button
+                      theme="borderless"
+                      disabled={memberSearchPageIndex <= 1}
+                      onClick={() => onSearchMembers(memberSearchKeyword, memberSearchPageIndex - 1)}
+                    >
+                      {t("workspaceSettingsMemberSearchPrev")}
+                    </Button>
+                    <Button
+                      theme="borderless"
+                      disabled={memberSearchPageIndex * memberSearchPageSize >= memberSearchTotal}
+                      onClick={() => onSearchMembers(memberSearchKeyword, memberSearchPageIndex + 1)}
+                    >
+                      {t("workspaceSettingsMemberSearchNext")}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {membersLoading ? (

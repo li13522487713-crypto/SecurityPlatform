@@ -4,6 +4,29 @@ type CopyTree = {
   title: string;
   createResource: string;
   createKnowledge: string;
+  createPlugin: string;
+  createDatabase: string;
+  pluginBasicInfo: string;
+  pluginSourceAndAuth: string;
+  pluginAdvancedConfig: string;
+  pluginOpenApiGuide: string;
+  pluginOpenApiHint: string;
+  pluginPrefillOpenApi: string;
+  databaseBasicInfo: string;
+  databaseSchemaMode: string;
+  databaseSchemaStructured: string;
+  databaseSchemaRaw: string;
+  databaseAddColumn: string;
+  databaseDeleteColumn: string;
+  databaseFieldName: string;
+  databaseFieldLabel: string;
+  databaseFieldType: string;
+  databaseFieldRequired: string;
+  databaseFieldOptional: string;
+  databaseFieldDefaultValue: string;
+  databaseMoveUp: string;
+  databaseMoveDown: string;
+  databaseSchemaPreview: string;
   createKnowledgeHint: string;
   searchPlaceholder: string;
   resourceType: string;
@@ -77,6 +100,29 @@ const zhCN: CopyTree = {
   title: "资源库",
   createResource: "创建资源",
   createKnowledge: "新建知识库",
+  createPlugin: "新建插件",
+  createDatabase: "新建数据库",
+  pluginBasicInfo: "基础信息",
+  pluginSourceAndAuth: "来源与认证",
+  pluginAdvancedConfig: "高级 JSON 配置",
+  pluginOpenApiGuide: "OpenAPI 导入引导",
+  pluginOpenApiHint: "选择 OpenApiImport 后，优先粘贴完整 OpenAPI 文档，再按需补充工具和鉴权配置。",
+  pluginPrefillOpenApi: "填入示例 OpenAPI",
+  databaseBasicInfo: "基础信息",
+  databaseSchemaMode: "Schema 编辑模式",
+  databaseSchemaStructured: "结构编辑",
+  databaseSchemaRaw: "原始 JSON",
+  databaseAddColumn: "新增列",
+  databaseDeleteColumn: "删除",
+  databaseFieldName: "字段名",
+  databaseFieldLabel: "显示名",
+  databaseFieldType: "字段类型",
+  databaseFieldRequired: "必填",
+  databaseFieldOptional: "可选",
+  databaseFieldDefaultValue: "默认值",
+  databaseMoveUp: "上移",
+  databaseMoveDown: "下移",
+  databaseSchemaPreview: "Schema 预览",
   createKnowledgeHint: "统一按 Coze 风格维护文本、表格、图片知识。",
   searchPlaceholder: "搜索资源名称",
   resourceType: "资源类型",
@@ -173,6 +219,29 @@ const enUS: CopyTree = {
   title: "Library",
   createResource: "Create Resource",
   createKnowledge: "Create Knowledge Base",
+  createPlugin: "Create Plugin",
+  createDatabase: "Create Database",
+  pluginBasicInfo: "Basic Info",
+  pluginSourceAndAuth: "Source & Auth",
+  pluginAdvancedConfig: "Advanced JSON Config",
+  pluginOpenApiGuide: "OpenAPI Import Guide",
+  pluginOpenApiHint: "When OpenApiImport is selected, paste a full OpenAPI document first, then refine tool and auth configs.",
+  pluginPrefillOpenApi: "Prefill OpenAPI Sample",
+  databaseBasicInfo: "Basic Info",
+  databaseSchemaMode: "Schema Editor Mode",
+  databaseSchemaStructured: "Structured",
+  databaseSchemaRaw: "Raw JSON",
+  databaseAddColumn: "Add Column",
+  databaseDeleteColumn: "Delete",
+  databaseFieldName: "Field Name",
+  databaseFieldLabel: "Display Label",
+  databaseFieldType: "Field Type",
+  databaseFieldRequired: "Required",
+  databaseFieldOptional: "Optional",
+  databaseFieldDefaultValue: "Default Value",
+  databaseMoveUp: "Move Up",
+  databaseMoveDown: "Move Down",
+  databaseSchemaPreview: "Schema Preview",
   createKnowledgeHint: "Manage text, table, and image knowledge in a Coze-style flow.",
   searchPlaceholder: "Search resources",
   resourceType: "Type",

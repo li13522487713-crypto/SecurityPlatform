@@ -516,6 +516,127 @@ body {
   align-items: center;
 }
 
+.atlas-workspace-settings-member-search {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.atlas-workspace-settings-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.atlas-workspace-settings-search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.86);
+  cursor: pointer;
+  text-align: left;
+}
+
+.atlas-workspace-settings-search-item.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.atlas-workspace-settings-search-item.is-active {
+  border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.08);
+}
+
+.atlas-workspace-settings-search-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.atlas-workspace-settings-search-item span,
+.atlas-workspace-settings-search-empty {
+  color: var(--atlas-muted);
+  font-size: 13px;
+}
+
+.atlas-workspace-settings-search-item__meta,
+.atlas-workspace-settings-selected-candidate__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.atlas-workspace-settings-selected-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: rgba(239, 246, 255, 0.76);
+}
+
+.atlas-workspace-settings-search-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.atlas-workspace-settings-search-pagination__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.atlas-library-create-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.atlas-library-create-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.atlas-library-create-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: rgba(239, 246, 255, 0.72);
+}
+
+.atlas-library-database-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.atlas-library-database-columns__row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 140px 120px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.atlas-library-database-columns__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .atlas-workspace-settings-list {
   display: flex;
   flex-direction: column;

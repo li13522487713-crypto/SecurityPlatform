@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { Button, Empty, Input, Modal, Tag, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Input, Modal, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
 import type {
   WorkspaceAppCardDto,
   WorkspaceResourceCardDto
@@ -24,6 +24,9 @@ interface WorkspaceDevelopPageProps {
   onOpenAppWorkflow: (appId: string, workflowId: string) => void;
   onOpenResource: (resource: WorkspaceResourceCardDto) => void;
   onCreateApp: (request: { name: string; description?: string }) => Promise<void>;
+  onCreateAgent: (request: { name: string; description?: string }) => Promise<void>;
+  onCreatePlugin: (request: { name: string; description?: string; category?: string }) => Promise<void>;
+  onCreateDatabase: (request: { name: string; description?: string; tableSchema: string }) => Promise<void>;
 }
 
 export function WorkspaceDevelopPage({
@@ -41,13 +44,21 @@ export function WorkspaceDevelopPage({
   onOpenAppPublish,
   onOpenAppWorkflow,
   onOpenResource,
-  onCreateApp
+  onCreateApp,
+  onCreateAgent,
+  onCreatePlugin,
+  onCreateDatabase
 }: WorkspaceDevelopPageProps) {
   const { t } = useAppI18n();
   const deferredKeyword = useDeferredValue(keyword.trim().toLowerCase());
   const [createVisible, setCreateVisible] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const [secondaryCreateVisible, setSecondaryCreateVisible] = useState(false);
+  const [secondaryName, setSecondaryName] = useState("");
+  const [secondaryDescription, setSecondaryDescription] = useState("");
+  const [secondaryCategory, setSecondaryCategory] = useState("");
+  const [secondarySchema, setSecondarySchema] = useState('[{"name":"id"},{"name":"title"},{"name":"content"}]');
   const [selectedAppId, setSelectedAppId] = useState<string>("");
 
   const filteredApps = useMemo(() => {
@@ -80,6 +91,16 @@ export function WorkspaceDevelopPage({
     { key: "knowledge-base", label: t("workspaceDevelopTabKnowledge") },
     { key: "database", label: t("workspaceDevelopTabDatabases") }
   ];
+
+  const secondaryCreateLabel = secondaryTab === "agents"
+    ? t("workspaceDevelopCreateAgent")
+    : secondaryTab === "plugins"
+      ? t("workspaceDevelopCreatePlugin")
+      : secondaryTab === "database"
+        ? t("workspaceDevelopCreateDatabase")
+        : "";
+
+  const supportsSecondaryCreate = secondaryTab === "agents" || secondaryTab === "plugins" || secondaryTab === "database";
 
   return (
     <div className="atlas-develop-page" data-testid="workspace-develop-page">
@@ -230,6 +251,11 @@ export function WorkspaceDevelopPage({
                   {t("workspaceDevelopResourcesSubtitle")}
                 </Typography.Text>
               </div>
+              {supportsSecondaryCreate ? (
+                <Button theme="light" onClick={() => setSecondaryCreateVisible(true)}>
+                  {secondaryCreateLabel}
+                </Button>
+              ) : null}
             </div>
 
             <div className="atlas-develop-tabs">
@@ -302,6 +328,67 @@ export function WorkspaceDevelopPage({
             onChange={setDraftDescription}
             placeholder={t("workspaceDevelopCreateDescriptionPlaceholder")}
           />
+        </div>
+      </Modal>
+
+      <Modal
+        title={secondaryCreateLabel}
+        visible={secondaryCreateVisible}
+        onCancel={() => setSecondaryCreateVisible(false)}
+        onOk={() => {
+          const run = secondaryTab === "agents"
+            ? onCreateAgent({
+                name: secondaryName.trim(),
+                description: secondaryDescription.trim() || undefined
+              })
+            : secondaryTab === "plugins"
+              ? onCreatePlugin({
+                  name: secondaryName.trim(),
+                  description: secondaryDescription.trim() || undefined,
+                  category: secondaryCategory.trim() || undefined
+                })
+              : onCreateDatabase({
+                  name: secondaryName.trim(),
+                  description: secondaryDescription.trim() || undefined,
+                  tableSchema: secondarySchema.trim()
+                });
+
+          void run.then(() => {
+            setSecondaryCreateVisible(false);
+            setSecondaryName("");
+            setSecondaryDescription("");
+            setSecondaryCategory("");
+            setSecondarySchema('[{"name":"id"},{"name":"title"},{"name":"content"}]');
+          });
+        }}
+        okButtonProps={{ disabled: !secondaryName.trim() || (secondaryTab === "database" && !secondarySchema.trim()) }}
+      >
+        <div className="atlas-develop-dialog">
+          <Input
+            value={secondaryName}
+            onChange={setSecondaryName}
+            placeholder={t("workspaceDevelopSecondaryNamePlaceholder")}
+          />
+          <Input
+            value={secondaryDescription}
+            onChange={setSecondaryDescription}
+            placeholder={t("workspaceDevelopSecondaryDescriptionPlaceholder")}
+          />
+          {secondaryTab === "plugins" ? (
+            <Input
+              value={secondaryCategory}
+              onChange={setSecondaryCategory}
+              placeholder={t("workspaceDevelopPluginCategoryPlaceholder")}
+            />
+          ) : null}
+          {secondaryTab === "database" ? (
+            <TextArea
+              autosize
+              value={secondarySchema}
+              onChange={setSecondarySchema}
+              placeholder={t("workspaceDevelopDatabaseSchemaPlaceholder")}
+            />
+          ) : null}
         </div>
       </Modal>
     </div>

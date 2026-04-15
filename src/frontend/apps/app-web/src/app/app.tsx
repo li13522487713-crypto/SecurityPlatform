@@ -2613,6 +2613,27 @@ function WorkspaceLibraryRoute() {
   const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
     ...libraryApi,
     createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
+    createPlugin: request => createAiPlugin({
+      name: request.name,
+      description: request.description,
+      icon: request.icon,
+      category: request.category,
+      type: request.type as 0 | 1,
+      sourceType: request.sourceType as 0 | 1 | 2,
+      authType: request.authType as 0 | 1 | 2 | 3 | 4,
+      definitionJson: request.definitionJson,
+      authConfigJson: request.authConfigJson,
+      toolSchemaJson: request.toolSchemaJson,
+      openApiSpecJson: request.openApiSpecJson,
+      workspaceId: Number(workspace.id)
+    }),
+    createDatabase: request => createAiDatabase({
+      name: request.name,
+      description: request.description,
+      botId: request.botId,
+      tableSchema: request.tableSchema,
+      workspaceId: Number(workspace.id)
+    }),
     updateKnowledgeBase: (id, request) => updateKnowledgeBase(id, { ...request, workspaceId: Number(workspace.id) })
   }), [workspace.id]);
   return <LibraryPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} onNavigate={navigate} />;
@@ -2740,6 +2761,39 @@ function WorkspaceDevelopRoute() {
           setCreating(false);
         }
       }}
+      onCreateAgent={async request => {
+        const agentId = await createAiAssistant({
+          name: request.name,
+          description: request.description,
+          workspaceId: Number(workspace.id)
+        });
+        navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, agentId));
+      }}
+      onCreatePlugin={async request => {
+        const pluginId = await createAiPlugin({
+          name: request.name,
+          description: request.description,
+          category: request.category,
+          type: 0,
+          sourceType: 0,
+          authType: 0,
+          definitionJson: "{}",
+          authConfigJson: "{}",
+          toolSchemaJson: "{}",
+          openApiSpecJson: "{}",
+          workspaceId: Number(workspace.id)
+        });
+        navigate(orgWorkspacePluginDetailPath(orgId, workspace.id, pluginId));
+      }}
+      onCreateDatabase={async request => {
+        const databaseId = await createAiDatabase({
+          name: request.name,
+          description: request.description,
+          tableSchema: request.tableSchema,
+          workspaceId: Number(workspace.id)
+        });
+        navigate(orgWorkspaceDatabaseDetailPath(orgId, workspace.id, databaseId));
+      }}
     />
   );
 }
@@ -2749,10 +2803,23 @@ function WorkspaceSettingsRoute() {
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
   const navigate = useNavigate();
+  const { t } = useAppI18n();
   const [membersLoading, setMembersLoading] = useState(true);
+  const [memberSearchLoading, setMemberSearchLoading] = useState(false);
+  const [memberSearchPageIndex, setMemberSearchPageIndex] = useState(1);
+  const [memberSearchPageSize] = useState(20);
+  const [memberSearchTotal, setMemberSearchTotal] = useState(0);
   const [resourcesLoading, setResourcesLoading] = useState(true);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [members, setMembers] = useState<WorkspaceMemberDto[]>([]);
+  const [memberSearchResults, setMemberSearchResults] = useState<Array<{
+    id: string;
+    username: string;
+    displayName: string;
+    isActive: boolean;
+    disabledReason?: string;
+    currentRoleCode?: string;
+  }>>([]);
   const [resources, setResources] = useState<WorkspaceResourceCardDto[]>([]);
   const [selectedResourceKey, setSelectedResourceKey] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<WorkspaceRolePermissionDto[]>([]);
@@ -2776,6 +2843,39 @@ function WorkspaceSettingsRoute() {
       }
     } finally {
       setResourcesLoading(false);
+    }
+  };
+
+  const searchMembers = async (keyword: string, pageIndex = 1) => {
+    const normalized = keyword.trim();
+    if (!normalized) {
+      setMemberSearchPageIndex(1);
+      setMemberSearchTotal(0);
+      setMemberSearchResults([]);
+      return;
+    }
+
+    setMemberSearchLoading(true);
+    try {
+      const result = await getUsersPaged({ pageIndex, pageSize: memberSearchPageSize, keyword: normalized });
+      const memberMap = new Map(members.map(item => [item.userId, item]));
+      const nextResults = result.items.map(item => ({
+        id: item.id,
+        username: item.username,
+        displayName: item.displayName,
+        isActive: item.isActive,
+        currentRoleCode: memberMap.get(item.id)?.roleCode,
+        disabledReason: memberMap.has(item.id)
+          ? t("workspaceSettingsMemberAlreadyExists")
+          : !item.isActive
+            ? t("workspaceSettingsMemberDisabledHint")
+            : undefined
+      }));
+      setMemberSearchPageIndex(pageIndex);
+      setMemberSearchTotal(result.total);
+      setMemberSearchResults(nextResults);
+    } finally {
+      setMemberSearchLoading(false);
     }
   };
 
@@ -2813,14 +2913,20 @@ function WorkspaceSettingsRoute() {
       activeTab={tab === "permissions" ? "permissions" : "members"}
       workspaceName={workspace.name}
       membersLoading={membersLoading}
+      memberSearchLoading={memberSearchLoading}
+      memberSearchPageIndex={memberSearchPageIndex}
+      memberSearchPageSize={memberSearchPageSize}
+      memberSearchTotal={memberSearchTotal}
       permissionsLoading={permissionsLoading}
       resourcesLoading={resourcesLoading}
       members={members}
+      memberSearchResults={memberSearchResults}
       resources={resources}
       selectedResourceKey={selectedResourceKey}
       selectedPermissions={selectedPermissions}
       onSelectResource={setSelectedResourceKey}
       onTabChange={nextTab => navigate(orgWorkspaceSettingsPath(orgId, workspace.id, nextTab))}
+      onSearchMembers={searchMembers}
       onRefreshMembers={refreshMembers}
       onRefreshPermissions={refreshPermissions}
       onAddMember={request => addWorkspaceMember(orgId, workspace.id, request).then(refreshMembers)}

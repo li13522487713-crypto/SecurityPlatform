@@ -102,6 +102,25 @@ export interface LibraryKnowledgeApi {
   listKnowledgeBases: (request: PagedRequest, keyword?: string) => Promise<PagedResult<KnowledgeBaseDto>>;
   getKnowledgeBase: (id: number) => Promise<KnowledgeBaseDto>;
   createKnowledgeBase: (request: KnowledgeBaseCreateRequest) => Promise<number>;
+  createPlugin?: (request: {
+    name: string;
+    description?: string;
+    icon?: string;
+    category?: string;
+    type: number;
+    sourceType: number;
+    authType: number;
+    definitionJson?: string;
+    authConfigJson?: string;
+    toolSchemaJson?: string;
+    openApiSpecJson?: string;
+  }) => Promise<number>;
+  createDatabase?: (request: {
+    name: string;
+    description?: string;
+    botId?: number;
+    tableSchema: string;
+  }) => Promise<number>;
   updateKnowledgeBase: (id: number, request: KnowledgeBaseCreateRequest) => Promise<void>;
   deleteKnowledgeBase: (id: number) => Promise<void>;
   listDocuments: (knowledgeBaseId: number, request: PagedRequest) => Promise<PagedResult<KnowledgeDocumentDto>>;
