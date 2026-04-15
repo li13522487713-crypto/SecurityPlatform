@@ -1,4 +1,5 @@
 import { getAppInstanceIdByAppKey } from "./api-lowcode-runtime";
+import { getConfiguredAppKey } from "./api-core";
 import {
   clearAppInstanceStorage,
   getAppInstanceIdFromStorage,
@@ -15,7 +16,7 @@ function normalizeAppKey(appKey?: string | null): string {
     return normalizedAppKey;
   }
 
-  return getCurrentAppKeyFromPath() ?? "";
+  return getCurrentAppKeyFromPath() ?? getConfiguredAppKey() ?? "";
 }
 
 function normalizeAppInstanceId(appInstanceId?: string | null): string | null {

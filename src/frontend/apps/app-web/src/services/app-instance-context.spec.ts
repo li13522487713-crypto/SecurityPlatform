@@ -14,6 +14,16 @@ vi.mock("./api-lowcode-runtime", () => ({
   getAppInstanceIdByAppKey
 }));
 
+vi.mock("./api-core", () => ({
+  getConfiguredAppKey: () => {
+    if (typeof localStorage === "undefined") {
+      return "";
+    }
+
+    return localStorage.getItem("atlas_app_last_appkey") ?? "";
+  }
+}));
+
 function installBrowserGlobals(): void {
   const storage = new Map<string, string>();
   const localStorageMock = {
@@ -100,5 +110,14 @@ describe("app-instance-context", () => {
       "101",
       "101"
     ]);
+  });
+
+  it("falls back to configured appKey when current path is not a legacy app route", async () => {
+    window.location.pathname = "/org/demo/workspaces/100/workflows/200";
+    localStorage.setItem("atlas_app_last_appkey", "app-beta");
+    setAppInstanceIdToStorage("app-beta", "202");
+
+    await expect(resolveAppInstanceId()).resolves.toBe("202");
+    expect(getAppInstanceIdByAppKey).not.toHaveBeenCalled();
   });
 });

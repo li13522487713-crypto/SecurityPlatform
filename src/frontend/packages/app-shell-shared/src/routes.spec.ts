@@ -4,6 +4,8 @@ import {
   orgWorkspaceDevelopPath,
   orgWorkspaceAppDetailPath,
   orgWorkspaceAgentDetailPath,
+  orgWorkspaceWorkflowsPath,
+  orgWorkspaceChatflowsPath,
   orgWorkspaceAppWorkflowPath,
   signPath
 } from "./routes";
@@ -21,6 +23,8 @@ describe("organization workspace routes", () => {
   it("builds deep resource paths", () => {
     expect(orgWorkspaceAppDetailPath("tenant-1", "100", "200")).toBe("/org/tenant-1/workspaces/100/apps/200");
     expect(orgWorkspaceAgentDetailPath("tenant-1", "100", "300")).toBe("/org/tenant-1/workspaces/100/agents/300");
+    expect(orgWorkspaceWorkflowsPath("tenant-1", "100")).toBe("/org/tenant-1/workspaces/100/workflows");
+    expect(orgWorkspaceChatflowsPath("tenant-1", "100")).toBe("/org/tenant-1/workspaces/100/chatflows");
     expect(orgWorkspaceAppWorkflowPath("tenant-1", "100", "200", "400")).toBe("/org/tenant-1/workspaces/100/apps/200/workflows/400");
   });
 });

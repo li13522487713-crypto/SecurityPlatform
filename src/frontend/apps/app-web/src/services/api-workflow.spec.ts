@@ -89,4 +89,19 @@ describe("api-workflow", () => {
     expect(getAppInstanceIdByAppKey).toHaveBeenNthCalledWith(1, "app-alpha");
     expect(getAppInstanceIdByAppKey).toHaveBeenNthCalledWith(2, "app-beta");
   });
+
+  it("falls back to configured appKey for workspace routes when building workflow headers", async () => {
+    const { getWorkflowModelCatalog } = await import("./api-workflow");
+
+    localStorage.setItem("atlas_app_last_appkey", "app-beta");
+    localStorage.setItem("atlas_app_instance_ids", JSON.stringify({ "app-beta": "202" }));
+    window.history.pushState({}, "", "/org/demo/workspaces/100/workflows/200");
+
+    await getWorkflowModelCatalog();
+
+    const headers = requestApi.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get("X-App-Id")).toBe("202");
+    expect(headers.get("X-App-Workspace")).toBe("1");
+    expect(getAppInstanceIdByAppKey).not.toHaveBeenCalled();
+  });
 });

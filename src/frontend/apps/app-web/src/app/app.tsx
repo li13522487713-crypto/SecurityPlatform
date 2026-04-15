@@ -97,6 +97,8 @@ import {
   orgWorkspaceAgentPublishPath,
   orgWorkspaceAppWorkflowPath,
   orgWorkspaceAppChatflowPath,
+  orgWorkspaceWorkflowsPath,
+  orgWorkspaceChatflowsPath,
   orgWorkspaceWorkflowPath,
   orgWorkspaceChatflowPath,
   orgWorkspaceKnowledgeBaseDetailPath,
@@ -330,6 +332,7 @@ import {
 import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page";
 import { WorkspaceDevelopPage } from "./pages/workspace-develop-page";
 import { WorkspaceSettingsPage } from "./pages/workspace-settings-page";
+import { setAppInstanceIdToStorage } from "@/utils/app-context";
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
@@ -448,6 +451,88 @@ function toWorkflowResourceSummary(
 
 function navGlyph(label: string) {
   return <span className="app-nav-glyph" aria-hidden="true">{label}</span>;
+}
+
+function normalizeWorkbenchContentMode(value?: string | null): WorkflowWorkbenchContentMode {
+  return value === "session" || value === "variables" ? value : "canvas";
+}
+
+function buildWorkspaceWorkbenchPath(
+  orgId: string,
+  workspaceId: string,
+  mode: WorkflowResourceMode,
+  workflowId?: string,
+  contentMode: WorkflowWorkbenchContentMode = "canvas",
+  searchParams?: URLSearchParams
+): string {
+  const pathname = workflowId
+    ? mode === "chatflow"
+      ? orgWorkspaceChatflowPath(orgId, workspaceId, workflowId)
+      : orgWorkspaceWorkflowPath(orgId, workspaceId, workflowId)
+    : mode === "chatflow"
+      ? orgWorkspaceChatflowsPath(orgId, workspaceId)
+      : orgWorkspaceWorkflowsPath(orgId, workspaceId);
+
+  const nextSearch = new URLSearchParams(searchParams ?? undefined);
+  if (contentMode === "canvas") {
+    nextSearch.delete("contentMode");
+  } else {
+    nextSearch.set("contentMode", contentMode);
+  }
+
+  if (workflowId) {
+    nextSearch.delete("workflow_id");
+  }
+
+  const query = nextSearch.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+function resolveLegacyWorkbenchRedirectTarget(
+  tenantId: string,
+  workspaceId: string,
+  relativePath: string,
+  searchText: string
+): string | null {
+  const searchParams = new URLSearchParams(searchText);
+  const workflowEditorMatch = relativePath.match(/^\/work_flow\/([^/]+)\/editor$/);
+  const chatflowEditorMatch = relativePath.match(/^\/chat_flow\/([^/]+)\/editor$/);
+  const workflowAliasEditorMatch = relativePath.match(/^\/workflows\/([^/]+)\/editor$/);
+  const chatflowAliasEditorMatch = relativePath.match(/^\/chatflows\/([^/]+)\/editor$/);
+  const workflowId = workflowEditorMatch?.[1]
+    ?? chatflowEditorMatch?.[1]
+    ?? workflowAliasEditorMatch?.[1]
+    ?? chatflowAliasEditorMatch?.[1]
+    ?? searchParams.get("workflow_id")
+    ?? undefined;
+
+  if (
+    relativePath.startsWith("/work_flow")
+    || relativePath.startsWith("/workflows")
+    || relativePath.startsWith("/chat_flow")
+    || relativePath.startsWith("/chatflows")
+  ) {
+    const mode: WorkflowResourceMode =
+      relativePath.startsWith("/chat_flow") || relativePath.startsWith("/chatflows")
+        ? "chatflow"
+        : "workflow";
+    const contentMode: WorkflowWorkbenchContentMode = relativePath.includes("/session")
+      ? "session"
+      : relativePath.includes("/variables")
+        ? "variables"
+        : normalizeWorkbenchContentMode(searchParams.get("contentMode"));
+
+    return buildWorkspaceWorkbenchPath(
+      tenantId,
+      workspaceId,
+      mode,
+      workflowId,
+      contentMode,
+      searchParams
+    );
+  }
+
+  return null;
 }
 
 function LoadingPage() {
@@ -2258,6 +2343,88 @@ function WorkflowEditorRoute({ mode = "workflow" }: { mode?: WorkflowResourceMod
   return <Navigate to={mode === "chatflow" ? buildChatflowWorkbenchPath(appKey, id) : buildWorkflowWorkbenchPath(appKey, id)} replace />;
 }
 
+function WorkspaceWorkflowWorkbenchRoute({
+  mode = "workflow"
+}: {
+  mode?: WorkflowResourceMode;
+}) {
+  const params = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const { workflowApi } = useAppApis(workspace.appKey);
+  const selectedWorkflowId = params.workflowId ?? params.id ?? searchParams.get("workflow_id") ?? undefined;
+  const contentMode = normalizeWorkbenchContentMode(searchParams.get("contentMode"));
+
+  const navigateWithinWorkbench = (workflowId: string, nextMode: WorkflowResourceMode) => {
+    navigate(
+      buildWorkspaceWorkbenchPath(
+        orgId,
+        workspace.id,
+        nextMode,
+        workflowId,
+        contentMode,
+        searchParams
+      ),
+      { replace: true }
+    );
+  };
+
+  const resolveWorkbenchHref = (workflowId: string, nextMode: WorkflowResourceMode) => {
+    return buildWorkspaceWorkbenchPath(
+      orgId,
+      workspace.id,
+      nextMode,
+      workflowId,
+      contentMode,
+      searchParams
+    );
+  };
+
+  const navigateContentMode = (nextContentMode: WorkflowWorkbenchContentMode) => {
+    navigate(
+      buildWorkspaceWorkbenchPath(
+        orgId,
+        workspace.id,
+        mode,
+        selectedWorkflowId,
+        nextContentMode,
+        searchParams
+      ),
+      { replace: true }
+    );
+  };
+
+  return (
+    <WorkflowListPage
+      api={workflowApi}
+      locale={locale}
+      mode={mode}
+      selectedWorkflowId={selectedWorkflowId}
+      contentMode={contentMode}
+      projectTitle={workspace.name || workspace.appKey}
+      initialCreateVisible={searchParams.get("create") === "1"}
+      onSelectWorkflow={navigateWithinWorkbench}
+      onSelectContentMode={navigateContentMode}
+      resolveWorkflowHref={resolveWorkbenchHref}
+      onOpenEditor={id =>
+        navigate(
+          buildWorkspaceWorkbenchPath(
+            orgId,
+            workspace.id,
+            mode,
+            id,
+            contentMode,
+            searchParams
+          )
+        )
+      }
+    />
+  );
+}
+
 function AdminUsersRoute() {
   const { appKey = "" } = useParams();
   const { locale } = useAppI18n();
@@ -2555,6 +2722,13 @@ function WorkspaceShellInner() {
   const organization = useResolvedOrgId();
   const workspace = useWorkspaceContext();
   const appKey = workspace.appKey;
+
+  useEffect(() => {
+    if (!workspace.loading && appKey) {
+      rememberConfiguredAppKey(appKey);
+      setAppInstanceIdToStorage(appKey, workspace.appInstanceId || null);
+    }
+  }, [appKey, workspace.appInstanceId, workspace.loading]);
 
   useEffect(() => {
     if (auth.isAuthenticated && !auth.profile && !auth.loading) {
@@ -3045,27 +3219,19 @@ function WorkspaceAgentPublishRoute() {
 }
 
 function WorkspaceWorkflowRedirectRoute() {
-  const { id = "" } = useParams();
-  const workspace = useWorkspaceContext();
-  return <Navigate to={buildWorkflowWorkbenchPath(workspace.appKey, id)} replace />;
+  return <WorkspaceWorkflowWorkbenchRoute mode="workflow" />;
 }
 
 function WorkspaceChatflowRedirectRoute() {
-  const { id = "" } = useParams();
-  const workspace = useWorkspaceContext();
-  return <Navigate to={buildChatflowWorkbenchPath(workspace.appKey, id)} replace />;
+  return <WorkspaceWorkflowWorkbenchRoute mode="chatflow" />;
 }
 
 function WorkspaceAppWorkflowRedirectRoute() {
-  const { workflowId = "" } = useParams();
-  const workspace = useWorkspaceContext();
-  return <Navigate to={buildWorkflowWorkbenchPath(workspace.appKey, workflowId)} replace />;
+  return <WorkspaceWorkflowWorkbenchRoute mode="workflow" />;
 }
 
 function WorkspaceAppChatflowRedirectRoute() {
-  const { workflowId = "" } = useParams();
-  const workspace = useWorkspaceContext();
-  return <Navigate to={buildChatflowWorkbenchPath(workspace.appKey, workflowId)} replace />;
+  return <WorkspaceWorkflowWorkbenchRoute mode="chatflow" />;
 }
 
 function LegacyAppRedirectRoute() {
@@ -3095,6 +3261,16 @@ function LegacyAppRedirectRoute() {
         const relativePath = currentPath.startsWith(normalizedAppPrefix)
           ? currentPath.slice(normalizedAppPrefix.length)
           : "";
+        const workbenchTarget = resolveLegacyWorkbenchRedirectTarget(
+          tenantId,
+          workspace.id,
+          relativePath,
+          location.search
+        );
+        if (workbenchTarget) {
+          setTarget(workbenchTarget);
+          return;
+        }
         let nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
 
         const knowledgeUploadMatch = relativePath.match(/^\/studio\/knowledge-bases\/([^/]+)\/upload(\?.*)?$/);
@@ -3108,9 +3284,6 @@ function LegacyAppRedirectRoute() {
           const appDetailMatch = relativePath.match(/^\/studio\/apps\/([^/?]+)$/);
           const pluginDetailMatch = relativePath.match(/^\/studio\/plugins\/([^/?]+)$/);
           const databaseDetailMatch = relativePath.match(/^\/studio\/databases\/([^/?]+)$/);
-          const workflowEditorMatch = relativePath.match(/^\/work_flow\/([^/]+)\/editor$/);
-          const chatflowEditorMatch = relativePath.match(/^\/chat_flow\/([^/]+)\/editor$/);
-
           if (knowledgeDetailMatch) {
             nextTarget = orgWorkspaceKnowledgeBaseDetailPath(tenantId, workspace.id, decodeURIComponent(knowledgeDetailMatch[1]));
           } else if (agentPublishMatch) {
@@ -3125,10 +3298,6 @@ function LegacyAppRedirectRoute() {
             nextTarget = orgWorkspacePluginDetailPath(tenantId, workspace.id, decodeURIComponent(pluginDetailMatch[1]));
           } else if (databaseDetailMatch) {
             nextTarget = orgWorkspaceDatabaseDetailPath(tenantId, workspace.id, decodeURIComponent(databaseDetailMatch[1]));
-          } else if (workflowEditorMatch) {
-            nextTarget = orgWorkspaceWorkflowPath(tenantId, workspace.id, decodeURIComponent(workflowEditorMatch[1]));
-          } else if (chatflowEditorMatch) {
-            nextTarget = orgWorkspaceChatflowPath(tenantId, workspace.id, decodeURIComponent(chatflowEditorMatch[1]));
           } else if (relativePath.startsWith("/studio/knowledge-bases")) {
             nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
           } else if (relativePath.startsWith("/studio/apps")) {
@@ -3139,8 +3308,6 @@ function LegacyAppRedirectRoute() {
             nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
           } else if (relativePath.startsWith("/studio/databases")) {
             nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
-          } else if (relativePath.startsWith("/work_flow") || relativePath.startsWith("/chat_flow")) {
-            nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
           } else if (relativePath.startsWith("/studio/library")) {
             nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
           }
@@ -3185,7 +3352,9 @@ export function AppRouter() {
           <Route path="apps/:id/chatflows/:workflowId" element={<WorkspaceAppChatflowRedirectRoute />} />
           <Route path="agents/:id" element={<WorkspaceAgentDetailRoute />} />
           <Route path="agents/:id/publish" element={<WorkspaceAgentPublishRoute />} />
+          <Route path="workflows" element={<WorkspaceWorkflowWorkbenchRoute mode="workflow" />} />
           <Route path="workflows/:id" element={<WorkspaceWorkflowRedirectRoute />} />
+          <Route path="chatflows" element={<WorkspaceWorkflowWorkbenchRoute mode="chatflow" />} />
           <Route path="chatflows/:id" element={<WorkspaceChatflowRedirectRoute />} />
           <Route path="knowledge-bases/:id" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><WorkspaceKnowledgeDetailRoute /></ProtectedPage>} />
           <Route path="knowledge-bases/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><WorkspaceKnowledgeUploadRoute /></ProtectedPage>} />

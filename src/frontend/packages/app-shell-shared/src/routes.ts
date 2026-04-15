@@ -96,12 +96,20 @@ export function orgWorkspaceAgentPublishPath(orgId: string, workspaceId: string,
   return `${orgWorkspaceAgentDetailPath(orgId, workspaceId, agentId)}/publish`;
 }
 
+export function orgWorkspaceWorkflowsPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/workflows`;
+}
+
+export function orgWorkspaceChatflowsPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/chatflows`;
+}
+
 export function orgWorkspaceWorkflowPath(orgId: string, workspaceId: string, workflowId: string): string {
-  return `${orgWorkspacePath(orgId, workspaceId)}/workflows/${encodeSegment(workflowId)}`;
+  return `${orgWorkspaceWorkflowsPath(orgId, workspaceId)}/${encodeSegment(workflowId)}`;
 }
 
 export function orgWorkspaceChatflowPath(orgId: string, workspaceId: string, workflowId: string): string {
-  return `${orgWorkspacePath(orgId, workspaceId)}/chatflows/${encodeSegment(workflowId)}`;
+  return `${orgWorkspaceChatflowsPath(orgId, workspaceId)}/${encodeSegment(workflowId)}`;
 }
 
 export function orgWorkspaceAppWorkflowPath(orgId: string, workspaceId: string, appId: string, workflowId: string): string {
