@@ -168,6 +168,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsureUserAccountSchemaAsync(db, cancellationToken);
         await EnsureModelConfigSchemaAsync(db, cancellationToken);
         await EnsureAgentSchemaAsync(db, cancellationToken);
+        await EnsureAiAppSchemaAsync(db, cancellationToken);
         var appMembershipAlignment = await EnsureAppMembershipSchemaAsync(db, cancellationToken);
         if (appMembershipAlignment is not null)
         {
@@ -2728,6 +2729,30 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<RefreshToken>(db, cancellationToken);
+    }
+
+    private static async Task EnsureAiAppSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AiApp", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<AiApp>(
+                db,
+                "WorkspaceId",
+                "AgentId",
+                "WorkflowId",
+                "PrimaryWorkflowId",
+                "EntryConversationTemplateId",
+                "PromptTemplateId",
+                "UpdatedAt",
+                "PublishedAt"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<AiApp>(db, cancellationToken);
     }
 
     private async Task EnsureBuiltInSystemConfigsAsync(

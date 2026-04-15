@@ -5,6 +5,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Authorization;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,15 +19,21 @@ public sealed class OrganizationWorkspacesController : ControllerBase
     private readonly IWorkspacePortalService _service;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IValidator<WorkspaceCreateRequest> _createValidator;
+    private readonly IValidator<WorkspaceUpdateRequest> _updateValidator;
 
     public OrganizationWorkspacesController(
         IWorkspacePortalService service,
         ITenantProvider tenantProvider,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IValidator<WorkspaceCreateRequest> createValidator,
+        IValidator<WorkspaceUpdateRequest> updateValidator)
     {
         _service = service;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     [HttpGet]
@@ -81,6 +88,7 @@ public sealed class OrganizationWorkspacesController : ControllerBase
         [FromBody] WorkspaceCreateRequest request,
         CancellationToken cancellationToken)
     {
+        _createValidator.ValidateAndThrow(request);
         var (tenantId, currentUser) = ResolveContext(orgId);
         var id = await _service.CreateWorkspaceAsync(tenantId, currentUser.UserId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { id }, HttpContext.TraceIdentifier));
@@ -94,8 +102,32 @@ public sealed class OrganizationWorkspacesController : ControllerBase
         [FromBody] WorkspaceUpdateRequest request,
         CancellationToken cancellationToken)
     {
+        _updateValidator.ValidateAndThrow(request);
         var (tenantId, currentUser) = ResolveContext(orgId);
-        await _service.UpdateWorkspaceAsync(tenantId, workspaceId, currentUser.UserId, request, cancellationToken);
+        await _service.UpdateWorkspaceAsync(
+            tenantId,
+            workspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            request,
+            cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { success = true }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{workspaceId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(
+        string orgId,
+        long workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var (tenantId, currentUser) = ResolveContext(orgId);
+        await _service.DeleteWorkspaceAsync(
+            tenantId,
+            workspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { success = true }, HttpContext.TraceIdentifier));
     }
 
@@ -129,7 +161,13 @@ public sealed class OrganizationWorkspacesController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var (tenantId, currentUser) = ResolveContext(orgId);
-        var result = await _service.CreateDevelopAppAsync(tenantId, workspaceId, currentUser.UserId, request, cancellationToken);
+        var result = await _service.CreateDevelopAppAsync(
+            tenantId,
+            workspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            request,
+            cancellationToken);
         return Ok(ApiResponse<WorkspaceAppCreateResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 

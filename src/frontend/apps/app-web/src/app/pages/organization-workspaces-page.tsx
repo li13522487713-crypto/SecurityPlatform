@@ -1,25 +1,52 @@
 import { useDeferredValue, useMemo } from "react";
-import { Button, Empty, Input, Skeleton, Tag, Typography } from "@douyinfe/semi-ui";
-import type { WorkspaceSummaryDto } from "@/services/api-org-workspaces";
+import { Button, Empty, Input, Modal, Skeleton, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { useState } from "react";
+import type {
+  WorkspaceCreateRequest,
+  WorkspaceSummaryDto,
+  WorkspaceUpdateRequest
+} from "@/services/api-org-workspaces";
 import { useAppI18n } from "../i18n";
 
 interface OrganizationWorkspacesPageProps {
   loading: boolean;
+  canManage: boolean;
+  saving: boolean;
+  deletingWorkspaceId: string | null;
   keyword: string;
   items: WorkspaceSummaryDto[];
   onKeywordChange: (value: string) => void;
   onOpenWorkspace: (workspaceId: string) => void;
+  onCreateWorkspace: (request: WorkspaceCreateRequest) => Promise<void>;
+  onUpdateWorkspace: (workspaceId: string, request: WorkspaceUpdateRequest) => Promise<void>;
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>;
 }
 
 export function OrganizationWorkspacesPage({
   loading,
+  canManage,
+  saving,
+  deletingWorkspaceId,
   keyword,
   items,
   onKeywordChange,
-  onOpenWorkspace
+  onOpenWorkspace,
+  onCreateWorkspace,
+  onUpdateWorkspace,
+  onDeleteWorkspace
 }: OrganizationWorkspacesPageProps) {
   const { t } = useAppI18n();
   const deferredKeyword = useDeferredValue(keyword.trim().toLowerCase());
+  const [createVisible, setCreateVisible] = useState(false);
+  const [editTarget, setEditTarget] = useState<WorkspaceSummaryDto | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<WorkspaceSummaryDto | null>(null);
+  const [createName, setCreateName] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [createIcon, setCreateIcon] = useState("");
+  const [createAppInstanceId, setCreateAppInstanceId] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editIcon, setEditIcon] = useState("");
 
   const filteredItems = useMemo(() => {
     if (!deferredKeyword) {
@@ -31,6 +58,20 @@ export function OrganizationWorkspacesPage({
       return haystack.includes(deferredKeyword);
     });
   }, [deferredKeyword, items]);
+
+  const resetCreateDialog = () => {
+    setCreateName("");
+    setCreateDescription("");
+    setCreateIcon("");
+    setCreateAppInstanceId("");
+  };
+
+  const openEditDialog = (item: WorkspaceSummaryDto) => {
+    setEditTarget(item);
+    setEditName(item.name);
+    setEditDescription(item.description ?? "");
+    setEditIcon(item.icon ?? "");
+  };
 
   return (
     <div className="atlas-workspaces-page" data-testid="workspace-list-page">
@@ -53,6 +94,11 @@ export function OrganizationWorkspacesPage({
             placeholder={t("workspaceListSearchPlaceholder")}
             data-testid="workspace-list-search"
           />
+          {canManage ? (
+            <Button type="primary" theme="solid" loading={saving} onClick={() => setCreateVisible(true)}>
+              {t("workspaceListCreate")}
+            </Button>
+          ) : null}
         </div>
       </section>
 
@@ -98,19 +144,130 @@ export function OrganizationWorkspacesPage({
                   <strong>{item.appKey}</strong>
                   <span>{item.lastVisitedAt ? t("workspaceListVisited") : t("workspaceListCreated")}</span>
                 </div>
-                <Button
-                  type="primary"
-                  theme="solid"
-                  onClick={() => onOpenWorkspace(item.id)}
-                  data-testid={`workspace-open-${item.id}`}
-                >
-                  {t("workspaceListOpen")}
-                </Button>
+                <div className="atlas-workspace-card__actions">
+                  {canManage ? (
+                    <Button
+                      theme="light"
+                      onClick={() => openEditDialog(item)}
+                      disabled={saving || deletingWorkspaceId === item.id}
+                    >
+                      {t("workspaceListEdit")}
+                    </Button>
+                  ) : null}
+                  {canManage ? (
+                    <Button
+                      type="danger"
+                      theme="borderless"
+                      loading={deletingWorkspaceId === item.id}
+                      disabled={saving}
+                      onClick={() => setArchiveTarget(item)}
+                    >
+                      {t("workspaceListArchive")}
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="primary"
+                    theme="solid"
+                    onClick={() => onOpenWorkspace(item.id)}
+                    data-testid={`workspace-open-${item.id}`}
+                  >
+                    {t("workspaceListOpen")}
+                  </Button>
+                </div>
               </div>
             </article>
           ))}
         </div>
       )}
+
+      <Modal
+        title={t("workspaceListCreateDialogTitle")}
+        visible={createVisible}
+        onCancel={() => {
+          setCreateVisible(false);
+          resetCreateDialog();
+        }}
+        onOk={() => {
+          void onCreateWorkspace({
+            name: createName.trim(),
+            description: createDescription.trim() || undefined,
+            icon: createIcon.trim() || undefined,
+            appInstanceId: createAppInstanceId.trim()
+          }).then(() => {
+            Toast.success(t("workspaceListCreatedSuccess"));
+            setCreateVisible(false);
+            resetCreateDialog();
+          }).catch(() => undefined);
+        }}
+        okButtonProps={{ disabled: !createName.trim() || !createAppInstanceId.trim(), loading: saving }}
+      >
+        <div className="atlas-develop-dialog">
+          <Input value={createName} onChange={setCreateName} placeholder={t("workspaceListNamePlaceholder")} />
+          <Input value={createDescription} onChange={setCreateDescription} placeholder={t("workspaceListDescriptionPlaceholder")} />
+          <Input value={createIcon} onChange={setCreateIcon} placeholder={t("workspaceListIconPlaceholder")} />
+          <Input value={createAppInstanceId} onChange={setCreateAppInstanceId} placeholder={t("workspaceListAppInstancePlaceholder")} />
+        </div>
+      </Modal>
+
+      <Modal
+        title={t("workspaceListEditDialogTitle")}
+        visible={editTarget !== null}
+        onCancel={() => {
+          setEditTarget(null);
+          setEditName("");
+          setEditDescription("");
+          setEditIcon("");
+        }}
+        onOk={() => {
+          if (!editTarget) {
+            return;
+          }
+
+          void onUpdateWorkspace(editTarget.id, {
+            name: editName.trim(),
+            description: editDescription.trim() || undefined,
+            icon: editIcon.trim() || undefined
+          }).then(() => {
+            Toast.success(t("workspaceListUpdatedSuccess"));
+            setEditTarget(null);
+            setEditName("");
+            setEditDescription("");
+            setEditIcon("");
+          }).catch(() => undefined);
+        }}
+        okButtonProps={{ disabled: !editName.trim(), loading: saving }}
+      >
+        <div className="atlas-develop-dialog">
+          <Input value={editName} onChange={setEditName} placeholder={t("workspaceListNamePlaceholder")} />
+          <Input value={editDescription} onChange={setEditDescription} placeholder={t("workspaceListDescriptionPlaceholder")} />
+          <Input value={editIcon} onChange={setEditIcon} placeholder={t("workspaceListIconPlaceholder")} />
+        </div>
+      </Modal>
+
+      <Modal
+        title={t("workspaceListArchiveConfirmTitle")}
+        visible={archiveTarget !== null}
+        onCancel={() => setArchiveTarget(null)}
+        onOk={() => {
+          if (!archiveTarget) {
+            return;
+          }
+
+          void onDeleteWorkspace(archiveTarget.id).then(() => {
+            Toast.success(t("workspaceListArchivedSuccess"));
+            setArchiveTarget(null);
+          }).catch(() => undefined);
+        }}
+        okButtonProps={{
+          type: "danger",
+          theme: "solid",
+          loading: archiveTarget ? deletingWorkspaceId === archiveTarget.id : false
+        }}
+      >
+        <Typography.Text>
+          {t("workspaceListArchiveConfirmContent").replace("{workspace}", archiveTarget?.name ?? "")}
+        </Typography.Text>
+      </Modal>
     </div>
   );
 }

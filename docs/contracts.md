@@ -76,6 +76,7 @@
   - `KnowledgeBase`
   - `AiDatabase`
   - `AiPlugin`
+- `AiApp.AgentId` 为可空字段，支持“先绑定 Workflow、后续再绑定 Agent”的创建流程。
 - 启动期初始化逻辑会为默认工作空间回填历史资源的 `WorkspaceId`。
 
 ### API
@@ -88,10 +89,14 @@
   - 返回工作空间上下文详情，包括 `appKey / appInstanceId / roleCode / allowedActions`
 - `POST /api/v1/organizations/{orgId}/workspaces`
   - 创建绑定到指定应用实例的新工作空间
+- `PUT /api/v1/organizations/{orgId}/workspaces/{workspaceId}`
+  - 更新工作空间名称、描述与图标，不允许修改既有 `AppInstanceId / AppKey` 绑定
+- `DELETE /api/v1/organizations/{orgId}/workspaces/{workspaceId}`
+  - 归档工作空间（软删除）；归档后列表、详情与 `by-app-key` 查询均不再返回该工作空间
 - `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}/develop/apps`
   - 应用优先开发页首屏数据，只返回应用卡片
 - `POST /api/v1/organizations/{orgId}/workspaces/{workspaceId}/develop/apps`
-  - 在工作空间内创建应用，并同步创建关联标准 Workflow
+  - 在工作空间内创建应用，并同步创建关联标准 Workflow；创建阶段允许 `AiApp.AgentId = null`
 - `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}/resources`
   - 按资源类型懒加载工作空间资源分区
 - `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}/members`

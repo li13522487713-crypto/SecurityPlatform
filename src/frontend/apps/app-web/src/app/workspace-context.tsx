@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { getWorkspaceById, type WorkspaceDetailDto } from "@/services/api-org-workspaces";
+import { getWorkspaceByIdOrNull, type WorkspaceDetailDto } from "@/services/api-org-workspaces";
 
 interface WorkspaceContextValue extends WorkspaceDetailDto {
   loading: boolean;
@@ -35,8 +35,20 @@ export function WorkspaceProvider({
   const reload = async () => {
     setLoading(true);
     try {
-      const nextDetail = await getWorkspaceById(orgId, workspaceId);
-      setDetail(nextDetail);
+      const nextDetail = await getWorkspaceByIdOrNull(orgId, workspaceId);
+      setDetail(nextDetail ?? {
+        id: workspaceId,
+        orgId,
+        name: "",
+        description: "",
+        icon: "",
+        appInstanceId: "",
+        appKey: "",
+        roleCode: "Member",
+        allowedActions: [],
+        createdAt: "",
+        lastVisitedAt: undefined
+      });
     } finally {
       setLoading(false);
     }

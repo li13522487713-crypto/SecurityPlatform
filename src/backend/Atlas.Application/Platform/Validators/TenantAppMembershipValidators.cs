@@ -114,3 +114,44 @@ public sealed class TenantAppFileStorageSettingsUpdateRequestValidator : Abstrac
             .WithMessage("禁用继承时必须提供应用级 MinIO Bucket。");
     }
 }
+
+public sealed class WorkspaceCreateRequestValidator : AbstractValidator<WorkspaceCreateRequest>
+{
+    public WorkspaceCreateRequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .MaximumLength(128);
+
+        RuleFor(x => x.Description)
+            .MaximumLength(1024)
+            .When(x => x.Description is not null);
+
+        RuleFor(x => x.Icon)
+            .MaximumLength(256)
+            .When(x => x.Icon is not null);
+
+        RuleFor(x => x.AppInstanceId)
+            .NotEmpty()
+            .Must(value => long.TryParse(value, out var appInstanceId) && appInstanceId > 0)
+            .WithMessage("应用实例标识必须为正整数。");
+    }
+}
+
+public sealed class WorkspaceUpdateRequestValidator : AbstractValidator<WorkspaceUpdateRequest>
+{
+    public WorkspaceUpdateRequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .MaximumLength(128);
+
+        RuleFor(x => x.Description)
+            .MaximumLength(1024)
+            .When(x => x.Description is not null);
+
+        RuleFor(x => x.Icon)
+            .MaximumLength(256)
+            .When(x => x.Icon is not null);
+    }
+}

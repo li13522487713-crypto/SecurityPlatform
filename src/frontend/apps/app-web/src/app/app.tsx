@@ -307,7 +307,9 @@ import {
 import { executeWorkflowTask } from "@/services/api-workflow-playground";
 import {
   addWorkspaceMember,
+  createWorkspace,
   createWorkspaceDevelopApp,
+  deleteWorkspace,
   getWorkspaceByAppKey,
   getWorkspaceDevelopApps,
   getWorkspaceMembers,
@@ -316,9 +318,12 @@ import {
   getWorkspaces,
   removeWorkspaceMember,
   type WorkspaceAppCardDto,
+  type WorkspaceCreateRequest,
   type WorkspaceMemberDto,
   type WorkspaceResourceCardDto,
   type WorkspaceRolePermissionDto,
+  type WorkspaceUpdateRequest,
+  updateWorkspace,
   updateWorkspaceMemberRole,
   updateWorkspaceResourcePermissions
 } from "@/services/api-org-workspaces";
@@ -2431,8 +2436,26 @@ function WorkspaceListRoute() {
   const auth = useAuth();
   const bootstrap = useBootstrap();
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
   const [items, setItems] = useState<Awaited<ReturnType<typeof getWorkspaces>>>([]);
+
+  const loadWorkspaces = async () => {
+    if (!auth.isAuthenticated) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await getWorkspaces(orgId);
+      setItems(result);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -2441,11 +2464,11 @@ function WorkspaceListRoute() {
         setLoading(false);
         return;
       }
-      setLoading(true);
-      try {
-        const result = await getWorkspaces(orgId);
-        if (!cancelled) {
-          setItems(result);
+        setLoading(true);
+        try {
+          const result = await getWorkspaces(orgId);
+          if (!cancelled) {
+            setItems(result);
         }
       } finally {
         if (!cancelled) {
@@ -2469,17 +2492,47 @@ function WorkspaceListRoute() {
   }
 
   return (
-    <OrganizationProvider orgId={orgId}>
-      <OrganizationWorkspacesPage
-        loading={loading}
-        keyword={keyword}
-        items={items}
-        onKeywordChange={setKeyword}
-        onOpenWorkspace={workspaceId => navigate(orgWorkspaceDevelopPath(orgId, workspaceId))}
-      />
-    </OrganizationProvider>
-  );
-}
+      <OrganizationProvider orgId={orgId}>
+        <OrganizationWorkspacesPage
+          loading={loading}
+          canManage={auth.hasPermission(APP_PERMISSIONS.APPS_UPDATE)}
+          saving={saving}
+          deletingWorkspaceId={deletingWorkspaceId}
+          keyword={keyword}
+          items={items}
+          onKeywordChange={setKeyword}
+          onOpenWorkspace={workspaceId => navigate(orgWorkspaceDevelopPath(orgId, workspaceId))}
+          onCreateWorkspace={async (request: WorkspaceCreateRequest) => {
+            setSaving(true);
+            try {
+              await createWorkspace(orgId, request);
+              await loadWorkspaces();
+            } finally {
+              setSaving(false);
+            }
+          }}
+          onUpdateWorkspace={async (workspaceId: string, request: WorkspaceUpdateRequest) => {
+            setSaving(true);
+            try {
+              await updateWorkspace(orgId, workspaceId, request);
+              await loadWorkspaces();
+            } finally {
+              setSaving(false);
+            }
+          }}
+          onDeleteWorkspace={async (workspaceId: string) => {
+            setDeletingWorkspaceId(workspaceId);
+            try {
+              await deleteWorkspace(orgId, workspaceId);
+              await loadWorkspaces();
+            } finally {
+              setDeletingWorkspaceId(null);
+            }
+          }}
+        />
+      </OrganizationProvider>
+    );
+  }
 
 function WorkspaceShellRoute() {
   const { orgId = "", workspaceId = "" } = useParams();

@@ -1,5 +1,6 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -50,13 +51,19 @@ public sealed class AiApp : TenantEntity
     }
 
     public string Name { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public string? Icon { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? AgentId { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? WorkflowId { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? PrimaryWorkflowId { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? EntryConversationTemplateId { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? PromptTemplateId { get; private set; }
     public string UiBuilderSchemaJson { get; private set; }
     public string WorkspaceLayoutJson { get; private set; }
@@ -65,7 +72,9 @@ public sealed class AiApp : TenantEntity
     public AiAppStatus Status { get; private set; }
     public int PublishVersion { get; private set; }
     public DateTime CreatedAt { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public DateTime? UpdatedAt { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public DateTime? PublishedAt { get; private set; }
 
     public void Update(

@@ -29,6 +29,7 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 创建工作空间
+# @name createWorkspace
 POST {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -41,10 +42,25 @@ Content-Type: application/json
   "appInstanceId": "1"
 }
 
+###
+@createdWorkspaceId = {{createWorkspace.response.body.$.data.id}}
+
 ### 工作空间详情
 GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 更新工作空间
+PUT {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/{{createdWorkspaceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "已更新工作空间 {{$timestamp}}",
+  "description": "用于验证工作空间更新接口",
+  "icon": "workspace-updated"
+}
 
 ### 工作空间开发页应用
 GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/develop/apps?pageIndex=1&pageSize=12
@@ -52,6 +68,7 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 在工作空间内创建应用
+# AgentId 当前允许为空；本接口只需提供应用基础信息，后端会先创建 Workflow，再创建未绑定 Agent 的 AiApp。
 POST {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/develop/apps
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -106,3 +123,8 @@ Content-Type: application/json
     }
   ]
 }
+
+### 归档工作空间
+DELETE {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/{{createdWorkspaceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

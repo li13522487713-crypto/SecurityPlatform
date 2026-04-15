@@ -57,6 +57,12 @@ interface DatabaseSchemaColumn {
   type: string;
   required: boolean;
   defaultValue: string;
+  description: string;
+  unique: boolean;
+  indexed: boolean;
+  length: string;
+  min: string;
+  max: string;
 }
 
 interface DatabaseCreateFormState {
@@ -66,6 +72,12 @@ interface DatabaseCreateFormState {
   schemaMode: "structured" | "raw";
   columns: DatabaseSchemaColumn[];
   rawSchemaJson: string;
+}
+
+interface PluginPreviewOperation {
+  method: string;
+  path: string;
+  name: string;
 }
 
 const DEFAULT_CREATE_FORM: CreateFormState = {
@@ -89,7 +101,20 @@ const DEFAULT_PLUGIN_FORM: PluginCreateFormState = {
 };
 
 const DEFAULT_DATABASE_COLUMNS: DatabaseSchemaColumn[] = [
-  { id: "col-id", name: "id", label: "", type: "string", required: true, defaultValue: "" }
+  {
+    id: "col-id",
+    name: "id",
+    label: "",
+    type: "string",
+    required: true,
+    defaultValue: "",
+    description: "",
+    unique: true,
+    indexed: true,
+    length: "",
+    min: "",
+    max: ""
+  }
 ];
 
 const DEFAULT_DATABASE_FORM: DatabaseCreateFormState = {
@@ -120,6 +145,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
   const [pluginForm, setPluginForm] = useState<PluginCreateFormState>(DEFAULT_PLUGIN_FORM);
   const [databaseForm, setDatabaseForm] = useState<DatabaseCreateFormState>(DEFAULT_DATABASE_FORM);
   const [draggingColumnId, setDraggingColumnId] = useState<string>("");
+  const [pluginPreviewStage, setPluginPreviewStage] = useState<"edit" | "preview">("edit");
   const deferredSearch = useDeferredValue(search.trim());
   const pageSize = 20;
 
@@ -195,11 +221,101 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
         label: column.label.trim() || undefined,
         type: column.type.trim() || "string",
         required: column.required,
-        defaultValue: column.defaultValue.trim() || undefined
+        defaultValue: column.defaultValue.trim() || undefined,
+        description: column.description.trim() || undefined,
+        unique: column.unique || undefined,
+        indexed: column.indexed || undefined,
+        length: column.length.trim() ? Number(column.length.trim()) : undefined,
+        min: column.min.trim() ? Number(column.min.trim()) : undefined,
+        max: column.max.trim() ? Number(column.max.trim()) : undefined
       })),
     null,
     2
   ), [databaseForm.columns]);
+
+  const pluginPreview = useMemo(() => {
+    if (pluginForm.sourceType !== 1 || !pluginForm.openApiSpecJson.trim()) {
+      return { valid: true, operations: [], schemaCount: 0 };
+    }
+
+    try {
+      const parsed = JSON.parse(pluginForm.openApiSpecJson) as {
+        paths?: Record<string, Record<string, { operationId?: string; summary?: string }>>;
+        components?: { schemas?: Record<string, unknown> };
+      };
+      const operations = Object.entries(parsed.paths ?? {}).flatMap(([path, methods]) =>
+        Object.entries(methods ?? {}).map(([method, config]) => ({
+          method: method.toUpperCase(),
+          path,
+          name: config.operationId || config.summary || `${method.toUpperCase()} ${path}`
+        } satisfies PluginPreviewOperation))
+      );
+      const schemaCount = Object.keys(parsed.components?.schemas ?? {}).length;
+      return {
+        valid: true,
+        operations: operations as PluginPreviewOperation[],
+        schemaCount
+      };
+    } catch {
+      return {
+        valid: false,
+        operations: [] as PluginPreviewOperation[],
+        schemaCount: 0
+      };
+    }
+  }, [pluginForm.openApiSpecJson, pluginForm.sourceType]);
+
+  const databaseValidationErrors = useMemo(() => {
+    if (createKind !== "database" || databaseForm.schemaMode !== "structured") {
+      return [];
+    }
+
+    const errors: string[] = [];
+    const normalizedNames = new Set<string>();
+    for (const column of databaseForm.columns) {
+      const name = column.name.trim();
+      if (!name) {
+        errors.push(`${copy.databaseFieldName} 不能为空`);
+        continue;
+      }
+
+      if (normalizedNames.has(name.toLowerCase())) {
+        errors.push(`${copy.databaseFieldName} 重复: ${name}`);
+      } else {
+        normalizedNames.add(name.toLowerCase());
+      }
+
+      const length = column.length.trim() ? Number(column.length.trim()) : null;
+      const min = column.min.trim() ? Number(column.min.trim()) : null;
+      const max = column.max.trim() ? Number(column.max.trim()) : null;
+
+      if (length !== null && (!Number.isFinite(length) || length <= 0)) {
+        errors.push(`${name}: ${copy.databaseFieldLength} 必须是正数`);
+      }
+
+      if (min !== null && !Number.isFinite(min)) {
+        errors.push(`${name}: ${copy.databaseFieldMin} 必须是数字`);
+      }
+
+      if (max !== null && !Number.isFinite(max)) {
+        errors.push(`${name}: ${copy.databaseFieldMax} 必须是数字`);
+      }
+
+      if (min !== null && max !== null && min > max) {
+        errors.push(`${name}: ${copy.databaseFieldMin} 不能大于 ${copy.databaseFieldMax}`);
+      }
+
+      if ((column.type === "string" || column.type === "json") && min !== null) {
+        errors.push(`${name}: ${copy.databaseFieldMin} 不适用于 ${column.type}`);
+      }
+
+      if ((column.type === "string" || column.type === "json") && max !== null) {
+        errors.push(`${name}: ${copy.databaseFieldMax} 不适用于 ${column.type}`);
+      }
+    }
+
+    return errors;
+  }, [copy.databaseFieldLength, copy.databaseFieldMax, copy.databaseFieldMin, copy.databaseFieldName, createKind, databaseForm.columns, databaseForm.schemaMode]);
 
   const columns = useMemo<ColumnProps<AiLibraryItem>[]>(() => [
     {
@@ -478,6 +594,10 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
         if (!api.createPlugin) {
           throw new Error(copy.createPlugin);
         }
+        if (pluginForm.sourceType === 1 && !pluginPreview.valid) {
+          Toast.error(copy.pluginValidateOpenApi);
+          return;
+        }
         id = await api.createPlugin({
           name: pluginForm.name.trim(),
           description: pluginForm.description.trim() || undefined,
@@ -495,6 +615,10 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
         if (!api.createDatabase) {
           throw new Error(copy.createDatabase);
         }
+        if (databaseValidationErrors.length > 0) {
+          Toast.error(copy.databaseValidationFailed);
+          return;
+        }
         id = await api.createDatabase({
           name: databaseForm.name.trim(),
           description: databaseForm.description.trim() || undefined,
@@ -508,6 +632,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
       setForm(DEFAULT_CREATE_FORM);
       setPluginForm(DEFAULT_PLUGIN_FORM);
       setDatabaseForm(DEFAULT_DATABASE_FORM);
+      setPluginPreviewStage("edit");
       Toast.success(createKind === "knowledge-base" ? copy.createKnowledge : createKind === "plugin" ? copy.createPlugin : copy.createDatabase);
       if (createKind === "knowledge-base") {
         onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${id}`);
@@ -672,6 +797,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           setForm(DEFAULT_CREATE_FORM);
           setPluginForm(DEFAULT_PLUGIN_FORM);
           setDatabaseForm(DEFAULT_DATABASE_FORM);
+          setPluginPreviewStage("edit");
         }}
         okText={copy.create}
         cancelText={copy.cancel}
@@ -704,84 +830,160 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           ) : null}
           {createKind === "plugin" ? (
             <div className="atlas-library-create-stack">
-              <div className="atlas-library-create-section">
-                <Typography.Text strong>{copy.pluginBasicInfo}</Typography.Text>
-                <Input value={pluginForm.description} placeholder={copy.noDescription} onChange={value => setPluginForm(current => ({ ...current, description: value }))} />
-                <Input value={pluginForm.icon} placeholder="icon" onChange={value => setPluginForm(current => ({ ...current, icon: value }))} />
-                <Input value={pluginForm.category} placeholder={copy.resourceType} onChange={value => setPluginForm(current => ({ ...current, category: value }))} />
-              </div>
-              <div className="atlas-library-create-section">
-                <Typography.Text strong>{copy.pluginSourceAndAuth}</Typography.Text>
-                <Select
-                  value={pluginForm.type}
-                  optionList={[
-                    { label: "Custom", value: 0 },
-                    { label: "BuiltIn", value: 1 }
-                  ]}
-                  onChange={value => setPluginForm(current => ({ ...current, type: Number(value) as 0 | 1 }))}
-                />
-                <Select
-                  value={pluginForm.sourceType}
-                  optionList={[
-                    { label: "Manual", value: 0 },
-                    { label: "OpenApiImport", value: 1 },
-                    { label: "BuiltInCatalog", value: 2 }
-                  ]}
-                  onChange={value => setPluginForm(current => ({ ...current, sourceType: Number(value) as 0 | 1 | 2 }))}
-                />
-                <Select
-                  value={pluginForm.authType}
-                  optionList={[
-                    { label: "None", value: 0 },
-                    { label: "ApiKey", value: 1 },
-                    { label: "BearerToken", value: 2 },
-                    { label: "Basic", value: 3 },
-                    { label: "Custom", value: 4 }
-                  ]}
-                  onChange={value => setPluginForm(current => ({ ...current, authType: Number(value) as 0 | 1 | 2 | 3 | 4 }))}
-                />
-              </div>
-              {pluginForm.sourceType === 1 ? (
-                <div className="atlas-library-create-guide">
-                  <Typography.Text strong>{copy.pluginOpenApiGuide}</Typography.Text>
-                  <Typography.Text type="tertiary">{copy.pluginOpenApiHint}</Typography.Text>
-                  <Button
-                    theme="light"
-                    onClick={() => setPluginForm(current => ({
-                      ...current,
-                      openApiSpecJson: JSON.stringify({
-                        openapi: "3.0.0",
-                        info: { title: current.name || "Sample API", version: "1.0.0" },
-                        paths: {
-                          "/health": {
-                            get: {
-                              operationId: "healthCheck",
-                              responses: {
-                                "200": {
-                                  description: "OK"
+              {pluginPreviewStage === "edit" ? (
+                <>
+                  <div className="atlas-library-create-section">
+                    <Typography.Text strong>{copy.pluginBasicInfo}</Typography.Text>
+                    <Input value={pluginForm.description} placeholder={copy.noDescription} onChange={value => setPluginForm(current => ({ ...current, description: value }))} />
+                    <Input value={pluginForm.icon} placeholder="icon" onChange={value => setPluginForm(current => ({ ...current, icon: value }))} />
+                    <Input value={pluginForm.category} placeholder={copy.resourceType} onChange={value => setPluginForm(current => ({ ...current, category: value }))} />
+                  </div>
+                  <div className="atlas-library-create-section">
+                    <Typography.Text strong>{copy.pluginSourceAndAuth}</Typography.Text>
+                    <Select
+                      value={pluginForm.type}
+                      optionList={[
+                        { label: "Custom", value: 0 },
+                        { label: "BuiltIn", value: 1 }
+                      ]}
+                      onChange={value => setPluginForm(current => ({ ...current, type: Number(value) as 0 | 1 }))}
+                    />
+                    <Select
+                      value={pluginForm.sourceType}
+                      optionList={[
+                        { label: "Manual", value: 0 },
+                        { label: "OpenApiImport", value: 1 },
+                        { label: "BuiltInCatalog", value: 2 }
+                      ]}
+                      onChange={value => {
+                        const nextSourceType = Number(value) as 0 | 1 | 2;
+                        setPluginPreviewStage("edit");
+                        setPluginForm(current => ({ ...current, sourceType: nextSourceType }));
+                      }}
+                    />
+                    <Select
+                      value={pluginForm.authType}
+                      optionList={[
+                        { label: "None", value: 0 },
+                        { label: "ApiKey", value: 1 },
+                        { label: "BearerToken", value: 2 },
+                        { label: "Basic", value: 3 },
+                        { label: "Custom", value: 4 }
+                      ]}
+                      onChange={value => setPluginForm(current => ({ ...current, authType: Number(value) as 0 | 1 | 2 | 3 | 4 }))}
+                    />
+                  </div>
+                  {pluginForm.sourceType === 1 ? (
+                    <div className="atlas-library-create-guide">
+                      <Typography.Text strong>{copy.pluginOpenApiGuide}</Typography.Text>
+                      <Typography.Text type="tertiary">{copy.pluginOpenApiHint}</Typography.Text>
+                      <Button
+                        theme="light"
+                        onClick={() => setPluginForm(current => ({
+                          ...current,
+                          openApiSpecJson: JSON.stringify({
+                            openapi: "3.0.0",
+                            info: { title: current.name || "Sample API", version: "1.0.0" },
+                            paths: {
+                              "/health": {
+                                get: {
+                                  operationId: "healthCheck",
+                                  summary: "Health Check",
+                                  responses: {
+                                    "200": {
+                                      description: "OK"
+                                    }
+                                  }
+                                }
+                              },
+                              "/items": {
+                                post: {
+                                  operationId: "createItem",
+                                  summary: "Create Item",
+                                  responses: {
+                                    "200": {
+                                      description: "OK"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            components: {
+                              schemas: {
+                                Item: {
+                                  type: "object",
+                                  properties: {
+                                    id: { type: "string" },
+                                    title: { type: "string" }
+                                  }
                                 }
                               }
                             }
+                          }, null, 2)
+                        }))}
+                      >
+                        {copy.pluginPrefillOpenApi}
+                      </Button>
+                      <TextArea autosize value={pluginForm.openApiSpecJson} onChange={value => setPluginForm(current => ({ ...current, openApiSpecJson: value }))} placeholder="openApiSpecJson" />
+                      <Button
+                        type="primary"
+                        theme="light"
+                        onClick={() => {
+                          if (!pluginPreview.valid) {
+                            Toast.error(copy.pluginValidateOpenApi);
+                            return;
                           }
-                        }
-                      }, null, 2)
-                    }))}
-                  >
-                    {copy.pluginPrefillOpenApi}
+                          setPluginPreviewStage("preview");
+                        }}
+                      >
+                        {copy.pluginPreviewNext}
+                      </Button>
+                    </div>
+                  ) : null}
+                  <div className="atlas-library-create-section">
+                    <Typography.Text strong>{copy.pluginAdvancedConfig}</Typography.Text>
+                    <TextArea autosize value={pluginForm.definitionJson} onChange={value => setPluginForm(current => ({ ...current, definitionJson: value }))} placeholder="definitionJson" />
+                    {pluginForm.authType !== 0 ? (
+                      <TextArea autosize value={pluginForm.authConfigJson} onChange={value => setPluginForm(current => ({ ...current, authConfigJson: value }))} placeholder="authConfigJson" />
+                    ) : null}
+                    <TextArea autosize value={pluginForm.toolSchemaJson} onChange={value => setPluginForm(current => ({ ...current, toolSchemaJson: value }))} placeholder="toolSchemaJson" />
+                  </div>
+                </>
+              ) : (
+                <div className="atlas-library-create-stack">
+                  <div className="atlas-library-create-section">
+                    <Typography.Text strong>{copy.pluginPreviewSummary}</Typography.Text>
+                    <div className="atlas-library-preview-grid">
+                      <div className="atlas-library-preview-metric">
+                        <span>{copy.pluginPreviewOperations}</span>
+                        <strong>{pluginPreview.operations.length}</strong>
+                      </div>
+                      <div className="atlas-library-preview-metric">
+                        <span>{copy.pluginPreviewSchemas}</span>
+                        <strong>{pluginPreview.schemaCount}</strong>
+                      </div>
+                    </div>
+                  </div>
+                  {pluginPreview.operations.length === 0 ? (
+                    <Empty description={copy.pluginPreviewEmpty} />
+                  ) : (
+                    <div className="atlas-library-preview-list">
+                      {pluginPreview.operations.map(operation => (
+                        <div key={`${operation.method}:${operation.path}`} className="atlas-library-preview-list__item">
+                          <Tag color="cyan">{operation.method}</Tag>
+                          <div>
+                            <strong>{operation.name}</strong>
+                            <span>{operation.path}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button theme="light" onClick={() => setPluginPreviewStage("edit")}>
+                    {copy.pluginPreviewBack}
                   </Button>
                 </div>
-              ) : null}
-              <div className="atlas-library-create-section">
-                <Typography.Text strong>{copy.pluginAdvancedConfig}</Typography.Text>
-                <TextArea autosize value={pluginForm.definitionJson} onChange={value => setPluginForm(current => ({ ...current, definitionJson: value }))} placeholder="definitionJson" />
-                {pluginForm.authType !== 0 ? (
-                  <TextArea autosize value={pluginForm.authConfigJson} onChange={value => setPluginForm(current => ({ ...current, authConfigJson: value }))} placeholder="authConfigJson" />
-                ) : null}
-                <TextArea autosize value={pluginForm.toolSchemaJson} onChange={value => setPluginForm(current => ({ ...current, toolSchemaJson: value }))} placeholder="toolSchemaJson" />
-                {pluginForm.sourceType === 1 ? (
-                  <TextArea autosize value={pluginForm.openApiSpecJson} onChange={value => setPluginForm(current => ({ ...current, openApiSpecJson: value }))} placeholder="openApiSpecJson" />
-                ) : null}
-              </div>
+              )}
             </div>
           ) : null}
           {createKind === "knowledge-base" ? (
@@ -867,6 +1069,44 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
                           ...current,
                           columns: current.columns.map(item => item.id === column.id ? { ...item, defaultValue: value } : item)
                         }))} />
+                        <Input value={column.description} placeholder={copy.databaseFieldDescription} onChange={value => setDatabaseForm(current => ({
+                          ...current,
+                          columns: current.columns.map(item => item.id === column.id ? { ...item, description: value } : item)
+                        }))} />
+                        <Select
+                          value={column.unique ? "unique" : "not-unique"}
+                          optionList={[
+                            { label: copy.databaseFieldUnique, value: "unique" },
+                            { label: copy.databaseFieldOptional, value: "not-unique" }
+                          ]}
+                          onChange={value => setDatabaseForm(current => ({
+                            ...current,
+                            columns: current.columns.map(item => item.id === column.id ? { ...item, unique: value === "unique" } : item)
+                          }))}
+                        />
+                        <Select
+                          value={column.indexed ? "indexed" : "not-indexed"}
+                          optionList={[
+                            { label: copy.databaseFieldIndexed, value: "indexed" },
+                            { label: copy.databaseFieldOptional, value: "not-indexed" }
+                          ]}
+                          onChange={value => setDatabaseForm(current => ({
+                            ...current,
+                            columns: current.columns.map(item => item.id === column.id ? { ...item, indexed: value === "indexed" } : item)
+                          }))}
+                        />
+                        <Input value={column.length} placeholder={copy.databaseFieldLength} onChange={value => setDatabaseForm(current => ({
+                          ...current,
+                          columns: current.columns.map(item => item.id === column.id ? { ...item, length: value } : item)
+                        }))} />
+                        <Input value={column.min} placeholder={copy.databaseFieldMin} onChange={value => setDatabaseForm(current => ({
+                          ...current,
+                          columns: current.columns.map(item => item.id === column.id ? { ...item, min: value } : item)
+                        }))} />
+                        <Input value={column.max} placeholder={copy.databaseFieldMax} onChange={value => setDatabaseForm(current => ({
+                          ...current,
+                          columns: current.columns.map(item => item.id === column.id ? { ...item, max: value } : item)
+                        }))} />
                         <div className="atlas-library-database-columns__actions">
                           <Button theme="borderless" onClick={() => moveDatabaseColumn(column.id, -1)}>{copy.databaseMoveUp}</Button>
                           <Button theme="borderless" onClick={() => moveDatabaseColumn(column.id, 1)}>{copy.databaseMoveDown}</Button>
@@ -895,12 +1135,21 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
                           label: "",
                           type: "string",
                           required: false,
-                          defaultValue: ""
+                          defaultValue: "",
+                          description: "",
+                          unique: false,
+                          indexed: false,
+                          length: "",
+                          min: "",
+                          max: ""
                         }]
                       }))}
                     >
                       {copy.databaseAddColumn}
                     </Button>
+                    {databaseValidationErrors.length > 0 ? (
+                      <Banner type="danger" description={databaseValidationErrors.join("；")} />
+                    ) : null}
                     <div className="atlas-library-create-section">
                       <Typography.Text strong>{copy.databaseSchemaPreview}</Typography.Text>
                       <TextArea autosize value={structuredDatabaseSchemaJson} readOnly />

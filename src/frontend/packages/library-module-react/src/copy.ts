@@ -12,6 +12,13 @@ type CopyTree = {
   pluginOpenApiGuide: string;
   pluginOpenApiHint: string;
   pluginPrefillOpenApi: string;
+  pluginPreviewSummary: string;
+  pluginPreviewOperations: string;
+  pluginPreviewSchemas: string;
+  pluginPreviewNext: string;
+  pluginPreviewBack: string;
+  pluginPreviewEmpty: string;
+  pluginValidateOpenApi: string;
   databaseBasicInfo: string;
   databaseSchemaMode: string;
   databaseSchemaStructured: string;
@@ -24,9 +31,16 @@ type CopyTree = {
   databaseFieldRequired: string;
   databaseFieldOptional: string;
   databaseFieldDefaultValue: string;
+  databaseFieldDescription: string;
+  databaseFieldUnique: string;
+  databaseFieldIndexed: string;
+  databaseFieldLength: string;
+  databaseFieldMin: string;
+  databaseFieldMax: string;
   databaseMoveUp: string;
   databaseMoveDown: string;
   databaseSchemaPreview: string;
+  databaseValidationFailed: string;
   createKnowledgeHint: string;
   searchPlaceholder: string;
   resourceType: string;
@@ -108,6 +122,13 @@ const zhCN: CopyTree = {
   pluginOpenApiGuide: "OpenAPI 导入引导",
   pluginOpenApiHint: "选择 OpenApiImport 后，优先粘贴完整 OpenAPI 文档，再按需补充工具和鉴权配置。",
   pluginPrefillOpenApi: "填入示例 OpenAPI",
+  pluginPreviewSummary: "预解析摘要",
+  pluginPreviewOperations: "接口操作数",
+  pluginPreviewSchemas: "Schema 字段数",
+  pluginPreviewNext: "预解析并预览",
+  pluginPreviewBack: "返回编辑",
+  pluginPreviewEmpty: "当前 OpenAPI 内容无法解析出任何接口。",
+  pluginValidateOpenApi: "OpenAPI JSON 不合法，请先修正后再预解析。",
   databaseBasicInfo: "基础信息",
   databaseSchemaMode: "Schema 编辑模式",
   databaseSchemaStructured: "结构编辑",
@@ -120,9 +141,16 @@ const zhCN: CopyTree = {
   databaseFieldRequired: "必填",
   databaseFieldOptional: "可选",
   databaseFieldDefaultValue: "默认值",
+  databaseFieldDescription: "字段说明",
+  databaseFieldUnique: "唯一",
+  databaseFieldIndexed: "索引",
+  databaseFieldLength: "长度",
+  databaseFieldMin: "最小值",
+  databaseFieldMax: "最大值",
   databaseMoveUp: "上移",
   databaseMoveDown: "下移",
   databaseSchemaPreview: "Schema 预览",
+  databaseValidationFailed: "请先修正字段规则后再创建数据库。",
   createKnowledgeHint: "统一按 Coze 风格维护文本、表格、图片知识。",
   searchPlaceholder: "搜索资源名称",
   resourceType: "资源类型",
@@ -227,6 +255,13 @@ const enUS: CopyTree = {
   pluginOpenApiGuide: "OpenAPI Import Guide",
   pluginOpenApiHint: "When OpenApiImport is selected, paste a full OpenAPI document first, then refine tool and auth configs.",
   pluginPrefillOpenApi: "Prefill OpenAPI Sample",
+  pluginPreviewSummary: "Parse Summary",
+  pluginPreviewOperations: "Operations",
+  pluginPreviewSchemas: "Schema Fields",
+  pluginPreviewNext: "Parse & Preview",
+  pluginPreviewBack: "Back to Edit",
+  pluginPreviewEmpty: "No API operations could be parsed from the current OpenAPI content.",
+  pluginValidateOpenApi: "OpenAPI JSON is invalid. Fix it before previewing.",
   databaseBasicInfo: "Basic Info",
   databaseSchemaMode: "Schema Editor Mode",
   databaseSchemaStructured: "Structured",
@@ -239,9 +274,16 @@ const enUS: CopyTree = {
   databaseFieldRequired: "Required",
   databaseFieldOptional: "Optional",
   databaseFieldDefaultValue: "Default Value",
+  databaseFieldDescription: "Description",
+  databaseFieldUnique: "Unique",
+  databaseFieldIndexed: "Indexed",
+  databaseFieldLength: "Length",
+  databaseFieldMin: "Min",
+  databaseFieldMax: "Max",
   databaseMoveUp: "Move Up",
   databaseMoveDown: "Move Down",
   databaseSchemaPreview: "Schema Preview",
+  databaseValidationFailed: "Please fix field rules before creating the database.",
   createKnowledgeHint: "Manage text, table, and image knowledge in a Coze-style flow.",
   searchPlaceholder: "Search resources",
   resourceType: "Type",

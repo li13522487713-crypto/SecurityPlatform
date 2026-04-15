@@ -1,5 +1,5 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { requestApi } from "./api-core";
+import { extractResourceId, requestApi } from "./api-core";
 
 export interface WorkspaceSummaryDto {
   id: string;
@@ -29,6 +29,19 @@ export interface WorkspaceDetailDto {
   allowedActions: string[];
   createdAt: string;
   lastVisitedAt?: string;
+}
+
+export interface WorkspaceCreateRequest {
+  name: string;
+  description?: string;
+  icon?: string;
+  appInstanceId: string;
+}
+
+export interface WorkspaceUpdateRequest {
+  name: string;
+  description?: string;
+  icon?: string;
 }
 
 export interface WorkspaceAppCardDto {
@@ -123,11 +136,66 @@ export async function getWorkspaceById(orgId: string, workspaceId: string): Prom
   return response.data;
 }
 
+export async function getWorkspaceByIdOrNull(orgId: string, workspaceId: string): Promise<WorkspaceDetailDto | null> {
+  const response = await requestApi<ApiResponse<WorkspaceDetailDto>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}`,
+    undefined,
+    {
+      suppressErrorMessage: true
+    }
+  );
+  return response.data ?? null;
+}
+
 export async function getWorkspaceByAppKey(orgId: string, appKey: string): Promise<WorkspaceDetailDto | null> {
   const response = await requestApi<ApiResponse<WorkspaceDetailDto>>(`${base(orgId)}/by-app-key/${encodeURIComponent(appKey)}`, undefined, {
     suppressErrorMessage: true
   });
   return response.data ?? null;
+}
+
+export async function createWorkspace(orgId: string, request: WorkspaceCreateRequest): Promise<string> {
+  const response = await requestApi<ApiResponse<{ id?: string | number | null; Id?: string | number | null }>>(
+    base(orgId),
+    {
+      method: "POST",
+      body: JSON.stringify(request)
+    }
+  );
+  const workspaceId = extractResourceId(response.data);
+  if (!workspaceId) {
+    throw new Error(response.message || "创建工作空间失败");
+  }
+  return workspaceId;
+}
+
+export async function updateWorkspace(
+  orgId: string,
+  workspaceId: string,
+  request: WorkspaceUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新工作空间失败");
+  }
+}
+
+export async function deleteWorkspace(orgId: string, workspaceId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}`,
+    {
+      method: "DELETE"
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "归档工作空间失败");
+  }
 }
 
 export async function getWorkspaceDevelopApps(

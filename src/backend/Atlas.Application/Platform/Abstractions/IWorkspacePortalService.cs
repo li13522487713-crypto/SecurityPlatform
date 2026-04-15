@@ -36,7 +36,15 @@ public interface IWorkspacePortalService
         TenantId tenantId,
         long workspaceId,
         long userId,
+        bool isPlatformAdmin,
         WorkspaceUpdateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteWorkspaceAsync(
+        TenantId tenantId,
+        long workspaceId,
+        long userId,
+        bool isPlatformAdmin,
         CancellationToken cancellationToken = default);
 
     Task<PagedResult<WorkspaceAppCardDto>> GetDevelopAppsAsync(
@@ -51,6 +59,7 @@ public interface IWorkspacePortalService
         TenantId tenantId,
         long workspaceId,
         long userId,
+        bool isPlatformAdmin,
         WorkspaceAppCreateRequest request,
         CancellationToken cancellationToken = default);
 

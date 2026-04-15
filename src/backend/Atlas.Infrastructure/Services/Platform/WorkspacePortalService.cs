@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.ExceptionServices;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Platform.Abstractions;
@@ -231,13 +232,28 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
         TenantId tenantId,
         long workspaceId,
         long userId,
+        bool isPlatformAdmin,
         WorkspaceUpdateRequest request,
         CancellationToken cancellationToken = default)
     {
         var workspace = await _workspaceRepository.FindByIdAsync(tenantId, workspaceId, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, "工作空间不存在。");
-        await RequireWorkspaceAccessAsync(tenantId, workspaceId, userId, false, WorkspacePermissionActions.Edit, cancellationToken);
+        await RequireWorkspaceAccessAsync(tenantId, workspaceId, userId, isPlatformAdmin, WorkspacePermissionActions.Edit, cancellationToken);
         workspace.Update(request.Name, request.Description, request.Icon, userId);
+        await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
+    }
+
+    public async Task DeleteWorkspaceAsync(
+        TenantId tenantId,
+        long workspaceId,
+        long userId,
+        bool isPlatformAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var workspace = await _workspaceRepository.FindByIdAsync(tenantId, workspaceId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, "工作空间不存在。");
+        await RequireWorkspaceAccessAsync(tenantId, workspaceId, userId, isPlatformAdmin, WorkspacePermissionActions.Delete, cancellationToken);
+        workspace.Archive(userId);
         await _workspaceRepository.UpdateAsync(workspace, cancellationToken);
     }
 
@@ -289,10 +305,11 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
         TenantId tenantId,
         long workspaceId,
         long userId,
+        bool isPlatformAdmin,
         WorkspaceAppCreateRequest request,
         CancellationToken cancellationToken = default)
     {
-        await RequireWorkspaceAccessAsync(tenantId, workspaceId, userId, false, WorkspacePermissionActions.Edit, cancellationToken);
+        await RequireWorkspaceAccessAsync(tenantId, workspaceId, userId, isPlatformAdmin, WorkspacePermissionActions.Edit, cancellationToken);
 
         var workflowId = await _workflowCommandService.CreateAsync(
             tenantId,
@@ -304,17 +321,35 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
                 workspaceId),
             cancellationToken);
 
-        var appId = await _aiAppService.CreateAsync(
-            tenantId,
-            new AiAppCreateRequest(
-                request.Name,
-                request.Description,
-                request.Icon,
-                null,
-                workflowId,
-                null,
-                workspaceId),
-            cancellationToken);
+        long appId;
+        try
+        {
+            appId = await _aiAppService.CreateAsync(
+                tenantId,
+                new AiAppCreateRequest(
+                    request.Name,
+                    request.Description,
+                    request.Icon,
+                    null,
+                    workflowId,
+                    null,
+                    workspaceId),
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                await _workflowCommandService.DeleteAsync(tenantId, workflowId, cancellationToken);
+            }
+            catch
+            {
+                // 保留原始异常语义；补偿删除失败不覆盖首个业务错误。
+            }
+
+            ExceptionDispatchInfo.Capture(exception).Throw();
+            throw;
+        }
 
         var orgId = tenantId.Value.ToString("D");
         return new WorkspaceAppCreateResult(
