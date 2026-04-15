@@ -13,6 +13,53 @@ function getScopedKey(rawKey: string): string {
   return `${authStorageNamespace}_${rawKey}`;
 }
 
+function getSafeStorage(kind: "localStorage" | "sessionStorage"): Storage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window[kind];
+  } catch {
+    return null;
+  }
+}
+
+function safeGetItem(kind: "localStorage" | "sessionStorage", key: string): string | null {
+  const storage = getSafeStorage(kind);
+  if (!storage) {
+    return null;
+  }
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(kind: "localStorage" | "sessionStorage", key: string, value: string): void {
+  const storage = getSafeStorage(kind);
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Ignore storage write failures to avoid blocking rendering.
+  }
+}
+
+function safeRemoveItem(kind: "localStorage" | "sessionStorage", key: string): void {
+  const storage = getSafeStorage(kind);
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.removeItem(key);
+  } catch {
+    // Ignore storage removal failures to avoid breaking logout/cleanup.
+  }
+}
+
 export function setAuthStorageNamespace(namespace: string) {
   const normalized = namespace.trim().toLowerCase();
   authStorageNamespace = normalized.length > 0 ? normalized : "atlas";
@@ -20,60 +67,60 @@ export function setAuthStorageNamespace(namespace: string) {
 
 export const getAccessToken = () => {
   const key = getScopedKey(ACCESS_TOKEN_KEY);
-  return sessionStorage.getItem(key) ?? localStorage.getItem(key);
+  return safeGetItem("sessionStorage", key) ?? safeGetItem("localStorage", key);
 };
 
 export const setAccessToken = (token: string) => {
   const key = getScopedKey(ACCESS_TOKEN_KEY);
-  sessionStorage.setItem(key, token);
-  localStorage.removeItem(key);
+  safeSetItem("sessionStorage", key, token);
+  safeRemoveItem("localStorage", key);
 };
 
-export const getRefreshToken = () => localStorage.getItem(getScopedKey(REFRESH_TOKEN_KEY));
+export const getRefreshToken = () => safeGetItem("localStorage", getScopedKey(REFRESH_TOKEN_KEY));
 
 export const setRefreshToken = (token: string) => {
-  localStorage.setItem(getScopedKey(REFRESH_TOKEN_KEY), token);
+  safeSetItem("localStorage", getScopedKey(REFRESH_TOKEN_KEY), token);
 };
 
-export const getTenantId = () => localStorage.getItem(getScopedKey(TENANT_ID_KEY));
+export const getTenantId = () => safeGetItem("localStorage", getScopedKey(TENANT_ID_KEY));
 
 export const setTenantId = (tenantId: string) => {
-  localStorage.setItem(getScopedKey(TENANT_ID_KEY), tenantId);
+  safeSetItem("localStorage", getScopedKey(TENANT_ID_KEY), tenantId);
 };
 
-export const getProjectId = () => localStorage.getItem(getScopedKey(PROJECT_ID_KEY));
+export const getProjectId = () => safeGetItem("localStorage", getScopedKey(PROJECT_ID_KEY));
 
 export const setProjectId = (projectId: string) => {
-  localStorage.setItem(getScopedKey(PROJECT_ID_KEY), projectId);
+  safeSetItem("localStorage", getScopedKey(PROJECT_ID_KEY), projectId);
 };
 
 export const clearProjectId = () => {
-  localStorage.removeItem(getScopedKey(PROJECT_ID_KEY));
+  safeRemoveItem("localStorage", getScopedKey(PROJECT_ID_KEY));
 };
 
-export const getProjectScopeEnabled = () => localStorage.getItem(getScopedKey(PROJECT_SCOPE_KEY)) === "true";
+export const getProjectScopeEnabled = () => safeGetItem("localStorage", getScopedKey(PROJECT_SCOPE_KEY)) === "true";
 
 export const setProjectScopeEnabled = (enabled: boolean) => {
-  localStorage.setItem(getScopedKey(PROJECT_SCOPE_KEY), enabled ? "true" : "false");
+  safeSetItem("localStorage", getScopedKey(PROJECT_SCOPE_KEY), enabled ? "true" : "false");
 };
 
 export const getAuthProfile = (): AuthProfile | null => {
   const key = getScopedKey(PROFILE_KEY);
-  const raw = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+  const raw = safeGetItem("sessionStorage", key) ?? safeGetItem("localStorage", key);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthProfile;
   } catch {
-    sessionStorage.removeItem(key);
-    localStorage.removeItem(key);
+    safeRemoveItem("sessionStorage", key);
+    safeRemoveItem("localStorage", key);
     return null;
   }
 };
 
 export const setAuthProfile = (profile: AuthProfile) => {
   const key = getScopedKey(PROFILE_KEY);
-  sessionStorage.setItem(key, JSON.stringify(profile));
-  localStorage.removeItem(key);
+  safeSetItem("sessionStorage", key, JSON.stringify(profile));
+  safeRemoveItem("localStorage", key);
 };
 
 export const hasAuthSessionSignal = () => {
@@ -81,14 +128,14 @@ export const hasAuthSessionSignal = () => {
 };
 
 export const clearAuthStorage = () => {
-  sessionStorage.removeItem(getScopedKey(ACCESS_TOKEN_KEY));
-  sessionStorage.removeItem(getScopedKey(PROFILE_KEY));
-  localStorage.removeItem(getScopedKey(ACCESS_TOKEN_KEY));
-  localStorage.removeItem(getScopedKey(REFRESH_TOKEN_KEY));
-  localStorage.removeItem(getScopedKey(TENANT_ID_KEY));
-  localStorage.removeItem(getScopedKey(PROFILE_KEY));
-  localStorage.removeItem(getScopedKey(PROJECT_ID_KEY));
-  localStorage.removeItem(getScopedKey(PROJECT_SCOPE_KEY));
+  safeRemoveItem("sessionStorage", getScopedKey(ACCESS_TOKEN_KEY));
+  safeRemoveItem("sessionStorage", getScopedKey(PROFILE_KEY));
+  safeRemoveItem("localStorage", getScopedKey(ACCESS_TOKEN_KEY));
+  safeRemoveItem("localStorage", getScopedKey(REFRESH_TOKEN_KEY));
+  safeRemoveItem("localStorage", getScopedKey(TENANT_ID_KEY));
+  safeRemoveItem("localStorage", getScopedKey(PROFILE_KEY));
+  safeRemoveItem("localStorage", getScopedKey(PROJECT_ID_KEY));
+  safeRemoveItem("localStorage", getScopedKey(PROJECT_SCOPE_KEY));
 };
 
 export const isAdminRole = (profile: AuthProfile | null) => {

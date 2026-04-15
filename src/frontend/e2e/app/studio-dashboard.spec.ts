@@ -1,5 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
-import { appBaseUrl, ensureAppSetup } from "./helpers";
+import { orgWorkspacesPath } from "@atlas/app-shell-shared";
+import { appBaseUrl, defaultTenantId, ensureAppSetup } from "./helpers";
 
 function apiOk<T>(data: T) {
   return {
@@ -165,8 +166,12 @@ test.describe.serial("Studio Dashboard", () => {
     await page.route(dashboardStatsRoute, dashboardStatsHandler);
 
     try {
-      await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/studio/dashboard`);
-      await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/dashboard(?:\\?.*)?$`));
+      await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
+      const workspaceCard = page.locator(`.atlas-workspace-card:has-text("${appKey}")`).first();
+      await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
+      await workspaceCard.locator('[data-testid^="workspace-open-"]').first().click();
+      await page.waitForURL(new RegExp(`/org/${defaultTenantId}/workspaces/[^/]+/dashboard(?:\\?.*)?$`));
+      await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
 
       await expect(page.getByText("AI Studio 工作台")).toBeVisible();
       await expect(page.getByText("快速开始")).toBeVisible();

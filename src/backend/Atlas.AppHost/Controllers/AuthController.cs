@@ -1,7 +1,9 @@
 using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Models;
+using Atlas.Application.Options;
 using Atlas.Core.Identity;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Authorization;
@@ -9,6 +11,7 @@ using Atlas.Presentation.Shared.Models;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Atlas.AppHost.Controllers;
 
@@ -25,6 +28,8 @@ public sealed class AuthController : ControllerBase
     private readonly IValidator<ChangePasswordViewModel> changePasswordValidator;
     private readonly IValidator<UserProfileUpdateViewModel> profileUpdateValidator;
     private readonly ITenantProvider tenantProvider;
+    private readonly ICaptchaService captchaService;
+    private readonly IOptionsMonitor<SecurityOptions> securityOptions;
 
     public AuthController(
         ICurrentUserAccessor currentUserAccessor,
@@ -35,7 +40,9 @@ public sealed class AuthController : ControllerBase
         IAuthProfileService authProfileService,
         IValidator<ChangePasswordViewModel> changePasswordValidator,
         IValidator<UserProfileUpdateViewModel> profileUpdateValidator,
-        ITenantProvider tenantProvider)
+        ITenantProvider tenantProvider,
+        ICaptchaService captchaService,
+        IOptionsMonitor<SecurityOptions> securityOptions)
     {
         this.currentUserAccessor = currentUserAccessor;
         this.clientContextAccessor = clientContextAccessor;
@@ -46,6 +53,16 @@ public sealed class AuthController : ControllerBase
         this.changePasswordValidator = changePasswordValidator;
         this.profileUpdateValidator = profileUpdateValidator;
         this.tenantProvider = tenantProvider;
+        this.captchaService = captchaService;
+        this.securityOptions = securityOptions;
+    }
+
+    [HttpGet("captcha")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<object>>> GetCaptcha()
+    {
+        var (captchaKey, captchaImage) = await captchaService.GenerateAsync();
+        return Ok(ApiResponse<object>.Ok(new { captchaKey, captchaImage }, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("token")]
@@ -55,6 +72,38 @@ public sealed class AuthController : ControllerBase
         CancellationToken cancellationToken)
     {
         var tenantId = tenantProvider.GetTenantId();
+        if (tenantId.IsEmpty)
+        {
+            throw new BusinessException("TenantIdRequired", ErrorCodes.ValidationError);
+        }
+
+        var options = securityOptions.CurrentValue;
+        var account = await userAccountRepository.FindByUsernameAsync(tenantId, request.Username, cancellationToken);
+        var requireCaptcha = options.CaptchaThreshold > 0
+            && account is not null
+            && account.FailedLoginCount >= options.CaptchaThreshold;
+
+        if (requireCaptcha)
+        {
+            if (string.IsNullOrWhiteSpace(request.CaptchaKey) || string.IsNullOrWhiteSpace(request.CaptchaCode))
+            {
+                throw new BusinessException("LoginFailedTooManyTimes", ErrorCodes.ValidationError);
+            }
+
+            if (!await captchaService.ValidateAsync(request.CaptchaKey, request.CaptchaCode))
+            {
+                throw new BusinessException("CaptchaExpired", ErrorCodes.ValidationError);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(request.CaptchaKey))
+        {
+            if (string.IsNullOrWhiteSpace(request.CaptchaCode)
+                || !await captchaService.ValidateAsync(request.CaptchaKey, request.CaptchaCode))
+            {
+                throw new BusinessException("CaptchaExpired", ErrorCodes.ValidationError);
+            }
+        }
+
         var context = new AuthRequestContext(
             HttpContext.Connection.RemoteIpAddress?.ToString(),
             HttpContext.Request.Headers.UserAgent.ToString(),

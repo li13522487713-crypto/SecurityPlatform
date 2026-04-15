@@ -9,7 +9,7 @@
 **Atlas Security Platform** — 符合等保2.0（GB/T 22239-2019）的安全支撑平台，当前已演进为“平台控制面 + 应用运行时 + React 应用壳前端 + 多 package 能力层”的架构，支持多租户、AI 工作流、知识库与严格安全控制。
 
 - 后端：.NET 10 + ASP.NET Core + SqlSugar + SQLite，结合 Hangfire、YARP、OpenTelemetry、Semantic Kernel、WorkflowCore / WorkflowCore.DSL、MassTransit、Qdrant / MinIO 等运行时能力
-- AppWeb：React 18 + TypeScript + Semi Design + Vite 8，支持 `platform` / `direct` 双运行模式
+- AppWeb：React 18 + TypeScript + Semi Design + Rsbuild，支持 `platform` / `direct` 双运行模式
 - 前端共享：pnpm monorepo，采用“`app-web` 单宿主 + `packages/*` 多包能力层”的组织方式
 - 关键文档：`等保2.0要求清单.md`、`docs/contracts.md`、`docs/workflow-editor-validation-matrix.md`、`docs/plan-*.md`、`docs/coze/`
 
@@ -51,7 +51,7 @@ pnpm install                    # 安装所有 workspace 依赖
 pnpm run dev:app-web            # AppWeb 开发服务器 http://localhost:5181
 pnpm run dev:app-web:platform   # AppWeb 以平台代理模式启动
 pnpm run dev:app-web:direct     # AppWeb 以直连模式启动
-pnpm run build                  # 构建所有前端项目
+pnpm run build                  # 构建前端（当前默认构建 app-web）
 pnpm run build:app-web          # 仅构建 AppWeb
 pnpm run test:unit              # 运行前端单元测试
 pnpm run test:e2e:app           # 运行应用壳 E2E

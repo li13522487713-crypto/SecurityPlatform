@@ -90,20 +90,29 @@
 
 ### `app-web`
 
-在现有 `app-web` 路由层固化以下页：
+在现有 `app-web` 路由层优先固化新的组织-工作空间门户；旧 `/apps/:appKey/*` 仅保留兼容跳转，不再作为主壳：
 
-- `/studio/develop`
-- `/studio/assistants`
-- `/studio/assistants/:id`
-- `/studio/assistants/:id/publish`
-- `/studio/apps`
-- `/studio/apps/:id`
-- `/studio/apps/:id/publish`
-- `/studio/library`
-- `/studio/plugins/:id`
-- `/studio/knowledge/:id`
-- `/studio/databases/:id`
-- `/studio/variables`
+- `/sign`
+- `/org/:orgId/workspaces`
+- `/org/:orgId/workspaces/:workspaceId/dashboard`
+- `/org/:orgId/workspaces/:workspaceId/develop`
+- `/org/:orgId/workspaces/:workspaceId/develop/chat`
+- `/org/:orgId/workspaces/:workspaceId/develop/model-configs`
+- `/org/:orgId/workspaces/:workspaceId/develop/assistant-tools`
+- `/org/:orgId/workspaces/:workspaceId/develop/publish-center`
+- `/org/:orgId/workspaces/:workspaceId/library`
+- `/org/:orgId/workspaces/:workspaceId/library/data`
+- `/org/:orgId/workspaces/:workspaceId/library/variables`
+- `/org/:orgId/workspaces/:workspaceId/manage/:tab`
+- `/org/:orgId/workspaces/:workspaceId/settings/:tab`
+- `/org/:orgId/workspaces/:workspaceId/apps/:id`
+- `/org/:orgId/workspaces/:workspaceId/apps/:id/publish`
+- `/org/:orgId/workspaces/:workspaceId/agents/:id`
+- `/org/:orgId/workspaces/:workspaceId/agents/:id/publish`
+- `/org/:orgId/workspaces/:workspaceId/plugins/:id`
+- `/org/:orgId/workspaces/:workspaceId/knowledge-bases/:id`
+- `/org/:orgId/workspaces/:workspaceId/knowledge-bases/:id/upload`
+- `/org/:orgId/workspaces/:workspaceId/databases/:id`
 - `/explore/plugins`
 - `/explore/templates`
 - `/explore/search`

@@ -4,6 +4,7 @@ import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-
 import { orgWorkspacesPath } from "../app-paths";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
+import { getLoginCaptcha } from "../../services/api-auth";
 
 const HARDCODED_DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 const HARDCODED_DEFAULT_USERNAME = "admin";
@@ -103,7 +104,9 @@ function PrefixGlyph({ kind }: { kind: "bank" | "user" | "lock" }) {
 
 function normalizeLoginError(
   error: unknown,
-  t: (key: "appLoginAccountLocked" | "appLoginPasswordExpired" | "appLoginInvalidTenantId" | "loginFailed") => string
+  t: (
+    key: "appLoginAccountLocked" | "appLoginPasswordExpired" | "appLoginInvalidTenantId" | "appLoginCaptchaNeeded" | "loginFailed"
+  ) => string
 ): string {
   if (!(error instanceof Error)) {
     return t("loginFailed");
@@ -127,6 +130,14 @@ function normalizeLoginError(
     return t("appLoginInvalidTenantId");
   }
 
+  if (
+    typedError.code === "LoginFailedTooManyTimes" ||
+    message.includes("LoginFailedTooManyTimes") ||
+    message.includes("登录失败次数过多")
+  ) {
+    return t("appLoginCaptchaNeeded");
+  }
+
   return message || t("loginFailed");
 }
 
@@ -136,15 +147,20 @@ export function LoginPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { t } = useAppI18n();
+  const runtimeEnv = import.meta.env;
   const defaultTenantId =
-    String(import.meta.env.VITE_DEFAULT_TENANT_ID ?? "").trim() || HARDCODED_DEFAULT_TENANT_ID;
+    String(runtimeEnv?.VITE_DEFAULT_TENANT_ID ?? "").trim() || HARDCODED_DEFAULT_TENANT_ID;
   const defaultUsername =
-    String(import.meta.env.VITE_DEFAULT_USERNAME ?? "").trim() || HARDCODED_DEFAULT_USERNAME;
+    String(runtimeEnv?.VITE_DEFAULT_USERNAME ?? "").trim() || HARDCODED_DEFAULT_USERNAME;
   const defaultPassword = HARDCODED_DEFAULT_PASSWORD;
   const [tenantId, setTenantId] = useState(getTenantId() || defaultTenantId);
   const [username, setUsername] = useState(defaultUsername);
   const [password, setPassword] = useState(defaultPassword);
   const [errorMessage, setErrorMessage] = useState("");
+  const [captchaKey, setCaptchaKey] = useState("");
+  const [captchaCode, setCaptchaCode] = useState("");
+  const [captchaImage, setCaptchaImage] = useState("");
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
 
   const redirectTarget = searchParams.get("redirect");
   const workspaceTarget = orgWorkspacesPath(tenantId.trim() || defaultTenantId);
@@ -156,6 +172,23 @@ export function LoginPage() {
         : workspaceTarget;
     return <Navigate to={nextTarget} replace />;
   }
+
+  const fetchCaptcha = async () => {
+    setLoadingCaptcha(true);
+    try {
+      const payload = await getLoginCaptcha();
+      setCaptchaKey(String(payload.captchaKey ?? "").trim());
+      setCaptchaImage(String(payload.captchaImage ?? "").trim());
+    } catch {
+      setCaptchaKey("");
+      setCaptchaImage("");
+      setErrorMessage(t("appLoginCaptchaLoadFailed"));
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  };
+
+  const shouldRequireCaptcha = captchaKey.length > 0;
 
   return (
     <div className="atlas-login-page" data-testid="app-login-page">
@@ -245,7 +278,20 @@ export function LoginPage() {
                   try {
                     setErrorMessage("");
                     clearAuthStorage();
-                    await auth.login(appKey || "", tenantId.trim(), username.trim(), password);
+                    if (shouldRequireCaptcha && !captchaCode.trim()) {
+                      setErrorMessage(t("appLoginCaptchaRequired"));
+                      return;
+                    }
+
+                    await auth.login(
+                      appKey || "",
+                      tenantId.trim(),
+                      username.trim(),
+                      password,
+                      undefined,
+                      captchaKey || undefined,
+                      captchaCode.trim() || undefined
+                    );
                     const target =
                       typeof redirectTarget === "string" && redirectTarget.startsWith("/")
                         ? redirectTarget
@@ -253,6 +299,17 @@ export function LoginPage() {
                     navigate(target, { replace: true });
                   } catch (error) {
                     setErrorMessage(normalizeLoginError(error, t));
+                    const typedError = error as Error & { code?: string };
+                    const message = typedError.message || "";
+                    if (
+                      typedError.code === "LoginFailedTooManyTimes" ||
+                      typedError.code === "CaptchaExpired" ||
+                      message.includes("LoginFailedTooManyTimes") ||
+                      message.includes("CaptchaExpired")
+                    ) {
+                      setCaptchaCode("");
+                      await fetchCaptcha();
+                    }
                   }
                 })();
               }}
@@ -299,6 +356,38 @@ export function LoginPage() {
                   />
                 </span>
               </label>
+
+              {shouldRequireCaptcha ? (
+                <label className="atlas-login-field">
+                  <span className="atlas-login-field__label">{t("appLoginCaptchaPlaceholder")}</span>
+                  <span className="atlas-login-field__control">
+                    <input
+                      className="atlas-input atlas-login-input"
+                      data-testid="app-login-captcha"
+                      placeholder={t("appLoginCaptchaPlaceholder")}
+                      value={captchaCode}
+                      onChange={(event) => setCaptchaCode(event.target.value)}
+                    />
+                  </span>
+                  <div className="atlas-login-dev-hint__items" style={{ marginTop: "8px", alignItems: "center" }}>
+                    {captchaImage ? (
+                      <img
+                        src={captchaImage}
+                        alt={t("appLoginCaptchaPlaceholder")}
+                        style={{ height: "40px", borderRadius: "6px", border: "1px solid rgba(0,0,0,0.08)" }}
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      className="atlas-button atlas-button--ghost"
+                      onClick={() => { void fetchCaptcha(); }}
+                      disabled={loadingCaptcha}
+                    >
+                      {loadingCaptcha ? t("loading") : t("appLoginCaptchaRefresh")}
+                    </button>
+                  </div>
+                </label>
+              ) : null}
 
               <button
                 data-testid="app-login-submit"

@@ -72,7 +72,14 @@ export type VariableTypeOption =
 const getFileChildren = (
   parentPath: Array<number | string>,
 ): VariableTypeOption[] => {
-  const FLAGS = getFlags();
+  let FLAGS: Record<string, boolean> = {};
+  try {
+    FLAGS = getFlags();
+  } catch {
+    // Some hosts load workflow modules before feature flag storage init.
+    // Degrade to default flags to avoid breaking the whole page at bootstrap.
+    FLAGS = {};
+  }
 
   const result: Array<VariableTypeOption | null> = [
     generateVariableOption({

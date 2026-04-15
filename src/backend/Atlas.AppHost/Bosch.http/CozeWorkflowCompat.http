@@ -13,6 +13,26 @@ X-Tenant-Id: {{tenantId}}
   "password": "P@ssw0rd!"
 }
 
+### 获取验证码（AppHost）
+# @name getCaptcha
+GET {{host}}/api/v1/auth/captcha
+X-Tenant-Id: {{tenantId}}
+
+###
+@captchaKey = {{getCaptcha.response.body.data.captchaKey}}
+
+### 使用验证码登录（风控触发后）
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!",
+  "captchaKey": "{{captchaKey}}",
+  "captchaCode": "0000"
+}
+
 ###
 @token = {{login.response.body.data.accessToken}}
 @workflowId = 1

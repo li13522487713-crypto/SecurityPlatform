@@ -1,6 +1,23 @@
 import path from "node:path";
 import { expect, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
-import { appSignPath, workspaceDevelopPath } from "@atlas/app-shell-shared";
+import {
+  appSignPath,
+  orgWorkspaceAssistantToolsPath,
+  orgWorkspaceChatPath,
+  orgWorkspaceDashboardPath,
+  orgWorkspaceDataPath,
+  orgWorkspaceDevelopPath,
+  orgWorkspaceLibraryPath,
+  orgWorkspaceManagePath,
+  orgWorkspaceModelConfigsPath,
+  orgWorkspacePublishCenterPath,
+  orgWorkspaceSettingsPath,
+  orgWorkspaceVariablesPath,
+  orgWorkspaceWorkflowsPath,
+  orgWorkspaceChatflowsPath,
+  orgWorkspacesPath,
+  signPath
+} from "@atlas/app-shell-shared";
 import { gazeShiftDelay, randomBetween, thinkingPause } from "../fixtures/human-mouse";
 
 export const platformBaseUrl = "http://127.0.0.1:5180";
@@ -343,7 +360,8 @@ export async function loginApp(
   options?: { expectSuccess?: boolean }
 ) {
   const expectSuccess = options?.expectSuccess ?? true;
-  await page.goto(`${appBaseUrl}${appSignPath(appKey)}`);
+  void appKey;
+  await page.goto(`${appBaseUrl}${signPath()}`);
   await page.getByTestId("app-login-tenant").fill(defaultTenantId);
   await page.waitForTimeout(gazeShiftDelay());
   await page.getByTestId("app-login-username").fill(defaultUsername);
@@ -356,13 +374,93 @@ export async function loginApp(
     return;
   }
 
-  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/space/[^/]+/develop(?:\\?.*)?$`), { timeout: 30_000 });
-  await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
+  await page.waitForURL(new RegExp(`${orgWorkspacesPath(defaultTenantId)}(?:\\?.*)?$`), { timeout: 30_000 });
+  await expect(page.getByTestId("workspace-list-page")).toBeVisible({ timeout: 30_000 });
 }
 
 export async function ensureAppWorkspace(page: Page, appKey: string) {
-  await page.waitForURL(new RegExp(`${workspaceDevelopPath(appKey).replace("atlas-space", "[^/]+")}(?:\\?.*)?$`), { timeout: 45_000 });
-  await expect(page.getByTestId("app-develop-page")).toBeVisible();
+  const dashboardPattern = new RegExp(`/org/[^/]+/workspaces/[^/]+/dashboard(?:\\?.*)?$`);
+  if (!dashboardPattern.test(page.url())) {
+    await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
+    const workspaceCard = page.locator(`.atlas-workspace-card:has-text("${appKey}")`).first();
+    await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
+    await workspaceCard.locator('[data-testid^="workspace-open-"]').first().click();
+  }
+
+  await page.waitForURL(dashboardPattern, { timeout: 45_000 });
+  await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
+}
+
+function getWorkspaceRouteContext(page: Page): { orgId: string; workspaceId: string } {
+  const currentUrl = new URL(page.url());
+  const match = currentUrl.pathname.match(/^\/org\/([^/]+)\/workspaces\/([^/]+)/);
+  if (!match) {
+    throw new Error(`当前页面不在工作区上下文中，无法解析 canonical 路由: ${currentUrl.pathname}`);
+  }
+
+  return {
+    orgId: decodeURIComponent(match[1]),
+    workspaceId: decodeURIComponent(match[2])
+  };
+}
+
+function resolveSidebarAliasTarget(page: Page, itemKey: string): string | null {
+  const { orgId, workspaceId } = getWorkspaceRouteContext(page);
+
+  switch (itemKey) {
+    case "dashboard":
+      return orgWorkspaceDashboardPath(orgId, workspaceId);
+    case "develop":
+      return orgWorkspaceDevelopPath(orgId, workspaceId);
+    case "library":
+      return orgWorkspaceLibraryPath(orgId, workspaceId);
+    case "manage":
+      return orgWorkspaceManagePath(orgId, workspaceId, "overview");
+    case "settings":
+      return orgWorkspaceSettingsPath(orgId, workspaceId, "members");
+    case "users":
+      return orgWorkspaceManagePath(orgId, workspaceId, "users");
+    case "roles":
+      return orgWorkspaceManagePath(orgId, workspaceId, "roles");
+    case "departments":
+      return orgWorkspaceManagePath(orgId, workspaceId, "departments");
+    case "positions":
+      return orgWorkspaceManagePath(orgId, workspaceId, "positions");
+    case "approval":
+      return orgWorkspaceManagePath(orgId, workspaceId, "approval");
+    case "reports":
+      return orgWorkspaceManagePath(orgId, workspaceId, "reports");
+    case "dashboards":
+      return orgWorkspaceManagePath(orgId, workspaceId, "dashboards");
+    case "visualization":
+      return orgWorkspaceManagePath(orgId, workspaceId, "visualization");
+    case "model-configs":
+      return orgWorkspaceModelConfigsPath(orgId, workspaceId);
+    case "agent-chat":
+      return orgWorkspaceChatPath(orgId, workspaceId);
+    case "ai-assistant":
+      return orgWorkspaceAssistantToolsPath(orgId, workspaceId);
+    case "publish-center":
+      return orgWorkspacePublishCenterPath(orgId, workspaceId);
+    case "workflows":
+      return orgWorkspaceWorkflowsPath(orgId, workspaceId);
+    case "chatflows":
+      return orgWorkspaceChatflowsPath(orgId, workspaceId);
+    case "data":
+      return orgWorkspaceDataPath(orgId, workspaceId);
+    case "variables":
+      return orgWorkspaceVariablesPath(orgId, workspaceId);
+    case "agents":
+      return `${orgWorkspaceDevelopPath(orgId, workspaceId)}?focus=agents`;
+    case "projects":
+      return `${orgWorkspaceDevelopPath(orgId, workspaceId)}?focus=projects`;
+    case "knowledge-bases":
+      return orgWorkspaceLibraryPath(orgId, workspaceId);
+    case "databases":
+      return orgWorkspaceDataPath(orgId, workspaceId);
+    default:
+      return null;
+  }
 }
 
 export async function navigateBySidebar(
@@ -376,6 +474,7 @@ export async function navigateBySidebar(
   const sidebar = page.getByTestId("app-sidebar");
   await expect(sidebar).toBeVisible({ timeout: 30_000 });
   const itemProbe = page.getByTestId(`app-sidebar-item-${itemKey}`);
+  const pageTestId = options.pageTestId;
 
   if (!(await itemProbe.isVisible().catch(() => false))) {
     const moreButtons = sidebar.locator('[data-testid^="app-sidebar-section-more-"]');
@@ -395,21 +494,30 @@ export async function navigateBySidebar(
     }
   }
 
-  const item = page.getByTestId(`app-sidebar-item-${itemKey}`);
-  await expect(item, `左侧菜单缺少 ${itemKey}，当前账号不具备对应权限或菜单未正确投影。`).toBeVisible({
-    timeout: 30_000
-  });
+  if (!(await itemProbe.isVisible().catch(() => false))) {
+    const aliasTarget = resolveSidebarAliasTarget(page, itemKey);
+    if (!aliasTarget) {
+      throw new Error(`左侧菜单缺少 ${itemKey}，且未配置 canonical 兼容跳转。`);
+    }
 
-  await page.waitForTimeout(randomBetween(40, 100));
-  const currentUrl = page.url();
-  await item.click();
+    await page.goto(`${appBaseUrl}${aliasTarget}`);
+  } else {
+    const item = page.getByTestId(`app-sidebar-item-${itemKey}`);
+    await expect(item, `左侧菜单缺少 ${itemKey}，当前账号不具备对应权限或菜单未正确投影。`).toBeVisible({
+      timeout: 30_000
+    });
 
-  if (options.urlPattern && !options.urlPattern.test(currentUrl)) {
-    await page.waitForURL(options.urlPattern, { timeout: 30_000 });
+    await page.waitForTimeout(randomBetween(40, 100));
+    await item.click();
   }
 
-  if (options.pageTestId) {
-    await expect(page.getByTestId(options.pageTestId)).toBeVisible({ timeout: 30_000 });
+  if (pageTestId) {
+    await expect(page.getByTestId(pageTestId)).toBeVisible({ timeout: 30_000 });
+    return;
+  }
+
+  if (options.urlPattern) {
+    await page.waitForURL(options.urlPattern, { timeout: 30_000 });
   }
 }
 

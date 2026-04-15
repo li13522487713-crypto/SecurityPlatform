@@ -274,3 +274,28 @@ X-Client-Agent: {{clientAgent}}
   "username": "{{username}}",
   "password": "{{password}}"
 }
+
+### [安全回归] 获取验证码
+# @name getCaptcha
+GET {{baseUrl}}/api/v1/auth/captcha
+X-Tenant-Id: {{tenantId}}
+
+###
+@captchaKey = {{getCaptcha.response.body.$.data.captchaKey}}
+
+### [安全回归] 使用验证码登录
+# @skip-ci
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}",
+  "captchaKey": "{{captchaKey}}",
+  "captchaCode": "0000"
+}

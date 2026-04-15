@@ -1,19 +1,10 @@
 # Atlas Security Platform Contracts
 
-## Coze Workflow Host（独立子空间）
+## Workflow Host 约束
 
-- `app-web` 不再直接引用 `@coze-workflow/playground`、`@coze-agent-ide/space-bot` 源码图。
-- 原生 Coze Workflow 页面由独立 `src/coze-workflow-host` 承载。
-- Host 的推荐产物来源：
-  - 以上游 `D:/Code/coze-studio-main` 的 Rush 子空间为真源
-  - 优先通过 `rush deploy --project @coze-studio/app` 生成可运行闭包，而不是在当前仓直接生装整棵源码 workspace
-- Atlas 主宿主与 Coze Host 之间只传最小上下文：
-  - `workflowId`
-  - `mode`
-  - `readonly`
-  - `returnUrl`
-  - 可选 `versionId`
-  - 可选 `executeId`
+- 当前仓库仅维护 `src/frontend/apps/app-web` 单宿主，不再维护独立 `src/coze-workflow-host` 目录。
+- `app-web` 通过 workspace 包（如 `@atlas/workflow-core-react`、`@atlas/workflow-editor-react`）承载工作流能力。
+- 如需兼容原生 Coze 协议，统一通过后端兼容层 `/api/workflow_api/*` 与 `/api/v2/workflows*`，避免前端分叉实现。
 
 ## Organization / Workspace Portal
 
@@ -22,14 +13,24 @@
 - 新前端主入口采用组织-工作空间层级：
   - `/sign`
   - `/org/:orgId/workspaces`
+  - `/org/:orgId/workspaces/:workspaceId/dashboard`
   - `/org/:orgId/workspaces/:workspaceId/develop`
+  - `/org/:orgId/workspaces/:workspaceId/develop/chat`
+  - `/org/:orgId/workspaces/:workspaceId/develop/model-configs`
+  - `/org/:orgId/workspaces/:workspaceId/develop/assistant-tools`
+  - `/org/:orgId/workspaces/:workspaceId/develop/publish-center`
   - `/org/:orgId/workspaces/:workspaceId/library`
+  - `/org/:orgId/workspaces/:workspaceId/library/data`
+  - `/org/:orgId/workspaces/:workspaceId/library/variables`
+  - `/org/:orgId/workspaces/:workspaceId/manage/:tab`
+  - `/org/:orgId/workspaces/:workspaceId/settings/:tab`
   - `/org/:orgId/workspaces/:workspaceId/apps/:appId`
   - `/org/:orgId/workspaces/:workspaceId/apps/:appId/publish`
   - `/org/:orgId/workspaces/:workspaceId/agents/:agentId`
   - `/org/:orgId/workspaces/:workspaceId/agents/:agentId/publish`
   - `/org/:orgId/workspaces/:workspaceId/apps/:appId/workflows/:workflowId`
   - `/org/:orgId/workspaces/:workspaceId/apps/:appId/chatflows/:workflowId`
+- `/apps/:appKey/*` 仅保留为兼容跳转入口，不再作为主壳或主导航来源。
 - 第一版 `orgId` 直接对应当前登录租户 ID。
 - 工作空间为真实后端实体，显式绑定 `AppInstanceId + AppKey`。
 

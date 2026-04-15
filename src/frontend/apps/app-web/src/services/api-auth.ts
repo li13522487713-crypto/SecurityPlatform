@@ -22,7 +22,9 @@ export async function loginByAppEntry(
   tenantId: string,
   username: string,
   password: string,
-  totpCode?: string
+  totpCode?: string,
+  captchaKey?: string,
+  captchaCode?: string
 ): Promise<void> {
   const normalizedTenantId = tenantId.trim();
   assertTenantId(normalizedTenantId);
@@ -35,7 +37,13 @@ export async function loginByAppEntry(
       "X-Tenant-Id": normalizedTenantId
     },
     credentials: "include",
-    body: JSON.stringify({ username, password, totpCode: totpCode?.trim() || undefined })
+    body: JSON.stringify({
+      username,
+      password,
+      totpCode: totpCode?.trim() || undefined,
+      captchaKey: captchaKey?.trim() || undefined,
+      captchaCode: captchaCode?.trim() || undefined
+    })
   });
 
   const payload = await parseApiResponse<AuthTokenResult>(response);
@@ -48,6 +56,22 @@ export async function loginByAppEntry(
   setTenantId(normalizedTenantId);
   setAccessToken(payload.data.accessToken);
   setRefreshToken(payload.data.refreshToken);
+}
+
+interface CaptchaPayload {
+  captchaKey?: string;
+  captchaImage?: string;
+}
+
+export async function getLoginCaptcha(): Promise<CaptchaPayload> {
+  const response = await requestApi<ApiResponse<CaptchaPayload>>("/auth/captcha", {
+    method: "GET"
+  }, {
+    disableAutoRefresh: true,
+    suppressErrorMessage: true
+  });
+
+  return response.data ?? {};
 }
 
 async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> {

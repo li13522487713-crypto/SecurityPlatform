@@ -22,6 +22,23 @@ export type AdminLeaf =
   | "settings"
   | "profile";
 
+export type WorkspaceManageLeaf =
+  | "overview"
+  | "users"
+  | "roles"
+  | "departments"
+  | "positions"
+  | "approval"
+  | "reports"
+  | "dashboards"
+  | "visualization";
+
+export type WorkspaceSettingsLeaf =
+  | "members"
+  | "permissions"
+  | "system"
+  | "profile";
+
 export const DEFAULT_SPACE_ID = "atlas-space";
 
 function encodeSegment(value: string | number): string {
@@ -64,12 +81,40 @@ export function orgWorkspacePath(orgId: string, workspaceId: string): string {
   return `${orgWorkspacesPath(orgId)}/${encodeSegment(workspaceId)}`;
 }
 
+export function orgWorkspaceDashboardPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/dashboard`;
+}
+
 export function orgWorkspaceDevelopPath(orgId: string, workspaceId: string): string {
   return `${orgWorkspacePath(orgId, workspaceId)}/develop`;
 }
 
+export function orgWorkspaceChatPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspaceDevelopPath(orgId, workspaceId)}/chat`;
+}
+
+export function orgWorkspaceModelConfigsPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspaceDevelopPath(orgId, workspaceId)}/model-configs`;
+}
+
+export function orgWorkspaceAssistantToolsPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspaceDevelopPath(orgId, workspaceId)}/assistant-tools`;
+}
+
+export function orgWorkspacePublishCenterPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspaceDevelopPath(orgId, workspaceId)}/publish-center`;
+}
+
 export function orgWorkspaceLibraryPath(orgId: string, workspaceId: string): string {
   return `${orgWorkspacePath(orgId, workspaceId)}/library`;
+}
+
+export function orgWorkspaceDataPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspaceLibraryPath(orgId, workspaceId)}/data`;
+}
+
+export function orgWorkspaceVariablesPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspaceLibraryPath(orgId, workspaceId)}/variables`;
 }
 
 export function orgWorkspaceAppsPath(orgId: string, workspaceId: string): string {
@@ -157,8 +202,14 @@ export function orgSettingsPath(orgId: string, leaf = "profile"): string {
   return `${orgRootPath(orgId)}/settings/${encodeSegment(leaf)}`;
 }
 
-export function orgWorkspaceSettingsPath(orgId: string, workspaceId: string, leaf = "profile"): string {
-  return `${orgWorkspacePath(orgId, workspaceId)}/settings/${encodeSegment(leaf)}`;
+export function orgWorkspaceManagePath(orgId: string, workspaceId: string, leaf?: WorkspaceManageLeaf): string {
+  const basePath = `${orgWorkspacePath(orgId, workspaceId)}/manage`;
+  return leaf ? `${basePath}/${encodeSegment(leaf)}` : basePath;
+}
+
+export function orgWorkspaceSettingsPath(orgId: string, workspaceId: string, leaf?: WorkspaceSettingsLeaf): string {
+  const basePath = `${orgWorkspacePath(orgId, workspaceId)}/settings`;
+  return leaf ? `${basePath}/${encodeSegment(leaf)}` : basePath;
 }
 
 export function appSignPath(appKey: string, redirect?: string): string {

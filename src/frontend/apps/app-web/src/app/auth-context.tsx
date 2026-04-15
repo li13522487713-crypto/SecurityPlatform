@@ -18,7 +18,15 @@ interface AuthContextValue {
   profile: AuthProfile | null;
   permissions: string[];
   roles: string[];
-  login: (appKey: string, tenantId: string, username: string, password: string, totpCode?: string) => Promise<void>;
+  login: (
+    appKey: string,
+    tenantId: string,
+    username: string,
+    password: string,
+    totpCode?: string,
+    captchaKey?: string,
+    captchaCode?: string
+  ) => Promise<void>;
   ensureProfile: () => Promise<AuthProfile | null>;
   logout: () => Promise<void>;
   hasPermission: (permission?: string) => boolean;
@@ -60,12 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tenantId: string,
     username: string,
     password: string,
-    totpCode?: string
+    totpCode?: string,
+    captchaKey?: string,
+    captchaCode?: string
   ) => {
     setLoading(true);
     try {
       rememberConfiguredAppKey(appKey);
-      await loginByAppEntry(tenantId, username, password, totpCode);
+      await loginByAppEntry(tenantId, username, password, totpCode, captchaKey, captchaCode);
       const nextProfile = await getCurrentUser();
       setAuthProfile(nextProfile);
       setProfile(nextProfile);

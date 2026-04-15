@@ -3,14 +3,27 @@ import type { RequestOptions } from "@atlas/shared-react-core/api";
 import { signPath } from "@atlas/app-shell-shared";
 import { clearAuthStorage } from "@atlas/shared-react-core/utils";
 
-export type AppRuntimeMode = "app";
+export type AppRuntimeMode = "platform" | "direct";
 
 const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 
-const APP_RUNTIME_MODE: AppRuntimeMode = "app";
+function readBuildEnv(key: string): string | undefined {
+  try {
+    const env = (import.meta as ImportMeta & {
+      env?: Record<string, string | undefined>;
+    }).env;
+    const value = env?.[key];
+    return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+const APP_RUNTIME_MODE: AppRuntimeMode =
+  readBuildEnv("VITE_APP_RUNTIME_MODE") === "platform" ? "platform" : "direct";
+
+export const API_BASE = readBuildEnv("VITE_API_BASE") ?? "/api/v1";
 
 function normalizeApiPath(path: string): string {
   if (!path) return "/";
@@ -56,7 +69,7 @@ export function getAppRuntimeMode(): AppRuntimeMode {
 }
 
 export function isDirectRuntimeMode(): boolean {
-  return true;
+  return APP_RUNTIME_MODE === "direct";
 }
 
 export function setUnauthorizedHandler(handler: (() => void | Promise<void>) | null) {
@@ -69,7 +82,11 @@ export function rememberConfiguredAppKey(appKey?: string | null) {
     return;
   }
 
-  localStorage.setItem(LAST_APP_KEY_STORAGE, normalized);
+  try {
+    window.localStorage.setItem(LAST_APP_KEY_STORAGE, normalized);
+  } catch {
+    // Ignore storage write failures to avoid blocking runtime initialization.
+  }
 }
 
 export function getConfiguredAppKey(): string {
@@ -77,7 +94,11 @@ export function getConfiguredAppKey(): string {
     return "";
   }
 
-  return localStorage.getItem(LAST_APP_KEY_STORAGE) ?? "";
+  try {
+    return window.localStorage.getItem(LAST_APP_KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function getCurrentRouteAppKey(): string {

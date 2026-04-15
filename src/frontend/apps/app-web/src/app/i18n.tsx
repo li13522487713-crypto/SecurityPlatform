@@ -12,12 +12,30 @@ interface AppI18nContextValue {
 
 const AppI18nContext = createContext<AppI18nContextValue | null>(null);
 
-function getInitialLocale(): AppLocale {
+function safeGetLocaleFromStorage(): string | null {
   if (typeof window === "undefined") {
-    return "zh-CN";
+    return null;
   }
+  try {
+    return window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
 
-  const saved = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+function safeSaveLocaleToStorage(locale: AppLocale): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+  } catch {
+    // Ignore storage write errors to avoid blocking UI rendering.
+  }
+}
+
+function getInitialLocale(): AppLocale {
+  const saved = safeGetLocaleFromStorage();
   return saved === "en-US" ? "en-US" : "zh-CN";
 }
 
@@ -28,9 +46,7 @@ export function AppI18nProvider({ children }: { children: ReactNode }) {
     locale,
     setLocale: (nextLocale) => {
       setLocaleState(nextLocale);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
-      }
+      safeSaveLocaleToStorage(nextLocale);
     },
     t: key => APP_MESSAGES[locale][key]
   }), [locale]);

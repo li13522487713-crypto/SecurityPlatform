@@ -21,11 +21,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Logging:** NLog 5.3.4 with file rotation
 
 ### Frontend
-- **Vue 3.5.27** with Composition API
-- **Vite 7.2.4** build tool
-- **TypeScript 5.9.3** with strict mode
-- **Ant Design Vue 4.2.6** UI library
-- **Vue Router 4.6.4** for routing
+- **React 18** + **TypeScript** (strict mode)
+- **Rsbuild** build/dev toolchain
+- **Semi Design** + workspace packages modular architecture
+- **React Router 6** for routing
 
 ## Build and Development Commands
 
@@ -52,13 +51,13 @@ cd src/frontend
 # Install all workspace dependencies
 pnpm install
 
-# Start new independent frontend projects
-pnpm run dev:platform-web      # PlatformWeb on :5180
-pnpm run dev:app-web           # AppWeb on :5181
+# Start AppWeb
+pnpm run dev:app-web           # default platform mode on :5181
+pnpm run dev:app-web:platform  # force platform mode
+pnpm run dev:app-web:direct    # direct AppHost mode
 
-# Build all frontend projects
+# Build frontend
 pnpm run build
-pnpm run build:platform-web    # PlatformWeb only
 pnpm run build:app-web         # AppWeb only
 
 # Lint / format all projects
@@ -67,7 +66,7 @@ pnpm run format
 ```
 
 ### Frontend (Legacy)
-`Atlas.WebApp` 已删除（2026-04-05），请仅使用 `src/frontend` 下的 pnpm monorepo（`apps/platform-web`、`apps/app-web`）。
+`Atlas.WebApp` 与 `platform-web` 已删除（2026-04-05），请仅使用 `src/frontend/apps/app-web`。
 
 ### Multi-Host Port Allocation
 
@@ -75,11 +74,9 @@ pnpm run format
 |---|---|---|
 | PlatformHost | 5001 | Control plane + YARP gateway |
 | AppHost | 5002 | Application runtime data plane |
-| **PlatformWeb** | **5180** | **New: Independent platform frontend** |
 | **AppWeb** | **5181** | **New: Independent application frontend** |
 
-All frontend dev servers proxy `/api` and `/app-host` to PlatformHost:5001.
-PlatformHost proxies `/app-host/{appKey}/*` to AppHost:5002 via YARP.
+AppWeb 在 `platform` 模式下通过 PlatformHost 网关访问后端，在 `direct` 模式下直连 AppHost。
 
 ### API Testing
 - Use `.http` files in `src/backend/Atlas.PlatformHost/Bosch.http/` for testing endpoints
@@ -187,20 +184,8 @@ src/
     ├── package.json                       # Workspace root scripts
     ├── pnpm-workspace.yaml                # Workspace config
     ├── tsconfig.base.json                 # Shared TS base config
-    ├── packages/
-    │   ├── shared-core/                   # @atlas/shared-core (auth, types, utils)
-    │   ├── ai-core/                       # @atlas/ai-core (chat types, SSE, markdown)
-    │   └── shared-ui/                     # @atlas/shared-ui (common UI components)
+    ├── packages/                          # shared capabilities and business modules
     ├── apps/
-    │   ├── platform-web/                  # Atlas.PlatformWeb (port 5180)
-    │   │   ├── src/
-    │   │   │   ├── pages/                 # Platform pages (console, system, ai, etc.)
-    │   │   │   ├── layouts/               # ConsoleLayout
-    │   │   │   ├── services/              # Platform API client
-    │   │   │   ├── stores/                # Platform state management
-    │   │   │   ├── i18n/                  # Platform i18n
-    │   │   │   └── router/                # Platform routes
-    │   │   └── vite.config.ts
     │   └── app-web/                       # Atlas.AppWeb (port 5181)
     │       ├── src/
     │       │   ├── pages/                 # App pages (runtime, ai, approval, etc.)
@@ -209,7 +194,7 @@ src/
     │       │   ├── stores/                # App state management
     │       │   ├── i18n/                  # App i18n
     │       │   └── router/                # App routes
-    │       └── vite.config.ts
+    │       └── rsbuild.config.ts
 ```
 
 ## Coding Standards
@@ -227,9 +212,9 @@ src/
 - **Implicit Usings:** Enabled
 - **File-scoped Namespaces:** Preferred
 
-### Vue/TypeScript Conventions
+### React/TypeScript Conventions
 - **Indentation:** 2 spaces
-- **Component Files:** kebab-case (e.g., `login-page.vue`)
+- **Component Files:** kebab-case (e.g., `login-page.tsx`)
 - **Component Names:** PascalCase in code (e.g., `LoginPage`)
 - **TypeScript:** Strict mode enabled, no unused variables
 
@@ -306,11 +291,10 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - `X-Tenant-Id: <guid>` - Required for all requests (matches JWT claim)
 
 ### Frontend Integration
-- **PlatformWeb** API client: `src/frontend/apps/platform-web/src/services/api-core.ts`
 - **AppWeb** API client: `src/frontend/apps/app-web/src/services/api-core.ts`
-- **Shared auth utilities**: `src/frontend/packages/shared-core/src/utils/auth.ts`
-- Token stored in namespaced storage (managed by `@atlas/shared-core`, Platform/App 已隔离)
-- Vite dev proxy forwards `/api/*` and `/app-host/*` to `http://localhost:5001` (PlatformHost)
+- **Shared auth utilities**: `src/frontend/packages/shared-react-core/src/utils/auth.ts`
+- Token stored in namespaced storage (managed by `@atlas/shared-react-core`, Platform/App 已隔离)
+- AppWeb 在 `platform` 模式下经由 `PlatformHost`，在 `direct` 模式下直连 `AppHost`
 
 ## Development Workflow
 
@@ -352,8 +336,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
     - `{Entity}.http` with sample requests for all endpoints
 
 11. **Update Frontend** (if needed)
-    - Platform capability: update `src/frontend/apps/platform-web`（services/pages/router/types）
-    - App runtime capability: update `src/frontend/apps/app-web`（services/pages/router/types）
+    - App capability: update `src/frontend/apps/app-web`（services/pages/router/types）
     - Shared contract/util: update `src/frontend/packages/*`
 
 ### Modifying Existing Code
@@ -400,17 +383,18 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - Daily rotation with configurable retention
 - Format: `timestamp|level|logger|message`
 
-### vite.config.ts
-- Dev server: PlatformWeb (5180), AppWeb (5181)
-- Proxy: `/api/*` and `/app-host/*` → `http://localhost:5001` (PlatformHost)
-- Path alias: `@` → `src/`
+### rsbuild.config.ts
+- Dev server: AppWeb (5181)
+- `platform` mode proxy: `/api/*` → `http://localhost:5001`
+- `direct` mode proxy: `/api/*` → `http://localhost:5002`
+- Path alias follows workspace package resolution
 
 ## Important Notes
 
 ### Testing
 - **No unit test framework configured yet**
 - Current testing: REST Client `.http` files
-- When adding tests: document framework (xUnit/NUnit for .NET, Vitest for Vue) and commands
+- When adding tests: document framework (xUnit/NUnit for .NET, Vitest for React) and commands
 
 ### File Operations
 - **Always prefer editing existing files over creating new ones**

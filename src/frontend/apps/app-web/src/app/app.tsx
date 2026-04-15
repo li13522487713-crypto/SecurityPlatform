@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
@@ -63,6 +63,10 @@ import {
   explorePluginDetailPath,
   exploreTemplateDetailPath,
   inferPrimaryArea,
+  orgWorkspaceAssistantToolsPath,
+  orgWorkspaceChatPath,
+  orgWorkspaceDashboardPath,
+  orgWorkspaceDataPath,
   replacePathAppKey,
   studioAppsPath,
   studioAppDetailPath,
@@ -91,6 +95,10 @@ import {
   orgWorkspacesPath,
   orgWorkspaceDevelopPath,
   orgWorkspaceLibraryPath,
+  orgWorkspaceManagePath,
+  orgWorkspaceModelConfigsPath,
+  orgWorkspacePublishCenterPath,
+  orgWorkspaceVariablesPath,
   orgWorkspaceAppDetailPath,
   orgWorkspaceAppPublishPath,
   orgWorkspaceAgentDetailPath,
@@ -113,6 +121,11 @@ import { BootstrapProvider, useBootstrap } from "./bootstrap-context";
 import { AppI18nProvider, useAppI18n } from "./i18n";
 import { OrganizationProvider, useOptionalOrganizationContext } from "./organization-context";
 import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
+import {
+  buildWorkspaceWorkbenchPath,
+  normalizeWorkbenchContentMode,
+  resolveLegacyAppRedirectTarget
+} from "./legacy-route-mapping";
 import { APP_PERMISSIONS } from "../constants/permissions";
 import {
   getConfiguredAppKey,
@@ -310,16 +323,13 @@ import { executeWorkflowTask } from "../services/api-workflow-playground";
 import {
   addWorkspaceMember,
   createWorkspace,
-  createWorkspaceDevelopApp,
   deleteWorkspace,
   getWorkspaceByAppKey,
-  getWorkspaceDevelopApps,
   getWorkspaceMembers,
   getWorkspaceResourcePermissions,
   getWorkspaceResources,
   getWorkspaces,
   removeWorkspaceMember,
-  type WorkspaceAppCardDto,
   type WorkspaceCreateRequest,
   type WorkspaceMemberDto,
   type WorkspaceResourceCardDto,
@@ -330,7 +340,6 @@ import {
   updateWorkspaceResourcePermissions
 } from "../services/api-org-workspaces";
 import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page";
-import { WorkspaceDevelopPage } from "./pages/workspace-develop-page";
 import { WorkspaceSettingsPage } from "./pages/workspace-settings-page";
 import { setAppInstanceIdToStorage } from "../utils/app-context";
 
@@ -451,88 +460,6 @@ function toWorkflowResourceSummary(
 
 function navGlyph(label: string) {
   return <span className="app-nav-glyph" aria-hidden="true">{label}</span>;
-}
-
-function normalizeWorkbenchContentMode(value?: string | null): WorkflowWorkbenchContentMode {
-  return value === "session" || value === "variables" ? value : "canvas";
-}
-
-function buildWorkspaceWorkbenchPath(
-  orgId: string,
-  workspaceId: string,
-  mode: WorkflowResourceMode,
-  workflowId?: string,
-  contentMode: WorkflowWorkbenchContentMode = "canvas",
-  searchParams?: URLSearchParams
-): string {
-  const pathname = workflowId
-    ? mode === "chatflow"
-      ? orgWorkspaceChatflowPath(orgId, workspaceId, workflowId)
-      : orgWorkspaceWorkflowPath(orgId, workspaceId, workflowId)
-    : mode === "chatflow"
-      ? orgWorkspaceChatflowsPath(orgId, workspaceId)
-      : orgWorkspaceWorkflowsPath(orgId, workspaceId);
-
-  const nextSearch = new URLSearchParams(searchParams ?? undefined);
-  if (contentMode === "canvas") {
-    nextSearch.delete("contentMode");
-  } else {
-    nextSearch.set("contentMode", contentMode);
-  }
-
-  if (workflowId) {
-    nextSearch.delete("workflow_id");
-  }
-
-  const query = nextSearch.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-function resolveLegacyWorkbenchRedirectTarget(
-  tenantId: string,
-  workspaceId: string,
-  relativePath: string,
-  searchText: string
-): string | null {
-  const searchParams = new URLSearchParams(searchText);
-  const workflowEditorMatch = relativePath.match(/^\/work_flow\/([^/]+)\/editor$/);
-  const chatflowEditorMatch = relativePath.match(/^\/chat_flow\/([^/]+)\/editor$/);
-  const workflowAliasEditorMatch = relativePath.match(/^\/workflows\/([^/]+)\/editor$/);
-  const chatflowAliasEditorMatch = relativePath.match(/^\/chatflows\/([^/]+)\/editor$/);
-  const workflowId = workflowEditorMatch?.[1]
-    ?? chatflowEditorMatch?.[1]
-    ?? workflowAliasEditorMatch?.[1]
-    ?? chatflowAliasEditorMatch?.[1]
-    ?? searchParams.get("workflow_id")
-    ?? undefined;
-
-  if (
-    relativePath.startsWith("/work_flow")
-    || relativePath.startsWith("/workflows")
-    || relativePath.startsWith("/chat_flow")
-    || relativePath.startsWith("/chatflows")
-  ) {
-    const mode: WorkflowResourceMode =
-      relativePath.startsWith("/chat_flow") || relativePath.startsWith("/chatflows")
-        ? "chatflow"
-        : "workflow";
-    const contentMode: WorkflowWorkbenchContentMode = relativePath.includes("/session")
-      ? "session"
-      : relativePath.includes("/variables")
-        ? "variables"
-        : normalizeWorkbenchContentMode(searchParams.get("contentMode"));
-
-    return buildWorkspaceWorkbenchPath(
-      tenantId,
-      workspaceId,
-      mode,
-      workflowId,
-      contentMode,
-      searchParams
-    );
-  }
-
-  return null;
 }
 
 function LoadingPage() {
@@ -1471,7 +1398,7 @@ function StudioLibraryAliasRedirect() {
 }
 
 function StudioVariablesRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   return <VariablesPage api={studioApi} locale={locale} />;
@@ -1495,6 +1422,8 @@ function StudioPluginsRoute() {
 
 function StudioPluginDetailRoute() {
   const { id = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
   const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const navigate = useNavigate();
@@ -1504,14 +1433,16 @@ function StudioPluginDetailRoute() {
       api={studioApi}
       locale={locale}
       pluginId={Number(id)}
-      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
-      onOpenExplore={() => navigate(explorePath(appKey, "plugin"))}
+      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
+      onOpenExplore={() => navigate("/explore/plugin")}
     />
   );
 }
 
 function StudioPublishCenterRoute() {
-  const { appKey = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const appKey = useResolvedAppKey();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
@@ -1520,23 +1451,25 @@ function StudioPublishCenterRoute() {
       api={studioApi}
       locale={locale}
       apiBase={typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "/api/v1"}
-      onOpenAgent={id => navigate(studioAssistantDetailPath(appKey, id))}
-      onOpenApp={id => navigate(studioAppDetailPath(appKey, id))}
-      onOpenWorkflow={id => navigate(buildWorkflowWorkbenchPath(appKey, id))}
-      onOpenPlugin={id => navigate(studioPluginDetailPath(appKey, id))}
+      onOpenAgent={id => navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, id))}
+      onOpenApp={id => navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, id))}
+      onOpenWorkflow={id => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow", id))}
+      onOpenPlugin={id => navigate(orgWorkspacePluginDetailPath(orgId, workspace.id, id))}
     />
   );
 }
 
 function StudioAssistantToolsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   return <AiAssistantPage api={studioApi} locale={locale} />;
 }
 
 function StudioDataRoute() {
-  const { appKey = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const navigate = useNavigate();
   const { studioApi } = useAppApis(appKey);
@@ -1544,7 +1477,7 @@ function StudioDataRoute() {
     <DataResourcesPage
       api={studioApi}
       locale={locale}
-      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
     />
   );
 }
@@ -1629,6 +1562,8 @@ function StudioDatabasesRoute() {
 
 function StudioDatabaseDetailRoute() {
   const { id = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
   const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const navigate = useNavigate();
@@ -1638,7 +1573,7 @@ function StudioDatabaseDetailRoute() {
       api={studioApi}
       locale={locale}
       databaseId={Number(id)}
-      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
+      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
     />
   );
 }
@@ -2176,29 +2111,27 @@ function DevelopRoute() {
 }
 
 function DashboardRoute() {
-  const { appKey = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const appKey = useResolvedAppKey();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
-  const { spaceId } = useBootstrap();
   return (
     <DashboardPage
       api={studioApi}
       locale={locale}
       onNavigateToResource={(type, id) => {
-        if (type === "agent") navigate(studioAssistantDetailPath(appKey, id));
-        else if (type === "app") navigate(studioAppDetailPath(appKey, id));
-        else if (type === "workflow") navigate(buildWorkflowWorkbenchPath(appKey, id));
-        else if (type === "plugin") navigate(studioPluginDetailPath(appKey, id));
+        if (type === "agent") navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, id));
+        else if (type === "app") navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, id));
+        else if (type === "workflow") navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow", id));
+        else if (type === "plugin") navigate(orgWorkspacePluginDetailPath(orgId, workspace.id, id));
       }}
-      onNavigateToModels={() => navigate(workspaceModelConfigsPath(appKey, spaceId))}
-      onNavigateToPublish={() => navigate(studioPublishCenterPath(appKey))}
-      onCreateAgent={() => {
-        // Simple routing mapping for now
-        navigate(studioAssistantsPath(appKey));
-      }}
-      onCreateApp={() => navigate(studioAppsPath(appKey))}
-      onCreateWorkflow={() => navigate(`${workflowListPath(appKey)}?create=1`)}
+      onNavigateToModels={() => navigate(orgWorkspaceModelConfigsPath(orgId, workspace.id))}
+      onNavigateToPublish={() => navigate(orgWorkspacePublishCenterPath(orgId, workspace.id))}
+      onCreateAgent={() => navigate(`${orgWorkspaceDevelopPath(orgId, workspace.id)}?focus=agents`)}
+      onCreateApp={() => navigate(`${orgWorkspaceDevelopPath(orgId, workspace.id)}?focus=projects`)}
+      onCreateWorkflow={() => navigate(`${orgWorkspaceWorkflowsPath(orgId, workspace.id)}?create=1`)}
     />
   );
 }
@@ -2219,14 +2152,14 @@ function BotIdeRoute() {
 }
 
 function AgentChatRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   return <AgentChatPage api={studioApi} locale={locale} />;
 }
 
 function AiAssistantRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   return <AiAssistantPage api={studioApi} locale={locale} />;
@@ -2278,7 +2211,7 @@ function StudioAssistantPublishRoute() {
 }
 
 function ModelConfigsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   return <ModelConfigsPage api={studioApi} locale={locale} />;
@@ -2426,77 +2359,77 @@ function WorkspaceWorkflowWorkbenchRoute({
 }
 
 function AdminUsersRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <UsersAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminOverviewRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <OrganizationOverviewPage api={adminApi} locale={locale} />;
 }
 
 function AdminRolesRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <RolesAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminDepartmentsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <DepartmentsAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminPositionsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <PositionsAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminApprovalRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <ApprovalAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminReportsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <ReportsAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminDashboardsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <DashboardsAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminVisualizationRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <VisualizationAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminSettingsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <SettingsAdminPage api={adminApi} locale={locale} />;
 }
 
 function AdminProfileRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { adminApi } = useAppApis(appKey);
   return <ProfileAdminPage api={adminApi} locale={locale} />;
@@ -2668,7 +2601,7 @@ function WorkspaceListRoute() {
           keyword={keyword}
           items={items}
           onKeywordChange={setKeyword}
-          onOpenWorkspace={workspaceId => navigate(orgWorkspaceDevelopPath(orgId, workspaceId))}
+          onOpenWorkspace={workspaceId => navigate(orgWorkspaceDashboardPath(orgId, workspaceId))}
           onCreateWorkspace={async (request: WorkspaceCreateRequest) => {
             setSaving(true);
             try {
@@ -2722,6 +2655,7 @@ function WorkspaceShellInner() {
   const organization = useResolvedOrgId();
   const workspace = useWorkspaceContext();
   const appKey = workspace.appKey;
+  const { studioApi } = useAppApis(appKey);
 
   useEffect(() => {
     if (!workspace.loading && appKey) {
@@ -2760,49 +2694,73 @@ function WorkspaceShellInner() {
   const navSections: CozeNavSection[] = [
     {
       key: "workspace",
-      title: locale === "zh-CN" ? "工作空间" : "Workspace",
+      title: locale === "zh-CN" ? "工作区导航" : "Workspace Navigation",
       items: [
+        {
+          key: "dashboard",
+          label: locale === "zh-CN" ? "主控台" : "Dashboard",
+          icon: navGlyph("DB"),
+          path: orgWorkspaceDashboardPath(organization, workspace.id),
+          testId: "app-sidebar-item-dashboard"
+        },
         {
           key: "develop",
           label: locale === "zh-CN" ? "开发" : "Develop",
           icon: navGlyph("D"),
           path: orgWorkspaceDevelopPath(organization, workspace.id),
-          testId: "workspace-nav-develop"
+          testId: "app-sidebar-item-develop"
         },
         {
           key: "library",
-          label: locale === "zh-CN" ? "资源库" : "Library",
+          label: locale === "zh-CN" ? "资源" : "Library",
           icon: navGlyph("L"),
           path: orgWorkspaceLibraryPath(organization, workspace.id),
-          testId: "workspace-nav-library"
-        }
-      ]
-    },
-    {
-      key: "explore",
-      title: locale === "zh-CN" ? "探索" : "Explore",
-      items: [
-        {
-          key: "plugin",
-          label: locale === "zh-CN" ? "插件商店" : "Plugin Store",
-          icon: navGlyph("PL"),
-          path: "/explore/plugin",
-          testId: "workspace-nav-explore-plugin"
+          testId: "app-sidebar-item-library"
         },
         {
-          key: "template",
-          label: locale === "zh-CN" ? "模板商店" : "Template Store",
-          icon: navGlyph("TP"),
-          path: "/explore/template",
-          testId: "workspace-nav-explore-template"
+          key: "manage",
+          label: locale === "zh-CN" ? "管理" : "Management",
+          icon: navGlyph("MG"),
+          path: orgWorkspaceManagePath(organization, workspace.id),
+          testId: "app-sidebar-item-manage"
+        },
+        {
+          key: "settings",
+          label: locale === "zh-CN" ? "设置" : "Settings",
+          icon: navGlyph("ST"),
+          path: orgWorkspaceSettingsPath(organization, workspace.id),
+          testId: "app-sidebar-item-settings"
         }
       ]
     }
   ];
 
-  const headerTitle = location.pathname.includes("/library")
-    ? (locale === "zh-CN" ? "资源库" : "Library")
-    : (locale === "zh-CN" ? "开发" : "Develop");
+  let headerTitle = locale === "zh-CN" ? "开发" : "Develop";
+  if (location.pathname.includes("/dashboard")) {
+    headerTitle = locale === "zh-CN" ? "主控台" : "Dashboard";
+  } else if (location.pathname.includes("/develop/chat")) {
+    headerTitle = locale === "zh-CN" ? "Agent 对话" : "Agent Chat";
+  } else if (location.pathname.includes("/develop/model-configs")) {
+    headerTitle = locale === "zh-CN" ? "模型配置" : "Model Configs";
+  } else if (location.pathname.includes("/develop/assistant-tools")) {
+    headerTitle = locale === "zh-CN" ? "AI 助手" : "AI Assistant";
+  } else if (location.pathname.includes("/develop/publish-center")) {
+    headerTitle = locale === "zh-CN" ? "发布中心" : "Publish Center";
+  } else if (location.pathname.includes("/library/data")) {
+    headerTitle = locale === "zh-CN" ? "数据" : "Data";
+  } else if (location.pathname.includes("/library/variables")) {
+    headerTitle = locale === "zh-CN" ? "变量" : "Variables";
+  } else if (location.pathname.includes("/library")) {
+    headerTitle = locale === "zh-CN" ? "资源" : "Library";
+  } else if (location.pathname.includes("/manage")) {
+    headerTitle = locale === "zh-CN" ? "管理" : "Management";
+  } else if (location.pathname.includes("/settings/profile")) {
+    headerTitle = locale === "zh-CN" ? "个人中心" : "Profile";
+  } else if (location.pathname.includes("/settings/system")) {
+    headerTitle = locale === "zh-CN" ? "系统设置" : "System Settings";
+  } else if (location.pathname.includes("/settings")) {
+    headerTitle = locale === "zh-CN" ? "设置" : "Settings";
+  }
   const headerSubtitle = workspace.name || workspace.appKey;
 
   return (
@@ -2818,16 +2776,18 @@ function WorkspaceShellInner() {
         headerSubtitle={headerSubtitle}
         localeLabel={locale === "zh-CN" ? "English" : "中文"}
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-        profileLabel={locale === "zh-CN" ? "工作空间设置" : "Workspace Settings"}
+        profileLabel={locale === "zh-CN" ? "个人中心" : "Profile"}
         logoutLabel={locale === "zh-CN" ? "退出登录" : "Sign Out"}
         onNavigate={navigate}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
-        onOpenProfile={() => navigate(orgWorkspaceSettingsPath(organization, workspace.id, "members"))}
+        onOpenProfile={() => navigate(orgWorkspaceSettingsPath(organization, workspace.id, "profile"))}
         onLogout={() => {
           void auth.logout().then(() => navigate(signPath(), { replace: true }));
         }}
       >
-        <Outlet />
+        <StudioContextProvider api={studioApi}>
+          <Outlet />
+        </StudioContextProvider>
       </CozeShell>
     </>
   );
@@ -2897,140 +2857,124 @@ function WorkspaceDevelopRoute() {
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [keyword, setKeyword] = useState("");
-  const [apps, setApps] = useState<WorkspaceAppCardDto[]>([]);
-  const [secondaryTab, setSecondaryTab] = useState<"agents" | "workflow" | "chatflow" | "plugins" | "knowledge-base" | "database">("agents");
-  const [secondaryLoading, setSecondaryLoading] = useState(false);
-  const [secondaryItems, setSecondaryItems] = useState<WorkspaceResourceCardDto[]>([]);
+  const [searchParams] = useSearchParams();
+  const { locale } = useAppI18n();
+  const { studioApi, workflowApi } = useAppApis(workspace.appKey);
+  const [workflowItems, setWorkflowItems] = useState<DevelopResourceSummary[]>([]);
+  const [chatflowItems, setChatflowItems] = useState<DevelopResourceSummary[]>([]);
+
+  const focus = (searchParams.get("focus") as DevelopFocus | null) ?? "overview";
 
   useEffect(() => {
     let cancelled = false;
-    const loadApps = async () => {
-      setLoading(true);
-      try {
-        const result = await getWorkspaceDevelopApps(orgId, workspace.id, { pageIndex: 1, pageSize: 24, keyword });
-        if (!cancelled) {
-          setApps(result.items);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+    const load = async () => {
+      const [workflowResult, chatflowResult] = await Promise.all([
+        workflowApi.listWorkflows({ pageIndex: 1, pageSize: 8, mode: "workflow" }),
+        workflowApi.listWorkflows({ pageIndex: 1, pageSize: 8, mode: "chatflow" })
+      ]);
+
+      if (cancelled) {
+        return;
       }
+
+      setWorkflowItems(workflowResult.items.map((item) => toWorkflowResourceSummary(item, "workflow")));
+      setChatflowItems(chatflowResult.items.map((item) => toWorkflowResourceSummary(item, "chatflow")));
     };
 
-    void loadApps();
+    void load();
     return () => {
       cancelled = true;
     };
-  }, [keyword, orgId, workspace.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadSecondary = async () => {
-      setSecondaryLoading(true);
-      try {
-        const result = await getWorkspaceResources(orgId, workspace.id, secondaryTab, { pageIndex: 1, pageSize: 8 });
-        if (!cancelled) {
-          setSecondaryItems(result.items);
-        }
-      } finally {
-        if (!cancelled) {
-          setSecondaryLoading(false);
-        }
-      }
-    };
-
-    void loadSecondary();
-    return () => {
-      cancelled = true;
-    };
-  }, [orgId, secondaryTab, workspace.id]);
+  }, [workflowApi]);
 
   return (
-    <WorkspaceDevelopPage
-      loading={loading}
-      creating={creating}
-      workspaceName={workspace.name}
-      keyword={keyword}
-      appItems={apps}
-      secondaryLoading={secondaryLoading}
-      secondaryItems={secondaryItems}
-      secondaryTab={secondaryTab}
-      onKeywordChange={setKeyword}
-      onSecondaryTabChange={setSecondaryTab}
-      onOpenApp={appId => navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, appId))}
-      onOpenAppPublish={appId => navigate(orgWorkspaceAppPublishPath(orgId, workspace.id, appId))}
-      onOpenAppWorkflow={(appId, workflowId) => navigate(orgWorkspaceAppWorkflowPath(orgId, workspace.id, appId, workflowId))}
-      onOpenResource={resource => {
-        if (resource.resourceType === "agent") {
-          navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, resource.resourceId));
-        } else if (resource.resourceType === "workflow") {
-          navigate(orgWorkspaceWorkflowPath(orgId, workspace.id, resource.resourceId));
-        } else if (resource.resourceType === "chatflow") {
-          navigate(orgWorkspaceChatflowPath(orgId, workspace.id, resource.resourceId));
-        } else if (resource.resourceType === "knowledge-base") {
-          navigate(orgWorkspaceKnowledgeBaseDetailPath(orgId, workspace.id, resource.resourceId));
-        } else if (resource.resourceType === "database") {
-          navigate(orgWorkspaceDatabaseDetailPath(orgId, workspace.id, resource.resourceId));
-        } else if (resource.resourceType === "plugin") {
-          navigate(orgWorkspacePluginDetailPath(orgId, workspace.id, resource.resourceId));
-        }
-      }}
-      onCreateApp={async request => {
-        setCreating(true);
-        try {
-          const result = await createWorkspaceDevelopApp(orgId, workspace.id, request);
-          navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, result.appId));
-        } finally {
-          setCreating(false);
-        }
-      }}
-      onCreateAgent={async request => {
-        const agentId = await createAiAssistant({
-          name: request.name,
-          description: request.description,
-          workspaceId: Number(workspace.id)
-        });
-        navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, agentId));
-      }}
-      onCreatePlugin={async request => {
-        const pluginId = await createAiPlugin({
-          name: request.name,
-          description: request.description,
-          category: request.category,
-          type: 0,
-          sourceType: 0,
-          authType: 0,
-          definitionJson: "{}",
-          authConfigJson: "{}",
-          toolSchemaJson: "{}",
-          openApiSpecJson: "{}",
-          workspaceId: Number(workspace.id)
-        });
-        navigate(orgWorkspacePluginDetailPath(orgId, workspace.id, pluginId));
-      }}
-      onCreateDatabase={async request => {
-        const databaseId = await createAiDatabase({
-          name: request.name,
-          description: request.description,
-          tableSchema: request.tableSchema,
-          workspaceId: Number(workspace.id)
-        });
-        navigate(orgWorkspaceDatabaseDetailPath(orgId, workspace.id, databaseId));
-      }}
+    <DevelopPage
+      api={studioApi}
+      locale={locale}
+      focus={focus}
+      workflowItems={workflowItems}
+      chatflowItems={chatflowItems}
+      onOpenBot={botId => navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, botId))}
+      onOpenWorkflow={workflowId => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow", workflowId))}
+      onOpenChatflow={workflowId => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "chatflow", workflowId))}
+      onOpenWorkflows={() => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow"))}
+      onOpenChatflows={() => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "chatflow"))}
+      onOpenAgentChat={() => navigate(orgWorkspaceChatPath(orgId, workspace.id))}
+      onOpenModelConfigs={() => navigate(orgWorkspaceModelConfigsPath(orgId, workspace.id))}
+      onOpenUsers={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "users"))}
+      onOpenRoles={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "roles"))}
+      onOpenDepartments={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "departments"))}
+      onOpenPositions={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "positions"))}
+      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
+      onOpenApplicationDetail={appId => navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, appId))}
+      onOpenApplicationPublish={appId => navigate(orgWorkspaceAppPublishPath(orgId, workspace.id, appId))}
+      onCreateWorkflow={() => navigate(`${orgWorkspaceWorkflowsPath(orgId, workspace.id)}?create=1`)}
+      onCreateChatflow={() => navigate(`${orgWorkspaceChatflowsPath(orgId, workspace.id)}?create=1`)}
     />
   );
+}
+
+function WorkspaceManageRoute() {
+  const { tab = "overview" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+
+  switch (tab) {
+    case "overview":
+      return <AdminOverviewRoute />;
+    case "users":
+      return <AdminUsersRoute />;
+    case "roles":
+      return <AdminRolesRoute />;
+    case "departments":
+      return <AdminDepartmentsRoute />;
+    case "positions":
+      return <AdminPositionsRoute />;
+    case "approval":
+      return <AdminApprovalRoute />;
+    case "reports":
+      return <AdminReportsRoute />;
+    case "dashboards":
+      return <AdminDashboardsRoute />;
+    case "visualization":
+      return <AdminVisualizationRoute />;
+    default:
+      return <Navigate to={orgWorkspaceManagePath(orgId, workspace.id, "overview")} replace />;
+  }
 }
 
 function WorkspaceSettingsRoute() {
   const { tab = "members" } = useParams();
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
+  const { locale } = useAppI18n();
+  const { adminApi } = useAppApis(workspace.appKey);
+
+  if (tab === "system") {
+    return <SettingsAdminPage api={adminApi} locale={locale} />;
+  }
+
+  if (tab === "profile") {
+    return <ProfileAdminPage api={adminApi} locale={locale} />;
+  }
+
+  if (tab !== "members" && tab !== "permissions") {
+    return <Navigate to={orgWorkspaceSettingsPath(orgId, workspace.id, "members")} replace />;
+  }
+
+  return <WorkspaceAccessSettingsRoute activeTab={tab} />;
+}
+
+function WorkspaceAccessSettingsRoute({
+  activeTab
+}: {
+  activeTab: "members" | "permissions";
+}) {
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
   const navigate = useNavigate();
   const { t } = useAppI18n();
+
   const [membersLoading, setMembersLoading] = useState(true);
   const [memberSearchLoading, setMemberSearchLoading] = useState(false);
   const [memberSearchPageIndex, setMemberSearchPageIndex] = useState(1);
@@ -3137,7 +3081,7 @@ function WorkspaceSettingsRoute() {
 
   return (
     <WorkspaceSettingsPage
-      activeTab={tab === "permissions" ? "permissions" : "members"}
+      activeTab={activeTab}
       workspaceName={workspace.name}
       membersLoading={membersLoading}
       memberSearchLoading={memberSearchLoading}
@@ -3249,71 +3193,31 @@ function LegacyAppRedirectRoute() {
         return;
       }
 
-      const workspace = await getWorkspaceByAppKey(tenantId, appKey);
-      if (!cancelled) {
-        if (!workspace) {
-          setTarget(orgWorkspacesPath(tenantId));
-          return;
-        }
-
-        const currentPath = `${location.pathname}${location.search}`;
-        const normalizedAppPrefix = `/apps/${encodeURIComponent(appKey)}`;
-        const relativePath = currentPath.startsWith(normalizedAppPrefix)
-          ? currentPath.slice(normalizedAppPrefix.length)
-          : "";
-        const workbenchTarget = resolveLegacyWorkbenchRedirectTarget(
-          tenantId,
-          workspace.id,
-          relativePath,
-          location.search
-        );
-        if (workbenchTarget) {
-          setTarget(workbenchTarget);
-          return;
-        }
-        let nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
-
-        const knowledgeUploadMatch = relativePath.match(/^\/studio\/knowledge-bases\/([^/]+)\/upload(\?.*)?$/);
-        if (knowledgeUploadMatch) {
-          nextTarget = `${orgWorkspaceKnowledgeBaseUploadPath(tenantId, workspace.id, decodeURIComponent(knowledgeUploadMatch[1]))}${knowledgeUploadMatch[2] ?? ""}`;
-        } else {
-          const knowledgeDetailMatch = relativePath.match(/^\/studio\/knowledge-bases\/([^/?]+)$/);
-          const agentPublishMatch = relativePath.match(/^\/studio\/assistants\/([^/]+)\/publish$/);
-          const agentDetailMatch = relativePath.match(/^\/studio\/assistants\/([^/?]+)$/);
-          const appPublishMatch = relativePath.match(/^\/studio\/apps\/([^/]+)\/publish$/);
-          const appDetailMatch = relativePath.match(/^\/studio\/apps\/([^/?]+)$/);
-          const pluginDetailMatch = relativePath.match(/^\/studio\/plugins\/([^/?]+)$/);
-          const databaseDetailMatch = relativePath.match(/^\/studio\/databases\/([^/?]+)$/);
-          if (knowledgeDetailMatch) {
-            nextTarget = orgWorkspaceKnowledgeBaseDetailPath(tenantId, workspace.id, decodeURIComponent(knowledgeDetailMatch[1]));
-          } else if (agentPublishMatch) {
-            nextTarget = orgWorkspaceAgentPublishPath(tenantId, workspace.id, decodeURIComponent(agentPublishMatch[1]));
-          } else if (agentDetailMatch) {
-            nextTarget = orgWorkspaceAgentDetailPath(tenantId, workspace.id, decodeURIComponent(agentDetailMatch[1]));
-          } else if (appPublishMatch) {
-            nextTarget = orgWorkspaceAppPublishPath(tenantId, workspace.id, decodeURIComponent(appPublishMatch[1]));
-          } else if (appDetailMatch) {
-            nextTarget = orgWorkspaceAppDetailPath(tenantId, workspace.id, decodeURIComponent(appDetailMatch[1]));
-          } else if (pluginDetailMatch) {
-            nextTarget = orgWorkspacePluginDetailPath(tenantId, workspace.id, decodeURIComponent(pluginDetailMatch[1]));
-          } else if (databaseDetailMatch) {
-            nextTarget = orgWorkspaceDatabaseDetailPath(tenantId, workspace.id, decodeURIComponent(databaseDetailMatch[1]));
-          } else if (relativePath.startsWith("/studio/knowledge-bases")) {
-            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
-          } else if (relativePath.startsWith("/studio/apps")) {
-            nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
-          } else if (relativePath.startsWith("/studio/assistants")) {
-            nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
-          } else if (relativePath.startsWith("/studio/plugins")) {
-            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
-          } else if (relativePath.startsWith("/studio/databases")) {
-            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
-          } else if (relativePath.startsWith("/studio/library")) {
-            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
+      try {
+        const workspace = await getWorkspaceByAppKey(tenantId, appKey);
+        if (!cancelled) {
+          if (!workspace) {
+            setTarget(orgWorkspacesPath(tenantId));
+            return;
           }
-        }
 
-        setTarget(nextTarget);
+          const currentPath = `${location.pathname}${location.search}`;
+          const normalizedAppPrefix = `/apps/${encodeURIComponent(appKey)}`;
+          const relativePath = currentPath.startsWith(normalizedAppPrefix)
+            ? currentPath.slice(normalizedAppPrefix.length)
+            : "";
+
+          setTarget(resolveLegacyAppRedirectTarget({
+            orgId: tenantId,
+            workspaceId: workspace.id,
+            relativePath,
+            searchText: location.search
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setTarget(signPath());
+        }
       }
     };
 
@@ -3332,6 +3236,52 @@ function LegacyAppRedirectRoute() {
   return <LoadingPage />;
 }
 
+interface AppErrorBoundaryState {
+  hasError: boolean;
+}
+
+class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBoundaryState> {
+  state: AppErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): AppErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(_error: Error, _errorInfo: ErrorInfo): void {
+    // Keep the fallback page minimal and avoid recursive state updates.
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <FatalErrorPage />;
+    }
+
+    return this.props.children;
+  }
+}
+
+function FatalErrorPage() {
+  const handleReload = () => {
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+  };
+
+  return (
+    <div className="atlas-setup-page">
+      <div className="atlas-setup-card">
+        <h1>页面初始化失败</h1>
+        <p>应用启动时发生异常。请刷新页面重试，若仍失败请联系管理员。</p>
+        <div className="atlas-setup-actions">
+          <button type="button" className="atlas-button atlas-button--primary" onClick={handleReload}>
+            刷新页面
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -3340,12 +3290,18 @@ export function AppRouter() {
         <Route path="/platform-not-ready" element={<PlatformNotReadyPage />} />
         <Route path="/app-setup" element={<AppSetupPage />} />
         <Route path="/sign" element={<LoginPage />} />
-        <Route path="/apps/:appKey/sign" element={<LoginPage />} />
         <Route path="/org/:orgId/workspaces" element={<WorkspaceListRoute />} />
         <Route path="/org/:orgId/workspaces/:workspaceId" element={<WorkspaceShellRoute />}>
-          <Route index element={<Navigate to="develop" replace />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardRoute />} />
           <Route path="develop" element={<WorkspaceDevelopRoute />} />
+          <Route path="develop/chat" element={<AgentChatRoute />} />
+          <Route path="develop/model-configs" element={<ModelConfigsRoute />} />
+          <Route path="develop/assistant-tools" element={<StudioAssistantToolsRoute />} />
+          <Route path="develop/publish-center" element={<StudioPublishCenterRoute />} />
           <Route path="library" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><WorkspaceLibraryRoute /></ProtectedPage>} />
+          <Route path="library/data" element={<StudioDataRoute />} />
+          <Route path="library/variables" element={<StudioVariablesRoute />} />
           <Route path="apps/:id" element={<WorkspaceAppDetailRoute />} />
           <Route path="apps/:id/publish" element={<WorkspaceAppPublishRoute />} />
           <Route path="apps/:id/workflows/:workflowId" element={<WorkspaceAppWorkflowRedirectRoute />} />
@@ -3360,8 +3316,10 @@ export function AppRouter() {
           <Route path="knowledge-bases/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><WorkspaceKnowledgeUploadRoute /></ProtectedPage>} />
           <Route path="databases/:id" element={<StudioDatabaseDetailRoute />} />
           <Route path="plugins/:id" element={<StudioPluginDetailRoute />} />
-          <Route path="settings/:tab" element={<WorkspaceSettingsRoute />} />
+          <Route path="manage" element={<Navigate to="overview" replace />} />
+          <Route path="manage/:tab" element={<WorkspaceManageRoute />} />
           <Route path="settings" element={<Navigate to="members" replace />} />
+          <Route path="settings/:tab" element={<WorkspaceSettingsRoute />} />
         </Route>
         <Route path="/explore/plugin/:productId" element={<ExplorePluginDetailRoute />} />
         <Route path="/explore/plugin" element={<ExplorePluginsRoute />} />
@@ -3378,12 +3336,14 @@ export function AppRouter() {
 
 export function AppRoot() {
   return (
-    <AppI18nProvider>
-      <BootstrapProvider>
-        <AuthProvider>
-          <AppRouter />
-        </AuthProvider>
-      </BootstrapProvider>
-    </AppI18nProvider>
+    <AppErrorBoundary>
+      <AppI18nProvider>
+        <BootstrapProvider>
+          <AuthProvider>
+            <AppRouter />
+          </AuthProvider>
+        </BootstrapProvider>
+      </AppI18nProvider>
+    </AppErrorBoundary>
   );
 }

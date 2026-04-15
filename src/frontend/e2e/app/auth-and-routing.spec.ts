@@ -1,9 +1,10 @@
 import { expect, test } from "../fixtures/single-session";
-import { appSignPath, workspaceDevelopPath } from "@atlas/app-shell-shared";
+import { orgWorkspacesPath, signPath } from "@atlas/app-shell-shared";
 import {
   appBaseUrl,
-  ensureAppWorkspace,
+  defaultTenantId,
   ensureAppSetup,
+  ensureAppWorkspace,
   expectNoI18nKeyLeak,
   loginApp,
   resolveCanonicalAppKey,
@@ -21,33 +22,43 @@ test.describe.serial("@smoke App Auth And Routing", () => {
     await ensureLoggedInSession(appKey);
   });
 
-  test("login success should enter dashboard", async ({ page }) => {
-    await ensureAppWorkspace(page, appKey);
-    await expectNoI18nKeyLeak(page, "app-develop-page");
+  test("login success should enter workspace list", async ({ page, resetAuthForCase }) => {
+    await resetAuthForCase();
+    await loginApp(page, appKey);
+    await expect(page).toHaveURL(new RegExp(`${orgWorkspacesPath(defaultTenantId)}(?:\\?.*)?$`));
+    await expect(page.getByTestId("workspace-list-page")).toBeVisible();
+    await expectNoI18nKeyLeak(page, "workspace-list-page");
   });
 
-  test("wrong password should stay at login", async ({ page, resetAuthForCase }) => {
+  test("authenticated session should enter workspace dashboard", async ({ page }) => {
+    await ensureAppWorkspace(page, appKey);
+    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
+    await expectNoI18nKeyLeak(page, "app-dashboard-page");
+  });
+
+  test("wrong password should stay at canonical login", async ({ page, resetAuthForCase }) => {
     await resetAuthForCase();
     await loginApp(page, appKey, "WrongPassword#123", { expectSuccess: false });
-    await expect(page).toHaveURL(new RegExp(appSignPath(appKey)));
+    await expect(page).toHaveURL(new RegExp(`${signPath().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`));
     await expect(page.locator(".login-error")).toBeVisible();
   });
 
-  test("unauthenticated workspace should redirect login", async ({ page, resetAuthForCase }) => {
+  test("unauthenticated workspace list should redirect login", async ({ page, resetAuthForCase }) => {
     await resetAuthForCase();
-    await page.goto(`${appBaseUrl}${workspaceDevelopPath(appKey)}`);
-    await expect(page).toHaveURL(new RegExp(appSignPath(appKey)));
+    await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
+    await expect(page).toHaveURL(new RegExp(`${signPath().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`));
   });
 
-  test("invalid app route should normalize to canonical appKey without refresh", async ({ page }) => {
-    await page.goto(`${appBaseUrl}/apps/456/space/atlas-space/develop`);
-    await expect(page).toHaveURL(new RegExp(appSignPath(appKey)));
+  test("legacy app route should redirect to canonical login when unauthenticated", async ({ page, resetAuthForCase }) => {
+    await resetAuthForCase();
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/space/atlas-space/develop`);
+    await expect(page).toHaveURL(new RegExp(`${signPath().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`));
   });
 
   test("en-US locale should persist after reload", async ({ page, resetAuthForCase }) => {
     await resetAuthForCase();
     await seedLocale(page, "en-US");
-    await page.goto(`${appBaseUrl}${appSignPath(appKey)}`);
+    await page.goto(`${appBaseUrl}${signPath()}`);
     await expect(page.getByTestId("app-login-submit")).toContainText("Login");
     await expectNoI18nKeyLeak(page, "app-login-page");
     await page.reload();
@@ -55,4 +66,3 @@ test.describe.serial("@smoke App Auth And Routing", () => {
     await expectNoI18nKeyLeak(page, "app-login-page");
   });
 });
-
