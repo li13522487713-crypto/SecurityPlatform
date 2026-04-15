@@ -26,7 +26,7 @@ export async function getKnowledgeBaseById(id: number) {
   return response.data;
 }
 
-export async function createKnowledgeBase(request: KnowledgeBaseCreateRequest) {
+export async function createKnowledgeBase(request: KnowledgeBaseCreateRequest & { workspaceId?: number }) {
   const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>("/knowledge-bases", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -37,7 +37,7 @@ export async function createKnowledgeBase(request: KnowledgeBaseCreateRequest) {
   return Number(knowledgeBaseId);
 }
 
-export async function updateKnowledgeBase(id: number, request: KnowledgeBaseCreateRequest) {
+export async function updateKnowledgeBase(id: number, request: KnowledgeBaseCreateRequest & { workspaceId?: number }) {
   const response = await requestApi<ApiResponse<object>>(`/knowledge-bases/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

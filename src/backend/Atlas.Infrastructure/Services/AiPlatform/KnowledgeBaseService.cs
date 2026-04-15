@@ -78,7 +78,8 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
             normalizedName,
             request.Description?.Trim(),
             request.Type,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            request.WorkspaceId);
         await _knowledgeBaseRepository.AddAsync(entity, cancellationToken);
         return entity.Id;
     }
@@ -98,6 +99,10 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
         }
 
         entity.Update(normalizedName, request.Description?.Trim(), request.Type);
+        if (request.WorkspaceId.HasValue)
+        {
+            entity.AssignWorkspace(request.WorkspaceId.Value);
+        }
         await _knowledgeBaseRepository.UpdateAsync(entity, cancellationToken);
     }
 

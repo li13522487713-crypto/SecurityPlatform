@@ -92,7 +92,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
             request.Description?.Trim(),
             request.BotId,
             request.TableSchema,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            request.WorkspaceId);
         await _databaseRepository.AddAsync(entity, cancellationToken);
         return entity.Id;
     }
@@ -113,7 +114,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
             throw new BusinessException("数据库 Schema 不合法。", ErrorCodes.ValidationError);
         }
 
-        entity.Update(normalizedName, request.Description?.Trim(), request.BotId, request.TableSchema);
+        entity.Update(normalizedName, request.Description?.Trim(), request.BotId, request.TableSchema, workspaceId: request.WorkspaceId);
         await _databaseRepository.UpdateAsync(entity, cancellationToken);
     }
 

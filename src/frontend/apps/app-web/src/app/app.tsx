@@ -103,6 +103,7 @@ import {
   orgWorkspaceKnowledgeBaseUploadPath,
   orgWorkspaceDatabaseDetailPath,
   orgWorkspacePluginDetailPath,
+  orgWorkspaceSettingsPath,
   signPath
 } from "@atlas/app-shell-shared";
 import { AuthProvider, useAuth } from "./auth-context";
@@ -305,16 +306,25 @@ import {
 } from "@/services/api-workflow";
 import { executeWorkflowTask } from "@/services/api-workflow-playground";
 import {
+  addWorkspaceMember,
   createWorkspaceDevelopApp,
   getWorkspaceByAppKey,
   getWorkspaceDevelopApps,
+  getWorkspaceMembers,
+  getWorkspaceResourcePermissions,
   getWorkspaceResources,
   getWorkspaces,
+  removeWorkspaceMember,
   type WorkspaceAppCardDto,
-  type WorkspaceResourceCardDto
+  type WorkspaceMemberDto,
+  type WorkspaceResourceCardDto,
+  type WorkspaceRolePermissionDto,
+  updateWorkspaceMemberRole,
+  updateWorkspaceResourcePermissions
 } from "@/services/api-org-workspaces";
 import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page";
 import { WorkspaceDevelopPage } from "./pages/workspace-develop-page";
+import { WorkspaceSettingsPage } from "./pages/workspace-settings-page";
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
@@ -2581,9 +2591,11 @@ function WorkspaceShellInner() {
         headerSubtitle={headerSubtitle}
         localeLabel={locale === "zh-CN" ? "English" : "中文"}
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+        profileLabel={locale === "zh-CN" ? "工作空间设置" : "Workspace Settings"}
         logoutLabel={locale === "zh-CN" ? "退出登录" : "Sign Out"}
         onNavigate={navigate}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
+        onOpenProfile={() => navigate(orgWorkspaceSettingsPath(organization, workspace.id, "members"))}
         onLogout={() => {
           void auth.logout().then(() => navigate(signPath(), { replace: true }));
         }}
@@ -2598,7 +2610,12 @@ function WorkspaceLibraryRoute() {
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const workspace = useWorkspaceContext();
-  return <LibraryPage api={libraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} onNavigate={navigate} />;
+  const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
+    ...libraryApi,
+    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
+    updateKnowledgeBase: (id, request) => updateKnowledgeBase(id, { ...request, workspaceId: Number(workspace.id) })
+  }), [workspace.id]);
+  return <LibraryPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} onNavigate={navigate} />;
 }
 
 function WorkspaceKnowledgeDetailRoute() {
@@ -2606,7 +2623,12 @@ function WorkspaceKnowledgeDetailRoute() {
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const workspace = useWorkspaceContext();
-  return <KnowledgeDetailPage api={libraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} onNavigate={navigate} />;
+  const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
+    ...libraryApi,
+    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
+    updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(workspace.id) })
+  }), [workspace.id]);
+  return <KnowledgeDetailPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} onNavigate={navigate} />;
 }
 
 function WorkspaceKnowledgeUploadRoute() {
@@ -2615,7 +2637,12 @@ function WorkspaceKnowledgeUploadRoute() {
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const workspace = useWorkspaceContext();
-  return <KnowledgeUploadPage api={libraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} initialType={searchParams.get("type")} onNavigate={navigate} />;
+  const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
+    ...libraryApi,
+    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
+    updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(workspace.id) })
+  }), [workspace.id]);
+  return <KnowledgeUploadPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} initialType={searchParams.get("type")} onNavigate={navigate} />;
 }
 
 function WorkspaceDevelopRoute() {
@@ -2712,6 +2739,96 @@ function WorkspaceDevelopRoute() {
         } finally {
           setCreating(false);
         }
+      }}
+    />
+  );
+}
+
+function WorkspaceSettingsRoute() {
+  const { tab = "members" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const navigate = useNavigate();
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [members, setMembers] = useState<WorkspaceMemberDto[]>([]);
+  const [resources, setResources] = useState<WorkspaceResourceCardDto[]>([]);
+  const [selectedResourceKey, setSelectedResourceKey] = useState("");
+  const [selectedPermissions, setSelectedPermissions] = useState<WorkspaceRolePermissionDto[]>([]);
+
+  const refreshMembers = async () => {
+    setMembersLoading(true);
+    try {
+      setMembers(await getWorkspaceMembers(orgId, workspace.id));
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  const refreshResources = async () => {
+    setResourcesLoading(true);
+    try {
+      const result = await getWorkspaceResources(orgId, workspace.id, undefined, { pageIndex: 1, pageSize: 50 });
+      setResources(result.items);
+      if (!selectedResourceKey && result.items[0]) {
+        setSelectedResourceKey(`${result.items[0].resourceType}:${result.items[0].resourceId}`);
+      }
+    } finally {
+      setResourcesLoading(false);
+    }
+  };
+
+  const refreshPermissions = async () => {
+    if (!selectedResourceKey) {
+      setSelectedPermissions([]);
+      return;
+    }
+
+    const [resourceType, resourceId] = selectedResourceKey.split(":");
+    if (!resourceType || !resourceId) {
+      setSelectedPermissions([]);
+      return;
+    }
+
+    setPermissionsLoading(true);
+    try {
+      setSelectedPermissions(await getWorkspaceResourcePermissions(orgId, workspace.id, resourceType, resourceId));
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshMembers();
+    void refreshResources();
+  }, [orgId, workspace.id]);
+
+  useEffect(() => {
+    void refreshPermissions();
+  }, [orgId, selectedResourceKey, workspace.id]);
+
+  return (
+    <WorkspaceSettingsPage
+      activeTab={tab === "permissions" ? "permissions" : "members"}
+      workspaceName={workspace.name}
+      membersLoading={membersLoading}
+      permissionsLoading={permissionsLoading}
+      resourcesLoading={resourcesLoading}
+      members={members}
+      resources={resources}
+      selectedResourceKey={selectedResourceKey}
+      selectedPermissions={selectedPermissions}
+      onSelectResource={setSelectedResourceKey}
+      onTabChange={nextTab => navigate(orgWorkspaceSettingsPath(orgId, workspace.id, nextTab))}
+      onRefreshMembers={refreshMembers}
+      onRefreshPermissions={refreshPermissions}
+      onAddMember={request => addWorkspaceMember(orgId, workspace.id, request).then(refreshMembers)}
+      onUpdateMemberRole={(userId, roleCode) => updateWorkspaceMemberRole(orgId, workspace.id, userId, { roleCode }).then(refreshMembers)}
+      onRemoveMember={userId => removeWorkspaceMember(orgId, workspace.id, userId).then(refreshMembers)}
+      onSavePermissions={items => {
+        const [resourceType, resourceId] = selectedResourceKey.split(":");
+        return updateWorkspaceResourcePermissions(orgId, workspace.id, resourceType, resourceId, { items }).then(refreshPermissions);
       }}
     />
   );
@@ -2915,6 +3032,8 @@ export function AppRouter() {
           <Route path="knowledge-bases/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><WorkspaceKnowledgeUploadRoute /></ProtectedPage>} />
           <Route path="databases/:id" element={<StudioDatabaseDetailRoute />} />
           <Route path="plugins/:id" element={<StudioPluginDetailRoute />} />
+          <Route path="settings/:tab" element={<WorkspaceSettingsRoute />} />
+          <Route path="settings" element={<Navigate to="members" replace />} />
         </Route>
         <Route path="/explore/plugin/:productId" element={<ExplorePluginDetailRoute />} />
         <Route path="/explore/plugin" element={<ExplorePluginsRoute />} />

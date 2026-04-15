@@ -76,7 +76,7 @@ public sealed class AgentCommandService : IAgentCommandService
             request.DefaultWorkflowId,
             request.DefaultWorkflowName,
             cancellationToken);
-        var entity = new Agent(tenantId, request.Name, creatorId, _idGeneratorAccessor.NextId());
+        var entity = new Agent(tenantId, request.Name, creatorId, _idGeneratorAccessor.NextId(), request.WorkspaceId);
         var knowledgeBindings = await BuildValidatedKnowledgeBindingsAsync(
             tenantId,
             entity.Id,
@@ -119,6 +119,11 @@ public sealed class AgentCommandService : IAgentCommandService
             request.EnableShortTermMemory,
             request.EnableLongTermMemory,
             request.LongTermMemoryTopK);
+
+        if (request.WorkspaceId.HasValue)
+        {
+            entity.AssignWorkspace(request.WorkspaceId.Value);
+        }
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
@@ -190,6 +195,11 @@ public sealed class AgentCommandService : IAgentCommandService
             request.EnableShortTermMemory,
             request.EnableLongTermMemory,
             request.LongTermMemoryTopK);
+
+        if (request.WorkspaceId.HasValue)
+        {
+            entity.AssignWorkspace(request.WorkspaceId.Value);
+        }
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {

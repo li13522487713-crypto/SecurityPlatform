@@ -25,13 +25,15 @@ public sealed record AiDatabaseCreateRequest(
     string Name,
     string? Description,
     long? BotId,
-    string TableSchema);
+    string TableSchema,
+    long? WorkspaceId = null);
 
 public sealed record AiDatabaseUpdateRequest(
     string Name,
     string? Description,
     long? BotId,
-    string TableSchema);
+    string TableSchema,
+    long? WorkspaceId = null);
 
 public sealed record AiDatabaseRecordListItem(
     long Id,

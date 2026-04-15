@@ -112,6 +112,13 @@ export async function createAiAssistant(request: AgentCreateRequest): Promise<st
   return id;
 }
 
+export async function createAiAssistantInWorkspace(request: AgentCreateRequest, workspaceId?: string): Promise<string> {
+  return createAiAssistant({
+    ...request,
+    workspaceId: workspaceId ? Number(workspaceId) : undefined
+  } as AgentCreateRequest);
+}
+
 export async function updateAiAssistant(id: string, request: AgentUpdateRequest): Promise<void> {
   const response = await requestApi<ApiResponse<object>>(`${assistantBase()}/${encodeURIComponent(id)}`, {
     method: "PUT",

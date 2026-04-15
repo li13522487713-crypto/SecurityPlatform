@@ -9,6 +9,7 @@ public sealed class KnowledgeBaseCreateRequestValidator : AbstractValidator<Know
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
         RuleFor(x => x.Description).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.Description));
+        RuleFor(x => x.WorkspaceId).GreaterThan(0).When(x => x.WorkspaceId.HasValue);
     }
 }
 
@@ -18,6 +19,7 @@ public sealed class KnowledgeBaseUpdateRequestValidator : AbstractValidator<Know
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
         RuleFor(x => x.Description).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.Description));
+        RuleFor(x => x.WorkspaceId).GreaterThan(0).When(x => x.WorkspaceId.HasValue);
     }
 }
 

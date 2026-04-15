@@ -48,7 +48,8 @@ public sealed record AiPluginCreateRequest(
     AiPluginAuthType AuthType,
     string? AuthConfigJson,
     string? ToolSchemaJson,
-    string? OpenApiSpecJson);
+    string? OpenApiSpecJson,
+    long? WorkspaceId = null);
 
 public sealed record AiPluginUpdateRequest(
     string Name,
@@ -61,7 +62,8 @@ public sealed record AiPluginUpdateRequest(
     AiPluginAuthType AuthType,
     string? AuthConfigJson,
     string? ToolSchemaJson,
-    string? OpenApiSpecJson);
+    string? OpenApiSpecJson,
+    long? WorkspaceId = null);
 
 public sealed record AiPluginLockRequest(bool IsLocked);
 

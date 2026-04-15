@@ -74,7 +74,8 @@ public sealed record AgentCreateRequest(
     bool? EnableMemory,
     bool? EnableShortTermMemory,
     bool? EnableLongTermMemory,
-    int? LongTermMemoryTopK);
+    int? LongTermMemoryTopK,
+    long? WorkspaceId = null);
 
 public sealed record AgentUpdateRequest(
     string Name,
@@ -104,7 +105,8 @@ public sealed record AgentUpdateRequest(
     bool? EnableLongTermMemory,
     int? LongTermMemoryTopK,
     IReadOnlyList<long>? KnowledgeBaseIds,
-    IReadOnlyList<AgentPluginBindingInput>? PluginBindings);
+    IReadOnlyList<AgentPluginBindingInput>? PluginBindings,
+    long? WorkspaceId = null);
 
 public sealed record AgentPluginBindingItem(
     long PluginId,

@@ -11,6 +11,7 @@ public sealed class AiDatabaseCreateRequestValidator : AbstractValidator<AiDatab
         RuleFor(x => x.Description).MaximumLength(1024).When(x => !string.IsNullOrWhiteSpace(x.Description));
         RuleFor(x => x.TableSchema).NotEmpty().MaximumLength(200000);
         RuleFor(x => x.BotId).GreaterThan(0).When(x => x.BotId.HasValue);
+        RuleFor(x => x.WorkspaceId).GreaterThan(0).When(x => x.WorkspaceId.HasValue);
     }
 }
 
@@ -22,6 +23,7 @@ public sealed class AiDatabaseUpdateRequestValidator : AbstractValidator<AiDatab
         RuleFor(x => x.Description).MaximumLength(1024).When(x => !string.IsNullOrWhiteSpace(x.Description));
         RuleFor(x => x.TableSchema).NotEmpty().MaximumLength(200000);
         RuleFor(x => x.BotId).GreaterThan(0).When(x => x.BotId.HasValue);
+        RuleFor(x => x.WorkspaceId).GreaterThan(0).When(x => x.WorkspaceId.HasValue);
     }
 }
 

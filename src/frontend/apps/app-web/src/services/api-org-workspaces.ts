@@ -85,6 +85,24 @@ export interface WorkspaceRolePermissionDto {
   actions: string[];
 }
 
+export interface WorkspaceMemberCreateRequest {
+  userId: string;
+  roleCode: string;
+}
+
+export interface WorkspaceMemberRoleUpdateRequest {
+  roleCode: string;
+}
+
+export interface WorkspaceRolePermissionUpdateItem {
+  roleCode: string;
+  actions: string[];
+}
+
+export interface WorkspaceResourcePermissionUpdateRequest {
+  items: WorkspaceRolePermissionUpdateItem[];
+}
+
 function base(orgId: string): string {
   return `/organizations/${encodeURIComponent(orgId)}/workspaces`;
 }
@@ -176,4 +194,95 @@ export async function getWorkspaceResources(
     throw new Error(response.message || "获取工作空间资源失败");
   }
   return response.data;
+}
+
+export async function getWorkspaceMembers(orgId: string, workspaceId: string): Promise<WorkspaceMemberDto[]> {
+  const response = await requestApi<ApiResponse<WorkspaceMemberDto[]>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}/members`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取工作空间成员失败");
+  }
+  return response.data;
+}
+
+export async function addWorkspaceMember(
+  orgId: string,
+  workspaceId: string,
+  request: WorkspaceMemberCreateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}/members`,
+    {
+      method: "POST",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "添加工作空间成员失败");
+  }
+}
+
+export async function updateWorkspaceMemberRole(
+  orgId: string,
+  workspaceId: string,
+  userId: string,
+  request: WorkspaceMemberRoleUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新工作空间成员角色失败");
+  }
+}
+
+export async function removeWorkspaceMember(orgId: string, workspaceId: string, userId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+    {
+      method: "DELETE"
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "移除工作空间成员失败");
+  }
+}
+
+export async function getWorkspaceResourcePermissions(
+  orgId: string,
+  workspaceId: string,
+  resourceType: string,
+  resourceId: string
+): Promise<WorkspaceRolePermissionDto[]> {
+  const response = await requestApi<ApiResponse<WorkspaceRolePermissionDto[]>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}/permissions`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取资源权限失败");
+  }
+  return response.data;
+}
+
+export async function updateWorkspaceResourcePermissions(
+  orgId: string,
+  workspaceId: string,
+  resourceType: string,
+  resourceId: string,
+  request: WorkspaceResourcePermissionUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}/permissions`,
+    {
+      method: "PUT",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新资源权限失败");
+  }
 }

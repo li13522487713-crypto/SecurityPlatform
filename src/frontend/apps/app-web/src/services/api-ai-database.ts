@@ -28,6 +28,7 @@ export interface AiDatabaseCreateRequest {
   description?: string;
   botId?: number;
   tableSchema: string;
+  workspaceId?: number;
 }
 
 export interface AiDatabaseSchemaValidateResult {

@@ -70,6 +70,7 @@ export interface AgentCreateRequest {
   enableShortTermMemory?: boolean;
   enableLongTermMemory?: boolean;
   longTermMemoryTopK?: number;
+  workspaceId?: number;
 }
 
 export interface AgentUpdateRequest {
@@ -101,6 +102,7 @@ export interface AgentUpdateRequest {
   enableShortTermMemory?: boolean;
   enableLongTermMemory?: boolean;
   longTermMemoryTopK?: number;
+  workspaceId?: number;
 }
 
 export interface AgentKnowledgeBinding {

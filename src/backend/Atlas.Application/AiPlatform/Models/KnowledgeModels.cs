@@ -14,12 +14,14 @@ public sealed record KnowledgeBaseDto(
 public sealed record KnowledgeBaseCreateRequest(
     string Name,
     string? Description,
-    KnowledgeBaseType Type);
+    KnowledgeBaseType Type,
+    long? WorkspaceId = null);
 
 public sealed record KnowledgeBaseUpdateRequest(
     string Name,
     string? Description,
-    KnowledgeBaseType Type);
+    KnowledgeBaseType Type,
+    long? WorkspaceId = null);
 
 public sealed record KnowledgeDocumentDto(
     long Id,

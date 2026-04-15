@@ -101,7 +101,8 @@ public sealed class AiPluginService : IAiPluginService
             request.AuthConfigJson,
             request.ToolSchemaJson,
             request.OpenApiSpecJson,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            request.WorkspaceId);
         await _pluginRepository.AddAsync(plugin, cancellationToken);
         return plugin.Id;
     }
@@ -136,7 +137,8 @@ public sealed class AiPluginService : IAiPluginService
             request.AuthType,
             request.AuthConfigJson,
             request.ToolSchemaJson,
-            request.OpenApiSpecJson);
+            request.OpenApiSpecJson,
+            workspaceId: request.WorkspaceId);
         await _pluginRepository.UpdateAsync(plugin, cancellationToken);
     }
 

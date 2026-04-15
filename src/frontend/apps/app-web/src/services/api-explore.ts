@@ -66,6 +66,7 @@ export interface AiPluginMutationRequest {
   authConfigJson?: string;
   toolSchemaJson?: string;
   openApiSpecJson?: string;
+  workspaceId?: number;
 }
 
 export interface TemplateListItem {
