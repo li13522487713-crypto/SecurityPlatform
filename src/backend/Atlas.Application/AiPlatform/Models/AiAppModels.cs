@@ -37,7 +37,8 @@ public sealed record AiAppCreateRequest(
     string? Icon,
     long? AgentId,
     long? WorkflowId,
-    long? PromptTemplateId);
+    long? PromptTemplateId,
+    long? WorkspaceId = null);
 
 public sealed record AiAppUpdateRequest(
     string Name,
@@ -45,7 +46,8 @@ public sealed record AiAppUpdateRequest(
     string? Icon,
     long? AgentId,
     long? WorkflowId,
-    long? PromptTemplateId);
+    long? PromptTemplateId,
+    long? WorkspaceId = null);
 
 public sealed record AiAppPublishRequest(string? ReleaseNote);
 

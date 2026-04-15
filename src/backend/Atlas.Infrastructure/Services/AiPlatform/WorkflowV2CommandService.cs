@@ -175,7 +175,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         TenantId tenantId, long creatorId, WorkflowV2CreateRequest request, CancellationToken cancellationToken)
     {
         var metaId = _idGenerator.NextId();
-        var meta = new WorkflowMeta(tenantId, request.Name.Trim(), request.Description?.Trim(), request.Mode, creatorId, metaId);
+        var meta = new WorkflowMeta(tenantId, request.Name.Trim(), request.Description?.Trim(), request.Mode, creatorId, metaId, request.WorkspaceId);
         await _metaRepo.AddAsync(meta, cancellationToken);
 
         var starterCanvasJson = request.Mode == WorkflowMode.ChatFlow ? ChatflowStarterCanvasJson : WorkflowStarterCanvasJson;
@@ -259,7 +259,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken);
 
         var newMetaId = _idGenerator.NextId();
-        var newMeta = new WorkflowMeta(tenantId, $"{meta.Name}-副本", meta.Description, meta.Mode, creatorId, newMetaId);
+        var newMeta = new WorkflowMeta(tenantId, $"{meta.Name}-副本", meta.Description, meta.Mode, creatorId, newMetaId, meta.WorkspaceId);
         await _metaRepo.AddAsync(newMeta, cancellationToken);
 
         var starterCanvasJson = meta.Mode == WorkflowMode.ChatFlow ? ChatflowStarterCanvasJson : WorkflowStarterCanvasJson;

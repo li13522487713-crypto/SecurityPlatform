@@ -10,7 +10,8 @@ namespace Atlas.Application.AiPlatform.Models;
 public sealed record WorkflowV2CreateRequest(
     string Name,
     string? Description,
-    WorkflowMode Mode);
+    WorkflowMode Mode,
+    long? WorkspaceId = null);
 
 public sealed record WorkflowV2SaveDraftRequest(
     string CanvasJson,

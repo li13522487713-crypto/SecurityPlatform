@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
+import { getTenantId } from "@atlas/shared-react-core/utils";
 import { CozeShell, type CozeNavSection } from "@atlas/coze-shell-react";
 import { LibraryPage, KnowledgeDetailPage, KnowledgeUploadPage, type LibraryKnowledgeApi } from "@atlas/library-module-react";
 import {
@@ -86,11 +87,29 @@ import {
   workspaceBotPath,
   workspaceChatPath,
   workspaceDevelopPath,
-  workspaceModelConfigsPath
+  workspaceModelConfigsPath,
+  orgWorkspacesPath,
+  orgWorkspaceDevelopPath,
+  orgWorkspaceLibraryPath,
+  orgWorkspaceAppDetailPath,
+  orgWorkspaceAppPublishPath,
+  orgWorkspaceAgentDetailPath,
+  orgWorkspaceAgentPublishPath,
+  orgWorkspaceAppWorkflowPath,
+  orgWorkspaceAppChatflowPath,
+  orgWorkspaceWorkflowPath,
+  orgWorkspaceChatflowPath,
+  orgWorkspaceKnowledgeBaseDetailPath,
+  orgWorkspaceKnowledgeBaseUploadPath,
+  orgWorkspaceDatabaseDetailPath,
+  orgWorkspacePluginDetailPath,
+  signPath
 } from "@atlas/app-shell-shared";
 import { AuthProvider, useAuth } from "./auth-context";
 import { BootstrapProvider, useBootstrap } from "./bootstrap-context";
 import { AppI18nProvider, useAppI18n } from "./i18n";
+import { OrganizationProvider, useOptionalOrganizationContext } from "./organization-context";
+import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
 import { APP_PERMISSIONS } from "@/constants/permissions";
 import {
   getConfiguredAppKey,
@@ -285,6 +304,17 @@ import {
   workflowV2Api
 } from "@/services/api-workflow";
 import { executeWorkflowTask } from "@/services/api-workflow-playground";
+import {
+  createWorkspaceDevelopApp,
+  getWorkspaceByAppKey,
+  getWorkspaceDevelopApps,
+  getWorkspaceResources,
+  getWorkspaces,
+  type WorkspaceAppCardDto,
+  type WorkspaceResourceCardDto
+} from "@/services/api-org-workspaces";
+import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page";
+import { WorkspaceDevelopPage } from "./pages/workspace-develop-page";
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
@@ -413,28 +443,45 @@ function LoadingPage() {
   );
 }
 
+function useResolvedOrgId(): string {
+  const params = useParams();
+  const organization = useOptionalOrganizationContext();
+  return params.orgId ?? organization?.orgId ?? getTenantId() ?? "";
+}
+
+function useResolvedWorkspaceId(): string {
+  const params = useParams();
+  const workspace = useOptionalWorkspaceContext();
+  return params.workspaceId ?? workspace?.id ?? "";
+}
+
+function useResolvedAppKey(): string {
+  const params = useParams();
+  const workspace = useOptionalWorkspaceContext();
+  return params.appKey ?? workspace?.appKey ?? getConfiguredAppKey() ?? "";
+}
+
 function UnauthorizedNavigationBridge() {
   const navigate = useNavigate();
-  const { appKey } = useParams();
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      navigate(appSignPath(appKey || getConfiguredAppKey()), { replace: true });
+      navigate(signPath(), { replace: true });
     });
 
     return () => {
       setUnauthorizedHandler(null);
     };
-  }, [appKey, navigate]);
+  }, [navigate]);
 
   return null;
 }
 
 function ProtectedPage({ permission, children }: { permission?: string; children: ReactElement }) {
   const auth = useAuth();
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   if (permission && !auth.hasPermission(permission)) {
-    return <Navigate to={appForbiddenPath(appKey)} replace />;
+    return <Navigate to={appKey ? appForbiddenPath(appKey) : "/forbidden"} replace />;
   }
   return children;
 }
@@ -1347,7 +1394,8 @@ function StudioPluginsRoute() {
 }
 
 function StudioPluginDetailRoute() {
-  const { appKey = "", id = "" } = useParams();
+  const { id = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const navigate = useNavigate();
   const { studioApi } = useAppApis(appKey);
@@ -1480,7 +1528,8 @@ function StudioDatabasesRoute() {
 }
 
 function StudioDatabaseDetailRoute() {
-  const { appKey = "", id = "" } = useParams();
+  const { id = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const navigate = useNavigate();
   const { studioApi } = useAppApis(appKey);
@@ -2272,7 +2321,7 @@ function AdminProfileRoute() {
 }
 
 function ExplorePluginsRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
   const navigate = useNavigate();
@@ -2287,7 +2336,7 @@ function ExplorePluginsRoute() {
 }
 
 function ExploreTemplatesRoute() {
-  const { appKey = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
   const navigate = useNavigate();
@@ -2302,7 +2351,8 @@ function ExploreTemplatesRoute() {
 }
 
 function ExploreSearchRoute() {
-  const { appKey = "", word = "" } = useParams();
+  const { word = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
   const navigate = useNavigate();
@@ -2310,7 +2360,8 @@ function ExploreSearchRoute() {
 }
 
 function ExplorePluginDetailRoute() {
-  const { appKey = "", productId = "" } = useParams();
+  const { productId = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
   const navigate = useNavigate();
@@ -2325,7 +2376,8 @@ function ExplorePluginDetailRoute() {
 }
 
 function ExploreTemplateDetailRoute() {
-  const { appKey = "", templateId = "" } = useParams();
+  const { templateId = "" } = useParams();
+  const appKey = useResolvedAppKey();
   const { locale } = useAppI18n();
   const { exploreApi } = useAppApis(appKey);
   const navigate = useNavigate();
@@ -2339,77 +2391,538 @@ function ExploreTemplateDetailRoute() {
   );
 }
 
+function RootEntryRoute() {
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
+  const tenantId = getTenantId() ?? "";
+
+  if (bootstrap.loading || auth.loading) {
+    return <LoadingPage />;
+  }
+
+  if (!bootstrap.platformReady) {
+    return <Navigate to="/platform-not-ready" replace />;
+  }
+
+  if (!bootstrap.appReady) {
+    return <Navigate to="/app-setup" replace />;
+  }
+
+  if (!auth.isAuthenticated || !tenantId) {
+    return <Navigate to={signPath()} replace />;
+  }
+
+  return <Navigate to={orgWorkspacesPath(tenantId)} replace />;
+}
+
+function WorkspaceListRoute() {
+  const { orgId = "" } = useParams();
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
+  const [loading, setLoading] = useState(true);
+  const [keyword, setKeyword] = useState("");
+  const [items, setItems] = useState<Awaited<ReturnType<typeof getWorkspaces>>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!auth.isAuthenticated) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      try {
+        const result = await getWorkspaces(orgId);
+        if (!cancelled) {
+          setItems(result);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAuthenticated, orgId]);
+
+  if (bootstrap.loading || auth.loading) {
+    return <LoadingPage />;
+  }
+
+  if (!auth.isAuthenticated) {
+    return <Navigate to={signPath()} replace />;
+  }
+
+  return (
+    <OrganizationProvider orgId={orgId}>
+      <OrganizationWorkspacesPage
+        loading={loading}
+        keyword={keyword}
+        items={items}
+        onKeywordChange={setKeyword}
+        onOpenWorkspace={workspaceId => navigate(orgWorkspaceDevelopPath(orgId, workspaceId))}
+      />
+    </OrganizationProvider>
+  );
+}
+
+function WorkspaceShellRoute() {
+  const { orgId = "", workspaceId = "" } = useParams();
+
+  return (
+    <OrganizationProvider orgId={orgId}>
+      <WorkspaceProvider orgId={orgId} workspaceId={workspaceId}>
+        <WorkspaceShellInner />
+      </WorkspaceProvider>
+    </OrganizationProvider>
+  );
+}
+
+function WorkspaceShellInner() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
+  const { locale, setLocale } = useAppI18n();
+  const organization = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const appKey = workspace.appKey;
+
+  useEffect(() => {
+    if (auth.isAuthenticated && !auth.profile && !auth.loading) {
+      void auth.ensureProfile();
+    }
+  }, [auth]);
+
+  if (bootstrap.loading || auth.loading || workspace.loading) {
+    return <LoadingPage />;
+  }
+
+  if (!appKey) {
+    return <Navigate to={orgWorkspacesPath(organization)} replace />;
+  }
+
+  if (!bootstrap.platformReady) {
+    return <Navigate to="/platform-not-ready" replace />;
+  }
+
+  if (!bootstrap.appReady) {
+    return <Navigate to="/app-setup" replace />;
+  }
+
+  if (!auth.isAuthenticated) {
+    return <Navigate to={signPath(location.pathname + location.search)} replace />;
+  }
+
+  const activePath = `${location.pathname}${location.search}`;
+  const navSections: CozeNavSection[] = [
+    {
+      key: "workspace",
+      title: locale === "zh-CN" ? "工作空间" : "Workspace",
+      items: [
+        {
+          key: "develop",
+          label: locale === "zh-CN" ? "开发" : "Develop",
+          icon: navGlyph("D"),
+          path: orgWorkspaceDevelopPath(organization, workspace.id),
+          testId: "workspace-nav-develop"
+        },
+        {
+          key: "library",
+          label: locale === "zh-CN" ? "资源库" : "Library",
+          icon: navGlyph("L"),
+          path: orgWorkspaceLibraryPath(organization, workspace.id),
+          testId: "workspace-nav-library"
+        }
+      ]
+    },
+    {
+      key: "explore",
+      title: locale === "zh-CN" ? "探索" : "Explore",
+      items: [
+        {
+          key: "plugin",
+          label: locale === "zh-CN" ? "插件商店" : "Plugin Store",
+          icon: navGlyph("PL"),
+          path: "/explore/plugin",
+          testId: "workspace-nav-explore-plugin"
+        },
+        {
+          key: "template",
+          label: locale === "zh-CN" ? "模板商店" : "Template Store",
+          icon: navGlyph("TP"),
+          path: "/explore/template",
+          testId: "workspace-nav-explore-template"
+        }
+      ]
+    }
+  ];
+
+  const headerTitle = location.pathname.includes("/library")
+    ? (locale === "zh-CN" ? "资源库" : "Library")
+    : (locale === "zh-CN" ? "开发" : "Develop");
+  const headerSubtitle = workspace.name || workspace.appKey;
+
+  return (
+    <>
+      <UnauthorizedNavigationBridge />
+      <CozeShell
+        appKey={workspace.appKey}
+        backPath={orgWorkspacesPath(organization)}
+        workspaceLabel={workspace.name || workspace.appKey}
+        activePath={activePath}
+        navSections={navSections}
+        headerTitle={headerTitle}
+        headerSubtitle={headerSubtitle}
+        localeLabel={locale === "zh-CN" ? "English" : "中文"}
+        userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+        logoutLabel={locale === "zh-CN" ? "退出登录" : "Sign Out"}
+        onNavigate={navigate}
+        onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
+        onLogout={() => {
+          void auth.logout().then(() => navigate(signPath(), { replace: true }));
+        }}
+      >
+        <Outlet />
+      </CozeShell>
+    </>
+  );
+}
+
+function WorkspaceLibraryRoute() {
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  return <LibraryPage api={libraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} onNavigate={navigate} />;
+}
+
+function WorkspaceKnowledgeDetailRoute() {
+  const { id = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  return <KnowledgeDetailPage api={libraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} onNavigate={navigate} />;
+}
+
+function WorkspaceKnowledgeUploadRoute() {
+  const { id = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  return <KnowledgeUploadPage api={libraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} initialType={searchParams.get("type")} onNavigate={navigate} />;
+}
+
+function WorkspaceDevelopRoute() {
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [keyword, setKeyword] = useState("");
+  const [apps, setApps] = useState<WorkspaceAppCardDto[]>([]);
+  const [secondaryTab, setSecondaryTab] = useState<"agents" | "workflow" | "chatflow" | "plugins" | "knowledge-base" | "database">("agents");
+  const [secondaryLoading, setSecondaryLoading] = useState(false);
+  const [secondaryItems, setSecondaryItems] = useState<WorkspaceResourceCardDto[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadApps = async () => {
+      setLoading(true);
+      try {
+        const result = await getWorkspaceDevelopApps(orgId, workspace.id, { pageIndex: 1, pageSize: 24, keyword });
+        if (!cancelled) {
+          setApps(result.items);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadApps();
+    return () => {
+      cancelled = true;
+    };
+  }, [keyword, orgId, workspace.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSecondary = async () => {
+      setSecondaryLoading(true);
+      try {
+        const result = await getWorkspaceResources(orgId, workspace.id, secondaryTab, { pageIndex: 1, pageSize: 8 });
+        if (!cancelled) {
+          setSecondaryItems(result.items);
+        }
+      } finally {
+        if (!cancelled) {
+          setSecondaryLoading(false);
+        }
+      }
+    };
+
+    void loadSecondary();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, secondaryTab, workspace.id]);
+
+  return (
+    <WorkspaceDevelopPage
+      loading={loading}
+      creating={creating}
+      workspaceName={workspace.name}
+      keyword={keyword}
+      appItems={apps}
+      secondaryLoading={secondaryLoading}
+      secondaryItems={secondaryItems}
+      secondaryTab={secondaryTab}
+      onKeywordChange={setKeyword}
+      onSecondaryTabChange={setSecondaryTab}
+      onOpenApp={appId => navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, appId))}
+      onOpenAppPublish={appId => navigate(orgWorkspaceAppPublishPath(orgId, workspace.id, appId))}
+      onOpenAppWorkflow={(appId, workflowId) => navigate(orgWorkspaceAppWorkflowPath(orgId, workspace.id, appId, workflowId))}
+      onOpenResource={resource => {
+        if (resource.resourceType === "agent") {
+          navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, resource.resourceId));
+        } else if (resource.resourceType === "workflow") {
+          navigate(orgWorkspaceWorkflowPath(orgId, workspace.id, resource.resourceId));
+        } else if (resource.resourceType === "chatflow") {
+          navigate(orgWorkspaceChatflowPath(orgId, workspace.id, resource.resourceId));
+        } else if (resource.resourceType === "knowledge-base") {
+          navigate(orgWorkspaceKnowledgeBaseDetailPath(orgId, workspace.id, resource.resourceId));
+        } else if (resource.resourceType === "database") {
+          navigate(orgWorkspaceDatabaseDetailPath(orgId, workspace.id, resource.resourceId));
+        } else if (resource.resourceType === "plugin") {
+          navigate(orgWorkspacePluginDetailPath(orgId, workspace.id, resource.resourceId));
+        }
+      }}
+      onCreateApp={async request => {
+        setCreating(true);
+        try {
+          const result = await createWorkspaceDevelopApp(orgId, workspace.id, request);
+          navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, result.appId));
+        } finally {
+          setCreating(false);
+        }
+      }}
+    />
+  );
+}
+
+function WorkspaceAppDetailRoute() {
+  const { id = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  const orgId = useResolvedOrgId();
+  const { studioApi } = useAppApis(workspace.appKey);
+  return (
+    <AppDetailPage
+      api={studioApi}
+      locale={locale}
+      appId={id}
+      onOpenWorkflow={workflowId => navigate(orgWorkspaceAppWorkflowPath(orgId, workspace.id, id, workflowId))}
+      onOpenPublish={() => navigate(orgWorkspaceAppPublishPath(orgId, workspace.id, id))}
+    />
+  );
+}
+
+function WorkspaceAppPublishRoute() {
+  const { id = "" } = useParams();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  const { studioApi } = useAppApis(workspace.appKey);
+  return <AppPublishPage api={studioApi} locale={locale} appId={id} />;
+}
+
+function WorkspaceAgentDetailRoute() {
+  const { id = "" } = useParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  const orgId = useResolvedOrgId();
+  const { studioApi } = useAppApis(workspace.appKey);
+  return (
+    <BotIdePage
+      api={studioApi}
+      locale={locale}
+      botId={id}
+      onOpenPublish={() => navigate(orgWorkspaceAgentPublishPath(orgId, workspace.id, id))}
+    />
+  );
+}
+
+function WorkspaceAgentPublishRoute() {
+  const { id = "" } = useParams();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  const { studioApi } = useAppApis(workspace.appKey);
+  return <AssistantPublishPage api={studioApi} locale={locale} assistantId={id} />;
+}
+
+function WorkspaceWorkflowRedirectRoute() {
+  const { id = "" } = useParams();
+  const workspace = useWorkspaceContext();
+  return <Navigate to={buildWorkflowWorkbenchPath(workspace.appKey, id)} replace />;
+}
+
+function WorkspaceChatflowRedirectRoute() {
+  const { id = "" } = useParams();
+  const workspace = useWorkspaceContext();
+  return <Navigate to={buildChatflowWorkbenchPath(workspace.appKey, id)} replace />;
+}
+
+function WorkspaceAppWorkflowRedirectRoute() {
+  const { workflowId = "" } = useParams();
+  const workspace = useWorkspaceContext();
+  return <Navigate to={buildWorkflowWorkbenchPath(workspace.appKey, workflowId)} replace />;
+}
+
+function WorkspaceAppChatflowRedirectRoute() {
+  const { workflowId = "" } = useParams();
+  const workspace = useWorkspaceContext();
+  return <Navigate to={buildChatflowWorkbenchPath(workspace.appKey, workflowId)} replace />;
+}
+
+function LegacyAppRedirectRoute() {
+  const { appKey = "" } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [target, setTarget] = useState<string>("");
+  const tenantId = getTenantId() ?? "";
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!tenantId || !appKey) {
+        setTarget(signPath());
+        return;
+      }
+
+      const workspace = await getWorkspaceByAppKey(tenantId, appKey);
+      if (!cancelled) {
+        if (!workspace) {
+          setTarget(orgWorkspacesPath(tenantId));
+          return;
+        }
+
+        const currentPath = `${location.pathname}${location.search}`;
+        const normalizedAppPrefix = `/apps/${encodeURIComponent(appKey)}`;
+        const relativePath = currentPath.startsWith(normalizedAppPrefix)
+          ? currentPath.slice(normalizedAppPrefix.length)
+          : "";
+        let nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
+
+        const knowledgeUploadMatch = relativePath.match(/^\/studio\/knowledge-bases\/([^/]+)\/upload(\?.*)?$/);
+        if (knowledgeUploadMatch) {
+          nextTarget = `${orgWorkspaceKnowledgeBaseUploadPath(tenantId, workspace.id, decodeURIComponent(knowledgeUploadMatch[1]))}${knowledgeUploadMatch[2] ?? ""}`;
+        } else {
+          const knowledgeDetailMatch = relativePath.match(/^\/studio\/knowledge-bases\/([^/?]+)$/);
+          const agentPublishMatch = relativePath.match(/^\/studio\/assistants\/([^/]+)\/publish$/);
+          const agentDetailMatch = relativePath.match(/^\/studio\/assistants\/([^/?]+)$/);
+          const appPublishMatch = relativePath.match(/^\/studio\/apps\/([^/]+)\/publish$/);
+          const appDetailMatch = relativePath.match(/^\/studio\/apps\/([^/?]+)$/);
+          const pluginDetailMatch = relativePath.match(/^\/studio\/plugins\/([^/?]+)$/);
+          const databaseDetailMatch = relativePath.match(/^\/studio\/databases\/([^/?]+)$/);
+          const workflowEditorMatch = relativePath.match(/^\/work_flow\/([^/]+)\/editor$/);
+          const chatflowEditorMatch = relativePath.match(/^\/chat_flow\/([^/]+)\/editor$/);
+
+          if (knowledgeDetailMatch) {
+            nextTarget = orgWorkspaceKnowledgeBaseDetailPath(tenantId, workspace.id, decodeURIComponent(knowledgeDetailMatch[1]));
+          } else if (agentPublishMatch) {
+            nextTarget = orgWorkspaceAgentPublishPath(tenantId, workspace.id, decodeURIComponent(agentPublishMatch[1]));
+          } else if (agentDetailMatch) {
+            nextTarget = orgWorkspaceAgentDetailPath(tenantId, workspace.id, decodeURIComponent(agentDetailMatch[1]));
+          } else if (appPublishMatch) {
+            nextTarget = orgWorkspaceAppPublishPath(tenantId, workspace.id, decodeURIComponent(appPublishMatch[1]));
+          } else if (appDetailMatch) {
+            nextTarget = orgWorkspaceAppDetailPath(tenantId, workspace.id, decodeURIComponent(appDetailMatch[1]));
+          } else if (pluginDetailMatch) {
+            nextTarget = orgWorkspacePluginDetailPath(tenantId, workspace.id, decodeURIComponent(pluginDetailMatch[1]));
+          } else if (databaseDetailMatch) {
+            nextTarget = orgWorkspaceDatabaseDetailPath(tenantId, workspace.id, decodeURIComponent(databaseDetailMatch[1]));
+          } else if (workflowEditorMatch) {
+            nextTarget = orgWorkspaceWorkflowPath(tenantId, workspace.id, decodeURIComponent(workflowEditorMatch[1]));
+          } else if (chatflowEditorMatch) {
+            nextTarget = orgWorkspaceChatflowPath(tenantId, workspace.id, decodeURIComponent(chatflowEditorMatch[1]));
+          } else if (relativePath.startsWith("/studio/knowledge-bases")) {
+            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
+          } else if (relativePath.startsWith("/studio/apps")) {
+            nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
+          } else if (relativePath.startsWith("/studio/assistants")) {
+            nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
+          } else if (relativePath.startsWith("/studio/plugins")) {
+            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
+          } else if (relativePath.startsWith("/studio/databases")) {
+            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
+          } else if (relativePath.startsWith("/work_flow") || relativePath.startsWith("/chat_flow")) {
+            nextTarget = orgWorkspaceDevelopPath(tenantId, workspace.id);
+          } else if (relativePath.startsWith("/studio/library")) {
+            nextTarget = orgWorkspaceLibraryPath(tenantId, workspace.id);
+          }
+        }
+
+        setTarget(nextTarget);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [appKey, location.pathname, location.search, tenantId]);
+
+  useEffect(() => {
+    if (target) {
+      navigate(target, { replace: true });
+    }
+  }, [navigate, target]);
+
+  return <LoadingPage />;
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<RootEntryRoute />} />
         <Route path="/platform-not-ready" element={<PlatformNotReadyPage />} />
         <Route path="/app-setup" element={<AppSetupPage />} />
+        <Route path="/sign" element={<LoginPage />} />
         <Route path="/apps/:appKey/sign" element={<LoginPage />} />
-        <Route path="/apps/:appKey" element={<AppShellRoute />}>
-          <Route index element={<DefaultWorkspaceRedirect />} />
-          <Route path="studio/dashboard" element={<StudioDashboardAliasRedirect />} />
-          <Route path="studio/develop" element={<StudioDevelopAliasRedirect />} />
-          <Route path="studio/assistants" element={<StudioAssistantsAliasRedirect />} />
-          <Route path="studio/assistants/:id" element={<StudioAssistantDetailRoute />} />
-          <Route path="studio/assistants/:id/publish" element={<StudioAssistantPublishRoute />} />
-          <Route path="studio/apps" element={<StudioAppsAliasRedirect />} />
-          <Route path="studio/apps/:id" element={<StudioAppDetailRoute />} />
-          <Route path="studio/apps/:id/publish" element={<StudioAppPublishRoute />} />
-          <Route path="studio/library" element={<StudioLibraryAliasRedirect />} />
-          <Route path="studio/plugins/:id" element={<StudioPluginDetailRoute />} />
-          <Route path="studio/plugins" element={<StudioPluginsRoute />} />
-          <Route path="studio/assistant-tools" element={<StudioAssistantToolsRoute />} />
-          <Route path="studio/data" element={<StudioDataRoute />} />
-          <Route path="studio/knowledge-bases/:id/upload" element={<StudioKnowledgeBaseUploadRoute />} />
-          <Route path="studio/knowledge-bases/:id" element={<StudioKnowledgeBaseDetailRoute />} />
-          <Route path="studio/knowledge-bases" element={<StudioKnowledgeBasesRoute />} />
-          <Route path="studio/databases/:id" element={<StudioDatabaseDetailRoute />} />
-          <Route path="studio/databases" element={<StudioDatabasesRoute />} />
-          <Route path="studio/publish-center" element={<StudioPublishCenterRoute />} />
-          <Route path="studio/variables" element={<StudioVariablesRoute />} />
-          <Route path="workflows" element={<WorkflowsAliasRedirect />} />
-          <Route path="workflows/:id/editor" element={<WorkflowEditorAliasRedirect />} />
-          <Route path="chatflows" element={<ChatflowsAliasRedirect />} />
-          <Route path="chatflows/:id/editor" element={<ChatflowEditorAliasRedirect />} />
-          <Route path="space/:spaceId/dashboard" element={<DashboardRoute />} />
-          <Route path="space/:spaceId/develop" element={<DevelopRoute />} />
-          <Route path="space/:spaceId/chat" element={<AgentChatRoute />} />
-          <Route path="space/:spaceId/assistant" element={<AiAssistantRoute />} />
-          <Route path="space/:spaceId/model-configs" element={<ModelConfigsRoute />} />
-          <Route path="space/:spaceId/bot/:botId" element={<BotIdeRoute />} />
-          <Route path="space/:spaceId/library" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><LibraryRoute /></ProtectedPage>} />
-          <Route path="space/:spaceId/knowledge/:id" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><KnowledgeDetailRoute /></ProtectedPage>} />
-          <Route path="space/:spaceId/knowledge/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><KnowledgeUploadRoute /></ProtectedPage>} />
-          <Route path="explore/plugin/:productId" element={<ExplorePluginDetailRoute />} />
-          <Route path="explore/plugin" element={<ExplorePluginsRoute />} />
-          <Route path="explore/template/:templateId" element={<ExploreTemplateDetailRoute />} />
-          <Route path="explore/template" element={<ExploreTemplatesRoute />} />
-          <Route path="search/:word" element={<ExploreSearchRoute />} />
-          <Route path="entry" element={<EntryGatewayPage />} />
-          <Route path="work_flow" element={<WorkflowListRoute mode="workflow" contentMode="canvas" />} />
-          <Route path="work_flow/variables" element={<WorkflowListRoute mode="workflow" contentMode="variables" />} />
-          <Route path="work_flow/session" element={<WorkflowListRoute mode="workflow" contentMode="session" />} />
-          <Route path="work_flow/:id/editor" element={<WorkflowEditorRoute mode="workflow" />} />
-          <Route path="chat_flow" element={<WorkflowListRoute mode="chatflow" contentMode="canvas" />} />
-          <Route path="chat_flow/variables" element={<WorkflowListRoute mode="chatflow" contentMode="variables" />} />
-          <Route path="chat_flow/session" element={<WorkflowListRoute mode="chatflow" contentMode="session" />} />
-          <Route path="chat_flow/:id/editor" element={<WorkflowEditorRoute mode="chatflow" />} />
-          <Route path="admin/overview" element={<AdminOverviewRoute />} />
-          <Route path="admin/users" element={<AdminUsersRoute />} />
-          <Route path="admin/roles" element={<AdminRolesRoute />} />
-          <Route path="admin/departments" element={<AdminDepartmentsRoute />} />
-          <Route path="admin/positions" element={<AdminPositionsRoute />} />
-          <Route path="admin/approval" element={<AdminApprovalRoute />} />
-          <Route path="admin/reports" element={<AdminReportsRoute />} />
-          <Route path="admin/dashboards" element={<AdminDashboardsRoute />} />
-          <Route path="admin/visualization" element={<AdminVisualizationRoute />} />
-          <Route path="admin/settings" element={<AdminSettingsRoute />} />
-          <Route path="admin/profile" element={<AdminProfileRoute />} />
-          <Route path="forbidden" element={<ForbiddenPage />} />
-          <Route path="*" element={<DefaultWorkspaceRedirect />} />
+        <Route path="/org/:orgId/workspaces" element={<WorkspaceListRoute />} />
+        <Route path="/org/:orgId/workspaces/:workspaceId" element={<WorkspaceShellRoute />}>
+          <Route index element={<Navigate to="develop" replace />} />
+          <Route path="develop" element={<WorkspaceDevelopRoute />} />
+          <Route path="library" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><WorkspaceLibraryRoute /></ProtectedPage>} />
+          <Route path="apps/:id" element={<WorkspaceAppDetailRoute />} />
+          <Route path="apps/:id/publish" element={<WorkspaceAppPublishRoute />} />
+          <Route path="apps/:id/workflows/:workflowId" element={<WorkspaceAppWorkflowRedirectRoute />} />
+          <Route path="apps/:id/chatflows/:workflowId" element={<WorkspaceAppChatflowRedirectRoute />} />
+          <Route path="agents/:id" element={<WorkspaceAgentDetailRoute />} />
+          <Route path="agents/:id/publish" element={<WorkspaceAgentPublishRoute />} />
+          <Route path="workflows/:id" element={<WorkspaceWorkflowRedirectRoute />} />
+          <Route path="chatflows/:id" element={<WorkspaceChatflowRedirectRoute />} />
+          <Route path="knowledge-bases/:id" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><WorkspaceKnowledgeDetailRoute /></ProtectedPage>} />
+          <Route path="knowledge-bases/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><WorkspaceKnowledgeUploadRoute /></ProtectedPage>} />
+          <Route path="databases/:id" element={<StudioDatabaseDetailRoute />} />
+          <Route path="plugins/:id" element={<StudioPluginDetailRoute />} />
         </Route>
+        <Route path="/explore/plugin/:productId" element={<ExplorePluginDetailRoute />} />
+        <Route path="/explore/plugin" element={<ExplorePluginsRoute />} />
+        <Route path="/explore/template/:templateId" element={<ExploreTemplateDetailRoute />} />
+        <Route path="/explore/template" element={<ExploreTemplatesRoute />} />
+        <Route path="/search/:word" element={<ExploreSearchRoute />} />
+        <Route path="/apps/:appKey/*" element={<LegacyAppRedirectRoute />} />
+        <Route path="/forbidden" element={<ForbiddenPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

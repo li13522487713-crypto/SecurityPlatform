@@ -26,11 +26,13 @@ public sealed class AiApp : TenantEntity
         long? agentId,
         long? workflowId,
         long? promptTemplateId,
-        long id)
+        long id,
+        long? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
         Name = name;
+        WorkspaceId = workspaceId;
         Description = description ?? string.Empty;
         Icon = icon ?? string.Empty;
         AgentId = agentId;
@@ -48,6 +50,7 @@ public sealed class AiApp : TenantEntity
     }
 
     public string Name { get; private set; }
+    public long? WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public string? Icon { get; private set; }
     public long? AgentId { get; private set; }
@@ -77,9 +80,14 @@ public sealed class AiApp : TenantEntity
         string? uiBuilderSchemaJson = null,
         string? workspaceLayoutJson = null,
         string? publishedConnectorConfigJson = null,
-        string? lastPublishedSnapshotJson = null)
+        string? lastPublishedSnapshotJson = null,
+        long? workspaceId = null)
     {
         Name = name;
+        if (workspaceId.HasValue)
+        {
+            WorkspaceId = workspaceId.Value;
+        }
         Description = description ?? string.Empty;
         Icon = icon ?? string.Empty;
         AgentId = agentId;
@@ -100,6 +108,17 @@ public sealed class AiApp : TenantEntity
         PublishVersion++;
         PublishedAt = DateTime.UtcNow;
         UpdatedAt = PublishedAt;
+    }
+
+    public void AssignWorkspace(long workspaceId)
+    {
+        if (workspaceId <= 0)
+        {
+            return;
+        }
+
+        WorkspaceId = workspaceId;
+        UpdatedAt = DateTime.UtcNow;
     }
 }
 

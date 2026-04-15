@@ -1,6 +1,6 @@
 import { createApiClient } from "@atlas/shared-react-core/api";
 import type { RequestOptions } from "@atlas/shared-react-core/api";
-import { appSignPath } from "@atlas/app-shell-shared";
+import { signPath } from "@atlas/app-shell-shared";
 import { clearAuthStorage } from "@atlas/shared-react-core/utils";
 
 export type AppRuntimeMode = "app";
@@ -102,12 +102,7 @@ async function forceLogout() {
   }
 
   if (typeof window !== "undefined") {
-    const appKey = getCurrentRouteAppKey();
-    if (appKey) {
-      window.location.assign(appSignPath(appKey));
-      return;
-    }
-    window.location.assign("/");
+    window.location.assign(signPath());
   }
 }
 

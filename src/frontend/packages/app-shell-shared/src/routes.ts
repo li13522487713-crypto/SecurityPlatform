@@ -48,6 +48,111 @@ export function appRootPath(appKey: string): string {
   return `/apps/${encodeSegment(appKey)}`;
 }
 
+export function signPath(redirect?: string): string {
+  return withQuery("/sign", { redirect });
+}
+
+export function orgRootPath(orgId: string): string {
+  return `/org/${encodeSegment(orgId)}`;
+}
+
+export function orgWorkspacesPath(orgId: string): string {
+  return `${orgRootPath(orgId)}/workspaces`;
+}
+
+export function orgWorkspacePath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacesPath(orgId)}/${encodeSegment(workspaceId)}`;
+}
+
+export function orgWorkspaceDevelopPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/develop`;
+}
+
+export function orgWorkspaceLibraryPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/library`;
+}
+
+export function orgWorkspaceAppsPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/apps`;
+}
+
+export function orgWorkspaceAppDetailPath(orgId: string, workspaceId: string, appId: string): string {
+  return `${orgWorkspaceAppsPath(orgId, workspaceId)}/${encodeSegment(appId)}`;
+}
+
+export function orgWorkspaceAppPublishPath(orgId: string, workspaceId: string, appId: string): string {
+  return `${orgWorkspaceAppDetailPath(orgId, workspaceId, appId)}/publish`;
+}
+
+export function orgWorkspaceAgentsPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/agents`;
+}
+
+export function orgWorkspaceAgentDetailPath(orgId: string, workspaceId: string, agentId: string): string {
+  return `${orgWorkspaceAgentsPath(orgId, workspaceId)}/${encodeSegment(agentId)}`;
+}
+
+export function orgWorkspaceAgentPublishPath(orgId: string, workspaceId: string, agentId: string): string {
+  return `${orgWorkspaceAgentDetailPath(orgId, workspaceId, agentId)}/publish`;
+}
+
+export function orgWorkspaceWorkflowPath(orgId: string, workspaceId: string, workflowId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/workflows/${encodeSegment(workflowId)}`;
+}
+
+export function orgWorkspaceChatflowPath(orgId: string, workspaceId: string, workflowId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/chatflows/${encodeSegment(workflowId)}`;
+}
+
+export function orgWorkspaceAppWorkflowPath(orgId: string, workspaceId: string, appId: string, workflowId: string): string {
+  return `${orgWorkspaceAppDetailPath(orgId, workspaceId, appId)}/workflows/${encodeSegment(workflowId)}`;
+}
+
+export function orgWorkspaceAppChatflowPath(orgId: string, workspaceId: string, appId: string, workflowId: string): string {
+  return `${orgWorkspaceAppDetailPath(orgId, workspaceId, appId)}/chatflows/${encodeSegment(workflowId)}`;
+}
+
+export function orgWorkspaceKnowledgeBasesPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/knowledge-bases`;
+}
+
+export function orgWorkspaceKnowledgeBaseDetailPath(orgId: string, workspaceId: string, knowledgeBaseId: string | number): string {
+  return `${orgWorkspaceKnowledgeBasesPath(orgId, workspaceId)}/${encodeSegment(knowledgeBaseId)}`;
+}
+
+export function orgWorkspaceKnowledgeBaseUploadPath(
+  orgId: string,
+  workspaceId: string,
+  knowledgeBaseId: string | number,
+  query?: Record<string, string | null | undefined>
+): string {
+  return withQuery(`${orgWorkspaceKnowledgeBaseDetailPath(orgId, workspaceId, knowledgeBaseId)}/upload`, query);
+}
+
+export function orgWorkspaceDatabasesPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/databases`;
+}
+
+export function orgWorkspaceDatabaseDetailPath(orgId: string, workspaceId: string, databaseId: string | number): string {
+  return `${orgWorkspaceDatabasesPath(orgId, workspaceId)}/${encodeSegment(databaseId)}`;
+}
+
+export function orgWorkspacePluginsPath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/plugins`;
+}
+
+export function orgWorkspacePluginDetailPath(orgId: string, workspaceId: string, pluginId: string | number): string {
+  return `${orgWorkspacePluginsPath(orgId, workspaceId)}/${encodeSegment(pluginId)}`;
+}
+
+export function orgSettingsPath(orgId: string, leaf = "profile"): string {
+  return `${orgRootPath(orgId)}/settings/${encodeSegment(leaf)}`;
+}
+
+export function orgWorkspaceSettingsPath(orgId: string, workspaceId: string, leaf = "profile"): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/settings/${encodeSegment(leaf)}`;
+}
+
 export function appSignPath(appKey: string, redirect?: string): string {
   return withQuery(`${appRootPath(appKey)}/sign`, {
     redirect

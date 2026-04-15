@@ -35,11 +35,13 @@ public sealed class AiPlugin : TenantEntity
         string? authConfigJson,
         string? toolSchemaJson,
         string? openApiSpecJson,
-        long id)
+        long id,
+        long? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
         Name = name;
+        WorkspaceId = workspaceId;
         Description = description ?? string.Empty;
         Icon = icon ?? string.Empty;
         Category = category ?? string.Empty;
@@ -59,6 +61,7 @@ public sealed class AiPlugin : TenantEntity
     }
 
     public string Name { get; private set; }
+    public long? WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public string? Icon { get; private set; }
     public string? Category { get; private set; }
@@ -92,9 +95,14 @@ public sealed class AiPlugin : TenantEntity
         string? toolSchemaJson,
         string? openApiSpecJson,
         string? manifestJson = null,
-        string? serverUrl = null)
+        string? serverUrl = null,
+        long? workspaceId = null)
     {
         Name = name;
+        if (workspaceId.HasValue)
+        {
+            WorkspaceId = workspaceId.Value;
+        }
         Description = description ?? string.Empty;
         Icon = icon ?? string.Empty;
         Category = category ?? string.Empty;
@@ -129,6 +137,17 @@ public sealed class AiPlugin : TenantEntity
     {
         IsLocked = false;
         LockOwnerId = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void AssignWorkspace(long workspaceId)
+    {
+        if (workspaceId <= 0)
+        {
+            return;
+        }
+
+        WorkspaceId = workspaceId;
         UpdatedAt = DateTime.UtcNow;
     }
 }

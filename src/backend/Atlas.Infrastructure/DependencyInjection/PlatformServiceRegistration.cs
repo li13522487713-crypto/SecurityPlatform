@@ -23,6 +23,10 @@ public static class PlatformServiceRegistration
         services.AddScoped<IAppPositionRepository, AppPositionRepository>();
         services.AddScoped<IAppProjectRepository, AppProjectRepository>();
         services.AddScoped<IAppProjectUserRepository, AppProjectUserRepository>();
+        services.AddScoped<WorkspaceRepository>();
+        services.AddScoped<WorkspaceRoleRepository>();
+        services.AddScoped<WorkspaceMemberRepository>();
+        services.AddScoped<WorkspaceResourcePermissionRepository>();
         services.AddScoped<IPlatformQueryService, PlatformQueryService>();
         services.AddScoped<ICapabilityRegistry, CapabilityRegistry>();
         services.AddScoped<INavigationProjectionService, NavigationProjectionService>();
@@ -51,6 +55,7 @@ public static class PlatformServiceRegistration
         services.AddScoped<IRuntimeExecutionQueryService, RuntimeExecutionQueryService>();
         services.AddScoped<IAppDesignerSnapshotService, AppDesignerSnapshotService>();
         services.AddScoped<IWorkspaceIdeService, WorkspaceIdeService>();
+        services.AddScoped<IWorkspacePortalService, WorkspacePortalService>();
         return services;
     }
 }

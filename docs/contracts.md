@@ -15,6 +15,103 @@
   - 可选 `versionId`
   - 可选 `executeId`
 
+## Organization / Workspace Portal
+
+### 路由与工作模式
+
+- 新前端主入口采用组织-工作空间层级：
+  - `/sign`
+  - `/org/:orgId/workspaces`
+  - `/org/:orgId/workspaces/:workspaceId/develop`
+  - `/org/:orgId/workspaces/:workspaceId/library`
+  - `/org/:orgId/workspaces/:workspaceId/apps/:appId`
+  - `/org/:orgId/workspaces/:workspaceId/apps/:appId/publish`
+  - `/org/:orgId/workspaces/:workspaceId/agents/:agentId`
+  - `/org/:orgId/workspaces/:workspaceId/agents/:agentId/publish`
+  - `/org/:orgId/workspaces/:workspaceId/apps/:appId/workflows/:workflowId`
+  - `/org/:orgId/workspaces/:workspaceId/apps/:appId/chatflows/:workflowId`
+- 第一版 `orgId` 直接对应当前登录租户 ID。
+- 工作空间为真实后端实体，显式绑定 `AppInstanceId + AppKey`。
+
+### 后端实体
+
+- `Workspace`
+  - `Id`
+  - `TenantIdValue`
+  - `Name`
+  - `Description`
+  - `Icon`
+  - `AppInstanceId`
+  - `AppKey`
+  - `IsArchived`
+  - `CreatedBy`
+  - `CreatedAt`
+  - `UpdatedBy`
+  - `UpdatedAt`
+  - `LastVisitedAt`
+- `WorkspaceRole`
+  - `WorkspaceId`
+  - `Code`
+  - `Name`
+  - `IsSystem`
+  - `DefaultActionsJson`
+- `WorkspaceMember`
+  - `WorkspaceId`
+  - `UserId`
+  - `WorkspaceRoleId`
+  - `JoinedAt`
+- `WorkspaceResourcePermission`
+  - `WorkspaceId`
+  - `WorkspaceRoleId`
+  - `ResourceType`
+  - `ResourceId`
+  - `ActionsJson`
+
+### 资源归属字段
+
+- 下列核心设计资源新增可空 `WorkspaceId`：
+  - `AiApp`
+  - `Agent`
+  - `WorkflowMeta`
+  - `KnowledgeBase`
+  - `AiDatabase`
+  - `AiPlugin`
+- 启动期初始化逻辑会为默认工作空间回填历史资源的 `WorkspaceId`。
+
+### API
+
+- `GET /api/v1/organizations/{orgId}/workspaces`
+  - 返回当前用户可访问的工作空间卡片列表
+- `GET /api/v1/organizations/{orgId}/workspaces/by-app-key/{appKey}`
+  - 旧 `/apps/:appKey/*` 路由迁移时用于定位对应工作空间
+- `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}`
+  - 返回工作空间上下文详情，包括 `appKey / appInstanceId / roleCode / allowedActions`
+- `POST /api/v1/organizations/{orgId}/workspaces`
+  - 创建绑定到指定应用实例的新工作空间
+- `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}/develop/apps`
+  - 应用优先开发页首屏数据，只返回应用卡片
+- `POST /api/v1/organizations/{orgId}/workspaces/{workspaceId}/develop/apps`
+  - 在工作空间内创建应用，并同步创建关联标准 Workflow
+- `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}/resources`
+  - 按资源类型懒加载工作空间资源分区
+- `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}/members`
+- `POST /api/v1/organizations/{orgId}/workspaces/{workspaceId}/members`
+- `PUT /api/v1/organizations/{orgId}/workspaces/{workspaceId}/members/{userId}`
+- `DELETE /api/v1/organizations/{orgId}/workspaces/{workspaceId}/members/{userId}`
+- `GET /api/v1/organizations/{orgId}/workspaces/{workspaceId}/resources/{resourceType}/{resourceId}/permissions`
+- `PUT /api/v1/organizations/{orgId}/workspaces/{workspaceId}/resources/{resourceType}/{resourceId}/permissions`
+
+### 权限语义
+
+- 内置工作空间角色：
+  - `Owner`
+  - `Admin`
+  - `Member`
+- 默认动作：
+  - `Owner/Admin`: `view/edit/publish/delete/manage-permission`
+  - `Member`: `view`
+- `WorkspaceResourcePermission` 用于资源级覆盖；若未配置覆盖，则回退到角色默认动作。
+
 ## Coze Workflow API 兼容层
 
 - `PlatformHost` 与 `AppHost` 额外提供原生 Coze 协议兼容入口：`/api/workflow_api/*`

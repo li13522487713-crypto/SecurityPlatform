@@ -18,11 +18,13 @@ public sealed class KnowledgeBase : TenantEntity
         string name,
         string? description,
         KnowledgeBaseType type,
-        long id)
+        long id,
+        long? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
         Name = name;
+        WorkspaceId = workspaceId;
         Description = description ?? string.Empty;
         Type = type;
         CreatedAt = DateTime.UtcNow;
@@ -31,6 +33,7 @@ public sealed class KnowledgeBase : TenantEntity
     }
 
     public string Name { get; private set; }
+    public long? WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public KnowledgeBaseType Type { get; private set; }
     public int DocumentCount { get; private set; }
@@ -42,6 +45,16 @@ public sealed class KnowledgeBase : TenantEntity
         Name = name;
         Description = description ?? string.Empty;
         Type = type;
+    }
+
+    public void AssignWorkspace(long workspaceId)
+    {
+        if (workspaceId <= 0)
+        {
+            return;
+        }
+
+        WorkspaceId = workspaceId;
     }
 
     public void SetDocumentCount(int count)

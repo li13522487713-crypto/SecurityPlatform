@@ -189,7 +189,8 @@ public sealed class AiAppService : IAiAppService
             request.AgentId,
             request.WorkflowId,
             request.PromptTemplateId,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            request.WorkspaceId);
         await _appRepository.AddAsync(app, cancellationToken);
         return app.Id;
     }
@@ -209,7 +210,8 @@ public sealed class AiAppService : IAiAppService
             request.Icon?.Trim(),
             request.AgentId,
             request.WorkflowId,
-            request.PromptTemplateId);
+            request.PromptTemplateId,
+            workspaceId: request.WorkspaceId);
         await _appRepository.UpdateAsync(app, cancellationToken);
     }
 

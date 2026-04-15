@@ -22,11 +22,13 @@ public sealed class WorkflowMeta : TenantEntity
         string? description,
         WorkflowMode mode,
         long creatorId,
-        long id)
+        long id,
+        long? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
         Name = name;
+        WorkspaceId = workspaceId;
         Description = NormalizeDescription(description);
         Mode = mode;
         Status = WorkflowLifecycleStatus.Draft;
@@ -38,6 +40,7 @@ public sealed class WorkflowMeta : TenantEntity
     }
 
     public string Name { get; private set; }
+    public long? WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public WorkflowMode Mode { get; private set; }
     public WorkflowLifecycleStatus Status { get; private set; }
@@ -53,6 +56,17 @@ public sealed class WorkflowMeta : TenantEntity
     {
         Name = name;
         Description = NormalizeDescription(description);
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void AssignWorkspace(long workspaceId)
+    {
+        if (workspaceId <= 0)
+        {
+            return;
+        }
+
+        WorkspaceId = workspaceId;
         UpdatedAt = DateTime.UtcNow;
     }
 

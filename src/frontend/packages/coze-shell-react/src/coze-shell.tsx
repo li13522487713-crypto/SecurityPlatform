@@ -9,6 +9,7 @@ import type {
 
 interface CozeShellProps {
   appKey: string;
+  backPath?: string;
   workspaceLabel: string;
   activePath: string;
   navSections: CozeNavSection[];
@@ -38,6 +39,7 @@ function isActiveNavItem(item: CozeNavItem, activePath: string): boolean {
 
 export function CozeShell({
   appKey,
+  backPath,
   workspaceLabel,
   activePath,
   navSections,
@@ -64,7 +66,7 @@ export function CozeShell({
           <button
             type="button"
             className="coze-shell__back"
-            onClick={() => onNavigate(`/apps/${encodeURIComponent(appKey)}`)}
+            onClick={() => onNavigate(backPath ?? `/apps/${encodeURIComponent(appKey)}`)}
             data-testid="app-shell-back"
             title="返回应用"
           >

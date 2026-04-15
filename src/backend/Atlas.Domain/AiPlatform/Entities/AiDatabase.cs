@@ -21,11 +21,13 @@ public sealed class AiDatabase : TenantEntity
         string? description,
         long? botId,
         string tableSchema,
-        long id)
+        long id,
+        long? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
         Name = name;
+        WorkspaceId = workspaceId;
         Description = description ?? string.Empty;
         BotId = botId;
         OwnerType = botId.HasValue ? AiDatabaseOwnerType.Agent : AiDatabaseOwnerType.Library;
@@ -38,6 +40,7 @@ public sealed class AiDatabase : TenantEntity
     }
 
     public string Name { get; private set; }
+    public long? WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public long? BotId { get; private set; }
     public AiDatabaseOwnerType OwnerType { get; private set; }
@@ -55,9 +58,14 @@ public sealed class AiDatabase : TenantEntity
         long? botId,
         string tableSchema,
         AiDatabaseOwnerType? ownerType = null,
-        long? ownerId = null)
+        long? ownerId = null,
+        long? workspaceId = null)
     {
         Name = name;
+        if (workspaceId.HasValue)
+        {
+            WorkspaceId = workspaceId.Value;
+        }
         Description = description ?? string.Empty;
         BotId = botId;
         OwnerType = ownerType ?? (botId.HasValue ? AiDatabaseOwnerType.Agent : OwnerType);
@@ -95,6 +103,17 @@ public sealed class AiDatabase : TenantEntity
     public void PublishSchema()
     {
         PublishedVersion++;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void AssignWorkspace(long workspaceId)
+    {
+        if (workspaceId <= 0)
+        {
+            return;
+        }
+
+        WorkspaceId = workspaceId;
         UpdatedAt = DateTime.UtcNow;
     }
 }

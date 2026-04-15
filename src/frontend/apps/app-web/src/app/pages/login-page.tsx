@@ -1,10 +1,9 @@
 import { clearAuthStorage, getTenantId } from "@atlas/shared-react-core/utils";
 import { useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { appSignPath, workspaceDevelopPath } from "../app-paths";
+import { orgWorkspacesPath } from "../app-paths";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
-import { useBootstrap } from "../bootstrap-context";
 
 const HARDCODED_DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 const HARDCODED_DEFAULT_USERNAME = "admin";
@@ -137,7 +136,6 @@ export function LoginPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { t } = useAppI18n();
-  const { appKey: configuredAppKey, spaceId } = useBootstrap();
   const defaultTenantId =
     String(import.meta.env.VITE_DEFAULT_TENANT_ID ?? "").trim() || HARDCODED_DEFAULT_TENANT_ID;
   const defaultUsername =
@@ -149,15 +147,11 @@ export function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const redirectTarget = searchParams.get("redirect");
-  const workspaceTarget = workspaceDevelopPath(appKey, spaceId);
-
-  if (configuredAppKey && configuredAppKey !== appKey) {
-    return <Navigate to={appSignPath(configuredAppKey, redirectTarget ?? undefined)} replace />;
-  }
+  const workspaceTarget = orgWorkspacesPath(tenantId.trim() || defaultTenantId);
 
   if (auth.isAuthenticated) {
     const nextTarget =
-      typeof redirectTarget === "string" && redirectTarget.startsWith("/apps/")
+      typeof redirectTarget === "string" && redirectTarget.startsWith("/")
         ? redirectTarget
         : workspaceTarget;
     return <Navigate to={nextTarget} replace />;
@@ -215,7 +209,7 @@ export function LoginPage() {
             <h1 className="atlas-login-card__title">{t("appLoginTitle")}</h1>
             <div className="atlas-login-card__badge">
               <FeatureGlyph kind="apps" />
-              <span>{appKey}</span>
+              <span>{appKey || t("workspaceListWorkspaceTag")}</span>
             </div>
 
             {defaultTenantId ? (
@@ -251,9 +245,9 @@ export function LoginPage() {
                   try {
                     setErrorMessage("");
                     clearAuthStorage();
-                    await auth.login(appKey, tenantId.trim(), username.trim(), password);
+                    await auth.login(appKey || "", tenantId.trim(), username.trim(), password);
                     const target =
-                      typeof redirectTarget === "string" && redirectTarget.startsWith("/apps/")
+                      typeof redirectTarget === "string" && redirectTarget.startsWith("/")
                         ? redirectTarget
                         : workspaceTarget;
                     navigate(target, { replace: true });

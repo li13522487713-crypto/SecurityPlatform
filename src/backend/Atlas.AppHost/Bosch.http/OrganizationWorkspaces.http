@@ -1,0 +1,108 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+@orgId = {{tenantId}}
+
+### 工作空间列表
+GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 按 AppKey 查询工作空间
+GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/by-app-key/dev-app
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建工作空间
+POST {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "新工作空间 {{$timestamp}}",
+  "description": "用于验证组织-工作空间入口",
+  "icon": "workspace",
+  "appInstanceId": "1"
+}
+
+### 工作空间详情
+GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 工作空间开发页应用
+GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/develop/apps?pageIndex=1&pageSize=12
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 在工作空间内创建应用
+POST {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/develop/apps
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "Workspace App {{$timestamp}}",
+  "description": "用于验证工作空间应用优先入口"
+}
+
+### 工作空间资源列表
+GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/resources?resourceType=agent&pageIndex=1&pageSize=8
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 工作空间成员列表
+GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/members
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 添加工作空间成员
+POST {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/members
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "userId": "1",
+  "roleCode": "Member"
+}
+
+### 查看资源权限
+GET {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/resources/app/1/permissions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新资源权限
+PUT {{baseUrl}}/api/v1/organizations/{{orgId}}/workspaces/1/resources/app/1/permissions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "roleCode": "Owner",
+      "actions": ["view", "edit", "publish", "delete", "manage-permission"]
+    },
+    {
+      "roleCode": "Member",
+      "actions": ["view"]
+    }
+  ]
+}

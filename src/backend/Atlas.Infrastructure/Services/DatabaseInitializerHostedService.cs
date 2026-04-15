@@ -32,6 +32,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -209,6 +210,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureProductizationSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiPluginSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureWorkspacePortalSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiMemorySchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAgentPublicationSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureTeamAgentSchemaAsync(db, cancellationToken); migrationCount++;
@@ -239,6 +241,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureTenantAppDataSourceBindingHealthAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureOrphanAppProvisioningAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
+        await EnsureDefaultWorkspacesAsync(scope.ServiceProvider, db, cancellationToken);
         await EnsureTeamAgentTemplateSeedDataAsync(
             db,
             appContextAccessor,
@@ -266,6 +269,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                     cancellationToken);
                 ApplyAdminPermissionCheckReport(report, adminPermissionCheck);
                 await LoadLicenseStatusAsync(scope, cancellationToken);
+                await EnsureDefaultWorkspacesAsync(scope.ServiceProvider, db, cancellationToken);
                 return report;
             }
         }
@@ -1149,6 +1153,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 effectiveBootstrap,
                 cancellationToken);
             ApplyAdminPermissionCheckReport(report, existingAdminPermissionCheckResult);
+            await EnsureDefaultWorkspacesAsync(scope.ServiceProvider, db, cancellationToken);
             return report;
         }
 
@@ -1175,6 +1180,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             effectiveBootstrap,
             cancellationToken);
         ApplyAdminPermissionCheckReport(report, adminPermissionCheckResult);
+
+        await EnsureDefaultWorkspacesAsync(scope.ServiceProvider, db, cancellationToken);
 
         return report;
         }
@@ -2119,6 +2126,27 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
     }
 
+    private static async Task EnsureWorkspacePortalSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        await AddColumnIfMissingAsync(db, "Agent", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiApp", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "WorkflowMeta", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "KnowledgeBase", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "WorkspaceId", "INTEGER NULL", cancellationToken);
+
+        var missingWorkspaceTables =
+            !db.DbMaintenance.IsAnyTable("Workspace", false) ||
+            !db.DbMaintenance.IsAnyTable("WorkspaceRole", false) ||
+            !db.DbMaintenance.IsAnyTable("WorkspaceMember", false) ||
+            !db.DbMaintenance.IsAnyTable("WorkspaceResourcePermission", false);
+        if (missingWorkspaceTables)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<Workspace, WorkspaceRole, WorkspaceMember, WorkspaceResourcePermission>();
+        }
+    }
+
     private static async Task EnsureAiMemorySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         var missingLongTerm = !db.DbMaintenance.IsAnyTable("LongTermMemory", false);
@@ -2333,6 +2361,189 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             {
                 await db.Insertable(members).ExecuteCommandAsync(cancellationToken);
             }
+        }
+    }
+
+    private static async Task EnsureDefaultWorkspacesAsync(
+        IServiceProvider serviceProvider,
+        ISqlSugarClient db,
+        CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("Workspace", false)
+            || !db.DbMaintenance.IsAnyTable("WorkspaceRole", false)
+            || !db.DbMaintenance.IsAnyTable("WorkspaceMember", false))
+        {
+            return;
+        }
+
+        var idGeneratorAccessor = serviceProvider.GetRequiredService<IIdGeneratorAccessor>();
+        var tenantIds = await db.Queryable<UserAccount>()
+            .Where(x => x.IsActive)
+            .Select(x => x.TenantIdValue)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        foreach (var tenantGuid in tenantIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var tenantId = new TenantId(tenantGuid);
+            var activeUsers = await db.Queryable<UserAccount>()
+                .Where(x => x.TenantIdValue == tenantGuid && x.IsActive)
+                .OrderBy(x => x.Id, OrderByType.Asc)
+                .ToListAsync(cancellationToken);
+            if (activeUsers.Count == 0)
+            {
+                continue;
+            }
+
+            var workspace = await db.Queryable<Workspace>()
+                .Where(x => x.TenantIdValue == tenantGuid && !x.IsArchived)
+                .OrderBy(x => x.CreatedAt, OrderByType.Asc)
+                .FirstAsync(cancellationToken);
+            if (workspace is null)
+            {
+                var primaryApp = await db.Queryable<LowCodeApp>()
+                    .Where(x => x.TenantIdValue == tenantGuid)
+                    .OrderBy(x => x.Id, OrderByType.Asc)
+                    .FirstAsync(cancellationToken);
+                if (primaryApp is null)
+                {
+                    continue;
+                }
+
+                var ownerUserId = activeUsers.FirstOrDefault(x => x.IsPlatformAdmin)?.Id
+                    ?? activeUsers[0].Id;
+                workspace = new Workspace(
+                    tenantId,
+                    string.IsNullOrWhiteSpace(primaryApp.Name) ? "默认工作空间" : $"{primaryApp.Name} 工作空间",
+                    "系统迁移生成的默认工作空间",
+                    primaryApp.Icon,
+                    primaryApp.Id,
+                    primaryApp.AppKey,
+                    ownerUserId,
+                    idGeneratorAccessor.NextId());
+                await db.Insertable(workspace).ExecuteCommandAsync(cancellationToken);
+            }
+
+            var roles = await db.Queryable<WorkspaceRole>()
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == workspace.Id)
+                .ToListAsync(cancellationToken);
+            var roleMap = roles.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+
+            if (!roleMap.ContainsKey(WorkspaceBuiltInRoleCodes.Owner))
+            {
+                var ownerRole = new WorkspaceRole(
+                    tenantId,
+                    workspace.Id,
+                    WorkspaceBuiltInRoleCodes.Owner,
+                    "拥有者",
+                    JsonSerializer.Serialize(new[]
+                    {
+                        WorkspacePermissionActions.View,
+                        WorkspacePermissionActions.Edit,
+                        WorkspacePermissionActions.Publish,
+                        WorkspacePermissionActions.Delete,
+                        WorkspacePermissionActions.ManagePermission
+                    }),
+                    true,
+                    idGeneratorAccessor.NextId());
+                await db.Insertable(ownerRole).ExecuteCommandAsync(cancellationToken);
+                roleMap[ownerRole.Code] = ownerRole;
+            }
+
+            if (!roleMap.ContainsKey(WorkspaceBuiltInRoleCodes.Admin))
+            {
+                var adminRole = new WorkspaceRole(
+                    tenantId,
+                    workspace.Id,
+                    WorkspaceBuiltInRoleCodes.Admin,
+                    "管理员",
+                    JsonSerializer.Serialize(new[]
+                    {
+                        WorkspacePermissionActions.View,
+                        WorkspacePermissionActions.Edit,
+                        WorkspacePermissionActions.Publish,
+                        WorkspacePermissionActions.Delete,
+                        WorkspacePermissionActions.ManagePermission
+                    }),
+                    true,
+                    idGeneratorAccessor.NextId());
+                await db.Insertable(adminRole).ExecuteCommandAsync(cancellationToken);
+                roleMap[adminRole.Code] = adminRole;
+            }
+
+            if (!roleMap.ContainsKey(WorkspaceBuiltInRoleCodes.Member))
+            {
+                var memberRole = new WorkspaceRole(
+                    tenantId,
+                    workspace.Id,
+                    WorkspaceBuiltInRoleCodes.Member,
+                    "成员",
+                    JsonSerializer.Serialize(new[]
+                    {
+                        WorkspacePermissionActions.View
+                    }),
+                    true,
+                    idGeneratorAccessor.NextId());
+                await db.Insertable(memberRole).ExecuteCommandAsync(cancellationToken);
+                roleMap[memberRole.Code] = memberRole;
+            }
+
+            var memberRoleId = roleMap[WorkspaceBuiltInRoleCodes.Member].Id;
+            var ownerRoleId = roleMap[WorkspaceBuiltInRoleCodes.Owner].Id;
+            var existingMemberUserIds = await db.Queryable<WorkspaceMember>()
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == workspace.Id)
+                .Select(x => x.UserId)
+                .ToListAsync(cancellationToken);
+            var memberIdSet = existingMemberUserIds.ToHashSet();
+            var ownerUserIdValue = activeUsers.FirstOrDefault(x => x.IsPlatformAdmin)?.Id
+                ?? activeUsers[0].Id;
+            var workspaceMembers = new List<WorkspaceMember>();
+            foreach (var user in activeUsers)
+            {
+                if (memberIdSet.Contains(user.Id))
+                {
+                    continue;
+                }
+
+                workspaceMembers.Add(new WorkspaceMember(
+                    tenantId,
+                    workspace.Id,
+                    user.Id,
+                    user.Id == ownerUserIdValue ? ownerRoleId : memberRoleId,
+                    ownerUserIdValue,
+                    idGeneratorAccessor.NextId()));
+            }
+
+            if (workspaceMembers.Count > 0)
+            {
+                await db.Insertable(workspaceMembers.ToArray()).ExecuteCommandAsync(cancellationToken);
+            }
+
+            await db.Updateable<Agent>()
+                .SetColumns(x => x.WorkspaceId == workspace.Id)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .ExecuteCommandAsync(cancellationToken);
+            await db.Updateable<AiApp>()
+                .SetColumns(x => x.WorkspaceId == workspace.Id)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .ExecuteCommandAsync(cancellationToken);
+            await db.Updateable<WorkflowMeta>()
+                .SetColumns(x => x.WorkspaceId == workspace.Id)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .ExecuteCommandAsync(cancellationToken);
+            await db.Updateable<KnowledgeBase>()
+                .SetColumns(x => x.WorkspaceId == workspace.Id)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .ExecuteCommandAsync(cancellationToken);
+            await db.Updateable<AiDatabase>()
+                .SetColumns(x => x.WorkspaceId == workspace.Id)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .ExecuteCommandAsync(cancellationToken);
+            await db.Updateable<AiPlugin>()
+                .SetColumns(x => x.WorkspaceId == workspace.Id)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .ExecuteCommandAsync(cancellationToken);
         }
     }
 

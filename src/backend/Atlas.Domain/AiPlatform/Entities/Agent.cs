@@ -40,11 +40,13 @@ public sealed class Agent : TenantEntity
         TenantId tenantId,
         string name,
         long creatorId,
-        long id)
+        long id,
+        long? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
         Name = name;
+        WorkspaceId = workspaceId;
         CreatorId = creatorId;
         Status = AgentStatus.Draft;
         CreatedAt = DateTime.UtcNow;
@@ -65,6 +67,7 @@ public sealed class Agent : TenantEntity
     }
 
     public string Name { get; private set; }
+    public long? WorkspaceId { get; private set; }
     public string? Description { get; private set; }
     public string? AvatarUrl { get; private set; }
     public string? SystemPrompt { get; private set; }
@@ -129,9 +132,14 @@ public sealed class Agent : TenantEntity
         string? promptVersion = null,
         string? layoutConfigJson = null,
         string? debugConfigJson = null,
-        string? publishedConnectorConfigJson = null)
+        string? publishedConnectorConfigJson = null,
+        long? workspaceId = null)
     {
         Name = name;
+        if (workspaceId.HasValue)
+        {
+            WorkspaceId = workspaceId.Value;
+        }
         Description = description ?? string.Empty;
         AvatarUrl = avatarUrl ?? string.Empty;
         SystemPrompt = systemPrompt ?? string.Empty;
@@ -218,7 +226,7 @@ public sealed class Agent : TenantEntity
 
     public Agent CreateDuplicate(long newId, string newName, long creatorId)
     {
-        var duplicate = new Agent(TenantId, newName, creatorId, newId);
+        var duplicate = new Agent(TenantId, newName, creatorId, newId, WorkspaceId);
         duplicate.Update(
             newName,
             Description,
@@ -244,6 +252,17 @@ public sealed class Agent : TenantEntity
             EnableLongTermMemory,
             LongTermMemoryTopK);
         return duplicate;
+    }
+
+    public void AssignWorkspace(long workspaceId)
+    {
+        if (workspaceId <= 0)
+        {
+            return;
+        }
+
+        WorkspaceId = workspaceId;
+        UpdatedAt = DateTime.UtcNow;
     }
 }
 
