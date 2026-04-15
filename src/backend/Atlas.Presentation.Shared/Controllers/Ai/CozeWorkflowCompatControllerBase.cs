@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Platform.Abstractions;
+using Atlas.Application.Platform.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Enums;
@@ -31,6 +33,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
     private readonly IWorkflowV2QueryService _queryService;
     private readonly IWorkflowV2ExecutionService _executionService;
     private readonly ICanvasValidator _canvasValidator;
+    private readonly IWorkspacePortalService _workspacePortalService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
@@ -39,6 +42,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         IWorkflowV2QueryService queryService,
         IWorkflowV2ExecutionService executionService,
         ICanvasValidator canvasValidator,
+        IWorkspacePortalService workspacePortalService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor)
     {
@@ -46,8 +50,46 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         _queryService = queryService;
         _executionService = executionService;
         _canvasValidator = canvasValidator;
+        _workspacePortalService = workspacePortalService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+    }
+
+    [HttpPost("/api/playground_api/space/list")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetSpaceList(
+        [FromBody] CozeGetSpaceListRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var filtered = string.IsNullOrWhiteSpace(request?.search_word)
+            ? workspaces
+            : workspaces.Where(item =>
+                $"{item.Name} {item.Description ?? string.Empty} {item.AppKey}"
+                    .Contains(request.search_word, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+        var page = request?.page > 0 ? request.page.Value : 1;
+        var size = request?.size > 0 ? request.size.Value : filtered.Count;
+        var skipped = Math.Max(0, (page - 1) * size);
+        var paged = filtered.Skip(skipped).Take(size).ToArray();
+        var botSpaces = paged.Select(MapSpaceItem).ToArray();
+
+        return Ok(Success(new
+        {
+            bot_space_list = botSpaces,
+            recently_used_space_list = botSpaces,
+            has_personal_space = false,
+            total = filtered.Count,
+            has_more = skipped + botSpaces.Length < filtered.Count
+        }));
     }
 
     [HttpPost("canvas")]
@@ -565,6 +607,27 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _ => 1
         };
     }
+
+    private static object MapSpaceItem(WorkspaceListItem item)
+    {
+        var roleType = string.Equals(item.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : string.Equals(item.RoleCode, "Admin", StringComparison.OrdinalIgnoreCase)
+                ? 2
+                : 3;
+
+        return new
+        {
+            id = item.Id,
+            name = item.Name,
+            description = item.Description,
+            icon_url = item.Icon ?? string.Empty,
+            role_type = roleType,
+            space_type = 1,
+            space_mode = 0,
+            hide_operation = false
+        };
+    }
 }
 
 public sealed record CozeGetCanvasInfoRequest(string? workflow_id, string? space_id);
@@ -624,3 +687,11 @@ public sealed record CozeReleasedWorkflowsRequest(
     int? flow_mode);
 
 public sealed record CozeCopyWorkflowRequest(string workflow_id, string? space_id);
+
+public sealed record CozeGetSpaceListRequest(
+    string? search_word,
+    string? enterprise_id,
+    string? organization_id,
+    int? scope_type,
+    int? page,
+    int? size);

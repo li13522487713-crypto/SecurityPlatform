@@ -1,4 +1,5 @@
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Controllers.Ai;
@@ -15,9 +16,10 @@ public sealed class CozeWorkflowCompatController : CozeWorkflowCompatControllerB
         IWorkflowV2QueryService queryService,
         IWorkflowV2ExecutionService executionService,
         ICanvasValidator canvasValidator,
+        IWorkspacePortalService workspacePortalService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor)
-        : base(commandService, queryService, executionService, canvasValidator, tenantProvider, currentUserAccessor)
+        : base(commandService, queryService, executionService, canvasValidator, workspacePortalService, tenantProvider, currentUserAccessor)
     {
     }
 }

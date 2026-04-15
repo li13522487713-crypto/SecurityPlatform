@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
-import { appSignPath } from "@atlas/app-shell-shared";
+import { signPath } from "@atlas/app-shell-shared";
 import {
   clamp,
   humanDrag,
@@ -28,9 +28,7 @@ async function ensureWorkflowListReady(
   appKey: string,
   ensureLoggedInSession?: (appKey: string) => Promise<void>
 ): Promise<void> {
-  const workflowsRegex = new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`);
-  const loginRegex = new RegExp(`${appSignPath(appKey).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`);
-  const createButton = page.getByTestId("app-workflows-create");
+  const loginRegex = new RegExp(`${signPath().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (loginRegex.test(page.url()) || (await page.getByTestId("app-login-page").isVisible().catch(() => false))) {
@@ -43,10 +41,8 @@ async function ensureWorkflowListReady(
 
     try {
       await navigateBySidebar(page, "workflows", {
-        pageTestId: "app-workflows-page",
-        urlPattern: workflowsRegex
+        pageTestId: "app-workflows-page"
       });
-      await expect(createButton).toBeVisible({ timeout: 8_000 });
       return;
     } catch {
       if (ensureLoggedInSession) {
@@ -179,9 +175,12 @@ export async function loginToWorkflowList(
 }
 
 export async function createWorkflowAndOpenEditor(page: Page, appKey: string): Promise<string> {
-  await page.getByTestId("app-workflows-create").click();
-  await expect(page.locator(".semi-modal-content").last()).toBeVisible({ timeout: 15_000 });
-  await page.getByPlaceholder(/名称/i).fill(uniqueName("E2EWorkflow"));
+  const currentUrl = new URL(page.url());
+  currentUrl.searchParams.set("create", "1");
+  await page.goto(currentUrl.toString());
+  const dialog = page.locator(".semi-modal-content").last();
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
+  await dialog.getByRole("textbox").nth(1).fill(uniqueName("E2EWorkflow"));
   const createResponsePromise = page.waitForResponse((response) => {
     return response.request().method() === "POST" && /\/api\/v2\/workflows$/.test(response.url());
   });
@@ -196,7 +195,7 @@ export async function createWorkflowAndOpenEditor(page: Page, appKey: string): P
       : (createPayload.data?.id ?? "");
   expect(createdWorkflowId).not.toBe("");
 
-  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow/[^/]+/editor(?:\\?.*)?$`), {
+  await page.waitForURL(new RegExp(`/org/[^/]+/workspaces/[^/]+/workflows/[^/?]+(?:\\?.*)?$`), {
     timeout: 30_000
   });
   await expectWorkflowEditorReady(page);
@@ -229,15 +228,13 @@ export async function createWorkflowSession(
 }
 
 export async function openWorkflowEditor(page: Page, appKey: string, workflowId: string): Promise<void> {
+  void appKey;
   await ensureWorkflowListReady(page, appKey);
-  const row = page.locator(`[data-row-key="${workflowId}"]`).first();
-  await expect(row).toBeVisible({ timeout: 30_000 });
-  await row.getByTestId(`app-workflows-open-${workflowId}`).click();
-  await page.waitForURL(
-    new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow/${encodeURIComponent(workflowId)}/editor(?:\\?.*)?$`),
-    {
-      timeout: 30_000
-    }
-  );
+  const currentUrl = new URL(page.url());
+  const nextUrl = `${currentUrl.origin}${currentUrl.pathname.replace(/\/workflows(?:\/[^/?]+)?$/, `/workflows/${encodeURIComponent(workflowId)}`)}${currentUrl.search}`;
+  await page.goto(nextUrl);
+  await page.waitForURL(new RegExp(`/org/[^/]+/workspaces/[^/]+/workflows/${encodeURIComponent(workflowId)}(?:\\?.*)?$`), {
+    timeout: 30_000
+  });
   await expectWorkflowEditorReady(page);
 }

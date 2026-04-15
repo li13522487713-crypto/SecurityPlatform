@@ -2256,6 +2256,8 @@ function WorkflowListRoute({
     <WorkflowListPage
       api={workflowApi}
       locale={locale}
+      spaceId={bootstrap.spaceId}
+      backPath={workspaceDevelopPath(appKey, bootstrap.spaceId)}
       mode={mode}
       selectedWorkflowId={selectedWorkflowId}
       contentMode={contentMode}
@@ -2334,6 +2336,8 @@ function WorkspaceWorkflowWorkbenchRoute({
     <WorkflowListPage
       api={workflowApi}
       locale={locale}
+      spaceId={workspace.id}
+      backPath={orgWorkspaceDevelopPath(orgId, workspace.id)}
       mode={mode}
       selectedWorkflowId={selectedWorkflowId}
       contentMode={contentMode}

@@ -3,7 +3,8 @@
 ## Workflow Host 约束
 
 - 当前仓库仅维护 `src/frontend/apps/app-web` 单宿主，不再维护独立 `src/coze-workflow-host` 目录。
-- `app-web` 通过 workspace 包（如 `@atlas/workflow-core-react`、`@atlas/workflow-editor-react`）承载工作流能力。
+- `app-web` 通过 `@atlas/module-workflow-react` 挂载工作流能力，但其内部唯一内核为 vendored Coze workflow 子空间：`src/frontend/packages/workflow/**` 与 `src/frontend/packages/workflow/adapter/**`。
+- `@atlas/workflow-core-react`、`@atlas/workflow-editor-react`、`@atlas/module-workflow-react` 继续保留 Atlas 包名，作为稳定 facade / 宿主桥接边界。
 - 如需兼容原生 Coze 协议，统一通过后端兼容层 `/api/workflow_api/*` 与 `/api/v2/workflows*`，避免前端分叉实现。
 
 ## Organization / Workspace Portal

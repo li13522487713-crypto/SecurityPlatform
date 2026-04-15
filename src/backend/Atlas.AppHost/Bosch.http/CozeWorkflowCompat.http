@@ -58,3 +58,11 @@ X-Tenant-Id: {{tenantId}}
   "workflow_id": "{{workflowId}}",
   "space_id": "atlas-workflow"
 }
+
+### 原生 Coze Playground 兼容：空间列表
+POST {{host}}/api/playground_api/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{}

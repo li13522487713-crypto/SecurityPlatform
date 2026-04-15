@@ -12,14 +12,39 @@ interface WorkflowHostShellProps extends WorkflowPageProps, WorkflowWorkbenchNav
 export function WorkflowHostShell({
   workflowId,
   mode = "workflow",
-  onBack
+  onBack,
+  spaceId,
+  returnUrl,
+  backPath
 }: WorkflowHostShellProps) {
-  const returnUrl = typeof window === "undefined" ? "" : window.location.href;
-  const spaceId = useMemo(() => buildAtlasWorkflowSpaceId(mode), [mode]);
+  const effectiveReturnUrl = typeof window === "undefined"
+    ? (returnUrl ?? backPath ?? "")
+    : (returnUrl ?? backPath ?? window.location.href);
+  const effectiveSpaceId = useMemo(
+    () => spaceId || resolveSpaceIdFromLocation() || buildAtlasWorkflowSpaceId(mode),
+    [mode, spaceId]
+  );
 
-  return <CozeWorkflowPage workflowId={workflowId} spaceId={spaceId} mode={mode} returnUrl={returnUrl} onAtlasBack={onBack} />;
+  return (
+    <CozeWorkflowPage
+      workflowId={workflowId}
+      spaceId={effectiveSpaceId}
+      mode={mode}
+      returnUrl={effectiveReturnUrl}
+      onAtlasBack={onBack}
+    />
+  );
 }
 
 function buildAtlasWorkflowSpaceId(mode: WorkflowResourceMode): string {
   return `atlas-${mode}`;
+}
+
+function resolveSpaceIdFromLocation(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const match = window.location.pathname.match(/\/workspaces\/([^/]+)\//);
+  return match?.[1] ?? "";
 }

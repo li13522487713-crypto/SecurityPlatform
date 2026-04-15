@@ -40,6 +40,10 @@ export default defineConfig({
       path.resolve(__dirname, "../../config"),
     ],
     alias: {
+      "react$": require.resolve("react"),
+      "react-dom$": require.resolve("react-dom"),
+      "react/jsx-runtime": require.resolve("react/jsx-runtime"),
+      "react/jsx-dev-runtime": require.resolve("react/jsx-dev-runtime"),
       "@coze-arch/bot-api$": path.resolve(__dirname, "src/coze-shims/bot-api/index.ts"),
       "@coze-arch/foundation-sdk": require.resolve("@coze-foundation/foundation-sdk"),
       "react-router-dom": require.resolve("react-router-dom"),

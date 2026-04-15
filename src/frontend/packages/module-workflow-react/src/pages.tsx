@@ -23,7 +23,7 @@ import type {
   WorkflowTemplateSummary
 } from "./types";
 import { getWorkflowModuleCopy } from "./copy";
-import { WorkflowDesignerShell } from "./workflow-designer-shell";
+import { WorkflowHostShell } from "./workflow-host-shell";
 
 function formatDate(value?: string) {
   if (!value) {
@@ -109,6 +109,9 @@ function matchesStatus(item: WorkflowListItem, status: WorkflowStatusFilter) {
 export function WorkflowListPage({
   api,
   locale,
+  spaceId,
+  returnUrl,
+  backPath,
   onOpenEditor,
   selectedWorkflowId,
   onSelectWorkflow,
@@ -228,18 +231,43 @@ export function WorkflowListPage({
   if (selectedItem) {
     return (
       <section className="module-workflow__page module-workflow__editor-page" data-testid={mode === "chatflow" ? "app-chatflows-page" : "app-workflows-page"}>
-        <WorkflowDesignerShell
+        <WorkflowHostShell
           api={api}
           locale={locale}
+          spaceId={spaceId}
+          returnUrl={returnUrl}
+          backPath={backPath}
           workflowId={selectedItem.id}
           mode={mode}
-          contentMode={contentMode}
-          onSelectContentMode={onSelectContentMode}
-          projectTitle={projectTitle}
           onBack={() => window.history.back()}
-          onSelectWorkflow={onSelectWorkflow}
-          resolveWorkflowHref={resolveWorkflowHref}
         />
+        <div data-testid={mode === "chatflow" ? "app-chatflows-create-modal" : "app-workflows-create-modal"}>
+          <CreateWizardModal
+            visible={createVisible}
+            title={copy.createModalTitle(mode)}
+            resourceType={mode === "chatflow" ? "chatflow" : "workflow"}
+            templates={templates.map((template) => ({
+              id: template.id,
+              name: template.title,
+              description: template.description
+            }))}
+            onCancel={() => setCreateVisible(false)}
+            onSubmit={async (values) => {
+              await handleCreateWizardSubmit(values);
+            }}
+            texts={{
+              okText: copy.createModalConfirm(mode),
+              cancelText: copy.cancelLabel,
+              blankMode: copy.createWizardBlankMode,
+              templateMode: copy.createWizardTemplateMode,
+              nameLabel: copy.nameLabel,
+              descriptionLabel: copy.descriptionLabel,
+              templateSelectLabel: copy.createWizardTemplateSelect,
+              namePlaceholder: `${copy.nameLabel} · ${title}`,
+              descriptionPlaceholder: copy.descriptionPlaceholder
+            }}
+          />
+        </div>
       </section>
     );
   }
@@ -385,21 +413,25 @@ export function WorkflowListPage({
 export function WorkflowEditorPage({
   api,
   locale,
+  spaceId,
+  returnUrl,
   workflowId,
   onBack,
   backPath,
   projectTitle,
   mode = "workflow"
 }: WorkflowPageProps & { workflowId: string; onBack: () => void; backPath?: string; mode?: WorkflowResourceMode; projectTitle?: string }) {
+  void projectTitle;
   return (
     <section className="module-workflow__page module-workflow__editor-page" data-testid={mode === "chatflow" ? "app-chatflow-editor-page" : "app-workflow-editor-page"}>
-      <WorkflowDesignerShell
+      <WorkflowHostShell
         api={api}
         locale={locale}
+        spaceId={spaceId}
+        returnUrl={returnUrl}
         workflowId={workflowId}
         onBack={onBack}
         backPath={backPath}
-        projectTitle={projectTitle}
         mode={mode}
       />
     </section>

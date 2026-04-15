@@ -372,6 +372,8 @@ export interface WorkflowModuleApi {
 export interface WorkflowPageProps {
   api: WorkflowModuleApi;
   locale: "zh-CN" | "en-US";
+  spaceId?: string;
+  returnUrl?: string;
 }
 
 export interface WorkflowWorkbenchNavigation {
@@ -381,4 +383,5 @@ export interface WorkflowWorkbenchNavigation {
   contentMode?: WorkflowWorkbenchContentMode;
   onSelectContentMode?: (mode: WorkflowWorkbenchContentMode) => void;
   projectTitle?: string;
+  backPath?: string;
 }
