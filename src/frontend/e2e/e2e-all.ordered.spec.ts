@@ -4,6 +4,7 @@ import "./setup/setup.spec";
 import "./setup/z-post-setup-auth.spec";
 
 import "./app/auth-and-routing.spec";
+import "./app/console-workspace-workflow.smoke.spec";
 import "./app/navigation.spec";
 import "./app/studio-dashboard.spec";
 import "./app/model-configs.spec";

@@ -21,7 +21,7 @@ export default defineConfig({
     timeout: 15_000
   },
   use: {
-    baseURL: "http://127.0.0.1:5180",
+    baseURL: `http://127.0.0.1:${appWebPort}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -51,14 +51,6 @@ export default defineConfig({
         {
           command: "cmd /c \"set ASPNETCORE_ENVIRONMENT=Development&& set ASPNETCORE_URLS=http://127.0.0.1:5002&& dotnet run --project ../backend/Atlas.AppHost --no-launch-profile\"",
           url: "http://127.0.0.1:5002/internal/health/live",
-          reuseExistingServer: !process.env.CI,
-          timeout: 180_000,
-          stdout: "pipe",
-          stderr: "pipe"
-        },
-        {
-          command: "cmd /c \"set PLAYWRIGHT_E2E=1&& pnpm run dev:platform-web\"",
-          url: "http://127.0.0.1:5180",
           reuseExistingServer: !process.env.CI,
           timeout: 180_000,
           stdout: "pipe",

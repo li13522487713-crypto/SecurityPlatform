@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const useManagedWebServers = process.env.PLAYWRIGHT_MANAGED_WEBSERVERS !== "0";
+const appWebPort = 5181;
+const appWebDevCommand = "pnpm run dev:app-web";
 
 export default defineConfig({
   testDir: "./e2e/setup",
@@ -14,7 +16,7 @@ export default defineConfig({
     ["html", { outputFolder: "playwright-report/setup", open: "never" }]
   ],
   use: {
-    baseURL: "http://127.0.0.1:5180",
+    baseURL: `http://127.0.0.1:${appWebPort}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -50,16 +52,8 @@ export default defineConfig({
           stderr: "pipe"
         },
         {
-          command: "cmd /c \"set PLAYWRIGHT_E2E=1&& pnpm run dev:platform-web\"",
-          url: "http://127.0.0.1:5180",
-          reuseExistingServer: !process.env.CI,
-          timeout: 180_000,
-          stdout: "pipe",
-          stderr: "pipe"
-        },
-        {
-          command: "cmd /c \"set PLAYWRIGHT_E2E=1&& pnpm run dev:app-web\"",
-          url: "http://127.0.0.1:5181",
+          command: `cmd /c "set PLAYWRIGHT_E2E=1&& ${appWebDevCommand}"`,
+          url: `http://127.0.0.1:${appWebPort}`,
           reuseExistingServer: !process.env.CI,
           timeout: 180_000,
           stdout: "pipe",

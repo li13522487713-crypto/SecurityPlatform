@@ -43,9 +43,9 @@ function stopRelevantProcesses() {
 $ErrorActionPreference = 'SilentlyContinue'
 $namedProcesses = Get-CimInstance Win32_Process | Where-Object {
   (($_.Name -eq 'dotnet.exe' -or $_.Name -eq 'dotnet') -and $_.CommandLine -and ($_.CommandLine -match 'Atlas\\.PlatformHost|Atlas\\.AppHost')) -or
-  (($_.Name -eq 'node.exe' -or $_.Name -eq 'node') -and $_.CommandLine -and ($_.CommandLine -match 'dev:platform-web|dev:app-web|apps\\\\platform-web|apps\\\\app-web|vite'))
+  (($_.Name -eq 'node.exe' -or $_.Name -eq 'node') -and $_.CommandLine -and ($_.CommandLine -match 'dev:app-web|apps\\\\app-web|vite'))
 }
-$targetPorts = @(5001, 5002, 5180, 5181, 5182)
+$targetPorts = @(5001, 5002, 5181, 5182)
 $portPids = @()
 foreach ($port in $targetPorts) {
   $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue

@@ -12,9 +12,11 @@
     "lint:app-web": "pnpm --filter atlas-app-web run lint",
     "test:unit": "pnpm exec vitest run --passWithNoTests \"packages/**/src/**/*.spec.ts\" \"packages/**/src/**/*.spec.tsx\" \"packages/**/src/**/*.test.ts\" \"packages/**/src/**/*.test.tsx\" \"apps/**/src/**/*.spec.ts\" \"apps/**/src/**/*.spec.tsx\" \"apps/**/src/**/*.test.ts\" \"apps/**/src/**/*.test.tsx\"",
     "format": "pnpm -r run format",
-    "test:e2e:app": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs",
-    "test:e2e:app:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --headed",
-    "test:e2e:app:smoke": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --grep @smoke",
+    "test:e2e:full": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.e2e-all.config.ts",
+    "test:e2e:app": "pnpm run test:e2e:full",
+    "test:e2e:app:only": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.app.config.ts",
+    "test:e2e:app:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.app.config.ts --headed",
+    "test:e2e:app:smoke": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.app.config.ts --grep @smoke-main",
     "i18n:check": "node ./scripts/i18n-audit.mjs --target app-web --strict"
   },
   "devDependencies": {

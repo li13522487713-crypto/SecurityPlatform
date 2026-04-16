@@ -9,8 +9,8 @@ const platformDatabasePath = "Data Source=atlas.e2e.db";
 const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.e2e.db")}`;
 const fallbackAppKey = process.env.PLAYWRIGHT_APP_KEY ?? "dev-app";
 
-const platformBaseUrl = "http://127.0.0.1:5180";
-const appBaseUrl = "http://127.0.0.1:5181";
+const appBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181"}`;
+const platformBaseUrl = process.env.PLAYWRIGHT_PLATFORM_BASE_URL ?? appBaseUrl;
 
 interface AuthTokenPayload {
   success?: boolean;

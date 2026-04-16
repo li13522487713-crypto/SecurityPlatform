@@ -1,9 +1,14 @@
 import path from "node:path";
 import { expect, test, type Page } from "../fixtures/single-session";
 
-test.describe.serial("真实浏览器 setup E2E", () => {
+test.describe.serial("鐪熷疄娴忚鍣?setup E2E", () => {
   const platformDatabasePath = "Data Source=atlas.e2e.db";
   const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.e2e.db")}`;
+  const appBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181"}`;
+  const platformBaseUrl = process.env.PLAYWRIGHT_PLATFORM_BASE_URL ?? appBaseUrl;
+  const platformSetupUrl = `${platformBaseUrl}/setup`;
+  const appSetupUrl = `${appBaseUrl}/app-setup`;
+  const escapedAppBaseUrl = appBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   async function setLocale(page: Page, locale: "zh-CN" | "en-US") {
     await page.addInitScript((targetLocale) => {
@@ -24,8 +29,8 @@ test.describe.serial("真实浏览器 setup E2E", () => {
 
   test("[platform][i18n] supports en-US wizard copy", async ({ page }) => {
     await setLocale(page, "en-US");
-    await page.goto("http://127.0.0.1:5180/");
-    await page.waitForURL("http://127.0.0.1:5180/setup");
+    await page.goto(`${platformBaseUrl}/`);
+    await page.waitForURL(platformSetupUrl);
     await expect(page.locator("h1")).toContainText("Atlas Platform Setup Wizard");
     await page.getByTestId("platform-setup-start").click();
 
@@ -50,20 +55,20 @@ test.describe.serial("真实浏览器 setup E2E", () => {
 
   test("[platform][i18n] locale persists after reload", async ({ page }) => {
     await setLocale(page, "en-US");
-    await page.goto("http://127.0.0.1:5180/");
-    await page.waitForURL("http://127.0.0.1:5180/setup");
+    await page.goto(`${platformBaseUrl}/`);
+    await page.waitForURL(platformSetupUrl);
     await expect(page.locator("h1")).toContainText("Atlas Platform Setup Wizard");
 
     await page.reload();
-    await page.waitForURL("http://127.0.0.1:5180/setup");
+    await page.waitForURL(platformSetupUrl);
     await expect(page.locator("h1")).toContainText("Atlas Platform Setup Wizard");
     await page.getByTestId("platform-setup-start").click();
     await expect(page.getByTestId("platform-setup-next-step")).toContainText("Next");
   });
 
   test("[platform] admin validation blocks next step", async ({ page }) => {
-    await page.goto("http://127.0.0.1:5180/");
-    await page.waitForURL("http://127.0.0.1:5180/setup");
+    await page.goto(`${platformBaseUrl}/`);
+    await page.waitForURL(platformSetupUrl);
     await page.getByTestId("platform-setup-start").click();
 
     const connectionStringInput = page.locator(
@@ -91,8 +96,8 @@ test.describe.serial("真实浏览器 setup E2E", () => {
       (response) => response.url().includes("/api/v1/setup/drivers") && response.request().method() === "GET"
     );
 
-    await page.goto("http://127.0.0.1:5180/");
-    await page.waitForURL("http://127.0.0.1:5180/setup");
+    await page.goto(`${platformBaseUrl}/`);
+    await page.waitForURL(platformSetupUrl);
 
     const driversResponse = await driversResponsePromise;
     expect(driversResponse.ok()).toBeTruthy();
@@ -129,7 +134,7 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     await page.getByTestId("platform-setup-role-SecurityAdmin").click();
     await page.getByTestId("platform-setup-next-to-org").click();
 
-    await expect(page.getByTestId("platform-setup-department-name-0")).toHaveValue("总部");
+    await expect(page.getByTestId("platform-setup-department-name-0")).toHaveValue("鎬婚儴");
     await expect(page.getByTestId("platform-setup-position-code-0")).toHaveValue("SYS_ADMIN");
     await page.getByTestId("platform-setup-initialize").click();
 
@@ -148,7 +153,7 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     await expect(page.getByTestId("platform-setup-report-positions-created")).toHaveText("2");
     await expect(page.getByTestId("platform-setup-report-admin")).toHaveText("true");
     await page.getByTestId("platform-setup-go-login").click();
-    await page.waitForURL("http://127.0.0.1:5180/login");
+    await page.waitForURL(`${platformBaseUrl}/login`);
 
     await expect
       .poll(async () => {
@@ -176,8 +181,8 @@ test.describe.serial("真实浏览器 setup E2E", () => {
           selectedRoleCodes: ["SecurityAdmin"]
         },
         organization: {
-          departments: [{ name: "总部", code: "HQ", parentCode: null, sortOrder: 0 }],
-          positions: [{ name: "系统管理员", code: "SYS_ADMIN", description: "系统配置与运维管理", sortOrder: 10 }]
+          departments: [{ name: "鎬婚儴", code: "HQ", parentCode: null, sortOrder: 0 }],
+          positions: [{ name: "System Administrator", code: "SYS_ADMIN", description: "System configuration and operations", sortOrder: 10 }]
         }
       }
     });
@@ -188,8 +193,8 @@ test.describe.serial("真实浏览器 setup E2E", () => {
   });
 
   test("[app] rejects unknown admin username", async ({ page }) => {
-    await page.goto("http://127.0.0.1:5181/");
-    await page.waitForURL("http://127.0.0.1:5181/app-setup");
+    await page.goto(`${appBaseUrl}/`);
+    await page.waitForURL(appSetupUrl);
 
     await page
       .locator('input[data-testid="app-setup-connection-string"], [data-testid="app-setup-connection-string"] input')
@@ -214,8 +219,8 @@ test.describe.serial("真实浏览器 setup E2E", () => {
 
   test("[app][i18n] supports en-US wizard copy", async ({ page }) => {
     await setLocale(page, "en-US");
-    await page.goto("http://127.0.0.1:5181/");
-    await page.waitForURL("http://127.0.0.1:5181/app-setup");
+    await page.goto(`${appBaseUrl}/`);
+    await page.waitForURL(appSetupUrl);
     await expect(page.locator("h1")).toContainText("Application Setup Wizard");
 
     await page
@@ -237,19 +242,19 @@ test.describe.serial("真实浏览器 setup E2E", () => {
 
   test("[app][i18n] locale persists after reload", async ({ page }) => {
     await setLocale(page, "en-US");
-    await page.goto("http://127.0.0.1:5181/");
-    await page.waitForURL("http://127.0.0.1:5181/app-setup");
+    await page.goto(`${appBaseUrl}/`);
+    await page.waitForURL(appSetupUrl);
     await expect(page.locator("h1")).toContainText("Application Setup Wizard");
 
     await page.reload();
-    await page.waitForURL("http://127.0.0.1:5181/app-setup");
+    await page.waitForURL(appSetupUrl);
     await expect(page.locator("h1")).toContainText("Application Setup Wizard");
     await expect(page.getByTestId("app-setup-next-step")).toContainText("Next");
   });
 
   test("[app] happy path", async ({ page, request }) => {
-    await page.goto("http://127.0.0.1:5181/");
-    await page.waitForURL("http://127.0.0.1:5181/app-setup");
+    await page.goto(`${appBaseUrl}/`);
+    await page.waitForURL(appSetupUrl);
 
     await page
       .locator('input[data-testid="app-setup-connection-string"], [data-testid="app-setup-connection-string"] input')
@@ -268,7 +273,7 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     await page.getByTestId("app-setup-role-SecurityAdmin").click();
     await page.getByTestId("app-setup-next-to-org").click();
 
-    await expect(page.getByTestId("app-setup-department-name-0")).toHaveValue("总部");
+    await expect(page.getByTestId("app-setup-department-name-0")).toHaveValue("鎬婚儴");
     await expect(page.getByTestId("app-setup-position-code-0")).toHaveValue("SYS_ADMIN");
     await page.getByTestId("app-setup-initialize").click();
 
@@ -294,7 +299,7 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     expect(appPositionsCreated).toBeGreaterThan(0);
 
     await page.getByTestId("app-setup-enter-workspace").click();
-    await page.waitForURL(/http:\/\/127\.0\.0\.1:5181\/apps\/[^/]+\/sign/);
+    await page.waitForURL(new RegExp(`${escapedAppBaseUrl}/apps/[^/]+/sign`));
 
     await expect
       .poll(async () => {
@@ -327,8 +332,8 @@ test.describe.serial("真实浏览器 setup E2E", () => {
           selectedRoleCodes: ["SecurityAdmin"]
         },
         organization: {
-          departments: [{ name: "总部", code: "HQ", parentCode: null, sortOrder: 0 }],
-          positions: [{ name: "系统管理员", code: "SYS_ADMIN", description: "系统配置与运维管理", sortOrder: 10 }]
+          departments: [{ name: "鎬婚儴", code: "HQ", parentCode: null, sortOrder: 0 }],
+          positions: [{ name: "System Administrator", code: "SYS_ADMIN", description: "System configuration and operations", sortOrder: 10 }]
         }
       }
     });
@@ -338,4 +343,5 @@ test.describe.serial("真实浏览器 setup E2E", () => {
     expect(payload?.code).toBe("ALREADY_CONFIGURED");
   });
 });
+
 

@@ -15,7 +15,14 @@ const appHostBuildDir = path.resolve(e2eBuildRoot, "Atlas.AppHost");
 const platformHostDll = path.resolve(platformHostBuildDir, "Atlas.PlatformHost.dll");
 const appHostDll = path.resolve(appHostBuildDir, "Atlas.AppHost.dll");
 const isWindows = process.platform === "win32";
-const playwrightArgs = ["test", "-c", "playwright.app.config.ts", ...process.argv.slice(2)];
+const rawPlaywrightArgs = process.argv.slice(2);
+const hasExplicitConfigArg = rawPlaywrightArgs.some(
+  (arg) => arg === "-c" || arg === "--config" || arg.startsWith("--config=")
+);
+const defaultPlaywrightConfig = process.env.PLAYWRIGHT_E2E_CONFIG?.trim() || "playwright.app.config.ts";
+const playwrightArgs = hasExplicitConfigArg
+  ? ["test", ...rawPlaywrightArgs]
+  : ["test", "-c", defaultPlaywrightConfig, ...rawPlaywrightArgs];
 const appWebPort = 5181;
 const appWebScript = "dev:app-web";
 const platformApiBase = "http://127.0.0.1:5001";
@@ -213,7 +220,7 @@ async function ensurePlatformSetupState() {
         password: defaultPassword
       },
       roles: {
-        selectedRoleCodes: ["SecurityAdmin", "AssetAdmin"]
+        selectedRoleCodes: ["SecurityAdmin"]
       },
       organization: {
         departments: [{ name: "总部", code: "HQ", parentCode: null, sortOrder: 0 }],

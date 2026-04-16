@@ -2704,6 +2704,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         string columnDefinition,
         CancellationToken cancellationToken)
     {
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
         var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
         var hasColumn = columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
         if (hasColumn)

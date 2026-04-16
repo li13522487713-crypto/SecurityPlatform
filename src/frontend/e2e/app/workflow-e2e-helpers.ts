@@ -208,7 +208,7 @@ export async function createWorkflowSession(
   ensureLoggedInSession?: (appKey: string) => Promise<void>,
   options?: CreateWorkflowSessionOptions
 ): Promise<WorkflowSessionContext> {
-  const reuseExisting = options?.reuseExisting ?? true;
+  const reuseExisting = options?.reuseExisting ?? false;
   if (reuseExisting && cachedWorkflowSession) {
     try {
       await openWorkflowEditor(page, cachedWorkflowSession.appKey, cachedWorkflowSession.workflowId);

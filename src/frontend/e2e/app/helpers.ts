@@ -20,12 +20,13 @@ import {
 } from "@atlas/app-shell-shared";
 import { gazeShiftDelay, randomBetween, thinkingPause } from "../fixtures/human-mouse";
 
-export const platformBaseUrl = "http://127.0.0.1:5180";
 const appWebPort = process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181";
+const platformWebPort = process.env.PLAYWRIGHT_PLATFORM_WEB_PORT ?? appWebPort;
+export const platformBaseUrl = `http://127.0.0.1:${platformWebPort}`;
 export const appBaseUrl = `http://127.0.0.1:${appWebPort}`;
 export const platformApiBase = "http://127.0.0.1:5001";
 export const appApiBase = "http://127.0.0.1:5002";
-const appWebMode = (process.env.PLAYWRIGHT_APP_WEB_MODE ?? "direct").toLowerCase();
+const appWebMode = (process.env.PLAYWRIGHT_APP_WEB_MODE ?? "platform").toLowerCase();
 const usesPlatformControlPlane = appWebMode === "platform";
 
 export const defaultTenantId = "00000000-0000-0000-0000-000000000001";
@@ -269,7 +270,7 @@ export async function ensurePlatformSetup(request: APIRequestContext) {
         password: defaultPassword
       },
       roles: {
-        selectedRoleCodes: ["SecurityAdmin", "AssetAdmin"]
+        selectedRoleCodes: ["SecurityAdmin"]
       },
       organization: {
         departments: [{ name: "总部", code: "HQ", parentCode: null, sortOrder: 0 }],

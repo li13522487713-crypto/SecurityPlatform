@@ -54,7 +54,9 @@ test.describe.serial("Workflow Complete Flow", () => {
     }, { timeout: 30_000 });
     await page.getByTestId("workflow-base-publish-button").click();
     const publishResponse = await publishResponsePromise;
-    expect([200, 400]).toContain(publishResponse.status());
+    expect(publishResponse.status()).toBe(200);
+    const publishPayload = (await publishResponse.json()) as { success?: boolean };
+    expect(publishPayload.success).toBeTruthy();
 
     await clickWorkflowTestRun(page, "{\"input\":\"hello\"}");
     await expect(page.getByTestId("workflow.detail.node.testrun.result-panel")).toBeVisible();

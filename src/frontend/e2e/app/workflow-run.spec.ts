@@ -62,6 +62,6 @@ test.describe.serial("Workflow Run E2E", () => {
       data: {}
     });
 
-    expect([400, 404]).toContain(resp.status());
+    expect(resp.status()).toBe(404);
   });
 });
