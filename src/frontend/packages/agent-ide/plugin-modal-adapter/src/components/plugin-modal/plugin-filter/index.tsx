@@ -119,7 +119,7 @@ export const PluginFilter: React.FC<PluginFilterProps> = ({
                 onClick={() => onChangeAfterDiff(PluginFilterType.Coze)}
               >
                 <IconCozCoze className={s['tool-tag-list-cell-icon']} />
-                Coze.cn 插件
+                Coze.cn {I18n.t('coze_plugin_cat')}
               </div>
             </div>
           ) : null}

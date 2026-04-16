@@ -12034,6 +12034,8 @@
   "store_service_plugin": "Client plugins",
   "store_service_plugin_connector": "Supported channels",
   "store_service_plugin_connector_only": "This plugin is only active in the {connector_names} channel",
+  "guide_open_3rd_pay_plugin": "This third-party paid plugin is not enabled yet. Please go to enable it first.",
+  "paid_plugin_activate_tip": "Third-party paid plugins need to be enabled before use.",
   "store_show_service_plugin": "Only display client plugins",
   "store_start_new_chat": "Add chat",
   "studio_audio_and_video": "Audio and video",

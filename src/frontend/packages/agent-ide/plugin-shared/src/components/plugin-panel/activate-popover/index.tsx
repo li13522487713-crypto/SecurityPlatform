@@ -16,7 +16,7 @@
 
 import { type FC, type PropsWithChildren } from 'react';
 
-// import { I18n } from '@coze-arch/i18n';
+import { I18n } from '@coze-arch/i18n';
 import { IconCozDiamondFill } from '@coze-arch/coze-design/icons';
 import { AIButton, Popover, Space } from '@coze-arch/coze-design';
 
@@ -25,7 +25,7 @@ export interface ActivatePopoverProps {
   show?: boolean;
 }
 
-// 去开通popover弹窗
+// Popover shown before enabling a paid plugin
 export const ActivatePopover: FC<PropsWithChildren<ActivatePopoverProps>> = ({
   children,
   id,
@@ -39,11 +39,11 @@ export const ActivatePopover: FC<PropsWithChildren<ActivatePopoverProps>> = ({
         <div>
           <Space spacing={6}>
             <IconCozDiamondFill className="text-[16px] coz-fg-hglt" />
-            <span className="font-[500] ">此插件需要管理员开通后使用</span>
+            <span className="font-[500] ">{I18n.t('guide_open_3rd_pay_plugin')}</span>
           </Space>
 
           <div className="my-[8px] ">
-            此插件为三方付费插件，需要开通后使用。
+            {I18n.t('paid_plugin_activate_tip')}
           </div>
 
           <div>
@@ -58,7 +58,7 @@ export const ActivatePopover: FC<PropsWithChildren<ActivatePopoverProps>> = ({
                 );
               }}
             >
-              去开通
+              {I18n.t('knowledge_es_015')}
             </AIButton>
           </div>
         </div>

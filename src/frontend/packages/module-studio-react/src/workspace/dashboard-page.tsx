@@ -196,9 +196,10 @@ export function DashboardPage({
               </div>
             </section>
 
-            <ModelGuardBanner onConfigureModels={onNavigateToModels} />
+            <ModelGuardBanner locale={locale} onConfigureModels={onNavigateToModels} />
 
             <QuickStartCard
+              locale={locale}
               onCreateAgent={onCreateAgent}
               onCreateApp={onCreateApp}
               onCreateWorkflow={onCreateWorkflow}
