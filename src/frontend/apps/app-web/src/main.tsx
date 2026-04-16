@@ -5,7 +5,6 @@ import "@atlas/library-module-react/styles.css";
 import "@atlas/module-admin-react/styles.css";
 import "@atlas/module-explore-react/styles.css";
 import "@atlas/module-studio-react/styles.css";
-import "@atlas/module-workflow-react/styles.css";
 import "./app/app.css";
 import { AppRoot } from "./app/app";
 import { initializeAppRuntime } from "./app/runtime-init";

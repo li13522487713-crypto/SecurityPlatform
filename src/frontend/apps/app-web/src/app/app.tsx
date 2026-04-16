@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Component, Suspense, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
@@ -9,18 +10,8 @@ import type {
 } from "@atlas/module-admin-react";
 import type { ExploreModuleApi } from "@atlas/module-explore-react";
 import type {
-  DevelopFocus,
-  DevelopResourceSummary,
   StudioModuleApi
 } from "@atlas/module-studio-react";
-import type {
-  WorkflowCreateRequest as WorkflowModuleCreateRequest,
-  WorkflowListQuery,
-  WorkflowModuleApi,
-  WorkflowWorkbenchContentMode,
-  WorkflowResourceMode,
-  WorkflowTemplateSummary
-} from "@atlas/module-workflow-react";
 import {
   adminPath,
   appForbiddenPath,
@@ -91,6 +82,7 @@ import {
   EXPLORE_ROUTE_HANDLE,
   ROOT_ROUTE_HANDLE,
   SIGN_ROUTE_HANDLE,
+  STANDALONE_WORKFLOW_ROUTE_HANDLE,
   STATUS_ROUTE_HANDLE,
   WORKSPACE_CHATFLOW_ROUTE_HANDLE,
   WORKSPACE_DASHBOARD_ROUTE_HANDLE,
@@ -107,12 +99,12 @@ import { WorkflowRuntimeBoundary } from "./workflow-runtime-boundary";
 import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
 import {
   buildWorkspaceWorkbenchPath,
-  normalizeWorkbenchContentMode,
   resolveLegacyAppRedirectTarget
 } from "./legacy-route-mapping";
 import { APP_PERMISSIONS } from "../constants/permissions";
 import {
   getConfiguredAppKey,
+  requestApi,
   rememberConfiguredAppKey,
   setUnauthorizedHandler
 } from "../services/api-core";
@@ -294,16 +286,10 @@ import {
   getMessages
 } from "../services/api-conversation";
 import {
-  copyWorkflow,
   createWorkflow as createWorkflowDefinition,
-  deleteWorkflow as deleteWorkflowDefinition,
-  getWorkflowDependencies,
-  listWorkflowVersions,
   listWorkflows,
-  saveWorkflowDraft,
-  workflowV2Api
+  saveWorkflowDraft
 } from "../services/api-workflow";
-import { executeWorkflowTask } from "../services/api-workflow-playground";
 import {
   addWorkspaceMember,
   createWorkspace,
@@ -327,12 +313,17 @@ import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page
 import { WorkspaceSettingsPage } from "./pages/workspace-settings-page";
 import { setAppInstanceIdToStorage } from "../utils/app-context";
 
+type WorkflowResourceMode = "workflow" | "chatflow";
+type WorkflowWorkbenchContentMode = "canvas" | "variables" | "session";
+
 const loadCozeShellModule = () => import("@atlas/coze-shell-react");
 const loadLibraryModule = () => import("@atlas/library-module-react");
 const loadAdminModule = () => import("@atlas/module-admin-react");
 const loadExploreModule = () => import("@atlas/module-explore-react");
 const loadStudioModule = () => import("@atlas/module-studio-react");
-const loadWorkflowModule = () => import("@atlas/module-workflow-react");
+const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
+const loadCozeWorkspaceDevelopModule = () => import("@coze-studio/workspace-adapter/develop");
+const loadCozeWorkspaceLibraryModule = () => import("@coze-studio/workspace-adapter/library");
 
 const CozeShell = lazyNamed(loadCozeShellModule, "CozeShell");
 const LibraryPage = lazyNamed(loadLibraryModule, "LibraryPage");
@@ -365,7 +356,6 @@ const BotIdePage = lazyNamed(loadStudioModule, "BotIdePage");
 const DataResourcesPage = lazyNamed(loadStudioModule, "DataResourcesPage");
 const DashboardPage = lazyNamed(loadStudioModule, "DashboardPage");
 const DatabaseDetailPage = lazyNamed(loadStudioModule, "DatabaseDetailPage");
-const DevelopPage = lazyNamed(loadStudioModule, "DevelopPage");
 const DatabasesPage = lazyNamed(loadStudioModule, "DatabasesPage");
 const KnowledgeBasesPage = lazyNamed(loadStudioModule, "KnowledgeBasesPage");
 const ModelConfigsPage = lazyNamed(loadStudioModule, "ModelConfigsPage");
@@ -375,7 +365,9 @@ const PublishCenterPage = lazyNamed(loadStudioModule, "PublishCenterPage");
 const ResourceReferenceCard = lazyNamed(loadStudioModule, "ResourceReferenceCard");
 const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
 const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
-const WorkflowListPage = lazyNamed(loadWorkflowModule, "WorkflowListPage");
+const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
+const CozeWorkspaceDevelopPage = lazyNamed(loadCozeWorkspaceDevelopModule, "Develop");
+const CozeWorkspaceLibraryPage = lazyNamed(loadCozeWorkspaceLibraryModule, "LibraryPage");
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
@@ -414,83 +406,6 @@ const libraryApi: LibraryKnowledgeApi = {
   downloadDatabaseTemplate: downloadAiDatabaseTemplate,
   publishPlugin: publishAiPlugin
 };
-
-const WORKFLOW_TEMPLATE_REGISTRY: WorkflowTemplateSummary[] = [
-  {
-    id: "workflow-blank",
-    title: "空白工作流",
-    description: "从空白画布开始构建审批、数据处理或多步骤自动化流程。",
-    mode: "workflow",
-    createSource: "blank",
-    badge: "Blank"
-  },
-  {
-    id: "workflow-approval",
-    title: "审批流程模板",
-    description: "适用于申请、审批、通知等标准业务流。",
-    mode: "workflow",
-    createSource: "template",
-    badge: "Template"
-  },
-  {
-    id: "workflow-knowledge",
-    title: "知识检索模板",
-    description: "适用于知识库召回、总结和结果输出的场景。",
-    mode: "workflow",
-    createSource: "template",
-    badge: "Template"
-  },
-  {
-    id: "chatflow-blank",
-    title: "空白 Chatflow",
-    description: "从空白对话流开始构建多轮交互与消息处理。",
-    mode: "chatflow",
-    createSource: "blank",
-    badge: "Blank"
-  },
-  {
-    id: "chatflow-assistant",
-    title: "客服对话模板",
-    description: "适用于客服问答、澄清提问和多轮引导。",
-    mode: "chatflow",
-    createSource: "template",
-    badge: "Template"
-  },
-  {
-    id: "chatflow-copilot",
-    title: "应用 Copilot 模板",
-    description: "适用于面向应用内用户的智能助理和任务引导。",
-    mode: "chatflow",
-    createSource: "template",
-    badge: "Template"
-  }
-];
-
-function toWorkflowModeValue(mode: WorkflowResourceMode): 0 | 1 {
-  return mode === "chatflow" ? 1 : 0;
-}
-
-function toWorkflowResourceSummary(
-  item: {
-    id: string;
-    name: string;
-    description?: string;
-    updatedAt?: string;
-    latestVersionNumber?: number;
-    status?: number;
-  },
-  kind: "workflow" | "chatflow"
-): DevelopResourceSummary {
-  return {
-    id: item.id,
-    kind,
-    title: item.name,
-    description: item.description,
-    updatedAt: item.updatedAt,
-    status: item.status === 1 ? "已发布" : "草稿",
-    meta: `v${item.latestVersionNumber ?? 0}`
-  };
-}
 
 function navGlyph(label: string) {
   return <span className="app-nav-glyph" aria-hidden="true">{label}</span>;
@@ -1170,10 +1085,49 @@ function createStudioApi(appKey: string): StudioModuleApi {
       }));
     },
     bindAgentWorkflow: (agentId, workflowId) => bindAiAssistantWorkflow(agentId, workflowId),
-    runWorkflowTask: (workflowId, incident) => executeWorkflowTask(workflowId, {
-      incident,
-      source: "draft"
-    }),
+    runWorkflowTask: async (workflowId, incident) => {
+      const response = await requestApi<{
+        success: boolean;
+        message?: string;
+        data?: {
+          execution: {
+            executionId: string;
+            status?: string;
+            outputsJson?: string;
+            errorMessage?: string;
+          };
+          trace?: {
+            executionId: string;
+            status?: string;
+            startedAt?: string;
+            completedAt?: string;
+            durationMs?: number;
+            steps: Array<{
+              nodeKey: string;
+              status?: string;
+              nodeType?: string;
+              durationMs?: number;
+              errorMessage?: string;
+            }>;
+          };
+        };
+      }>(`/workflow-playground/${encodeURIComponent(workflowId)}/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          incident,
+          source: "draft"
+        })
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to execute workflow task");
+      }
+
+      return response.data;
+    },
     generateAssistant: (kind, description) => generateByAiAssistant(appKey, kind, description),
     listModelConfigs: () => getModelConfigsPaged({ pageIndex: 1, pageSize: 50 }),
     getModelConfig: getModelConfigById,
@@ -1261,115 +1215,11 @@ function createStudioApi(appKey: string): StudioModuleApi {
   };
 }
 
-function createWorkflowModuleApi(appKey: string): WorkflowModuleApi {
-  return {
-    listWorkflows: async (query?: WorkflowListQuery) => {
-      const pageIndex = Math.max(1, query?.pageIndex ?? 1);
-      const pageSize = Math.max(1, query?.pageSize ?? 20);
-      const response = await listWorkflows(1, 200, query?.keyword);
-      const allItems = response.data?.items ?? [];
-      const filtered = allItems.filter((item) => {
-        const itemMode: WorkflowResourceMode = item.mode === 1 ? "chatflow" : "workflow";
-        const modeMatched = !query?.mode || itemMode === query.mode;
-        const statusMatched =
-          !query?.status ||
-          query.status === "all" ||
-          (query.status === "published" ? item.status === 1 : item.status !== 1);
-        return modeMatched && statusMatched;
-      });
-      const start = (pageIndex - 1) * pageSize;
-      const items = filtered.slice(start, start + pageSize);
-      return {
-        items,
-        total: filtered.length,
-        pageIndex,
-        pageSize
-      };
-    },
-    listTemplates: async (mode) => WORKFLOW_TEMPLATE_REGISTRY.filter((item) => item.mode === mode),
-    createWorkflow: async (request: WorkflowModuleCreateRequest) => {
-      const response = await createWorkflowDefinition({
-        name: request.name,
-        description: request.description,
-        mode: toWorkflowModeValue(request.mode)
-      });
-      return response.data ?? "";
-    },
-    duplicateWorkflow: async (id: string) => {
-      const response = await copyWorkflow(id);
-      return response.data ?? "";
-    },
-    deleteWorkflow: async (id: string) => {
-      await deleteWorkflowDefinition(id);
-    },
-    getVersions: async (id: string) => {
-      const response = await listWorkflowVersions(id);
-      return (response.data ?? []).map((item) => ({
-        id: item.id,
-        versionNumber: item.versionNumber,
-        publishedAt: item.publishedAt
-      }));
-    },
-    getDependencies: async (id: string) => {
-      const response = await getWorkflowDependencies(id);
-      return response.data ?? {
-        workflowId: id,
-        subWorkflows: [],
-        plugins: [],
-        knowledgeBases: [],
-        databases: [],
-        variables: [],
-        conversations: []
-      };
-    },
-    listLibrary: getLibraryPaged,
-    importLibraryItem,
-    exportLibraryItem,
-    moveLibraryItem,
-    listPlugins: getAiPluginsPaged,
-    getPluginDetail: getAiPluginById,
-    createPlugin: createAiPlugin,
-    updatePlugin: updateAiPlugin,
-    deletePlugin: deleteAiPlugin,
-    publishPlugin: publishAiPlugin,
-    listKnowledgeBases: getKnowledgeBasesPaged,
-    getKnowledgeBase: getKnowledgeBaseById,
-    createKnowledgeBase,
-    updateKnowledgeBase,
-    deleteKnowledgeBase,
-    listDatabases: getAiDatabasesPaged,
-    getDatabaseDetail: getAiDatabaseById,
-    createDatabase: createAiDatabase,
-    updateDatabase: updateAiDatabase,
-    deleteDatabase: deleteAiDatabase,
-    validateDatabaseSchema: validateAiDatabaseSchema,
-    listVariables: getAiVariablesPaged,
-    createVariable: createAiVariable,
-    updateVariable: updateAiVariable,
-    deleteVariable: deleteAiVariable,
-    listSystemVariables: getAiSystemVariableDefinitions,
-    listConversations: request => getConversationsPaged(appKey, request),
-    createConversation: request => createConversation(appKey, request.agentId, request.title),
-    deleteConversation: id => deleteConversation(appKey, id),
-    clearConversationContext: id => clearConversationContext(appKey, id),
-    clearConversationHistory: id => clearConversationHistory(appKey, id),
-    listConversationMessages: conversationId => getMessages(appKey, conversationId),
-    appendConversationMessage: (conversationId, request) => appendConversationMessage(appKey, conversationId, request),
-    listAgents: async (request, keyword) => getAiAssistantsPaged({
-      pageIndex: request.pageIndex,
-      pageSize: request.pageSize,
-      keyword
-    }),
-    apiClient: workflowV2Api
-  };
-}
-
 function useAppApis(appKey: string) {
   return useMemo(() => ({
     adminApi: createAdminApi(appKey),
     exploreApi: createExploreApi(appKey),
-    studioApi: createStudioApi(appKey),
-    workflowApi: createWorkflowModuleApi(appKey)
+    studioApi: createStudioApi(appKey)
   }), [appKey]);
 }
 
@@ -1423,12 +1273,14 @@ function StudioAppsAliasRedirect() {
 }
 
 function StudioLibraryAliasRedirect() {
-  const { appKey = "", spaceId = "" } = useParams();
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
+  const { spaceId = "" } = useParams();
   const bootstrap = useBootstrap();
   const effectiveSpaceId = spaceId || bootstrap.spaceId;
-  return <LibraryPage api={libraryApi} locale={locale} appKey={appKey} spaceId={effectiveSpaceId} onNavigate={navigate} />;
+  return (
+    <WorkflowRuntimeBoundary>
+      <CozeWorkspaceLibraryPage spaceId={effectiveSpaceId} />
+    </WorkflowRuntimeBoundary>
+  );
 }
 
 function StudioVariablesRoute() {
@@ -1471,6 +1323,22 @@ function StudioPluginDetailRoute() {
       onOpenExplore={() => navigate("/explore/plugin")}
     />
   );
+}
+
+function WorkspacePluginToolRoute() {
+  const { id = "", toolId = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const [searchParams] = useSearchParams();
+  const targetParams = new URLSearchParams(searchParams);
+
+  if (toolId) {
+    targetParams.set("toolId", toolId);
+  }
+
+  const query = targetParams.toString();
+  const targetPath = orgWorkspacePluginDetailPath(orgId, workspace.id, id);
+  return <Navigate to={query ? `${targetPath}?${query}` : targetPath} replace />;
 }
 
 function StudioPublishCenterRoute() {
@@ -2062,10 +1930,12 @@ function AppShellRoute() {
 }
 
 function LibraryRoute() {
-  const { appKey = "", spaceId = "" } = useParams();
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
-  return <LibraryPage api={libraryApi} locale={locale} appKey={appKey} spaceId={spaceId} onNavigate={navigate} />;
+  const bootstrap = useBootstrap();
+  return (
+    <WorkflowRuntimeBoundary>
+      <CozeWorkspaceLibraryPage spaceId={bootstrap.spaceId} />
+    </WorkflowRuntimeBoundary>
+  );
 }
 
 function KnowledgeDetailRoute() {
@@ -2084,63 +1954,11 @@ function KnowledgeUploadRoute() {
 }
 
 function DevelopRoute() {
-  const { appKey = "" } = useParams();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { locale } = useAppI18n();
   const bootstrap = useBootstrap();
-  const { studioApi, workflowApi } = useAppApis(appKey);
-  const [workflowItems, setWorkflowItems] = useState<DevelopResourceSummary[]>([]);
-  const [chatflowItems, setChatflowItems] = useState<DevelopResourceSummary[]>([]);
-
-  const focus = (searchParams.get("focus") as DevelopFocus | null) ?? "overview";
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      const [workflowResult, chatflowResult] = await Promise.all([
-        workflowApi.listWorkflows({ pageIndex: 1, pageSize: 8, mode: "workflow" }),
-        workflowApi.listWorkflows({ pageIndex: 1, pageSize: 8, mode: "chatflow" })
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      setWorkflowItems(workflowResult.items.map((item) => toWorkflowResourceSummary(item, "workflow")));
-      setChatflowItems(chatflowResult.items.map((item) => toWorkflowResourceSummary(item, "chatflow")));
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [workflowApi]);
-
   return (
-    <DevelopPage
-      api={studioApi}
-      locale={locale}
-      focus={focus}
-      workflowItems={workflowItems}
-      chatflowItems={chatflowItems}
-      onOpenBot={botId => navigate(workspaceBotPath(appKey, bootstrap.spaceId, botId))}
-      onOpenWorkflow={workflowId => navigate(buildWorkflowWorkbenchPath(appKey, workflowId))}
-      onOpenChatflow={workflowId => navigate(buildChatflowWorkbenchPath(appKey, workflowId))}
-      onOpenWorkflows={() => navigate(workflowListPath(appKey))}
-      onOpenChatflows={() => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow`)}
-      onOpenAgentChat={() => navigate(workspaceChatPath(appKey, bootstrap.spaceId))}
-      onOpenModelConfigs={() => navigate(workspaceModelConfigsPath(appKey, bootstrap.spaceId))}
-      onOpenUsers={() => navigate(adminPath(appKey, "users"))}
-      onOpenRoles={() => navigate(adminPath(appKey, "roles"))}
-      onOpenDepartments={() => navigate(adminPath(appKey, "departments"))}
-      onOpenPositions={() => navigate(adminPath(appKey, "positions"))}
-      onOpenLibrary={() => navigate(studioLibraryPath(appKey))}
-      onOpenApplicationDetail={appId => navigate(studioAppDetailPath(appKey, appId))}
-      onOpenApplicationPublish={appId => navigate(studioAppPublishPath(appKey, appId))}
-      onCreateWorkflow={() => navigate(`${workflowListPath(appKey)}?create=1`)}
-      onCreateChatflow={() => navigate(`/apps/${encodeURIComponent(appKey)}/chat_flow?create=1`)}
-    />
+    <WorkflowRuntimeBoundary>
+      <CozeWorkspaceDevelopPage spaceId={bootstrap.spaceId} />
+    </WorkflowRuntimeBoundary>
   );
 }
 
@@ -2251,67 +2069,6 @@ function ModelConfigsRoute() {
   return <ModelConfigsPage api={studioApi} locale={locale} />;
 }
 
-function WorkflowListRoute({
-  mode = "workflow",
-  contentMode = "canvas"
-}: { mode?: WorkflowResourceMode; contentMode?: WorkflowWorkbenchContentMode }) {
-  const { appKey = "" } = useParams();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
-  const bootstrap = useBootstrap();
-  const { workflowApi } = useAppApis(appKey);
-  const isChatflow = mode === "chatflow";
-  const selectedWorkflowId = searchParams.get("workflow_id") ?? undefined;
-
-  const navigateWithinWorkbench = (workflowId: string, nextMode: WorkflowResourceMode) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("workflow_id", workflowId);
-    const targetPath = nextMode === "chatflow"
-      ? buildChatflowWorkbenchPath(appKey, workflowId, contentMode)
-      : buildWorkflowWorkbenchPath(appKey, workflowId, contentMode);
-    navigate(targetPath, { replace: true });
-  };
-
-  const resolveWorkbenchHref = (workflowId: string, nextMode: WorkflowResourceMode) => {
-    return nextMode === "chatflow"
-      ? buildChatflowWorkbenchPath(appKey, workflowId, contentMode)
-      : buildWorkflowWorkbenchPath(appKey, workflowId, contentMode);
-  };
-
-  const navigateContentMode = (nextContentMode: WorkflowWorkbenchContentMode) => {
-    const targetPath = isChatflow
-      ? buildChatflowWorkbenchPath(appKey, selectedWorkflowId, nextContentMode)
-      : buildWorkflowWorkbenchPath(appKey, selectedWorkflowId, nextContentMode);
-    navigate(targetPath, { replace: true });
-  };
-
-  return (
-    <WorkflowListPage
-      api={workflowApi}
-      locale={locale}
-      spaceId={bootstrap.spaceId}
-      backPath={workspaceDevelopPath(appKey, bootstrap.spaceId)}
-      mode={mode}
-      selectedWorkflowId={selectedWorkflowId}
-      contentMode={contentMode}
-      projectTitle={bootstrap.workspaceLabel || appKey}
-      initialCreateVisible={searchParams.get("create") === "1"}
-      onSelectWorkflow={navigateWithinWorkbench}
-      onSelectContentMode={navigateContentMode}
-      resolveWorkflowHref={resolveWorkbenchHref}
-      onOpenEditor={id =>
-        navigate(isChatflow ? buildChatflowWorkbenchPath(appKey, id, contentMode) : buildWorkflowWorkbenchPath(appKey, id, contentMode))
-      }
-    />
-  );
-}
-
-function WorkflowEditorRoute({ mode = "workflow" }: { mode?: WorkflowResourceMode }) {
-  const { appKey = "", id = "" } = useParams();
-  return <Navigate to={mode === "chatflow" ? buildChatflowWorkbenchPath(appKey, id) : buildWorkflowWorkbenchPath(appKey, id)} replace />;
-}
-
 function WorkspaceWorkflowWorkbenchRoute({
   mode = "workflow"
 }: {
@@ -2320,79 +2077,79 @@ function WorkspaceWorkflowWorkbenchRoute({
   const params = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { locale } = useAppI18n();
-  const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
-  const { workflowApi } = useAppApis(workspace.appKey);
-  const selectedWorkflowId = params.workflowId ?? params.id ?? searchParams.get("workflow_id") ?? undefined;
-  const contentMode = normalizeWorkbenchContentMode(searchParams.get("contentMode"));
+  const selectedWorkflowId =
+    params.workflowId ??
+    params.id ??
+    searchParams.get("workflow_id") ??
+    searchParams.get("workflowId") ??
+    "";
+  const returnUrl = searchParams.get("return_url") ?? searchParams.get("returnUrl") ?? undefined;
 
-  const navigateWithinWorkbench = (workflowId: string, nextMode: WorkflowResourceMode) => {
-    navigate(
-      buildWorkspaceWorkbenchPath(
-        orgId,
-        workspace.id,
-        nextMode,
-        workflowId,
-        contentMode,
-        searchParams
-      ),
-      { replace: true }
+  if (!selectedWorkflowId) {
+    return (
+      <WorkflowRuntimeBoundary>
+        <CozeWorkspaceDevelopPage spaceId={workspace.id} />
+      </WorkflowRuntimeBoundary>
     );
-  };
-
-  const resolveWorkbenchHref = (workflowId: string, nextMode: WorkflowResourceMode) => {
-    return buildWorkspaceWorkbenchPath(
-      orgId,
-      workspace.id,
-      nextMode,
-      workflowId,
-      contentMode,
-      searchParams
-    );
-  };
-
-  const navigateContentMode = (nextContentMode: WorkflowWorkbenchContentMode) => {
-    navigate(
-      buildWorkspaceWorkbenchPath(
-        orgId,
-        workspace.id,
-        mode,
-        selectedWorkflowId,
-        nextContentMode,
-        searchParams
-      ),
-      { replace: true }
-    );
-  };
+  }
 
   return (
     <WorkflowRuntimeBoundary>
-      <WorkflowListPage
-        api={workflowApi}
-        locale={locale}
-        spaceId={workspace.id}
-        backPath={orgWorkspaceDevelopPath(orgId, workspace.id)}
+      <CozeWorkflowPage
+        workflowId={selectedWorkflowId}
         mode={mode}
-        selectedWorkflowId={selectedWorkflowId}
-        contentMode={contentMode}
-        projectTitle={workspace.name || workspace.appKey}
-        initialCreateVisible={searchParams.get("create") === "1"}
-        onSelectWorkflow={navigateWithinWorkbench}
-        onSelectContentMode={navigateContentMode}
-        resolveWorkflowHref={resolveWorkbenchHref}
-        onOpenEditor={id =>
-          navigate(
-            buildWorkspaceWorkbenchPath(
-              orgId,
-              workspace.id,
-              mode,
-              id,
-              contentMode,
-              searchParams
-            )
-          )
-        }
+        spaceId={workspace.id}
+        returnUrl={returnUrl}
+        onAtlasBack={() => {
+          if (returnUrl && typeof window !== "undefined") {
+            window.location.assign(returnUrl);
+            return;
+          }
+          if (typeof window !== "undefined" && window.history.length > 1) {
+            navigate(-1);
+            return;
+          }
+          navigate("/", { replace: true });
+        }}
+      />
+    </WorkflowRuntimeBoundary>
+  );
+}
+
+function StandaloneWorkflowRoute() {
+  const { workflowId: workflowIdFromPath = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const workflowId = workflowIdFromPath || searchParams.get("workflow_id") || searchParams.get("workflowId") || "";
+  const mode = searchParams.get("mode") === "chatflow" ? "chatflow" : "workflow";
+  const spaceId = searchParams.get("space_id") ?? searchParams.get("spaceId") ?? "";
+  const returnUrl = searchParams.get("return_url") ?? searchParams.get("returnUrl") ?? undefined;
+
+  if (!workflowId) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <WorkflowRuntimeBoundary>
+      <CozeWorkflowPage
+        workflowId={workflowId}
+        mode={mode}
+        spaceId={spaceId}
+        returnUrl={returnUrl}
+        onAtlasBack={() => {
+          if (returnUrl && typeof window !== "undefined") {
+            window.location.assign(returnUrl);
+            return;
+          }
+
+          if (typeof window !== "undefined" && window.history.length > 1) {
+            navigate(-1);
+            return;
+          }
+
+          navigate("/", { replace: true });
+        }}
       />
     </WorkflowRuntimeBoundary>
   );
@@ -2834,36 +2591,12 @@ function WorkspaceShellInner() {
 }
 
 function WorkspaceLibraryRoute() {
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
   const workspace = useWorkspaceContext();
-  const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
-    ...libraryApi,
-    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
-    createPlugin: request => createAiPlugin({
-      name: request.name,
-      description: request.description,
-      icon: request.icon,
-      category: request.category,
-      type: request.type as 0 | 1,
-      sourceType: request.sourceType as 0 | 1 | 2,
-      authType: request.authType as 0 | 1 | 2 | 3 | 4,
-      definitionJson: request.definitionJson,
-      authConfigJson: request.authConfigJson,
-      toolSchemaJson: request.toolSchemaJson,
-      openApiSpecJson: request.openApiSpecJson,
-      workspaceId: Number(workspace.id)
-    }),
-    createDatabase: request => createAiDatabase({
-      name: request.name,
-      description: request.description,
-      botId: request.botId,
-      tableSchema: request.tableSchema,
-      workspaceId: Number(workspace.id)
-    }),
-    updateKnowledgeBase: (id, request) => updateKnowledgeBase(id, { ...request, workspaceId: Number(workspace.id) })
-  }), [workspace.id]);
-  return <LibraryPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} onNavigate={navigate} />;
+  return (
+    <WorkflowRuntimeBoundary>
+      <CozeWorkspaceLibraryPage spaceId={workspace.id} />
+    </WorkflowRuntimeBoundary>
+  );
 }
 
 function WorkspaceKnowledgeDetailRoute() {
@@ -2894,63 +2627,11 @@ function WorkspaceKnowledgeUploadRoute() {
 }
 
 function WorkspaceDevelopRoute() {
-  const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { locale } = useAppI18n();
-  const { studioApi, workflowApi } = useAppApis(workspace.appKey);
-  const [workflowItems, setWorkflowItems] = useState<DevelopResourceSummary[]>([]);
-  const [chatflowItems, setChatflowItems] = useState<DevelopResourceSummary[]>([]);
-
-  const focus = (searchParams.get("focus") as DevelopFocus | null) ?? "overview";
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      const [workflowResult, chatflowResult] = await Promise.all([
-        workflowApi.listWorkflows({ pageIndex: 1, pageSize: 8, mode: "workflow" }),
-        workflowApi.listWorkflows({ pageIndex: 1, pageSize: 8, mode: "chatflow" })
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      setWorkflowItems(workflowResult.items.map((item) => toWorkflowResourceSummary(item, "workflow")));
-      setChatflowItems(chatflowResult.items.map((item) => toWorkflowResourceSummary(item, "chatflow")));
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [workflowApi]);
-
   return (
-    <DevelopPage
-      api={studioApi}
-      locale={locale}
-      focus={focus}
-      workflowItems={workflowItems}
-      chatflowItems={chatflowItems}
-      onOpenBot={botId => navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, botId))}
-      onOpenWorkflow={workflowId => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow", workflowId))}
-      onOpenChatflow={workflowId => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "chatflow", workflowId))}
-      onOpenWorkflows={() => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow"))}
-      onOpenChatflows={() => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "chatflow"))}
-      onOpenAgentChat={() => navigate(orgWorkspaceChatPath(orgId, workspace.id))}
-      onOpenModelConfigs={() => navigate(orgWorkspaceModelConfigsPath(orgId, workspace.id))}
-      onOpenUsers={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "users"))}
-      onOpenRoles={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "roles"))}
-      onOpenDepartments={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "departments"))}
-      onOpenPositions={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "positions"))}
-      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
-      onOpenApplicationDetail={appId => navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, appId))}
-      onOpenApplicationPublish={appId => navigate(orgWorkspaceAppPublishPath(orgId, workspace.id, appId))}
-      onCreateWorkflow={() => navigate(`${orgWorkspaceWorkflowsPath(orgId, workspace.id)}?create=1`)}
-      onCreateChatflow={() => navigate(`${orgWorkspaceChatflowsPath(orgId, workspace.id)}?create=1`)}
-    />
+    <WorkflowRuntimeBoundary>
+      <CozeWorkspaceDevelopPage spaceId={workspace.id} />
+    </WorkflowRuntimeBoundary>
   );
 }
 
@@ -3348,6 +3029,24 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />
   },
   {
+    path: "/work_flow",
+    element: <StandaloneWorkflowRoute />,
+    handle: STANDALONE_WORKFLOW_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/workflow",
+    element: <StandaloneWorkflowRoute />,
+    handle: STANDALONE_WORKFLOW_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/workflow/:workflowId",
+    element: <StandaloneWorkflowRoute />,
+    handle: STANDALONE_WORKFLOW_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
     path: "/org/:orgId/workspaces",
     element: <WorkspaceListRoute />,
     handle: WORKSPACE_LIST_ROUTE_HANDLE,
@@ -3489,6 +3188,16 @@ export const appRoutes = [
       {
         path: "plugins/:id",
         element: <StudioPluginDetailRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "plugins/:id/tools/:toolId",
+        element: <WorkspacePluginToolRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "plugin/:id/tool/:toolId",
+        element: <WorkspacePluginToolRoute />,
         handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
       },
       {

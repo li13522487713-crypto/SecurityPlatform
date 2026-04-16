@@ -1,7 +1,3 @@
-import type {
-  WorkflowWorkbenchContentMode,
-  WorkflowResourceMode
-} from "@atlas/module-workflow-react";
 import {
   orgWorkspaceAgentDetailPath,
   orgWorkspaceAgentPublishPath,
@@ -27,6 +23,9 @@ import {
   orgWorkspaceWorkflowPath,
   orgWorkspaceWorkflowsPath
 } from "@atlas/app-shell-shared";
+
+type WorkflowWorkbenchContentMode = "canvas" | "variables" | "session";
+type WorkflowResourceMode = "workflow" | "chatflow";
 
 export interface LegacyAppRedirectContext {
   orgId: string;

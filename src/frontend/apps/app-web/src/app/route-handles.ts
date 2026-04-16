@@ -69,6 +69,13 @@ export const WORKSPACE_CHATFLOW_ROUTE_HANDLE = createHandle({
   subMenuKey: "chatflow",
   responsive: true
 });
+export const STANDALONE_WORKFLOW_ROUTE_HANDLE = createHandle({
+  hasSider: false,
+  requireAuth: true,
+  menuKey: "develop",
+  subMenuKey: "workflow",
+  responsive: true
+});
 export const EXPLORE_ROUTE_HANDLE = createHandle({
   hasSider: false,
   requireAuth: true,

@@ -61,18 +61,18 @@ importers:
       '@atlas/module-studio-react':
         specifier: workspace:*
         version: link:../../packages/module-studio-react
-      '@atlas/module-workflow-react':
-        specifier: workspace:*
-        version: link:../../packages/module-workflow-react
       '@atlas/shared-react-core':
         specifier: workspace:*
         version: link:../../packages/shared-react-core
-      '@atlas/workflow-core-react':
-        specifier: workspace:*
-        version: link:../../packages/workflow-core-react
       '@coze-foundation/foundation-sdk':
         specifier: workspace:*
         version: link:../../packages/foundation/foundation-sdk
+      '@coze-studio/workspace-adapter':
+        specifier: workspace:*
+        version: link:../../packages/studio/workspace/entry-adapter
+      '@coze-workflow/playground-adapter':
+        specifier: workspace:*
+        version: link:../../packages/workflow/adapter/playground
       '@douyinfe/semi-foundation':
         specifier: ^2.82.0
         version: 2.94.0
@@ -17292,40 +17292,6 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
 
-  packages/module-workflow-react:
-    dependencies:
-      '@atlas/module-studio-react':
-        specifier: workspace:*
-        version: link:../module-studio-react
-      '@atlas/shared-react-core':
-        specifier: workspace:*
-        version: link:../shared-react-core
-      '@atlas/workflow-core-react':
-        specifier: workspace:*
-        version: link:../workflow-core-react
-      '@atlas/workflow-editor-react':
-        specifier: workspace:*
-        version: link:../workflow-editor-react
-      '@coze-workflow/playground-adapter':
-        specifier: workspace:*
-        version: link:../workflow/adapter/playground
-      '@douyinfe/semi-ui':
-        specifier: ^2.82.0
-        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react:
-        specifier: 18.2.0
-        version: 18.2.0
-      react-dom:
-        specifier: 18.2.0
-        version: 18.2.0(react@18.2.0)
-    devDependencies:
-      '@types/react':
-        specifier: 18.2.37
-        version: 18.2.37
-      '@types/react-dom':
-        specifier: 18.2.15
-        version: 18.2.15
-
   packages/project-ide/base-adapter:
     dependencies:
       '@coze-arch/bot-typings':
@@ -21270,133 +21236,6 @@ importers:
         specifier: ~5.91.0
         version: 5.91.0(esbuild@0.27.7)
 
-  packages/workflow-core-react:
-    dependencies:
-      '@atlas/shared-react-core':
-        specifier: workspace:*
-        version: link:../shared-react-core
-      react:
-        specifier: 18.2.0
-        version: 18.2.0
-      react-dom:
-        specifier: 18.2.0
-        version: 18.2.0(react@18.2.0)
-    devDependencies:
-      '@types/react':
-        specifier: ^19.2.13
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-
-  packages/workflow-editor-react:
-    dependencies:
-      '@ant-design/icons':
-        specifier: ^6.1.0
-        version: 6.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@atlas/shared-react-core':
-        specifier: workspace:*
-        version: link:../shared-react-core
-      '@atlas/workflow-core-react':
-        specifier: workspace:*
-        version: link:../workflow-core-react
-      '@babel/runtime':
-        specifier: ^7.28.0
-        version: 7.29.2
-      '@flowgram.ai/free-auto-layout-plugin':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/free-container-plugin':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/free-history-plugin':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-editor':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/free-lines-plugin':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/free-node-panel-plugin':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-snap-plugin':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/minimap-plugin':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/playground-react':
-        specifier: ^1.0.8
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/renderer':
-        specifier: ^1.0.1
-        version: 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@inversifyjs/common':
-        specifier: ^1.5.2
-        version: 1.5.2
-      '@inversifyjs/container':
-        specifier: ^1.15.0
-        version: 1.15.0(reflect-metadata@0.2.2)
-      '@inversifyjs/core':
-        specifier: ^9.2.0
-        version: 9.2.0(reflect-metadata@0.2.2)
-      '@inversifyjs/prototype-utils':
-        specifier: ^0.1.3
-        version: 0.1.3
-      '@inversifyjs/reflect-metadata-utils':
-        specifier: ^1.4.1
-        version: 1.4.1(reflect-metadata@0.2.2)
-      '@monaco-editor/react':
-        specifier: ^4.7.0
-        version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@types/react':
-        specifier: ^19.2.2
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.2
-        version: 19.2.3(@types/react@19.2.14)
-      antd:
-        specifier: ^5.28.0
-        version: 5.29.3(date-fns@2.30.0)(moment@2.30.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames:
-        specifier: ^2.5.1
-        version: 2.5.1
-      dayjs:
-        specifier: ^1.11.13
-        version: 1.11.20
-      html-parse-stringify:
-        specifier: ^3.0.1
-        version: 3.0.1
-      i18next:
-        specifier: ^25.6.0
-        version: 25.10.10(typescript@5.9.3)
-      inversify:
-        specifier: ^7.10.1
-        version: 7.11.0(reflect-metadata@0.2.2)
-      lodash-es:
-        specifier: ^4.17.21
-        version: 4.18.1
-      react:
-        specifier: 18.2.0
-        version: 18.2.0
-      react-dom:
-        specifier: 18.2.0
-        version: 18.2.0(react@18.2.0)
-      react-i18next:
-        specifier: ^15.7.3
-        version: 15.7.4(i18next@25.10.10(typescript@5.9.3))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.9.3)
-      reflect-metadata:
-        specifier: ^0.2.2
-        version: 0.2.2
-      void-elements:
-        specifier: ^3.1.0
-        version: 3.1.0
-      zustand:
-        specifier: ^5.0.8
-        version: 5.0.12(@types/react@19.2.14)(immer@10.2.0)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0))
-
   packages/workflow/adapter/base:
     dependencies:
       '@coze-workflow/base':
@@ -23897,54 +23736,6 @@ packages:
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
     engines: {node: '>=6.0.0'}
 
-  '@ant-design/colors@7.2.1':
-    resolution: {integrity: sha512-lCHDcEzieu4GA3n8ELeZ5VQ8pKQAWcGGLRTQ50aQM2iqPpq2evTxER84jfdPvsPAtEcZ7m44NI45edFMo8oOYQ==}
-
-  '@ant-design/colors@8.0.1':
-    resolution: {integrity: sha512-foPVl0+SWIslGUtD/xBr1p9U4AKzPhNYEseXYRRo5QSzGACYZrQbe11AYJbYfAWnWSpGBx6JjBmSeugUsD9vqQ==}
-
-  '@ant-design/cssinjs-utils@1.1.3':
-    resolution: {integrity: sha512-nOoQMLW1l+xR1Co8NFVYiP8pZp3VjIIzqV6D6ShYF2ljtdwWJn5WSsH+7kvCktXL/yhEtWURKOfH5Xz/gzlwsg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@ant-design/cssinjs@1.24.0':
-    resolution: {integrity: sha512-K4cYrJBsgvL+IoozUXYjbT6LHHNt+19a9zkvpBPxLjFHas1UpPM2A5MlhROb0BT8N8WoavM5VsP9MeSeNK/3mg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@ant-design/fast-color@2.0.6':
-    resolution: {integrity: sha512-y2217gk4NqL35giHl72o6Zzqji9O7vHh9YmhUVkPtAOpoTCH4uWxo/pr4VE8t0+ChEPs0qo4eJRC5Q1eXWo3vA==}
-    engines: {node: '>=8.x'}
-
-  '@ant-design/fast-color@3.0.1':
-    resolution: {integrity: sha512-esKJegpW4nckh0o6kV3Tkb7NPIZYbPnnFxmQDUmL08ukXZAvV85TZBr70eGuke/CIArLaP6aw8lt9KILjnWuOw==}
-    engines: {node: '>=8.x'}
-
-  '@ant-design/icons-svg@4.4.2':
-    resolution: {integrity: sha512-vHbT+zJEVzllwP+CM+ul7reTEfBR0vgxFe7+lREAsAA7YGsYpboiq2sQNeQeRvh09GfQgs/GyFEvZpJ9cLXpXA==}
-
-  '@ant-design/icons@5.6.1':
-    resolution: {integrity: sha512-0/xS39c91WjPAZOWsvi1//zjx6kAp4kxWwctR6kuU6p133w8RU0D2dSCvZC19uQyharg/sAvYxGYWl01BbZZfg==}
-    engines: {node: '>=8'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@ant-design/icons@6.1.1':
-    resolution: {integrity: sha512-AMT4N2y++TZETNHiM77fs4a0uPVCJGuL5MTonk13Pvv7UN7sID1cNEZOc1qNqx6zLKAOilTEFAdAoAFKa0U//Q==}
-    engines: {node: '>=8'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@ant-design/react-slick@1.1.2':
-    resolution: {integrity: sha512-EzlvzE6xQUBrZuuhSAFTdsr4P2bBBHGZwKFemEfq8gIGyIQCxalYfZW/T2ORbtQx5rU69o+WycP3exY/7T1hGA==}
-    peerDependencies:
-      react: 18.2.0
-
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
 
@@ -25522,9 +25313,6 @@ packages:
   '@emotion/hash@0.7.4':
     resolution: {integrity: sha512-fxfMSBMX3tlIbKUdtGKxqB1fyrH6gVrX39Gsv3y8lRYKUqlgDt3UMqQyGnR1bQMa2B8aGnhLZokZgg8vT0Le+A==}
 
-  '@emotion/hash@0.8.0':
-    resolution: {integrity: sha512-kBJtf7PH6aWwZ6fka3zQ0p6SBYzx4fl1LoZXE2RrnYST9Xljm7WfKJrU4g/Xr3Beg72MLrp1AWNUmuYJTL7Cow==}
-
   '@emotion/hash@0.9.2':
     resolution: {integrity: sha512-MyqliTZGuOm3+5ZRSaaBGP3USLw6+EGykkwZns2EPC5g8jJ4z9OrdZY9apkl3+UP9+sdz76YYkwCKP5gh8iY3g==}
 
@@ -25561,9 +25349,6 @@ packages:
 
   '@emotion/unitless@0.10.0':
     resolution: {integrity: sha512-dFoMUuQA20zvtVTuxZww6OHoJYgrzfKM1t52mVySDJnMSEa08ruEvdYQbhvyu6soU+NeLVd3yKfTfT0NeV6qGg==}
-
-  '@emotion/unitless@0.7.5':
-    resolution: {integrity: sha512-OWORNpfjMsSSUBVrRBVGECkhWcULOAJz9ZW8uK9qgxD+87M7jHRcvh/A96XXNhXTLmKcoYSQtBEX7lHMO7YRwg==}
 
   '@emotion/use-insertion-effect-with-fallbacks@1.2.0':
     resolution: {integrity: sha512-yJMtVdH59sxi/aVJBpk9FQq+OR8ll5GT8oWd57UpeaKEVGab41JWaCFA7FRLoMLloOZF/c/wsPoe+bfGmRKgDg==}
@@ -26426,20 +26211,8 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/background-plugin@1.0.10':
-    resolution: {integrity: sha512-2RrVs79dnrXnsGwCmu/fyHoWbTDn1pZkhqBDWJDl90AsPPl9rCHlPh+tJONiWPJ/GWk9ToWBIE/GyUkYWs3e8Q==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/command@0.1.28':
     resolution: {integrity: sha512-BQ3YEvONRHlQlsnYHWmzX3sD9zmOtv9ZYh2ugLWyNvoe/bbCMY1xCJOEwjDnfjiia4fkDHAaIX36fiPDL6dNeg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/command@1.0.10':
-    resolution: {integrity: sha512-Jh7M6JhdxNwHCrpnbJvTdLmn545EJh2SESWrgbWedQv/g04l4XZEeFk+G4/NVM3AvPMe8X/NAmBAfWSuGnW9VQ==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26450,26 +26223,11 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/core@1.0.10':
-    resolution: {integrity: sha512-bNL9+ixID/ato9idINP1QnhDGxhQuQvGYF5OMCH4ypDf593baQcqtBhz4PJOqA+chlATxATZqjC3+hg1H1U/+Q==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/document@0.1.28':
     resolution: {integrity: sha512-e2d8YXnI4y75HT5d6vXA2qGI9qITg2qgzQ97R/9UhPNFxu73QWeH2nECTxOirDL3SDeDNc8THGTqJrz3dX988w==}
 
-  '@flowgram.ai/document@1.0.10':
-    resolution: {integrity: sha512-rC+8G2VHY2FeLw5biXNvpifSQCyWgg0JY9hjXUkX9KkOyDNUYBcM++6ZChS5CVqOARzL/vfpBPrUEctJCKAOfw==}
-
   '@flowgram.ai/editor@0.1.28':
     resolution: {integrity: sha512-odFy68P6mSRixyFMH/e/HIlBnC7CicMLefdt8JgrjzdB/MeCDdD++hVcbvxjEkI3PqW4cueigCtZN+cbse6/gg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/editor@1.0.10':
-    resolution: {integrity: sha512-fpVxyidZFsv6VO5t9Ta9B8PtgaAVAQUOuT3G2o+972hl3UAbBEEZlm7Ln9vYy5uc6AggbXqJuMTZo010C3oN7g==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26501,33 +26259,14 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/form-core@1.0.10':
-    resolution: {integrity: sha512-c/fdUvn5Gl6npHmZGlXiLMS4zOsf7tq0bGpuTJTniPEbF5TaFRSFugAQIn3DPG0Bpnbht1qCUqywnzuAQdrqMg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/form@0.1.28':
     resolution: {integrity: sha512-WNo0BhqWhx7BGEmzVX5Yx7aobXiokSC/u5rH2O+k/93fyNNrxyhhV4YJ8GtSnFEzcl9ZeuRQuCSLgKwyrSG13A==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/form@1.0.10':
-    resolution: {integrity: sha512-q8ToJKDA22fnykuSBG2VGVljdyouINwJd56etp3+xb1Q0zFGLO8P6TbKgH8XIoFsVkNb9SSbVOlwRFbTWZ50wA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/free-auto-layout-plugin@0.1.28':
     resolution: {integrity: sha512-xcwxCuLZ+KnJiAkbODjoLfE4iRynhHnrTrcKdQanyUFqMD22JkLDkxPg1C8gAfQKAvyTESc+g+XrA/yz2nKgSg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-      styled-components: 6.4.0
-
-  '@flowgram.ai/free-auto-layout-plugin@1.0.10':
-    resolution: {integrity: sha512-VBK0puNAxBkkSJBc+hVRrgOiIWddPy0d34ymvruO2EbWN5Y1QyhKEai+MYZQ8ECy4qe2Ee2DC4WfHxwi/OheDQ==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26540,21 +26279,8 @@ packages:
       react-dom: 18.2.0
       styled-components: 6.4.0
 
-  '@flowgram.ai/free-container-plugin@1.0.10':
-    resolution: {integrity: sha512-JSBDwAkbOvqhKmVhqqQTH/+/c5trnBCPn78xxeub1bh09GopZysXb7grfaYdQgHfywWsbiGI0jQo73hNMqCqdQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-      styled-components: 6.4.0
-
   '@flowgram.ai/free-history-plugin@0.1.28':
     resolution: {integrity: sha512-EADS6i/g3Ym4a5K9mxt5dTwuLEdHc9SPIy4T6etb0WmTFlaGl49h9k/YBtYdvhRD7m9DbfXNxXSCdI+DlMMGoQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/free-history-plugin@1.0.10':
-    resolution: {integrity: sha512-FTqIG/z/lJrthNYuvlHw4Pf+RVzGKQ7mrBtnF914Psc3uN92FWIbFlhAuyxsgfe8tiuQsjfxTBCoAO0WpR7NTg==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26565,20 +26291,8 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/free-hover-plugin@1.0.10':
-    resolution: {integrity: sha512-Y4djOrPIHUARsIW7ibgzolU6z+uzJTY605CN4NoZpKONGXaTZ+sbOlqHcVvBypl4zNRupEkC1nC1NaKwx4Bqwg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/free-layout-core@0.1.28':
     resolution: {integrity: sha512-UuobdLPJaH1fCnzQ/8C8ZYBnG3aC8qixSsmBNT/Dl118ZS+q4Dqse5yKc4qFO9soQyBLNG9zNFqTdcgg3R/tNQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/free-layout-core@1.0.10':
-    resolution: {integrity: sha512-B/9Y/8zSX6t3LLS7zZ4FKx4CWR5bS7nh1L28Vit+4i76XRSoucFi+AvdWb499feXVurXukBo3svbsNvoZiix5g==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26589,21 +26303,8 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/free-layout-editor@1.0.10':
-    resolution: {integrity: sha512-e4NmvQoNHzM6i4aluJaoTg8cz04WJbtHWET0N6HfNN99EFjrYttOF1LPrvmeyoEfGswxoVUE+IG922Vnnbma0A==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/free-lines-plugin@0.1.28':
     resolution: {integrity: sha512-cr1B7T6YvjNEDoFzsDEVd2Fb8KStmBCDiAuP3UrLfRkFpfQxIx9f/hFIJVMeCgXAClg8R0bPZi0B+W6ciHrRSw==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-      styled-components: 6.4.0
-
-  '@flowgram.ai/free-lines-plugin@1.0.10':
-    resolution: {integrity: sha512-+bRdPQYio7x2DBURgFXMeYJjO1/5SKYdFylUl2f8RkQWzM7dB8dAwiauwbE5pHBpLLqvp1r8PglaGbZLLL4OBQ==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26616,12 +26317,6 @@ packages:
       react-dom: 18.2.0
       styled-components: 6.4.0
 
-  '@flowgram.ai/free-node-panel-plugin@1.0.10':
-    resolution: {integrity: sha512-rUjZprXYG9sjPVNsDobPx2L/ytMYzg4ce8haIboE2qRCWDRbobCSaN8IbSaQbCTH57BOXX7W9tcXUzRj+g6uYg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/free-snap-plugin@0.1.28':
     resolution: {integrity: sha512-UziJvZc7GRZBO97Hmxz7H7UI2n9XGyxi/ioo3TPkKkqMRmYEY/fFDHFJ8trFL13/aWdkYPFzq2nmlYyphNazFQ==}
     peerDependencies:
@@ -26629,22 +26324,8 @@ packages:
       react-dom: 18.2.0
       styled-components: 6.4.0
 
-  '@flowgram.ai/free-snap-plugin@1.0.10':
-    resolution: {integrity: sha512-uuCwSfYIVYdHfDRaVffpktIyMlayx5pPUQsZDCMmdIN/nMWhRHxGri59hgsVdBKEnY+CHbz9FBqWWGYE/GgmTw==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-      styled-components: 6.4.0
-
   '@flowgram.ai/free-stack-plugin@0.1.28':
     resolution: {integrity: sha512-kNduDbXN1ARj74tU/Kva8SA7f1zbkfAYBso/irvXzD1YwCH05FvJlC9RVe0Bzps4dUHMvr8bGUb0VUXC9ztWUg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-      styled-components: 6.4.0
-
-  '@flowgram.ai/free-stack-plugin@1.0.10':
-    resolution: {integrity: sha512-rQaDED1oZyUzHprF6fkVXuH/afJY+nLQ1pK087WQgXD970+4CS8MNxykxsRSLbOWY3rx6lh0yiU3n1ICM7aBSg==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26663,29 +26344,14 @@ packages:
       react-dom: 18.2.0
       styled-components: 6.4.0
 
-  '@flowgram.ai/history-node-plugin@1.0.10':
-    resolution: {integrity: sha512-7Oja5aBT6npXMWebnR2k8y6V55yMWCS2e8/pjax4nlDmCp6kLWVw1bAvkPEL1wZCRSb4SCFuaEMt5D4RY/AGNA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/history@0.1.28':
     resolution: {integrity: sha512-+qWjjsNk9ikMCevFxzMz5j3HkJmJ58kNI92dAQcGaljC6B2ZXEmvwpg/I50Fi4420zdbB0oqcyzkvCL04GVCzA==}
-
-  '@flowgram.ai/history@1.0.10':
-    resolution: {integrity: sha512-A+kQxIT2s+TjqszY81dv/prcvfWIsk5Gow6oNb+gmHhrDRzsbumh9jmFaOKgvtKs+EpLnrQXGJxtLiY40NHHFQ==}
 
   '@flowgram.ai/i18n-plugin@0.1.28':
     resolution: {integrity: sha512-7e3tn0hPV8BcHR8Xtv7MDzBQL1lMe/KqfRpEjD3gwlyDDWaFSCYUitb4Be9JYVACZSerhDRUL6S+tc5I9QRXWw==}
 
-  '@flowgram.ai/i18n-plugin@1.0.10':
-    resolution: {integrity: sha512-Dlq/10JYK6ckb1bkdJHfw34Ttz5errcxXIKhzV6Nj9r3GRXU3pm6FuC2kuwmYjGx6ooZyojM6uoP++cus76N4A==}
-
   '@flowgram.ai/i18n@0.1.28':
     resolution: {integrity: sha512-cVa+wBY/oDtP6cM6gaQ72JEDKpUtUdIZsh+SIRJcOiWjEnDG86sqB6OgrEaAmrNh3+NOsgjmsPh639WOW9tjQw==}
-
-  '@flowgram.ai/i18n@1.0.10':
-    resolution: {integrity: sha512-obeTbGMiHgG/FdYGJMchg+bH3Bh4yzBNEeGBnk8/Qf1fpd4qVyXgo8UfognO4xvfpG4pDEjyPrt8D713JrzJIQ==}
 
   '@flowgram.ai/materials-plugin@0.1.28':
     resolution: {integrity: sha512-rIEF6sUtazQK3GHFjnmREhRs0RQecQEXREbTXyue5Ssvm/c//H+rJX2hVWS0BEJyYKJQlkyf+avohQ7YH+SWDQ==}
@@ -26694,24 +26360,12 @@ packages:
       react-dom: 18.2.0
       styled-components: 6.4.0
 
-  '@flowgram.ai/materials-plugin@1.0.10':
-    resolution: {integrity: sha512-6GgYKlilnSAcGlgFgpyjJxt7BTWBU3zZ7w/3hKZQ+8VcG0WTJyXBeL7IM3KKNLMQ6cafcWKSP1mRcRv/GyzDtQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/minimap-plugin@0.1.28':
     resolution: {integrity: sha512-5zNZwZbGW+7WM6qVxVYf27sJU4x58E1ZpWiiqQSkapHbZfhvto9KzduGqCDyFLbVJeKHlxYZ8G12pIN3WIuOhw==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
       styled-components: 6.4.0
-
-  '@flowgram.ai/minimap-plugin@1.0.10':
-    resolution: {integrity: sha512-lyGrrJgS2WQWcqIxmwQ8tzIiUfkh/DBqIMYFCduQ1FvTVzojowqQNIdvHwZ9jC8t97L7NCHYf/autb7g0FFwlg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
 
   '@flowgram.ai/node-core-plugin@0.1.28':
     resolution: {integrity: sha512-ckQEKHQo47dwVY0xlHZLBfuQj6AdDIq3gKTg+S3PoDzsZlwIi9l02jdTQ7HHZ1A3DgrnrD+nCNTP3AD8qXPr/A==}
@@ -26720,12 +26374,6 @@ packages:
       react-dom: 18.2.0
       styled-components: 6.4.0
 
-  '@flowgram.ai/node-core-plugin@1.0.10':
-    resolution: {integrity: sha512-c+Dr9lav6/MIdPjyNG0E+dy/NIOHDyTHCk0JKzlohCLwdiklqS1kJQQZHinfjC6NZ+tIIV8k1aJN3MIeGmrLEw==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/node-variable-plugin@0.1.28':
     resolution: {integrity: sha512-sVZcUSG5AWjy/zc2pvSvGGYI3kBFjsKZyXyuCOFfWZrPh+3cLsy6rZJB4rNfh/R+ygt7xV4Q1F9zVyiGeo/0pw==}
     peerDependencies:
@@ -26733,20 +26381,8 @@ packages:
       react-dom: 18.2.0
       styled-components: 6.4.0
 
-  '@flowgram.ai/node-variable-plugin@1.0.10':
-    resolution: {integrity: sha512-950pDVHwEDnqCtSCXDpGOHdaU4+WnShP62UCS4VJuHLW9vVWf1IB3ZW4DanGQ2NRBBtGeVI1rYeDYDywI+Lyyg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/node@0.1.28':
     resolution: {integrity: sha512-LEOMGWIhbNn8crqF4KtYTh9lmNAW/ZlfUbKaAb/OUvq2hLVRSoTYT5IHKXcfRZ+/fcz5ZZIVLT2ytHGLeHL6UQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/node@1.0.10':
-    resolution: {integrity: sha512-fcQNAsLdmeWYoo3YOrNDooS++rjMKp5WMvd79AvuB1+YQR7OYTKStkbpb2ZodF3T92Uklv8weypQBXjeEsrnRw==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26757,20 +26393,8 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/playground-react@1.0.10':
-    resolution: {integrity: sha512-w5WuMMktQ0YKVWGh6uOf0MHPoD1Qg8E1cC5SiBmvftLey4xwCjLqCLx66ehZGpofVJOhOgjLcZ5m4eo8vyk5HA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/reactive@0.1.28':
     resolution: {integrity: sha512-Hi5nAeeiYkvH99B3fEBB5mXHW6Fg50Igc4iZWy7xbakZLc0CET/xgGHgZb3IOcZFkYDklyYJomIg/QZiokDnaA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/reactive@1.0.10':
-    resolution: {integrity: sha512-Xbvidm/qTWoa52sXvVywVkpFeMqr7zOHXCzf0KQFS//HxCqpzPOeygY5f8yVRSTxrV6Ow7Y6dookvrFU2ATPrw==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26778,17 +26402,8 @@ packages:
   '@flowgram.ai/redux-devtool-plugin@0.1.28':
     resolution: {integrity: sha512-VOUgbvjKn6e1deRZgzYIaPQif85m5QcBhu1635KqWMoFcdW7ALSwnzx/ia8BPnaOMup0O9XHvECzVy6hYb6gTA==}
 
-  '@flowgram.ai/redux-devtool-plugin@1.0.10':
-    resolution: {integrity: sha512-BVzJ2Z7hZjHZ3wcmbBdJWPyQtexRzlVQ21BcrhXsQ+zPJ++YN+nptO0VqQlf2H8EU9GzLkVZpgC7F9HD7hgw2w==}
-
   '@flowgram.ai/renderer@0.1.28':
     resolution: {integrity: sha512-nsNawtPjTZ43C5tcS1aGFHtH2MP+INVEr4rA89HdvbKo+gMuSJDi/a+eAVAYjGIwe0Yk2lqRqvZF2hxZYOQkuw==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/renderer@1.0.10':
-    resolution: {integrity: sha512-61x7D+H5oiG4NP8vXoGI4ivN4Jry+Fxcb+fsU9kageUdT4XX85lb6R8lknlrQ272ywTlZ0UXZ2J6WmY4AoT6Ww==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26799,26 +26414,11 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/select-box-plugin@1.0.10':
-    resolution: {integrity: sha512-IzT58blCgvfg3bRnXmHHVMZCh8TwEMPxsyr2qnrv3YZRMPPVzu8RV7KgeuELRhJn1sLxP+F575MzqC6PZ/4OmA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/shortcuts-plugin@0.1.28':
     resolution: {integrity: sha512-83xSNK1wSjAJt2TOD63P60XR/1QOrtH9o8QmIiTzhg9EOJvRNz8hBlfJw5AHaNR28MbWsSkuPiEQOzEKilaL5A==}
 
-  '@flowgram.ai/shortcuts-plugin@1.0.10':
-    resolution: {integrity: sha512-LlehrpZn87R2PlBKay30ht+0vgeog2VNmgTjAI8nYK/hoCwMM9FqGZC7W+Qch4HOiE3+SupUimKEq9zMfhXzxg==}
-
   '@flowgram.ai/utils@0.1.28':
     resolution: {integrity: sha512-ysAAV52TTGv9jVd82H0oUXrj4peJ5seG0+83c4F01dSPXEWLS0MJz7pY5IBfZN0xsThYOMYTzN5n3IKS+Obdmg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@flowgram.ai/utils@1.0.10':
-    resolution: {integrity: sha512-gtOfXvX41uTB5qDbGiFhsmtWs+nJ0XH54bK+Ka47BGCT3xU0Tvpo84ycFabq2nXkaNcVhQsoMzdegTqIxMibCg==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -26829,23 +26429,11 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  '@flowgram.ai/variable-core@1.0.10':
-    resolution: {integrity: sha512-Y73nSobtqDDtimx5kQRFoTZCalGHF8GuY/j1uGDE4vQmj3Tw8pTA5nKyxheimhqaTSbShoUqsLZm26QpLQlR0A==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   '@flowgram.ai/variable-layout@0.1.28':
     resolution: {integrity: sha512-cs6cUebqLvEkBOyx68nG2mDwAaHLxmR878kP2BYUacIv1yB3F/srybEkyQHRVBpU+b3cSmDriK83l91ds+0FFA==}
 
-  '@flowgram.ai/variable-layout@1.0.10':
-    resolution: {integrity: sha512-XhxsuucoGzFqoCB6Qf9OVHp/AbQkPDrqJg7McHRuUJ7G9Xoq9/e5D+fa09Zbkagnad6cNRTtU4G7SsjTFludpA==}
-
   '@flowgram.ai/variable-plugin@0.1.28':
     resolution: {integrity: sha512-OhoRd1ye0fU45G3/ECar/HmBe9vetTND6RaM8fDErlK8BeT8UYrx5nreRWGu/KSOoOLaEf1yCkfzRfU4WyG2vA==}
-
-  '@flowgram.ai/variable-plugin@1.0.10':
-    resolution: {integrity: sha512-fG6QI5j8JlatEsm6JHvg8Od/6Yzsu1e+2z2yBr0m4edHgmKsDiqlSxWCbkl28BsBOg5wqa+wmfLYqigtG50G3g==}
 
   '@formatjs/ecma402-abstract@2.3.6':
     resolution: {integrity: sha512-HJnTFeRM2kVFVr5gr5kH1XP6K0JcJtE7Lzvtr3FS/so5f1kpsqqqxy5JF+FRaO6H2qmcMfAUIox7AJteieRtVw==}
@@ -27081,35 +26669,13 @@ packages:
   '@inversifyjs/common@1.4.0':
     resolution: {integrity: sha512-qfRJ/3iOlCL/VfJq8+4o5X4oA14cZSBbpAmHsYj8EsIit1xDndoOl0xKOyglKtQD4u4gdNVxMHx4RWARk/I4QA==}
 
-  '@inversifyjs/common@1.5.2':
-    resolution: {integrity: sha512-WlzR9xGadABS9gtgZQ+luoZ8V6qm4Ii6RQfcfC9Ho2SOlE6ZuemFo7PKJvKI0ikm8cmKbU8hw5UK6E4qovH21w==}
-
-  '@inversifyjs/container@1.15.0':
-    resolution: {integrity: sha512-U2xYsPrJTz5za2TExi5lg8qOWf8TEVBpN+pQM7B8BVA2rajtbRE9A66SLRHk8c1eGXmg+0K4Hdki6tWAsSQBUA==}
-    peerDependencies:
-      reflect-metadata: ~0.2.2
-
   '@inversifyjs/core@1.3.5':
     resolution: {integrity: sha512-B4MFXabhNTAmrfgB+yeD6wd/GIvmvWC6IQ8Rh/j2C3Ix69kmqwz9pr8Jt3E+Nho9aEHOQCZaGmrALgtqRd+oEQ==}
-
-  '@inversifyjs/core@9.2.0':
-    resolution: {integrity: sha512-Nm7BR6KmpgshIHpVQWuEDehqRVb6GBm8LFEuhc2s4kSZWrArZ15RmXQzROLk4m+hkj4kMXgvMm5Qbopot/D6Sg==}
-
-  '@inversifyjs/plugin@0.2.0':
-    resolution: {integrity: sha512-R/JAdkTSD819pV1zi0HP54mWHyX+H2m8SxldXRgPQarS3ySV4KPyRdosWcfB8Se0JJZWZLHYiUNiS6JvMWSPjw==}
-
-  '@inversifyjs/prototype-utils@0.1.3':
-    resolution: {integrity: sha512-EzRamZzNgE9Sn3QtZ8NncNa2lpPMZfspqbK6BWFguWnOpK8ymp2TUuH46ruFHZhrHKnknPd7fG22ZV7iF517TQ==}
 
   '@inversifyjs/reflect-metadata-utils@0.2.4':
     resolution: {integrity: sha512-u95rV3lKfG+NT2Uy/5vNzoDujos8vN8O18SSA5UyhxsGYd4GLQn/eUsGXfOsfa7m34eKrDelTKRUX1m/BcNX5w==}
     peerDependencies:
       reflect-metadata: 0.2.2
-
-  '@inversifyjs/reflect-metadata-utils@1.4.1':
-    resolution: {integrity: sha512-Cp77C4d2wLaHXiUB7iH6Cxb7i1lD/YDuTIHLTDzKINqGSz0DCSoL/Dg2wVkW/6Qx03r/yQMLJ+32Agl32N2X8g==}
-    peerDependencies:
-      reflect-metadata: ~0.2.2
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -28115,67 +27681,6 @@ packages:
 
   '@radix-ui/rect@1.0.1':
     resolution: {integrity: sha512-fyrgCaedtvMg9NK3en0pnOYJdtfwxUcNolezkNPUsoX57X8oQk+NkqcvzHXD2uKNij6GXmWU9NDru2IWjrO4BQ==}
-
-  '@rc-component/async-validator@5.1.0':
-    resolution: {integrity: sha512-n4HcR5siNUXRX23nDizbZBQPO0ZM/5oTtmKZ6/eqL0L2bo747cklFdZGRN2f+c9qWGICwDzrhW0H7tE9PptdcA==}
-    engines: {node: '>=14.x'}
-
-  '@rc-component/color-picker@2.0.1':
-    resolution: {integrity: sha512-WcZYwAThV/b2GISQ8F+7650r5ZZJ043E57aVBFkQ+kSY4C6wdofXgB0hBx+GPGpIU0Z81eETNoDUJMr7oy/P8Q==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@rc-component/context@1.4.0':
-    resolution: {integrity: sha512-kFcNxg9oLRMoL3qki0OMxK+7g5mypjgaaJp/pkOis/6rVxma9nJBF/8kCIuTYHUQNr0ii7MxqE33wirPZLJQ2w==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@rc-component/mini-decimal@1.1.3':
-    resolution: {integrity: sha512-bk/FJ09fLf+NLODMAFll6CfYrHPBioTedhW6lxDBuuWucJEqFUd4l/D/5JgIi3dina6sYahB8iuPAZTNz2pMxw==}
-    engines: {node: '>=8.x'}
-
-  '@rc-component/mutate-observer@1.1.0':
-    resolution: {integrity: sha512-QjrOsDXQusNwGZPf4/qRQasg7UFEj06XiCJ8iuiq/Io7CrHrgVi6Uuetw60WAMG1799v+aM8kyc+1L/GBbHSlw==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@rc-component/portal@1.1.2':
-    resolution: {integrity: sha512-6f813C0IsasTZms08kfA8kPAGxbbkYToa8ALaiDIGGECU4i9hj8Plgbx0sNJDrey3EtHO30hmdaxtT0138xZcg==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@rc-component/qrcode@1.1.1':
-    resolution: {integrity: sha512-LfLGNymzKdUPjXUbRP+xOhIWY4jQ+YMj5MmWAcgcAq1Ij8XP7tRmAXqyuv96XvLUBE/5cA8hLFl9eO1JQMujrA==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@rc-component/tour@1.15.1':
-    resolution: {integrity: sha512-Tr2t7J1DKZUpfJuDZWHxyxWpfmj8EZrqSgyMZ+BCdvKZ6r1UDsfU46M/iWAAFBy961Ssfom2kv5f3UcjIL2CmQ==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@rc-component/trigger@2.3.1':
-    resolution: {integrity: sha512-ORENF39PeXTzM+gQEshuk460Z8N4+6DkjpxlpE7Q3gYy1iBpLrx0FOJz3h62ryrJZ/3zCAUIkT1Pb/8hHWpb3A==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@rc-component/util@1.10.1':
-    resolution: {integrity: sha512-q++9S6rUa5Idb/xIBNz6jtvumw5+O5YV5V0g4iK9mn9jWs4oGJheE3ZN1kAnE723AXyaD8v95yeOASmdk8Jnng==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
 
   '@react-dnd/asap@4.0.1':
     resolution: {integrity: sha512-kLy0PJDDwvwwTXxqTFNAAllPHD73AycE9ypWeln/IguoGBEbvFcPDbCV03G52bEcC5E+YgupBE0VzHGdC8SIXg==}
@@ -31607,12 +31112,6 @@ packages:
     resolution: {integrity: sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg==}
     engines: {node: '>=12'}
 
-  antd@5.29.3:
-    resolution: {integrity: sha512-3DdbGCa9tWAJGcCJ6rzR8EJFsv2CtyEbkVabZE14pfgUHfCicWCj0/QzQVLDYg8CPfQk9BH7fHCoTXHTy7MP/A==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   any-promise@1.3.0:
     resolution: {integrity: sha512-7UvmKalWRt1wgjL1RrGxoSJW/0QZFIegpeGvZG9kjp8vrRu55XTHbwnqq2GpXm9uLbcuhxm3IqX9OB4MZR1b2A==}
 
@@ -34847,9 +34346,6 @@ packages:
     engines: {node: ^14.13.1 || >=16.0.0}
     hasBin: true
 
-  html-parse-stringify@3.0.1:
-    resolution: {integrity: sha512-KknJ50kTInJ7qIScF3jeaFRpMpE8/lfiTdzf/twXyPBLAGrLRTmkz3AdTnKeh40X8k9L2fdYwEp/42WGXIRGcg==}
-
   html-react-parser@3.0.15:
     resolution: {integrity: sha512-iM2KUVhNoeIsezbpO6xwOHlFqWH+EYaCGwWWeX7R+jvrgc+mbnuouWaCU8GZRRbPKDD0eJXPZwLoeGVft84QXw==}
     peerDependencies:
@@ -34939,9 +34435,6 @@ packages:
 
   hyphenate-style-name@1.1.0:
     resolution: {integrity: sha512-WDC/ui2VVRrz3jOVi+XtjqkDjiVjTtFaAGiW37k6b+ohyQ5wYDOGkvCZa8+H0nx3gyvv0+BST9xuOgIyGQ00gw==}
-
-  i18n-js@4.5.3:
-    resolution: {integrity: sha512-5/tT6R9t9qlYqGhxGq9I9Ap3WKUaAMq5aRuO1gqAcUqm6xGbL0jwTAjSFjgbx935BAV8QbEzvQOzE796dUlEfA==}
 
   i18next-browser-languagedetector@8.0.4:
     resolution: {integrity: sha512-f3frU3pIxD50/Tz20zx9TD9HobKYg47fmAETb117GKGPrhwcSSPJDoCposXlVycVebQ9GQohC3Efbpq7/nnJ5w==}
@@ -35108,9 +34601,6 @@ packages:
     resolution: {integrity: sha512-KB836KHbZ9WrUnB8ax5MtadOwnqQYa+ZJO3KWbPFgcr4RIEnHM621VaqFZzOZd9+U7ln6upt9n0wJei7x2BNqw==}
     peerDependencies:
       reflect-metadata: ~0.2.2
-
-  inversify@7.11.0:
-    resolution: {integrity: sha512-yZDprSSr8TyVeMGI/AOV4ws6gwjX22hj9Z8/oHAVpJORY6WRFTcUzhnZtibBUHEw2U8ArvHcR+i863DplQ3Cwg==}
 
   io-ts@2.2.20:
     resolution: {integrity: sha512-Rq2BsYmtwS5vVttie4rqrOCIfHCS9TgpRLFpKQCM1wZBBRY9nWVGmEvm2FnDbSE2un1UE39DvFpTR5UL47YDcA==}
@@ -35333,9 +34823,6 @@ packages:
   is-map@2.0.3:
     resolution: {integrity: sha512-1Qed0/Hr2m+YqxnM09CjA2d/i6YZNfF6R2oRAOj36eUdS6qIV/huPJNSEpKbupewFs+ZsJlxsjjPbc0/afW6Lw==}
     engines: {node: '>= 0.4'}
-
-  is-mobile@5.0.0:
-    resolution: {integrity: sha512-Tz/yndySvLAEXh+Uk8liFCxOwVH6YutuR74utvOcu7I9Di+DwM0mtdPVZNaVvvBUM2OXxne/NhOs1zAO7riusQ==}
 
   is-module@1.0.0:
     resolution: {integrity: sha512-51ypPSPCoTEIN9dy5Oy+h4pShgJmPCygKfyRCISBI+JoWT/2oJvK8QPxmwv7b/p239jXrm9M1mlQbyKJ5A152g==}
@@ -35758,9 +35245,6 @@ packages:
 
   json-stringify-safe@5.0.1:
     resolution: {integrity: sha512-ZClg6AaYvamvYEE82d3Iyd3vSSIjQ+odgjaTzRuO3s7toCdFKczob2i0zCh7JE8kWn17yvAWhUVxvqGwUalsRA==}
-
-  json2mq@0.2.0:
-    resolution: {integrity: sha512-SzoRg7ux5DWTII9J2qkrZrqV1gt+rTaoufMxEzXbS26Uid0NwaJd123HcoB80TgubEppxxIGdNxCx50fEoEWQA==}
 
   json5@1.0.2:
     resolution: {integrity: sha512-g1MWMLBiz8FKi1e4w0UyVL3w+iJceWAFBAaBnnGKOpNa5f8TLktkbre1+s6oICydWAm+HRUGTmI+//xv2hvXYA==}
@@ -36210,9 +35694,6 @@ packages:
 
   make-event-props@1.6.2:
     resolution: {integrity: sha512-iDwf7mA03WPiR8QxvcVHmVWEPfMY1RZXerDVNCRYW7dUr2ppH3J58Rwb39/WG39yTZdRSxr3x+2v22tvI0VEvA==}
-
-  make-plural@7.5.0:
-    resolution: {integrity: sha512-0booA+aVYyVFoR67JBHdfVk0U08HmrBH2FrtmBqBa+NldlqXv/G2Z9VQuQq6Wgp2jDWdybEWGfBkk1cq5264WA==}
 
   makeerror@1.0.12:
     resolution: {integrity: sha512-JmqCvUhmt43madlpFzG4BQzG2Z3m6tvQDNKdClZnO3VbIudJYmxsT0FNJMeiB2+JTSlTQTSbU8QdesVmwJcmLg==}
@@ -36796,9 +36277,6 @@ packages:
     resolution: {integrity: sha512-eQsKcWzIaZzEZ07NuEyO4Nw65g0hdWAyurVol1IPl1gahRwY+svqzfgfey8U8dahLwG44d6/RwEzuK52rSa/JQ==}
     hasBin: true
 
-  moment@2.30.1:
-    resolution: {integrity: sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==}
-
   monaco-editor@0.45.0:
     resolution: {integrity: sha512-mjv1G1ZzfEE3k9HZN0dQ2olMdwIfaeAAjFiwNprLfYNRSz7ctv9XuCT7gPtBGrMUeV1/iZzYKj17Khu1hxoHOA==}
 
@@ -36844,11 +36322,6 @@ packages:
   nanoid@4.0.2:
     resolution: {integrity: sha512-7ZtY5KTCNheRGfEFxnedV5zFiORN1+Y1N6zvPTnHQd8ENUvfaDBeuJDZb2bN/oXwXxu3qkTXDzy57W5vAmDTBw==}
     engines: {node: ^14 || ^16 || >=18}
-    hasBin: true
-
-  nanoid@5.1.7:
-    resolution: {integrity: sha512-ua3NDgISf6jdwezAheMOk4mbE1LXjm1DfMUDMuJf4AqxLFK3ccGpgWizwa5YV7Yz9EpXwEaWoRXSb/BnV0t5dQ==}
-    engines: {node: ^18 || >=20}
     hasBin: true
 
   nanomatch@1.2.13:
@@ -38172,152 +37645,14 @@ packages:
     peerDependencies:
       webpack: ^4.0.0 || ^5.0.0
 
-  rc-cascader@3.34.0:
-    resolution: {integrity: sha512-KpXypcvju9ptjW9FaN2NFcA2QH9E9LHKq169Y0eWtH4e/wHQ5Wh5qZakAgvb8EKZ736WZ3B0zLLOBsrsja5Dag==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-checkbox@3.5.0:
-    resolution: {integrity: sha512-aOAQc3E98HteIIsSqm6Xk2FPKIER6+5vyEFMZfo73TqM+VVAIqOkHoPjgKLqSNtVLWScoaM7vY2ZrGEheI79yg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-collapse@3.9.0:
-    resolution: {integrity: sha512-swDdz4QZ4dFTo4RAUMLL50qP0EY62N2kvmk2We5xYdRwcRn8WcYtuetCJpwpaCbUfUt5+huLpVxhvmnK+PHrkA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-dialog@9.6.0:
-    resolution: {integrity: sha512-ApoVi9Z8PaCQg6FsUzS8yvBEQy0ZL2PkuvAgrmohPkN3okps5WZ5WQWPc1RNuiOKaAYv8B97ACdsFU5LizzCqg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-drawer@7.3.0:
-    resolution: {integrity: sha512-DX6CIgiBWNpJIMGFO8BAISFkxiuKitoizooj4BDyee8/SnBn0zwO2FHrNDpqqepj0E/TFTDpmEBCyFuTgC7MOg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-dropdown@4.2.1:
-    resolution: {integrity: sha512-YDAlXsPv3I1n42dv1JpdM7wJ+gSUBfeyPK59ZpBD9jQhK9jVuxpjj3NmWQHOBceA1zEPVX84T2wbdb2SD0UjmA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-field-form@2.7.1:
-    resolution: {integrity: sha512-vKeSifSJ6HoLaAB+B8aq/Qgm8a3dyxROzCtKNCsBQgiverpc4kWDQihoUwzUj+zNWJOykwSY4dNX3QrGwtVb9A==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-image@7.12.0:
-    resolution: {integrity: sha512-cZ3HTyyckPnNnUb9/DRqduqzLfrQRyi+CdHjdqgsyDpI3Ln5UX1kXnAhPBSJj9pVRzwRFgqkN7p9b6HBDjmu/Q==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-input-number@9.5.0:
-    resolution: {integrity: sha512-bKaEvB5tHebUURAEXw35LDcnRZLq3x1k7GxfAqBMzmpHkDGzjAtnUL8y4y5N15rIFIg5IJgwr211jInl3cipag==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   rc-input@1.8.0:
     resolution: {integrity: sha512-KXvaTbX+7ha8a/k+eg6SYRVERK0NddX8QX7a7AnRvUa/rEH0CNMlpcBzBkhI0wp2C8C4HlMoYl8TImSN+fuHKA==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
 
-  rc-mentions@2.20.0:
-    resolution: {integrity: sha512-w8HCMZEh3f0nR8ZEd466ATqmXFCMGMN5UFCzEUL0bM/nGw/wOS2GgRzKBcm19K++jDyuWCOJOdgcKGXU3fXfbQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-menu@9.16.1:
-    resolution: {integrity: sha512-ghHx6/6Dvp+fw8CJhDUHFHDJ84hJE3BXNCzSgLdmNiFErWSOaZNsihDAsKq9ByTALo/xkNIwtDFGIl6r+RPXBg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-motion@2.9.5:
-    resolution: {integrity: sha512-w+XTUrfh7ArbYEd2582uDrEhmBHwK1ZENJiSJVb7uRxdE7qJSYjbO2eksRXmndqyKqKoYPc9ClpPh5242mV1vA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-notification@5.6.4:
-    resolution: {integrity: sha512-KcS4O6B4qzM3KH7lkwOB7ooLPZ4b6J+VMmQgT51VZCeEcmghdeR4IrMcFq0LG+RPdnbe/ArT086tGM8Snimgiw==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-overflow@1.5.0:
-    resolution: {integrity: sha512-Lm/v9h0LymeUYJf0x39OveU52InkdRXqnn2aYXfWmo8WdOonIKB2kfau+GF0fWq6jPgtdO9yMqveGcK6aIhJmg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-pagination@5.1.0:
-    resolution: {integrity: sha512-8416Yip/+eclTFdHXLKTxZvn70duYVGTvUUWbckCCZoIl3jagqke3GLsFrMs0bsQBikiYpZLD9206Ej4SOdOXQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-picker@4.11.3:
-    resolution: {integrity: sha512-MJ5teb7FlNE0NFHTncxXQ62Y5lytq6sh5nUw0iH8OkHL/TjARSEvSHpr940pWgjGANpjCwyMdvsEV55l5tYNSg==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      date-fns: '>= 2.x'
-      dayjs: '>= 1.x'
-      luxon: '>= 3.x'
-      moment: '>= 2.x'
-      react: 18.2.0
-      react-dom: 18.2.0
-    peerDependenciesMeta:
-      date-fns:
-        optional: true
-      dayjs:
-        optional: true
-      luxon:
-        optional: true
-      moment:
-        optional: true
-
-  rc-progress@4.0.0:
-    resolution: {integrity: sha512-oofVMMafOCokIUIBnZLNcOZFsABaUw8PPrf1/y0ZBvKZNpOiu5h4AO9vv11Sw0p4Hb3D0yGWuEattcQGtNJ/aw==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-rate@2.13.1:
-    resolution: {integrity: sha512-QUhQ9ivQ8Gy7mtMZPAjLbxBt5y9GRp65VcUyGUMF3N3fhiftivPHdpuDIaWIMOTEprAjZPC08bls1dQB+I1F2Q==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   rc-resize-observer@1.4.3:
     resolution: {integrity: sha512-YZLjUbyIWox8E9i9C3Tm7ia+W7euPItNWSPX5sCcQTYbnwDb5uNpnLHQCG1f22oZWUhLw4Mv2tFmeWe68CDQRQ==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-segmented@2.7.1:
-    resolution: {integrity: sha512-izj1Nw/Dw2Vb7EVr+D/E9lUTkBe+kKC+SAFSU9zqr7WV2W5Ktaa9Gc7cB2jTqgk8GROJayltaec+DBlYKc6d+g==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-select@14.16.8:
-    resolution: {integrity: sha512-NOV5BZa1wZrsdkKaiK7LHRuo5ZjZYMDxPP6/1+09+FB4KoNi8jcG1ZqLE3AVCxEsYMBe65OBx71wFoHRTP3LRg==}
-    engines: {node: '>=8.x'}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -38329,80 +37664,14 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0
 
-  rc-slider@11.1.9:
-    resolution: {integrity: sha512-h8IknhzSh3FEM9u8ivkskh+Ef4Yo4JRIY2nj7MrH6GQmrwV6mcpJf5/4KgH5JaVI1H3E52yCdpOlVyGZIeph5A==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-steps@6.0.1:
-    resolution: {integrity: sha512-lKHL+Sny0SeHkQKKDJlAjV5oZ8DwCdS2hFhAkIjuQt1/pB81M0cA0ErVFdHq9+jmPmFw1vJB2F5NBzFXLJxV+g==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-switch@4.1.0:
-    resolution: {integrity: sha512-TI8ufP2Az9oEbvyCeVE4+90PDSljGyuwix3fV58p7HV2o4wBnVToEyomJRVyTaZeqNPAp+vqeo4Wnj5u0ZZQBg==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-table@7.54.0:
-    resolution: {integrity: sha512-/wDTkki6wBTjwylwAGjpLKYklKo9YgjZwAU77+7ME5mBoS32Q4nAwoqhA2lSge6fobLW3Tap6uc5xfwaL2p0Sw==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-tabs@15.7.0:
-    resolution: {integrity: sha512-ZepiE+6fmozYdWf/9gVp7k56PKHB1YYoDsKeQA1CBlJ/POIhjkcYiv0AGP0w2Jhzftd3AVvZP/K+V+Lpi2ankA==}
-    engines: {node: '>=8.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   rc-textarea@1.10.2:
     resolution: {integrity: sha512-HfaeXiaSlpiSp0I/pvWpecFEHpVysZ9tpDLNkxQbMvMz6gsr7aVZ7FpWP9kt4t7DB+jJXesYS0us1uPZnlRnwQ==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
 
-  rc-tooltip@6.4.0:
-    resolution: {integrity: sha512-kqyivim5cp8I5RkHmpsp1Nn/Wk+1oeloMv9c7LXNgDxUpGm+RbXJGL+OPvDlcRnx9DBeOe4wyOIl4OKUERyH1g==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-tree-select@5.27.0:
-    resolution: {integrity: sha512-2qTBTzwIT7LRI1o7zLyrCzmo5tQanmyGbSaGTIf7sYimCklAToVVfpMC6OAldSKolcnjorBYPNSKQqJmN3TCww==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-tree@5.13.1:
-    resolution: {integrity: sha512-FNhIefhftobCdUJshO7M8uZTA9F4OPGVXqGfZkkD/5soDeOhwO06T/aKTrg0WD8gRg/pyfq+ql3aMymLHCTC4A==}
-    engines: {node: '>=10.x'}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-upload@4.11.0:
-    resolution: {integrity: sha512-ZUyT//2JAehfHzjWowqROcwYJKnZkIUGWaTE/VogVrepSl7AFNbQf4+zGfX4zl9Vrj/Jm8scLO0R6UlPDKK4wA==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
   rc-util@5.44.4:
     resolution: {integrity: sha512-resueRJzmHG9Q6rI/DfK6Kdv9/Lfls05vzMs1Sk3M2P+3cJa+MakaZyWY8IPfehVuhPJFKrIY1IK4GqbiaiY5w==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  rc-virtual-list@3.19.2:
-    resolution: {integrity: sha512-Ys6NcjwGkuwkeaWBDqfI3xWuZ7rDiQXlH1o2zLfFzATfEgXcqpk8CkgMfbJD81McqjcJVez25a3kPxCR807evA==}
-    engines: {node: '>=8.x'}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -38575,22 +37844,6 @@ packages:
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
-
-  react-i18next@15.7.4:
-    resolution: {integrity: sha512-nyU8iKNrI5uDJch0z9+Y5XEr34b0wkyYj3Rp+tfbahxtlswxSCjcUL9H0nqXo9IR3/t5Y5PKIA3fx3MfUyR9Xw==}
-    peerDependencies:
-      i18next: '>= 23.4.0'
-      react: 18.2.0
-      react-dom: '*'
-      react-native: '*'
-      typescript: ^5
-    peerDependenciesMeta:
-      react-dom:
-        optional: true
-      react-native:
-        optional: true
-      typescript:
-        optional: true
 
   react-image@4.1.0:
     resolution: {integrity: sha512-qwPNlelQe9Zy14K2pGWSwoL+vHsAwmJKS6gkotekDgRpcnRuzXNap00GfibD3eEPYu3WCPlyIUUNzcyHOrLHjw==}
@@ -39925,9 +39178,6 @@ packages:
     resolution: {integrity: sha512-QwiXZgpRcKkhTj2Scnn++4PKtWsH0kpzZ62L2R6c/LUVYv7hVnZqcg2+sMuT6R7Jusu1vviK/MFsu6kNJfWlEQ==}
     engines: {node: '>=4'}
 
-  string-convert@0.2.1:
-    resolution: {integrity: sha512-u/1tdPl4yQnPBjnVrmdLo9gtuLvELKsAoRapekWggdiQNvvvum+jYF329d84NAa660KQw7pB2n36KrIKVoXa3A==}
-
   string-hash@1.1.3:
     resolution: {integrity: sha512-kJUvRUFK49aub+a7T1nNE66EJbZBMnBgoC1UbCZ5n6bsZKBRga4KgBRTMn/pFkeCZSYtNeSyMxPDM0AXWELk2A==}
 
@@ -40341,10 +39591,6 @@ packages:
 
   thenify@3.3.1:
     resolution: {integrity: sha512-RVZSIV5IG10Hk3enotrhvz0T9em6cyHBLkH/YAZuKqd8hRkKhSfCGIcP2KUY0EPxndzANBmNllzWPwak+bheSw==}
-
-  throttle-debounce@5.0.2:
-    resolution: {integrity: sha512-B71/4oyj61iNH0KeCamLuE2rmKuTO5byTOSVwECM5FA7TiAiAW+UqTKZ9ERueC4qvgSttUhdmq1mXC3kJqGX7A==}
-    engines: {node: '>=12.22'}
 
   through2@2.0.5:
     resolution: {integrity: sha512-/mrRod8xqpA+IHSLyGCQ2s8SPHiCDEeQJSep1jqLYeEUClOFG2Qsh+4FU6G9VeqpZnGW/Su8LQGc4YKni5rYSQ==}
@@ -41390,10 +40636,6 @@ packages:
       jsdom:
         optional: true
 
-  void-elements@3.1.0:
-    resolution: {integrity: sha512-Dhxzh5HZuiHQhbvTW9AMetFfBHDMYpo23Uo9btPXgdYP+3T5S+p+jgNy7spra+veYhBP2dCSgxR/i2Y02h5/6w==}
-    engines: {node: '>=0.10.0'}
-
   vscode-json-languageservice@5.7.2:
     resolution: {integrity: sha512-WtKRDtJfFEmLrgtu+ODexOHm/6/krRF0k6t+uvkKIKW1Jh9ZIyxZQwJJwB3qhrEgvAxa37zbUg+vn+UyUK/U2w==}
 
@@ -41856,24 +41098,6 @@ packages:
       react:
         optional: true
 
-  zustand@5.0.12:
-    resolution: {integrity: sha512-i77ae3aZq4dhMlRhJVCYgMLKuSiZAaUPAct2AksxQ+gOtimhGMdXljRT21P5BNpeT4kXlLIckvkPM029OljD7g==}
-    engines: {node: '>=12.20.0'}
-    peerDependencies:
-      '@types/react': '>=18.0.0'
-      immer: '>=9.0.6'
-      react: 18.2.0
-      use-sync-external-store: '>=1.2.0'
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      immer:
-        optional: true
-      react:
-        optional: true
-      use-sync-external-store:
-        optional: true
-
   zwitch@1.0.5:
     resolution: {integrity: sha512-V50KMwwzqJV0NpZIZFwfOD5/lyny3WlSzRiXgA0G7VUnRlqttta1L6UQIHzd6EuBY/cHGfwTIck7w1yH6Q5zUw==}
 
@@ -41924,70 +41148,6 @@ snapshots:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
-
-  '@ant-design/colors@7.2.1':
-    dependencies:
-      '@ant-design/fast-color': 2.0.6
-
-  '@ant-design/colors@8.0.1':
-    dependencies:
-      '@ant-design/fast-color': 3.0.1
-
-  '@ant-design/cssinjs-utils@1.1.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@ant-design/cssinjs': 1.24.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@babel/runtime': 7.29.2
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@ant-design/cssinjs@1.24.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@emotion/hash': 0.8.0
-      '@emotion/unitless': 0.7.5
-      classnames: 2.5.1
-      csstype: 3.2.3
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      stylis: 4.3.6
-
-  '@ant-design/fast-color@2.0.6':
-    dependencies:
-      '@babel/runtime': 7.29.2
-
-  '@ant-design/fast-color@3.0.1': {}
-
-  '@ant-design/icons-svg@4.4.2': {}
-
-  '@ant-design/icons@5.6.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@ant-design/colors': 7.2.1
-      '@ant-design/icons-svg': 4.4.2
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@ant-design/icons@6.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@ant-design/colors': 8.0.1
-      '@ant-design/icons-svg': 4.4.2
-      '@rc-component/util': 1.10.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      clsx: 2.1.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@ant-design/react-slick@1.1.2(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      json2mq: 0.2.0
-      react: 18.2.0
-      resize-observer-polyfill: 1.5.1
-      throttle-debounce: 5.0.2
 
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
@@ -44531,8 +43691,6 @@ snapshots:
 
   '@emotion/hash@0.7.4': {}
 
-  '@emotion/hash@0.8.0': {}
-
   '@emotion/hash@0.9.2': {}
 
   '@emotion/is-prop-valid@1.4.0':
@@ -44583,8 +43741,6 @@ snapshots:
       - supports-color
 
   '@emotion/unitless@0.10.0': {}
-
-  '@emotion/unitless@0.7.5': {}
 
   '@emotion/use-insertion-effect-with-fallbacks@1.2.0(react@18.2.0)':
     dependencies:
@@ -45088,26 +44244,9 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
 
-  '@flowgram.ai/background-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/command@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
-  '@flowgram.ai/command@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       inversify: 6.2.2(reflect-metadata@0.2.2)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
@@ -45127,19 +44266,6 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
 
-  '@flowgram.ai/core@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/command': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@phosphor/messaging': 1.3.0
-      '@tweenjs/tween.js': 18.6.4
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      nanoid: 5.1.7
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/document@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45147,18 +44273,6 @@ snapshots:
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash: 4.18.1
       nanoid: 4.0.2
-      reflect-metadata: 0.2.2
-    transitivePeerDependencies:
-      - react
-      - react-dom
-
-  '@flowgram.ai/document@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      nanoid: 5.1.7
       reflect-metadata: 0.2.2
     transitivePeerDependencies:
       - react
@@ -45193,31 +44307,6 @@ snapshots:
       - css-to-react-native
       - react-native
       - styled-components
-
-  '@flowgram.ai/editor@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/history': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/history-node-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/i18n-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/materials-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/node': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/node-core-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/node-variable-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/playground-react': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/reactive': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/redux-devtool-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/renderer': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/shortcuts-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/variable-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
 
   '@flowgram.ai/fixed-drag-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
@@ -45285,33 +44374,12 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
 
-  '@flowgram.ai/form-core@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/form@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/reactive': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       lodash: 4.18.1
       nanoid: 4.0.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@flowgram.ai/form@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/reactive': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      fast-equals: 2.0.4
-      lodash-es: 4.18.1
-      nanoid: 5.1.7
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
@@ -45325,19 +44393,6 @@ snapshots:
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-      styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-
-  '@flowgram.ai/free-auto-layout-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
-    dependencies:
-      '@dagrejs/graphlib': 2.2.2
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
@@ -45363,22 +44418,6 @@ snapshots:
       - css-to-react-native
       - react-native
 
-  '@flowgram.ai/free-container-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
-    dependencies:
-      '@flowgram.ai/background-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-history-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/i18n': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-      styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-
   '@flowgram.ai/free-history-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45389,20 +44428,6 @@ snapshots:
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
-  '@flowgram.ai/free-history-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/history': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
@@ -45420,18 +44445,6 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
 
-  '@flowgram.ai/free-hover-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/renderer': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/free-layout-core@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45443,21 +44456,6 @@ snapshots:
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash-es: 4.18.1
       nanoid: 4.0.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
-  '@flowgram.ai/free-layout-core@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/node': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/reactive': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      nanoid: 5.1.7
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
@@ -45485,26 +44483,6 @@ snapshots:
       - react-native
       - styled-components
 
-  '@flowgram.ai/free-layout-editor@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
-    dependencies:
-      '@flowgram.ai/editor': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-auto-layout-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/free-history-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-hover-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-lines-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/free-stack-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/history': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/select-box-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      clsx: 1.2.1
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-    transitivePeerDependencies:
-      - styled-components
-
   '@flowgram.ai/free-lines-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45512,21 +44490,6 @@ snapshots:
       '@flowgram.ai/free-stack-plugin': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       '@flowgram.ai/renderer': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      bezier-js: 6.1.4
-      clsx: 1.2.1
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-      styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-
-  '@flowgram.ai/free-lines-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-stack-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
-      '@flowgram.ai/renderer': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       bezier-js: 6.1.4
       clsx: 1.2.1
       inversify: 6.2.2(reflect-metadata@0.2.2)
@@ -45550,18 +44513,6 @@ snapshots:
       reflect-metadata: 0.2.2
       styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
-  '@flowgram.ai/free-node-panel-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-history-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/free-snap-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45576,18 +44527,6 @@ snapshots:
       reflect-metadata: 0.2.2
       styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
-  '@flowgram.ai/free-snap-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-      styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-
   '@flowgram.ai/free-stack-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45597,19 +44536,6 @@ snapshots:
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-      styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-
-  '@flowgram.ai/free-stack-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
@@ -45642,20 +44568,6 @@ snapshots:
       reflect-metadata: 0.2.2
       styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
-  '@flowgram.ai/history-node-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/history': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/node': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/history@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45663,18 +44575,6 @@ snapshots:
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash: 4.18.1
       nanoid: 4.0.2
-      reflect-metadata: 0.2.2
-    transitivePeerDependencies:
-      - react
-      - react-dom
-
-  '@flowgram.ai/history@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      nanoid: 5.1.7
       reflect-metadata: 0.2.2
     transitivePeerDependencies:
       - react
@@ -45688,25 +44588,9 @@ snapshots:
       - react
       - react-dom
 
-  '@flowgram.ai/i18n-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/i18n': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-    transitivePeerDependencies:
-      - react
-      - react-dom
-
   '@flowgram.ai/i18n@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-    transitivePeerDependencies:
-      - react
-      - react-dom
-
-  '@flowgram.ai/i18n@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      i18n-js: 4.5.3
     transitivePeerDependencies:
       - react
       - react-dom
@@ -45723,15 +44607,6 @@ snapshots:
       reflect-metadata: 0.2.2
       styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
-  '@flowgram.ai/materials-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/renderer': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/minimap-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45744,17 +44619,6 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
       styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-
-  '@flowgram.ai/minimap-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
 
   '@flowgram.ai/node-core-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
@@ -45769,17 +44633,6 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
       styled-components: 6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-
-  '@flowgram.ai/node-core-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/node': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
 
   '@flowgram.ai/node-variable-plugin@0.1.28(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(styled-components@6.4.0(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))':
     dependencies:
@@ -45799,19 +44652,6 @@ snapshots:
       - css-to-react-native
       - react-native
 
-  '@flowgram.ai/node-variable-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/node': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/variable-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/node@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45822,20 +44662,6 @@ snapshots:
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash: 4.18.1
       nanoid: 4.0.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
-  '@flowgram.ai/node@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/form-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      nanoid: 5.1.7
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
@@ -45854,26 +44680,9 @@ snapshots:
       - css-to-react-native
       - react-native
 
-  '@flowgram.ai/playground-react@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/background-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/shortcuts-plugin': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/reactive@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/utils': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@flowgram.ai/reactive@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
@@ -45890,16 +44699,6 @@ snapshots:
       - react-dom
       - react-native
 
-  '@flowgram.ai/redux-devtool-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/variable-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      reflect-metadata: 0.2.2
-    transitivePeerDependencies:
-      - react
-      - react-dom
-
   '@flowgram.ai/renderer@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -45912,31 +44711,10 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
 
-  '@flowgram.ai/renderer@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/i18n': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
   '@flowgram.ai/select-box-plugin@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram.ai/renderer': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
-  '@flowgram.ai/select-box-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/renderer': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       inversify: 6.2.2(reflect-metadata@0.2.2)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
@@ -45956,29 +44734,11 @@ snapshots:
       - react-dom
       - react-native
 
-  '@flowgram.ai/shortcuts-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      reflect-metadata: 0.2.2
-    transitivePeerDependencies:
-      - react
-      - react-dom
-
   '@flowgram.ai/utils@0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       clsx: 1.2.1
       inversify: 6.2.2(reflect-metadata@0.2.2)
       nanoid: 4.0.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-
-  '@flowgram.ai/utils@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      clsx: 1.2.1
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      nanoid: 5.1.7
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
@@ -45991,19 +44751,6 @@ snapshots:
       inversify: 6.2.2(reflect-metadata@0.2.2)
       lodash: 4.18.1
       nanoid: 4.0.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      reflect-metadata: 0.2.2
-      rxjs: 7.8.2
-
-  '@flowgram.ai/variable-core@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/utils': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      fast-equals: 2.0.4
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      lodash-es: 4.18.1
-      nanoid: 5.1.7
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       reflect-metadata: 0.2.2
@@ -46025,18 +44772,6 @@ snapshots:
       - react-dom
       - react-native
 
-  '@flowgram.ai/variable-layout@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/free-layout-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/variable-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      reflect-metadata: 0.2.2
-    transitivePeerDependencies:
-      - react
-      - react-dom
-
   '@flowgram.ai/variable-plugin@0.1.28(css-to-react-native@3.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@flowgram.ai/core': 0.1.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -46053,18 +44788,6 @@ snapshots:
       - react
       - react-dom
       - react-native
-
-  '@flowgram.ai/variable-plugin@1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@flowgram.ai/core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/document': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/variable-core': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@flowgram.ai/variable-layout': 1.0.10(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      inversify: 6.2.2(reflect-metadata@0.2.2)
-      reflect-metadata: 0.2.2
-    transitivePeerDependencies:
-      - react
-      - react-dom
 
   '@formatjs/ecma402-abstract@2.3.6':
     dependencies:
@@ -46332,16 +45055,6 @@ snapshots:
 
   '@inversifyjs/common@1.4.0': {}
 
-  '@inversifyjs/common@1.5.2': {}
-
-  '@inversifyjs/container@1.15.0(reflect-metadata@0.2.2)':
-    dependencies:
-      '@inversifyjs/common': 1.5.2
-      '@inversifyjs/core': 9.2.0(reflect-metadata@0.2.2)
-      '@inversifyjs/plugin': 0.2.0
-      '@inversifyjs/reflect-metadata-utils': 1.4.1(reflect-metadata@0.2.2)
-      reflect-metadata: 0.2.2
-
   '@inversifyjs/core@1.3.5(reflect-metadata@0.1.14)':
     dependencies:
       '@inversifyjs/common': 1.4.0
@@ -46356,29 +45069,11 @@ snapshots:
     transitivePeerDependencies:
       - reflect-metadata
 
-  '@inversifyjs/core@9.2.0(reflect-metadata@0.2.2)':
-    dependencies:
-      '@inversifyjs/common': 1.5.2
-      '@inversifyjs/prototype-utils': 0.1.3
-      '@inversifyjs/reflect-metadata-utils': 1.4.1(reflect-metadata@0.2.2)
-    transitivePeerDependencies:
-      - reflect-metadata
-
-  '@inversifyjs/plugin@0.2.0': {}
-
-  '@inversifyjs/prototype-utils@0.1.3':
-    dependencies:
-      '@inversifyjs/common': 1.5.2
-
   '@inversifyjs/reflect-metadata-utils@0.2.4(reflect-metadata@0.1.14)':
     dependencies:
       reflect-metadata: 0.1.14
 
   '@inversifyjs/reflect-metadata-utils@0.2.4(reflect-metadata@0.2.2)':
-    dependencies:
-      reflect-metadata: 0.2.2
-
-  '@inversifyjs/reflect-metadata-utils@1.4.1(reflect-metadata@0.2.2)':
     dependencies:
       reflect-metadata: 0.2.2
 
@@ -47630,80 +46325,6 @@ snapshots:
   '@radix-ui/rect@1.0.1':
     dependencies:
       '@babel/runtime': 7.29.2
-
-  '@rc-component/async-validator@5.1.0':
-    dependencies:
-      '@babel/runtime': 7.29.2
-
-  '@rc-component/color-picker@2.0.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@ant-design/fast-color': 2.0.6
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@rc-component/context@1.4.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@rc-component/mini-decimal@1.1.3':
-    dependencies:
-      '@babel/runtime': 7.29.2
-
-  '@rc-component/mutate-observer@1.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@rc-component/portal@1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@rc-component/qrcode@1.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@rc-component/tour@1.15.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/portal': 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@rc-component/trigger@2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/portal': 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-resize-observer: 1.4.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  '@rc-component/util@1.10.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      is-mobile: 5.0.0
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      react-is: 18.3.1
 
   '@react-dnd/asap@4.0.1': {}
 
@@ -52946,64 +51567,6 @@ snapshots:
 
   ansi-styles@6.2.3: {}
 
-  antd@5.29.3(date-fns@2.30.0)(moment@2.30.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@ant-design/colors': 7.2.1
-      '@ant-design/cssinjs': 1.24.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@ant-design/cssinjs-utils': 1.1.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@ant-design/fast-color': 2.0.6
-      '@ant-design/icons': 5.6.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@ant-design/react-slick': 1.1.2(react@18.2.0)
-      '@babel/runtime': 7.29.2
-      '@rc-component/color-picker': 2.0.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@rc-component/mutate-observer': 1.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@rc-component/qrcode': 1.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@rc-component/tour': 1.15.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      copy-to-clipboard: 3.3.3
-      dayjs: 1.11.20
-      rc-cascader: 3.34.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-checkbox: 3.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-collapse: 3.9.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-dialog: 9.6.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-drawer: 7.3.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-dropdown: 4.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-field-form: 2.7.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-image: 7.12.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-input: 1.8.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-input-number: 9.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-mentions: 2.20.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-menu: 9.16.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-notification: 5.6.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-pagination: 5.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-picker: 4.11.3(date-fns@2.30.0)(dayjs@1.11.20)(moment@2.30.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-progress: 4.0.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-rate: 2.13.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-resize-observer: 1.4.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-segmented: 2.7.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-select: 14.16.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-slider: 11.1.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-steps: 6.0.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-switch: 4.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-table: 7.54.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-tabs: 15.7.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-textarea: 1.10.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-tooltip: 6.4.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-tree: 5.13.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-tree-select: 5.27.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-upload: 4.11.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      scroll-into-view-if-needed: 3.1.0
-      throttle-debounce: 5.0.2
-    transitivePeerDependencies:
-      - date-fns
-      - luxon
-      - moment
-
   any-promise@1.3.0: {}
 
   anymatch@1.3.2:
@@ -57187,10 +55750,6 @@ snapshots:
       relateurl: 0.2.7
       terser: 5.46.1
 
-  html-parse-stringify@3.0.1:
-    dependencies:
-      void-elements: 3.1.0
-
   html-react-parser@3.0.15(react@18.2.0):
     dependencies:
       domhandler: 5.0.3
@@ -57319,12 +55878,6 @@ snapshots:
 
   hyphenate-style-name@1.1.0: {}
 
-  i18n-js@4.5.3:
-    dependencies:
-      bignumber.js: 9.0.2
-      lodash: 4.18.1
-      make-plural: 7.5.0
-
   i18next-browser-languagedetector@8.0.4:
     dependencies:
       '@babel/runtime': 7.29.2
@@ -57338,12 +55891,6 @@ snapshots:
       '@babel/runtime': 7.29.2
     optionalDependencies:
       typescript: 5.8.3
-
-  i18next@25.10.10(typescript@5.9.3):
-    dependencies:
-      '@babel/runtime': 7.29.2
-    optionalDependencies:
-      typescript: 5.9.3
 
   iconv-lite@0.4.24:
     dependencies:
@@ -57471,14 +56018,6 @@ snapshots:
       '@inversifyjs/common': 1.4.0
       '@inversifyjs/core': 1.3.5(reflect-metadata@0.2.2)
       reflect-metadata: 0.2.2
-
-  inversify@7.11.0(reflect-metadata@0.2.2):
-    dependencies:
-      '@inversifyjs/common': 1.5.2
-      '@inversifyjs/container': 1.15.0(reflect-metadata@0.2.2)
-      '@inversifyjs/core': 9.2.0(reflect-metadata@0.2.2)
-    transitivePeerDependencies:
-      - reflect-metadata
 
   io-ts@2.2.20(fp-ts@2.16.11):
     dependencies:
@@ -57670,8 +56209,6 @@ snapshots:
   is-lite@1.2.1: {}
 
   is-map@2.0.3: {}
-
-  is-mobile@5.0.0: {}
 
   is-module@1.0.0: {}
 
@@ -58172,10 +56709,6 @@ snapshots:
 
   json-stringify-safe@5.0.1: {}
 
-  json2mq@0.2.0:
-    dependencies:
-      string-convert: 0.2.1
-
   json5@1.0.2:
     dependencies:
       minimist: 1.2.8
@@ -58620,8 +57153,6 @@ snapshots:
   make-error@1.3.6: {}
 
   make-event-props@1.6.2: {}
-
-  make-plural@7.5.0: {}
 
   makeerror@1.0.12:
     dependencies:
@@ -59647,9 +58178,6 @@ snapshots:
     dependencies:
       commander: 12.1.0
 
-  moment@2.30.1:
-    optional: true
-
   monaco-editor@0.45.0: {}
 
   monaco-editor@0.52.2: {}
@@ -59683,8 +58211,6 @@ snapshots:
   nanoid@3.3.11: {}
 
   nanoid@4.0.2: {}
-
-  nanoid@5.1.7: {}
 
   nanomatch@1.2.13:
     dependencies:
@@ -61103,180 +59629,7 @@ snapshots:
       schema-utils: 3.3.0
       webpack: 5.91.0(esbuild@0.27.7)
 
-  rc-cascader@3.34.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-select: 14.16.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-tree: 5.13.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-checkbox@3.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-collapse@3.9.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-dialog@9.6.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/portal': 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-drawer@7.3.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/portal': 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-dropdown@4.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-field-form@2.7.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/async-validator': 5.1.0
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-image@7.12.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/portal': 1.1.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-dialog: 9.6.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-input-number@9.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/mini-decimal': 1.1.3
-      classnames: 2.5.1
-      rc-input: 1.8.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
   rc-input@1.8.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-mentions@2.20.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-input: 1.8.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-menu: 9.16.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-textarea: 1.10.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-menu@9.16.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-overflow: 1.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-motion@2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-notification@5.6.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-overflow@1.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-resize-observer: 1.4.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-pagination@5.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-picker@4.11.3(date-fns@2.30.0)(dayjs@1.11.20)(moment@2.30.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-overflow: 1.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-resize-observer: 1.4.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-    optionalDependencies:
-      date-fns: 2.30.0
-      dayjs: 1.11.20
-      moment: 2.30.1
-
-  rc-progress@4.0.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-rate@2.13.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       '@babel/runtime': 7.29.2
       classnames: 2.5.1
@@ -61293,78 +59646,10 @@ snapshots:
       react-dom: 18.2.0(react@18.2.0)
       resize-observer-polyfill: 1.5.1
 
-  rc-segmented@2.7.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-select@14.16.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-overflow: 1.5.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-virtual-list: 3.19.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
   rc-slider@10.6.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       '@babel/runtime': 7.29.2
       classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-slider@11.1.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-steps@6.0.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-switch@4.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-table@7.54.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/context': 1.4.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-resize-observer: 1.4.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-virtual-list: 3.19.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-tabs@15.7.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-dropdown: 4.2.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-menu: 9.16.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-resize-observer: 1.4.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
@@ -61379,58 +59664,12 @@ snapshots:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  rc-tooltip@6.4.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      '@rc-component/trigger': 2.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-tree-select@5.27.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-select: 14.16.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-tree: 5.13.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-tree@5.13.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-motion: 2.9.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-virtual-list: 3.19.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
-  rc-upload@4.11.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-
   rc-util@5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       '@babel/runtime': 7.29.2
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       react-is: 18.3.1
-
-  rc-virtual-list@3.19.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      classnames: 2.5.1
-      rc-resize-observer: 1.4.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      rc-util: 5.44.4(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
 
   rc@1.2.8:
     dependencies:
@@ -61671,16 +59910,6 @@ snapshots:
     dependencies:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
-
-  react-i18next@15.7.4(i18next@25.10.10(typescript@5.9.3))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.9.3):
-    dependencies:
-      '@babel/runtime': 7.29.2
-      html-parse-stringify: 3.0.1
-      i18next: 25.10.10(typescript@5.9.3)
-      react: 18.2.0
-    optionalDependencies:
-      react-dom: 18.2.0(react@18.2.0)
-      typescript: 5.9.3
 
   react-image@4.1.0(@babel/runtime@7.29.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
@@ -63554,8 +61783,6 @@ snapshots:
 
   strict-uri-encode@2.0.0: {}
 
-  string-convert@0.2.1: {}
-
   string-hash@1.1.3: {}
 
   string-natural-compare@3.0.1: {}
@@ -64381,8 +62608,6 @@ snapshots:
   thenify@3.3.1:
     dependencies:
       any-promise: 1.3.0
-
-  throttle-debounce@5.0.2: {}
 
   through2@2.0.5:
     dependencies:
@@ -66134,8 +64359,6 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  void-elements@3.1.0: {}
-
   vscode-json-languageservice@5.7.2:
     dependencies:
       '@vscode/l10n': 0.0.18
@@ -66915,13 +65138,6 @@ snapshots:
       '@types/react': 19.2.14
       immer: 10.2.0
       react: 18.2.0
-
-  zustand@5.0.12(@types/react@19.2.14)(immer@10.2.0)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0)):
-    optionalDependencies:
-      '@types/react': 19.2.14
-      immer: 10.2.0
-      react: 18.2.0
-      use-sync-external-store: 1.6.0(react@18.2.0)
 
   zwitch@1.0.5: {}
 

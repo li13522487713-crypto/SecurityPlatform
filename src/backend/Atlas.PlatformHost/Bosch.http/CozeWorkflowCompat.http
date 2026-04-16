@@ -78,3 +78,151 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 {}
+
+### 原生 Coze Bot 兼容：模型类型列表
+POST {{host}}/api/bot/get_type_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "model_scene": 1
+}
+
+### 原生 Coze 兼容：创建工作流（P0）
+POST {{host}}/api/workflow_api/create
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "CozeCompat Smoke Workflow",
+  "desc": "compat smoke",
+  "space_id": "atlas-workflow",
+  "flow_mode": 0
+}
+
+### 原生 Coze 兼容：提交草稿（P0）
+POST {{host}}/api/workflow_api/submit
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow"
+}
+
+### 原生 Coze 兼容：检查最新版本（P0）
+POST {{host}}/api/workflow_api/latest
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow"
+}
+
+### 原生 Coze 兼容：工作流列表（P0）
+POST {{host}}/api/workflow_api/workflow_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 10,
+  "name": "",
+  "flow_mode": 0,
+  "space_id": "atlas-workflow"
+}
+
+### 原生 Coze 兼容：工作流详情（P0）
+POST {{host}}/api/workflow_api/workflow_detail
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_ids": ["{{workflowId}}"],
+  "space_id": "atlas-workflow"
+}
+
+### 原生 Coze 兼容：版本列表（P0）
+POST {{host}}/api/workflow_api/version_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow",
+  "page": 1,
+  "size": 20
+}
+
+### 原生 Coze OP 兼容：operate_list（fallback）
+POST {{host}}/api/op_workflow/operate_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}"
+}
+
+### 原生 Coze Playground 兼容：get_type_list（fallback）
+POST {{host}}/api/playground_api/get_type_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "model_scene": 1
+}
+
+### 原生 Coze Developer 兼容：upload_file（fallback）
+POST {{host}}/api/bot/upload_file
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "scene": "workflow"
+}
+
+### 原生 Coze Developer 兼容：space/list（fallback）
+POST {{host}}/api/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 10
+}
+
+### 原生 Coze Developer 兼容：draftbot/list（fallback）
+POST {{host}}/api/draftbot/get_draft_bot_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 10
+}
+
+### 原生 Coze OpenAPI 兼容：run（fallback）
+POST {{host}}/v1/workflow/run
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "inputs": {
+    "incident": "openapi smoke"
+  }
+}

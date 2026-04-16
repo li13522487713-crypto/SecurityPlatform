@@ -101,19 +101,6 @@ export function getConfiguredAppKey(): string {
   }
 }
 
-function getCurrentRouteAppKey(): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  const directMatch = window.location.pathname.match(/^\/apps\/([^/]+)/);
-  if (directMatch) {
-    return decodeURIComponent(directMatch[1]);
-  }
-
-  return getConfiguredAppKey();
-}
-
 async function forceLogout() {
   clearAuthStorage();
 

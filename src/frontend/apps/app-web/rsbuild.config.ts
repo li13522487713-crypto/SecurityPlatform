@@ -4,6 +4,7 @@ import { defineConfig } from "@coze-arch/rsbuild-config";
 
 const require = createRequire(import.meta.url);
 const mode = process.env.ENV_MODE ?? "direct";
+const isDevelopment = process.env.NODE_ENV !== "production";
 const appWebPort = Number(process.env.VITE_APP_WEB_PORT || "5181");
 const apiBase = process.env.VITE_API_BASE?.trim();
 const derivedAppHostTarget = apiBase && /^https?:\/\//i.test(apiBase)
@@ -20,9 +21,6 @@ const workspaceRoots = [
   "../../packages/module-admin-react",
   "../../packages/module-explore-react",
   "../../packages/module-studio-react",
-  "../../packages/module-workflow-react",
-  "../../packages/workflow-core-react",
-  "../../packages/workflow-editor-react",
   "../../packages/workflow",
   "../../packages/arch",
   "../../packages/foundation",
@@ -43,9 +41,6 @@ const importWatchRoots = [
   path.resolve(__dirname, "../../packages/module-admin-react"),
   path.resolve(__dirname, "../../packages/module-explore-react"),
   path.resolve(__dirname, "../../packages/module-studio-react"),
-  path.resolve(__dirname, "../../packages/module-workflow-react"),
-  path.resolve(__dirname, "../../packages/workflow-core-react"),
-  path.resolve(__dirname, "../../packages/workflow-editor-react"),
   path.resolve(__dirname, "../../packages/workflow"),
   path.resolve(__dirname, "../../packages/arch"),
   path.resolve(__dirname, "../../packages/foundation"),
@@ -92,6 +87,10 @@ export default defineConfig({
       "react/jsx-runtime": require.resolve("react/jsx-runtime"),
       "react/jsx-dev-runtime": require.resolve("react/jsx-dev-runtime"),
       "@coze-arch/bot-api$": path.resolve(__dirname, "src/coze-shims/bot-api/index.ts"),
+      "@coze-arch/bot-api/developer_api$": path.resolve(__dirname, "src/coze-shims/bot-api/developer_api.ts"),
+      "@coze-arch/bot-api/intelligence_api$": path.resolve(__dirname, "src/coze-shims/bot-api/intelligence_api.ts"),
+      "@coze-arch/bot-api/playground_api$": path.resolve(__dirname, "src/coze-shims/bot-api/playground_api.ts"),
+      "@coze-arch/bot-api/workflow_api$": path.resolve(__dirname, "src/coze-shims/bot-api/workflow_api.ts"),
       "@coze-arch/foundation-sdk": require.resolve("@coze-foundation/foundation-sdk"),
       "react-router-dom": require.resolve("react-router-dom"),
     },
@@ -106,28 +105,38 @@ export default defineConfig({
     distPath: {
       root: "dist",
     },
-  },
-  performance: {
-    chunkSplit: {
-      strategy: "split-by-size",
-      minSize: 3_000_000,
-      maxSize: 6_000_000,
+    // Use cheaper source maps in dev to reduce first compile time on large workspace graphs.
+    sourceMap: {
+      js: isDevelopment ? false : "source-map",
     },
   },
+  ...(isDevelopment
+    ? {}
+    : {
+        performance: {
+          chunkSplit: {
+            strategy: "split-by-size",
+            minSize: 3_000_000,
+            maxSize: 6_000_000,
+          },
+        },
+      }),
   tools: {
     rspack(config, { addRules, mergeConfig }) {
-      addRules([
-        {
-          test: /\.(css|less|jsx|tsx|ts|js)/,
-          include: importWatchRoots,
-          exclude: [
-            new RegExp("apps/app-web/src/app/app.css"),
-            /node_modules/,
-            new RegExp("packages/arch/i18n"),
-          ],
-          use: "@coze-arch/import-watch-loader",
-        },
-      ]);
+      if (!isDevelopment) {
+        addRules([
+          {
+            test: /\.(css|less|jsx|tsx|ts|js)/,
+            include: importWatchRoots,
+            exclude: [
+              new RegExp("apps/app-web/src/app/app.css"),
+              /node_modules/,
+              new RegExp("packages/arch/i18n"),
+            ],
+            use: "@coze-arch/import-watch-loader",
+          },
+        ]);
+      }
 
       return mergeConfig(config, {
         module: {

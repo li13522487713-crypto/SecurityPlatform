@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 interface ImportMetaEnv {
   readonly VITE_API_BASE?: string;
   readonly VITE_APP_HOST_TARGET?: string;

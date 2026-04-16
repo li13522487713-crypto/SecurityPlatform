@@ -120,6 +120,12 @@ public static class AiDesignServiceRegistration
 
         services.AddScoped<IWorkflowV2CommandService, WorkflowV2CommandService>();
         services.AddScoped<IWorkflowV2QueryService, WorkflowV2QueryService>();
+        services.AddScoped<WorkflowCompatServices>();
+        services.AddScoped<IWorkflowTraceService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
+        services.AddScoped<IWorkflowCollaboratorService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
+        services.AddScoped<IWorkflowTriggerService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
+        services.AddScoped<IWorkflowJobService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
+        services.AddScoped<IChatFlowRoleService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
 
         return services;
     }
