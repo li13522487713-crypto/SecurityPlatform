@@ -53,6 +53,21 @@ body {
   backdrop-filter: blur(16px);
 }
 
+.atlas-status-card--workflow {
+  padding: 28px 30px;
+}
+
+.atlas-status-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.atlas-status-card__body h1,
+.atlas-status-card__body p {
+  margin: 0;
+}
+
 .atlas-form-stack {
   display: flex;
   flex-direction: column;

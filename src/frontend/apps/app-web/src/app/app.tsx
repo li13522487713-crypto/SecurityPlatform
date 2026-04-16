@@ -1,59 +1,25 @@
-import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Component, Suspense, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
-import { CozeShell, type CozeNavSection } from "@atlas/coze-shell-react";
-import { LibraryPage, KnowledgeDetailPage, KnowledgeUploadPage, type LibraryKnowledgeApi } from "@atlas/library-module-react";
-import {
-  OrganizationOverviewPage,
-  ApprovalAdminPage,
-  DashboardsAdminPage,
-  DepartmentsAdminPage,
-  ProfileAdminPage,
-  ReportsAdminPage,
-  RolesAdminPage,
-  SettingsAdminPage,
-  UsersAdminPage,
-  VisualizationAdminPage,
-  PositionsAdminPage,
-  type AdminModuleApi
+import type { CozeNavSection } from "@atlas/coze-shell-react";
+import type { LibraryKnowledgeApi } from "@atlas/library-module-react";
+import type {
+  AdminModuleApi
 } from "@atlas/module-admin-react";
-import { ExplorePluginsPage, ExploreSearchPage, ExploreTemplatesPage, type ExploreModuleApi } from "@atlas/module-explore-react";
-import { ExplorePluginDetailPage, ExploreTemplateDetailPage } from "@atlas/module-explore-react";
-import {
-  AppsPage,
-  AgentChatPage,
-  AssistantsPage,
-  AiAssistantPage,
-  AppDetailPage,
-  AppPublishPage,
-  AssistantPublishPage,
-  BotIdePage,
-  DataResourcesPage,
-  DashboardPage,
-  DatabaseDetailPage,
-  DevelopPage,
-  DatabasesPage,
-  KnowledgeBasesPage,
-  ModelConfigsPage,
-  PluginDetailPage,
-  PluginsPage,
-  PublishCenterPage,
-  ResourceReferenceCard,
-  StudioContextProvider,
-  VariablesPage,
-  type DevelopFocus,
-  type DevelopResourceSummary,
-  type StudioModuleApi
+import type { ExploreModuleApi } from "@atlas/module-explore-react";
+import type {
+  DevelopFocus,
+  DevelopResourceSummary,
+  StudioModuleApi
 } from "@atlas/module-studio-react";
-import {
-  WorkflowListPage,
-  type WorkflowCreateRequest as WorkflowModuleCreateRequest,
-  type WorkflowListQuery,
-  type WorkflowModuleApi,
-  type WorkflowWorkbenchContentMode,
-  type WorkflowResourceMode,
-  type WorkflowTemplateSummary
+import type {
+  WorkflowCreateRequest as WorkflowModuleCreateRequest,
+  WorkflowListQuery,
+  WorkflowModuleApi,
+  WorkflowWorkbenchContentMode,
+  WorkflowResourceMode,
+  WorkflowTemplateSummary
 } from "@atlas/module-workflow-react";
 import {
   adminPath,
@@ -116,10 +82,28 @@ import {
   orgWorkspaceSettingsPath,
   signPath
 } from "@atlas/app-shell-shared";
+import { lazyNamed } from "./lazy-named";
 import { AuthProvider, useAuth } from "./auth-context";
 import { BootstrapProvider, useBootstrap } from "./bootstrap-context";
 import { AppI18nProvider, useAppI18n } from "./i18n";
 import { OrganizationProvider, useOptionalOrganizationContext } from "./organization-context";
+import {
+  EXPLORE_ROUTE_HANDLE,
+  ROOT_ROUTE_HANDLE,
+  SIGN_ROUTE_HANDLE,
+  STATUS_ROUTE_HANDLE,
+  WORKSPACE_CHATFLOW_ROUTE_HANDLE,
+  WORKSPACE_DASHBOARD_ROUTE_HANDLE,
+  WORKSPACE_DEVELOP_ROUTE_HANDLE,
+  WORKSPACE_LIBRARY_ROUTE_HANDLE,
+  WORKSPACE_LIST_ROUTE_HANDLE,
+  WORKSPACE_MANAGE_ROUTE_HANDLE,
+  WORKSPACE_SETTINGS_ROUTE_HANDLE,
+  WORKSPACE_SHELL_ROUTE_HANDLE,
+  WORKSPACE_WORKFLOW_ROUTE_HANDLE
+} from "./route-handles";
+import { AppStartupKernel } from "./startup-kernel";
+import { WorkflowRuntimeBoundary } from "./workflow-runtime-boundary";
 import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
 import {
   buildWorkspaceWorkbenchPath,
@@ -342,6 +326,56 @@ import {
 import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page";
 import { WorkspaceSettingsPage } from "./pages/workspace-settings-page";
 import { setAppInstanceIdToStorage } from "../utils/app-context";
+
+const loadCozeShellModule = () => import("@atlas/coze-shell-react");
+const loadLibraryModule = () => import("@atlas/library-module-react");
+const loadAdminModule = () => import("@atlas/module-admin-react");
+const loadExploreModule = () => import("@atlas/module-explore-react");
+const loadStudioModule = () => import("@atlas/module-studio-react");
+const loadWorkflowModule = () => import("@atlas/module-workflow-react");
+
+const CozeShell = lazyNamed(loadCozeShellModule, "CozeShell");
+const LibraryPage = lazyNamed(loadLibraryModule, "LibraryPage");
+const KnowledgeDetailPage = lazyNamed(loadLibraryModule, "KnowledgeDetailPage");
+const KnowledgeUploadPage = lazyNamed(loadLibraryModule, "KnowledgeUploadPage");
+const OrganizationOverviewPage = lazyNamed(loadAdminModule, "OrganizationOverviewPage");
+const ApprovalAdminPage = lazyNamed(loadAdminModule, "ApprovalAdminPage");
+const DashboardsAdminPage = lazyNamed(loadAdminModule, "DashboardsAdminPage");
+const DepartmentsAdminPage = lazyNamed(loadAdminModule, "DepartmentsAdminPage");
+const ProfileAdminPage = lazyNamed(loadAdminModule, "ProfileAdminPage");
+const ReportsAdminPage = lazyNamed(loadAdminModule, "ReportsAdminPage");
+const RolesAdminPage = lazyNamed(loadAdminModule, "RolesAdminPage");
+const SettingsAdminPage = lazyNamed(loadAdminModule, "SettingsAdminPage");
+const UsersAdminPage = lazyNamed(loadAdminModule, "UsersAdminPage");
+const VisualizationAdminPage = lazyNamed(loadAdminModule, "VisualizationAdminPage");
+const PositionsAdminPage = lazyNamed(loadAdminModule, "PositionsAdminPage");
+const ExplorePluginsPage = lazyNamed(loadExploreModule, "ExplorePluginsPage");
+const ExploreSearchPage = lazyNamed(loadExploreModule, "ExploreSearchPage");
+const ExploreTemplatesPage = lazyNamed(loadExploreModule, "ExploreTemplatesPage");
+const ExplorePluginDetailPage = lazyNamed(loadExploreModule, "ExplorePluginDetailPage");
+const ExploreTemplateDetailPage = lazyNamed(loadExploreModule, "ExploreTemplateDetailPage");
+const AppsPage = lazyNamed(loadStudioModule, "AppsPage");
+const AgentChatPage = lazyNamed(loadStudioModule, "AgentChatPage");
+const AssistantsPage = lazyNamed(loadStudioModule, "AssistantsPage");
+const AiAssistantPage = lazyNamed(loadStudioModule, "AiAssistantPage");
+const AppDetailPage = lazyNamed(loadStudioModule, "AppDetailPage");
+const AppPublishPage = lazyNamed(loadStudioModule, "AppPublishPage");
+const AssistantPublishPage = lazyNamed(loadStudioModule, "AssistantPublishPage");
+const BotIdePage = lazyNamed(loadStudioModule, "BotIdePage");
+const DataResourcesPage = lazyNamed(loadStudioModule, "DataResourcesPage");
+const DashboardPage = lazyNamed(loadStudioModule, "DashboardPage");
+const DatabaseDetailPage = lazyNamed(loadStudioModule, "DatabaseDetailPage");
+const DevelopPage = lazyNamed(loadStudioModule, "DevelopPage");
+const DatabasesPage = lazyNamed(loadStudioModule, "DatabasesPage");
+const KnowledgeBasesPage = lazyNamed(loadStudioModule, "KnowledgeBasesPage");
+const ModelConfigsPage = lazyNamed(loadStudioModule, "ModelConfigsPage");
+const PluginDetailPage = lazyNamed(loadStudioModule, "PluginDetailPage");
+const PluginsPage = lazyNamed(loadStudioModule, "PluginsPage");
+const PublishCenterPage = lazyNamed(loadStudioModule, "PublishCenterPage");
+const ResourceReferenceCard = lazyNamed(loadStudioModule, "ResourceReferenceCard");
+const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
+const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
+const WorkflowListPage = lazyNamed(loadWorkflowModule, "WorkflowListPage");
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
@@ -2333,32 +2367,34 @@ function WorkspaceWorkflowWorkbenchRoute({
   };
 
   return (
-    <WorkflowListPage
-      api={workflowApi}
-      locale={locale}
-      spaceId={workspace.id}
-      backPath={orgWorkspaceDevelopPath(orgId, workspace.id)}
-      mode={mode}
-      selectedWorkflowId={selectedWorkflowId}
-      contentMode={contentMode}
-      projectTitle={workspace.name || workspace.appKey}
-      initialCreateVisible={searchParams.get("create") === "1"}
-      onSelectWorkflow={navigateWithinWorkbench}
-      onSelectContentMode={navigateContentMode}
-      resolveWorkflowHref={resolveWorkbenchHref}
-      onOpenEditor={id =>
-        navigate(
-          buildWorkspaceWorkbenchPath(
-            orgId,
-            workspace.id,
-            mode,
-            id,
-            contentMode,
-            searchParams
+    <WorkflowRuntimeBoundary>
+      <WorkflowListPage
+        api={workflowApi}
+        locale={locale}
+        spaceId={workspace.id}
+        backPath={orgWorkspaceDevelopPath(orgId, workspace.id)}
+        mode={mode}
+        selectedWorkflowId={selectedWorkflowId}
+        contentMode={contentMode}
+        projectTitle={workspace.name || workspace.appKey}
+        initialCreateVisible={searchParams.get("create") === "1"}
+        onSelectWorkflow={navigateWithinWorkbench}
+        onSelectContentMode={navigateContentMode}
+        resolveWorkflowHref={resolveWorkbenchHref}
+        onOpenEditor={id =>
+          navigate(
+            buildWorkspaceWorkbenchPath(
+              orgId,
+              workspace.id,
+              mode,
+              id,
+              contentMode,
+              searchParams
+            )
           )
-        )
-      }
-    />
+        }
+      />
+    </WorkflowRuntimeBoundary>
   );
 }
 
@@ -3286,55 +3322,259 @@ function FatalErrorPage() {
   );
 }
 
+export const appRoutes = [
+  {
+    path: "/",
+    element: <RootEntryRoute />,
+    handle: ROOT_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/platform-not-ready",
+    element: <PlatformNotReadyPage />,
+    handle: STATUS_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/app-setup",
+    element: <AppSetupPage />,
+    handle: STATUS_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/sign",
+    element: <LoginPage />,
+    handle: SIGN_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/org/:orgId/workspaces",
+    element: <WorkspaceListRoute />,
+    handle: WORKSPACE_LIST_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/org/:orgId/workspaces/:workspaceId",
+    element: <WorkspaceShellRoute />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      {
+        index: true,
+        element: <Navigate to="dashboard" replace />,
+        handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
+      },
+      {
+        path: "dashboard",
+        element: <DashboardRoute />,
+        handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
+      },
+      {
+        path: "develop",
+        element: <WorkspaceDevelopRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "develop/chat",
+        element: <AgentChatRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "develop/model-configs",
+        element: <ModelConfigsRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "develop/assistant-tools",
+        element: <StudioAssistantToolsRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "develop/publish-center",
+        element: <StudioPublishCenterRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "library",
+        element: (
+          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
+            <WorkspaceLibraryRoute />
+          </ProtectedPage>
+        ),
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "library/data",
+        element: <StudioDataRoute />,
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "library/variables",
+        element: <StudioVariablesRoute />,
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "apps/:id",
+        element: <WorkspaceAppDetailRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "apps/:id/publish",
+        element: <WorkspaceAppPublishRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "apps/:id/workflows/:workflowId",
+        element: <WorkspaceAppWorkflowRedirectRoute />,
+        handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE
+      },
+      {
+        path: "apps/:id/chatflows/:workflowId",
+        element: <WorkspaceAppChatflowRedirectRoute />,
+        handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE
+      },
+      {
+        path: "agents/:id",
+        element: <WorkspaceAgentDetailRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "agents/:id/publish",
+        element: <WorkspaceAgentPublishRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "workflows",
+        element: <WorkspaceWorkflowWorkbenchRoute mode="workflow" />,
+        handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE
+      },
+      {
+        path: "workflows/:id",
+        element: <WorkspaceWorkflowRedirectRoute />,
+        handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE
+      },
+      {
+        path: "chatflows",
+        element: <WorkspaceWorkflowWorkbenchRoute mode="chatflow" />,
+        handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE
+      },
+      {
+        path: "chatflows/:id",
+        element: <WorkspaceChatflowRedirectRoute />,
+        handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE
+      },
+      {
+        path: "knowledge-bases/:id",
+        element: (
+          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
+            <WorkspaceKnowledgeDetailRoute />
+          </ProtectedPage>
+        ),
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "knowledge-bases/:id/upload",
+        element: (
+          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}>
+            <WorkspaceKnowledgeUploadRoute />
+          </ProtectedPage>
+        ),
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "databases/:id",
+        element: <StudioDatabaseDetailRoute />,
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "plugins/:id",
+        element: <StudioPluginDetailRoute />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "manage",
+        element: <Navigate to="overview" replace />,
+        handle: WORKSPACE_MANAGE_ROUTE_HANDLE
+      },
+      {
+        path: "manage/:tab",
+        element: <WorkspaceManageRoute />,
+        handle: WORKSPACE_MANAGE_ROUTE_HANDLE
+      },
+      {
+        path: "settings",
+        element: <Navigate to="members" replace />,
+        handle: WORKSPACE_SETTINGS_ROUTE_HANDLE
+      },
+      {
+        path: "settings/:tab",
+        element: <WorkspaceSettingsRoute />,
+        handle: WORKSPACE_SETTINGS_ROUTE_HANDLE
+      }
+    ]
+  },
+  {
+    path: "/explore/plugin/:productId",
+    element: <ExplorePluginDetailRoute />,
+    handle: EXPLORE_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/explore/plugin",
+    element: <ExplorePluginsRoute />,
+    handle: EXPLORE_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/explore/template/:templateId",
+    element: <ExploreTemplateDetailRoute />,
+    handle: EXPLORE_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/explore/template",
+    element: <ExploreTemplatesRoute />,
+    handle: EXPLORE_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/search/:word",
+    element: <ExploreSearchRoute />,
+    handle: EXPLORE_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/apps/:appKey/*",
+    element: <LegacyAppRedirectRoute />,
+    handle: STATUS_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/forbidden",
+    element: <ForbiddenPage />,
+    handle: STATUS_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "*",
+    element: <Navigate to="/" replace />,
+    handle: ROOT_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  }
+];
+
+const appRouter = createBrowserRouter(appRoutes, {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true,
+  },
+});
+
 export function AppRouter() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Routes>
-        <Route path="/" element={<RootEntryRoute />} />
-        <Route path="/platform-not-ready" element={<PlatformNotReadyPage />} />
-        <Route path="/app-setup" element={<AppSetupPage />} />
-        <Route path="/sign" element={<LoginPage />} />
-        <Route path="/org/:orgId/workspaces" element={<WorkspaceListRoute />} />
-        <Route path="/org/:orgId/workspaces/:workspaceId" element={<WorkspaceShellRoute />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardRoute />} />
-          <Route path="develop" element={<WorkspaceDevelopRoute />} />
-          <Route path="develop/chat" element={<AgentChatRoute />} />
-          <Route path="develop/model-configs" element={<ModelConfigsRoute />} />
-          <Route path="develop/assistant-tools" element={<StudioAssistantToolsRoute />} />
-          <Route path="develop/publish-center" element={<StudioPublishCenterRoute />} />
-          <Route path="library" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><WorkspaceLibraryRoute /></ProtectedPage>} />
-          <Route path="library/data" element={<StudioDataRoute />} />
-          <Route path="library/variables" element={<StudioVariablesRoute />} />
-          <Route path="apps/:id" element={<WorkspaceAppDetailRoute />} />
-          <Route path="apps/:id/publish" element={<WorkspaceAppPublishRoute />} />
-          <Route path="apps/:id/workflows/:workflowId" element={<WorkspaceAppWorkflowRedirectRoute />} />
-          <Route path="apps/:id/chatflows/:workflowId" element={<WorkspaceAppChatflowRedirectRoute />} />
-          <Route path="agents/:id" element={<WorkspaceAgentDetailRoute />} />
-          <Route path="agents/:id/publish" element={<WorkspaceAgentPublishRoute />} />
-          <Route path="workflows" element={<WorkspaceWorkflowWorkbenchRoute mode="workflow" />} />
-          <Route path="workflows/:id" element={<WorkspaceWorkflowRedirectRoute />} />
-          <Route path="chatflows" element={<WorkspaceWorkflowWorkbenchRoute mode="chatflow" />} />
-          <Route path="chatflows/:id" element={<WorkspaceChatflowRedirectRoute />} />
-          <Route path="knowledge-bases/:id" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}><WorkspaceKnowledgeDetailRoute /></ProtectedPage>} />
-          <Route path="knowledge-bases/:id/upload" element={<ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}><WorkspaceKnowledgeUploadRoute /></ProtectedPage>} />
-          <Route path="databases/:id" element={<StudioDatabaseDetailRoute />} />
-          <Route path="plugins/:id" element={<StudioPluginDetailRoute />} />
-          <Route path="manage" element={<Navigate to="overview" replace />} />
-          <Route path="manage/:tab" element={<WorkspaceManageRoute />} />
-          <Route path="settings" element={<Navigate to="members" replace />} />
-          <Route path="settings/:tab" element={<WorkspaceSettingsRoute />} />
-        </Route>
-        <Route path="/explore/plugin/:productId" element={<ExplorePluginDetailRoute />} />
-        <Route path="/explore/plugin" element={<ExplorePluginsRoute />} />
-        <Route path="/explore/template/:templateId" element={<ExploreTemplateDetailRoute />} />
-        <Route path="/explore/template" element={<ExploreTemplatesRoute />} />
-        <Route path="/search/:word" element={<ExploreSearchRoute />} />
-        <Route path="/apps/:appKey/*" element={<LegacyAppRedirectRoute />} />
-        <Route path="/forbidden" element={<ForbiddenPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <Suspense fallback={<LoadingPage />}>
+      <RouterProvider router={appRouter} fallbackElement={<LoadingPage />} />
+    </Suspense>
   );
 }
 
@@ -3344,7 +3584,9 @@ export function AppRoot() {
       <AppI18nProvider>
         <BootstrapProvider>
           <AuthProvider>
-            <AppRouter />
+            <AppStartupKernel loadingFallback={<LoadingPage />}>
+              <AppRouter />
+            </AppStartupKernel>
           </AuthProvider>
         </BootstrapProvider>
       </AppI18nProvider>

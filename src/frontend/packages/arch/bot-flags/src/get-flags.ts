@@ -15,8 +15,26 @@
  */
 
 import { featureFlagStorage } from './utils/storage';
+import { type FEATURE_FLAGS } from './types';
+
+const FALLBACK_FLAGS = new Proxy(Object.create(null), {
+  get: (_, name: string) => {
+    if (name === 'keys') {
+      return [];
+    }
+
+    if (name === 'isInited') {
+      return false;
+    }
+
+    return false;
+  },
+}) as FEATURE_FLAGS;
 
 export const getFlags = () => {
-  const flags = featureFlagStorage.getFlags();
-  return flags;
+  if (!featureFlagStorage.inited) {
+    return FALLBACK_FLAGS;
+  }
+
+  return featureFlagStorage.getFlags();
 };

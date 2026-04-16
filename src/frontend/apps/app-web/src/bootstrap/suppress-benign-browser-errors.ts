@@ -2,7 +2,11 @@ const BENIGN_BROWSER_WARNINGS = [
   "findDOMNode is deprecated and will be removed in the next major release.",
   "ResizeObserver loop completed with undelivered notifications.",
   "ResizeObserver loop limit exceeded",
-  "React Router Future Flag Warning"
+  "React Router Future Flag Warning",
+  "[zustand devtools middleware] Please install/enable Redux devtools extension",
+  "It looks like there are several instances of 'styled-components' initialized in this application.",
+  "A operation meta addLine is already registered.",
+  "A operation meta addNode is already registered."
 ];
 
 declare global {

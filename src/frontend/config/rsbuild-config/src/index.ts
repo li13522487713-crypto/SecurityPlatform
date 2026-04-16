@@ -57,7 +57,10 @@ const generateCdnPrefix = () => {
 
 export const defineConfig = (options: Partial<RsbuildConfig>) => {
   const cdnPrefix = generateCdnPrefix();
-  const port = 8080;
+  const configuredPort =
+    typeof options.server === 'object' && options.server?.port
+      ? Number(options.server.port)
+      : 8080;
   const workspaceRoot = path.resolve(__dirname, '..', '..', '..');
   const commonAssertsUrl = path.dirname(
     require.resolve('@coze-common/assets/package.json'),
@@ -66,13 +69,13 @@ export const defineConfig = (options: Partial<RsbuildConfig>) => {
   const config: RsbuildConfig = {
     dev: {
       client: {
-        port,
+        port: configuredPort,
         host: '127.0.0.1',
         protocol: 'ws',
       },
     },
     server: {
-      port,
+      port: configuredPort,
     },
     plugins: [
       pluginReact(),

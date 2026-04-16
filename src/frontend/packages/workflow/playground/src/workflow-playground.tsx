@@ -22,7 +22,6 @@ import { forwardRef, useEffect, type PropsWithChildren } from 'react';
 
 import { useShallow } from 'zustand/react/shallow';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { GlobalError } from '@coze-foundation/layout';
 import { WorkflowRenderProvider } from '@coze-workflow/render';
 import { WorkflowNodesContainerModule } from '@coze-workflow/nodes';
 import { WorkflowHistoryContainerModule } from '@coze-workflow/history';
@@ -35,6 +34,7 @@ import {
   type WorkflowPlaygroundProps,
   type WorkflowPlaygroundRef,
 } from './typing';
+import { WorkflowErrorFallback } from './workflow-error-fallback';
 import { useWorkflowPreset } from './hooks';
 import { WorkflowPageContainerModule } from './container/workflow-page-container-module';
 import WorkflowContainer from './components/workflow-container';
@@ -54,7 +54,7 @@ const PlayGroundErrorBoundary = (props: PropsWithChildren) => {
 
   return (
     <ErrorBoundary
-      FallbackComponent={() => (IS_BOT_OP ? null : <GlobalError />)}
+      FallbackComponent={() => (IS_BOT_OP ? null : <WorkflowErrorFallback />)}
       errorBoundaryName="workflow-error-boundary"
       logger={loggerWithScope}
     >
@@ -67,7 +67,6 @@ export const WorkflowPlayground = forwardRef<
   WorkflowPlaygroundRef,
   WorkflowPlaygroundProps
 >(({ spaceId = PUBLIC_SPACE_ID, parentContainer, ...props }, ref) => {
-  console.log('debugger workflow playground');
   const { spaceList, setSpace, fetchSpaces, checkSpaceID, inited } =
     useSpaceStore(
       useShallow(store => ({

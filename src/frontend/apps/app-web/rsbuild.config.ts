@@ -11,6 +11,53 @@ const derivedAppHostTarget = apiBase && /^https?:\/\//i.test(apiBase)
   : undefined;
 const appHostTarget =
   process.env.VITE_APP_HOST_TARGET || derivedAppHostTarget || "http://127.0.0.1:5002";
+const workspaceRoots = [
+  "../../packages/app-shell-shared",
+  "../../packages/shared-react-core",
+  "../../packages/schema-protocol",
+  "../../packages/coze-shell-react",
+  "../../packages/library-module-react",
+  "../../packages/module-admin-react",
+  "../../packages/module-explore-react",
+  "../../packages/module-studio-react",
+  "../../packages/module-workflow-react",
+  "../../packages/workflow-core-react",
+  "../../packages/workflow-editor-react",
+  "../../packages/workflow",
+  "../../packages/arch",
+  "../../packages/foundation",
+  "../../packages/studio",
+  "../../packages/common",
+  "../../packages/data",
+  "../../packages/devops",
+  "../../packages/project-ide",
+  "../../packages/agent-ide",
+].map((relativePath) => path.resolve(__dirname, relativePath));
+
+const importWatchRoots = [
+  path.resolve(__dirname, "src"),
+  path.resolve(__dirname, "../../packages/app-shell-shared"),
+  path.resolve(__dirname, "../../packages/shared-react-core"),
+  path.resolve(__dirname, "../../packages/coze-shell-react"),
+  path.resolve(__dirname, "../../packages/library-module-react"),
+  path.resolve(__dirname, "../../packages/module-admin-react"),
+  path.resolve(__dirname, "../../packages/module-explore-react"),
+  path.resolve(__dirname, "../../packages/module-studio-react"),
+  path.resolve(__dirname, "../../packages/module-workflow-react"),
+  path.resolve(__dirname, "../../packages/workflow-core-react"),
+  path.resolve(__dirname, "../../packages/workflow-editor-react"),
+  path.resolve(__dirname, "../../packages/workflow"),
+  path.resolve(__dirname, "../../packages/arch"),
+  path.resolve(__dirname, "../../packages/foundation"),
+  path.resolve(__dirname, "../../packages/studio"),
+  path.resolve(__dirname, "../../packages/common"),
+  path.resolve(__dirname, "../../packages/data"),
+  path.resolve(__dirname, "../../packages/devops"),
+  path.resolve(__dirname, "../../packages/project-ide"),
+  path.resolve(__dirname, "../../packages/agent-ide"),
+];
+
+const enablePollingWatch = process.env.ATLAS_RSBUILD_POLL === "true";
 
 export default defineConfig({
   server: {
@@ -35,7 +82,7 @@ export default defineConfig({
       index: "./src/main.tsx",
     },
     include: [
-      path.resolve(__dirname, "../../packages"),
+      ...workspaceRoots,
       path.resolve(__dirname, "../../infra"),
       path.resolve(__dirname, "../../config"),
     ],
@@ -72,6 +119,7 @@ export default defineConfig({
       addRules([
         {
           test: /\.(css|less|jsx|tsx|ts|js)/,
+          include: importWatchRoots,
           exclude: [
             new RegExp("apps/app-web/src/app/app.css"),
             /node_modules/,
@@ -95,11 +143,10 @@ export default defineConfig({
           },
         },
         watchOptions: {
-          poll: true,
+          poll: enablePollingWatch,
         },
         ignoreWarnings: [
           /Critical dependency: the request of a dependency is an expression/,
-          () => true,
         ],
       });
     },

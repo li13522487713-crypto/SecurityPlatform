@@ -92,6 +92,66 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }));
     }
 
+    [HttpPost("/api/playground_api/space/save")]
+    [Authorize]
+    public async Task<ActionResult<object>> SaveSpace(
+        [FromBody] CozeSaveSpaceRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var targetSpaceId = request?.space_id;
+        var matched = !string.IsNullOrWhiteSpace(targetSpaceId)
+            ? workspaces.FirstOrDefault(item => string.Equals(item.Id, targetSpaceId, StringComparison.OrdinalIgnoreCase))
+            : workspaces.FirstOrDefault();
+
+        return Ok(Success(new
+        {
+            id = matched?.Id ?? targetSpaceId ?? string.Empty,
+            check_not_pass = false
+        }));
+    }
+
+    [HttpGet("/api/marketplace/product/favorite/list")]
+    [Authorize]
+    public ActionResult<object> GetMarketplaceFavoriteList()
+    {
+        return Ok(new
+        {
+            code = 0,
+            message = "success",
+            data = new
+            {
+                favorite_products = Array.Empty<object>(),
+                has_more = false
+            }
+        });
+    }
+
+    [HttpGet("/api/marketplace/product/favorite/list.v2")]
+    [Authorize]
+    public ActionResult<object> GetMarketplaceFavoriteListV2()
+    {
+        return Ok(new
+        {
+            code = 0,
+            message = "success",
+            data = new
+            {
+                favorite_entities = Array.Empty<object>(),
+                cursor_id = string.Empty,
+                has_more = false,
+                entity_user_trigger_config = new Dictionary<string, object>()
+            }
+        });
+    }
+
     [HttpPost("canvas")]
     [Authorize]
     public async Task<ActionResult<object>> GetCanvasInfo(
@@ -695,3 +755,11 @@ public sealed record CozeGetSpaceListRequest(
     int? scope_type,
     int? page,
     int? size);
+
+public sealed record CozeSaveSpaceRequest(
+    string? space_id,
+    string? name,
+    string? description,
+    string? icon_uri,
+    int? space_type,
+    int? space_mode);
