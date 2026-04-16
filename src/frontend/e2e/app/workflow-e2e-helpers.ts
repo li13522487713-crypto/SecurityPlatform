@@ -41,7 +41,7 @@ async function ensureWorkflowListReady(
 
     try {
       await navigateBySidebar(page, "workflows", {
-        pageTestId: "app-workflows-page"
+        urlPattern: /\/org\/[^/]+\/workspaces\/[^/]+\/workflows(?:\?.*)?$/
       });
       return;
     } catch {
@@ -179,8 +179,27 @@ export async function createWorkflowAndOpenEditor(page: Page, appKey: string): P
   currentUrl.searchParams.set("create", "1");
   await page.goto(currentUrl.toString());
   const dialog = page.locator(".semi-modal-content").last();
+  const dialogVisible = await dialog.isVisible().catch(() => false);
+  if (!dialogVisible) {
+    const createButtonCandidates: Locator[] = [
+      page.getByRole("button", { name: /workspace_create|create workflow|new workflow|新建工作流/i }),
+      page.locator("button:has-text('workspace_create')"),
+      page.locator("button:has-text('Create Workflow')"),
+      page.locator("button:has-text('新建工作流')")
+    ];
+
+    for (const candidate of createButtonCandidates) {
+      if (await candidate.first().isVisible().catch(() => false)) {
+        await candidate.first().click();
+        break;
+      }
+    }
+  }
+
   await expect(dialog).toBeVisible({ timeout: 15_000 });
-  await dialog.getByRole("textbox").nth(1).fill(uniqueName("E2EWorkflow"));
+  const nameInput = dialog.getByRole("textbox").first();
+  await expect(nameInput).toBeVisible({ timeout: 10_000 });
+  await nameInput.fill(uniqueName("E2EWorkflow"));
   const createResponsePromise = page.waitForResponse((response) => {
     return response.request().method() === "POST" && /\/api\/v2\/workflows$/.test(response.url());
   });

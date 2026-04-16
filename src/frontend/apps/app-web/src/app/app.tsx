@@ -1216,12 +1216,14 @@ function createStudioApi(appKey: string): StudioModuleApi {
 }
 
 function useAppApis(appKey: string) {
+  const { t } = useAppI18n();
   return useMemo(() => ({
     adminApi: createAdminApi(appKey),
     exploreApi: createExploreApi(appKey),
     studioApi: createStudioApi(appKey)
-  }), [appKey]);
+  }), [appKey, t]);
 }
+
 
 function DefaultWorkspaceRedirect() {
   const { appKey = "" } = useParams();
@@ -1532,7 +1534,7 @@ function AppShellRoute() {
   const navigate = useNavigate();
   const bootstrap = useBootstrap();
   const auth = useAuth();
-  const { locale, setLocale } = useAppI18n();
+  const { locale, setLocale, t } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   const activeShellPath = `${location.pathname}${location.search}`;
 
@@ -1565,60 +1567,58 @@ function AppShellRoute() {
   if (!auth.isAuthenticated) {
     return <Navigate to={appSignPath(appKey, location.pathname + location.search)} replace />;
   }
-
-  const primaryKey = inferPrimaryArea(location.pathname);
   const navSections: CozeNavSection[] = [
     {
       key: "workspace",
-      title: locale === "zh-CN" ? "工作空间" : "Workspace",
+      title: t("shellNavWorkspace"),
       items: [
-        { key: "develop", label: locale === "zh-CN" ? "开发台" : "Develop", icon: navGlyph("D"), path: workspaceDevelopPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-develop" },
-        { key: "agents", label: locale === "zh-CN" ? "智能体" : "Agents", icon: navGlyph("A"), path: studioAssistantsPath(appKey), testId: "app-sidebar-item-agents" },
-        { key: "workflow", label: locale === "zh-CN" ? "工作流" : "Workflow", icon: navGlyph("W"), path: workflowListPath(appKey), testId: "app-sidebar-item-workflows" },
-        { key: "library", label: locale === "zh-CN" ? "资源库" : "Library", icon: navGlyph("L"), path: studioLibraryPath(appKey), testId: "app-sidebar-item-library" },
-        { key: "plugins", label: locale === "zh-CN" ? "插件" : "Plugins", icon: navGlyph("PL"), path: studioPluginsPath(appKey), testId: "app-sidebar-item-plugins" },
-        { key: "chat", label: locale === "zh-CN" ? "Agent 对话" : "Agent Chat", icon: navGlyph("C"), path: workspaceChatPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-agent-chat" },
-        { key: "model-configs", label: locale === "zh-CN" ? "模型配置" : "Model Configs", icon: navGlyph("M"), path: workspaceModelConfigsPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-model-configs" }
+        { key: "develop", label: t("shellNavDevelop"), icon: navGlyph("D"), path: workspaceDevelopPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-develop" },
+        { key: "agents", label: t("sidebarAgents"), icon: navGlyph("A"), path: studioAssistantsPath(appKey), testId: "app-sidebar-item-agents" },
+        { key: "workflow", label: t("sidebarWorkflow"), icon: navGlyph("W"), path: workflowListPath(appKey), testId: "app-sidebar-item-workflows" },
+        { key: "library", label: t("sidebarLibrary"), icon: navGlyph("L"), path: studioLibraryPath(appKey), testId: "app-sidebar-item-library" },
+        { key: "plugins", label: t("shellNavPlugins"), icon: navGlyph("PL"), path: studioPluginsPath(appKey), testId: "app-sidebar-item-plugins" },
+        { key: "chat", label: t("sidebarChat"), icon: navGlyph("C"), path: workspaceChatPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-agent-chat" },
+        { key: "model-configs", label: t("sidebarModels"), icon: navGlyph("M"), path: workspaceModelConfigsPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-model-configs" }
       ],
-      overflowLabel: locale === "zh-CN" ? "更多" : "More",
+      overflowLabel: t("shellNavMore"),
       overflowTestId: "app-sidebar-section-more-workspace",
       overflowItems: [
-        { key: "projects", label: locale === "zh-CN" ? "应用" : "Applications", icon: navGlyph("APP"), path: studioAppsPath(appKey), testId: "app-sidebar-item-projects" },
-        { key: "chatflow", label: locale === "zh-CN" ? "对话流" : "Chatflow", icon: navGlyph("CF"), path: `/apps/${encodeURIComponent(appKey)}/chat_flow`, testId: "app-sidebar-item-chatflows" },
-        { key: "assistant", label: locale === "zh-CN" ? "AI 助手" : "AI Assistant", icon: navGlyph("AI"), path: studioAssistantToolsPath(appKey), testId: "app-sidebar-item-ai-assistant" },
-        { key: "data", label: locale === "zh-CN" ? "数据" : "Data", icon: navGlyph("DT"), path: studioDataPath(appKey), testId: "app-sidebar-item-data" },
-        { key: "knowledge-bases", label: locale === "zh-CN" ? "知识库" : "Knowledge Bases", icon: navGlyph("KB"), path: studioKnowledgeBasesPath(appKey), testId: "app-sidebar-item-knowledge-bases" },
-        { key: "databases", label: locale === "zh-CN" ? "数据库" : "Databases", icon: navGlyph("DBX"), path: studioDatabasesPath(appKey), testId: "app-sidebar-item-databases" },
-        { key: "variables", label: locale === "zh-CN" ? "变量" : "Variables", icon: navGlyph("VAR"), path: studioVariablesPath(appKey), testId: "app-sidebar-item-variables" }
+        { key: "projects", label: t("shellNavApplications"), icon: navGlyph("APP"), path: studioAppsPath(appKey), testId: "app-sidebar-item-projects" },
+        { key: "chatflow", label: t("shellNavChatflow"), icon: navGlyph("CF"), path: `/apps/${encodeURIComponent(appKey)}/chat_flow`, testId: "app-sidebar-item-chatflows" },
+        { key: "assistant", label: t("sidebarAssistant"), icon: navGlyph("AI"), path: studioAssistantToolsPath(appKey), testId: "app-sidebar-item-ai-assistant" },
+        { key: "data", label: t("sidebarData"), icon: navGlyph("DT"), path: studioDataPath(appKey), testId: "app-sidebar-item-data" },
+        { key: "knowledge-bases", label: t("sidebarKnowledge"), icon: navGlyph("KB"), path: studioKnowledgeBasesPath(appKey), testId: "app-sidebar-item-knowledge-bases" },
+        { key: "databases", label: t("shellNavDatabases"), icon: navGlyph("DBX"), path: studioDatabasesPath(appKey), testId: "app-sidebar-item-databases" },
+        { key: "variables", label: t("shellNavVariables"), icon: navGlyph("VAR"), path: studioVariablesPath(appKey), testId: "app-sidebar-item-variables" }
       ]
     },
     {
       key: "explore",
-      title: locale === "zh-CN" ? "探索" : "Explore",
+      title: t("shellNavExplore"),
       items: [
-        { key: "plugin", label: locale === "zh-CN" ? "插件商店" : "Plugin Store", icon: navGlyph("PL"), path: explorePath(appKey, "plugin"), testId: "app-sidebar-item-explore-plugins" },
-        { key: "template", label: locale === "zh-CN" ? "模板商店" : "Template Store", icon: navGlyph("TP"), path: explorePath(appKey, "template"), testId: "app-sidebar-item-explore-templates" }
+        { key: "plugin", label: t("shellNavPluginStore"), icon: navGlyph("PL"), path: explorePath(appKey, "plugin"), testId: "app-sidebar-item-explore-plugins" },
+        { key: "template", label: t("shellNavTemplateStore"), icon: navGlyph("TP"), path: explorePath(appKey, "template"), testId: "app-sidebar-item-explore-templates" }
       ]
     },
     {
       key: "admin",
-      title: locale === "zh-CN" ? "管理" : "Management",
+      title: t("shellNavManagement"),
       items: [
-        { key: "overview", label: locale === "zh-CN" ? "组织概览" : "Overview", icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
-        { key: "users", label: locale === "zh-CN" ? "用户管理" : "Users", icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
-        { key: "roles", label: locale === "zh-CN" ? "角色管理" : "Roles", icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
-        { key: "departments", label: locale === "zh-CN" ? "部门管理" : "Departments", icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
-        { key: "positions", label: locale === "zh-CN" ? "职位管理" : "Positions", icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
+        { key: "overview", label: t("sidebarOverview"), icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
+        { key: "users", label: t("sidebarUsers"), icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
+        { key: "roles", label: t("sidebarRoles"), icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
+        { key: "departments", label: t("sidebarDepartments"), icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
+        { key: "positions", label: t("sidebarPositions"), icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
       ],
-      overflowLabel: locale === "zh-CN" ? "更多" : "More",
+      overflowLabel: t("shellNavMore"),
       overflowTestId: "app-sidebar-section-more-admin",
       overflowItems: [
-        { key: "approval", label: locale === "zh-CN" ? "审批工作台" : "Approval", icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
-        { key: "reports", label: locale === "zh-CN" ? "报表管理" : "Reports", icon: navGlyph("RP"), path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
-        { key: "dashboards", label: locale === "zh-CN" ? "仪表盘管理" : "Dashboards", icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
-        { key: "visualization", label: locale === "zh-CN" ? "运行监控" : "Visualization", icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" },
-        { key: "settings", label: locale === "zh-CN" ? "设置" : "Settings", icon: navGlyph("S"), path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
-        { key: "profile", label: locale === "zh-CN" ? "个人中心" : "Profile", icon: navGlyph("ME"), path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
+        { key: "approval", label: t("shellNavApproval"), icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
+        { key: "reports", label: t("shellNavReports"), icon: navGlyph("RP"), path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
+        { key: "dashboards", label: t("shellNavDashboards"), icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
+        { key: "visualization", label: t("shellNavVisualization"), icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" },
+        { key: "settings", label: t("sidebarSettings"), icon: navGlyph("S"), path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
+        { key: "profile", label: t("sidebarProfile"), icon: navGlyph("ME"), path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
       ]
     }
   ];
@@ -1627,263 +1627,56 @@ function AppShellRoute() {
     .flatMap(section => [...section.items, ...(section.overflowItems ?? [])])
     .find(item => activeShellPath === item.path || activeShellPath.startsWith(`${item.path}/`) || activeShellPath.includes(item.path));
 
+  const primaryKey = activeNavItem?.key ?? "workspace";
   const workspaceLabel = bootstrap.workspaceLabel || appKey;
+  const withWorkspace = (key: Parameters<typeof t>[0]) => t(key).replace("{workspace}", workspaceLabel);
 
-  const shellHeaderCopyMap: Record<string, { title: string; subtitle: string }> = locale === "zh-CN"
-    ? {
-        develop: {
-          title: "AI 工作台",
-          subtitle: `从 ${workspaceLabel} 继续创作、调试与发布你的 AI 资产。`
-        },
-        agents: {
-          title: "智能体创作",
-          subtitle: "设计角色、工具、记忆与调试链路，持续打磨智能体体验。"
-        },
-        projects: {
-          title: "应用装配",
-          subtitle: "把智能体与工作流组织成可交付、可发布的应用体验。"
-        },
-        workflow: {
-          title: "工作流编排",
-          subtitle: "连接节点、数据与工具，构建可运行的自动化流程。"
-        },
-        chatflow: {
-          title: "对话流设计",
-          subtitle: "围绕多轮交互编排消息路径、状态流转与用户引导。"
-        },
-        library: {
-          title: "资源接入",
-          subtitle: "统一管理可复用的工具、知识、数据与外部能力。"
-        },
-        plugins: {
-          title: "插件能力",
-          subtitle: "连接外部工具与 API，为智能体和流程提供可调用能力。"
-        },
-        chat: {
-          title: "调试对话",
-          subtitle: "通过真实对话验证 Agent、工具调用与工作流行为。"
-        },
-        "model-configs": {
-          title: "模型接入",
-          subtitle: "管理模型供应商、推理能力与运行策略。"
-        },
-        assistant: {
-          title: "AI 助手",
-          subtitle: "在工作区里完成问答、生成、整理与协作辅助。"
-        },
-        data: {
-          title: "数据资产",
-          subtitle: "集中查看结构化数据、知识与变量等可复用资源。"
-        },
-        "knowledge-bases": {
-          title: "知识库空间",
-          subtitle: "沉淀可被智能体与工作流长期复用的知识内容。"
-        },
-        databases: {
-          title: "数据库连接",
-          subtitle: "管理数据库资源与运行时数据接入。"
-        },
-        variables: {
-          title: "变量配置",
-          subtitle: "维护流程与应用共享的上下文变量和运行参数。"
-        },
-        overview: {
-          title: "团队协作",
-          subtitle: "查看空间成员、权限分工与整体治理状态。"
-        },
-        users: {
-          title: "成员管理",
-          subtitle: "邀请成员并维护工作区访问范围与协作权限。"
-        },
-        roles: {
-          title: "权限策略",
-          subtitle: "通过角色定义协作边界、菜单能力与访问权限。"
-        },
-        departments: {
-          title: "组织结构",
-          subtitle: "维护团队层级、归属关系与组织视图。"
-        },
-        positions: {
-          title: "岗位配置",
-          subtitle: "定义岗位职责并对齐组织内的权限分配。"
-        },
-        approval: {
-          title: "审批协作",
-          subtitle: "跟进业务审批、发布流转与待处理协作任务。"
-        },
-        reports: {
-          title: "运营洞察",
-          subtitle: "查看关键报表、业务趋势与阶段性运营结果。"
-        },
-        dashboards: {
-          title: "指标看板",
-          subtitle: "聚合核心指标，快速把握空间与业务运行态势。"
-        },
-        visualization: {
-          title: "运行观测",
-          subtitle: "监控任务状态、异常波动与运行过程。"
-        },
-        settings: {
-          title: "工作区设置",
-          subtitle: "调整空间规则、偏好与系统配置项。"
-        },
-        profile: {
-          title: "个人中心",
-          subtitle: "管理账号资料、偏好与个人工作设置。"
-        },
-        plugin: {
-          title: "插件发现",
-          subtitle: "浏览可接入的插件能力与生态资源。"
-        },
-        template: {
-          title: "模板发现",
-          subtitle: "挑选模板，加速搭建应用、智能体与流程。"
-        }
-      }
-    : {
-        develop: {
-          title: "AI Workspace",
-          subtitle: `Continue creating, debugging, and publishing assets in ${workspaceLabel}.`
-        },
-        agents: {
-          title: "Agent Creation",
-          subtitle: "Design roles, tools, memory, and debugging flows for your agents."
-        },
-        projects: {
-          title: "App Assembly",
-          subtitle: "Package agents and workflows into deliverable product experiences."
-        },
-        workflow: {
-          title: "Workflow Orchestration",
-          subtitle: "Connect nodes, data, and tools into runnable automation flows."
-        },
-        chatflow: {
-          title: "Chatflow Design",
-          subtitle: "Shape multi-turn interactions, message routing, and user guidance."
-        },
-        library: {
-          title: "Resource Hub",
-          subtitle: "Manage reusable tools, knowledge, data, and external capabilities."
-        },
-        plugins: {
-          title: "Plugin Capabilities",
-          subtitle: "Connect external tools and APIs for agents and workflows."
-        },
-        chat: {
-          title: "Debug Chat",
-          subtitle: "Validate agent behavior, tool calls, and workflow outcomes through chat."
-        },
-        "model-configs": {
-          title: "Model Access",
-          subtitle: "Manage model providers, inference capabilities, and runtime strategy."
-        },
-        assistant: {
-          title: "AI Assistant",
-          subtitle: "Use in-workspace AI support for drafting, organizing, and collaboration."
-        },
-        data: {
-          title: "Data Assets",
-          subtitle: "Review structured data, knowledge, and variables in one place."
-        },
-        "knowledge-bases": {
-          title: "Knowledge Space",
-          subtitle: "Maintain reusable knowledge for agents and workflows."
-        },
-        databases: {
-          title: "Database Connections",
-          subtitle: "Manage databases and runtime data access."
-        },
-        variables: {
-          title: "Variable Config",
-          subtitle: "Maintain shared context variables and runtime parameters."
-        },
-        overview: {
-          title: "Team Collaboration",
-          subtitle: "View members, permissions, and the overall governance state."
-        },
-        users: {
-          title: "Member Management",
-          subtitle: "Invite members and manage workspace access scopes."
-        },
-        roles: {
-          title: "Permission Strategy",
-          subtitle: "Define collaboration boundaries and access policies with roles."
-        },
-        departments: {
-          title: "Organization Structure",
-          subtitle: "Maintain team hierarchy, ownership, and structure."
-        },
-        positions: {
-          title: "Position Setup",
-          subtitle: "Define job responsibilities and align permission assignments."
-        },
-        approval: {
-          title: "Approval Collaboration",
-          subtitle: "Track approval flows, releases, and pending collaboration tasks."
-        },
-        reports: {
-          title: "Operational Insights",
-          subtitle: "Review reports, trends, and milestone outcomes."
-        },
-        dashboards: {
-          title: "Metrics Dashboard",
-          subtitle: "Monitor the most important signals in one place."
-        },
-        visualization: {
-          title: "Runtime Observability",
-          subtitle: "Monitor jobs, anomalies, and execution status across the workspace."
-        },
-        settings: {
-          title: "Workspace Settings",
-          subtitle: "Adjust workspace rules, preferences, and system options."
-        },
-        profile: {
-          title: "Profile Center",
-          subtitle: "Manage your account profile, preferences, and personal settings."
-        },
-        plugin: {
-          title: "Plugin Discovery",
-          subtitle: "Explore ecosystem plugins and integration options."
-        },
-        template: {
-          title: "Template Discovery",
-          subtitle: "Browse templates to speed up apps, agents, and workflows."
-        }
-      };
+  const shellHeaderCopyMap: Record<string, { title: string; subtitle: string }> = {
+    develop: { title: t("shellHeaderDevelopTitle"), subtitle: withWorkspace("shellHeaderDevelopSubtitle") },
+    agents: { title: t("shellHeaderAgentsTitle"), subtitle: withWorkspace("shellHeaderAgentsSubtitle") },
+    projects: { title: t("shellHeaderProjectsTitle"), subtitle: withWorkspace("shellHeaderProjectsSubtitle") },
+    workflow: { title: t("shellHeaderWorkflowTitle"), subtitle: withWorkspace("shellHeaderWorkflowSubtitle") },
+    chatflow: { title: t("shellHeaderChatflowTitle"), subtitle: withWorkspace("shellHeaderChatflowSubtitle") },
+    library: { title: t("shellHeaderLibraryTitle"), subtitle: withWorkspace("shellHeaderLibrarySubtitle") },
+    plugins: { title: t("shellHeaderPluginsTitle"), subtitle: withWorkspace("shellHeaderPluginsSubtitle") },
+    chat: { title: t("shellHeaderChatTitle"), subtitle: withWorkspace("shellHeaderChatSubtitle") },
+    "model-configs": { title: t("shellHeaderModelConfigsTitle"), subtitle: withWorkspace("shellHeaderModelConfigsSubtitle") },
+    assistant: { title: t("shellHeaderAssistantTitle"), subtitle: withWorkspace("shellHeaderAssistantSubtitle") },
+    data: { title: t("shellHeaderDataTitle"), subtitle: withWorkspace("shellHeaderDataSubtitle") },
+    "knowledge-bases": { title: t("shellHeaderKnowledgeBasesTitle"), subtitle: withWorkspace("shellHeaderKnowledgeBasesSubtitle") },
+    databases: { title: t("shellHeaderDatabasesTitle"), subtitle: withWorkspace("shellHeaderDatabasesSubtitle") },
+    variables: { title: t("shellHeaderVariablesTitle"), subtitle: withWorkspace("shellHeaderVariablesSubtitle") },
+    overview: { title: t("shellHeaderOverviewTitle"), subtitle: withWorkspace("shellHeaderOverviewSubtitle") },
+    users: { title: t("shellHeaderUsersTitle"), subtitle: withWorkspace("shellHeaderUsersSubtitle") },
+    roles: { title: t("shellHeaderRolesTitle"), subtitle: withWorkspace("shellHeaderRolesSubtitle") },
+    departments: { title: t("shellHeaderDepartmentsTitle"), subtitle: withWorkspace("shellHeaderDepartmentsSubtitle") },
+    positions: { title: t("shellHeaderPositionsTitle"), subtitle: withWorkspace("shellHeaderPositionsSubtitle") },
+    approval: { title: t("shellHeaderApprovalTitle"), subtitle: withWorkspace("shellHeaderApprovalSubtitle") },
+    reports: { title: t("shellHeaderReportsTitle"), subtitle: withWorkspace("shellHeaderReportsSubtitle") },
+    dashboards: { title: t("shellHeaderDashboardsTitle"), subtitle: withWorkspace("shellHeaderDashboardsSubtitle") },
+    visualization: { title: t("shellHeaderVisualizationTitle"), subtitle: withWorkspace("shellHeaderVisualizationSubtitle") },
+    settings: { title: t("shellHeaderSettingsTitle"), subtitle: withWorkspace("shellHeaderSettingsSubtitle") },
+    profile: { title: t("shellHeaderProfileTitle"), subtitle: withWorkspace("shellHeaderProfileSubtitle") },
+    plugin: { title: t("shellHeaderPluginTitle"), subtitle: withWorkspace("shellHeaderPluginSubtitle") },
+    template: { title: t("shellHeaderTemplateTitle"), subtitle: withWorkspace("shellHeaderTemplateSubtitle") }
+  };
 
   const defaultHeaderCopy = primaryKey === "workspace"
-    ? (locale === "zh-CN"
+    ? {
+        title: t("shellHeaderWorkspaceTitle"),
+        subtitle: withWorkspace("shellHeaderWorkspaceSubtitle")
+      }
+    : primaryKey === "explore"
       ? {
-          title: "AI 工作空间",
-          subtitle: `围绕 ${workspaceLabel} 统一完成创作、运行与团队协作。`
+          title: t("shellHeaderExploreTitle"),
+          subtitle: t("shellHeaderExploreSubtitle")
         }
       : {
-          title: "AI Workspace",
-          subtitle: `Create, operate, and collaborate around ${workspaceLabel} in one place.`
-        })
-    : primaryKey === "explore"
-      ? (locale === "zh-CN"
-        ? {
-            title: "生态发现",
-            subtitle: "浏览模板、插件与可复用生态资源。"
-          }
-        : {
-            title: "Explore Ecosystem",
-            subtitle: "Browse templates, plugins, and reusable ecosystem resources."
-          })
-      : (locale === "zh-CN"
-        ? {
-            title: "团队治理",
-            subtitle: "统一管理成员、权限、运营与空间设置。"
-          }
-        : {
-            title: "Team Governance",
-            subtitle: "Manage members, permissions, operations, and workspace settings."
-          });
+          title: t("shellHeaderManagementTitle"),
+          subtitle: t("shellHeaderManagementSubtitle")
+        };
 
-  const shellHeaderCopy = activeNavItem
-    ? shellHeaderCopyMap[activeNavItem.key] ?? defaultHeaderCopy
-    : defaultHeaderCopy;
+  const shellHeaderCopy = shellHeaderCopyMap[primaryKey] ?? defaultHeaderCopy;
 
   const isWorkflowWorkbenchRoute =
     location.pathname.includes("/work_flow") ||
@@ -1910,10 +1703,10 @@ function AppShellRoute() {
         navSections={navSections}
         headerTitle={shellHeaderCopy.title}
         headerSubtitle={shellHeaderCopy.subtitle}
-        localeLabel={locale === "zh-CN" ? "English" : "中文"}
+        localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-        profileLabel={locale === "zh-CN" ? "个人中心" : "Profile"}
-        logoutLabel={locale === "zh-CN" ? "退出登录" : "Sign Out"}
+        profileLabel={t("sidebarProfile")}
+        logoutLabel={t("logout")}
         onNavigate={navigate}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
         onOpenProfile={() => navigate(adminPath(appKey, "profile"))}
@@ -2110,44 +1903,6 @@ function WorkspaceWorkflowWorkbenchRoute({
             navigate(-1);
             return;
           }
-          navigate("/", { replace: true });
-        }}
-      />
-    </WorkflowRuntimeBoundary>
-  );
-}
-
-function StandaloneWorkflowRoute() {
-  const { workflowId: workflowIdFromPath = "" } = useParams();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const workflowId = workflowIdFromPath || searchParams.get("workflow_id") || searchParams.get("workflowId") || "";
-  const mode = searchParams.get("mode") === "chatflow" ? "chatflow" : "workflow";
-  const spaceId = searchParams.get("space_id") ?? searchParams.get("spaceId") ?? "";
-  const returnUrl = searchParams.get("return_url") ?? searchParams.get("returnUrl") ?? undefined;
-
-  if (!workflowId) {
-    return <Navigate to="/" replace />;
-  }
-
-  return (
-    <WorkflowRuntimeBoundary>
-      <CozeWorkflowPage
-        workflowId={workflowId}
-        mode={mode}
-        spaceId={spaceId}
-        returnUrl={returnUrl}
-        onAtlasBack={() => {
-          if (returnUrl && typeof window !== "undefined") {
-            window.location.assign(returnUrl);
-            return;
-          }
-
-          if (typeof window !== "undefined" && window.history.length > 1) {
-            navigate(-1);
-            return;
-          }
-
           navigate("/", { replace: true });
         }}
       />
@@ -2448,7 +2203,7 @@ function WorkspaceShellInner() {
   const navigate = useNavigate();
   const auth = useAuth();
   const bootstrap = useBootstrap();
-  const { locale, setLocale } = useAppI18n();
+  const { locale, setLocale, t } = useAppI18n();
   const organization = useResolvedOrgId();
   const workspace = useWorkspaceContext();
   const appKey = workspace.appKey;
@@ -2491,39 +2246,39 @@ function WorkspaceShellInner() {
   const navSections: CozeNavSection[] = [
     {
       key: "workspace",
-      title: locale === "zh-CN" ? "工作区导航" : "Workspace Navigation",
+      title: t("shellNavWorkspaceNavigation"),
       items: [
         {
           key: "dashboard",
-          label: locale === "zh-CN" ? "主控台" : "Dashboard",
+          label: t("shellNavDashboard"),
           icon: navGlyph("DB"),
           path: orgWorkspaceDashboardPath(organization, workspace.id),
           testId: "app-sidebar-item-dashboard"
         },
         {
           key: "develop",
-          label: locale === "zh-CN" ? "开发" : "Develop",
+          label: t("shellNavDevelop"),
           icon: navGlyph("D"),
           path: orgWorkspaceDevelopPath(organization, workspace.id),
           testId: "app-sidebar-item-develop"
         },
         {
           key: "library",
-          label: locale === "zh-CN" ? "资源" : "Library",
+          label: t("sidebarLibrary"),
           icon: navGlyph("L"),
           path: orgWorkspaceLibraryPath(organization, workspace.id),
           testId: "app-sidebar-item-library"
         },
         {
           key: "manage",
-          label: locale === "zh-CN" ? "管理" : "Management",
+          label: t("shellNavManagement"),
           icon: navGlyph("MG"),
           path: orgWorkspaceManagePath(organization, workspace.id),
           testId: "app-sidebar-item-manage"
         },
         {
           key: "settings",
-          label: locale === "zh-CN" ? "设置" : "Settings",
+          label: t("sidebarSettings"),
           icon: navGlyph("ST"),
           path: orgWorkspaceSettingsPath(organization, workspace.id),
           testId: "app-sidebar-item-settings"
@@ -2532,31 +2287,31 @@ function WorkspaceShellInner() {
     }
   ];
 
-  let headerTitle = locale === "zh-CN" ? "开发" : "Develop";
+  let headerTitle = t("shellNavDevelop");
   if (location.pathname.includes("/dashboard")) {
-    headerTitle = locale === "zh-CN" ? "主控台" : "Dashboard";
+    headerTitle = t("shellNavDashboard");
   } else if (location.pathname.includes("/develop/chat")) {
-    headerTitle = locale === "zh-CN" ? "Agent 对话" : "Agent Chat";
+    headerTitle = t("sidebarChat");
   } else if (location.pathname.includes("/develop/model-configs")) {
-    headerTitle = locale === "zh-CN" ? "模型配置" : "Model Configs";
+    headerTitle = t("sidebarModels");
   } else if (location.pathname.includes("/develop/assistant-tools")) {
-    headerTitle = locale === "zh-CN" ? "AI 助手" : "AI Assistant";
+    headerTitle = t("sidebarAssistant");
   } else if (location.pathname.includes("/develop/publish-center")) {
-    headerTitle = locale === "zh-CN" ? "发布中心" : "Publish Center";
+    headerTitle = t("shellHeaderPublishCenterTitle");
   } else if (location.pathname.includes("/library/data")) {
-    headerTitle = locale === "zh-CN" ? "数据" : "Data";
+    headerTitle = t("sidebarData");
   } else if (location.pathname.includes("/library/variables")) {
-    headerTitle = locale === "zh-CN" ? "变量" : "Variables";
+    headerTitle = t("shellNavVariables");
   } else if (location.pathname.includes("/library")) {
-    headerTitle = locale === "zh-CN" ? "资源" : "Library";
+    headerTitle = t("sidebarLibrary");
   } else if (location.pathname.includes("/manage")) {
-    headerTitle = locale === "zh-CN" ? "管理" : "Management";
+    headerTitle = t("shellHeaderManagementTitle");
   } else if (location.pathname.includes("/settings/profile")) {
-    headerTitle = locale === "zh-CN" ? "个人中心" : "Profile";
+    headerTitle = t("sidebarProfile");
   } else if (location.pathname.includes("/settings/system")) {
-    headerTitle = locale === "zh-CN" ? "系统设置" : "System Settings";
+    headerTitle = t("shellHeaderSystemSettingsTitle");
   } else if (location.pathname.includes("/settings")) {
-    headerTitle = locale === "zh-CN" ? "设置" : "Settings";
+    headerTitle = t("sidebarSettings");
   }
   const headerSubtitle = workspace.name || workspace.appKey;
 
@@ -2571,10 +2326,10 @@ function WorkspaceShellInner() {
         navSections={navSections}
         headerTitle={headerTitle}
         headerSubtitle={headerSubtitle}
-        localeLabel={locale === "zh-CN" ? "English" : "中文"}
+        localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-        profileLabel={locale === "zh-CN" ? "个人中心" : "Profile"}
-        logoutLabel={locale === "zh-CN" ? "退出登录" : "Sign Out"}
+        profileLabel={t("sidebarProfile")}
+        logoutLabel={t("logout")}
         onNavigate={navigate}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
         onOpenProfile={() => navigate(orgWorkspaceSettingsPath(organization, workspace.id, "profile"))}
@@ -2696,22 +2451,24 @@ function WorkspaceAccessSettingsRoute({
   const navigate = useNavigate();
   const { t } = useAppI18n();
 
-  const [membersLoading, setMembersLoading] = useState(true);
-  const [memberSearchLoading, setMemberSearchLoading] = useState(false);
-  const [memberSearchPageIndex, setMemberSearchPageIndex] = useState(1);
-  const [memberSearchPageSize] = useState(20);
-  const [memberSearchTotal, setMemberSearchTotal] = useState(0);
-  const [resourcesLoading, setResourcesLoading] = useState(true);
-  const [permissionsLoading, setPermissionsLoading] = useState(false);
-  const [members, setMembers] = useState<WorkspaceMemberDto[]>([]);
-  const [memberSearchResults, setMemberSearchResults] = useState<Array<{
+  type MemberSearchResult = {
     id: string;
     username: string;
     displayName: string;
     isActive: boolean;
     disabledReason?: string;
     currentRoleCode?: string;
-  }>>([]);
+  };
+
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [memberSearchLoading, setMemberSearchLoading] = useState(false);
+  const [memberSearchPageIndex, setMemberSearchPageIndex] = useState(1);
+  const [memberSearchPageSize] = useState(20);
+  const [memberSearchTotal, setMemberSearchTotal] = useState(0);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
+  const [members, setMembers] = useState<WorkspaceMemberDto[]>([]);
+  const [memberSearchResults, setMemberSearchResults] = useState<MemberSearchResult[]>([]);
   const [resources, setResources] = useState<WorkspaceResourceCardDto[]>([]);
   const [selectedResourceKey, setSelectedResourceKey] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<WorkspaceRolePermissionDto[]>([]);
@@ -2982,6 +2739,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBounda
 }
 
 function FatalErrorPage() {
+  const { t } = useAppI18n();
   const handleReload = () => {
     if (typeof window !== "undefined") {
       window.location.reload();
@@ -2991,11 +2749,11 @@ function FatalErrorPage() {
   return (
     <div className="atlas-setup-page">
       <div className="atlas-setup-card">
-        <h1>页面初始化失败</h1>
-        <p>应用启动时发生异常。请刷新页面重试，若仍失败请联系管理员。</p>
+        <h1>{t("fatalErrorTitle")}</h1>
+        <p>{t("fatalErrorDescription")}</p>
         <div className="atlas-setup-actions">
           <button type="button" className="atlas-button atlas-button--primary" onClick={handleReload}>
-            刷新页面
+            {t("fatalErrorReload")}
           </button>
         </div>
       </div>

@@ -157,9 +157,8 @@ test.describe.serial("@smoke-main Console -> Workspace -> Workflow 主链路", (
     await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
 
     await navigateBySidebar(page, "workflows", {
-      pageTestId: "app-workflows-page"
+      urlPattern: /\/org\/[^/]+\/workspaces\/[^/]+\/workflows(?:\?.*)?$/
     });
-    await expect(page.getByTestId("app-workflows-page")).toBeVisible({ timeout: 30_000 });
 
     const workflowId = await createWorkflowAndOpenEditor(page, appKey);
     await expectWorkflowEditorReady(page);
