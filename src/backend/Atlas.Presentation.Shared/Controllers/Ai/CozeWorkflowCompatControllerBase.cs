@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Net;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Platform.Abstractions;
@@ -233,7 +234,10 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             return Ok(Fail("workflow_id is required"));
         }
 
-        var saveRequest = new WorkflowV2SaveDraftRequest(request.schema ?? "{\"nodes\":[],\"connections\":[]}", request.submit_commit_id);
+        var schema = string.IsNullOrWhiteSpace(request.schema)
+            ? "{\"nodes\":[],\"connections\":[]}"
+            : DecodeHtmlEntities(request.schema);
+        var saveRequest = new WorkflowV2SaveDraftRequest(schema, request.submit_commit_id);
         await _commandService.SaveDraftAsync(_tenantProvider.GetTenantId(), workflowId, saveRequest, cancellationToken);
 
         return Ok(Success(new
@@ -1121,6 +1125,23 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }));
     }
 
+    [HttpPost("/api/plugin_api/{**path}")]
+    [HttpGet("/api/plugin_api/{**path}")]
+    [Authorize]
+    public ActionResult<object> PluginApiFallback([FromRoute] string? path)
+    {
+        var normalizedPath = NormalizeFallbackPath(path);
+        return Ok(Success(normalizedPath switch
+        {
+            "get_plugin_pricing_rules_by_workflow_id" => new
+            {
+                workflow_id = string.Empty,
+                pricing_rules = Array.Empty<object>()
+            },
+            _ => new { success = true }
+        }));
+    }
+
     [HttpPost("/api/playground/{**path}")]
     [Authorize]
     public ActionResult<object> DeveloperPlaygroundPostFallback([FromRoute] string? path)
@@ -1391,12 +1412,14 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             return "{\"nodes\":[],\"connections\":[]}";
         }
 
+        var decodedCanvasJson = DecodeHtmlEntities(canvasJson);
+
         try
         {
-            var rootNode = JsonNode.Parse(canvasJson);
+            var rootNode = JsonNode.Parse(decodedCanvasJson);
             if (rootNode is not JsonObject canvasObject)
             {
-                return canvasJson;
+                return decodedCanvasJson;
             }
 
             NormalizeCanvasNodeTypes(canvasObject);
@@ -1404,7 +1427,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }
         catch
         {
-            return canvasJson;
+            return decodedCanvasJson;
         }
     }
 
@@ -1449,6 +1472,17 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }
 
         return nodeTypeKey;
+    }
+
+    private static string DecodeHtmlEntities(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var decoded = WebUtility.HtmlDecode(value);
+        return string.IsNullOrWhiteSpace(decoded) ? value : decoded;
     }
 
     private static string NormalizeFallbackPath(string? path)

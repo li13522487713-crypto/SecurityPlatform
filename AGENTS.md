@@ -22,7 +22,7 @@
 - 前端当前重点包：
   - 宿主与路由：`app-shell-shared`
   - 协议与共享：`schema-protocol`、`shared-react-core`
-  - Shell 与业务模块：`coze-shell-react`、`library-module-react`、`module-admin-react`、`module-explore-react`、`module-studio-react`、`module-workflow-react`、`workflow-core-react`、`workflow-editor-react`
+  - Shell 与业务模块：`coze-shell-react`、`library-module-react`、`module-admin-react`、`module-explore-react`、`module-studio-react`、`workflow`
 - 运行拓扑：`PlatformHost` 是平台控制面与 API 网关，`AppHost` 是应用运行时数据面；当前前端宿主只有 `app-web`
 - 共享契约：`docs/contracts.md` 定义 API / 画布 / 运行时契约，跨宿主共享类型优先沉淀到 `Atlas.Shared.Contracts` 与前端 workspace packages
 
@@ -140,7 +140,7 @@ pnpm run format                 # 格式化所有项目
 ## Workflow V2（Coze 复刻）补充约束
 
 - WorkflowV2 引擎必须保持与 LogicFlow 表达式能力对齐，节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
-- `workflow-editor-react` 是工作流画布与节点表单的单一前端实现，`app-web` 如需工作流编辑能力，优先复用该包，禁止复制分叉实现。
+- `app-web` 工作流页面必须优先复用 Coze 原生适配层（`@coze-workflow/playground-adapter`、`@coze-studio/workspace-adapter`）与 `src/frontend/packages/workflow/**`，禁止再引入 Atlas 自研桥接包分叉实现。
 - DAG 运行时需保障以下能力长期可回归：
   - Batch 子图执行
   - Loop + Break/Continue

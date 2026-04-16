@@ -3,9 +3,9 @@
 ## Workflow Host 约束
 
 - 当前仓库仅维护 `src/frontend/apps/app-web` 单宿主，不再维护独立 `src/coze-workflow-host` 目录。
-- `app-web` 通过 `@atlas/module-workflow-react` 挂载工作流能力，但其内部唯一内核为 vendored Coze workflow 子空间：`src/frontend/packages/workflow/**` 与 `src/frontend/packages/workflow/adapter/**`。
-- `@atlas/workflow-core-react`、`@atlas/workflow-editor-react`、`@atlas/module-workflow-react` 继续保留 Atlas 包名，作为稳定 facade / 宿主桥接边界。
-- 如需兼容原生 Coze 协议，统一通过后端兼容层 `/api/workflow_api/*` 与 `/api/v2/workflows*`，避免前端分叉实现。
+- `app-web` 直接挂载 Coze 原生工作流/空间适配层（`@coze-workflow/playground-adapter`、`@coze-studio/workspace-adapter`），前端实现位于 `src/frontend/packages/workflow/**` 与 `src/frontend/packages/foundation/**`。
+- `@atlas/workflow-core-react`、`@atlas/workflow-editor-react`、`@atlas/module-workflow-react` 已删除，不再作为宿主桥接边界。
+- 前端与后端协议对齐统一走兼容层：`/api/workflow_api/*`、`/api/playground_api/*`、`/api/op_workflow/*`、`/api/bot/*`、`/api/space/*`、`/api/draftbot/*`、`/v1/workflow/*`、`/v1/workflows/*`。
 
 ## Organization / Workspace Portal
 
@@ -235,7 +235,7 @@
   - `inputTypes` / `outputTypes`
   - `inputSources` / `outputSources`
 
-### 端点连线约束（workflow-editor-react）
+### 端点连线约束（Coze 原生画布）
 
 - 连线模型固定为端点级：
   - `fromNode` + `fromPort`
