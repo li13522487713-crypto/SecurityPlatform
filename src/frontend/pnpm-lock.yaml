@@ -157,7 +157,75 @@ importers:
 
   apps/lowcode-sdk-playground: {}
 
-  apps/lowcode-studio-web: {}
+  apps/lowcode-studio-web:
+    dependencies:
+      '@atlas/lowcode-action-runtime':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-action-runtime
+      '@atlas/lowcode-component-registry':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-component-registry
+      '@atlas/lowcode-components-web':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-components-web
+      '@atlas/lowcode-editor-canvas':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-editor-canvas
+      '@atlas/lowcode-editor-inspector':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-editor-inspector
+      '@atlas/lowcode-editor-outline':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-editor-outline
+      '@atlas/lowcode-expression':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-expression
+      '@atlas/lowcode-property-forms':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-property-forms
+      '@atlas/lowcode-schema':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-schema
+      '@douyinfe/semi-icons':
+        specifier: ^2.82.0
+        version: 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@tanstack/react-query':
+        specifier: ^5.59.20
+        version: 5.99.0(react@18.2.0)
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      react-dom:
+        specifier: 18.2.0
+        version: 18.2.0(react@18.2.0)
+      react-router-dom:
+        specifier: ^6.30.1
+        version: 6.30.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      zustand:
+        specifier: ^4.5.5
+        version: 4.5.7(@types/react@18.2.37)(immer@10.2.0)(react@18.2.0)
+    devDependencies:
+      '@rsbuild/core':
+        specifier: ~1.1.0
+        version: 1.1.13
+      '@rsbuild/plugin-react':
+        specifier: ~1.1.0
+        version: 1.1.1(@rsbuild/core@1.1.13)(webpack-hot-middleware@2.26.1)
+      '@types/react':
+        specifier: 18.2.37
+        version: 18.2.37
+      '@types/react-dom':
+        specifier: 18.2.15
+        version: 18.2.15
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   config/eslint-config:
     dependencies:
@@ -17359,7 +17427,36 @@ importers:
 
   packages/lowcode-runtime-mini: {}
 
-  packages/lowcode-runtime-web: {}
+  packages/lowcode-runtime-web:
+    dependencies:
+      '@atlas/lowcode-action-runtime':
+        specifier: workspace:*
+        version: link:../lowcode-action-runtime
+      '@atlas/lowcode-component-registry':
+        specifier: workspace:*
+        version: link:../lowcode-component-registry
+      '@atlas/lowcode-expression':
+        specifier: workspace:*
+        version: link:../lowcode-expression
+      '@atlas/lowcode-schema':
+        specifier: workspace:*
+        version: link:../lowcode-schema
+      immer:
+        specifier: ^10.2.0
+        version: 10.2.0
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      react-dom:
+        specifier: 18.2.0
+        version: 18.2.0(react@18.2.0)
+      zustand:
+        specifier: ^4.5.7
+        version: 4.5.7(@types/react@19.2.14)(immer@10.2.0)(react@18.2.0)
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/lowcode-schema:
     dependencies:
@@ -29425,8 +29522,16 @@ packages:
   '@tanstack/query-core@5.13.4':
     resolution: {integrity: sha512-8+rJucXvC/xlr4OrxHhEIob/cTlbT4fgmz1VsvB0D12FRStKaXeLORNGcOhSAynRd2NL74SV/Qq0IIb4DedLcA==}
 
+  '@tanstack/query-core@5.99.0':
+    resolution: {integrity: sha512-3Jv3WQG0BCcH7G+7lf/bP8QyBfJOXeY+T08Rin3GZ1bshvwlbPt7NrDHMEzGdKIOmOzvIQmxjk28YEQX60k7pQ==}
+
   '@tanstack/react-query@5.13.4':
     resolution: {integrity: sha512-3HjvkFFriEQwffUXtKHPiwkfFXUGbs46YATTzzyK1+Pw6Ekd3kwzS50e45qdamWuEXmXxyo5S1zp534LdFG0Rw==}
+    peerDependencies:
+      react: 18.2.0
+
+  '@tanstack/react-query@5.99.0':
+    resolution: {integrity: sha512-OY2bCqPemT1LlqJ8Y2CUau4KELnIhhG9Ol3ZndPbdnB095pRbPo1cHuXTndg8iIwtoHTgwZjyaDnQ0xD0mYwAw==}
     peerDependencies:
       react: 18.2.0
 
@@ -49135,9 +49240,16 @@ snapshots:
 
   '@tanstack/query-core@5.13.4': {}
 
+  '@tanstack/query-core@5.99.0': {}
+
   '@tanstack/react-query@5.13.4(react@18.2.0)':
     dependencies:
       '@tanstack/query-core': 5.13.4
+      react: 18.2.0
+
+  '@tanstack/react-query@5.99.0(react@18.2.0)':
+    dependencies:
+      '@tanstack/query-core': 5.99.0
       react: 18.2.0
 
   '@testing-library/dom@9.3.4':

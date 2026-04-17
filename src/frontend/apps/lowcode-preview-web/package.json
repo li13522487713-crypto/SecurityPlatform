@@ -2,11 +2,36 @@
   "name": "atlas-lowcode-preview-web",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码调试预览壳（M08，端口 5184，HMR + 扫码 + iframe 嵌套）。M00 预创建骨架。",
+  "description": "Atlas 低代码调试预览壳（M08，端口 5184，HMR + 扫码移动端预览 + iframe 嵌套 + 设备模拟）。",
   "type": "module",
   "scripts": {
-    "lint": "echo 'lowcode-preview-web: skeleton, lint by M08'",
-    "build": "echo 'lowcode-preview-web: skeleton, build by M08'",
-    "dev": "echo 'lowcode-preview-web: skeleton, dev server by M08 on :5184'"
+    "dev": "pnpm exec rsbuild dev --host 0.0.0.0",
+    "build": "pnpm exec rsbuild build",
+    "preview": "pnpm exec rsbuild preview",
+    "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,tsx}\"",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-action-runtime": "workspace:*",
+    "@atlas/lowcode-component-registry": "workspace:*",
+    "@atlas/lowcode-components-web": "workspace:*",
+    "@atlas/lowcode-runtime-web": "workspace:*",
+    "@atlas/lowcode-schema": "workspace:*",
+    "@douyinfe/semi-icons": "^2.82.0",
+    "@douyinfe/semi-ui": "^2.82.0",
+    "@microsoft/signalr": "^9.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.30.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "~1.1.0",
+    "@rsbuild/plugin-react": "~1.1.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "18.2.37",
+    "@types/react-dom": "18.2.15",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
   }
 }

@@ -1,0 +1,63 @@
+using Atlas.Application.LowCode.Abstractions;
+using Atlas.Application.LowCode.Models;
+using Atlas.Core.Exceptions;
+using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.AppHost.Controllers;
+
+/// <summary>
+/// 运行时 Schema 拉取（M08 S08-1，**运行时 runtime 前缀** /api/runtime/apps/{appId}/schema）。
+///
+/// 强约束（PLAN.md §1.3 #1）：
+/// - 运行时只读端点严禁混入设计态写操作；写操作必须经 PlatformHost 设计态控制器（/api/v1/lowcode/*）。
+/// </summary>
+[ApiController]
+[Route("api/runtime/apps/{appId:long}")]
+[Authorize]
+public sealed class RuntimeSchemaController : ControllerBase
+{
+    private readonly IAppDefinitionQueryService _query;
+    private readonly ITenantProvider _tenantProvider;
+
+    public RuntimeSchemaController(IAppDefinitionQueryService query, ITenantProvider tenantProvider)
+    {
+        _query = query;
+        _tenantProvider = tenantProvider;
+    }
+
+    /// <summary>获取应用当前生效 Schema 快照（含 pages / variables / contentParams）。</summary>
+    [HttpGet("schema")]
+    public async Task<ActionResult<ApiResponse<AppSchemaSnapshotDto>>> GetSchema(
+        long appId,
+        [FromQuery] string? renderer,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var snapshot = await _query.GetSchemaSnapshotAsync(tenantId, appId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{appId}");
+        // renderer 参数用于按渲染器返回组件能力差异说明（M15 完整接入 LowCodeRendererCapabilityService）。
+        // M08 阶段不做差异化裁剪，直接返回完整 schema。
+        _ = renderer;
+        return Ok(ApiResponse<AppSchemaSnapshotDto>.Ok(snapshot, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>获取指定版本的 Schema 快照（M14 联动）。</summary>
+    [HttpGet("versions/{versionId:long}/schema")]
+    public async Task<ActionResult<ApiResponse<AppSchemaSnapshotDto>>> GetVersionSchema(
+        long appId,
+        long versionId,
+        CancellationToken cancellationToken)
+    {
+        // M08 阶段：暂仅支持当前生效版本；指定版本快照在 M14 完整支持（含 ResourceSnapshot）。
+        // 这里返回当前 schema + 提示头，避免硬错。
+        _ = versionId;
+        var tenantId = _tenantProvider.GetTenantId();
+        var snapshot = await _query.GetSchemaSnapshotAsync(tenantId, appId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{appId}");
+        Response.Headers["X-Atlas-Lowcode-Version-Note"] = "M08 stub: returns current schema; full versioned snapshot in M14";
+        return Ok(ApiResponse<AppSchemaSnapshotDto>.Ok(snapshot, HttpContext.TraceIdentifier));
+    }
+}

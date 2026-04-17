@@ -1,0 +1,30 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1234567890
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 运行时拉取应用 Schema 快照（含 pages/variables/contentParams）
+GET {{baseUrl}}/api/runtime/apps/{{appId}}/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 指定渲染器（M15 完整支持差异化）
+GET {{baseUrl}}/api/runtime/apps/{{appId}}/schema?renderer=mini-wx
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 指定版本（M14 完整版本快照支持）
+GET {{baseUrl}}/api/runtime/apps/{{appId}}/versions/100/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

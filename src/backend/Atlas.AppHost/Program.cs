@@ -213,6 +213,9 @@ builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
     .AddAtlasInfrastructurePlatform(builder.Configuration)
     .AddAtlasInfrastructureAppRuntime(builder.Configuration);
 
+// 低代码 Preview Hub 推送服务（M08 S08-3）
+builder.Services.AddSingleton<Atlas.AppHost.Hubs.ILowCodePreviewBroadcaster, Atlas.AppHost.Hubs.LowCodePreviewBroadcaster>();
+
 // ─── DI：AppHost-specific context accessors ───
 builder.Services.AddScoped<ITenantProvider, AppHostTenantProvider>();
 builder.Services.AddScoped<ICurrentUserAccessor, AppHostCurrentUserAccessor>();
@@ -462,6 +465,7 @@ app.MapGet("/", () => Results.Ok(new
 }));
 app.MapControllers();
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
+app.MapHub<Atlas.AppHost.Hubs.LowCodePreviewHub>("/hubs/lowcode-preview");
 
 var startupLogo = """
     ___  _______ _        ___   _____

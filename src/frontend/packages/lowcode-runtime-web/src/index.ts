@@ -1,5 +1,7 @@
-// @atlas/lowcode-runtime-web — 由 M00 预创建的空骨架。
-// 真实导出由对应里程碑（见 PLAN.md）逐步填充。
-// 当前导出此占位常量以避免 ts isolatedModules 报"空模块"错误。
+export * from './store';
+export * from './dispatch-client';
+export * from './context';
+export * from './events';
+export * from './renderer';
 
-export const __ATLAS_LOWCODE_PACKAGE__ = "@atlas/lowcode-runtime-web";
+export const __ATLAS_LOWCODE_PACKAGE__ = '@atlas/lowcode-runtime-web' as const;
