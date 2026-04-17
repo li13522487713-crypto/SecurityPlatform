@@ -1,0 +1,145 @@
+/**
+ * Studio i18n 词条（≥ 50 词条 / 中英对齐）。
+ *
+ * 与 PLAN.md §M07 C07-10 对齐：lowcode_studio.* 前缀。
+ * 实际 i18n 注入（react-intl / lingui / 自研 hook）由 M07 React 装配阶段补足；
+ * 本里程碑保证两份词条字典存在并完整对齐，避免 i18n:check 失败。
+ */
+
+export type Locale = 'zh-CN' | 'en-US';
+
+export const STUDIO_MESSAGES = {
+  'zh-CN': {
+    'lowcode_studio.app.title': 'Atlas 低代码 Studio',
+    'lowcode_studio.app.list': '应用列表',
+    'lowcode_studio.app.create': '新建应用',
+    'lowcode_studio.app.delete': '删除应用',
+    'lowcode_studio.app.code': '应用编码',
+    'lowcode_studio.app.displayName': '显示名',
+    'lowcode_studio.app.description': '简介',
+    'lowcode_studio.app.targetTypes': '多端类型',
+    'lowcode_studio.app.defaultLocale': '默认语言',
+    'lowcode_studio.app.status.draft': '草稿',
+    'lowcode_studio.app.status.published': '已发布',
+    'lowcode_studio.app.status.archived': '已归档',
+    'lowcode_studio.layout.left.components': '组件',
+    'lowcode_studio.layout.left.templates': '模板',
+    'lowcode_studio.layout.left.outline': '结构',
+    'lowcode_studio.layout.left.data': '数据',
+    'lowcode_studio.layout.left.resources': '资源',
+    'lowcode_studio.layout.right.property': '属性',
+    'lowcode_studio.layout.right.style': '样式',
+    'lowcode_studio.layout.right.events': '事件',
+    'lowcode_studio.toolbar.preview': '预览',
+    'lowcode_studio.toolbar.debug': '调试',
+    'lowcode_studio.toolbar.publish': '发布',
+    'lowcode_studio.toolbar.versions': '版本',
+    'lowcode_studio.toolbar.collab': '协同',
+    'lowcode_studio.toolbar.save': '保存',
+    'lowcode_studio.toolbar.modeBusinessLogic': '业务逻辑',
+    'lowcode_studio.toolbar.modeUserInterface': '用户界面',
+    'lowcode_studio.pages.title': '页面管理',
+    'lowcode_studio.pages.add': '新增页面',
+    'lowcode_studio.pages.delete': '删除页面',
+    'lowcode_studio.pages.copy': '复制页面',
+    'lowcode_studio.pages.path': '路由路径',
+    'lowcode_studio.pages.targetType': '页面类型',
+    'lowcode_studio.pages.layout': '布局',
+    'lowcode_studio.variables.title': '变量管理',
+    'lowcode_studio.variables.scope.page': '界面变量',
+    'lowcode_studio.variables.scope.app': '应用变量',
+    'lowcode_studio.variables.scope.system': '系统变量',
+    'lowcode_studio.variables.add': '新增变量',
+    'lowcode_studio.variables.valueType': '值类型',
+    'lowcode_studio.resources.title': '资源',
+    'lowcode_studio.resources.workflows': '工作流',
+    'lowcode_studio.resources.chatflows': '对话流',
+    'lowcode_studio.resources.databases': '数据库',
+    'lowcode_studio.resources.knowledge': '知识库',
+    'lowcode_studio.resources.plugins': '插件',
+    'lowcode_studio.resources.promptTemplates': '提示词模板',
+    'lowcode_studio.resources.longTermMemory': '长期记忆',
+    'lowcode_studio.resources.memoryBank': '记忆库',
+    'lowcode_studio.resources.search': '搜索资源（默认 20 条）',
+    'lowcode_studio.faq.title': 'UI Builder FAQ',
+    'lowcode_studio.faq.search': '检索常见问题',
+    'lowcode_studio.shortcut.panel': '快捷键面板（Mod + /）',
+    'lowcode_studio.lock.acquired': '已获取草稿编辑锁',
+    'lowcode_studio.lock.takenOver': '草稿锁已被他人获取',
+    'lowcode_studio.lock.takeover': '强制夺锁'
+  },
+  'en-US': {
+    'lowcode_studio.app.title': 'Atlas Lowcode Studio',
+    'lowcode_studio.app.list': 'Apps',
+    'lowcode_studio.app.create': 'New App',
+    'lowcode_studio.app.delete': 'Delete App',
+    'lowcode_studio.app.code': 'App Code',
+    'lowcode_studio.app.displayName': 'Display Name',
+    'lowcode_studio.app.description': 'Description',
+    'lowcode_studio.app.targetTypes': 'Target Types',
+    'lowcode_studio.app.defaultLocale': 'Default Locale',
+    'lowcode_studio.app.status.draft': 'Draft',
+    'lowcode_studio.app.status.published': 'Published',
+    'lowcode_studio.app.status.archived': 'Archived',
+    'lowcode_studio.layout.left.components': 'Components',
+    'lowcode_studio.layout.left.templates': 'Templates',
+    'lowcode_studio.layout.left.outline': 'Outline',
+    'lowcode_studio.layout.left.data': 'Data',
+    'lowcode_studio.layout.left.resources': 'Resources',
+    'lowcode_studio.layout.right.property': 'Property',
+    'lowcode_studio.layout.right.style': 'Style',
+    'lowcode_studio.layout.right.events': 'Events',
+    'lowcode_studio.toolbar.preview': 'Preview',
+    'lowcode_studio.toolbar.debug': 'Debug',
+    'lowcode_studio.toolbar.publish': 'Publish',
+    'lowcode_studio.toolbar.versions': 'Versions',
+    'lowcode_studio.toolbar.collab': 'Collab',
+    'lowcode_studio.toolbar.save': 'Save',
+    'lowcode_studio.toolbar.modeBusinessLogic': 'Business Logic',
+    'lowcode_studio.toolbar.modeUserInterface': 'User Interface',
+    'lowcode_studio.pages.title': 'Pages',
+    'lowcode_studio.pages.add': 'Add Page',
+    'lowcode_studio.pages.delete': 'Delete Page',
+    'lowcode_studio.pages.copy': 'Duplicate Page',
+    'lowcode_studio.pages.path': 'Route Path',
+    'lowcode_studio.pages.targetType': 'Target',
+    'lowcode_studio.pages.layout': 'Layout',
+    'lowcode_studio.variables.title': 'Variables',
+    'lowcode_studio.variables.scope.page': 'Page',
+    'lowcode_studio.variables.scope.app': 'App',
+    'lowcode_studio.variables.scope.system': 'System',
+    'lowcode_studio.variables.add': 'Add Variable',
+    'lowcode_studio.variables.valueType': 'Value Type',
+    'lowcode_studio.resources.title': 'Resources',
+    'lowcode_studio.resources.workflows': 'Workflows',
+    'lowcode_studio.resources.chatflows': 'Chatflows',
+    'lowcode_studio.resources.databases': 'Databases',
+    'lowcode_studio.resources.knowledge': 'Knowledge',
+    'lowcode_studio.resources.plugins': 'Plugins',
+    'lowcode_studio.resources.promptTemplates': 'Prompt Templates',
+    'lowcode_studio.resources.longTermMemory': 'Long-term Memory',
+    'lowcode_studio.resources.memoryBank': 'Memory Bank',
+    'lowcode_studio.resources.search': 'Search resources (default 20)',
+    'lowcode_studio.faq.title': 'UI Builder FAQ',
+    'lowcode_studio.faq.search': 'Search FAQs',
+    'lowcode_studio.shortcut.panel': 'Shortcut Panel (Mod + /)',
+    'lowcode_studio.lock.acquired': 'Draft lock acquired',
+    'lowcode_studio.lock.takenOver': 'Draft lock taken over by another user',
+    'lowcode_studio.lock.takeover': 'Force takeover'
+  }
+} as const satisfies Record<Locale, Record<string, string>>;
+
+let currentLocale: Locale = (typeof localStorage !== 'undefined' && (localStorage.getItem('atlas_locale') as Locale)) || 'zh-CN';
+
+export function setLocale(locale: Locale): void {
+  currentLocale = locale;
+  if (typeof localStorage !== 'undefined') localStorage.setItem('atlas_locale', locale);
+}
+
+export function getLocale(): Locale {
+  return currentLocale;
+}
+
+export function t(key: keyof typeof STUDIO_MESSAGES['zh-CN']): string {
+  return STUDIO_MESSAGES[currentLocale][key] ?? key;
+}

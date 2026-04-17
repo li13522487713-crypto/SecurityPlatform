@@ -33,6 +33,11 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IAppComponentOverrideRepository, AppComponentOverrideRepository>();
         services.AddScoped<ILowCodeComponentManifestService, LowCodeComponentManifestService>();
 
+        services.AddScoped<IPageDefinitionQueryService, PageDefinitionQueryService>();
+        services.AddScoped<IPageDefinitionCommandService, PageDefinitionCommandService>();
+        services.AddScoped<IAppVariableQueryService, AppVariableQueryService>();
+        services.AddScoped<IAppVariableCommandService, AppVariableCommandService>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {
