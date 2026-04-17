@@ -17,7 +17,6 @@ public sealed class AppDataSourceProvisioner : IAppDataSourceProvisioner
     private readonly ISqlSugarClient _mainDb;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ITenantDbConnectionFactory _tenantDbConnectionFactory;
-    private readonly AppDatabaseProvisioningService _appDatabaseProvisioningService;
     private readonly DatabaseEncryptionOptions _databaseEncryptionOptions;
     private readonly ILogger<AppDataSourceProvisioner> _logger;
 
@@ -25,14 +24,12 @@ public sealed class AppDataSourceProvisioner : IAppDataSourceProvisioner
         ISqlSugarClient mainDb,
         IIdGeneratorAccessor idGeneratorAccessor,
         ITenantDbConnectionFactory tenantDbConnectionFactory,
-        AppDatabaseProvisioningService appDatabaseProvisioningService,
         IOptions<DatabaseEncryptionOptions> databaseEncryptionOptions,
         ILogger<AppDataSourceProvisioner> logger)
     {
         _mainDb = mainDb;
         _idGeneratorAccessor = idGeneratorAccessor;
         _tenantDbConnectionFactory = tenantDbConnectionFactory;
-        _appDatabaseProvisioningService = appDatabaseProvisioningService;
         _databaseEncryptionOptions = databaseEncryptionOptions.Value;
         _logger = logger;
     }
@@ -90,7 +87,7 @@ public sealed class AppDataSourceProvisioner : IAppDataSourceProvisioner
             appInstanceId,
             dataSourceId);
 
-        await _appDatabaseProvisioningService.EnsureSchemaAsync(tenantId, appInstanceId, cancellationToken);
+        await Task.CompletedTask;
     }
 
     private async Task<long> ResolvePrimaryDataSourceIdAsync(

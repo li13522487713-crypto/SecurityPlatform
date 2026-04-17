@@ -61,11 +61,6 @@ public static class CoreServiceRegistration
         services.AddScoped<IEventBus, InProcessEventBus>();
         services.AddScoped<IDomainEventHandler<SystemConfigChangedEvent>, SystemConfigChangedEventHandler>();
 
-        // Outbox (at-least-once integration event delivery)
-        services.AddScoped<Atlas.Application.Events.IOutboxRepository, Atlas.Infrastructure.Repositories.OutboxRepository>();
-        services.AddScoped<Atlas.Application.Events.IOutboxManagementService, Atlas.Infrastructure.Events.OutboxManagementService>();
-        services.AddScoped<Atlas.Infrastructure.Events.OutboxPublisher>();
-
         // Unit of Work
         services.AddScoped<IUnitOfWork, SqlSugarUnitOfWork>();
 
@@ -73,13 +68,12 @@ public static class CoreServiceRegistration
         services.AddSingleton<BackgroundWorkQueue>();
         services.AddSingleton<IBackgroundWorkQueue>(sp => sp.GetRequiredService<BackgroundWorkQueue>());
 
-        // Hosted Services (order: DB init → backup → outbox → work queue → cleanup)
+        // Hosted Services (order: DB init → backup → work queue → cleanup)
         // All gated by ISetupStateProvider.WaitForReadyAsync — safe to register early.
         // DatabaseInitializerHostedService registered as both singleton (for SetupController injection) and hosted service.
         services.AddSingleton<DatabaseInitializerHostedService>();
         services.AddHostedService(sp => sp.GetRequiredService<DatabaseInitializerHostedService>());
         services.AddHostedService<DatabaseBackupHostedService>();
-        services.AddHostedService<Atlas.Infrastructure.Events.OutboxProcessorHostedService>();
         services.AddHostedService<BackgroundWorkQueueProcessor>();
         services.AddHostedService<AuditRetentionHostedService>();
         services.AddHostedService<TenantExpirationHostedService>();

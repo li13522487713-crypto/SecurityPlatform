@@ -34,7 +34,6 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly ExternalCallbackService? _callbackService;
-    private readonly ApprovalStatusSyncHandler? _statusSyncHandler;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IBackgroundWorkQueue? _backgroundWorkQueue;
     private readonly IUnitOfWork? _unitOfWork;
@@ -59,7 +58,6 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
         ExternalCallbackService? callbackService = null,
-        ApprovalStatusSyncHandler? statusSyncHandler = null,
         IBackgroundWorkQueue? backgroundWorkQueue = null,
         ILogger<ApprovalRuntimeCommandService>? logger = null,
         IRbacResolver? rbacResolver = null)
@@ -76,7 +74,6 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
         _callbackService = callbackService;
-        _statusSyncHandler = statusSyncHandler;
         _idGeneratorAccessor = idGeneratorAccessor;
         _backgroundWorkQueue = backgroundWorkQueue;
         _mapper = mapper;
@@ -176,11 +173,11 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 }
             }, cancellationToken);
 
-            // Background work (notifications/callbacks) enqueued after transaction commits
-            EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceStarted, instance.Id, null, new[] { initiatorUserId });
-            EnqueueCallback(tenantId, CallbackEventType.InstanceStarted, instance.Id, null, null);
+        // Background work (notifications/callbacks) enqueued after transaction commits
+        EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceStarted, instance.Id, null, new[] { initiatorUserId });
+        EnqueueCallback(tenantId, CallbackEventType.InstanceStarted, instance.Id, null, null);
 
-            return _mapper.Map<ApprovalInstanceResponse>(instance);
+        return _mapper.Map<ApprovalInstanceResponse>(instance);
         }
         catch
         {
@@ -255,11 +252,6 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         EnqueueNotification(tenantId, ApprovalNotificationEventType.TaskApproved, instance.Id, task.Id, new[] { instance.InitiatorUserId });
         EnqueueCallback(tenantId, CallbackEventType.TaskApproved, instance.Id, task.Id, task.NodeId);
 
-        // 审批通过且流程已完成时，回写动态表记录状态
-        if (instance.Status == ApprovalInstanceStatus.Completed)
-        {
-            EnqueueStatusSync(tenantId, instance.BusinessKey, "已通过");
-        }
     }
 
     public async Task RejectTaskAsync(
@@ -356,7 +348,6 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         {
             EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceRejected, instance.Id, task.Id, new[] { instance.InitiatorUserId });
             EnqueueCallback(tenantId, CallbackEventType.InstanceRejected, instance.Id, task.Id, task.NodeId);
-            EnqueueStatusSync(tenantId, instance.BusinessKey, "已驳回");
         }
         else
         {
@@ -413,7 +404,6 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         // Background work enqueued after transaction commits
         EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceCanceled, instance.Id, null, new[] { instance.InitiatorUserId });
         EnqueueCallback(tenantId, CallbackEventType.InstanceCanceled, instance.Id, null, null);
-        EnqueueStatusSync(tenantId, instance.BusinessKey, "草稿");
     }
 
     public async Task MarkCopyRecordAsReadAsync(
@@ -889,22 +879,6 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             }
 
             await callbackService.TriggerCallbackAsync(tenantId, eventType, instance, task, nodeId, ct);
-        });
-    }
-
-    /// <summary>
-    /// Enqueue a status sync (dynamic table writeback) to the background work queue.
-    /// </summary>
-    private void EnqueueStatusSync(TenantId tenantId, string? businessKey, string status)
-    {
-        if (_backgroundWorkQueue == null || string.IsNullOrEmpty(businessKey)) return;
-
-        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
-        {
-            var syncHandler = sp.GetService<ApprovalStatusSyncHandler>();
-            if (syncHandler == null) return;
-
-            await syncHandler.SyncStatusAsync(tenantId, businessKey, status, ct);
         });
     }
 

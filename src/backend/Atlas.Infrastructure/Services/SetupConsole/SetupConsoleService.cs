@@ -3,6 +3,8 @@ using Atlas.Application.SetupConsole.Abstractions;
 using Atlas.Application.SetupConsole.Models;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.Setup.Entities;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
@@ -38,6 +40,8 @@ public sealed class SetupConsoleService : ISetupConsoleService
     private readonly IIdGeneratorAccessor _idGen;
     private readonly ISetupRecoveryKeyService _recoveryKeyService;
     private readonly SetupConsoleAuditWriter _auditWriter;
+    private readonly MigrationSecretProtector _secretProtector;
+    private readonly Atlas.Application.Abstractions.IPasswordHasher _passwordHasher;
     private readonly ILogger<SetupConsoleService> _logger;
 
     public SetupConsoleService(
@@ -46,6 +50,8 @@ public sealed class SetupConsoleService : ISetupConsoleService
         IIdGeneratorAccessor idGen,
         ISetupRecoveryKeyService recoveryKeyService,
         SetupConsoleAuditWriter auditWriter,
+        MigrationSecretProtector secretProtector,
+        Atlas.Application.Abstractions.IPasswordHasher passwordHasher,
         ILogger<SetupConsoleService> logger)
     {
         _db = db;
@@ -53,6 +59,8 @@ public sealed class SetupConsoleService : ISetupConsoleService
         _idGen = idGen;
         _recoveryKeyService = recoveryKeyService;
         _auditWriter = auditWriter;
+        _secretProtector = secretProtector;
+        _passwordHasher = passwordHasher;
         _logger = logger;
     }
 
@@ -88,30 +96,116 @@ public sealed class SetupConsoleService : ISetupConsoleService
 
     public Task<SetupConsoleCatalogSummaryDto> GetCatalogSummaryAsync(string? category = null, CancellationToken cancellationToken = default)
     {
-        // M5 阶段：固定 6 大类聚合，与前端 mock 一致。
-        // M6 后改为读 AtlasOrmSchemaCatalog.RuntimeEntities 真实拼装并按 [SugarTable] 模块归类。
-        var categories = new List<SetupConsoleCatalogCategoryDto>
+        // M8/B4：按 Type.Namespace 真实拼装 AllRuntimeEntityTypes，每个 category 对应 namespace 前缀集合。
+        var categoryRules = new (string Category, string DisplayKey, bool HasSeed, string[] NamespacePrefixes)[]
         {
-            new("system-foundation", StateLabelKeys["system-foundation"], 10, true),
-            new("identity-permission", StateLabelKeys["identity-permission"], 22, true),
-            new("workspace", StateLabelKeys["workspace"], 14, true),
-            new("business-domain", StateLabelKeys["business-domain"], 192, false),
-            new("resource-runtime", StateLabelKeys["resource-runtime"], 18, false),
-            new("audit-log", StateLabelKeys["audit-log"], 10, false)
+            ("system-foundation", StateLabelKeys["system-foundation"], true, new[]
+            {
+                "Atlas.Domain.System",
+                "Atlas.Domain.Events",
+                "Atlas.Domain.Setup"
+            }),
+            ("identity-permission", StateLabelKeys["identity-permission"], true, new[]
+            {
+                "Atlas.Domain.Identity",
+                "Atlas.Domain.Platform.Entities.AppMembershipEntities",
+                "Atlas.Domain.Platform.Entities.AppOrgEntities"
+            }),
+            ("workspace", StateLabelKeys["workspace"], true, new[]
+            {
+                "Atlas.Domain.AiPlatform.Entities" // 仅 Workspace / WorkspaceFolder 等；细化由前端归并
+            }),
+            ("business-domain", StateLabelKeys["business-domain"], false, new[]
+            {
+                "Atlas.Domain.AiPlatform",
+                "Atlas.Domain.Approval",
+                "Atlas.Domain.AgentTeam",
+                "Atlas.Domain.LowCode",
+                "Atlas.Domain.LogicFlow",
+                "Atlas.Domain.BatchProcess",
+                "Atlas.Domain.Workflow",
+                "Atlas.Domain.DynamicTables"
+            }),
+            ("resource-runtime", StateLabelKeys["resource-runtime"], false, new[]
+            {
+                "Atlas.Domain.Plugins",
+                "Atlas.Domain.Templates",
+                "Atlas.Domain.Integration",
+                "Atlas.Domain.License",
+                "Atlas.Domain.Assets",
+                "Atlas.Domain.Platform"
+            }),
+            ("audit-log", StateLabelKeys["audit-log"], false, new[]
+            {
+                "Atlas.Domain.Audit",
+                "Atlas.Domain.Alert"
+            })
         };
+
+        // 按"先匹配的 category 胜出"原则归类，避免 AiPlatform 既算 workspace 又算 business-domain。
+        var categorized = new List<SetupConsoleCatalogCategoryDto>();
+        var assigned = new HashSet<Type>();
+        foreach (var rule in categoryRules)
+        {
+            var matched = AtlasOrmSchemaCatalog.RuntimeEntities
+                .Where(t => !assigned.Contains(t)
+                            && t.Namespace is not null
+                            && rule.NamespacePrefixes.Any(p => t.Namespace.StartsWith(p, StringComparison.Ordinal)))
+                .ToArray();
+            foreach (var type in matched)
+            {
+                assigned.Add(type);
+            }
+            categorized.Add(new SetupConsoleCatalogCategoryDto(rule.Category, rule.DisplayKey, matched.Length, rule.HasSeed));
+        }
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            categories = categories.Where(c => string.Equals(c.Category, category, StringComparison.OrdinalIgnoreCase)).ToList();
+            categorized = categorized
+                .Where(c => string.Equals(c.Category, category, StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
 
         var missing = AtlasOrmSchemaCatalog.GetMissingCriticalTableNames(_db);
         var summary = new SetupConsoleCatalogSummaryDto(
-            TotalEntities: categories.Sum(c => c.EntityCount),
-            TotalCategories: categories.Count,
+            TotalEntities: categorized.Sum(c => c.EntityCount),
+            TotalCategories: categorized.Count,
             MissingCriticalTables: missing,
-            Categories: categories);
+            Categories: categorized);
         return Task.FromResult(summary);
+    }
+
+    /// <summary>
+    /// 按分类返回该分类下的所有实体名（M8/B4 + M10/E5 UI 下钻使用）。
+    /// </summary>
+    public Task<IReadOnlyList<string>> GetCatalogEntitiesAsync(string category, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+        {
+            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        }
+
+        // 复用 GetCatalogSummaryAsync 的 namespace 规则；此处简化为直接按 category 重算。
+        var rules = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["system-foundation"] = new[] { "Atlas.Domain.System", "Atlas.Core.Messaging", "Atlas.Domain.Events", "Atlas.Domain.Messaging", "Atlas.Domain.Saga", "Atlas.Domain.Setup" },
+            ["identity-permission"] = new[] { "Atlas.Domain.Identity", "Atlas.Domain.Platform.Entities.AppMembershipEntities", "Atlas.Domain.Platform.Entities.AppOrgEntities" },
+            ["workspace"] = new[] { "Atlas.Domain.AiPlatform.Entities" },
+            ["business-domain"] = new[] { "Atlas.Domain.AiPlatform", "Atlas.Domain.Approval", "Atlas.Domain.AgentTeam", "Atlas.Domain.LowCode", "Atlas.Domain.LogicFlow", "Atlas.Domain.BatchProcess", "Atlas.Domain.Workflow", "Atlas.Domain.DynamicTables", "Atlas.Domain.DynamicViews" },
+            ["resource-runtime"] = new[] { "Atlas.Domain.Plugins", "Atlas.Domain.Templates", "Atlas.Domain.Integration", "Atlas.Domain.License", "Atlas.Domain.Assets", "Atlas.Domain.Platform" },
+            ["audit-log"] = new[] { "Atlas.Domain.Audit", "Atlas.Domain.Alert" }
+        };
+        if (!rules.TryGetValue(category, out var prefixes))
+        {
+            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        }
+
+        var entityNames = AtlasOrmSchemaCatalog.RuntimeEntities
+            .Where(t => t.Namespace is not null && prefixes.Any(p => t.Namespace.StartsWith(p, StringComparison.Ordinal)))
+            .Select(t => t.Name)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+        return Task.FromResult<IReadOnlyList<string>>(entityNames);
     }
 
     public async Task<SetupStepResultDto> RunPrecheckAsync(SystemPrecheckRequest request, CancellationToken cancellationToken = default)
@@ -153,22 +247,60 @@ public sealed class SetupConsoleService : ISetupConsoleService
         return await RunStepAsync(SetupConsoleSteps.Seed, async _ =>
         {
             await EnsureSystemStateTransitionAsync(SystemSetupStates.SeedInitializing).ConfigureAwait(false);
-            // M5 阶段：种子由现有 DatabaseInitializerHostedService 在系统启动时已执行一次；
-            // 控制台只是承认这一事实，写一条 succeeded 步骤记录。
-            // M7 阶段：拆出 6 个 public 幂等方法后由这里调度，支持版本化补种（forceReapply）。
+
+            // M8/B1：用 SetupSeedBundleLog 实现"种子模块 × 版本"幂等。
+            // 已应用同 version 且未 forceReapply 时直接跳过；
+            // 真实写入由 DatabaseInitializerHostedService 启动时完成（M9 拆方法后由这里调度）。
+            var bundleVersion = string.IsNullOrWhiteSpace(request.BundleVersion) ? "v1" : request.BundleVersion!;
+            var bundles = new[] { "roles-permissions", "menus", "dictionaries", "model-configs" };
+            var skippedBundles = new List<string>();
+            var appliedBundles = new List<string>();
+
+            foreach (var bundle in bundles)
+            {
+                var existing = await _db.Queryable<SetupSeedBundleLog>()
+                    .Where(item => item.TenantIdValue == _tenantProvider.GetTenantId().Value
+                                   && item.Bundle == bundle
+                                   && item.Version == bundleVersion)
+                    .FirstAsync().ConfigureAwait(false);
+                if (existing is not null && !request.ForceReapply)
+                {
+                    skippedBundles.Add(bundle);
+                    continue;
+                }
+
+                if (existing is null)
+                {
+                    await _db.Insertable(new SetupSeedBundleLog(
+                        _tenantProvider.GetTenantId(),
+                        _idGen.NextId(),
+                        bundle,
+                        bundleVersion,
+                        DateTimeOffset.UtcNow)).ExecuteCommandAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    // forceReapply：仅刷新 AppliedAt 时间戳；幂等不重复插
+                    await _db.Updateable<SetupSeedBundleLog>()
+                        .SetColumns(it => it.AppliedAt == DateTimeOffset.UtcNow)
+                        .Where(it => it.Id == existing.Id)
+                        .ExecuteCommandAsync().ConfigureAwait(false);
+                }
+                appliedBundles.Add(bundle);
+            }
+
             await EnsureSystemStateTransitionAsync(SystemSetupStates.SeedInitialized).ConfigureAwait(false);
 
-            if (!string.IsNullOrWhiteSpace(request.BundleVersion))
-            {
-                var state = await EnsureSystemStateAsync().ConfigureAwait(false);
-                state.SetVersion(request.BundleVersion!, DateTimeOffset.UtcNow);
-                await _db.Updateable(state).ExecuteCommandAsync().ConfigureAwait(false);
-            }
+            var state = await EnsureSystemStateAsync().ConfigureAwait(false);
+            state.SetVersion(bundleVersion, DateTimeOffset.UtcNow);
+            await _db.Updateable(state).ExecuteCommandAsync().ConfigureAwait(false);
 
             return ("seed bundle applied", new Dictionary<string, object?>
             {
-                ["bundleVersion"] = request.BundleVersion ?? "v1",
-                ["forceReapply"] = request.ForceReapply
+                ["bundleVersion"] = bundleVersion,
+                ["forceReapply"] = request.ForceReapply,
+                ["appliedBundles"] = appliedBundles,
+                ["skippedBundles"] = skippedBundles
             });
         }).ConfigureAwait(false);
     }
@@ -183,12 +315,106 @@ public sealed class SetupConsoleService : ISetupConsoleService
 
         var stepResult = await RunStepAsync(SetupConsoleSteps.BootstrapUser, async _ =>
         {
-            // M5 阶段：BootstrapAdmin 用户在 DatabaseInitializerHostedService 启动时已确保存在；
-            // 这里仅做 step 记录 + 可选生成恢复密钥。M7 阶段补"按 username 真创建/更新"。
-            return ("bootstrap admin acknowledged", new Dictionary<string, object?>
+            // M8/B2：真实 upsert UserAccount + Role + UserRole + PasswordHistory（B5：标记 IsBootstrap）。
+            var bootstrapAdminTenant = ParseTenantId(request.TenantId);
+            var roleCodes = new[] { "SuperAdmin", "Admin" }.Concat(request.OptionalRoleCodes).Distinct().ToArray();
+            var passwordHash = _passwordHasher.HashPassword(request.Password);
+
+            // 1) 角色 upsert
+            var roleIdByCode = new Dictionary<string, long>(StringComparer.Ordinal);
+            var existingRoles = await _db.Queryable<Role>()
+                .Where(r => r.TenantIdValue == bootstrapAdminTenant.Value
+                            && roleCodes.Contains(r.Code))
+                .ToListAsync().ConfigureAwait(false);
+            foreach (var role in existingRoles)
+            {
+                roleIdByCode[role.Code] = role.Id;
+            }
+            foreach (var roleCode in roleCodes)
+            {
+                if (roleIdByCode.ContainsKey(roleCode))
+                {
+                    continue;
+                }
+                var newRole = new Role(bootstrapAdminTenant, name: roleCode, code: roleCode, id: _idGen.NextId());
+                if (string.Equals(roleCode, "SuperAdmin", StringComparison.Ordinal))
+                {
+                    newRole.MarkSystemRole();
+                }
+                await _db.Insertable(newRole).ExecuteCommandAsync().ConfigureAwait(false);
+                roleIdByCode[roleCode] = newRole.Id;
+            }
+
+            // 2) 用户 upsert（按 tenant + username 唯一）
+            var existingUser = await _db.Queryable<UserAccount>()
+                .Where(u => u.TenantIdValue == bootstrapAdminTenant.Value && u.Username == request.Username)
+                .FirstAsync().ConfigureAwait(false);
+
+            UserAccount user;
+            bool created;
+            if (existingUser is null)
+            {
+                user = new UserAccount(
+                    bootstrapAdminTenant,
+                    request.Username,
+                    request.Username,
+                    passwordHash,
+                    _idGen.NextId());
+                user.UpdateRoles(string.Join(',', roleCodes));
+                if (request.IsPlatformAdmin)
+                {
+                    user.MarkPlatformAdmin();
+                }
+                user.MarkSystemAccount();
+                await _db.Insertable(user).ExecuteCommandAsync().ConfigureAwait(false);
+                created = true;
+            }
+            else
+            {
+                existingUser.UpdatePassword(passwordHash, DateTimeOffset.UtcNow);
+                existingUser.UpdateRoles(string.Join(',', roleCodes));
+                if (request.IsPlatformAdmin)
+                {
+                    existingUser.MarkPlatformAdmin();
+                }
+                else
+                {
+                    existingUser.UnmarkPlatformAdmin();
+                }
+                await _db.Updateable(existingUser).ExecuteCommandAsync().ConfigureAwait(false);
+                user = existingUser;
+                created = false;
+            }
+
+            // 3) UserRole 关系（先清后插，幂等）
+            await _db.Deleteable<UserRole>()
+                .Where(ur => ur.TenantIdValue == bootstrapAdminTenant.Value && ur.UserId == user.Id)
+                .ExecuteCommandAsync().ConfigureAwait(false);
+            foreach (var code in roleCodes)
+            {
+                await _db.Insertable(new UserRole(
+                    bootstrapAdminTenant,
+                    user.Id,
+                    roleIdByCode[code],
+                    _idGen.NextId())).ExecuteCommandAsync().ConfigureAwait(false);
+            }
+
+            // 4) PasswordHistory（B5：写入"初始密码"标志，登录后跳改密页）
+            await _db.Insertable(new PasswordHistory(
+                bootstrapAdminTenant,
+                userId: user.Id,
+                passwordHash: passwordHash,
+                id: _idGen.NextId(),
+                createdAt: DateTimeOffset.UtcNow)).ExecuteCommandAsync().ConfigureAwait(false);
+
+            return ("bootstrap admin ensured", new Dictionary<string, object?>
             {
                 ["adminUsername"] = request.Username,
-                ["effectiveRoles"] = new[] { "SuperAdmin", "Admin" }.Concat(request.OptionalRoleCodes).Distinct().ToArray()
+                ["adminUserId"] = user.Id,
+                ["effectiveRoles"] = roleCodes,
+                ["created"] = created,
+                ["isPlatformAdmin"] = request.IsPlatformAdmin,
+                ["isFirstLogin"] = true
             });
         }).ConfigureAwait(false);
 
@@ -209,6 +435,15 @@ public sealed class SetupConsoleService : ISetupConsoleService
             stepResult.Payload);
     }
 
+    private static TenantId ParseTenantId(string raw)
+    {
+        if (Guid.TryParse(raw, out var guid))
+        {
+            return new TenantId(guid);
+        }
+        throw new ArgumentException($"Invalid tenantId '{raw}'; must be a GUID.");
+    }
+
     public async Task<SetupStepResultDto> RunDefaultWorkspaceAsync(SystemDefaultWorkspaceRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -219,16 +454,110 @@ public sealed class SetupConsoleService : ISetupConsoleService
 
         return await RunStepAsync(SetupConsoleSteps.DefaultWorkspace, async _ =>
         {
+            // M8/B3：真实 upsert Workspace + WorkspaceRole 三类（Owner/Admin/Member） + WorkspaceMember 关系
+            var tenant = _tenantProvider.GetTenantId();
+
+            // 1) 找 Owner 用户
+            var ownerUser = await _db.Queryable<UserAccount>()
+                .Where(u => u.TenantIdValue == tenant.Value && u.Username == request.OwnerUsername)
+                .FirstAsync().ConfigureAwait(false);
+            if (ownerUser is null)
+            {
+                throw new InvalidOperationException(
+                    $"owner user '{request.OwnerUsername}' not found; please run bootstrap-user step first");
+            }
+
+            // 2) Workspace upsert（按 tenant + name 唯一）
+            var existingWorkspace = await _db.Queryable<Workspace>()
+                .Where(w => w.TenantIdValue == tenant.Value && w.Name == request.WorkspaceName.Trim())
+                .FirstAsync().ConfigureAwait(false);
+            Workspace workspace;
+            bool workspaceCreated;
+            if (existingWorkspace is null)
+            {
+                workspace = new Workspace(
+                    tenant,
+                    name: request.WorkspaceName,
+                    description: "Default workspace ensured by setup-console",
+                    icon: null,
+                    appInstanceId: 0,
+                    appKey: "default",
+                    createdBy: ownerUser.Id,
+                    id: _idGen.NextId());
+                await _db.Insertable(workspace).ExecuteCommandAsync().ConfigureAwait(false);
+                workspaceCreated = true;
+            }
+            else
+            {
+                workspace = existingWorkspace;
+                workspaceCreated = false;
+            }
+
+            // 3) 三个内置 WorkspaceRole（Owner/Admin/Member），按 (workspaceId, code) 唯一
+            var roleCodes = new[]
+            {
+                (Code: WorkspaceBuiltInRoleCodes.Owner,  Name: "Owner",  Actions: "[\"view\",\"edit\",\"publish\",\"delete\",\"manage-permission\"]"),
+                (Code: WorkspaceBuiltInRoleCodes.Admin,  Name: "Admin",  Actions: "[\"view\",\"edit\",\"publish\",\"manage-permission\"]"),
+                (Code: WorkspaceBuiltInRoleCodes.Member, Name: "Member", Actions: "[\"view\",\"edit\"]")
+            };
+            var existingWsRoles = await _db.Queryable<WorkspaceRole>()
+                .Where(r => r.TenantIdValue == tenant.Value && r.WorkspaceId == workspace.Id)
+                .ToListAsync().ConfigureAwait(false);
+            var wsRoleIdByCode = existingWsRoles.ToDictionary(r => r.Code, r => r.Id, StringComparer.Ordinal);
+            foreach (var (code, name, actions) in roleCodes)
+            {
+                if (wsRoleIdByCode.ContainsKey(code))
+                {
+                    continue;
+                }
+                var newRole = new WorkspaceRole(
+                    tenant,
+                    workspaceId: workspace.Id,
+                    code: code,
+                    name: name,
+                    defaultActionsJson: actions,
+                    isSystem: true,
+                    id: _idGen.NextId());
+                await _db.Insertable(newRole).ExecuteCommandAsync().ConfigureAwait(false);
+                wsRoleIdByCode[code] = newRole.Id;
+            }
+
+            // 4) WorkspaceMember：Owner 用户 -> Owner 角色（按 (workspaceId, userId) 幂等）
+            var ownerWsRoleId = wsRoleIdByCode[WorkspaceBuiltInRoleCodes.Owner];
+            var existingMember = await _db.Queryable<WorkspaceMember>()
+                .Where(m => m.TenantIdValue == tenant.Value && m.WorkspaceId == workspace.Id && m.UserId == ownerUser.Id)
+                .FirstAsync().ConfigureAwait(false);
+            if (existingMember is null)
+            {
+                var member = new WorkspaceMember(
+                    tenant,
+                    workspaceId: workspace.Id,
+                    userId: ownerUser.Id,
+                    workspaceRoleId: ownerWsRoleId,
+                    addedBy: ownerUser.Id,
+                    id: _idGen.NextId());
+                await _db.Insertable(member).ExecuteCommandAsync().ConfigureAwait(false);
+            }
+            else if (existingMember.WorkspaceRoleId != ownerWsRoleId)
+            {
+                existingMember.ChangeRole(ownerWsRoleId);
+                await _db.Updateable(existingMember).ExecuteCommandAsync().ConfigureAwait(false);
+            }
+
+            // 5) 同步元数据（setup_workspace_state）
             await UpsertWorkspaceStateAsync(
-                DefaultWorkspaceId,
+                workspace.Id.ToString(),
                 request.WorkspaceName,
                 WorkspaceSetupStates.Completed,
                 "v1").ConfigureAwait(false);
 
             return ("default workspace ensured", new Dictionary<string, object?>
             {
-                ["workspaceId"] = DefaultWorkspaceId,
-                ["workspaceName"] = request.WorkspaceName,
+                ["workspaceId"] = workspace.Id,
+                ["workspaceName"] = workspace.Name,
+                ["workspaceCreated"] = workspaceCreated,
+                ["ownerUserId"] = ownerUser.Id,
+                ["builtInRoles"] = wsRoleIdByCode.Keys.ToArray(),
                 ["defaultPublishChannelsApplied"] = request.ApplyDefaultPublishChannels,
                 ["defaultModelStubApplied"] = request.ApplyDefaultModelStub
             });
@@ -527,7 +856,7 @@ public sealed class SetupConsoleService : ISetupConsoleService
         }
     }
 
-    private static DataMigrationJobDto? MapJob(DataMigrationJob? job)
+    private DataMigrationJobDto? MapJob(DataMigrationJob? job)
     {
         if (job is null)
         {
@@ -539,12 +868,15 @@ public sealed class SetupConsoleService : ISetupConsoleService
             : JsonSerializer.Deserialize<DataMigrationModuleScopeDto>(job.ModuleScopeJson)
               ?? new DataMigrationModuleScopeDto(new[] { "all" }, null);
 
+        // M8/A2：连接串脱敏（去掉 password=）；解密走 MigrationSecretProtector，UI 只看到掩码
+        var sourceCleartext = _secretProtector.Decrypt(job.SourceConnectionString);
+        var targetCleartext = _secretProtector.Decrypt(job.TargetConnectionString);
         return new DataMigrationJobDto(
             job.Id.ToString(),
             job.State,
             job.Mode,
-            new DbConnectionConfig(job.SourceDbType, job.SourceDbType, "raw", job.SourceConnectionString, null),
-            new DbConnectionConfig(job.TargetDbType, job.TargetDbType, "raw", job.TargetConnectionString, null),
+            BuildSafeConfig(job.SourceDbType, sourceCleartext),
+            BuildSafeConfig(job.TargetDbType, targetCleartext),
             job.SourceFingerprint,
             job.TargetFingerprint,
             moduleScope,
@@ -561,5 +893,16 @@ public sealed class SetupConsoleService : ISetupConsoleService
             job.ErrorSummary,
             job.CreatedAt,
             job.UpdatedAt);
+    }
+
+    private static DbConnectionConfig BuildSafeConfig(string dbType, string? connectionString)
+    {
+        var safe = string.IsNullOrEmpty(connectionString)
+            ? string.Empty
+            : System.Text.RegularExpressions.Regex.Replace(
+                connectionString,
+                @"(?i)(password|pwd)\s*=\s*[^;]+",
+                "$1=***");
+        return new DbConnectionConfig(dbType, dbType, "raw", safe, null);
     }
 }

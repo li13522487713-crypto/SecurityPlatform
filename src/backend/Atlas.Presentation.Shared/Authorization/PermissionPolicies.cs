@@ -19,11 +19,6 @@ public static class PermissionPolicies
     public const string WebhooksDelete = "Permission:webhooks:delete";
     public const string WebhooksTest = "Permission:webhooks:test";
 
-    public const string EventSubscriptionsView = "Permission:event-subscriptions:view";
-    public const string EventSubscriptionsCreate = "Permission:event-subscriptions:create";
-    public const string EventSubscriptionsUpdate = "Permission:event-subscriptions:update";
-    public const string EventSubscriptionsDelete = "Permission:event-subscriptions:delete";
-
     public const string TemplatesView = "Permission:templates:view";
     public const string TemplatesCreate = "Permission:templates:create";
     public const string TemplatesUpdate = "Permission:templates:update";

@@ -51,8 +51,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Atlas.Core.Resilience.IErrorClassifier, Atlas.Infrastructure.Resilience.ErrorClassifier>();
         services.AddSingleton<Atlas.Core.Resilience.ICircuitBreaker, Atlas.Infrastructure.Resilience.SimpleCircuitBreaker>();
         services.AddSingleton<Atlas.Core.Resilience.IRateLimiter, Atlas.Infrastructure.Resilience.InMemoryRateLimiter>();
-        services.AddScoped<Atlas.Application.Resilience.IInboxService, Atlas.Infrastructure.Resilience.InboxService>();
-        services.AddScoped<Atlas.Application.Resilience.IOutboxService, Atlas.Infrastructure.Resilience.OutboxService>();
         services.AddScoped<Atlas.Application.Resilience.IReconciliationService, Atlas.Infrastructure.Resilience.ReconciliationService>();
 
         services.AddSingleton<Atlas.Application.DataSource.IDataSourceConnectorRegistry>(sp =>
@@ -62,8 +60,6 @@ public static class ServiceCollectionExtensions
             return registry;
         });
 
-        services.AddScoped<Atlas.Core.Saga.ISagaOrchestrator, Atlas.Infrastructure.Saga.SagaOrchestrator>();
-        services.AddScoped<Atlas.Application.Events.IEventSubscriptionService, Atlas.Infrastructure.Events.EventSubscriptionService>();
         services.AddScoped<Atlas.Application.Events.IPlatformEventService, Atlas.Infrastructure.Events.PlatformEventService>();
         services.AddScoped<Atlas.Application.Metering.IMeteringService, Atlas.Infrastructure.Services.Metering.MeteringService>();
         services.AddSingleton<Atlas.Infrastructure.Plugins.PluginMetricsStore>();

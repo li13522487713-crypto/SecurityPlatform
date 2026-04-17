@@ -3,7 +3,6 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
@@ -38,7 +37,6 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly TimeSpan RoutePolicyCacheDuration = TimeSpan.FromMinutes(5);
-    private static int _mainDbSchemaChecked;
 
     public AppDbScopeFactory(
         ITenantDbConnectionFactory connectionFactory,
@@ -84,7 +82,6 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
 
         if (isMainOnly)
         {
-            EnsureMainDbSchemaIfNeeded();
             return _mainDb;
         }
 
@@ -109,7 +106,6 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
                 "应用数据源未绑定，自动降级为 MainOnly。TenantId={TenantId}; AppInstanceId={AppInstanceId}",
                 tenantId.Value,
                 appInstanceId);
-            EnsureMainDbSchemaIfNeeded();
             return _mainDb;
         }
 
@@ -238,129 +234,10 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
     private static void EnsureAppSchema(ISqlSugarClient db)
     {
         // 应用数据面首次切换到新库（或缓存命中空库）时，按统一 ORM 目录兜底创建运行时表，避免 no such table 异常。
-        if (!db.DbMaintenance.IsAnyTable("DynamicTable", false))
+        // 以 AppRole 作为 schema 就绪检测目标（应用级基础身份表，必定在任何租户实例中存在）。
+        if (!db.DbMaintenance.IsAnyTable("AppRole", false))
         {
             AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db);
-        }
-        else
-        {
-            // 兼容历史库：旧版本可能将 DynamicTable 的可空字段建成 NOT NULL，导致插入/解绑审批流失败。
-            EnsureDynamicTableNullableColumns(db);
-            // 兼容历史库：Length/Precision/Scale 应对非 String 等类型为 NULL，旧表若建成 NOT NULL 会导致创建动态表失败。
-            EnsureDynamicFieldNullableColumns(db);
-        }
-    }
-
-    private static void EnsureDynamicTableNullableColumns(ISqlSugarClient db)
-    {
-        if (!db.DbMaintenance.IsAnyTable("DynamicTable", false))
-        {
-            return;
-        }
-
-        var columns = db.DbMaintenance.GetColumnInfosByTableName("DynamicTable", false);
-        if (columns.Count == 0)
-        {
-            return;
-        }
-
-        var notNullColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var column in columns)
-        {
-            var name = column.DbColumnName;
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                continue;
-            }
-
-            if (!column.IsNullable)
-            {
-                notNullColumns.Add(name);
-            }
-        }
-
-        var shouldRebuild =
-            notNullColumns.Contains(nameof(DynamicTable.Description)) ||
-            notNullColumns.Contains(nameof(DynamicTable.AppId)) ||
-            notNullColumns.Contains(nameof(DynamicTable.ApprovalFlowDefinitionId)) ||
-            notNullColumns.Contains(nameof(DynamicTable.ApprovalStatusField));
-
-        if (!shouldRebuild)
-        {
-            return;
-        }
-
-        var rows = db.Queryable<DynamicTable>().ToList();
-
-        var result = db.Ado.UseTran(() =>
-        {
-            db.DbMaintenance.DropTable("DynamicTable");
-            db.CodeFirst.InitTables(typeof(DynamicTable));
-            if (rows.Count > 0)
-            {
-                db.Insertable(rows).ExecuteCommand();
-            }
-        });
-
-        if (!result.IsSuccess)
-        {
-            throw result.ErrorException ?? new InvalidOperationException("修复 DynamicTable 兼容结构失败。");
-        }
-    }
-
-    private static void EnsureDynamicFieldNullableColumns(ISqlSugarClient db)
-    {
-        if (!db.DbMaintenance.IsAnyTable("DynamicField", false))
-        {
-            return;
-        }
-
-        var columns = db.DbMaintenance.GetColumnInfosByTableName("DynamicField", false);
-        if (columns.Count == 0)
-        {
-            return;
-        }
-
-        var notNullColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var column in columns)
-        {
-            var name = column.DbColumnName;
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                continue;
-            }
-
-            if (!column.IsNullable)
-            {
-                notNullColumns.Add(name);
-            }
-        }
-
-        var shouldRebuild =
-            notNullColumns.Contains(nameof(DynamicField.Length)) ||
-            notNullColumns.Contains(nameof(DynamicField.Precision)) ||
-            notNullColumns.Contains(nameof(DynamicField.Scale)) ||
-            notNullColumns.Contains(nameof(DynamicField.DefaultValue));
-
-        if (!shouldRebuild)
-        {
-            return;
-        }
-
-        var rows = db.Queryable<DynamicField>().ToList();
-        var result = db.Ado.UseTran(() =>
-        {
-            db.DbMaintenance.DropTable("DynamicField");
-            db.CodeFirst.InitTables(typeof(DynamicField));
-            if (rows.Count > 0)
-            {
-                db.Insertable(rows).ExecuteCommand();
-            }
-        });
-
-        if (!result.IsSuccess)
-        {
-            throw result.ErrorException ?? new InvalidOperationException("修复 DynamicField 兼容结构失败。");
         }
     }
 
@@ -469,24 +346,5 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         _connectionFactory.InvalidateCache(tenantId.Value.ToString("D"), appInstanceId);
         var policyCacheKey = AtlasCacheKeys.RoutePolicy.AppDataRoute(tenantId, appInstanceId);
         await _cache.RemoveAsync(policyCacheKey);
-    }
-
-    private void EnsureMainDbSchemaIfNeeded()
-    {
-        if (Interlocked.CompareExchange(ref _mainDbSchemaChecked, 1, 0) == 1)
-        {
-            return;
-        }
-
-        try
-        {
-            EnsureDynamicTableNullableColumns(_mainDb);
-            EnsureDynamicFieldNullableColumns(_mainDb);
-        }
-        catch
-        {
-            Interlocked.Exchange(ref _mainDbSchemaChecked, 0);
-            throw;
-        }
     }
 }

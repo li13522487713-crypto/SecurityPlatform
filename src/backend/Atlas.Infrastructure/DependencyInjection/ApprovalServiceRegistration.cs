@@ -1,6 +1,5 @@
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
-using Atlas.Application.Approval.Repositories;
 using Atlas.Core.Events;
 using Atlas.Infrastructure.Events.Approval;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,11 +104,6 @@ public static class ApprovalServiceRegistration
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeQueryService, ApprovalRuntimeQueryService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDefinitionSemanticValidator, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalDefinitionSemanticValidator>();
 
-        // Approval Status Sync Handler (for dynamic table status writeback)
-        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalStatusSyncHandler>();
-        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalWritebackRetryService>();
-        services.AddScoped<IApprovalWritebackFailureRepository, Atlas.Infrastructure.Repositories.ApprovalWritebackFailureRepository>();
-
         // FlowEngine and its dependencies
         services.AddSingleton<Atlas.Core.Expressions.IExpressionEngine, Atlas.Infrastructure.Expressions.CelExpressionEngine>();
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ConditionEvaluator>();
@@ -123,8 +117,6 @@ public static class ApprovalServiceRegistration
 
         // Domain Event Publisher & Handlers (decouples approval from external business modules)
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalEventPublisher>();
-        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalEventHandler,
-            Atlas.Infrastructure.Services.ApprovalFlow.DynamicTableApprovalEventHandler>();
         services.AddScoped<IDomainEventHandler<ApprovalInstanceDomainEvent>, ApprovalWorkflowBridgeEventHandler>();
 
         // ApprovalRuntimeCommandService (standard constructor DI)

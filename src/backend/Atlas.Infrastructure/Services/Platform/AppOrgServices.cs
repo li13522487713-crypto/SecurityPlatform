@@ -1,4 +1,3 @@
-using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Application.Platform.Repositories;
@@ -7,7 +6,6 @@ using Atlas.Core.Enums;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Platform.Entities;
 
 namespace Atlas.Infrastructure.Services.Platform;
@@ -247,16 +245,13 @@ public sealed class AppRoleAssignmentQueryService : IAppRoleAssignmentQueryServi
 {
     private readonly IAppRoleRepository _roleRepo;
     private readonly IAppRolePageRepository _rolePageRepo;
-    private readonly IFieldPermissionRepository _fieldPermRepo;
 
     public AppRoleAssignmentQueryService(
         IAppRoleRepository roleRepo,
-        IAppRolePageRepository rolePageRepo,
-        IFieldPermissionRepository fieldPermRepo)
+        IAppRolePageRepository rolePageRepo)
     {
         _roleRepo = roleRepo;
         _rolePageRepo = rolePageRepo;
-        _fieldPermRepo = fieldPermRepo;
     }
 
     public async Task<AppRoleAssignmentDetail> GetRoleAssignmentAsync(TenantId tenantId, long appId, long roleId, CancellationToken cancellationToken = default)
@@ -274,19 +269,10 @@ public sealed class AppRoleAssignmentQueryService : IAppRoleAssignmentQueryServi
         return await _rolePageRepo.QueryPageIdsByRoleIdAsync(tenantId, appId, roleId, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<AppRoleFieldPermissionGroup>> GetRoleFieldPermissionsAsync(TenantId tenantId, long appId, long roleId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<AppRoleFieldPermissionGroup>> GetRoleFieldPermissionsAsync(TenantId tenantId, long appId, long roleId, CancellationToken cancellationToken = default)
     {
-        var role = await _roleRepo.FindByIdAsync(tenantId, appId, roleId, cancellationToken)
-            ?? throw new BusinessException(ErrorCodes.NotFound, "AppOrgRoleNotFound");
-        var records = await _fieldPermRepo.ListByRoleCodeAndAppIdAsync(tenantId, appId, role.Code, cancellationToken);
-        var prefix = $"app:{appId}:";
-        var groups = records
-            .GroupBy(x => x.TableKey.StartsWith(prefix) ? x.TableKey[prefix.Length..] : x.TableKey)
-            .Select(g => new AppRoleFieldPermissionGroup(
-                g.Key,
-                g.Select(f => new AppRoleFieldPermissionItem(f.FieldName, f.CanView, f.CanEdit)).ToArray()))
-            .ToArray();
-        return groups;
+        // 字段级权限随 DynamicTable 能力一并下线，统一返回空。
+        return Task.FromResult<IReadOnlyList<AppRoleFieldPermissionGroup>>(Array.Empty<AppRoleFieldPermissionGroup>());
     }
 }
 
@@ -294,20 +280,17 @@ public sealed class AppRoleAssignmentCommandService : IAppRoleAssignmentCommandS
 {
     private readonly IAppRoleRepository _roleRepo;
     private readonly IAppRolePageRepository _rolePageRepo;
-    private readonly IFieldPermissionRepository _fieldPermRepo;
     private readonly IAppDepartmentRepository _appDeptRepo;
     private readonly IIdGeneratorAccessor _idGen;
 
     public AppRoleAssignmentCommandService(
         IAppRoleRepository roleRepo,
         IAppRolePageRepository rolePageRepo,
-        IFieldPermissionRepository fieldPermRepo,
         IAppDepartmentRepository appDeptRepo,
         IIdGeneratorAccessor idGen)
     {
         _roleRepo = roleRepo;
         _rolePageRepo = rolePageRepo;
-        _fieldPermRepo = fieldPermRepo;
         _appDeptRepo = appDeptRepo;
         _idGen = idGen;
     }
@@ -343,24 +326,9 @@ public sealed class AppRoleAssignmentCommandService : IAppRoleAssignmentCommandS
         await _rolePageRepo.ReplaceAsync(tenantId, appId, roleId, distinctIds, newEntities, cancellationToken);
     }
 
-    public async Task SetRoleFieldPermissionsAsync(TenantId tenantId, long appId, long roleId, AppRoleFieldPermissionsRequest request, CancellationToken cancellationToken = default)
+    public Task SetRoleFieldPermissionsAsync(TenantId tenantId, long appId, long roleId, AppRoleFieldPermissionsRequest request, CancellationToken cancellationToken = default)
     {
-        var role = await _roleRepo.FindByIdAsync(tenantId, appId, roleId, cancellationToken)
-            ?? throw new BusinessException(ErrorCodes.NotFound, "AppOrgRoleNotFound");
-        var now = DateTimeOffset.UtcNow;
-        var prefix = $"app:{appId}:";
-        var permissions = request.Groups
-            .SelectMany(g => g.Fields.Select(f => new FieldPermission(
-                tenantId,
-                $"{prefix}{g.TableKey}",
-                f.FieldName,
-                role.Code,
-                f.CanView,
-                f.CanEdit,
-                _idGen.NextId(),
-                now,
-                appId)))
-            .ToArray();
-        await _fieldPermRepo.ReplaceByRoleCodeAndAppIdAsync(tenantId, appId, role.Code, permissions, cancellationToken);
+        // 字段级权限随 DynamicTable 能力一并下线，此入口保留签名但无实际持久化。
+        return Task.CompletedTask;
     }
 }

@@ -19,6 +19,9 @@ public sealed class SetupModeMiddleware
     private static readonly string[] AllowedPathPrefixes =
     [
         "/api/v1/setup",
+        // 系统初始化与迁移控制台（M8 显式声明；虽然 startsWith /api/v1/setup 已隐式覆盖，
+        // 显式声明可防止后续把白名单收紧到 /api/v1/setup/）。
+        "/api/v1/setup-console",
         "/health",
         "/internal/health"
     ];

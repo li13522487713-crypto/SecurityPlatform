@@ -4,8 +4,6 @@ using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
-using Atlas.Domain.DynamicTables.Entities;
-using Atlas.Domain.DynamicViews.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
@@ -118,7 +116,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(RefreshToken),
         typeof(ApprovalFlowDefinition),
         typeof(ApprovalFlowDefinitionVersion),
-        typeof(ApprovalWritebackFailure),
         typeof(ApprovalProcessInstance),
         typeof(ApprovalTask),
         typeof(ApprovalHistoryEvent),
@@ -136,20 +133,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(ApprovalParallelToken),
         typeof(ApprovalTimerJob),
         typeof(ApprovalTriggerJob),
-        typeof(DynamicTable),
-        typeof(DynamicField),
-        typeof(DynamicIndex),
-        typeof(DynamicRelation),
-        typeof(DynamicTableApprovalBinding),
-        typeof(SchemaDraft),
-        typeof(SchemaChangeTask),
-        typeof(DynamicViewDefinition),
-        typeof(DynamicViewVersion),
-        typeof(DynamicTransformJob),
-        typeof(DynamicTransformExecution),
-        typeof(DynamicPhysicalViewPublication),
-        typeof(FieldPermission),
-        typeof(MigrationRecord),
         typeof(LowCodeApp),
         typeof(AppEntityAlias),
         typeof(LowCodePage),
@@ -180,11 +163,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(AttachmentBinding),
         typeof(TenantDataSource),
         typeof(TenantAppDataSourceBinding),
-        typeof(AppMigrationTask),
-        typeof(AppMigrationTaskItem),
-        typeof(AppMigrationProgressSnapshot),
-        typeof(AppDataIntegrityReport),
-        typeof(AppIntegrityCheckItem),
         typeof(AppDataRoutePolicy),
         typeof(AppMember),
         typeof(AppMemberDepartment),
@@ -201,9 +179,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(Tenant),
         typeof(LowCodeAppVersion),
         typeof(FormDefinitionVersion),
-        typeof(Atlas.Domain.Events.OutboxMessage),
-        typeof(Atlas.Core.Messaging.InboxMessage),
-        typeof(Atlas.Core.Messaging.OutboxMessage),
         typeof(PluginConfig),
         typeof(PluginMarketEntry),
         typeof(PluginMarketVersion),
@@ -213,9 +188,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(Atlas.Domain.Integration.ApiConnector),
         typeof(Atlas.Domain.Integration.ApiConnectorOperation),
         typeof(Atlas.Domain.Integration.IntegrationApiKey),
-        typeof(Atlas.Domain.Messaging.QueueMessage),
-        typeof(Atlas.Domain.Saga.SagaInstance),
-        typeof(Atlas.Domain.Events.EventSubscription),
         typeof(Atlas.Domain.License.LicenseRecord),
         typeof(AppManifest),
         typeof(CapabilityManifest),
@@ -275,7 +247,10 @@ public static class AtlasOrmSchemaCatalog
         typeof(DataMigrationBatch),
         typeof(DataMigrationCheckpoint),
         typeof(DataMigrationLog),
-        typeof(DataMigrationReport)
+        typeof(DataMigrationReport),
+        // M8 新增：ConsoleToken 持久化（A3） + 种子 bundle 应用日志（B1）
+        typeof(SetupConsoleToken),
+        typeof(SetupSeedBundleLog)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =

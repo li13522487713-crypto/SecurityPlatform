@@ -12,11 +12,6 @@ public static class PermissionCodes
     public const string WebhooksDelete = "webhooks:delete";
     public const string WebhooksTest = "webhooks:test";
 
-    public const string EventSubscriptionsView = "event-subscriptions:view";
-    public const string EventSubscriptionsCreate = "event-subscriptions:create";
-    public const string EventSubscriptionsUpdate = "event-subscriptions:update";
-    public const string EventSubscriptionsDelete = "event-subscriptions:delete";
-
     public const string TemplatesView = "templates:view";
     public const string TemplatesCreate = "templates:create";
     public const string TemplatesUpdate = "templates:update";

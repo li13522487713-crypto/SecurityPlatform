@@ -33,7 +33,6 @@ public static class AppRuntimeServiceCollectionExtensions
             });
         }
 
-        services.AddDynamicTableInfrastructure();
         services.AddApprovalInfrastructure();
         services.AddWorkflowInfrastructure();
         services.AddLowCodeInfrastructure();
@@ -64,10 +63,6 @@ public static class AppRuntimeServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Platform.Abstractions.IAppRoleAssignmentCommandService, Atlas.Infrastructure.Services.Platform.AppRoleAssignmentCommandService>();
         services.AddScoped<Atlas.Application.Platform.Abstractions.IRuntimeExecutionCommandService, Atlas.Infrastructure.Services.Platform.RuntimeExecutionCommandService>();
         services.AddScoped<Atlas.Application.Platform.Abstractions.IRuntimeRouteQueryService, Atlas.Infrastructure.Services.Platform.RuntimeRouteQueryService>();
-
-        services.AddScoped<Atlas.Core.Messaging.IMessageQueue, Atlas.Infrastructure.Messaging.SqliteMessageQueue>();
-        services.AddHostedService<Atlas.Infrastructure.Messaging.MessageQueueProcessorHostedService>();
-        services.AddScoped<Atlas.Infrastructure.Messaging.IQueueMessageHandler, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalEventConsumer>();
 
         return services;
     }

@@ -112,8 +112,10 @@ public static class PlatformServiceCollectionExtensions
             Atlas.Infrastructure.Services.Coze.WorkspaceTestsetService>();
 
         // 系统初始化与迁移控制台（M5）
-        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.ISetupRecoveryKeyService,
-            Atlas.Infrastructure.Services.SetupConsole.SetupRecoveryKeyService>();
+        // M8/A3：SetupRecoveryKeyService 同时按接口和具体类型注册，便于 SetupConsoleBootstrapInitializer 注入具体类型
+        services.AddScoped<Atlas.Infrastructure.Services.SetupConsole.SetupRecoveryKeyService>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.ISetupRecoveryKeyService>(sp =>
+            sp.GetRequiredService<Atlas.Infrastructure.Services.SetupConsole.SetupRecoveryKeyService>());
         services.AddScoped<Atlas.Application.SetupConsole.Abstractions.ISetupConsoleService,
             Atlas.Infrastructure.Services.SetupConsole.SetupConsoleService>();
         // ORM 跨库迁移引擎（M6）
@@ -121,6 +123,12 @@ public static class PlatformServiceCollectionExtensions
             Atlas.Infrastructure.Services.SetupConsole.OrmDataMigrationService>();
         // 控制台写操作审计（M7）
         services.AddScoped<Atlas.Infrastructure.Services.SetupConsole.SetupConsoleAuditWriter>();
+        // M8/A2：迁移连接串加密保护
+        services.AddSingleton<Atlas.Infrastructure.Services.SetupConsole.MigrationSecretProtector>();
+        // M8/A3：启动时哈希 BootstrapAdmin 密码并落库
+        services.AddHostedService<Atlas.Infrastructure.Services.SetupConsole.SetupConsoleBootstrapInitializer>();
+        // M9/C5：切主时持久化数据库配置到 appsettings.runtime.json
+        services.AddSingleton<Atlas.Infrastructure.Services.SetupConsole.RuntimeConfigPersistor>();
 
         return services;
     }

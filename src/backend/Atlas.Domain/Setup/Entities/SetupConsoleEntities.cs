@@ -101,6 +101,15 @@ public sealed class SystemSetupState : TenantEntity
     [SugarColumn(IsNullable = true)]
     public string? RecoveryKeyHash { get; private set; }
 
+    /// <summary>
+    /// BootstrapAdmin 密码的 PBKDF2 哈希（M8/A3）。
+    /// PlatformHost 启动时把 appsettings 中明文密码哈希后写入；登录时不再明文比对。
+    /// </summary>
+    [SugarColumn(IsNullable = true)]
+    public string? BootstrapPasswordHash { get; private set; }
+
+    /// <summary>仅内存计算属性，SqlSugar 建表时忽略（否则 InitTables 会因 get-only 无法识别为列）。</summary>
+    [SugarColumn(IsIgnore = true)]
     public bool RecoveryKeyConfigured => !string.IsNullOrEmpty(RecoveryKeyHash);
 
     public void TransitionTo(string nextState, DateTimeOffset now, string? failureMessage = null)
@@ -116,11 +125,52 @@ public sealed class SystemSetupState : TenantEntity
         LastUpdatedAt = now;
     }
 
+    public void SetBootstrapPasswordHash(string hash, DateTimeOffset now)
+    {
+        BootstrapPasswordHash = hash;
+        LastUpdatedAt = now;
+    }
+
     public void SetVersion(string version, DateTimeOffset now)
     {
         Version = version;
         LastUpdatedAt = now;
     }
+}
+
+/// <summary>
+/// 种子 bundle 应用日志（M8/B1）。
+///
+/// 每个种子模块（roles / menus / dictionaries / model-configs ...）在每个 version
+/// 下只记录一条 succeeded；防重复触发 + 升级 v1->v2 增量补种依赖此表。
+/// </summary>
+[SugarTable("setup_seed_bundle_log")]
+public sealed class SetupSeedBundleLog : TenantEntity
+{
+    public SetupSeedBundleLog() : base(TenantId.Empty)
+    {
+        Bundle = string.Empty;
+        Version = string.Empty;
+    }
+
+    public SetupSeedBundleLog(
+        TenantId tenantId,
+        long id,
+        string bundle,
+        string version,
+        DateTimeOffset appliedAt) : base(tenantId)
+    {
+        Id = id;
+        Bundle = bundle;
+        Version = version;
+        AppliedAt = appliedAt;
+    }
+
+    public string Bundle { get; private set; }
+
+    public string Version { get; private set; }
+
+    public DateTimeOffset AppliedAt { get; private set; }
 }
 
 [SugarTable("setup_workspace_state")]
@@ -532,6 +582,63 @@ public sealed class DataMigrationLog : TenantEntity
     public string? EntityName { get; private set; }
 
     public DateTimeOffset OccurredAt { get; private set; }
+}
+
+/// <summary>
+/// 控制台二次认证 token 持久化（M8/A3）。
+///
+/// 替代 M5 的内存 ConcurrentDictionary，让多实例部署 / 进程重启都能共享 token 生命周期。
+/// 仅存哈希（PBKDF2），明文 token 仅在颁发时返回给客户端。
+/// </summary>
+[SugarTable("setup_console_token")]
+public sealed class SetupConsoleToken : TenantEntity
+{
+    public SetupConsoleToken() : base(TenantId.Empty)
+    {
+        TokenHash = string.Empty;
+        Permissions = string.Empty;
+    }
+
+    public SetupConsoleToken(
+        TenantId tenantId,
+        long id,
+        string tokenHash,
+        string permissions,
+        DateTimeOffset issuedAt,
+        DateTimeOffset expiresAt) : base(tenantId)
+    {
+        Id = id;
+        TokenHash = tokenHash;
+        Permissions = permissions;
+        IssuedAt = issuedAt;
+        ExpiresAt = expiresAt;
+    }
+
+    [SugarColumn(IndexGroupNameList = new[] { "ix_setup_console_token_hash" })]
+    public string TokenHash { get; private set; }
+
+    /// <summary>逗号分隔的权限范围（system,workspace,migration）。</summary>
+    public string Permissions { get; private set; }
+
+    public DateTimeOffset IssuedAt { get; private set; }
+
+    public DateTimeOffset ExpiresAt { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
+    public DateTimeOffset? RevokedAt { get; private set; }
+
+    public bool IsActive(DateTimeOffset now) => RevokedAt is null && ExpiresAt > now;
+
+    public void Renew(DateTimeOffset issuedAt, DateTimeOffset expiresAt)
+    {
+        IssuedAt = issuedAt;
+        ExpiresAt = expiresAt;
+    }
+
+    public void Revoke(DateTimeOffset now)
+    {
+        RevokedAt = now;
+    }
 }
 
 [SugarTable("setup_data_migration_report")]

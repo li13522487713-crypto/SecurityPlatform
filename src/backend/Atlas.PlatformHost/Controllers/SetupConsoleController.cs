@@ -65,6 +65,20 @@ public sealed class SetupConsoleController : ControllerBase
         return Ok(ApiResponse<SetupConsoleCatalogSummaryDto>.Ok(catalog, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("catalog/entities/{category}/details")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<string>>>> GetCatalogEntityDetails(
+        string category,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        {
+            return Unauthorized(ApiResponse<IReadOnlyList<string>>.Fail(
+                "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
+        }
+        var entities = await _service.GetCatalogEntitiesAsync(category, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<string>>.Ok(entities, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("system/precheck")]
     public Task<ActionResult<ApiResponse<SetupStepResultDto>>> Precheck(
         [FromBody] SystemPrecheckRequest request,

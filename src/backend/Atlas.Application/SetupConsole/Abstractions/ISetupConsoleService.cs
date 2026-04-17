@@ -19,6 +19,9 @@ public interface ISetupConsoleService
 
     Task<SetupConsoleCatalogSummaryDto> GetCatalogSummaryAsync(string? category = null, CancellationToken cancellationToken = default);
 
+    /// <summary>按分类返回该分类下的全部实体名（M8/B4 + UI 下钻使用）。</summary>
+    Task<IReadOnlyList<string>> GetCatalogEntitiesAsync(string category, CancellationToken cancellationToken = default);
+
     Task<SetupStepResultDto> RunPrecheckAsync(SystemPrecheckRequest request, CancellationToken cancellationToken = default);
     Task<SetupStepResultDto> RunSchemaAsync(SystemSchemaRequest request, CancellationToken cancellationToken = default);
     Task<SetupStepResultDto> RunSeedAsync(SystemSeedRequest request, CancellationToken cancellationToken = default);

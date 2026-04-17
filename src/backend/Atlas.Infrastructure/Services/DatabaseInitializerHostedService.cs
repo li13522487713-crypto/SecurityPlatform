@@ -15,8 +15,6 @@ using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
-using Atlas.Domain.DynamicTables.Entities;
-using Atlas.Domain.DynamicViews.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
@@ -192,8 +190,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             cancellationToken);
         await EnsureSystemConfigSchemaAsync(db, cancellationToken);
         await EnsureAssetSchemaAsync(db, cancellationToken);
-        await EnsureDynamicTableSchemaAsync(db, cancellationToken);
-        await EnsureDynamicFieldSchemaAsync(db, cancellationToken);
         await EnsureDashboardDefinitionSchemaAsync(db, cancellationToken);
 
         // Schema 迁移检查（兼容历史版本字段结构）
@@ -602,10 +598,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.WebhooksUpdate, "Webhooks Update", "Api"),
             (PermissionCodes.WebhooksDelete, "Webhooks Delete", "Api"),
             (PermissionCodes.WebhooksTest, "Webhooks Test", "Api"),
-            (PermissionCodes.EventSubscriptionsView, "Event Subscriptions View", "Api"),
-            (PermissionCodes.EventSubscriptionsCreate, "Event Subscriptions Create", "Api"),
-            (PermissionCodes.EventSubscriptionsUpdate, "Event Subscriptions Update", "Api"),
-            (PermissionCodes.EventSubscriptionsDelete, "Event Subscriptions Delete", "Api"),
             (PermissionCodes.TemplatesView, "Templates View", "Api"),
             (PermissionCodes.TemplatesCreate, "Templates Create", "Api"),
             (PermissionCodes.TemplatesUpdate, "Templates Update", "Api"),
@@ -774,12 +766,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("工作流设计", "/workflow/designer", "/process", 41, "C", "WorkflowDesignerPage", "branches", workflowPermission.Code, null, false, true, "0", "0", workflowPermission.Code, false),
 
             ("运维监控", "/monitor", null, 35, "M", "Layout", "monitor", null, null, false, false, "0", "0", null, false),
-            ("消息队列监控", "/monitor/message-queue", "/monitor", 36, "C", "monitor/MessageQueuePage", "deployment-unit", PermissionCodes.SystemAdmin, null, false, true, "0", "0", PermissionCodes.SystemAdmin, false),
             ("服务器监控", "/monitor/server-info", "/monitor", 37, "C", "monitor/ServerInfoPage", "desktop", PermissionCodes.MonitorView, null, false, true, "0", "0", PermissionCodes.MonitorView, false),
             ("定时任务", "/monitor/scheduled-jobs", "/monitor", 38, "C", "monitor/ScheduledJobsPage", "clock-circle", PermissionCodes.JobView, null, false, true, "0", "0", PermissionCodes.JobView, false),
             ("登录日志", "/system/login-logs", "/monitor", 39, "C", "system/LoginLogsPage", "file-search", PermissionCodes.LoginLogView, null, false, true, "0", "0", PermissionCodes.LoginLogView, false),
             ("在线用户", "/system/online-users", "/monitor", 40, "C", "system/OnlineUsersPage", "user", PermissionCodes.OnlineUsersView, null, false, true, "0", "0", PermissionCodes.OnlineUsersView, false),
-            ("Outbox 监控", "/monitor/outbox", "/monitor", 41, "C", "monitor/OutboxMonitorPage", "inbox", PermissionCodes.SystemAdmin, null, false, true, "0", "0", PermissionCodes.SystemAdmin, false),
 
             ("系统管理", "/system", null, 30, "M", "Layout", "setting", null, null, false, false, "0", "0", null, false),
             ("组织架构", "/settings/org/departments", "/system", 31, "C", "system/DepartmentsPage", "cluster", PermissionCodes.DepartmentsView, null, false, true, "0", "0", PermissionCodes.DepartmentsView, false),
@@ -1962,38 +1952,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         cancellationToken.ThrowIfCancellationRequested();
         await db.Ado.ExecuteCommandAsync(
             "CREATE INDEX IF NOT EXISTS IX_SystemConfig_Tenant_App_Key ON SystemConfig (TenantIdValue, AppId, ConfigKey)");
-    }
-
-    private static async Task EnsureDynamicTableSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
-    {
-        if (!db.DbMaintenance.IsAnyTable("DynamicTable", false))
-        {
-            return;
-        }
-
-        if (!RequiresNullableColumnFix<DynamicTable>(db, "Description", "AppId", "ApprovalFlowDefinitionId", "ApprovalStatusField")
-            && !RequiresMissingColumnFix<DynamicTable>(db, "Description", "AppId", "ApprovalFlowDefinitionId", "ApprovalStatusField"))
-        {
-            return;
-        }
-
-        await RebuildTableViaOrmAsync<DynamicTable>(db, cancellationToken);
-    }
-
-    private static async Task EnsureDynamicFieldSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
-    {
-        if (!db.DbMaintenance.IsAnyTable("DynamicField", false))
-        {
-            return;
-        }
-
-        if (!RequiresNullableColumnFix<DynamicField>(db, "Length", "Precision", "Scale", "DefaultValue")
-            && !RequiresMissingColumnFix<DynamicField>(db, "Length", "Precision", "Scale", "DefaultValue"))
-        {
-            return;
-        }
-
-        await RebuildTableViaOrmAsync<DynamicField>(db, cancellationToken);
     }
 
     private static async Task EnsureDashboardDefinitionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
