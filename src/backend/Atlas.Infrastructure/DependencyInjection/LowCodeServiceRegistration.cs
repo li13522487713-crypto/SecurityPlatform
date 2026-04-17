@@ -54,6 +54,12 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IRuntimeChatflowService, RuntimeChatflowService>();
         services.AddScoped<IRuntimeMessageLogService, RuntimeMessageLogService>();
 
+        // M12 触发器 / Webview 域名
+        services.AddScoped<ILowCodeTriggerRepository, LowCodeTriggerRepository>();
+        services.AddScoped<ILowCodeWebviewDomainRepository, LowCodeWebviewDomainRepository>();
+        services.AddScoped<IRuntimeTriggerService, RuntimeTriggerService>();
+        services.AddScoped<IRuntimeWebviewDomainService, RuntimeWebviewDomainService>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {

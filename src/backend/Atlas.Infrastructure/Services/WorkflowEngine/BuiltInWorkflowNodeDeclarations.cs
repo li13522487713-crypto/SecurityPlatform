@@ -79,7 +79,12 @@ internal static class BuiltInWorkflowNodeDeclarations
         Create(WorkflowNodeType.InputReceiver, "InputReceiver", "等待输入", "io", "中断流程并等待用户输入。", [Out("output")], "#EF4444"),
 
         Create(WorkflowNodeType.Agent, "Agent", "Agent", "ai", "调用 Agent 能力。", [In("input"), Out("output")], "#8B5CF6"),
-        Create(WorkflowNodeType.Comment, "Comment", "注释", "flow", "画布注释节点。", [In("input"), Out("output")], "#64748B")
+        Create(WorkflowNodeType.Comment, "Comment", "注释", "flow", "画布注释节点。", [In("input"), Out("output")], "#64748B"),
+
+        // M12 触发器节点（PLAN.md §M12 S12-3 + docs/coze-node-mapping.md TriggerUpsert(34) / TriggerRead(35) / TriggerDelete(36)）
+        Create(WorkflowNodeType.TriggerUpsert, "TriggerUpsert", "触发器创建/更新", "trigger", "创建或更新一个低代码触发器（CRON/事件/Webhook）。", [In("input"), Out("output")], "#22C55E"),
+        Create(WorkflowNodeType.TriggerRead, "TriggerRead", "触发器读取", "trigger", "读取触发器列表或详情。", [In("input"), Out("output")], "#22C55E"),
+        Create(WorkflowNodeType.TriggerDelete, "TriggerDelete", "触发器删除", "trigger", "删除指定触发器。", [In("input"), Out("output")], "#22C55E")
     ];
 
     private static readonly IReadOnlyDictionary<WorkflowNodeType, IReadOnlyList<WorkflowNodePortMetadata>> PortsByType =

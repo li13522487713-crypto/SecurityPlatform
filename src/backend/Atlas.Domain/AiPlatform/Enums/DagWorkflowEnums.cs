@@ -65,6 +65,12 @@ public enum WorkflowNodeType
     InputReceiver = 30,
     Comment = 31,
     VariableAggregator = 32,
+    /// <summary>触发器创建/更新（M12 PLAN.md §M12 S12-3）。</summary>
+    TriggerUpsert = 34,
+    /// <summary>触发器读取/列表（M12）。</summary>
+    TriggerRead = 35,
+    /// <summary>触发器删除（M12）。</summary>
+    TriggerDelete = 36,
     ConversationList = 53,
     MessageList = 37,
     ClearConversationHistory = 38,

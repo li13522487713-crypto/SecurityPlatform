@@ -69,9 +69,8 @@
 | 24 | SceneVariable | Atlas 暂不实现 Coze 场景变量域。 |
 | 25 | SceneChat | 同上。 |
 | 26 | LTM | Atlas 用私有 `Ltm(62)` 替代，节点 ID 不与上游对齐；前端走 Atlas 自有节点目录。 |
-| 34 | TriggerUpsert | 触发器节点需要联动 cron / event-bus，M5+ 评估。 |
-| 35 | TriggerDelete | 同上。 |
-| 36 | TriggerRead | 同上。 |
+<!-- M12 已落地 TriggerUpsert(34) / TriggerRead(35) / TriggerDelete(36)，从缺失表移除。 -->
+<!-- 节点执行器与 RuntimeTriggerService 联动详见 BuiltInWorkflowNodeDeclarations.cs trigger 区块。 -->
 
 ## 3. M4 节点执行器 DI 同步
 

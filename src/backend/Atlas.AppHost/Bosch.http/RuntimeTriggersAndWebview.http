@@ -1,0 +1,79 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 列出触发器
+GET {{baseUrl}}/api/runtime/triggers
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建 cron 触发器
+# @name createTrigger
+POST {{baseUrl}}/api/runtime/triggers
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "每日报告",
+  "kind": "cron",
+  "cron": "0 9 * * *",
+  "workflowId": "1234567890",
+  "enabled": true
+}
+
+###
+@triggerId = {{createTrigger.response.body.$.data.id}}
+
+### 暂停 / 恢复
+POST {{baseUrl}}/api/runtime/triggers/{{triggerId}}:pause
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+POST {{baseUrl}}/api/runtime/triggers/{{triggerId}}:resume
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除
+DELETE {{baseUrl}}/api/runtime/triggers/{{triggerId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Webview 域名管理
+GET {{baseUrl}}/api/runtime/webview-domains
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 添加域名
+# @name addDomain
+POST {{baseUrl}}/api/runtime/webview-domains
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "domain": "apps.example.com", "verificationKind": "dns_txt" }
+
+###
+@domainId = {{addDomain.response.body.$.data.id}}
+
+### 验证（M12 阶段简化通过；M17 接外部 DNS/HTTP 真实校验）
+POST {{baseUrl}}/api/runtime/webview-domains/{{domainId}}:verify
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 移除
+DELETE {{baseUrl}}/api/runtime/webview-domains/{{domainId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

@@ -46,7 +46,7 @@
 | `UpdateProjectConversationDef` | POST `/project_conversation/update` | Fallback | 同上。 |
 | `DeleteProjectConversationDef` | POST `/project_conversation/delete` | Fallback | 同上。 |
 | `ListProjectConversationDef` | GET `/project_conversation/list` | Fallback | 同上。 |
-| `ListRootSpans` | POST `/list_spans` | Fallback | 走 `DagWorkflowQueryService.ListAsync` 的浅层 spans 占位；保留 `total`、`spans` 字段空数组。 |
+| `ListRootSpans` | POST `/list_spans` | Fallback → 待 M13 改为 OK | M11 引入 `LowCodeMessageLogEntry` 与 `RuntimeMessageLogService` 后，M13 dispatch + RuntimeTraceService 落地时把本端点替换为完整链路（按 traceId 聚合 chatflow + workflow + agent + tool）。 |
 | `GetTraceSDK` | POST `/get_trace` | OK（M1 改造）| 含根 span + `extra.{input,output,variables}` 三段。 |
 | `GetWorkflowDetail` | POST `/workflow_detail` | OK | 多 ID 批量查询。 |
 | `GetWorkflowDetailInfo` | POST `/workflow_detail_info` | OK | 单 ID 详情。 |

@@ -2,16 +2,15 @@
   "name": "@atlas/lowcode-webview-policy-adapter",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码 Webview 策略适配器（M12 / M17）。",
+  "description": "Atlas 低代码 Webview 策略适配器（M12 + M17）—— 外链域名白名单 + DNS TXT / 文件验证。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
+  "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "lint": "echo '@atlas/lowcode-webview-policy-adapter: no lint configured yet'",
+    "lint": "echo '@atlas/lowcode-webview-policy-adapter: lint via root pipeline'",
     "build": "echo '@atlas/lowcode-webview-policy-adapter: source-only package, no build step'",
-    "test": "echo '@atlas/lowcode-webview-policy-adapter: no tests yet'"
-  }
+    "test": "vitest --run --passWithNoTests"
+  },
+  "devDependencies": { "vitest": "^4.1.4" }
 }
