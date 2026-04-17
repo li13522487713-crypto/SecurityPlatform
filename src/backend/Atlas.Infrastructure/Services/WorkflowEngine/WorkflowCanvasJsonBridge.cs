@@ -263,14 +263,41 @@ public static class WorkflowCanvasJsonBridge
             return false;
         }
 
+        // 1) JSON 数字：直接当 Coze NodeType / Atlas WorkflowNodeType 的 int 值用。
         if (typeElement.ValueKind == JsonValueKind.Number && typeElement.TryGetInt32(out var numericType))
         {
             nodeType = (WorkflowNodeType)numericType;
             return Enum.IsDefined(typeof(WorkflowNodeType), nodeType);
         }
 
-        if (typeElement.ValueKind == JsonValueKind.String &&
-            Enum.TryParse<WorkflowNodeType>(typeElement.GetString(), true, out var parsedType))
+        if (typeElement.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        var raw = typeElement.GetString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var trimmed = raw.Trim();
+
+        // 2) JSON 字符串数字（Coze playground 保存回来的形态，如 "3"=Llm / "45"=HttpRequester）：
+        //    直接按 Atlas WorkflowNodeType 的 int 值还原。
+        if (int.TryParse(trimmed, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var numericFromText))
+        {
+            var fromNumeric = (WorkflowNodeType)numericFromText;
+            if (Enum.IsDefined(typeof(WorkflowNodeType), fromNumeric))
+            {
+                nodeType = fromNumeric;
+                return true;
+            }
+        }
+
+        // 3) JSON 字符串枚举名（Atlas 自有保存形态，如 "Llm"）。
+        if (Enum.TryParse<WorkflowNodeType>(trimmed, true, out var parsedType)
+            && Enum.IsDefined(typeof(WorkflowNodeType), parsedType))
         {
             nodeType = parsedType;
             return true;

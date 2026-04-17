@@ -144,3 +144,11 @@ export function useAuth() {
 
   return context;
 }
+
+/**
+ * 在某些壳子（例如单元测试中没有挂 AuthProvider 的边界）下需要可选读取 AuthContext，
+ * 提供 `useOptionalAuth` 避免抛错破坏渲染顺序。
+ */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
+}

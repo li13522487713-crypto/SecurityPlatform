@@ -3,7 +3,7 @@
 import { act } from "react-dom/test-utils";
 import ReactDOM from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-import { WorkflowRuntimeBoundary } from "./workflow-runtime-boundary";
+import { WorkflowRuntimeBoundary, toCozeLocale } from "./workflow-runtime-boundary";
 
 const startupState = {
   bootstrapReady: true,
@@ -33,8 +33,17 @@ const workspaceState = {
 
 vi.mock("./i18n", () => ({
   useAppI18n: () => ({
+    locale: "zh-CN" as const,
     t: (key: string) => key,
   }),
+}));
+
+vi.mock("./auth-context", () => ({
+  useOptionalAuth: () => null,
+}));
+
+vi.mock("@atlas/foundation-bridge", () => ({
+  setAtlasFoundationHost: vi.fn(),
 }));
 
 vi.mock("./startup-kernel", () => ({
@@ -107,5 +116,33 @@ describe("WorkflowRuntimeBoundary", () => {
     });
 
     expect(container.querySelector('[data-testid="workflow-ready"]')?.textContent).toBe("ready");
+  });
+});
+
+describe("toCozeLocale", () => {
+  it("中文区域变体一律映射到 zh-CN", () => {
+    expect(toCozeLocale("zh-CN")).toBe("zh-CN");
+    expect(toCozeLocale("zh-cn")).toBe("zh-CN");
+    expect(toCozeLocale("zh")).toBe("zh-CN");
+    expect(toCozeLocale("zh-Hans")).toBe("zh-CN");
+    expect(toCozeLocale("zh-TW")).toBe("zh-CN");
+  });
+
+  it("英文区域变体一律映射到 en", () => {
+    expect(toCozeLocale("en-US")).toBe("en");
+    expect(toCozeLocale("en-GB")).toBe("en");
+    expect(toCozeLocale("en")).toBe("en");
+  });
+
+  it("空值或未知区域走 zh-CN 兜底", () => {
+    expect(toCozeLocale(null)).toBe("zh-CN");
+    expect(toCozeLocale(undefined)).toBe("zh-CN");
+    expect(toCozeLocale("")).toBe("zh-CN");
+    expect(toCozeLocale("   ")).toBe("zh-CN");
+  });
+
+  it("非中文非英文区域走 en 兜底", () => {
+    expect(toCozeLocale("ja-JP")).toBe("en");
+    expect(toCozeLocale("ko-KR")).toBe("en");
   });
 });

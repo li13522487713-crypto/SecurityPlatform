@@ -207,6 +207,88 @@ public sealed record WorkflowV2DependencyDto(
     IReadOnlyList<WorkflowV2DependencyItemDto> Conversations);
 
 /// <summary>
+/// 变量来源类别：与 Coze 上游 GlobalVariableKey 体系对齐，
+/// 同时为 Atlas 的 Tenant/User/Conversation 范围预留扩展。
+/// </summary>
+public enum WorkflowVariableScopeKind
+{
+    /// <summary>来自上游节点输出。</summary>
+    Node = 0,
+    /// <summary>画布全局变量（CanvasSchema.Globals）。</summary>
+    Global = 1,
+    /// <summary>系统变量（用户、会话、租户级，由 IAiVariableService 提供）。</summary>
+    System = 2,
+    /// <summary>会话级变量。</summary>
+    Conversation = 3,
+    /// <summary>用户级变量。</summary>
+    User = 4
+}
+
+/// <summary>
+/// 变量字段定义（递归结构：Object/Array 通过 Children 描述子字段）。
+/// </summary>
+public sealed record WorkflowVariableField(
+    string Key,
+    string Name,
+    string DataType,
+    string? Description = null,
+    bool Required = false,
+    string? DefaultValue = null,
+    IReadOnlyList<WorkflowVariableField>? Children = null);
+
+/// <summary>
+/// 变量树分组：按节点 / 全局 / 系统 / 会话等聚类，便于前端 Tree 渲染。
+/// </summary>
+public sealed record WorkflowVariableGroup(
+    WorkflowVariableScopeKind Scope,
+    string GroupKey,
+    string GroupName,
+    string? SourceNodeKey,
+    string? SourceNodeType,
+    IReadOnlyList<WorkflowVariableField> Fields,
+    string? Description = null);
+
+/// <summary>
+/// 变量树聚合：供节点配置面板 / Prompt 编辑器 / JSON 映射器使用。
+///
+/// 命名约定（M2 之后）：M1 新增的对外 DTO 不再带 V2 后缀，沿用业务正式名称；
+/// 存量 <c>WorkflowV2*</c> 命名（控制器、服务接口本身、路径）仍属遗留命名，等 M7+ 统一重命名。
+/// </summary>
+public sealed record WorkflowVariableTreeDto(
+    string WorkflowId,
+    string? NodeKey,
+    IReadOnlyList<WorkflowVariableGroup> Groups);
+
+/// <summary>
+/// 节点执行历史快照（含输入、输出、上下文变量、错误信息），
+/// 用于 Coze /api/workflow_api/get_node_execute_history。
+/// </summary>
+public sealed record WorkflowNodeExecutionHistoryDto(
+    string WorkflowId,
+    string ExecutionId,
+    string NodeKey,
+    string NodeType,
+    ExecutionStatus Status,
+    string? InputJson,
+    string? OutputJson,
+    string? ContextVariablesJson,
+    string? ErrorMessage,
+    DateTime? StartedAt,
+    DateTime? CompletedAt,
+    long? DurationMs);
+
+/// <summary>
+/// 历史 schema 快照：返回画布 JSON 与版本元信息。
+/// </summary>
+public sealed record WorkflowHistorySchemaDto(
+    string WorkflowId,
+    string? CommitId,
+    string SchemaJson,
+    string Name,
+    string? Description,
+    DateTime SnapshotAt);
+
+/// <summary>
 /// SSE 流式事件封装。
 /// </summary>
 public sealed record SseEvent(string Event, string Data);

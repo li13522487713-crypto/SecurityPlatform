@@ -260,6 +260,16 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### ═══════════════════════════════════════════════
+### Variable Tree (M1)
+### ═══════════════════════════════════════════════
+
+### ── Workflow Variable Tree（系统变量 + 全局变量 + 上游节点输出，按节点 key 过滤） ──
+# 用于节点配置面板与 Prompt 编辑器的变量选择器；nodeKey 为空时返回完整画布的所有可见变量。
+GET {{host}}/api/v1/ai-variables/workflows/{{workflowId}}/variable-tree?nodeKey=llm_1
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### ═══════════════════════════════════════════════
 ### Cleanup
 ### ═══════════════════════════════════════════════
 

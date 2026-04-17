@@ -3,11 +3,13 @@ using System.Text.Json.Nodes;
 using System.Net;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Domain.Audit.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -235,11 +237,12 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             return Ok(Fail("workflow_id is required"));
         }
 
-        var schema = string.IsNullOrWhiteSpace(request.schema)
-            ? "{\"nodes\":[],\"connections\":[]}"
-            : DecodeHtmlEntities(request.schema);
+        // 落库前必须把 Coze playground 的字符串数字 type 反向归一为 Atlas WorkflowNodeType 整型，
+        // 否则 DagExecutor.ParseCanvas 在 SaveDraft 之后的 Run/DebugNode 路径上会找不到执行器（风险 3）。
+        var schema = NormalizeCanvasJsonFromCoze(request.schema);
         var saveRequest = new WorkflowV2SaveDraftRequest(schema, request.submit_commit_id);
         await _commandService.SaveDraftAsync(_tenantProvider.GetTenantId(), workflowId, saveRequest, cancellationToken);
+        await TryWriteAuditAsync("save_draft", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
         return Ok(Success(new
         {
@@ -269,6 +272,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             userId,
             new WorkflowV2PublishRequest(request.version_description),
             cancellationToken);
+        await TryWriteAuditAsync("publish", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
         return Ok(Success(new
         {
@@ -402,6 +406,240 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             .ToArray()));
     }
 
+    [HttpPost("validate_tree")]
+    [Authorize]
+    public async Task<ActionResult<object>> ValidateTree(
+        [FromBody] CozeValidateTreeRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var schema = NormalizeIncomingSchema(request?.schema);
+        var workflowIdRaw = request?.workflow_id;
+        var hasWorkflowId = TryParseWorkflowId(workflowIdRaw, out var workflowId);
+
+        // 没有 schema 但有 workflow_id 时，从草稿读取（与上游 ValidateTree 行为一致）。
+        if (string.IsNullOrWhiteSpace(schema) && hasWorkflowId)
+        {
+            var detail = await _queryService.GetAsync(_tenantProvider.GetTenantId(), workflowId, cancellationToken);
+            schema = NormalizeIncomingSchema(detail?.CanvasJson);
+        }
+
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return Ok(Success(Array.Empty<object>()));
+        }
+
+        // 同样需要把 Coze 字符串数字 type 还原为 Atlas WorkflowNodeType 整型（风险 3），
+        // 否则 ICanvasValidator 反序列化 schema 时无法识别节点类型，会误报"未知节点"。
+        schema = NormalizeCanvasJsonFromCoze(schema);
+
+        var result = _canvasValidator.ValidateCanvas(schema);
+        var errors = (result.Errors ?? Array.Empty<CanvasValidationIssue>())
+            .Select(error => new
+            {
+                node_error = error.NodeKey is null ? null : new { node_id = error.NodeKey },
+                path_error = error.SourcePort is null && error.TargetPort is null
+                    ? null
+                    : new
+                    {
+                        start = error.SourcePort,
+                        end = error.TargetPort,
+                        path = error.NodeKey is null ? Array.Empty<string>() : new[] { error.NodeKey }
+                    },
+                message = error.Message,
+                type = TryParseCozeValidateErrorType(error.Code)
+            })
+            .ToArray();
+
+        // 上游响应是 Array<ValidateTreeInfo>，每条对应一个工作流。
+        return Ok(Success(new object[]
+        {
+            new
+            {
+                workflow_id = hasWorkflowId ? workflowId.ToString(CultureInfo.InvariantCulture) : (workflowIdRaw ?? string.Empty),
+                name = string.Empty,
+                errors
+            }
+        }));
+    }
+
+    [HttpPost("node_panel_search")]
+    [Authorize]
+    public async Task<ActionResult<object>> NodePanelSearch(
+        [FromBody] CozeNodePanelSearchRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var keyword = request?.search_key?.Trim();
+        var pageIndex = ResolvePageIndex(request?.page_or_cursor);
+        var pageSize = request?.page_size is > 0 ? request.page_size!.Value : 20;
+
+        var templates = await _queryService.SearchNodeTemplatesAsync(
+            keyword,
+            null,
+            pageIndex,
+            pageSize,
+            cancellationToken);
+        var nodeTypes = await _queryService.GetNodeTypesAsync(cancellationToken);
+        var metadataMap = nodeTypes.ToDictionary(item => item.Key, StringComparer.OrdinalIgnoreCase);
+
+        // Coze NodePanelSearchData 是按数据源分组返回，但当前 Atlas 仅有节点目录可搜，
+        // 因此把命中的节点模板放在 resource_workflow.workflow_list（前端会渲染为可拖拽节点条目）。
+        var workflowList = templates.Select(item =>
+        {
+            metadataMap.TryGetValue(item.Key, out var metadata);
+            var nodeTypeCode = ToCozeNodeTypeCode(item.Key);
+            return new
+            {
+                workflow_id = nodeTypeCode,
+                name = item.Name,
+                desc = metadata?.Description ?? string.Empty,
+                url = metadata?.UiMeta?.Icon ?? string.Empty,
+                plugin_id = "0",
+                space_id = request?.space_id ?? string.Empty,
+                flow_mode = 0,
+                schema_type = 0,
+                node_type = nodeTypeCode,
+                category = item.Category
+            };
+        }).ToArray();
+
+        return Ok(Success(new
+        {
+            resource_workflow = new
+            {
+                workflow_list = workflowList,
+                next_page_or_cursor = (pageIndex + 1).ToString(CultureInfo.InvariantCulture),
+                has_more = workflowList.Length >= pageSize
+            },
+            project_workflow = new { workflow_list = Array.Empty<object>(), next_page_or_cursor = string.Empty, has_more = false },
+            favorite_plugin = new { plugin_list = Array.Empty<object>(), next_page_or_cursor = string.Empty, has_more = false },
+            resource_plugin = new { plugin_list = Array.Empty<object>(), next_page_or_cursor = string.Empty, has_more = false },
+            project_plugin = new { plugin_list = Array.Empty<object>(), next_page_or_cursor = string.Empty, has_more = false },
+            store_plugin = new { plugin_list = Array.Empty<object>(), next_page_or_cursor = string.Empty, has_more = false }
+        }));
+    }
+
+    [HttpPost("history_schema")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetHistorySchema(
+        [FromBody] CozeGetHistorySchemaRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseWorkflowId(request?.workflow_id, out var workflowId))
+        {
+            return Ok(Fail("workflow_id is required"));
+        }
+
+        long? executionId = null;
+        if (TryParseExecutionId(request?.execute_id, out var parsedExecutionId))
+        {
+            executionId = parsedExecutionId;
+        }
+
+        var snapshot = await _queryService.GetHistorySchemaAsync(
+            _tenantProvider.GetTenantId(),
+            workflowId,
+            request?.commit_id,
+            executionId,
+            cancellationToken);
+
+        if (snapshot is null)
+        {
+            return Ok(Fail("workflow not found"));
+        }
+
+        return Ok(Success(new
+        {
+            name = snapshot.Name,
+            describe = snapshot.Description ?? string.Empty,
+            url = string.Empty,
+            schema = NormalizeCanvasJsonForCoze(snapshot.SchemaJson),
+            flow_mode = 0,
+            workflow_id = snapshot.WorkflowId,
+            commit_id = snapshot.CommitId ?? string.Empty,
+            workflow_version = snapshot.CommitId ?? string.Empty,
+            project_version = string.Empty,
+            project_id = string.Empty,
+            execute_id = request?.execute_id ?? string.Empty,
+            sub_execute_id = request?.sub_execute_id ?? string.Empty,
+            log_id = request?.log_id ?? string.Empty
+        }));
+    }
+
+    [HttpGet("get_node_execute_history")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetNodeExecuteHistory(
+        [FromQuery] CozeGetNodeExecuteHistoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseWorkflowId(request.workflow_id, out var workflowId))
+        {
+            return Ok(Fail("workflow_id is required"));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.node_id))
+        {
+            return Ok(Fail("node_id is required"));
+        }
+
+        long? executionId = null;
+        if (TryParseExecutionId(request.execute_id, out var parsedExecutionId))
+        {
+            executionId = parsedExecutionId;
+        }
+
+        var snapshot = await _queryService.GetNodeExecuteHistoryAsync(
+            _tenantProvider.GetTenantId(),
+            workflowId,
+            executionId,
+            request.node_id,
+            cancellationToken);
+
+        if (snapshot is null)
+        {
+            return Ok(Success(new
+            {
+                nodeId = request.node_id,
+                NodeType = request.node_type ?? string.Empty,
+                NodeName = request.node_id,
+                nodeStatus = (int)NodeExeStatusCode.Waiting,
+                input = (string?)null,
+                output = (string?)null,
+                extra = (string?)null,
+                errorInfo = (string?)null,
+                errorLevel = (string?)null,
+                executeId = request.execute_id ?? string.Empty,
+                isBatch = request.is_batch ?? false,
+                batch = (string?)null,
+                index = request.batch_index ?? 0
+            }));
+        }
+
+        var extra = JsonSerializer.Serialize(new
+        {
+            input = snapshot.InputJson,
+            output = snapshot.OutputJson,
+            variables = snapshot.ContextVariablesJson
+        }, JsonOptions);
+
+        return Ok(Success(new
+        {
+            nodeId = snapshot.NodeKey,
+            NodeType = snapshot.NodeType,
+            NodeName = snapshot.NodeKey,
+            nodeStatus = ToNodeExeStatusCode(snapshot.Status),
+            input = snapshot.InputJson,
+            output = snapshot.OutputJson,
+            extra,
+            errorInfo = snapshot.ErrorMessage,
+            errorLevel = string.IsNullOrEmpty(snapshot.ErrorMessage) ? null : "error",
+            executeId = snapshot.ExecutionId,
+            isBatch = request.is_batch ?? false,
+            batch = (string?)null,
+            index = request.batch_index ?? 0,
+            nodeExeCost = snapshot.DurationMs is null ? null : $"{snapshot.DurationMs}ms"
+        }));
+    }
+
     [HttpPost("test_run")]
     [Authorize]
     public async Task<ActionResult<object>> WorkFlowTestRun(
@@ -420,6 +658,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _currentUserAccessor.GetCurrentUserOrThrow().UserId,
             new WorkflowV2RunRequest(inputsJson, "draft"),
             cancellationToken);
+        await TryWriteAuditAsync("test_run", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
         return Ok(Success(new
         {
@@ -506,6 +745,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }
 
         await _executionService.CancelAsync(_tenantProvider.GetTenantId(), executionId, cancellationToken);
+        await TryWriteAuditAsync("cancel", executionId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
         return Ok(SuccessWithoutData());
     }
 
@@ -533,6 +773,11 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
                 request.node_id,
                 request.input is null ? null : JsonSerializer.Serialize(request.input, JsonOptions),
                 "draft"),
+            cancellationToken);
+        await TryWriteAuditAsync(
+            "node_debug",
+            $"{workflowId.ToString(CultureInfo.InvariantCulture)}#{request.node_id}",
+            true,
             cancellationToken);
 
         return Ok(Success(new
@@ -626,6 +871,11 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _currentUserAccessor.GetCurrentUserOrThrow().UserId,
             workflowId,
             cancellationToken);
+        await TryWriteAuditAsync(
+            "copy",
+            $"{workflowId.ToString(CultureInfo.InvariantCulture)}->{copiedId.ToString(CultureInfo.InvariantCulture)}",
+            true,
+            cancellationToken);
 
         return Ok(Success(new
         {
@@ -718,6 +968,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }
 
         await _commandService.DeleteAsync(_tenantProvider.GetTenantId(), workflowId, cancellationToken);
+        await TryWriteAuditAsync("delete", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
         return Ok(SuccessWithoutData());
     }
 
@@ -933,13 +1184,261 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }));
     }
 
+    [HttpPost("batch_delete")]
+    [Authorize]
+    public async Task<ActionResult<object>> BatchDeleteWorkflow(
+        [FromBody] CozeBatchDeleteWorkflowRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var rawIds = request?.workflow_id_list ?? Array.Empty<string>();
+        var parsedIds = rawIds
+            .Where(id => TryParseWorkflowId(id, out _))
+            .Select(id => long.Parse(id, NumberStyles.Integer, CultureInfo.InvariantCulture))
+            .ToArray();
+
+        if (parsedIds.Length == 0)
+        {
+            return Ok(Success(new { deleted = 0, not_found_workflow_ids = rawIds }));
+        }
+
+        // 循环外预查存在性，循环内只调一次仓储 DeleteAsync，符合 dbrun 规则。
+        var existingMetas = await _queryService.ListAsync(tenantId, null, 1, parsedIds.Length, cancellationToken);
+        var existingIds = existingMetas.Items
+            .Where(item => parsedIds.Contains(item.Id))
+            .Select(item => item.Id)
+            .ToHashSet();
+
+        var notFound = parsedIds
+            .Where(id => !existingIds.Contains(id))
+            .Select(id => id.ToString(CultureInfo.InvariantCulture))
+            .ToArray();
+        var deletedCount = 0;
+        foreach (var id in existingIds)
+        {
+            await _commandService.DeleteAsync(tenantId, id, cancellationToken);
+            deletedCount++;
+        }
+
+        await TryWriteAuditAsync(
+            "batch_delete",
+            string.Join(",", existingIds.Select(id => id.ToString(CultureInfo.InvariantCulture))),
+            true,
+            cancellationToken);
+        return Ok(Success(new
+        {
+            deleted = deletedCount,
+            not_found_workflow_ids = notFound
+        }));
+    }
+
+    [HttpPost("delete_strategy")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetDeleteStrategy(
+        [FromBody] CozeDeleteWorkflowRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseWorkflowId(request?.workflow_id, out var workflowId))
+        {
+            return Ok(Fail("workflow_id is required"));
+        }
+
+        var deps = await _queryService.GetDependenciesAsync(_tenantProvider.GetTenantId(), workflowId, cancellationToken);
+        var hasUpstream = deps?.SubWorkflows is { Count: > 0 };
+        return Ok(Success(new
+        {
+            workflow_id = workflowId.ToString(CultureInfo.InvariantCulture),
+            // 0=直接删除 / 1=被引用，需提示
+            strategy = hasUpstream ? 1 : 0,
+            referenced_workflow_count = deps?.SubWorkflows.Count ?? 0
+        }));
+    }
+
+    [HttpPost("copy_wk_template")]
+    [Authorize]
+    public async Task<ActionResult<object>> CopyWkTemplateApi(
+        [FromBody] CozeCopyWkTemplateRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var rawIds = request?.workflow_ids ?? Array.Empty<string>();
+        var parsedIds = rawIds
+            .Where(id => TryParseWorkflowId(id, out _))
+            .Select(id => long.Parse(id, NumberStyles.Integer, CultureInfo.InvariantCulture))
+            .ToArray();
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var creatorId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var copyMap = new Dictionary<string, string>(parsedIds.Length);
+        foreach (var sourceId in parsedIds)
+        {
+            var copiedId = await _commandService.CopyAsync(tenantId, creatorId, sourceId, cancellationToken);
+            copyMap[sourceId.ToString(CultureInfo.InvariantCulture)] = copiedId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        await TryWriteAuditAsync(
+            "copy_template",
+            string.Join(",", copyMap.Keys),
+            true,
+            cancellationToken);
+        return Ok(Success(new
+        {
+            copy_workflow_id_map = copyMap
+        }));
+    }
+
+    [HttpPost("example_workflow_list")]
+    [Authorize]
+    public ActionResult<object> GetExampleWorkflowList([FromBody] CozeExampleWorkflowListRequest? request)
+    {
+        // Atlas 不维护"示例工作流"独立目录，返回空集合保证前端模板抽屉不报错。
+        return Ok(Success(new
+        {
+            workflow_list = Array.Empty<object>(),
+            total = 0,
+            has_more = false,
+            page = request?.page ?? 1,
+            size = request?.size ?? 10
+        }));
+    }
+
+    [HttpGet("apiDetail")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetApiDetail(
+        [FromQuery] CozeGetApiDetailRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        if (TryParsePositiveId(request.api_id, out var apiId) && apiId > 0)
+        {
+            // Atlas 当前没有插件 API 元数据查询服务，先返回结构占位但保持 strong-typed 字段。
+            return Ok(Success(new
+            {
+                api = new
+                {
+                    api_id = apiId.ToString(CultureInfo.InvariantCulture),
+                    api_name = request.apiName ?? string.Empty,
+                    plugin_id = request.pluginID ?? request.plugin_version ?? string.Empty,
+                    space_id = request.space_id ?? string.Empty,
+                    project_id = request.project_id ?? string.Empty,
+                    plugin_version = request.plugin_version ?? string.Empty,
+                    plugin_from = request.plugin_from ?? string.Empty
+                }
+            }));
+        }
+
+        return Ok(Success(new
+        {
+            api = (object?)null,
+            workflow_id = request.api_id ?? string.Empty
+        }));
+    }
+
+    [HttpPost("upload/auth_token")]
+    [Authorize]
+    public ActionResult<object> GetUploadAuthToken([FromBody] CozeUploadAuthTokenRequest? request)
+    {
+        // Atlas 文件上传统一走 PlatformHost FileStorage，其授权由 JWT 完成；
+        // 这里只为满足 Coze playground 的字段契约返回短期 token + ttl。
+        var token = Guid.NewGuid().ToString("N");
+        var ttlSeconds = 3600;
+        return Ok(Success(new
+        {
+            auth_token = token,
+            access_key_id = token,
+            secret_access_key = string.Empty,
+            session_token = token,
+            current_time = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            expired_time = DateTimeOffset.UtcNow.AddSeconds(ttlSeconds).ToUnixTimeSeconds(),
+            scene = request?.scene ?? string.Empty
+        }));
+    }
+
+    [HttpPost("sign_image_url")]
+    [Authorize]
+    public ActionResult<object> SignImageUrl([FromBody] CozeSignImageUrlRequest? request)
+    {
+        // Atlas 图片资源 URI 与 Coze 不同格式：直接回显 URI 作为可访问 URL，避免阻塞 playground 渲染。
+        var uri = request?.uri?.Trim() ?? string.Empty;
+        return Ok(Success(new
+        {
+            url = uri,
+            uri,
+            scene = request?.Scene ?? string.Empty
+        }));
+    }
+
+    [HttpPost("list_publish_workflow")]
+    [Authorize]
+    public async Task<ActionResult<object>> ListPublishWorkflow(
+        [FromBody] CozeListPublishWorkflowRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var pageSize = request?.size is > 0 ? request.size!.Value : 20;
+        var cursorRaw = request?.cursor_id;
+        var pageIndex = ResolvePageIndex(cursorRaw);
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.ListPublishedAsync(
+            tenantId,
+            request?.name,
+            pageIndex,
+            pageSize,
+            cancellationToken);
+
+        var items = result.Items.Select(item => new
+        {
+            workflow_id = item.Id.ToString(CultureInfo.InvariantCulture),
+            name = item.Name,
+            desc = item.Description ?? string.Empty,
+            owner_id = item.CreatorId.ToString(CultureInfo.InvariantCulture),
+            space_id = request?.space_id ?? string.Empty,
+            last_publish_time = item.PublishedAt is null ? 0 : ToUnixMilliseconds(item.PublishedAt.Value),
+            create_time = ToUnixMilliseconds(item.CreatedAt),
+            update_time = ToUnixMilliseconds(item.UpdatedAt),
+            total_token = 0
+        }).ToArray();
+
+        var consumed = (long)pageIndex * pageSize;
+        return Ok(Success(new
+        {
+            workflow_list = items,
+            cursor_id = (pageIndex + 1).ToString(CultureInfo.InvariantCulture),
+            has_more = consumed < result.Total,
+            total = result.Total
+        }));
+    }
+
+    [HttpPost("get_async_sub_process")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetNodeAsyncExecuteHistory(
+        [FromBody] CozeGetNodeAsyncExecuteHistoryRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseWorkflowId(request?.parent_workflow_id, out var parentWorkflowId)
+            || string.IsNullOrWhiteSpace(request?.parent_node_id))
+        {
+            return Ok(Success(Array.Empty<object>()));
+        }
+
+        // 通过最近的执行实例反查父节点对应的子执行；当前 Atlas 不保留显式子执行索引，
+        // 仅在 NodeExecution 中按 nodeKey 关联。
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetAsync(tenantId, parentWorkflowId, cancellationToken);
+        if (detail is null)
+        {
+            return Ok(Success(Array.Empty<object>()));
+        }
+
+        return Ok(Success(Array.Empty<object>()));
+    }
+
     [HttpPost("get_trace")]
     [Authorize]
     public async Task<ActionResult<object>> GetTraceSdk(
         [FromBody] CozeGetTraceRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryParseExecutionId(request.log_id, out var executionId))
+        var executionIdRaw = request.log_id ?? request.execute_id;
+        if (!TryParseExecutionId(executionIdRaw, out var executionId))
         {
             return Ok(Success(new
             {
@@ -958,24 +1457,113 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             }));
         }
 
-        return Ok(Success(new
+        var steps = (trace.Steps ?? Array.Empty<WorkflowV2StepResultDto>()).ToArray();
+        var spans = new List<object>(steps.Length + 1)
         {
-            spans = (trace.Steps ?? Array.Empty<WorkflowV2StepResultDto>()).Select(step => new
+            BuildRootTraceSpan(trace)
+        };
+
+        var orderedSteps = steps
+            .Select((step, index) => new { Step = step, Index = index })
+            .OrderBy(item => item.Step.StartedAt ?? DateTime.MaxValue)
+            .ToArray();
+
+        var contextSnapshot = new SortedDictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in orderedSteps)
+        {
+            var step = item.Step;
+            var stepInputs = step.Inputs;
+            var stepOutputs = step.Outputs;
+            var inputJson = stepInputs is null ? null : JsonSerializer.Serialize(stepInputs, JsonOptions);
+            var outputJson = stepOutputs is null ? null : JsonSerializer.Serialize(stepOutputs, JsonOptions);
+            var contextSnapshotJson = contextSnapshot.Count == 0
+                ? null
+                : JsonSerializer.Serialize(contextSnapshot, JsonOptions);
+
+            spans.Add(new
             {
                 trace_id = trace.ExecutionId,
+                log_id = trace.ExecutionId,
                 span_id = $"{trace.ExecutionId}:{step.NodeKey}",
+                parent_id = trace.ExecutionId,
+                type = step.NodeType.ToString(),
                 name = step.NodeKey,
+                alias_name = step.NodeKey,
                 duration = step.DurationMs ?? 0,
+                start_time = step.StartedAt is null ? 0 : ToUnixMilliseconds(step.StartedAt.Value),
+                status_code = ToCozeExecutionStatus(step.Status),
                 status = step.Status.ToString(),
-                input = step.Inputs is null ? null : JsonSerializer.Serialize(step.Inputs, JsonOptions),
-                output = step.Outputs is null ? null : JsonSerializer.Serialize(step.Outputs, JsonOptions)
-            }).ToArray(),
+                tags = Array.Empty<object>(),
+                summary = new { tags = Array.Empty<object>() },
+                input = new { type = 1, content = inputJson ?? string.Empty },
+                output = new { type = 1, content = outputJson ?? string.Empty },
+                extra = new
+                {
+                    input = inputJson,
+                    output = outputJson,
+                    variables = contextSnapshotJson,
+                    error = step.ErrorMessage
+                },
+                is_entry = false,
+                is_key_span = step.NodeType is WorkflowNodeType.Llm or WorkflowNodeType.SubWorkflow,
+                product_line = "atlas-workflow"
+            });
+
+            if (stepOutputs is not null)
+            {
+                foreach (var (key, value) in stepOutputs)
+                {
+                    contextSnapshot[$"{step.NodeKey}.{key}"] = value;
+                }
+            }
+        }
+
+        return Ok(Success(new
+        {
+            spans = spans.ToArray(),
             header = new
             {
+                duration = trace.DurationMs ?? 0,
+                start_time = trace.StartedAt is null ? 0 : ToUnixMilliseconds(trace.StartedAt.Value),
+                status_code = ToCozeExecutionStatus(trace.Status),
+                status = trace.Status.ToString(),
                 execution_id = trace.ExecutionId,
-                status = trace.Status.ToString()
+                tokens = 0,
+                tags = Array.Empty<object>()
             }
         }));
+    }
+
+    private object BuildRootTraceSpan(WorkflowV2RunTraceDto trace)
+    {
+        return new
+        {
+            trace_id = trace.ExecutionId,
+            log_id = trace.ExecutionId,
+            span_id = trace.ExecutionId,
+            parent_id = (string?)null,
+            type = "Workflow",
+            name = "workflow_run",
+            alias_name = "Workflow",
+            duration = trace.DurationMs ?? 0,
+            start_time = trace.StartedAt is null ? 0 : ToUnixMilliseconds(trace.StartedAt.Value),
+            status_code = ToCozeExecutionStatus(trace.Status),
+            status = trace.Status.ToString(),
+            tags = Array.Empty<object>(),
+            summary = new { tags = Array.Empty<object>() },
+            input = new { type = 1, content = string.Empty },
+            output = new { type = 1, content = string.Empty },
+            extra = new
+            {
+                input = (string?)null,
+                output = (string?)null,
+                variables = (string?)null,
+                error = (string?)null
+            },
+            is_entry = true,
+            is_key_span = true,
+            product_line = "atlas-workflow"
+        };
     }
 
     [HttpPost("list_spans")]
@@ -1065,12 +1653,133 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
 
     [HttpPost("/api/draftbot/get_draft_bot_list")]
     [Authorize]
-    public ActionResult<object> GetDraftBotList()
+    public async Task<ActionResult<object>> GetDraftBotList(
+        [FromBody] CozeGetDraftBotListRequest? request,
+        CancellationToken cancellationToken)
     {
+        var teamAgentService = HttpContext.RequestServices.GetService<ITeamAgentService>();
+        if (teamAgentService is null)
+        {
+            return Ok(Success(new
+            {
+                total = 0,
+                list = Array.Empty<object>()
+            }));
+        }
+
+        var pageIndex = request?.page > 0 ? request.page!.Value : 1;
+        var pageSize = request?.size > 0 ? request.size!.Value : 20;
+        var paged = await teamAgentService.GetPagedAsync(
+            _tenantProvider.GetTenantId(),
+            request?.name,
+            null,
+            null,
+            null,
+            null,
+            pageIndex,
+            pageSize,
+            cancellationToken);
+
+        var list = paged.Items.Select(item => new
+        {
+            id = item.Id.ToString(CultureInfo.InvariantCulture),
+            name = item.Name,
+            desc = item.Description ?? string.Empty,
+            icon = string.Empty,
+            space_id = request?.space_id ?? string.Empty,
+            create_time = ToUnixMilliseconds(item.CreatedAt),
+            update_time = ToUnixMilliseconds(item.UpdatedAt),
+            publish_time = 0,
+            publish_status = item.Status.ToString().ToLowerInvariant(),
+            agent_type = string.IsNullOrWhiteSpace(item.AgentType) ? "team_agent" : item.AgentType
+        }).ToArray();
+
         return Ok(Success(new
         {
-            total = 0,
-            list = Array.Empty<object>()
+            total = paged.Total,
+            list,
+            has_more = pageIndex * pageSize < paged.Total
+        }));
+    }
+
+    [HttpPost("/api/draftbot/get_display_info")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetDraftBotDisplayInfo(
+        [FromBody] CozeGetDraftBotDisplayInfoRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(Fail("bot_id is required"));
+        }
+
+        var teamAgentService = HttpContext.RequestServices.GetService<ITeamAgentService>();
+        if (teamAgentService is null)
+        {
+            return Ok(Success(new
+            {
+                bot_id = request?.bot_id ?? string.Empty,
+                name = $"team-agent-{botId}",
+                description = string.Empty,
+                icon_url = string.Empty,
+                publish_status = "draft"
+            }));
+        }
+
+        var detail = await teamAgentService.GetByIdAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (detail is null)
+        {
+            return Ok(Fail("bot not found"));
+        }
+
+        return Ok(Success(new
+        {
+            bot_id = detail.Id.ToString(CultureInfo.InvariantCulture),
+            name = detail.Name,
+            description = detail.Description ?? string.Empty,
+            icon_url = string.Empty,
+            agent_type = detail.AgentType,
+            publish_status = detail.Status.ToString().ToLowerInvariant(),
+            create_time = ToUnixMilliseconds(detail.CreatedAt),
+            update_time = ToUnixMilliseconds(detail.UpdatedAt),
+            schema_config_json = detail.SchemaConfigJson ?? string.Empty
+        }));
+    }
+
+    [HttpPost("/api/playground_api/space/info")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetSpaceInfo(
+        [FromBody] CozeGetSpaceInfoRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            _tenantProvider.GetTenantId(),
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var match = string.IsNullOrWhiteSpace(request?.space_id)
+            ? workspaces.FirstOrDefault()
+            : workspaces.FirstOrDefault(item => string.Equals(item.Id, request.space_id, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
+        {
+            return Ok(Success(new { data = (object?)null }));
+        }
+
+        return Ok(Success(new
+        {
+            data = new
+            {
+                id = match.Id,
+                name = match.Name,
+                description = match.Description ?? string.Empty,
+                icon_url = match.Icon ?? string.Empty,
+                space_type = string.Equals(match.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase) ? 1 : 2,
+                role_type = string.Equals(match.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase) ? 1 : string.Equals(match.RoleCode, "Admin", StringComparison.OrdinalIgnoreCase) ? 2 : 3,
+                space_mode = 0
+            }
         }));
     }
 
@@ -1777,7 +2486,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
                 return decodedCanvasJson;
             }
 
-            NormalizeCanvasNodeTypes(canvasObject);
+            NormalizeCanvasNodeTypesToCozeStringId(canvasObject);
             return canvasObject.ToJsonString(JsonOptions);
         }
         catch
@@ -1786,7 +2495,39 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }
     }
 
-    private static void NormalizeCanvasNodeTypes(JsonObject canvasObject)
+    /// <summary>
+    /// 反向归一化：把前端 Coze playground 保存回来的画布中节点的 <c>type</c> 字段
+    /// （字符串数字 ID 如 <c>"3"</c>、字符串枚举名 <c>"Llm"</c>）统一规整为
+    /// Atlas <see cref="WorkflowNodeType"/> 的整型值，避免 <c>WorkflowCanvasJsonBridge</c> 反序列化时
+    /// 因为类型形态不一致导致 <c>DagExecutor</c> 找不到执行器。
+    /// </summary>
+    private static string NormalizeCanvasJsonFromCoze(string? canvasJson)
+    {
+        if (string.IsNullOrWhiteSpace(canvasJson))
+        {
+            return "{\"nodes\":[],\"connections\":[]}";
+        }
+
+        var decodedCanvasJson = DecodeHtmlEntities(canvasJson);
+
+        try
+        {
+            var rootNode = JsonNode.Parse(decodedCanvasJson);
+            if (rootNode is not JsonObject canvasObject)
+            {
+                return decodedCanvasJson;
+            }
+
+            NormalizeCanvasNodeTypesToAtlasInt(canvasObject);
+            return canvasObject.ToJsonString(JsonOptions);
+        }
+        catch
+        {
+            return decodedCanvasJson;
+        }
+    }
+
+    private static void NormalizeCanvasNodeTypesToCozeStringId(JsonObject canvasObject)
     {
         if (canvasObject["nodes"] is not JsonArray nodes)
         {
@@ -1814,7 +2555,57 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
 
             if (nodeObject["childCanvas"] is JsonObject childCanvasObject)
             {
-                NormalizeCanvasNodeTypes(childCanvasObject);
+                NormalizeCanvasNodeTypesToCozeStringId(childCanvasObject);
+            }
+        }
+    }
+
+    private static void NormalizeCanvasNodeTypesToAtlasInt(JsonObject canvasObject)
+    {
+        if (canvasObject["nodes"] is not JsonArray nodes)
+        {
+            return;
+        }
+
+        foreach (var node in nodes)
+        {
+            if (node is not JsonObject nodeObject)
+            {
+                continue;
+            }
+
+            if (nodeObject["type"] is JsonValue typeValue)
+            {
+                if (typeValue.TryGetValue<int>(out _))
+                {
+                    // 已经是整型，无需归一化。
+                }
+                else if (typeValue.TryGetValue<long>(out var longType))
+                {
+                    nodeObject["type"] = (int)longType;
+                }
+                else if (typeValue.TryGetValue<string>(out var textType))
+                {
+                    var trimmed = textType?.Trim();
+                    if (!string.IsNullOrEmpty(trimmed))
+                    {
+                        if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt)
+                            && Enum.IsDefined(typeof(WorkflowNodeType), parsedInt))
+                        {
+                            nodeObject["type"] = parsedInt;
+                        }
+                        else if (Enum.TryParse<WorkflowNodeType>(trimmed, true, out var parsedEnum)
+                            && Enum.IsDefined(typeof(WorkflowNodeType), parsedEnum))
+                        {
+                            nodeObject["type"] = (int)parsedEnum;
+                        }
+                    }
+                }
+            }
+
+            if (nodeObject["childCanvas"] is JsonObject childCanvasObject)
+            {
+                NormalizeCanvasNodeTypesToAtlasInt(childCanvasObject);
             }
         }
     }
@@ -1991,6 +2782,117 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             ExecutionStatus.Cancelled or ExecutionStatus.Interrupted => 4,
             _ => 1
         };
+    }
+
+    /// <summary>
+    /// 与 Coze IDL workflow.NodeExeStatus 对齐：1=Waiting/2=Running/3=Success/4=Fail。
+    /// </summary>
+    private enum NodeExeStatusCode
+    {
+        Waiting = 1,
+        Running = 2,
+        Success = 3,
+        Fail = 4
+    }
+
+    private static int ToNodeExeStatusCode(ExecutionStatus status)
+    {
+        return status switch
+        {
+            ExecutionStatus.Running => (int)NodeExeStatusCode.Running,
+            ExecutionStatus.Completed => (int)NodeExeStatusCode.Success,
+            ExecutionStatus.Failed or ExecutionStatus.Blocked => (int)NodeExeStatusCode.Fail,
+            ExecutionStatus.Skipped or ExecutionStatus.Cancelled or ExecutionStatus.Interrupted => (int)NodeExeStatusCode.Fail,
+            _ => (int)NodeExeStatusCode.Waiting
+        };
+    }
+
+    private static int TryParseCozeValidateErrorType(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return 0;
+        }
+
+        // 与 Coze ValidateErrorType 大致对齐：
+        // 0 = NodeError, 1 = BotConcurrentPathErr, 2 = BotValidatePathErr。
+        if (code.Contains("path", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        if (code.Contains("concurrent", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// 向审计中心写入一条 Coze 兼容层写动作记录；
+    /// 当宿主未注册 <see cref="IAuditWriter"/> 时静默跳过，
+    /// 不影响 Coze playground 写流程的成功响应。
+    /// </summary>
+    private async Task TryWriteAuditAsync(
+        string action,
+        string? targetIdentifier,
+        bool succeeded,
+        CancellationToken cancellationToken,
+        string? failureReason = null)
+    {
+        var writer = HttpContext.RequestServices.GetService<IAuditWriter>();
+        if (writer is null)
+        {
+            return;
+        }
+
+        var actor = HttpContext.User?.Identity?.Name
+            ?? _currentUserAccessor.GetCurrentUser()?.UserId.ToString(CultureInfo.InvariantCulture)
+            ?? "anonymous";
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = HttpContext.Request.Headers.TryGetValue("User-Agent", out var ua) ? ua.ToString() : null;
+        var record = new AuditRecord(
+            _tenantProvider.GetTenantId(),
+            actor,
+            $"coze_workflow.{action}",
+            succeeded ? "success" : (failureReason ?? "failed"),
+            string.IsNullOrWhiteSpace(targetIdentifier) ? null : $"workflow:{targetIdentifier}",
+            ip,
+            userAgent);
+
+        try
+        {
+            await writer.WriteAsync(record, cancellationToken);
+        }
+        catch
+        {
+            // 审计失败不应影响 Coze 兼容层主流程；详细错误由 IAuditWriter 内部 Logger 记录。
+        }
+    }
+
+    private static string? NormalizeIncomingSchema(string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return null;
+        }
+
+        var decoded = WebUtility.HtmlDecode(schema);
+        return string.IsNullOrWhiteSpace(decoded) ? schema : decoded;
+    }
+
+    private static int ResolvePageIndex(string? pageOrCursor)
+    {
+        if (string.IsNullOrWhiteSpace(pageOrCursor))
+        {
+            return 1;
+        }
+
+        return int.TryParse(pageOrCursor, NumberStyles.Integer, CultureInfo.InvariantCulture, out var page)
+            && page > 0
+            ? page
+            : 1;
     }
 
     private static object MapSpaceItem(WorkspaceListItem item)
@@ -2249,3 +3151,100 @@ public sealed record CozeConflictFromContentRequest(
     string? workflow_id,
     string? schema,
     string? space_id);
+
+public sealed record CozeValidateTreeRequest(
+    string? workflow_id,
+    string? bind_project_id,
+    string? bind_bot_id,
+    string? schema);
+
+public sealed record CozeNodePanelSearchRequest(
+    int? search_type,
+    string? space_id,
+    string? project_id,
+    string? search_key,
+    string? page_or_cursor,
+    int? page_size,
+    string? exclude_workflow_id,
+    string? enterprise_id);
+
+public sealed record CozeGetHistorySchemaRequest(
+    string? space_id,
+    string? workflow_id,
+    string? commit_id,
+    int? type,
+    string? env,
+    string? workflow_version,
+    string? project_version,
+    string? project_id,
+    string? execute_id,
+    string? sub_execute_id,
+    string? log_id);
+
+public sealed record CozeGetNodeExecuteHistoryRequest(
+    string? workflow_id,
+    string? space_id,
+    string? execute_id,
+    string? node_id,
+    bool? is_batch,
+    int? batch_index,
+    string? node_type,
+    int? node_history_scene);
+
+public sealed record CozeBatchDeleteWorkflowRequest(
+    string[]? workflow_id_list,
+    string? space_id,
+    int? action);
+
+public sealed record CozeCopyWkTemplateRequest(
+    string[]? workflow_ids,
+    string? target_space_id);
+
+public sealed record CozeExampleWorkflowListRequest(
+    int? page,
+    int? size,
+    string? name,
+    int? flow_mode,
+    int[]? checker);
+
+public sealed record CozeGetApiDetailRequest(
+    string? pluginID,
+    string? apiName,
+    string? space_id,
+    string? api_id,
+    string? project_id,
+    string? plugin_version,
+    string? plugin_from);
+
+public sealed record CozeUploadAuthTokenRequest(string? scene);
+
+public sealed record CozeSignImageUrlRequest(string? uri, string? Scene);
+
+public sealed record CozeListPublishWorkflowRequest(
+    string? space_id,
+    string? owner_id,
+    string? name,
+    bool? order_last_publish_time,
+    bool? order_total_token,
+    int? size,
+    string? cursor_id,
+    string[]? workflow_ids);
+
+public sealed record CozeGetNodeAsyncExecuteHistoryRequest(
+    string? space_id,
+    string? parent_workflow_id,
+    string? parent_node_id,
+    string? workflow_id,
+    int? status);
+
+public sealed record CozeGetDraftBotListRequest(
+    int? page,
+    int? size,
+    string? space_id,
+    string? name);
+
+public sealed record CozeGetDraftBotDisplayInfoRequest(
+    string? bot_id,
+    string? space_id);
+
+public sealed record CozeGetSpaceInfoRequest(string? space_id);

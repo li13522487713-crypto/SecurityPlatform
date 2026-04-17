@@ -106,9 +106,11 @@ public static class AiRuntimeServiceRegistration
         services.AddScoped<INodeExecutor, OutputEmitterNodeExecutor>();
         services.AddScoped<INodeExecutor, InputReceiverNodeExecutor>();
         services.AddScoped<INodeExecutor, AssignVariableNodeExecutor>();
+        services.AddScoped<INodeExecutor, VariableAssignerWithinLoopNodeExecutor>();
         services.AddScoped<INodeExecutor, VariableAggregatorNodeExecutor>();
         services.AddScoped<INodeExecutor, JsonSerializationNodeExecutor>();
         services.AddScoped<INodeExecutor, JsonDeserializationNodeExecutor>();
+        services.AddScoped<INodeExecutor, KnowledgeDeleterNodeExecutor>();
 
         services.AddScoped<IWorkflowV2ExecutionService, WorkflowV2ExecutionService>();
         services.AddHttpClient("WorkflowEngine", client => client.Timeout = TimeSpan.FromSeconds(30));

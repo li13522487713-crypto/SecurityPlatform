@@ -14,6 +14,7 @@ const appHostTarget =
   process.env.VITE_APP_HOST_TARGET || derivedAppHostTarget || "http://127.0.0.1:5002";
 const workspaceRoots = [
   "../../packages/app-shell-shared",
+  "../../packages/atlas-foundation-bridge",
   "../../packages/shared-react-core",
   "../../packages/schema-protocol",
   "../../packages/coze-shell-react",
@@ -35,6 +36,7 @@ const workspaceRoots = [
 const importWatchRoots = [
   path.resolve(__dirname, "src"),
   path.resolve(__dirname, "../../packages/app-shell-shared"),
+  path.resolve(__dirname, "../../packages/atlas-foundation-bridge"),
   path.resolve(__dirname, "../../packages/shared-react-core"),
   path.resolve(__dirname, "../../packages/coze-shell-react"),
   path.resolve(__dirname, "../../packages/library-module-react"),
@@ -91,7 +93,8 @@ export default defineConfig({
       "@coze-arch/bot-api/intelligence_api$": path.resolve(__dirname, "src/coze-shims/bot-api/intelligence_api.ts"),
       "@coze-arch/bot-api/playground_api$": path.resolve(__dirname, "src/coze-shims/bot-api/playground_api.ts"),
       "@coze-arch/bot-api/workflow_api$": path.resolve(__dirname, "src/coze-shims/bot-api/workflow_api.ts"),
-      "@coze-arch/foundation-sdk": require.resolve("@coze-foundation/foundation-sdk"),
+      "@coze-arch/foundation-sdk": require.resolve("@atlas/foundation-bridge"),
+      "@coze-foundation/foundation-sdk": require.resolve("@atlas/foundation-bridge"),
       "react-router-dom": require.resolve("react-router-dom"),
     },
     define: {

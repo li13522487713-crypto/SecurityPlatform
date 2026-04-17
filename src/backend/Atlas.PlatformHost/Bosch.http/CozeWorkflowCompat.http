@@ -251,3 +251,56 @@ X-Tenant-Id: {{tenantId}}
 GET {{host}}/api/v1/bots/{{memberUserId}}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze 兼容：validate_tree（M1：返回 ValidateTreeInfo[]，含节点级 errors）
+POST {{host}}/api/workflow_api/validate_tree
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "schema": "{\"nodes\":[],\"connections\":[]}"
+}
+
+### 原生 Coze 兼容：node_panel_search（M1：节点目录关键字搜索）
+POST {{host}}/api/workflow_api/node_panel_search
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "search_type": 0,
+  "space_id": "atlas-workflow",
+  "search_key": "Llm",
+  "page_or_cursor": "1",
+  "page_size": 10
+}
+
+### 原生 Coze 兼容：history_schema（M1：历史/版本快照画布 JSON）
+POST {{host}}/api/workflow_api/history_schema
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow",
+  "commit_id": ""
+}
+
+### 原生 Coze 兼容：get_node_execute_history（M1：节点执行历史 + extra 上下文变量快照）
+GET {{host}}/api/workflow_api/get_node_execute_history?workflow_id={{workflowId}}&space_id=atlas-workflow&execute_id={{executionId}}&node_id=start&node_type=Entry
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze 兼容：get_trace（M1 改造：spans.extra 含 input/output/variables 三段）
+POST {{host}}/api/workflow_api/get_trace
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "log_id": "{{executionId}}",
+  "workflow_id": "{{workflowId}}"
+}

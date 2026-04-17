@@ -18,6 +18,8 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
+      "@atlas/foundation-bridge": ["packages/atlas-foundation-bridge/src/index.ts"],
+      "@atlas/foundation-bridge/*": ["packages/atlas-foundation-bridge/src/*"],
       "@coze-workflow/*-adapter": ["packages/workflow/adapter/*/src/index.tsx"],
       "@coze-workflow/*-adapter/*": ["packages/workflow/adapter/*/src/*"],
       "@coze-workflow/*": ["packages/workflow/*/src/index.ts", "packages/workflow/*/src/index.tsx"],

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
@@ -27,6 +28,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
     private readonly KnowledgeBaseRepository _knowledgeBaseRepository;
     private readonly AiDatabaseRepository _databaseRepository;
     private readonly NodeExecutorRegistry _registry;
+    private readonly IAiVariableService? _variableService;
 
     public WorkflowV2QueryService(
         IWorkflowMetaRepository metaRepo,
@@ -39,7 +41,8 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         AiPluginApiRepository pluginApiRepository,
         KnowledgeBaseRepository knowledgeBaseRepository,
         AiDatabaseRepository databaseRepository,
-        NodeExecutorRegistry registry)
+        NodeExecutorRegistry registry,
+        IAiVariableService? variableService = null)
     {
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
@@ -52,6 +55,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         _knowledgeBaseRepository = knowledgeBaseRepository;
         _databaseRepository = databaseRepository;
         _registry = registry;
+        _variableService = variableService;
     }
 
     public async Task<PagedResult<WorkflowV2ListItem>> ListAsync(
@@ -226,6 +230,504 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             })
             .ToList();
         return Task.FromResult<IReadOnlyList<WorkflowV2NodeTemplateDto>>(templates);
+    }
+
+    public Task<IReadOnlyList<WorkflowV2NodeTemplateDto>> SearchNodeTemplatesAsync(
+        string? keyword,
+        IReadOnlyList<string>? categories,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var allTypes = _registry.GetAllTypes();
+        var normalizedKeyword = keyword?.Trim();
+        var hasKeyword = !string.IsNullOrEmpty(normalizedKeyword);
+        var categorySet = categories is { Count: > 0 }
+            ? new HashSet<string>(
+                categories.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim()),
+                StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var filtered = allTypes.Where(metadata =>
+        {
+            if (categorySet is not null && !categorySet.Contains(metadata.Category))
+            {
+                return false;
+            }
+
+            if (!hasKeyword)
+            {
+                return true;
+            }
+
+            return ContainsIgnoreCase(metadata.Key, normalizedKeyword)
+                || ContainsIgnoreCase(metadata.Name, normalizedKeyword)
+                || ContainsIgnoreCase(metadata.Description, normalizedKeyword)
+                || ContainsIgnoreCase(metadata.Category, normalizedKeyword);
+        }).ToList();
+
+        var safePageIndex = pageIndex <= 0 ? 1 : pageIndex;
+        var safePageSize = pageSize <= 0 ? filtered.Count : pageSize;
+        var skipped = Math.Max(0, (safePageIndex - 1) * safePageSize);
+        var paged = filtered.Skip(skipped).Take(safePageSize).ToList();
+
+        var results = paged.Select(metadata =>
+        {
+            var defaultConfig = BuiltInWorkflowNodeDeclarations.GetDefaultConfig(metadata.Type);
+            return new WorkflowV2NodeTemplateDto(
+                metadata.Key,
+                metadata.Name,
+                metadata.Category,
+                defaultConfig);
+        }).ToList();
+
+        return Task.FromResult<IReadOnlyList<WorkflowV2NodeTemplateDto>>(results);
+    }
+
+    public async Task<WorkflowVariableTreeDto> GetVariableTreeAsync(
+        TenantId tenantId,
+        long workflowId,
+        string? nodeKey,
+        CancellationToken cancellationToken)
+    {
+        var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken);
+        if (meta is null)
+        {
+            return new WorkflowVariableTreeDto(workflowId.ToString(), nodeKey, Array.Empty<WorkflowVariableGroup>());
+        }
+
+        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
+        var canvasJson = draft?.CanvasJson;
+        var canvas = string.IsNullOrWhiteSpace(canvasJson)
+            ? null
+            : DagExecutor.ParseCanvas(canvasJson);
+
+        var groups = new List<WorkflowVariableGroup>();
+        var systemGroup = await BuildSystemVariableGroupAsync(cancellationToken);
+        if (systemGroup is not null)
+        {
+            groups.Add(systemGroup);
+        }
+
+        if (canvas is not null)
+        {
+            var globalGroup = BuildGlobalVariableGroup(canvas);
+            if (globalGroup is not null)
+            {
+                groups.Add(globalGroup);
+            }
+
+            var nodeGroups = BuildUpstreamNodeGroups(canvas, nodeKey);
+            groups.AddRange(nodeGroups);
+        }
+
+        return new WorkflowVariableTreeDto(workflowId.ToString(), nodeKey, groups);
+    }
+
+    public async Task<WorkflowNodeExecutionHistoryDto?> GetNodeExecuteHistoryAsync(
+        TenantId tenantId,
+        long workflowId,
+        long? executionId,
+        string nodeKey,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(nodeKey))
+        {
+            return null;
+        }
+
+        WorkflowExecution? execution = null;
+        if (executionId is { } id and > 0)
+        {
+            execution = await _executionRepo.FindByIdAsync(tenantId, id, cancellationToken);
+            if (execution is null || execution.WorkflowId != workflowId)
+            {
+                return null;
+            }
+        }
+        else
+        {
+            execution = await _db.Queryable<WorkflowExecution>()
+                .Where(e => e.TenantIdValue == tenantId.Value && e.WorkflowId == workflowId)
+                .OrderBy(e => e.StartedAt, OrderByType.Desc)
+                .FirstAsync(cancellationToken);
+            if (execution is null)
+            {
+                return null;
+            }
+        }
+
+        var nodeExec = await _nodeExecutionRepo.FindByNodeKeyAsync(
+            tenantId, execution.Id, nodeKey, cancellationToken);
+        if (nodeExec is null)
+        {
+            return null;
+        }
+
+        var contextVariablesJson = await BuildExecutionContextSnapshotAsync(
+            tenantId, execution, nodeExec, cancellationToken);
+
+        return new WorkflowNodeExecutionHistoryDto(
+            workflowId.ToString(),
+            execution.Id.ToString(),
+            nodeExec.NodeKey,
+            nodeExec.NodeType.ToString(),
+            nodeExec.Status,
+            nodeExec.InputsJson,
+            nodeExec.OutputsJson,
+            contextVariablesJson,
+            nodeExec.ErrorMessage,
+            nodeExec.StartedAt,
+            nodeExec.CompletedAt,
+            nodeExec.DurationMs);
+    }
+
+    public async Task<WorkflowHistorySchemaDto?> GetHistorySchemaAsync(
+        TenantId tenantId,
+        long workflowId,
+        string? commitId,
+        long? executionId,
+        CancellationToken cancellationToken)
+    {
+        var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken);
+        if (meta is null)
+        {
+            return null;
+        }
+
+        // 1) 优先用 executionId 反查版本号（兼容 trace 回放场景）。
+        WorkflowVersion? version = null;
+        if (executionId is { } execId and > 0)
+        {
+            var execution = await _executionRepo.FindByIdAsync(tenantId, execId, cancellationToken);
+            if (execution is not null && execution.WorkflowId == workflowId && execution.VersionNumber > 0)
+            {
+                version = await _versionRepo.FindByWorkflowAndVersionNumberAsync(
+                    tenantId, workflowId, execution.VersionNumber, cancellationToken);
+            }
+        }
+
+        // 2) 再尝试 commitId（前端历史抽屉传入的版本号字符串）。
+        if (version is null && !string.IsNullOrWhiteSpace(commitId))
+        {
+            if (long.TryParse(commitId, out var versionId) && versionId > 0)
+            {
+                version = await _versionRepo.FindByIdAsync(tenantId, versionId, cancellationToken);
+                if (version is not null && version.WorkflowId != workflowId)
+                {
+                    version = null;
+                }
+            }
+
+            if (version is null && int.TryParse(commitId, out var versionNumber) && versionNumber > 0)
+            {
+                version = await _versionRepo.FindByWorkflowAndVersionNumberAsync(
+                    tenantId, workflowId, versionNumber, cancellationToken);
+            }
+        }
+
+        // 3) 兜底使用最新已发布版本，未发布则回落到草稿。
+        if (version is null)
+        {
+            version = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
+        }
+
+        if (version is not null)
+        {
+            return new WorkflowHistorySchemaDto(
+                workflowId.ToString(),
+                commitId ?? version.Id.ToString(CultureInfo.InvariantCulture),
+                version.CanvasJson,
+                meta.Name,
+                meta.Description,
+                version.PublishedAt);
+        }
+
+        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
+        if (draft is null)
+        {
+            return null;
+        }
+
+        return new WorkflowHistorySchemaDto(
+            workflowId.ToString(),
+            commitId ?? draft.CommitId,
+            string.IsNullOrWhiteSpace(draft.CanvasJson) ? "{\"nodes\":[],\"connections\":[]}" : draft.CanvasJson,
+            meta.Name,
+            meta.Description,
+            draft.UpdatedAt);
+    }
+
+    private async Task<WorkflowVariableGroup?> BuildSystemVariableGroupAsync(CancellationToken cancellationToken)
+    {
+        if (_variableService is null)
+        {
+            return null;
+        }
+
+        var defs = await _variableService.GetSystemVariableDefinitionsAsync(cancellationToken);
+        if (defs is null || defs.Count == 0)
+        {
+            return null;
+        }
+
+        var fields = defs
+            .OrderBy(d => d.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new WorkflowVariableField(
+                d.Key,
+                string.IsNullOrWhiteSpace(d.Name) ? d.Key : d.Name,
+                "string",
+                d.Description,
+                false,
+                d.DefaultValue,
+                null))
+            .ToArray();
+
+        return new WorkflowVariableGroup(
+            WorkflowVariableScopeKind.System,
+            "system",
+            "系统变量",
+            null,
+            null,
+            fields,
+            "由平台提供的全局可用变量。");
+    }
+
+    private static WorkflowVariableGroup? BuildGlobalVariableGroup(Domain.AiPlatform.ValueObjects.CanvasSchema canvas)
+    {
+        if (canvas.Globals is null || canvas.Globals.Count == 0)
+        {
+            return null;
+        }
+
+        var fields = canvas.Globals
+            .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => new WorkflowVariableField(
+                kv.Key,
+                kv.Key,
+                InferDataType(kv.Value),
+                null,
+                false,
+                VariableResolver.ToDisplayText(kv.Value),
+                null))
+            .ToArray();
+
+        return new WorkflowVariableGroup(
+            WorkflowVariableScopeKind.Global,
+            "global",
+            "全局变量",
+            null,
+            null,
+            fields,
+            "画布级全局变量（CanvasSchema.Globals）。");
+    }
+
+    private static IReadOnlyList<WorkflowVariableGroup> BuildUpstreamNodeGroups(
+        Domain.AiPlatform.ValueObjects.CanvasSchema canvas,
+        string? nodeKey)
+    {
+        if (canvas.Nodes.Count == 0)
+        {
+            return Array.Empty<WorkflowVariableGroup>();
+        }
+
+        IReadOnlyCollection<Domain.AiPlatform.ValueObjects.NodeSchema> upstream;
+        if (string.IsNullOrWhiteSpace(nodeKey))
+        {
+            upstream = canvas.Nodes;
+        }
+        else
+        {
+            upstream = ResolveUpstreamNodes(canvas, nodeKey);
+        }
+
+        return upstream
+            .Where(node => node.Type != WorkflowNodeType.Comment)
+            .OrderBy(node => node.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(node => new WorkflowVariableGroup(
+                WorkflowVariableScopeKind.Node,
+                node.Key,
+                string.IsNullOrWhiteSpace(node.Label) ? node.Key : node.Label,
+                node.Key,
+                node.Type.ToString(),
+                BuildNodeOutputFields(node),
+                $"节点 {node.Type} 的输出参数。"))
+            .ToArray();
+    }
+
+    private static IReadOnlyCollection<Domain.AiPlatform.ValueObjects.NodeSchema> ResolveUpstreamNodes(
+        Domain.AiPlatform.ValueObjects.CanvasSchema canvas,
+        string nodeKey)
+    {
+        var nodeMap = canvas.Nodes.ToDictionary(node => node.Key, StringComparer.OrdinalIgnoreCase);
+        if (!nodeMap.ContainsKey(nodeKey))
+        {
+            return Array.Empty<Domain.AiPlatform.ValueObjects.NodeSchema>();
+        }
+
+        var predecessors = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in canvas.Nodes)
+        {
+            predecessors[node.Key] = new List<string>();
+        }
+
+        foreach (var connection in canvas.Connections)
+        {
+            if (predecessors.TryGetValue(connection.TargetNodeKey, out var sources))
+            {
+                sources.Add(connection.SourceNodeKey);
+            }
+        }
+
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var queue = new Queue<string>();
+        if (predecessors.TryGetValue(nodeKey, out var directSources))
+        {
+            foreach (var source in directSources)
+            {
+                queue.Enqueue(source);
+            }
+        }
+
+        var collected = new List<Domain.AiPlatform.ValueObjects.NodeSchema>();
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!visited.Add(current))
+            {
+                continue;
+            }
+
+            if (nodeMap.TryGetValue(current, out var node))
+            {
+                collected.Add(node);
+            }
+
+            if (predecessors.TryGetValue(current, out var nextSources))
+            {
+                foreach (var source in nextSources)
+                {
+                    if (!visited.Contains(source))
+                    {
+                        queue.Enqueue(source);
+                    }
+                }
+            }
+        }
+
+        return collected;
+    }
+
+    private static IReadOnlyList<WorkflowVariableField> BuildNodeOutputFields(
+        Domain.AiPlatform.ValueObjects.NodeSchema node)
+    {
+        var fields = new List<WorkflowVariableField>();
+        if (node.OutputTypes is { Count: > 0 })
+        {
+            foreach (var (key, type) in node.OutputTypes.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                fields.Add(new WorkflowVariableField(
+                    key,
+                    key,
+                    string.IsNullOrWhiteSpace(type) ? "string" : type,
+                    null,
+                    false,
+                    null,
+                    null));
+            }
+
+            return fields;
+        }
+
+        var declaration = BuiltInWorkflowNodeDeclarations.GetPorts(node.Type);
+        var outputPorts = declaration
+            .Where(p => p.Direction == WorkflowNodePortDirection.Output)
+            .ToArray();
+        if (outputPorts.Length == 0)
+        {
+            outputPorts = new[]
+            {
+                new WorkflowNodePortMetadata(
+                    "output",
+                    "output",
+                    WorkflowNodePortDirection.Output,
+                    "string")
+            };
+        }
+
+        foreach (var port in outputPorts)
+        {
+            fields.Add(new WorkflowVariableField(
+                port.Key,
+                string.IsNullOrWhiteSpace(port.Name) ? port.Key : port.Name,
+                string.IsNullOrWhiteSpace(port.DataType) ? "string" : port.DataType,
+                null,
+                port.IsRequired,
+                null,
+                null));
+        }
+
+        return fields;
+    }
+
+    private async Task<string?> BuildExecutionContextSnapshotAsync(
+        TenantId tenantId,
+        WorkflowExecution execution,
+        WorkflowNodeExecution focusNode,
+        CancellationToken cancellationToken)
+    {
+        // 聚合截至 focusNode 的执行上下文：开始节点输入 + 所有较早完成节点的输出。
+        var siblings = await _nodeExecutionRepo.ListByExecutionIdAsync(tenantId, execution.Id, cancellationToken);
+        var ordered = siblings
+            .Where(node => node.CompletedAt is not null
+                && (focusNode.StartedAt is null
+                    || node.CompletedAt <= focusNode.StartedAt))
+            .OrderBy(node => node.CompletedAt)
+            .ToArray();
+
+        var snapshot = new SortedDictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+
+        var executionInputs = VariableResolver.ParseVariableDictionary(execution.InputsJson);
+        foreach (var (key, value) in executionInputs)
+        {
+            snapshot["inputs." + key] = value;
+        }
+
+        foreach (var node in ordered)
+        {
+            var outputs = VariableResolver.ParseVariableDictionary(node.OutputsJson);
+            foreach (var (key, value) in outputs)
+            {
+                snapshot[$"{node.NodeKey}.{key}"] = value;
+            }
+        }
+
+        return snapshot.Count == 0
+            ? null
+            : JsonSerializer.Serialize(snapshot);
+    }
+
+    private static string InferDataType(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => "object",
+            JsonValueKind.Array => "array",
+            JsonValueKind.String => "string",
+            JsonValueKind.Number => "number",
+            JsonValueKind.True or JsonValueKind.False => "boolean",
+            _ => "string"
+        };
+    }
+
+    private static bool ContainsIgnoreCase(string? source, string? keyword)
+    {
+        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(keyword))
+        {
+            return false;
+        }
+
+        return source.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<WorkflowV2RunTraceDto?> GetRunTraceAsync(

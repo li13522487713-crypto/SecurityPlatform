@@ -16,17 +16,20 @@ namespace Atlas.AppHost.Controllers;
 public sealed class AiVariablesController : ControllerBase
 {
     private readonly IAiVariableService _service;
+    private readonly IWorkflowV2QueryService _workflowQueryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly IValidator<AiVariableCreateRequest> _createValidator;
     private readonly IValidator<AiVariableUpdateRequest> _updateValidator;
 
     public AiVariablesController(
         IAiVariableService service,
+        IWorkflowV2QueryService workflowQueryService,
         ITenantProvider tenantProvider,
         IValidator<AiVariableCreateRequest> createValidator,
         IValidator<AiVariableUpdateRequest> updateValidator)
     {
         _service = service;
+        _workflowQueryService = workflowQueryService;
         _tenantProvider = tenantProvider;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
@@ -108,5 +111,25 @@ public sealed class AiVariablesController : ControllerBase
     {
         var result = await _service.GetSystemVariableDefinitionsAsync(cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<AiSystemVariableDefinition>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 工作流级变量树：返回当前节点上游可见的全局/系统/节点输出变量，供节点配置面板与 Prompt 编辑器消费。
+    /// 路由放在 ai-variables 命名空间下与 system-definitions 保持一致，但语义上面向 workflow 编辑器。
+    /// </summary>
+    [HttpGet("workflows/{workflowId:long}/variable-tree")]
+    [Authorize(Policy = PermissionPolicies.AiVariableView)]
+    public async Task<ActionResult<ApiResponse<WorkflowVariableTreeDto>>> GetWorkflowVariableTree(
+        long workflowId,
+        [FromQuery] string? nodeKey,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _workflowQueryService.GetVariableTreeAsync(
+            tenantId,
+            workflowId,
+            nodeKey,
+            cancellationToken);
+        return Ok(ApiResponse<WorkflowVariableTreeDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 }
