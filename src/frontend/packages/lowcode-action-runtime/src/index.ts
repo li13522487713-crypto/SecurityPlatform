@@ -1,5 +1,13 @@
-// @atlas/lowcode-action-runtime — 由 M00 预创建的空骨架。
-// 真实导出由对应里程碑（见 PLAN.md）逐步填充。
-// 当前导出此占位常量以避免 ts isolatedModules 报"空模块"错误。
+/**
+ * @atlas/lowcode-action-runtime — 入口（M03）。
+ */
 
-export const __ATLAS_LOWCODE_PACKAGE__ = "@atlas/lowcode-action-runtime";
+export * from './state-patch';
+export * from './scope-guard';
+export * from './loading';
+export * from './resilience';
+export * from './extend';
+export * from './chain';
+export * from './dispatcher';
+
+export const __ATLAS_LOWCODE_PACKAGE__ = '@atlas/lowcode-action-runtime' as const;
