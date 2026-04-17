@@ -2,16 +2,27 @@
   "name": "@atlas/lowcode-property-forms",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码属性表单 + 5 种值源 + 6 类内容参数（M05）。",
+  "description": "Atlas 低代码属性表单（M05 C05-3 / C05-4 / C05-5 / C05-6）—— ComponentMeta.propertyPanels 元数据驱动 + 5 种值源切换 + 6 类内容参数 + Monaco LSP 适配桥。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./renderer": "./src/renderer/index.ts",
+    "./value-source": "./src/value-source/index.ts",
+    "./content-params": "./src/content-params/index.ts",
+    "./monaco-bridge": "./src/monaco-bridge/index.ts"
   },
   "scripts": {
-    "lint": "echo '@atlas/lowcode-property-forms: no lint configured yet'",
+    "lint": "echo '@atlas/lowcode-property-forms: lint via root pipeline'",
     "build": "echo '@atlas/lowcode-property-forms: source-only package, no build step'",
-    "test": "echo '@atlas/lowcode-property-forms: no tests yet'"
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-schema": "workspace:*",
+    "@atlas/lowcode-expression": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
   }
 }

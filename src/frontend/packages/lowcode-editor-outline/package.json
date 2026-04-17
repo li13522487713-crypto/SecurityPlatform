@@ -2,16 +2,22 @@
   "name": "@atlas/lowcode-editor-outline",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码结构树（M05）。",
+  "description": "Atlas 低代码结构树（M05 C05-1）—— 拖拽改父子 / 显隐 / 锁定 / 右键菜单 / 搜索过滤。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
+  "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "lint": "echo '@atlas/lowcode-editor-outline: no lint configured yet'",
+    "lint": "echo '@atlas/lowcode-editor-outline: lint via root pipeline'",
     "build": "echo '@atlas/lowcode-editor-outline: source-only package, no build step'",
-    "test": "echo '@atlas/lowcode-editor-outline: no tests yet'"
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-schema": "workspace:*",
+    "@atlas/lowcode-editor-canvas": "workspace:*",
+    "immer": "^10.1.1"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
   }
 }
