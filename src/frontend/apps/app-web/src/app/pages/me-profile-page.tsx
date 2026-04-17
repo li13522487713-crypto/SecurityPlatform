@@ -1,6 +1,6 @@
 import { Avatar, Button, Typography } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
-import { meSettingsPath } from "@atlas/app-shell-shared";
+import { meNotificationsPath, meSettingsPath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useAuth } from "../auth-context";
 
@@ -25,6 +25,9 @@ export function MeProfilePage() {
         <div className="coze-me-profile-page__actions">
           <Button theme="light" onClick={() => navigate(meSettingsPath("account"))}>
             {t("cozeMeProfileEdit")}
+          </Button>
+          <Button theme="borderless" onClick={() => navigate(meNotificationsPath())} data-testid="coze-me-profile-notifications">
+            {t("cozeMeNotificationsTitle")}
           </Button>
           <Button theme="borderless" type="danger">
             {t("cozeMeProfileDeleteAccount")}

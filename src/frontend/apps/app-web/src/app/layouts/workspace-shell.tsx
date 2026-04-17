@@ -4,6 +4,7 @@ import { Spin } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import type { CozeNavSection } from "@atlas/coze-shell-react";
 import { CozeShell } from "@atlas/coze-shell-react";
+import { getTenantId } from "@atlas/shared-react-core/utils";
 import {
   meProfilePath,
   selectWorkspacePath,
@@ -18,6 +19,7 @@ import {
   useOptionalWorkspaceContext,
   useWorkspaceContext
 } from "../workspace-context";
+import { OrganizationProvider } from "../organization-context";
 import { PermissionProvider } from "../permission-context";
 import { MENU_GROUPS } from "../menu-config";
 import { WorkspaceSwitcher } from "../components/workspace-switcher";
@@ -87,13 +89,16 @@ export function WorkspaceShellLayout() {
     return <Navigate to={selectWorkspacePath()} replace />;
   }
 
+  const tenantId = getTenantId() ?? "";
   return (
-    <WorkspaceProvider workspaceId={workspaceId}>
-      <PermissionProvider>
-        <RememberWorkspace />
-        <ShellChrome variant="workspace" />
-      </PermissionProvider>
-    </WorkspaceProvider>
+    <OrganizationProvider orgId={tenantId}>
+      <WorkspaceProvider workspaceId={workspaceId}>
+        <PermissionProvider>
+          <RememberWorkspace />
+          <ShellChrome variant="workspace" />
+        </PermissionProvider>
+      </WorkspaceProvider>
+    </OrganizationProvider>
   );
 }
 
@@ -109,6 +114,7 @@ export function PlatformShellLayout() {
   const bootstrap = useBootstrap();
   const location = useLocation();
   const lastWorkspaceId = readLastWorkspaceId();
+  const tenantId = getTenantId() ?? "";
 
   if (bootstrap.loading || auth.loading) {
     return <LoadingPage />;
@@ -127,11 +133,13 @@ export function PlatformShellLayout() {
   }
 
   return (
-    <WorkspaceProvider workspaceId={lastWorkspaceId}>
-      <PermissionProvider>
-        <ShellChrome variant="platform" />
-      </PermissionProvider>
-    </WorkspaceProvider>
+    <OrganizationProvider orgId={tenantId}>
+      <WorkspaceProvider workspaceId={lastWorkspaceId}>
+        <PermissionProvider>
+          <ShellChrome variant="platform" />
+        </PermissionProvider>
+      </WorkspaceProvider>
+    </OrganizationProvider>
   );
 }
 

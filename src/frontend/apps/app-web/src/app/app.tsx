@@ -141,8 +141,18 @@ import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
 import { WorkspaceShellLayout, PlatformShellLayout } from "./layouts/workspace-shell";
+import { EditorShellLayout } from "./layouts/editor-shell";
+import {
+  AgentEditorRoute,
+  AgentPublishRoute,
+  AppEditorRoute,
+  AppPublishRoute,
+  ChatflowEditorRoute,
+  WorkflowEditorRoute
+} from "./pages/editor-routes";
 import { WorkspaceHomePage } from "./pages/workspace-home-page";
 import { WorkspaceProjectsPage } from "./pages/workspace-projects-page";
+import { WorkspaceResourcesPage } from "./pages/workspace-resources-page";
 import { WorkspaceTasksPage } from "./pages/workspace-tasks-page";
 import { WorkspaceEvaluationsPage } from "./pages/workspace-evaluations-page";
 import { WorkspaceSettingsPublishPage } from "./pages/workspace-settings-publish-page";
@@ -155,6 +165,7 @@ import { DocsPage } from "./pages/docs-page";
 import { PlatformGeneralPage } from "./pages/platform-general-page";
 import { MeProfilePage } from "./pages/me-profile-page";
 import { MeSettingsPage } from "./pages/me-settings-page";
+import { MeNotificationsPage } from "./pages/me-notifications-page";
 import { SelectWorkspacePage } from "./pages/select-workspace-page";
 import {
   backupNow,
@@ -872,7 +883,7 @@ async function* createAgentMessageStream(
   }
 }
 
-function createStudioApi(appKey: string): StudioModuleApi {
+export function createStudioApi(appKey: string): StudioModuleApi {
   return {
     listAgents: getAiAssistantsPaged,
     getAgent: getAiAssistantById,
@@ -1233,7 +1244,7 @@ function createStudioApi(appKey: string): StudioModuleApi {
   };
 }
 
-function useAppApis(appKey: string) {
+export function useAppApis(appKey: string) {
   const { t } = useAppI18n();
   return useMemo(() => ({
     adminApi: createAdminApi(appKey),
@@ -2980,22 +2991,6 @@ function FatalErrorPage() {
   );
 }
 
-function ComingSoonRoute({ titleKey }: { titleKey: import("./messages").AppMessageKey }) {
-  const { t } = useAppI18n();
-  const navigate = useNavigate();
-  return (
-    <div className="coze-page" data-testid="coze-coming-soon">
-      <div className="coze-page__header">
-        <h2>{t(titleKey)}</h2>
-        <p>{t("cozeCommonComingSoon")}</p>
-        <button type="button" className="atlas-button" onClick={() => navigate(-1)}>
-          {t("cozeCommonGoBack")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export const appRoutes = [
   {
     path: "/",
@@ -3037,8 +3032,8 @@ export const appRoutes = [
       { path: "home", element: <WorkspaceHomePage /> },
       { path: "projects", element: <WorkspaceProjectsPage /> },
       { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage /> },
-      { path: "resources", element: <ComingSoonRoute titleKey="cozeMenuResources" /> },
-      { path: "resources/:type", element: <ComingSoonRoute titleKey="cozeMenuResources" /> },
+      { path: "resources", element: <WorkspaceResourcesPage /> },
+      { path: "resources/:type", element: <WorkspaceResourcesPage /> },
       { path: "tasks", element: <WorkspaceTasksPage /> },
       { path: "tasks/:taskId", element: <WorkspaceTasksPage /> },
       { path: "evaluations", element: <WorkspaceEvaluationsPage /> },
@@ -3058,7 +3053,8 @@ export const appRoutes = [
       { index: true, element: <Navigate to="profile" replace /> },
       { path: "profile", element: <MeProfilePage /> },
       { path: "settings", element: <Navigate to="account" replace /> },
-      { path: "settings/:tab", element: <MeSettingsPage /> }
+      { path: "settings/:tab", element: <MeSettingsPage /> },
+      { path: "notifications", element: <MeNotificationsPage /> }
     ]
   },
   {
@@ -3113,34 +3109,38 @@ export const appRoutes = [
     ]
   },
   {
-    path: "/agent/:agentId/editor",
-    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
+    path: "/agent",
+    element: <EditorShellLayout />,
     handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
+    errorElement: <FatalErrorPage />,
+    children: [
+      { path: ":agentId/editor", element: <AgentEditorRoute /> },
+      { path: ":agentId/publish", element: <AgentPublishRoute /> }
+    ]
   },
   {
-    path: "/agent/:agentId/publish",
-    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
+    path: "/app",
+    element: <EditorShellLayout />,
     handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
+    errorElement: <FatalErrorPage />,
+    children: [
+      { path: ":projectId/editor", element: <AppEditorRoute /> },
+      { path: ":projectId/publish", element: <AppPublishRoute /> }
+    ]
   },
   {
-    path: "/app/:projectId/editor",
-    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
-    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
-  },
-  {
-    path: "/app/:projectId/publish",
-    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
-    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
+    path: "/workflow/:workflowId/editor",
+    element: <EditorShellLayout />,
+    handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [{ index: true, element: <WorkflowEditorRoute /> }]
   },
   {
     path: "/chatflow/:chatflowId/editor",
-    element: <ComingSoonRoute titleKey="cozeMenuResources" />,
+    element: <EditorShellLayout />,
     handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
+    errorElement: <FatalErrorPage />,
+    children: [{ index: true, element: <ChatflowEditorRoute /> }]
   },
   {
     path: "/workflows",
