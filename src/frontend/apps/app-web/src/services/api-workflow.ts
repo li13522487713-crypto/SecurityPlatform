@@ -5,6 +5,7 @@ export interface WorkflowCreateRequest {
   name: string;
   description?: string;
   mode: 0 | 1;
+  workspaceId?: string | number;
 }
 
 export interface WorkflowSaveRequest {
@@ -45,6 +46,19 @@ function normalizeMode(mode: 0 | 1): number {
   return mode === 1 ? 3 : 0;
 }
 
+function normalizeWorkspaceId(workspaceId?: string | number): string {
+  if (typeof workspaceId === "number" && Number.isFinite(workspaceId) && workspaceId > 0) {
+    return String(workspaceId);
+  }
+
+  if (typeof workspaceId === "string") {
+    const trimmed = workspaceId.trim();
+    return trimmed.length > 0 ? trimmed : "";
+  }
+
+  return "";
+}
+
 export async function createWorkflow(request: WorkflowCreateRequest): Promise<ApiResponse<string>> {
   const result = await requestApi<CozeResponse<{ workflow_id?: string }>>("/api/workflow_api/create", {
     method: "POST",
@@ -55,7 +69,7 @@ export async function createWorkflow(request: WorkflowCreateRequest): Promise<Ap
       name: request.name,
       desc: request.description ?? "",
       icon_uri: "",
-      space_id: "",
+      space_id: normalizeWorkspaceId(request.workspaceId),
       flow_mode: normalizeMode(request.mode)
     })
   });
@@ -99,7 +113,8 @@ export async function saveWorkflowDraft(
 export async function listWorkflows(
   pageIndex = 1,
   pageSize = 20,
-  keyword?: string
+  keyword?: string,
+  workspaceId?: string | number
 ): Promise<ApiResponse<PagedResult<WorkflowListItem>>> {
   const result = await requestApi<CozeResponse<{ workflow_list?: Array<Record<string, unknown>>; total?: number }>>(
     "/api/workflow_api/workflow_list",
@@ -112,7 +127,7 @@ export async function listWorkflows(
         page: pageIndex,
         size: pageSize,
         name: keyword ?? "",
-        space_id: ""
+        space_id: normalizeWorkspaceId(workspaceId)
       })
     }
   );

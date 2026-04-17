@@ -130,6 +130,7 @@ export const defineConfig = (options: Partial<RsbuildConfig>) => {
         addPlugins([
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           require('tailwindcss/nesting')(require('postcss-nesting')),
+          require('tailwindcss'),
         ]);
       },
       rspack: (_, { appendPlugins }) => {

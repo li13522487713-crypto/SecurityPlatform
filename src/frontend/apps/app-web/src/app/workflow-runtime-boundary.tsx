@@ -1,5 +1,8 @@
-import type { ReactNode } from "react";
+﻿import { useEffect, useState, type ReactNode } from "react";
+import { I18nProvider } from "../../../../packages/arch/i18n/src/i18n-provider";
+import { I18n, initI18nInstance } from "../../../../packages/arch/i18n/src/raw";
 import { useAppI18n } from "./i18n";
+import type { AppLocale } from "./messages";
 import { useBootstrap } from "./bootstrap-context";
 import { useAppStartup } from "./startup-kernel";
 import { useOptionalWorkspaceContext } from "./workspace-context";
@@ -35,12 +38,48 @@ function WorkflowRuntimeStatusCard({
   );
 }
 
+function toCozeLocale(locale: AppLocale): "en" | "zh-CN" {
+  return locale === "en-US" ? "en" : "zh-CN";
+}
+
 export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
-  const { t } = useAppI18n();
+  const { locale, t } = useAppI18n();
   const bootstrap = useBootstrap();
   const startup = useAppStartup();
   const workspace = useOptionalWorkspaceContext();
   const organization = useOptionalOrganizationContext();
+  const [cozeReady, setCozeReady] = useState(false);
+  const cozeLocale = toCozeLocale(locale);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCozeReady(false);
+
+    try {
+      window.localStorage.setItem("i18next", cozeLocale);
+    } catch {
+      // 忽略本地存储异常，避免阻断编辑器加载。
+    }
+
+    Promise.race([
+      initI18nInstance({ lng: cozeLocale }),
+      new Promise(resolve => setTimeout(resolve, 500))
+    ]).then(() => {
+      I18n.setLang(cozeLocale);
+      if (!cancelled) {
+        setCozeReady(true);
+      }
+    }).catch(() => {
+      I18n.setLang(cozeLocale);
+      if (!cancelled) {
+        setCozeReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cozeLocale]);
 
   if (bootstrap.loading || !startup.bootstrapReady || workspace?.loading) {
     return (
@@ -96,5 +135,13 @@ export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  if (!cozeReady) {
+    return (
+      <div className="atlas-loading-page" data-testid="workflow-runtime-i18n-loading">
+        {t("workflowRuntimePreparing")}
+      </div>
+    );
+  }
+
+  return <I18nProvider i18n={I18n}>{children}</I18nProvider>;
 }

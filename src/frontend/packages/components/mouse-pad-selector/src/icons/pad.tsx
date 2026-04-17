@@ -30,15 +30,15 @@ export function PadIcon() {
         height="35"
         rx="3.5"
         stroke="currentColor"
-        stroke-opacity="0.8"
-        stroke-width="2.33333"
+        strokeOpacity="0.8"
+        strokeWidth="2.33333"
       />
       <path
         d="M14.6665 30.6667H33.3332"
         stroke="currentColor"
-        stroke-opacity="0.8"
-        stroke-width="2.33333"
-        stroke-linecap="round"
+        strokeOpacity="0.8"
+        strokeWidth="2.33333"
+        strokeLinecap="round"
       />
     </svg>
   );

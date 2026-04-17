@@ -18,7 +18,12 @@ interface CreateWorkflowSessionOptions {
   reuseExisting?: boolean;
 }
 
-const workflowCanvasSelector = '[data-testid="app-workflow-editor-shell"], [data-testid="app-chatflow-editor-shell"]';
+const workflowCanvasSelector = [
+  '[data-testid="app-workflow-editor-shell"]',
+  '[data-testid="app-chatflow-editor-shell"]',
+  "#workflow-playground-content",
+  ".gedit-playground-container"
+].join(", ");
 const workflowNodeSelector = ".module-workflow__node-card";
 const workflowEdgeSelector = ".wf-react-edge-path";
 let cachedWorkflowSession: WorkflowSessionContext | null = null;
@@ -56,8 +61,17 @@ async function ensureWorkflowListReady(
 }
 
 export async function expectWorkflowEditorReady(page: Page): Promise<void> {
-  await expect(page.locator(workflowCanvasSelector)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("workflow.detail.title.save-draft")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(workflowCanvasSelector).first()).toBeVisible({ timeout: 30_000 });
+
+  const saveDraftButton = page.getByTestId("workflow.detail.title.save-draft");
+  if ((await saveDraftButton.count()) > 0) {
+    await expect(saveDraftButton).toBeVisible({ timeout: 15_000 });
+    return;
+  }
+
+  await expect(
+    page.locator("button").filter({ hasText: /发布|Publish|Variable \(Debug\)/ }).first()
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 export function workflowNodeLocator(page: Page) {
@@ -227,8 +241,6 @@ export async function createWorkflowAndOpenEditor(page: Page, appKey: string): P
     return url.pathname.includes("/workflows") && (hasWorkflowQuery || hasWorkflowPath);
   }, { timeout: 30_000 });
 
-  const editorPage = page.getByTestId("app-workflow-editor-page");
-  await expect(editorPage).toBeVisible({ timeout: 30_000 });
   await expectWorkflowEditorReady(page);
   return createdWorkflowId;
 }

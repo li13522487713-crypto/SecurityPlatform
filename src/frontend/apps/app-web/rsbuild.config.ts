@@ -61,7 +61,7 @@ export default defineConfig({
     strictPort: true,
     proxy: [
       {
-        context: ["/api/v2/workflows", "/api"],
+        context: ["/api/v2/workflows", "/api", "/v1"],
         target: appHostTarget,
         secure: false,
         changeOrigin: true,

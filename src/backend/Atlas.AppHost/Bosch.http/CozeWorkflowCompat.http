@@ -145,3 +145,104 @@ X-Tenant-Id: {{tenantId}}
     "incident": "openapi chat smoke"
   }
 }
+
+### 原生 Coze OpenAPI 兼容：工作空间列表（v1）
+# @name openSpaceList
+GET {{host}}/v1/workspaces?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@workspaceId = {{openSpaceList.response.body.data.workspaces[0].id}}
+@memberUserId = 1
+
+### 原生 Coze OpenAPI 兼容：工作空间列表（api/v1 别名）
+GET {{host}}/api/v1/workspaces?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze OpenAPI 兼容：创建工作空间
+POST {{host}}/v1/workspaces
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "Compat Workspace",
+  "description": "created from coze compat http"
+}
+
+### 原生 Coze OpenAPI 兼容：空间成员列表
+GET {{host}}/v1/workspaces/{{workspaceId}}/members?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze OpenAPI 兼容：新增空间成员
+POST {{host}}/v1/workspaces/{{workspaceId}}/members
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "users": [
+    {
+      "user_id": "{{memberUserId}}",
+      "role_type": "member"
+    }
+  ]
+}
+
+### 原生 Coze OpenAPI 兼容：更新空间成员角色
+PUT {{host}}/v1/workspaces/{{workspaceId}}/members/{{memberUserId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "role_type": "member"
+}
+
+### 原生 Coze OpenAPI 兼容：移除空间成员
+DELETE {{host}}/v1/workspaces/{{workspaceId}}/members
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "user_ids": ["{{memberUserId}}"]
+}
+
+### 原生 Coze OpenAPI 兼容：申请加入空间
+POST {{host}}/v1/workspaces/{{workspaceId}}/members/apply
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "user_ids": ["{{memberUserId}}"]
+}
+
+### 原生 Coze OpenAPI 兼容：删除空间
+DELETE {{host}}/v1/workspaces/{{workspaceId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze OpenAPI 兼容：Bot 详情（api/v1 别名）
+GET {{host}}/api/v1/bots/{{memberUserId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze OpenAPI 兼容：Bot 版本列表
+GET {{host}}/v1/bots/{{memberUserId}}/versions?page_num=1&page_size=10
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze OpenAPI 兼容：切换 Bot 协作模式
+POST {{host}}/v1/bots/{{memberUserId}}/collaboration_mode
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "collaboration_mode": "single"
+}

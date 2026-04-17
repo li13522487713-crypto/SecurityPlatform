@@ -226,3 +226,28 @@ X-Tenant-Id: {{tenantId}}
     "incident": "openapi smoke"
   }
 }
+
+### 原生 Coze OpenAPI 兼容：工作空间列表（v1）
+# @name openSpaceList
+GET {{host}}/v1/workspaces?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@workspaceId = {{openSpaceList.response.body.data.workspaces[0].id}}
+@memberUserId = 1
+
+### 原生 Coze OpenAPI 兼容：工作空间列表（api/v1 别名）
+GET {{host}}/api/v1/workspaces?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze OpenAPI 兼容：空间成员列表
+GET {{host}}/v1/workspaces/{{workspaceId}}/members?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 原生 Coze OpenAPI 兼容：Bot 详情（api/v1 别名）
+GET {{host}}/api/v1/bots/{{memberUserId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}

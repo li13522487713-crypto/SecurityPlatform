@@ -28,8 +28,11 @@ import {
   setPreferInteractiveType,
 } from '@coze-common/mouse-pad-selector';
 
+import { useGlobalState } from '@/hooks';
+
 export const Interactive = () => {
   const tools = usePlaygroundTools();
+  const workflowState = useGlobalState();
 
   const [interactiveType, setInteractiveType] = useState<InteractiveType>(
     () => getPreferInteractiveType() as InteractiveType,
@@ -52,47 +55,54 @@ export const Interactive = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init
   }, []);
 
-  return (
-    <GuidingPopover>
-      <Tooltip
-        content={mousePadTooltip}
-        style={{ display: showInteractivePanel ? 'none' : 'block' }}
+  const interactiveSwitcher = (
+    <Tooltip
+      content={mousePadTooltip}
+      style={{ display: showInteractivePanel ? 'none' : 'block' }}
+    >
+      <div
+        className="workflow-toolbar-interactive"
+        data-testid="workflow.detail.toolbar.interactive"
       >
-        <div
-          className="workflow-toolbar-interactive"
-          data-testid="workflow.detail.toolbar.interactive"
-        >
-          <MousePadSelector
-            value={interactiveType}
-            onChange={value => {
-              setInteractiveType(value);
-              setPreferInteractiveType(value);
-              tools.setInteractiveType(value as unknown as IdeInteractiveType);
-            }}
-            onPopupVisibleChange={setShowInteractivePanel}
-            containerStyle={{
-              border: 'none',
-              height: '24px',
-              width: '38px',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: '2px',
-              padding: '4px',
-              paddingTop: '1px',
-              borderRadius: 'var(--small, 6px)',
-            }}
-            iconStyle={{
-              margin: '0',
-              width: '16px',
-              height: '16px',
-            }}
-            arrowStyle={{
-              width: '12px',
-              height: '12px',
-            }}
-          />
-        </div>
-      </Tooltip>
-    </GuidingPopover>
+        <MousePadSelector
+          value={interactiveType}
+          onChange={value => {
+            setInteractiveType(value);
+            setPreferInteractiveType(value);
+            tools.setInteractiveType(value as unknown as IdeInteractiveType);
+          }}
+          onPopupVisibleChange={setShowInteractivePanel}
+          containerStyle={{
+            border: 'none',
+            height: '24px',
+            width: '38px',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '2px',
+            padding: '4px',
+            paddingTop: '1px',
+            borderRadius: 'var(--small, 6px)',
+          }}
+          iconStyle={{
+            margin: '0',
+            width: '16px',
+            height: '16px',
+          }}
+          arrowStyle={{
+            width: '12px',
+            height: '12px',
+          }}
+        />
+      </div>
+    </Tooltip>
   );
+
+  const canShowGuidingPopover = Boolean(
+    workflowState.config.initialViewportCalibrated,
+  );
+  if (!canShowGuidingPopover) {
+    return interactiveSwitcher;
+  }
+
+  return <GuidingPopover>{interactiveSwitcher}</GuidingPopover>;
 };

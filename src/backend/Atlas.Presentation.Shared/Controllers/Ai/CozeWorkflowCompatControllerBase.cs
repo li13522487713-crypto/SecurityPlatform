@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace Atlas.Presentation.Shared.Controllers.Ai;
 
@@ -641,11 +642,14 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
     {
         var name = string.IsNullOrWhiteSpace(request.name) ? "未命名工作流" : request.name.Trim();
         var mode = request.flow_mode == 3 ? WorkflowMode.ChatFlow : WorkflowMode.Standard;
+        var workspaceId = TryParsePositiveId(request.space_id, out var parsedWorkspaceId)
+            ? (long?)parsedWorkspaceId
+            : null;
         var creatorId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         var workflowId = await _commandService.CreateAsync(
             _tenantProvider.GetTenantId(),
             creatorId,
-            new WorkflowV2CreateRequest(name, request.desc, mode),
+            new WorkflowV2CreateRequest(name, request.desc, mode, workspaceId),
             cancellationToken);
 
         return Ok(Success(new
@@ -1200,6 +1204,355 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         return Ok(Success(BuildOpenApiFallbackData(path)));
     }
 
+    [HttpGet("/v1/workspaces")]
+    [HttpGet("/api/v1/workspaces")]
+    [Authorize]
+    public async Task<ActionResult<object>> OpenSpaceList(
+        [FromQuery(Name = "page_num")] int? pageNum,
+        [FromQuery(Name = "page_size")] int? pageSize,
+        [FromQuery(Name = "enterprise_id")] string? enterpriseId,
+        [FromQuery(Name = "coze_account_id")] string? cozeAccountId,
+        CancellationToken cancellationToken)
+    {
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var filtered = workspaces
+            .Where(item =>
+                (string.IsNullOrWhiteSpace(enterpriseId) || string.Equals(item.OrgId, enterpriseId.Trim(), StringComparison.OrdinalIgnoreCase))
+                && (string.IsNullOrWhiteSpace(cozeAccountId) || string.Equals(item.OrgId, cozeAccountId.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        var normalizedPage = pageNum is > 0 ? pageNum.Value : 1;
+        var normalizedSize = pageSize is > 0 ? Math.Min(pageSize.Value, 50) : 20;
+        var skipped = Math.Max(0, (normalizedPage - 1) * normalizedSize);
+        var pagedItems = filtered
+            .Skip(skipped)
+            .Take(normalizedSize)
+            .Select(MapOpenWorkspace)
+            .ToArray();
+
+        return Ok(Success(new
+        {
+            workspaces = pagedItems,
+            total_count = filtered.Length
+        }));
+    }
+
+    [HttpPost("/v1/workspaces")]
+    [HttpPost("/api/v1/workspaces")]
+    [Authorize]
+    public async Task<ActionResult<object>> OpenCreateSpace(
+        [FromBody] CozeOpenCreateSpaceRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        var existing = await _workspacePortalService.ListWorkspacesAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+        var appInstanceId = existing.FirstOrDefault()?.AppInstanceId;
+        if (string.IsNullOrWhiteSpace(appInstanceId))
+        {
+            return Ok(Fail("app_instance_id is required"));
+        }
+
+        var normalizedName = string.IsNullOrWhiteSpace(request?.Name)
+            ? "未命名工作空间"
+            : request.Name.Trim();
+        var workspaceId = await _workspacePortalService.CreateWorkspaceAsync(
+            tenantId,
+            currentUser.UserId,
+            new WorkspaceCreateRequest(
+                normalizedName,
+                request?.Description?.Trim(),
+                null,
+                appInstanceId),
+            cancellationToken);
+
+        return Ok(Success(new
+        {
+            id = workspaceId.ToString(CultureInfo.InvariantCulture)
+        }));
+    }
+
+    [HttpGet("/v1/workspaces/{workspaceId}/members")]
+    [HttpGet("/api/v1/workspaces/{workspaceId}/members")]
+    [Authorize]
+    public async Task<ActionResult<object>> OpenSpaceMemberList(
+        [FromRoute] string workspaceId,
+        [FromQuery(Name = "page_num")] int? pageNum,
+        [FromQuery(Name = "page_size")] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(Fail("workspace_id is invalid"));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        var members = await _workspacePortalService.GetMembersAsync(
+            tenantId,
+            parsedWorkspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var normalizedPage = pageNum is > 0 ? pageNum.Value : 1;
+        var normalizedSize = pageSize is > 0 ? Math.Min(pageSize.Value, 50) : 20;
+        var skipped = Math.Max(0, (normalizedPage - 1) * normalizedSize);
+        var pagedItems = members
+            .Skip(skipped)
+            .Take(normalizedSize)
+            .Select(MapOpenSpaceMember)
+            .ToArray();
+
+        return Ok(Success(new
+        {
+            items = pagedItems,
+            total_count = members.Count
+        }));
+    }
+
+    [HttpPost("/v1/workspaces/{workspaceId}/members")]
+    [HttpPost("/api/v1/workspaces/{workspaceId}/members")]
+    [Authorize]
+    public async Task<ActionResult<object>> OpenAddSpaceMember(
+        [FromRoute] string workspaceId,
+        [FromBody] CozeOpenAddSpaceMemberRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(Fail("workspace_id is invalid"));
+        }
+
+        var candidateUserId = request?.Users?
+            .Select(item => item.UserId?.Trim())
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+        if (string.IsNullOrWhiteSpace(candidateUserId))
+        {
+            return Ok(Success(new
+            {
+                added_success_user_ids = Array.Empty<string>(),
+                invited_success_user_ids = Array.Empty<string>(),
+                not_exist_user_ids = Array.Empty<string>(),
+                already_joined_user_ids = Array.Empty<string>(),
+                already_invited_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        if (!TryParsePositiveId(candidateUserId, out var parsedUserId))
+        {
+            return Ok(Success(new
+            {
+                added_success_user_ids = Array.Empty<string>(),
+                invited_success_user_ids = Array.Empty<string>(),
+                not_exist_user_ids = new[] { candidateUserId },
+                already_joined_user_ids = Array.Empty<string>(),
+                already_invited_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        var target = request?.Users?.FirstOrDefault(item => string.Equals(item.UserId, candidateUserId, StringComparison.OrdinalIgnoreCase));
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.AddMemberAsync(
+            tenantId,
+            parsedWorkspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            new WorkspaceMemberCreateRequest(
+                parsedUserId.ToString(CultureInfo.InvariantCulture),
+                ToWorkspaceRoleCode(target?.RoleType)),
+            cancellationToken);
+
+        return Ok(Success(new
+        {
+            added_success_user_ids = new[] { parsedUserId.ToString(CultureInfo.InvariantCulture) },
+            invited_success_user_ids = Array.Empty<string>(),
+            not_exist_user_ids = Array.Empty<string>(),
+            already_joined_user_ids = Array.Empty<string>(),
+            already_invited_user_ids = Array.Empty<string>()
+        }));
+    }
+
+    [HttpDelete("/v1/workspaces/{workspaceId}/members")]
+    [HttpDelete("/api/v1/workspaces/{workspaceId}/members")]
+    [Authorize]
+    public async Task<ActionResult<object>> OpenRemoveSpaceMember(
+        [FromRoute] string workspaceId,
+        [FromBody] CozeOpenRemoveSpaceMemberRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(Fail("workspace_id is invalid"));
+        }
+
+        var candidateUserId = request?.UserIds?
+            .Select(item => item?.Trim())
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+        if (string.IsNullOrWhiteSpace(candidateUserId))
+        {
+            return Ok(Success(new
+            {
+                removed_success_user_ids = Array.Empty<string>(),
+                not_in_workspace_user_ids = Array.Empty<string>(),
+                owner_not_support_remove_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        if (!TryParsePositiveId(candidateUserId, out var parsedUserId))
+        {
+            return Ok(Success(new
+            {
+                removed_success_user_ids = Array.Empty<string>(),
+                not_in_workspace_user_ids = new[] { candidateUserId },
+                owner_not_support_remove_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.RemoveMemberAsync(
+            tenantId,
+            parsedWorkspaceId,
+            parsedUserId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        return Ok(Success(new
+        {
+            removed_success_user_ids = new[] { parsedUserId.ToString(CultureInfo.InvariantCulture) },
+            not_in_workspace_user_ids = Array.Empty<string>(),
+            owner_not_support_remove_user_ids = Array.Empty<string>()
+        }));
+    }
+
+    [HttpPost("/v1/workspaces/{workspaceId}/members/apply")]
+    [HttpPost("/api/v1/workspaces/{workspaceId}/members/apply")]
+    [Authorize]
+    public ActionResult<object> OpenApplyJoinSpace(
+        [FromRoute] string workspaceId,
+        [FromBody] CozeOpenApplyJoinSpaceRequest? request)
+    {
+        if (!TryParsePositiveId(workspaceId, out _))
+        {
+            return Ok(Fail("workspace_id is invalid"));
+        }
+
+        var appliedUserIds = request?.UserIds?
+            .Select(item => item?.Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray()
+            ?? Array.Empty<string>();
+
+        return Ok(Success(new
+        {
+            applied_success_user_ids = appliedUserIds,
+            applied_failed_user_ids = Array.Empty<string>()
+        }));
+    }
+
+    [HttpPut("/v1/workspaces/{workspaceId}/members/{userId}")]
+    [HttpPut("/api/v1/workspaces/{workspaceId}/members/{userId}")]
+    [Authorize]
+    public async Task<ActionResult<object>> OpenUpdateSpaceMember(
+        [FromRoute] string workspaceId,
+        [FromRoute] string userId,
+        [FromBody] CozeOpenUpdateSpaceMemberRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(Fail("workspace_id is invalid"));
+        }
+
+        if (!TryParsePositiveId(userId, out var parsedUserId))
+        {
+            return Ok(Fail("user_id is invalid"));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.UpdateMemberRoleAsync(
+            tenantId,
+            parsedWorkspaceId,
+            parsedUserId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            new WorkspaceMemberRoleUpdateRequest(ToWorkspaceRoleCode(request?.RoleType)),
+            cancellationToken);
+
+        return Ok(SuccessWithoutData());
+    }
+
+    [HttpDelete("/v1/workspaces/{workspaceId}")]
+    [HttpDelete("/api/v1/workspaces/{workspaceId}")]
+    [Authorize]
+    public async Task<ActionResult<object>> OpenRemoveSpace(
+        [FromRoute] string workspaceId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(Fail("workspace_id is invalid"));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.DeleteWorkspaceAsync(
+            tenantId,
+            parsedWorkspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        return Ok(SuccessWithoutData());
+    }
+
+    [HttpGet("/v1/bots/{botId}")]
+    [HttpGet("/api/v1/bots/{botId}")]
+    [Authorize]
+    public ActionResult<object> OpenGetBotInfo([FromRoute] string botId)
+    {
+        return Ok(Success(new
+        {
+            id = botId,
+            bot_id = botId,
+            name = $"bot-{botId}",
+            description = string.Empty,
+            icon_url = string.Empty,
+            publish_status = "draft"
+        }));
+    }
+
+    [HttpGet("/v1/bots/{botId}/versions")]
+    [HttpGet("/api/v1/bots/{botId}/versions")]
+    [Authorize]
+    public ActionResult<object> OpenListBotVersions([FromRoute] string botId)
+    {
+        return Ok(Success(new
+        {
+            items = Array.Empty<object>(),
+            has_more = false
+        }));
+    }
+
+    [HttpPost("/v1/bots/{botId}/collaboration_mode")]
+    [HttpPost("/api/v1/bots/{botId}/collaboration_mode")]
+    [Authorize]
+    public ActionResult<object> OpenSwitchBotDevelopMode(
+        [FromRoute] string botId,
+        [FromBody] CozeOpenSwitchBotDevelopModeRequest? request)
+    {
+        return Ok(SuccessWithoutData());
+    }
+
     [HttpPost("{**path}")]
     [Authorize]
     public ActionResult<object> WorkflowPostFallback([FromRoute] string? path)
@@ -1495,6 +1848,81 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         return path.Trim().Trim('/').ToLowerInvariant();
     }
 
+    private (TenantId TenantId, CurrentUserInfo CurrentUser) ResolveOpenWorkspaceContext()
+    {
+        return (_tenantProvider.GetTenantId(), _currentUserAccessor.GetCurrentUserOrThrow());
+    }
+
+    private static bool TryParsePositiveId(string? raw, out long value)
+    {
+        if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            value = 0;
+            return false;
+        }
+
+        return value > 0;
+    }
+
+    private static string ToOpenRoleType(string? roleCode)
+    {
+        if (string.Equals(roleCode, "Owner", StringComparison.OrdinalIgnoreCase))
+        {
+            return "owner";
+        }
+
+        if (string.Equals(roleCode, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return "admin";
+        }
+
+        return "member";
+    }
+
+    private static string ToWorkspaceRoleCode(string? roleType)
+    {
+        if (string.Equals(roleType, "owner", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Owner";
+        }
+
+        if (string.Equals(roleType, "admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Admin";
+        }
+
+        return "Member";
+    }
+
+    private static object MapOpenWorkspace(WorkspaceListItem item)
+    {
+        return new
+        {
+            id = item.Id,
+            name = item.Name,
+            icon_url = item.Icon ?? string.Empty,
+            role_type = ToOpenRoleType(item.RoleCode),
+            workspace_type = "team",
+            enterprise_id = item.OrgId,
+            joined_status = "joined",
+            description = item.Description ?? string.Empty,
+            owner_uid = string.Empty,
+            admin_uids = Array.Empty<string>()
+        };
+    }
+
+    private static object MapOpenSpaceMember(WorkspaceMemberDto item)
+    {
+        return new
+        {
+            user_id = item.UserId,
+            user_nickname = item.DisplayName,
+            user_unique_name = item.Username,
+            avatar_url = string.Empty,
+            role_type = ToOpenRoleType(item.RoleCode)
+        };
+    }
+
     protected static object Success(object? data)
     {
         return new
@@ -1719,6 +2147,32 @@ public sealed record CozeSaveSpaceRequest(
     string? icon_uri,
     int? space_type,
     int? space_mode);
+
+public sealed record CozeOpenCreateSpaceRequest(
+    string? Name,
+    string? Description,
+    [property: JsonPropertyName("icon_file_id")] string? IconFileId,
+    [property: JsonPropertyName("coze_account_id")] string? CozeAccountId,
+    [property: JsonPropertyName("owner_uid")] string? OwnerUid);
+
+public sealed record CozeOpenSpaceMemberRequestItem(
+    [property: JsonPropertyName("user_id")] string? UserId,
+    [property: JsonPropertyName("role_type")] string? RoleType);
+
+public sealed record CozeOpenAddSpaceMemberRequest(
+    [property: JsonPropertyName("users")] IReadOnlyList<CozeOpenSpaceMemberRequestItem>? Users);
+
+public sealed record CozeOpenRemoveSpaceMemberRequest(
+    [property: JsonPropertyName("user_ids")] IReadOnlyList<string>? UserIds);
+
+public sealed record CozeOpenApplyJoinSpaceRequest(
+    [property: JsonPropertyName("user_ids")] IReadOnlyList<string>? UserIds);
+
+public sealed record CozeOpenUpdateSpaceMemberRequest(
+    [property: JsonPropertyName("role_type")] string? RoleType);
+
+public sealed record CozeOpenSwitchBotDevelopModeRequest(
+    [property: JsonPropertyName("collaboration_mode")] string? CollaborationMode);
 
 public sealed record CozeGetTypeListRequest(
     int? model_scene,

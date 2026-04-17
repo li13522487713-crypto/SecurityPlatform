@@ -68,13 +68,14 @@ export function OverflowTagList<T extends TagProps = TagProps>({
   disableMore,
 }: OverflowTagListProps<T>) {
   const renderTags = (tags: T[]) =>
-    tags.map(tag => {
+    tags.map((tag, index) => {
       const { tooltip, key } = tag;
+      const itemKey = key ?? `overflow-tag-${index}`;
       const tagItemContent =
         tagItemRenderer?.(tag) || defaultTagItemRenderer(tag);
       const tagItem = (
         <div
-          key={key}
+          key={itemKey}
           className={classnames(TAG_ITEM_IDENTIFIER_CLASS, 'max-w-full')}
         >
           {tagItemContent}
@@ -85,7 +86,7 @@ export function OverflowTagList<T extends TagProps = TagProps>({
       }
       return (
         <Tooltip
-          key={key ? `tooltip-${key}` : undefined}
+          key={`tooltip-${itemKey}`}
           content={<span className="coz-fg-primary text-lg">{tooltip}</span>}
           style={{ backgroundColor: 'rgba(var(--coze-bg-3), 1)' }}
         >

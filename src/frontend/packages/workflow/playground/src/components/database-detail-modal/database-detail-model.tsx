@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { useCallback } from 'react';
+
 import { I18n } from '@coze-arch/i18n';
 import { Modal } from '@coze-arch/bot-semi';
 import { DatabaseDetailComponent } from '@coze-data/database-v2';
@@ -39,6 +41,12 @@ export function DatabaseDetailModal() {
 
   const { projectCommitVersion } = useGlobalState();
 
+  const scheduleClose = useCallback(() => {
+    queueMicrotask(() => {
+      close();
+    });
+  }, [close]);
+
   if (!databaseID) {
     return null;
   }
@@ -62,7 +70,7 @@ export function DatabaseDetailModal() {
         databaseId={databaseID}
         enterFrom="workflow"
         initialTab={tab}
-        onClose={() => close()}
+        onClose={scheduleClose}
         addRemoveButtonText={addRemoveButtonText}
         onClickAddRemoveButton={() => {
           if (isAddedInWorkflow) {
@@ -71,7 +79,7 @@ export function DatabaseDetailModal() {
             onChangeDatabaseToWorkflow(databaseID);
           }
 
-          close();
+          scheduleClose();
         }}
       />
     </Modal>

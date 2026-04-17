@@ -55,12 +55,7 @@ export const WorkflowInfo = () => {
           style={{ maxWidth: 300 }}
           strong
           ellipsis={{
-            showTooltip: {
-              opts: {
-                content: info?.name || '-',
-                style: { wordBreak: 'break-word' },
-              },
-            },
+            showTooltip: true,
           }}
         >
           {info?.name || '-'}
@@ -68,7 +63,6 @@ export const WorkflowInfo = () => {
 
         <Tooltip
           content={info?.desc || '-'}
-          style={{ wordBreak: 'break-word', maxWidth: '300px' }}
         >
           <IconButton
             icon={<IconCozInfoCircle />}

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Component, Suspense, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
+import { Component, Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
@@ -10,6 +10,8 @@ import type {
 } from "@atlas/module-admin-react";
 import type { ExploreModuleApi } from "@atlas/module-explore-react";
 import type {
+  DevelopFocus,
+  DevelopResourceSummary,
   StudioModuleApi
 } from "@atlas/module-studio-react";
 import {
@@ -74,6 +76,7 @@ import {
   signPath
 } from "@atlas/app-shell-shared";
 import { lazyNamed } from "./lazy-named";
+import type { AppLocale } from "./messages";
 import { AuthProvider, useAuth } from "./auth-context";
 import { BootstrapProvider, useBootstrap } from "./bootstrap-context";
 import { AppI18nProvider, useAppI18n } from "./i18n";
@@ -288,6 +291,7 @@ import {
 import {
   createWorkflow as createWorkflowDefinition,
   listWorkflows,
+  type WorkflowListItem,
   saveWorkflowDraft
 } from "../services/api-workflow";
 import {
@@ -322,7 +326,6 @@ const loadAdminModule = () => import("@atlas/module-admin-react");
 const loadExploreModule = () => import("@atlas/module-explore-react");
 const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
-const loadCozeWorkspaceDevelopModule = () => import("@coze-studio/workspace-adapter/develop");
 
 
 const CozeShell = lazyNamed(loadCozeShellModule, "CozeShell");
@@ -363,10 +366,10 @@ const PluginDetailPage = lazyNamed(loadStudioModule, "PluginDetailPage");
 const PluginsPage = lazyNamed(loadStudioModule, "PluginsPage");
 const PublishCenterPage = lazyNamed(loadStudioModule, "PublishCenterPage");
 const ResourceReferenceCard = lazyNamed(loadStudioModule, "ResourceReferenceCard");
+const StudioWorkspacePage = lazyNamed(loadStudioModule, "StudioWorkspacePage");
 const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
 const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
-const CozeWorkspaceDevelopPage = lazyNamed(loadCozeWorkspaceDevelopModule, "Develop");
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
@@ -710,7 +713,7 @@ function normalizeExploreLocalPath(appKey: string, path: string): string {
     return `${studioDatabasesPath(appKey)}/${path.slice("/databases/".length)}`;
   }
 
-  if (path.startsWith("/work_flow/") || path.startsWith("/chat_flow/")) {
+  if (path.startsWith("/workflows/") || path.startsWith("/chatflows/")) {
     return `/apps/${encodeURIComponent(appKey)}${path}`;
   }
 
@@ -1503,7 +1506,7 @@ function buildWorkflowWorkbenchPath(appKey: string, workflowId?: string, content
 }
 
 function buildChatflowWorkbenchPath(appKey: string, workflowId?: string, contentMode: WorkflowWorkbenchContentMode = "canvas") {
-  const basePath = `/apps/${encodeURIComponent(appKey)}/chat_flow`;
+  const basePath = `/apps/${encodeURIComponent(appKey)}/chatflows`;
   const pathname = contentMode === "canvas"
     ? basePath
     : `${basePath}/${contentMode === "session" ? "session" : "variables"}`;
@@ -1515,6 +1518,123 @@ function buildChatflowWorkbenchPath(appKey: string, workflowId?: string, content
   return query ? `${pathname}?${query}` : pathname;
 }
 
+const DEVELOP_FOCUS_VALUES: DevelopFocus[] = [
+  "overview",
+  "agents",
+  "projects",
+  "workflow",
+  "chatflow",
+  "plugins",
+  "data",
+  "models",
+  "chat"
+];
+
+function resolveDevelopFocus(searchParams: URLSearchParams, fallback: DevelopFocus): DevelopFocus {
+  const focus = searchParams.get("focus");
+  return focus && DEVELOP_FOCUS_VALUES.includes(focus as DevelopFocus) ? focus as DevelopFocus : fallback;
+}
+
+function mapWorkflowStatusLabel(status: WorkflowListItem["status"], locale: AppLocale): string {
+  if (status === 1) {
+    return locale === "en-US" ? "Published" : "已发布";
+  }
+
+  return locale === "en-US" ? "Draft" : "草稿";
+}
+
+function toDevelopWorkflowSummary(item: WorkflowListItem, locale: AppLocale): DevelopResourceSummary {
+  return {
+    id: item.id,
+    kind: item.mode === 1 ? "chatflow" : "workflow",
+    title: item.name,
+    description: item.description,
+    status: mapWorkflowStatusLabel(item.status, locale),
+    updatedAt: item.updatedAt,
+    meta: typeof item.latestVersionNumber === "number"
+      ? locale === "en-US"
+        ? `Version ${item.latestVersionNumber}`
+        : `版本 ${item.latestVersionNumber}`
+      : undefined
+  };
+}
+
+function useWorkspaceDevelopResources(locale: AppLocale, workspaceId: string) {
+  const [workflowItems, setWorkflowItems] = useState<DevelopResourceSummary[]>([]);
+  const [chatflowItems, setChatflowItems] = useState<DevelopResourceSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadWorkflowResources() {
+      try {
+        const response = await listWorkflows(1, 100, undefined, workspaceId);
+        if (cancelled) {
+          return;
+        }
+
+        const items = (response.data?.items ?? []).map(item => toDevelopWorkflowSummary(item, locale));
+        setWorkflowItems(items.filter(item => item.kind === "workflow"));
+        setChatflowItems(items.filter(item => item.kind === "chatflow"));
+      } catch {
+        if (!cancelled) {
+          setWorkflowItems([]);
+          setChatflowItems([]);
+        }
+      }
+    }
+
+    void loadWorkflowResources();
+    return () => {
+      cancelled = true;
+    };
+  }, [locale, workspaceId]);
+
+  return { workflowItems, chatflowItems };
+}
+
+function WorkspaceStudioRoute({
+  defaultFocus = "overview"
+}: {
+  defaultFocus?: DevelopFocus;
+}) {
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const appKey = useResolvedAppKey();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { locale } = useAppI18n();
+  const { studioApi } = useAppApis(appKey);
+  const { workflowItems, chatflowItems } = useWorkspaceDevelopResources(locale, workspace.id);
+  const focus = resolveDevelopFocus(searchParams, defaultFocus);
+
+  return (
+    <StudioWorkspacePage
+      api={studioApi}
+      locale={locale}
+      focus={focus}
+      workflowItems={workflowItems}
+      chatflowItems={chatflowItems}
+      onOpenBot={botId => navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, botId))}
+      onOpenUsers={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "users"))}
+      onOpenRoles={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "roles"))}
+      onOpenDepartments={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "departments"))}
+      onOpenPositions={() => navigate(orgWorkspaceManagePath(orgId, workspace.id, "positions"))}
+      onOpenWorkflow={workflowId => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow", workflowId))}
+      onOpenChatflow={workflowId => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "chatflow", workflowId))}
+      onOpenWorkflows={() => navigate(orgWorkspaceWorkflowsPath(orgId, workspace.id))}
+      onOpenChatflows={() => navigate(orgWorkspaceChatflowsPath(orgId, workspace.id))}
+      onOpenAgentChat={() => navigate(orgWorkspaceChatPath(orgId, workspace.id))}
+      onOpenModelConfigs={() => navigate(orgWorkspaceModelConfigsPath(orgId, workspace.id))}
+      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
+      onOpenApplicationDetail={appId => navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, appId))}
+      onOpenApplicationPublish={appId => navigate(orgWorkspaceAppPublishPath(orgId, workspace.id, appId))}
+      onCreateWorkflow={() => navigate(`${orgWorkspaceWorkflowsPath(orgId, workspace.id)}?create=1`)}
+      onCreateChatflow={() => navigate(`${orgWorkspaceChatflowsPath(orgId, workspace.id)}?create=1`)}
+    />
+  );
+}
+
 function WorkflowEditorAliasRedirect() {
   const { appKey = "", id = "" } = useParams();
   return <Navigate to={buildWorkflowWorkbenchPath(appKey, id)} replace />;
@@ -1522,7 +1642,7 @@ function WorkflowEditorAliasRedirect() {
 
 function ChatflowsAliasRedirect() {
   const { appKey = "" } = useParams();
-  return <Navigate to={`/apps/${encodeURIComponent(appKey)}/chat_flow`} replace />;
+  return <Navigate to={`/apps/${encodeURIComponent(appKey)}/chatflows`} replace />;
 }
 
 function ChatflowEditorAliasRedirect() {
@@ -1586,7 +1706,7 @@ function AppShellRoute() {
       overflowTestId: "app-sidebar-section-more-workspace",
       overflowItems: [
         { key: "projects", label: t("shellNavApplications"), icon: navGlyph("APP"), path: studioAppsPath(appKey), testId: "app-sidebar-item-projects" },
-        { key: "chatflow", label: t("shellNavChatflow"), icon: navGlyph("CF"), path: `/apps/${encodeURIComponent(appKey)}/chat_flow`, testId: "app-sidebar-item-chatflows" },
+        { key: "chatflow", label: t("shellNavChatflow"), icon: navGlyph("CF"), path: `/apps/${encodeURIComponent(appKey)}/chatflows`, testId: "app-sidebar-item-chatflows" },
         { key: "assistant", label: t("sidebarAssistant"), icon: navGlyph("AI"), path: studioAssistantToolsPath(appKey), testId: "app-sidebar-item-ai-assistant" },
         { key: "data", label: t("sidebarData"), icon: navGlyph("DT"), path: studioDataPath(appKey), testId: "app-sidebar-item-data" },
         { key: "knowledge-bases", label: t("sidebarKnowledge"), icon: navGlyph("KB"), path: studioKnowledgeBasesPath(appKey), testId: "app-sidebar-item-knowledge-bases" },
@@ -1681,8 +1801,8 @@ function AppShellRoute() {
   const shellHeaderCopy = shellHeaderCopyMap[primaryKey] ?? defaultHeaderCopy;
 
   const isWorkflowWorkbenchRoute =
-    location.pathname.includes("/work_flow") ||
-    location.pathname.includes("/chat_flow");
+    location.pathname.includes("/workflows") ||
+    location.pathname.includes("/chatflows");
 
   if (isWorkflowWorkbenchRoute) {
     return (
@@ -1752,12 +1872,7 @@ function KnowledgeUploadRoute() {
 }
 
 function DevelopRoute() {
-  const bootstrap = useBootstrap();
-  return (
-    <WorkflowRuntimeBoundary>
-      <CozeWorkspaceDevelopPage spaceId={bootstrap.spaceId} />
-    </WorkflowRuntimeBoundary>
-  );
+  return <WorkspaceStudioRoute defaultFocus="overview" />;
 }
 
 function DashboardRoute() {
@@ -1874,22 +1989,85 @@ function WorkspaceWorkflowWorkbenchRoute({
 }) {
   const params = useParams();
   const [searchParams] = useSearchParams();
+  const orgId = useResolvedOrgId();
   const navigate = useNavigate();
   const workspace = useWorkspaceContext();
+  const { t } = useAppI18n();
+  const [creationError, setCreationError] = useState("");
+  const localizeCreationError = useCallback((error: Error | null) => {
+    const fallback = mode === "chatflow" ? t("studioCreateChatflowFailed") : t("studioCreateWorkflowFailed");
+    if (!error) {
+      return fallback;
+    }
+
+    const message = error.message.trim();
+    if (!message || /^Request failed with status code \d+$/i.test(message) || /^Network Error$/i.test(message)) {
+      return fallback;
+    }
+
+    return `${fallback} ${message}`;
+  }, [mode, t]);
   const selectedWorkflowId =
     params.workflowId ??
     params.id ??
     searchParams.get("workflow_id") ??
     searchParams.get("workflowId") ??
     "";
+  const shouldCreate = searchParams.get("create") === "1";
   const returnUrl = searchParams.get("return_url") ?? searchParams.get("returnUrl") ?? undefined;
 
+  useEffect(() => {
+    if (selectedWorkflowId || !shouldCreate) {
+      return;
+    }
+
+    let cancelled = false;
+    setCreationError("");
+
+    async function createAndRedirect() {
+      try {
+        const result = await createWorkflowDefinition({
+          name: mode === "chatflow" ? t("studioCreateChatflowDefaultName") : t("studioCreateWorkflowDefaultName"),
+          mode: mode === "chatflow" ? 1 : 0,
+          workspaceId: workspace.id
+        });
+        const workflowId = result.data ?? "";
+
+        if (!result.success || !workflowId) {
+          throw new Error(result.message || (mode === "chatflow" ? t("studioCreateChatflowFailed") : t("studioCreateWorkflowFailed")));
+        }
+
+        if (!cancelled) {
+          navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, mode, workflowId), { replace: true });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCreationError(localizeCreationError(error instanceof Error ? error : null));
+        }
+      }
+    }
+
+    void createAndRedirect();
+    return () => {
+      cancelled = true;
+    };
+  }, [localizeCreationError, mode, navigate, orgId, selectedWorkflowId, shouldCreate, t, workspace.id]);
+
   if (!selectedWorkflowId) {
-    return (
-      <WorkflowRuntimeBoundary>
-        <CozeWorkspaceDevelopPage spaceId={workspace.id} />
-      </WorkflowRuntimeBoundary>
-    );
+    if (shouldCreate) {
+      return (
+        <div className="atlas-centered-page" data-testid={`workspace-${mode}-create`}>
+          <div className="atlas-status-card atlas-status-card--workflow">
+            <div className="atlas-status-card__body">
+              <h1>{creationError ? (mode === "chatflow" ? t("studioCreateChatflowFailed") : t("studioCreateWorkflowFailed")) : (mode === "chatflow" ? t("studioCreateChatflowPending") : t("studioCreateWorkflowPending"))}</h1>
+              <p>{creationError || t("workflowRuntimePreparing")}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return <WorkspaceStudioRoute defaultFocus={mode} />;
   }
 
   return (
@@ -2390,12 +2568,7 @@ function WorkspaceKnowledgeUploadRoute() {
 }
 
 function WorkspaceDevelopRoute() {
-  const workspace = useWorkspaceContext();
-  return (
-    <WorkflowRuntimeBoundary>
-      <CozeWorkspaceDevelopPage spaceId={workspace.id} />
-    </WorkflowRuntimeBoundary>
-  );
+  return <WorkspaceStudioRoute defaultFocus="overview" />;
 }
 
 function WorkspaceManageRoute() {
@@ -2680,7 +2853,7 @@ function StandaloneWorkflowRoute() {
       nextSearch.set("workflow_id", workflowId);
     }
     const queryText = nextSearch.toString();
-    return <Navigate to={`/apps/${encodeURIComponent(resolvedAppKey)}/work_flow${queryText ? `?${queryText}` : ""}`} replace />;
+    return <Navigate to={`/apps/${encodeURIComponent(resolvedAppKey)}/workflows${queryText ? `?${queryText}` : ""}`} replace />;
   }
 
   return <Navigate to={`/apps/${encodeURIComponent(resolvedAppKey)}${location.pathname}${location.search}`} replace />;
@@ -2817,7 +2990,7 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />
   },
   {
-    path: "/work_flow",
+    path: "/workflows",
     element: <StandaloneWorkflowRoute />,
     handle: STANDALONE_WORKFLOW_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />

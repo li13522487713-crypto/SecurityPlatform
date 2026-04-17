@@ -43,6 +43,7 @@ export function DashboardPage({
   onCreateWorkflow
 }: DashboardPageProps) {
   const { hasEnabledModel } = useStudioContext();
+  const L = (zhCN: string, enUS: string) => locale === "en-US" ? enUS : zhCN;
 
   const loadDashboardData = useCallback(async () => {
     return await api.getDashboardStats();
@@ -154,43 +155,45 @@ export function DashboardPage({
           <Space vertical align="start" style={{ width: "100%" }} spacing={24}>
             <section className="module-studio__dashboard-hero">
               <div className="module-studio__dashboard-hero-copy">
-                <Tag color="indigo" size="large">Workspace Home</Tag>
+                <Tag color="indigo" size="large">{L("工作区首页", "Workspace Home")}</Tag>
                 <Typography.Title heading={2} style={{ margin: 0 }}>
-                  AI Studio 工作台
+                  {L("AI Studio 工作台", "AI Studio Workspace")}
                 </Typography.Title>
                 <Typography.Text type="tertiary" className="module-studio__dashboard-hero-text">
-                  像 Coze 的工作空间首页一样，把创建入口、继续工作和发布状态收敛到一个总览页里。
-                  左侧负责模块导航，这里只保留当前工作区最需要关注的动作与状态。
+                  {L(
+                    "像 Coze 的工作空间首页一样，把创建入口、继续工作和发布状态收敛到一个总览页里。左侧负责模块导航，这里只保留当前工作区最需要关注的动作与状态。",
+                    "Bring creation, continuation, and publish readiness into one concise workspace overview while the sidebar keeps full module navigation."
+                  )}
                 </Typography.Text>
                 <Space wrap className="module-studio__dashboard-hero-actions">
                   {onNavigateToPublish ? (
                     <Button theme="solid" type="primary" onClick={onNavigateToPublish}>
-                      查看发布中心
+                      {L("查看发布中心", "Open Publish Center")}
                     </Button>
                   ) : null}
                   {onNavigateToModels ? (
-                    <Button onClick={onNavigateToModels}>模型配置</Button>
+                    <Button onClick={onNavigateToModels}>{L("模型配置", "Model Configs")}</Button>
                   ) : null}
                 </Space>
               </div>
 
               <div className="module-studio__dashboard-hero-side">
                 <div className="module-studio__dashboard-status-card">
-                  <span className="module-studio__dashboard-status-label">模型状态</span>
-                  <strong>{hasEnabledModel ? "已可用" : "待配置"}</strong>
+                  <span className="module-studio__dashboard-status-label">{L("模型状态", "Model Status")}</span>
+                  <strong>{hasEnabledModel ? L("已可用", "Ready") : L("待配置", "Setup Required")}</strong>
                   <p>
                     {hasEnabledModel
-                      ? `当前已有 ${data.enabledModelCount} 个模型可供调试与运行。`
-                      : "当前还没有可运行的模型，智能体与工作流无法进入完整调试流程。"}
+                      ? L(`当前已有 ${data.enabledModelCount} 个模型可供调试与运行。`, `${data.enabledModelCount} model connections are ready for debugging and runtime execution.`)
+                      : L("当前还没有可运行的模型，智能体与工作流无法进入完整调试流程。", "No runnable model is enabled yet, so agents and workflows cannot enter the full debug flow.")}
                   </p>
                 </div>
                 <div className="module-studio__dashboard-status-card">
-                  <span className="module-studio__dashboard-status-label">发布状态</span>
-                  <strong>{data.pendingPublishItems.length} 项待处理</strong>
+                  <span className="module-studio__dashboard-status-label">{L("发布状态", "Publish Status")}</span>
+                  <strong>{L(`${data.pendingPublishItems.length} 项待处理`, `${data.pendingPublishItems.length} pending`)}</strong>
                   <p>
                     {data.pendingPublishItems.length > 0
-                      ? "草稿变更尚未进入发布链路，建议优先处理待发布资源。"
-                      : "当前工作区没有待发布变更，可以继续迭代新功能。"}
+                      ? L("草稿变更尚未进入发布链路，建议优先处理待发布资源。", "Draft changes have not entered the release pipeline yet. Prioritize the pending assets first.")
+                      : L("当前工作区没有待发布变更，可以继续迭代新功能。", "There are no pending releases in this workspace, so you can keep iterating on new work.")}
                   </p>
                 </div>
               </div>
@@ -209,10 +212,10 @@ export function DashboardPage({
               <div className="module-studio__dashboard-section-head">
                 <div>
                   <Typography.Title heading={5} style={{ margin: 0 }}>
-                    工作区总览
+                    {L("工作区总览", "Workspace Overview")}
                   </Typography.Title>
                   <Typography.Text type="tertiary">
-                    快速了解当前空间里的核心资产规模，不在首页重复堆叠模块入口。
+                    {L("快速了解当前空间里的核心资产规模，不在首页重复堆叠模块入口。", "Check the scale of core workspace assets without duplicating the full module directory on the homepage.")}
                   </Typography.Text>
                 </div>
               </div>
@@ -252,17 +255,17 @@ export function DashboardPage({
                 title={
                   <div className="module-studio__dashboard-panel-title">
                     <Typography.Title heading={5} style={{ margin: 0 }}>
-                      继续工作
+                      {L("继续工作", "Continue Working")}
                     </Typography.Title>
                     <Typography.Text type="tertiary">
-                      最近访问的资源会在这里聚合，方便直接回到上次中断的位置。
+                      {L("最近访问的资源会在这里聚合，方便直接回到上次中断的位置。", "Recently visited resources gather here so you can jump right back to where you left off.")}
                     </Typography.Text>
                   </div>
                 }
               >
                 <List
                   dataSource={data.recentActivities}
-                  emptyContent={<Empty title="暂无访问记录" image={<IconBox style={{ fontSize: 48, color: "var(--semi-color-tertiary)" }} />} />}
+                  emptyContent={<Empty title={L("暂无访问记录", "No recent activity")} image={<IconBox style={{ fontSize: 48, color: "var(--semi-color-tertiary)" }} />} />}
                   renderItem={item => (
                     <List.Item
                       className="module-studio__dashboard-list-item"
@@ -276,10 +279,10 @@ export function DashboardPage({
                             <div className="module-studio__dashboard-list-head">
                               <span>{item.name}</span>
                               <Tag size="small" color="white">{getResourceLabel(item.resourceType)}</Tag>
-                              {item.publishStatus?.toLowerCase() === "published" ? <Tag size="small" color="green">已发布</Tag> : null}
+                              {item.publishStatus?.toLowerCase() === "published" ? <Tag size="small" color="green">{L("已发布", "Published")}</Tag> : null}
                             </div>
                             <Typography.Text size="small" type="tertiary">
-                              最后编辑于 {formatTimestamp(item.updatedAt)}
+                              {L("最后编辑于", "Last edited")} {formatTimestamp(item.updatedAt)}
                             </Typography.Text>
                           </div>
                         </div>
@@ -295,28 +298,28 @@ export function DashboardPage({
                 title={
                   <div className="module-studio__dashboard-panel-title">
                     <Typography.Title heading={5} style={{ margin: 0 }}>
-                      发布与状态
+                      {L("发布与状态", "Release Status")}
                     </Typography.Title>
                     <Typography.Text type="tertiary">
-                      首页只保留当前需要处理的状态，不再重复展示完整模块目录。
+                      {L("首页只保留当前需要处理的状态，不再重复展示完整模块目录。", "Keep only the statuses that need action here instead of repeating the whole module map.")}
                     </Typography.Text>
                   </div>
                 }
                 headerExtraContent={
                   data.pendingPublishItems.length > 0 && onNavigateToPublish ? (
                     <Button type="primary" theme="borderless" onClick={onNavigateToPublish}>
-                      前往发布中心
+                      {L("前往发布中心", "Open Publish Center")}
                     </Button>
                   ) : undefined
                 }
               >
                 <div className="module-studio__dashboard-side-metrics">
                   <div className="module-studio__dashboard-side-metric">
-                    <span>模型可用性</span>
-                    <strong>{hasEnabledModel ? "已满足运行条件" : "需要先启用模型"}</strong>
+                    <span>{L("模型可用性", "Model Availability")}</span>
+                    <strong>{hasEnabledModel ? L("已满足运行条件", "Runtime Ready") : L("需要先启用模型", "Enable a model first")}</strong>
                   </div>
                   <div className="module-studio__dashboard-side-metric">
-                    <span>待发布更新</span>
+                    <span>{L("待发布更新", "Pending Releases")}</span>
                     <strong>{data.pendingPublishItems.length}</strong>
                   </div>
                 </div>
@@ -325,7 +328,7 @@ export function DashboardPage({
                   dataSource={data.pendingPublishItems}
                   emptyContent={
                     <div className="module-studio__dashboard-empty-state">
-                      <Typography.Text type="tertiary">所有修改均已发布</Typography.Text>
+                      <Typography.Text type="tertiary">{L("所有修改均已发布", "All changes are already published")}</Typography.Text>
                     </div>
                   }
                   renderItem={item => (
@@ -340,7 +343,7 @@ export function DashboardPage({
                               {item.resourceName}
                             </Typography.Text>
                             <Typography.Text size="small" type="tertiary">
-                              {getResourceLabel(item.resourceType)} · 更新于 {formatTimestamp(item.updatedAt)}
+                              {getResourceLabel(item.resourceType)} · {L("更新于", "Updated")} {formatTimestamp(item.updatedAt)}
                             </Typography.Text>
                           </div>
                         </div>

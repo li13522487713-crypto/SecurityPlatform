@@ -15,7 +15,7 @@
  */
 
 import 'reflect-metadata';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { WorkflowPlayground } from '@coze-workflow/playground/workflow-playground';
 import {
@@ -61,8 +61,18 @@ export function WorkflowPage(props: WorkflowPageProps = {}): React.ReactNode {
     returnUrl,
   } = usePageParams(props);
 
-  const [initOnce, setInitOnce] = useState(false);
+  const initOnceRef = useRef(false);
+  const fitViewScheduleTimerRef = useRef<number>();
   const { navigateBack } = useNavigateBack();
+
+  useEffect(
+    () => () => {
+      if (fitViewScheduleTimerRef.current) {
+        window.clearTimeout(fitViewScheduleTimerRef.current);
+      }
+    },
+    [],
+  );
 
   /** Whether it is read-only mode, derived from the process exploration module */
   const readonly = from === 'explore';
@@ -92,22 +102,33 @@ export function WorkflowPage(props: WorkflowPageProps = {}): React.ReactNode {
           }
 
           // onInit may be called multiple times, it only needs to be executed once
-          if (!initOnce) {
-            // Read the node_id parameters on the link and scroll to the corresponding node
-            if (nodeId) {
-              workflowPlaygroundRef.current?.scrollToNode(nodeId);
-            }
-
-            // Read execute_id show the corresponding execution result
-            if (executeId) {
-              workflowPlaygroundRef.current?.showTestRunResult(
-                executeId,
-                subExecuteId,
-              );
-            }
-
-            setInitOnce(true);
+          if (initOnceRef.current) {
+            return;
           }
+
+          // Read the node_id parameters on the link and scroll to the corresponding node
+          if (nodeId) {
+            workflowPlaygroundRef.current?.scrollToNode(nodeId);
+          } else {
+            // The first screen may be initialized in a hidden container, so run fitView twice.
+            // The second run serves as one-time compensation when layout becomes available later.
+            window.requestAnimationFrame(() => {
+              workflowPlaygroundRef.current?.triggerFitView();
+              fitViewScheduleTimerRef.current = window.setTimeout(() => {
+                workflowPlaygroundRef.current?.triggerFitView();
+              }, 120);
+            });
+          }
+
+          // Read execute_id show the corresponding execution result
+          if (executeId) {
+            workflowPlaygroundRef.current?.showTestRunResult(
+              executeId,
+              subExecuteId,
+            );
+          }
+
+          initOnceRef.current = true;
         }}
         from={from}
         onBackClick={workflowState => {

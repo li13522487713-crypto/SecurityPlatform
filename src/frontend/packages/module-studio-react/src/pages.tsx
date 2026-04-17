@@ -57,6 +57,7 @@ import type {
   ModelConfigPromptTestRequest,
   ModelConfigStats,
   ModelConfigUpdateRequest,
+  StudioLocale,
   WorkspaceIdeResource,
   WorkspaceIdeSummary,
   WorkbenchTrace,
@@ -142,12 +143,8 @@ function Surface({
   );
 }
 
-function formatDate(value?: string) {
-  if (!value) {
-    return "-";
-  }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+function localizedText(locale: StudioLocale, zhCN: string, enUS: string): string {
+  return locale === "en-US" ? enUS : zhCN;
 }
 
 function resolvePluginClassificationTag(
@@ -317,23 +314,31 @@ interface SecurityIncidentTaskCard {
   nextActions: string[];
 }
 
-function parseJsonSafely(value?: string): unknown {
+type JsonPrimitive = string | number | boolean | null;
+type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+type JsonObject = { [key: string]: JsonValue };
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseJsonSafely(value?: string): JsonValue | undefined {
   if (!value) {
-    return null;
+    return undefined;
   }
 
   try {
-    return JSON.parse(value);
+    return JSON.parse(value) as JsonValue;
   } catch {
     const decoded = decodeHtmlEntities(value);
     if (!decoded || decoded === value) {
-      return null;
+      return undefined;
     }
 
     try {
-      return JSON.parse(decoded);
+      return JSON.parse(decoded) as JsonValue;
     } catch {
-      return null;
+      return undefined;
     }
   }
 }
@@ -352,16 +357,16 @@ function toSecurityIncidentTaskCard(outputsJson?: string): SecurityIncidentTaskC
   const initial = parseJsonSafely(outputsJson);
   if (typeof initial === "string") {
     const nested = parseJsonSafely(initial);
-    return isRecord(nested) ? extractSecurityIncidentTaskCard(nested) : null;
+    return isJsonObject(nested) ? extractSecurityIncidentTaskCard(nested) : null;
   }
 
-  if (!isRecord(initial)) {
+  if (!isJsonObject(initial)) {
     return null;
   }
 
   if (typeof initial.result === "string") {
     const nested = parseJsonSafely(initial.result);
-    if (isRecord(nested)) {
+    if (isJsonObject(nested)) {
       return extractSecurityIncidentTaskCard(nested);
     }
   }
@@ -369,7 +374,7 @@ function toSecurityIncidentTaskCard(outputsJson?: string): SecurityIncidentTaskC
   return extractSecurityIncidentTaskCard(initial);
 }
 
-function extractSecurityIncidentTaskCard(payload: Record<string, unknown>): SecurityIncidentTaskCard | null {
+function extractSecurityIncidentTaskCard(payload: JsonObject): SecurityIncidentTaskCard | null {
   const nextActions = Array.isArray(payload.nextActions)
     ? payload.nextActions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : [];
@@ -409,12 +414,27 @@ function formatWorkflowResultMessage(card: SecurityIncidentTaskCard): string {
   return lines.join("\n");
 }
 
-function formatModelConfigEndpointSummary(baseUrl?: string): string {
-  return baseUrl?.trim() ? "接入地址已配置" : "接入地址未配置";
+function formatDate(value?: string, locale: StudioLocale = "zh-CN") {
+  if (!value) {
+    return "-";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString(locale === "en-US" ? "en-US" : "zh-CN");
+}
+
+function formatModelConfigEndpointSummary(baseUrl: string | undefined, locale: StudioLocale): string {
+  return baseUrl?.trim()
+    ? localizedText(locale, "接入地址已配置", "Endpoint configured")
+    : localizedText(locale, "接入地址未配置", "Endpoint not configured");
 }
 
 export function DevelopPage({
   api,
+  locale,
   focus = "overview",
   workflowItems,
   chatflowItems,
@@ -484,6 +504,20 @@ export function DevelopPage({
     isDefault: false
   });
   const [submitting, setSubmitting] = useState(false);
+  const L = (zhCN: string, enUS: string) => localizedText(locale, zhCN, enUS);
+  const localizeErrorMessage = (error: Error | null, zhCN: string, enUS: string) => {
+    const fallback = L(zhCN, enUS);
+    if (!error) {
+      return fallback;
+    }
+
+    const message = error.message.trim();
+    if (!message || /^Request failed with status code \d+$/i.test(message) || /^Network Error$/i.test(message)) {
+      return fallback;
+    }
+
+    return `${fallback} ${message}`;
+  };
 
   const load = async () => {
     try {
@@ -529,7 +563,7 @@ export function DevelopPage({
         recentCount: 0
       });
       setWorkspaceResources([]);
-      Toast.error(error instanceof Error ? error.message : "加载开发台数据失败。");
+      Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "加载开发台数据失败。", "Failed to load the studio workspace."));
     }
   };
 
@@ -591,7 +625,7 @@ export function DevelopPage({
           setSelectedApplicationDetail(null);
           setSelectedApplicationPublishRecords([]);
           setSelectedApplicationConversationTemplates([]);
-          Toast.error(error instanceof Error ? error.message : "加载应用详情失败。");
+          Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "加载应用详情失败。", "Failed to load the application details."));
         }
       } finally {
         if (!cancelled) {
@@ -623,50 +657,50 @@ export function DevelopPage({
   const summaryCards = [
     {
       key: "projects",
-      title: "应用",
-      description: "把项目资源、组织协作和编排能力收拢到同一个应用工作台里。",
+      title: L("应用", "Applications"),
+      description: L("把项目资源、组织协作和编排能力收拢到同一个应用工作台里。", "Bring app resources, collaboration, and orchestration into one shared delivery surface."),
       count: workspaceSummary?.appCount ?? applications.length,
-      actionLabel: "查看应用",
+      actionLabel: L("查看应用", "View Apps"),
       onClick: () => setActiveFocus("projects")
     },
     {
       key: "agents",
       title: "Agent",
-      description: "配置智能体、提示词和对话调试。",
+      description: L("配置智能体、提示词和对话调试。", "Configure agents, prompt behavior, and conversation debugging."),
       count: workspaceSummary?.agentCount ?? items.length,
-      actionLabel: "进入 Agent",
+      actionLabel: L("进入 Agent", "Open Agent"),
       onClick: () => setActiveFocus("agents")
     },
     {
       key: "workflow",
       title: "Workflow",
-      description: "编排自动化流程与测试运行。",
+      description: L("编排自动化流程与测试运行。", "Design automation flows and validate runs."),
       count: workspaceSummary?.workflowCount ?? workflowItems.length,
-      actionLabel: "进入 Workflow",
+      actionLabel: L("进入 Workflow", "Open Workflow"),
       onClick: onOpenWorkflows
     },
     {
       key: "chatflow",
       title: "Chatflow",
-      description: "面向对话流的编排与发布。",
+      description: L("面向对话流的编排与发布。", "Build and ship orchestration for conversational flows."),
       count: workspaceSummary?.chatflowCount ?? chatflowItems.length,
-      actionLabel: "进入 Chatflow",
+      actionLabel: L("进入 Chatflow", "Open Chatflow"),
       onClick: onOpenChatflows
     },
     {
       key: "models",
-      title: "模型配置",
-      description: "管理应用端大模型供应商与默认模型。",
+      title: L("模型配置", "Model Configs"),
+      description: L("管理应用端大模型供应商与默认模型。", "Manage model providers and default models for runtime."),
       count: models.length,
-      actionLabel: "打开模型配置",
+      actionLabel: L("打开模型配置", "Open Models"),
       onClick: onOpenModelConfigs
     },
     {
       key: "members",
-      title: "组织成员",
-      description: "组织架构能力并入 Coze 菜单，开发和治理不再割裂。",
+      title: L("组织成员", "Members"),
+      description: L("组织架构能力并入 Coze 菜单，开发和治理不再割裂。", "Governance lives alongside creation so delivery and organization stay aligned."),
       count: workspaceOverview?.memberCount ?? 0,
-      actionLabel: "成员管理",
+      actionLabel: L("成员管理", "Manage Members"),
       onClick: onOpenUsers
     }
   ];
@@ -720,7 +754,7 @@ export function DevelopPage({
 
   async function handleCreateAgent() {
     if (!agentDraft.name.trim()) {
-      Toast.warning("请先填写智能体名称。");
+      Toast.warning(L("请先填写智能体名称。", "Enter an agent name first."));
       return;
     }
 
@@ -731,7 +765,7 @@ export function DevelopPage({
         description: agentDraft.description.trim() || undefined,
         systemPrompt: composeAgentPromptSections({
           ...EMPTY_AGENT_PROMPT_SECTIONS,
-          persona: agentDraft.description.trim() || `${agentDraft.name.trim()} 的角色说明`
+          persona: agentDraft.description.trim() || L(`${agentDraft.name.trim()} 的角色说明`, `Role profile for ${agentDraft.name.trim()}`)
         }),
         enableMemory: true,
         enableShortTermMemory: true,
@@ -739,11 +773,11 @@ export function DevelopPage({
         longTermMemoryTopK: 3
       });
       setAgentDialogVisible(false);
-      Toast.success("智能体已创建。");
+      Toast.success(L("智能体已创建。", "Agent created."));
       await load();
       onOpenBot(botId);
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : "创建智能体失败。");
+      Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "创建智能体失败。", "Failed to create the agent."));
     } finally {
       setSubmitting(false);
     }
@@ -751,7 +785,7 @@ export function DevelopPage({
 
   async function handleSaveApplication() {
     if (!applicationDraft.name.trim()) {
-      Toast.warning("请先填写应用名称。");
+      Toast.warning(L("请先填写应用名称。", "Enter an application name first."));
       return;
     }
 
@@ -763,20 +797,20 @@ export function DevelopPage({
           description: applicationDraft.description?.trim() || undefined,
           icon: applicationDraft.icon?.trim() || undefined
         });
-        Toast.success("应用信息已更新。");
+        Toast.success(L("应用信息已更新。", "Application updated."));
       } else {
         const created = await api.createApplication({
           name: applicationDraft.name.trim(),
           description: applicationDraft.description?.trim() || undefined,
           icon: applicationDraft.icon?.trim() || undefined
         });
-        Toast.success("应用已创建。");
+        Toast.success(L("应用已创建。", "Application created."));
         onOpenWorkflow(created.workflowId);
       }
       setApplicationDialogVisible(false);
       await load();
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : "保存应用失败。");
+      Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "保存应用失败。", "Failed to save the application."));
     } finally {
       setSubmitting(false);
     }
@@ -784,22 +818,22 @@ export function DevelopPage({
 
   async function handleDeleteApplication(item: StudioApplicationSummary) {
     Modal.confirm({
-      title: "删除应用",
-      content: `确定删除应用 ${item.name} 吗？`,
+      title: L("删除应用", "Delete Application"),
+      content: L(`确定删除应用 ${item.name} 吗？`, `Delete application ${item.name}?`),
       onOk: async () => {
         try {
           await api.deleteApplication(item.id);
-          Toast.success("应用已删除。");
+          Toast.success(L("应用已删除。", "Application deleted."));
           await load();
         } catch (error) {
-          Toast.error(error instanceof Error ? error.message : "删除应用失败。");
+          Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "删除应用失败。", "Failed to delete the application."));
         }
       }
     });
   }
 
   async function handlePublishApplication(item: StudioApplicationSummary) {
-    const releaseNote = window.prompt("请输入发布说明（可选）", "") ?? "";
+    const releaseNote = window.prompt(L("请输入发布说明（可选）", "Enter release notes (optional)"), "") ?? "";
     try {
       await api.publishApplication(item.id, releaseNote.trim() || undefined);
       const [detail, publishRecords, templates] = await Promise.all([
@@ -810,22 +844,22 @@ export function DevelopPage({
       setSelectedApplicationDetail(detail);
       setSelectedApplicationPublishRecords(publishRecords);
       setSelectedApplicationConversationTemplates(templates);
-      Toast.success("应用已发布。");
+      Toast.success(L("应用已发布。", "Application published."));
       await load();
       setSelectedApplicationId(item.id);
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : "发布应用失败。");
+      Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "发布应用失败。", "Failed to publish the application."));
     }
   }
 
   async function handleCreateApplicationConversationTemplate() {
     if (!selectedApplication?.id) {
-      Toast.warning("请先选择一个应用。");
+      Toast.warning(L("请先选择一个应用。", "Select an application first."));
       return;
     }
 
     if (!applicationTemplateDraft.name.trim()) {
-      Toast.warning("请先填写会话模板名称。");
+      Toast.warning(L("请先填写会话模板名称。", "Enter a conversation template name first."));
       return;
     }
 
@@ -834,7 +868,7 @@ export function DevelopPage({
         ...applicationTemplateDraft,
         name: applicationTemplateDraft.name.trim()
       });
-      Toast.success("会话模板已创建。");
+      Toast.success(L("会话模板已创建。", "Conversation template created."));
       setApplicationTemplateDraft({
         name: "",
         createMethod: "manual",
@@ -843,7 +877,7 @@ export function DevelopPage({
       const templates = await api.getApplicationConversationTemplates(selectedApplication.id);
       setSelectedApplicationConversationTemplates(templates);
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : "创建会话模板失败。");
+      Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "创建会话模板失败。", "Failed to create the conversation template."));
     }
   }
 
@@ -854,11 +888,11 @@ export function DevelopPage({
 
     try {
       await api.deleteApplicationConversationTemplate(selectedApplication.id, templateId);
-      Toast.success("会话模板已删除。");
+      Toast.success(L("会话模板已删除。", "Conversation template deleted."));
       const templates = await api.getApplicationConversationTemplates(selectedApplication.id);
       setSelectedApplicationConversationTemplates(templates);
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : "删除会话模板失败。");
+      Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "删除会话模板失败。", "Failed to delete the conversation template."));
     }
   }
 
@@ -867,7 +901,7 @@ export function DevelopPage({
       await api.toggleWorkspaceFavorite(resource.resourceType, resource.resourceId, !resource.isFavorite);
       await load();
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : "更新收藏状态失败。");
+      Toast.error(localizeErrorMessage(error instanceof Error ? error : null, "更新收藏状态失败。", "Failed to update the favorite state."));
     }
   }
 
@@ -884,25 +918,57 @@ export function DevelopPage({
     }
   }
 
+  const formatDevelopDate = (value?: string) => formatDate(value, locale);
+  const getRecentResourceLabel = (resourceType: WorkspaceIdeResource["resourceType"]) => {
+    switch (resourceType) {
+      case "app":
+        return L("应用", "App");
+      case "agent":
+        return L("智能体", "Agent");
+      case "workflow":
+        return "Workflow";
+      case "chatflow":
+        return "Chatflow";
+      case "knowledge-base":
+        return L("知识库", "Knowledge Base");
+      case "database":
+        return L("数据库", "Database");
+      case "plugin":
+        return "Plugin";
+      default:
+        return resourceType;
+    }
+  };
+  const getRecentResourceActionLabel = (resourceType: WorkspaceIdeResource["resourceType"]) => {
+    switch (resourceType) {
+      case "plugin":
+      case "knowledge-base":
+      case "database":
+        return L("打开资源库", "Open Library");
+      default:
+        return L("继续编辑", "Continue");
+    }
+  };
+
   return (
     <Surface
-      title="项目开发"
-      subtitle="按 Coze 风格把应用、智能体、工作流与组织协作放进同一套开发台。"
+      title={L("项目开发", "Develop")}
+      subtitle={L("按 Coze 风格把应用、智能体、工作流与组织协作放进同一套开发台。", "Bring apps, agents, workflows, and team collaboration into one Coze-style workspace.")}
       testId="app-develop-page"
       toolbar={
         <Dropdown
           position="bottomRight"
           render={
             <div className="module-studio__coze-menu">
-              <button type="button" className="module-studio__coze-menu-item" onClick={openCreateApplicationDialog}>新建应用</button>
-              <button type="button" className="module-studio__coze-menu-item" onClick={openCreateAgentDialog}>新建智能体</button>
-              <button type="button" className="module-studio__coze-menu-item" onClick={onCreateWorkflow}>新建工作流</button>
-              <button type="button" className="module-studio__coze-menu-item" onClick={onCreateChatflow}>新建对话流</button>
+              <button type="button" className="module-studio__coze-menu-item" onClick={openCreateApplicationDialog}>{L("新建应用", "New App")}</button>
+              <button type="button" className="module-studio__coze-menu-item" onClick={openCreateAgentDialog}>{L("新建智能体", "New Agent")}</button>
+              <button type="button" className="module-studio__coze-menu-item" onClick={onCreateWorkflow}>{L("新建工作流", "New Workflow")}</button>
+              <button type="button" className="module-studio__coze-menu-item" onClick={onCreateChatflow}>{L("新建对话流", "New Chatflow")}</button>
             </div>
           }
         >
           <Button icon={<IconPlus />} theme="solid" type="primary" data-testid="app-develop-create-menu">
-            创建
+            {L("创建", "Create")}
           </Button>
         </Dropdown>
       }
@@ -911,15 +977,15 @@ export function DevelopPage({
         <section className="module-studio__coze-hero">
           <div className="module-studio__coze-hero-copy">
             <span className="module-studio__coze-kicker">Workspace IDE</span>
-            <Typography.Title heading={2} style={{ margin: 0 }}>用 Coze 风格工作空间组织应用、智能体和团队协作</Typography.Title>
+            <Typography.Title heading={2} style={{ margin: 0 }}>{L("用 Coze 风格工作空间组织应用、智能体和团队协作", "Organize apps, agents, and team collaboration in a Coze-style workspace")}</Typography.Title>
             <Typography.Text type="tertiary">
-              从这里直接进入应用卡片、智能体编排、工作流资源、模型配置和组织治理，不需要在多个后台之间来回切换。
+              {L("从这里直接进入应用卡片、智能体编排、工作流资源、模型配置和组织治理，不需要在多个后台之间来回切换。", "Jump straight into apps, agent orchestration, workflow assets, model settings, and workspace governance without bouncing between back offices.")}
             </Typography.Text>
           </div>
           <div className="module-studio__coze-hero-actions">
-            <Button theme="solid" type="primary" onClick={onOpenAgentChat}>预览与调试</Button>
-            <Button onClick={onOpenLibrary}>资源库</Button>
-            <Button onClick={onOpenModelConfigs}>模型配置</Button>
+            <Button theme="solid" type="primary" onClick={onOpenAgentChat}>{L("预览与调试", "Preview & Debug")}</Button>
+            <Button onClick={onOpenLibrary}>{L("资源库", "Library")}</Button>
+            <Button onClick={onOpenModelConfigs}>{L("模型配置", "Models")}</Button>
           </div>
         </section>
 
@@ -940,7 +1006,7 @@ export function DevelopPage({
           <Input
             value={keyword}
             onChange={setKeyword}
-            placeholder="搜索应用、智能体、工作流、对话流"
+            placeholder={L("搜索应用、智能体、工作流、对话流", "Search apps, agents, workflows, and chatflows")}
             showClear
             data-testid="app-develop-search"
           />
@@ -953,21 +1019,21 @@ export function DevelopPage({
                 startTransition(() => setActiveFocus(nextFocus));
               }}
             >
-              <Radio value="overview">总览</Radio>
-              <Radio value="projects">应用</Radio>
+              <Radio value="overview">{L("总览", "Overview")}</Radio>
+              <Radio value="projects">{L("应用", "Apps")}</Radio>
               <Radio value="agents">Agent</Radio>
               <Radio value="workflow">Workflow</Radio>
               <Radio value="chatflow">Chatflow</Radio>
-              <Radio value="plugins">插件</Radio>
-              <Radio value="data">数据</Radio>
-              <Radio value="models">模型</Radio>
-              <Radio value="chat">最近编辑</Radio>
+              <Radio value="plugins">{L("插件", "Plugins")}</Radio>
+              <Radio value="data">{L("数据", "Data")}</Radio>
+              <Radio value="models">{L("模型", "Models")}</Radio>
+              <Radio value="chat">{L("最近编辑", "Recent")}</Radio>
             </Radio.Group>
             <Switch
               checked={favoriteOnly}
               onChange={checked => setFavoriteOnly(checked)}
-              checkedText="仅收藏"
-              uncheckedText="全部资源"
+              checkedText={L("仅收藏", "Favorites")}
+              uncheckedText={L("全部资源", "All Resources")}
             />
           </Space>
         </div>
@@ -978,12 +1044,12 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>应用</Typography.Title>
-                    <Typography.Text type="tertiary">应用卡片承载项目级组织、资源入口和业务编排上下文。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("应用", "Apps")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("应用卡片承载项目级组织、资源入口和业务编排上下文。", "App cards carry project structure, resource entry points, and orchestration context.")}</Typography.Text>
                   </div>
                   <Space>
-                    <Button onClick={openCreateApplicationDialog}>新建应用</Button>
-                    <Button theme="borderless" onClick={() => setActiveFocus("projects")}>查看全部</Button>
+                    <Button onClick={openCreateApplicationDialog}>{L("新建应用", "New App")}</Button>
+                    <Button theme="borderless" onClick={() => setActiveFocus("projects")}>{L("查看全部", "View All")}</Button>
                   </Space>
                 </div>
                 <CardGrid
@@ -993,7 +1059,7 @@ export function DevelopPage({
                     <article key={item.id} className={`module-studio__coze-card${selectedApplication?.id === item.id ? " is-active" : ""}`}>
                       <div className="module-studio__card-head">
                         <div>
-                          <Tag color="light-blue">应用</Tag>
+                          <Tag color="light-blue">{L("应用", "App")}</Tag>
                           <strong>{item.name}</strong>
                         </div>
                         <Space>
@@ -1016,11 +1082,11 @@ export function DevelopPage({
                           </Button>
                         </Space>
                       </div>
-                      <p>{item.description || "AI 应用将智能体、工作流和提示模板组织成统一交付入口。"}</p>
-                      <span className="module-studio__meta">最近更新：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
+                      <p>{item.description || L("AI 应用将智能体、工作流和提示模板组织成统一交付入口。", "AI apps bundle agents, workflows, and prompt templates into a single delivery entry.")}</p>
+                      <span className="module-studio__meta">{L("最近更新：", "Updated: ")}{formatDevelopDate(item.lastEditedAt || item.updatedAt)}</span>
                       <div className="module-studio__actions">
-                        <Button onClick={() => setSelectedApplicationId(item.id)}>侧边栏详情</Button>
-                        <Button theme="light" onClick={() => onOpenApplicationDetail(item.id)}>详情页</Button>
+                        <Button onClick={() => setSelectedApplicationId(item.id)}>{L("侧边栏详情", "Sidebar Details")}</Button>
+                        <Button theme="light" onClick={() => onOpenApplicationDetail(item.id)}>{L("详情页", "Details")}</Button>
                         <Button
                           theme="solid"
                           type="primary"
@@ -1045,10 +1111,10 @@ export function DevelopPage({
                             });
                           }}
                         >
-                          打开 IDE
+                          {L("打开 IDE", "Open IDE")}
                         </Button>
-                        <Button theme="borderless" onClick={() => openEditApplicationDialog(item)}>编辑</Button>
-                        <Button theme="borderless" type="danger" onClick={() => void handleDeleteApplication(item)}>删除</Button>
+                        <Button theme="borderless" onClick={() => openEditApplicationDialog(item)}>{L("编辑", "Edit")}</Button>
+                        <Button theme="borderless" type="danger" onClick={() => void handleDeleteApplication(item)}>{L("删除", "Delete")}</Button>
                       </div>
                     </article>
                   )}
@@ -1060,10 +1126,10 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>智能体</Typography.Title>
-                    <Typography.Text type="tertiary">把模型、记忆和工作流绑定在智能体上，进入专属 IDE 做调试和发布。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("智能体", "Agents")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("把模型、记忆和工作流绑定在智能体上，进入专属 IDE 做调试和发布。", "Bind models, memory, and workflows to agents, then debug and publish in a dedicated IDE.")}</Typography.Text>
                   </div>
-                  <Button theme="borderless" onClick={() => setActiveFocus("agents")}>查看全部</Button>
+                  <Button theme="borderless" onClick={() => setActiveFocus("agents")}>{L("查看全部", "View All")}</Button>
                 </div>
                 <CardGrid
                   testId="app-develop-agents-grid"
@@ -1072,14 +1138,14 @@ export function DevelopPage({
                     <article key={item.id} className="module-studio__coze-card">
                       <div className="module-studio__card-head">
                         <div>
-                          <Tag color="cyan">智能体</Tag>
+                          <Tag color="cyan">{L("智能体", "Agent")}</Tag>
                           <strong>{item.name}</strong>
                         </div>
                         <Tag color="blue">{item.status}</Tag>
                       </div>
-                      <p>{item.description || item.modelName || "暂无描述"}</p>
-                      <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
-                      <Button onClick={() => onOpenBot(item.id)}>打开 IDE</Button>
+                      <p>{item.description || item.modelName || L("暂无描述", "No description")}</p>
+                      <span className="module-studio__meta">{L("创建时间：", "Created: ")}{formatDevelopDate(item.createdAt)}</span>
+                      <Button onClick={() => onOpenBot(item.id)}>{L("打开 IDE", "Open IDE")}</Button>
                     </article>
                   )}
                 />
@@ -1090,12 +1156,12 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>工作流</Typography.Title>
-                    <Typography.Text type="tertiary">从业务编排、数据库处理到知识库检索，把可执行逻辑沉淀成标准工作流资产。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("工作流", "Workflows")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("从业务编排、数据库处理到知识库检索，把可执行逻辑沉淀成标准工作流资产。", "Turn orchestration, data processing, and knowledge retrieval into reusable workflow assets.")}</Typography.Text>
                   </div>
                   <Space>
-                    <Button onClick={onCreateWorkflow}>新建工作流</Button>
-                    <Button theme="borderless" onClick={onOpenWorkflows}>资源列表</Button>
+                    <Button onClick={onCreateWorkflow}>{L("新建工作流", "New Workflow")}</Button>
+                    <Button theme="borderless" onClick={onOpenWorkflows}>{L("资源列表", "Resource List")}</Button>
                   </Space>
                 </div>
                 <CardGrid
@@ -1110,9 +1176,9 @@ export function DevelopPage({
                         </div>
                         {item.status ? <Tag color="green">{item.status}</Tag> : null}
                       </div>
-                      <p>{item.description || item.meta || "暂无描述"}</p>
-                      <span className="module-studio__meta">最近更新：{formatDate(item.updatedAt)}</span>
-                      <Button onClick={() => onOpenWorkflow(item.id)}>打开编辑器</Button>
+                      <p>{item.description || item.meta || L("暂无描述", "No description")}</p>
+                      <span className="module-studio__meta">{L("最近更新：", "Updated: ")}{formatDevelopDate(item.updatedAt)}</span>
+                      <Button onClick={() => onOpenWorkflow(item.id)}>{L("打开编辑器", "Open Editor")}</Button>
                     </article>
                   )}
                 />
@@ -1123,12 +1189,12 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>对话流</Typography.Title>
-                    <Typography.Text type="tertiary">适合多轮交互、用户引导和 Agent 场景，把会话意图转成流程节点。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("对话流", "Chatflows")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("适合多轮交互、用户引导和 Agent 场景，把会话意图转成流程节点。", "Design multi-turn interactions and guided agent flows by turning conversation intent into flow nodes.")}</Typography.Text>
                   </div>
                   <Space>
-                    <Button onClick={onCreateChatflow}>新建对话流</Button>
-                    <Button theme="borderless" onClick={onOpenChatflows}>资源列表</Button>
+                    <Button onClick={onCreateChatflow}>{L("新建对话流", "New Chatflow")}</Button>
+                    <Button theme="borderless" onClick={onOpenChatflows}>{L("资源列表", "Resource List")}</Button>
                   </Space>
                 </div>
                 <CardGrid
@@ -1143,9 +1209,9 @@ export function DevelopPage({
                         </div>
                         {item.status ? <Tag color="purple">{item.status}</Tag> : null}
                       </div>
-                      <p>{item.description || item.meta || "暂无描述"}</p>
-                      <span className="module-studio__meta">最近更新：{formatDate(item.updatedAt)}</span>
-                      <Button onClick={() => onOpenChatflow(item.id)}>打开编辑器</Button>
+                      <p>{item.description || item.meta || L("暂无描述", "No description")}</p>
+                      <span className="module-studio__meta">{L("最近更新：", "Updated: ")}{formatDevelopDate(item.updatedAt)}</span>
+                      <Button onClick={() => onOpenChatflow(item.id)}>{L("打开编辑器", "Open Editor")}</Button>
                     </article>
                   )}
                 />
@@ -1156,10 +1222,10 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>插件</Typography.Title>
-                    <Typography.Text type="tertiary">把 Bot 技能、HTTP/OpenAPI 能力与工具调用统一沉淀在 Coze 工作空间里。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("插件", "Plugins")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("把 Bot 技能、HTTP/OpenAPI 能力与工具调用统一沉淀在 Coze 工作空间里。", "Collect bot skills, HTTP/OpenAPI capabilities, and tools in one workspace.")}</Typography.Text>
                   </div>
-                  <Button theme="borderless" onClick={onOpenLibrary}>进入资源库</Button>
+                  <Button theme="borderless" onClick={onOpenLibrary}>{L("进入资源库", "Open Library")}</Button>
                 </div>
                 <CardGrid
                   testId="app-develop-plugins-grid"
@@ -1173,9 +1239,9 @@ export function DevelopPage({
                         </div>
                         <Button theme="borderless" onClick={() => void handleToggleFavorite(item)}>{item.isFavorite ? "★" : "☆"}</Button>
                       </div>
-                      <p>{item.description || "插件工具能力"}</p>
-                      <span className="module-studio__meta">最近更新：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
-                      <Button onClick={onOpenLibrary}>打开资源库</Button>
+                      <p>{item.description || L("插件工具能力", "Plugin capability")}</p>
+                      <span className="module-studio__meta">{L("最近更新：", "Updated: ")}{formatDevelopDate(item.lastEditedAt || item.updatedAt)}</span>
+                      <Button onClick={onOpenLibrary}>{L("打开资源库", "Open Library")}</Button>
                     </article>
                   )}
                 />
@@ -1186,10 +1252,10 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>数据与知识</Typography.Title>
-                    <Typography.Text type="tertiary">知识库、数据库和变量继续沉淀在统一工作空间里，为智能体与工作流复用。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("数据与知识", "Data & Knowledge")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("知识库、数据库和变量继续沉淀在统一工作空间里，为智能体与工作流复用。", "Keep knowledge bases, databases, and variables in one workspace for agents and workflows to reuse.")}</Typography.Text>
                   </div>
-                  <Button theme="borderless" onClick={onOpenLibrary}>统一管理</Button>
+                  <Button theme="borderless" onClick={onOpenLibrary}>{L("统一管理", "Manage")}</Button>
                 </div>
                 <CardGrid
                   testId="app-develop-data-grid"
@@ -1199,15 +1265,15 @@ export function DevelopPage({
                       <div className="module-studio__card-head">
                         <div>
                           <Tag color={item.resourceType === "knowledge-base" ? "green" : "blue"}>
-                            {item.resourceType === "knowledge-base" ? "知识库" : "数据库"}
+                            {item.resourceType === "knowledge-base" ? L("知识库", "Knowledge Base") : L("数据库", "Database")}
                           </Tag>
                           <strong>{item.name}</strong>
                         </div>
                         <Button theme="borderless" onClick={() => void handleToggleFavorite(item)}>{item.isFavorite ? "★" : "☆"}</Button>
                       </div>
-                      <p>{item.description || "可被工作流与智能体直接复用的数据资源。"}</p>
-                      <span className="module-studio__meta">最近更新：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
-                      <Button onClick={onOpenLibrary}>打开资源库</Button>
+                      <p>{item.description || L("可被工作流与智能体直接复用的数据资源。", "Data assets that workflows and agents can reuse directly.")}</p>
+                      <span className="module-studio__meta">{L("最近更新：", "Updated: ")}{formatDevelopDate(item.lastEditedAt || item.updatedAt)}</span>
+                      <Button onClick={onOpenLibrary}>{L("打开资源库", "Open Library")}</Button>
                     </article>
                   )}
                 />
@@ -1218,10 +1284,10 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>模型配置</Typography.Title>
-                    <Typography.Text type="tertiary">统一管理模型供应商、推理能力、工具调用和提示词测试。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("模型配置", "Models")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("统一管理模型供应商、推理能力、工具调用和提示词测试。", "Manage model providers, inference capabilities, tool calling, and prompt testing in one place.")}</Typography.Text>
                   </div>
-                  <Button theme="borderless" onClick={onOpenModelConfigs}>管理模型</Button>
+                  <Button theme="borderless" onClick={onOpenModelConfigs}>{L("管理模型", "Manage Models")}</Button>
                 </div>
                 <CardGrid
                   testId="app-develop-models-grid"
@@ -1233,10 +1299,10 @@ export function DevelopPage({
                           <Tag color="green">Model</Tag>
                           <strong>{item.name}</strong>
                         </div>
-                        <Tag color={item.isEnabled ? "green" : "grey"}>{item.isEnabled ? "启用" : "停用"}</Tag>
+                        <Tag color={item.isEnabled ? "green" : "grey"}>{item.isEnabled ? L("启用", "Enabled") : L("停用", "Disabled")}</Tag>
                       </div>
                       <p>{item.providerType} / {item.defaultModel}</p>
-                      <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
+                      <span className="module-studio__meta">{L("创建时间：", "Created: ")}{formatDevelopDate(item.createdAt)}</span>
                     </article>
                   )}
                 />
@@ -1247,10 +1313,10 @@ export function DevelopPage({
               <section className="module-studio__coze-section">
                 <div className="module-studio__section-head">
                   <div>
-                    <Typography.Title heading={5} style={{ margin: 0 }}>最近编辑</Typography.Title>
-                    <Typography.Text type="tertiary">回到最近访问过的资源，继续编辑、调试或发布。</Typography.Text>
+                    <Typography.Title heading={5} style={{ margin: 0 }}>{L("最近编辑", "Recent")}</Typography.Title>
+                    <Typography.Text type="tertiary">{L("回到最近访问过的资源，继续编辑、调试或发布。", "Jump back into recently visited resources and keep editing, debugging, or publishing.")}</Typography.Text>
                   </div>
-                  <Button theme="borderless" onClick={onOpenAgentChat}>进入对话调试</Button>
+                  <Button theme="borderless" onClick={onOpenAgentChat}>{L("进入对话调试", "Open Chat Debug")}</Button>
                 </div>
                 <CardGrid
                   testId="app-develop-recent-grid"
@@ -1258,16 +1324,16 @@ export function DevelopPage({
                   render={(item: WorkspaceIdeResource) => (
                     <article key={`${item.resourceType}-${item.resourceId}`} className="module-studio__coze-card module-studio__coze-card--compact">
                       <Tag color={item.resourceType === "chatflow" ? "purple" : item.resourceType === "workflow" ? "blue" : item.resourceType === "agent" ? "cyan" : "green"}>
-                        {item.resourceType}
+                        {getRecentResourceLabel(item.resourceType)}
                       </Tag>
                       <strong>{item.name}</strong>
-                      <p>{item.description || item.badge || item.status || "最近访问资源"}</p>
-                      <span className="module-studio__meta">最近时间：{formatDate(item.lastEditedAt || item.updatedAt)}</span>
-                      {item.resourceType === "agent" ? <Button onClick={() => onOpenBot(item.resourceId)}>继续编辑</Button> : null}
-                      {item.resourceType === "workflow" ? <Button onClick={() => onOpenWorkflow(item.resourceId)}>继续编辑</Button> : null}
-                      {item.resourceType === "chatflow" ? <Button onClick={() => onOpenChatflow(item.resourceId)}>继续编辑</Button> : null}
-                      {item.resourceType === "app" && item.linkedWorkflowId ? <Button onClick={() => onOpenWorkflow(item.linkedWorkflowId!)}>继续编辑</Button> : null}
-                      {(item.resourceType === "plugin" || item.resourceType === "knowledge-base" || item.resourceType === "database") ? <Button onClick={onOpenLibrary}>打开资源库</Button> : null}
+                      <p>{item.description || item.badge || item.status || L("最近访问资源", "Recently visited resource")}</p>
+                      <span className="module-studio__meta">{L("最近时间：", "Visited: ")}{formatDevelopDate(item.lastEditedAt || item.updatedAt)}</span>
+                      {item.resourceType === "agent" ? <Button onClick={() => onOpenBot(item.resourceId)}>{getRecentResourceActionLabel(item.resourceType)}</Button> : null}
+                      {item.resourceType === "workflow" ? <Button onClick={() => onOpenWorkflow(item.resourceId)}>{getRecentResourceActionLabel(item.resourceType)}</Button> : null}
+                      {item.resourceType === "chatflow" ? <Button onClick={() => onOpenChatflow(item.resourceId)}>{getRecentResourceActionLabel(item.resourceType)}</Button> : null}
+                      {item.resourceType === "app" && item.linkedWorkflowId ? <Button onClick={() => onOpenWorkflow(item.linkedWorkflowId!)}>{getRecentResourceActionLabel(item.resourceType)}</Button> : null}
+                      {(item.resourceType === "plugin" || item.resourceType === "knowledge-base" || item.resourceType === "database") ? <Button onClick={onOpenLibrary}>{getRecentResourceActionLabel(item.resourceType)}</Button> : null}
                     </article>
                   )}
                 />
@@ -1277,15 +1343,15 @@ export function DevelopPage({
 
           <aside className="module-studio__coze-board-side">
             <section className="module-studio__coze-sidepanel">
-              <Typography.Title heading={6}>应用详情</Typography.Title>
+              <Typography.Title heading={6}>{L("应用详情", "App Details")}</Typography.Title>
               {selectedApplicationView ? (
                 <div className="module-studio__stack">
                   <Tag color={selectedApplicationView.status?.toLowerCase() === "published" ? "green" : "blue"}>
                     {selectedApplicationView.status || "Draft"}
                   </Tag>
                   <strong>{selectedApplicationView.name}</strong>
-                  <Typography.Text type="tertiary">{selectedApplicationView.description || "当前应用还没有补充描述。"}</Typography.Text>
-                  <span className="module-studio__meta">最近更新：{formatDate(selectedApplicationView.lastEditedAt || selectedApplicationView.updatedAt)}</span>
+                  <Typography.Text type="tertiary">{selectedApplicationView.description || L("当前应用还没有补充描述。", "This app does not have a description yet.")}</Typography.Text>
+                  <span className="module-studio__meta">{L("最近更新：", "Updated: ")}{formatDevelopDate(selectedApplicationView.lastEditedAt || selectedApplicationView.updatedAt)}</span>
                   <Space wrap>
                     <Button
                       theme="solid"
@@ -1296,31 +1362,31 @@ export function DevelopPage({
                         }
                       }}
                     >
-                      进入工作流 IDE
+                      {L("进入工作流 IDE", "Open Workflow IDE")}
                     </Button>
-                    <Button onClick={() => openEditApplicationDialog(selectedApplicationView)}>编辑应用</Button>
+                    <Button onClick={() => openEditApplicationDialog(selectedApplicationView)}>{L("编辑应用", "Edit App")}</Button>
                     <Button theme="light" type="tertiary" onClick={() => void handlePublishApplication(selectedApplicationView)}>
-                      发布应用
+                      {L("发布应用", "Publish App")}
                     </Button>
                     <Button theme="borderless" onClick={() => onOpenApplicationPublish(selectedApplicationView.id)}>
-                      打开发布页
+                      {L("打开发布页", "Open Publish Page")}
                     </Button>
                   </Space>
 
                   {applicationDetailLoading ? (
-                    <Typography.Text type="tertiary">正在加载应用发布信息…</Typography.Text>
+                    <Typography.Text type="tertiary">{L("正在加载应用发布信息…", "Loading publish details...")}</Typography.Text>
                   ) : null}
 
                   <div className="module-studio__coze-inspector-card">
-                    <span>发布记录</span>
+                    <span>{L("发布记录", "Publish Records")}</span>
                     {selectedApplicationPublishRecords.length === 0 ? (
-                      <Typography.Text type="tertiary">当前还没有发布记录。</Typography.Text>
+                      <Typography.Text type="tertiary">{L("当前还没有发布记录。", "No publish records yet.")}</Typography.Text>
                     ) : (
                       <div className="module-studio__stack">
                         {selectedApplicationPublishRecords.slice(0, 3).map(record => (
                           <div key={record.id} className="module-studio__coze-linkrow">
                             <span>{record.version}</span>
-                            <strong>{formatDate(record.createdAt)}</strong>
+                            <strong>{formatDevelopDate(record.createdAt)}</strong>
                           </div>
                         ))}
                       </div>
@@ -1329,21 +1395,21 @@ export function DevelopPage({
 
                   <div className="module-studio__coze-inspector-card">
                     <div className="module-studio__card-head">
-                      <span>会话模板</span>
+                      <span>{L("会话模板", "Conversation Templates")}</span>
                       <Tag color="light-blue">{selectedApplicationConversationTemplates.length}</Tag>
                     </div>
                     <div className="module-studio__stack">
                       <Input
                         value={applicationTemplateDraft.name}
                         onChange={value => setApplicationTemplateDraft(current => ({ ...current, name: value }))}
-                        placeholder="新建会话模板名称"
+                        placeholder={L("新建会话模板名称", "New template name")}
                       />
                       <Space wrap>
                         <Select
                           value={applicationTemplateDraft.createMethod}
                           optionList={[
-                            { label: "手动创建", value: "manual" },
-                            { label: "节点生成", value: "node" }
+                            { label: L("手动创建", "Manual"), value: "manual" },
+                            { label: L("节点生成", "Node Generated"), value: "node" }
                           ]}
                           onChange={value =>
                             setApplicationTemplateDraft(current => ({
@@ -1361,13 +1427,13 @@ export function DevelopPage({
                             }))
                           }
                         />
-                        <Typography.Text type="tertiary">默认模板</Typography.Text>
+                        <Typography.Text type="tertiary">{L("默认模板", "Default Template")}</Typography.Text>
                       </Space>
                       <Button onClick={() => void handleCreateApplicationConversationTemplate()}>
-                        新建模板
+                        {L("新建模板", "Create Template")}
                       </Button>
                       {selectedApplicationConversationTemplates.length === 0 ? (
-                        <Typography.Text type="tertiary">当前还没有会话模板。</Typography.Text>
+                        <Typography.Text type="tertiary">{L("当前还没有会话模板。", "No conversation templates yet.")}</Typography.Text>
                       ) : (
                         selectedApplicationConversationTemplates.slice(0, 4).map(template => (
                           <div key={template.id} className="module-studio__coze-linkrow">
@@ -1375,7 +1441,7 @@ export function DevelopPage({
                               <strong>{template.name}</strong>
                               <div className="module-studio__meta">
                                 {template.createMethod} / v{template.version}
-                                {template.isDefault ? " / 默认" : ""}
+                                {template.isDefault ? L(" / 默认", " / Default") : ""}
                               </div>
                             </div>
                             <Button
@@ -1383,7 +1449,7 @@ export function DevelopPage({
                               type="danger"
                               onClick={() => void handleDeleteApplicationConversationTemplate(template.id)}
                             >
-                              删除
+                              {L("删除", "Delete")}
                             </Button>
                           </div>
                         ))
@@ -1392,27 +1458,27 @@ export function DevelopPage({
                   </div>
                 </div>
               ) : (
-                <Empty title="暂无应用" image={null} />
+                <Empty title={L("暂无应用", "No app selected")} image={null} />
               )}
             </section>
 
             <section className="module-studio__coze-sidepanel">
-              <Typography.Title heading={6}>组织架构</Typography.Title>
+              <Typography.Title heading={6}>{L("组织架构", "Organization")}</Typography.Title>
               <div className="module-studio__coze-linklist">
                 <button type="button" className="module-studio__coze-linkrow" onClick={onOpenUsers}>
-                  <span>成员管理</span>
+                  <span>{L("成员管理", "Members")}</span>
                   <strong>{workspaceOverview?.memberCount ?? 0}</strong>
                 </button>
                 <button type="button" className="module-studio__coze-linkrow" onClick={onOpenRoles}>
-                  <span>角色管理</span>
+                  <span>{L("角色管理", "Roles")}</span>
                   <strong>{workspaceOverview?.roleCount ?? 0}</strong>
                 </button>
                 <button type="button" className="module-studio__coze-linkrow" onClick={onOpenDepartments}>
-                  <span>部门管理</span>
+                  <span>{L("部门管理", "Departments")}</span>
                   <strong>{workspaceOverview?.departmentCount ?? 0}</strong>
                 </button>
                 <button type="button" className="module-studio__coze-linkrow" onClick={onOpenPositions}>
-                  <span>岗位管理</span>
+                  <span>{L("岗位管理", "Positions")}</span>
                   <strong>{workspaceOverview?.positionCount ?? 0}</strong>
                 </button>
               </div>
@@ -1421,33 +1487,33 @@ export function DevelopPage({
                   type="warning"
                   bordered={false}
                   fullMode={false}
-                  title="组织治理提醒"
-                  description={`当前仍有 ${workspaceOverview?.uncoveredMemberCount ?? 0} 个成员未被角色权限覆盖。`}
+                  title={L("组织治理提醒", "Governance Reminder")}
+                  description={L(`当前仍有 ${workspaceOverview?.uncoveredMemberCount ?? 0} 个成员未被角色权限覆盖。`, `${workspaceOverview?.uncoveredMemberCount ?? 0} members are still not covered by role permissions.`)}
                 />
               ) : null}
             </section>
 
             <section className="module-studio__coze-sidepanel">
-              <Typography.Title heading={6}>快速入口</Typography.Title>
+              <Typography.Title heading={6}>{L("快速入口", "Quick Links")}</Typography.Title>
               <div className="module-studio__coze-linklist">
                 <button type="button" className="module-studio__coze-linkrow" onClick={onOpenLibrary}>
-                  <span>资源库</span>
+                  <span>{L("资源库", "Library")}</span>
                   <strong>Open</strong>
                 </button>
                 <button type="button" className="module-studio__coze-linkrow" onClick={onOpenAgentChat}>
-                  <span>预览与调试</span>
+                  <span>{L("预览与调试", "Preview & Debug")}</span>
                   <strong>Chat</strong>
                 </button>
                 <button type="button" className="module-studio__coze-linkrow" onClick={onOpenModelConfigs}>
-                  <span>模型配置</span>
+                  <span>{L("模型配置", "Models")}</span>
                   <strong>{models.length}</strong>
                 </button>
                 <button type="button" className="module-studio__coze-linkrow" onClick={() => setFavoriteOnly(current => !current)}>
-                  <span>收藏资源</span>
+                  <span>{L("收藏资源", "Favorites")}</span>
                   <strong>{workspaceSummary?.favoriteCount ?? 0}</strong>
                 </button>
                 <button type="button" className="module-studio__coze-linkrow" onClick={() => setActiveFocus("chat")}>
-                  <span>最近编辑</span>
+                  <span>{L("最近编辑", "Recent")}</span>
                   <strong>{workspaceSummary?.recentCount ?? 0}</strong>
                 </button>
               </div>
@@ -1456,7 +1522,7 @@ export function DevelopPage({
         </div>
 
         <Modal
-          title="新建智能体"
+          title={L("新建智能体", "New Agent")}
           visible={agentDialogVisible}
           onCancel={() => {
             if (!submitting) {
@@ -1464,18 +1530,18 @@ export function DevelopPage({
             }
           }}
           onOk={() => void handleCreateAgent()}
-          okText="创建"
-          cancelText="取消"
+          okText={L("创建", "Create")}
+          cancelText={L("取消", "Cancel")}
           confirmLoading={submitting}
         >
           <div className="module-studio__stack">
-            <Input value={agentDraft.name} onChange={value => setAgentDraft(current => ({ ...current, name: value }))} placeholder="智能体名称" />
-            <Input value={agentDraft.description} onChange={value => setAgentDraft(current => ({ ...current, description: value }))} placeholder="角色描述" />
+            <Input value={agentDraft.name} onChange={value => setAgentDraft(current => ({ ...current, name: value }))} placeholder={L("智能体名称", "Agent name")} />
+            <Input value={agentDraft.description} onChange={value => setAgentDraft(current => ({ ...current, description: value }))} placeholder={L("角色描述", "Role description")} />
           </div>
         </Modal>
 
         <Modal
-          title={applicationEditing ? "编辑应用" : "新建应用"}
+          title={applicationEditing ? L("编辑应用", "Edit App") : L("新建应用", "New App")}
           visible={applicationDialogVisible}
           onCancel={() => {
             if (!submitting) {
@@ -1483,21 +1549,21 @@ export function DevelopPage({
             }
           }}
           onOk={() => void handleSaveApplication()}
-          okText={applicationEditing ? "保存" : "创建"}
-          cancelText="取消"
+          okText={applicationEditing ? L("保存", "Save") : L("创建", "Create")}
+          cancelText={L("取消", "Cancel")}
           confirmLoading={submitting}
         >
           <div className="module-studio__stack">
-            <Input value={applicationDraft.name} onChange={value => setApplicationDraft(current => ({ ...current, name: value }))} placeholder="应用名称" />
+            <Input value={applicationDraft.name} onChange={value => setApplicationDraft(current => ({ ...current, name: value }))} placeholder={L("应用名称", "App name")} />
             <Input
               value={applicationDraft.description ?? ""}
               onChange={value => setApplicationDraft(current => ({ ...current, description: value }))}
-              placeholder="应用描述"
+              placeholder={L("应用描述", "App description")}
             />
             <Input
               value={applicationDraft.icon ?? ""}
               onChange={value => setApplicationDraft(current => ({ ...current, icon: value }))}
-              placeholder="图标标识（可选）"
+              placeholder={L("图标标识（可选）", "Icon identifier (optional)")}
             />
           </div>
         </Modal>
@@ -2224,7 +2290,7 @@ export function VariablesPage({ api }: StudioPageProps) {
   const [items, setItems] = useState<StudioVariableItem[]>([]);
   const [systemItems, setSystemItems] = useState<StudioSystemVariableDefinition[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [scope, setScope] = useState<number | undefined>(undefined);
+  const [scope, setScope] = useState<number | "">("");
   const [draft, setDraft] = useState<StudioVariableCreateRequest>({
     key: "",
     value: "",
@@ -2240,7 +2306,7 @@ export function VariablesPage({ api }: StudioPageProps) {
           pageIndex: 1,
           pageSize: 100,
           keyword: keyword.trim() || undefined,
-          scope
+          scope: scope === "" ? undefined : scope
         }),
         api.listSystemVariables()
       ]);
@@ -2324,12 +2390,12 @@ export function VariablesPage({ api }: StudioPageProps) {
             value={scope}
             placeholder="作用域"
             optionList={[
-              { label: "全部", value: undefined as unknown as string },
+              { label: "全部", value: "" },
               { label: "系统", value: 0 },
               { label: "应用", value: 1 },
               { label: "智能体", value: 2 }
             ]}
-            onChange={value => setScope(typeof value === "number" ? value : undefined)}
+            onChange={value => setScope(typeof value === "number" ? value : "")}
           />
         </Space>
       }
@@ -3259,7 +3325,7 @@ export function ModelConfigsPage({ api, locale }: StudioPageProps) {
                 <Tag color={item.isEnabled ? "green" : "grey"}>{item.isEnabled ? "启用" : "停用"}</Tag>
               </div>
               <p>{item.providerType} / {item.defaultModel}</p>
-              <span className="module-studio__meta">{formatModelConfigEndpointSummary(item.baseUrl)}</span>
+              <span className="module-studio__meta">{formatModelConfigEndpointSummary(item.baseUrl, locale)}</span>
               <span className="module-studio__meta">创建时间：{formatDate(item.createdAt)}</span>
               <div className="module-studio__actions">
                 <Button onClick={() => void openEditDialog(item)} data-testid={`app-model-config-edit-${item.id}`}>编辑</Button>

@@ -103,7 +103,9 @@ const WorkflowContainer = forwardRef<
   const { loading, loadingError, readonly, isBindDouyin } = workflowState;
   let playgroundContent;
   const addNodeRef = useRef<AddNodeRef>(null);
-  const hasFitView = useRef<boolean>(false);
+  const workflowPlaygroundContentRef = useRef<HTMLDivElement | null>(null);
+  const initialViewportCalibratedRef = useRef(false);
+  const fallbackFitViewTriggeredRef = useRef(false);
   const isNodesMount = useNodesMount();
   // Synchronize component properties to globalStatus
   useMemo(() => {
@@ -124,6 +126,101 @@ const WorkflowContainer = forwardRef<
 
   // Listen for TTI events, perform data compensation operations, and save drafts
   useDataCompensation(workflowState);
+
+  const markInitialViewportCalibrated = useCallback(() => {
+    if (initialViewportCalibratedRef.current) {
+      return;
+    }
+    initialViewportCalibratedRef.current = true;
+    workflowState.updateConfig({
+      initialViewportCalibrated: true,
+    });
+  }, [workflowState]);
+
+  const getWorkflowViewportHost = useCallback(
+    () =>
+      workflowPlaygroundContentRef.current ??
+      document.getElementById(WORKFLOW_PLAYGROUND_CONTENT_ID),
+    [],
+  );
+
+  const isViewportHostReady = useCallback(() => {
+    const viewportHost = getWorkflowViewportHost();
+    return Boolean(
+      viewportHost &&
+        viewportHost.clientWidth > 0 &&
+        viewportHost.clientHeight > 0,
+    );
+  }, [getWorkflowViewportHost]);
+
+  const triggerFitViewIfReady = useCallback(async () => {
+    if (initialViewportCalibratedRef.current || !isViewportHostReady()) {
+      return false;
+    }
+
+    await workflowSaveService.fitView();
+    if (isViewportHostReady()) {
+      markInitialViewportCalibrated();
+      return true;
+    }
+
+    return false;
+  }, [isViewportHostReady, markInitialViewportCalibrated, workflowSaveService]);
+
+  useEffect(() => {
+    initialViewportCalibratedRef.current = false;
+    fallbackFitViewTriggeredRef.current = false;
+    workflowState.updateConfig({
+      initialViewportCalibrated: false,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset once when container mounts
+  }, []);
+
+  useEffect(() => {
+    if (
+      loading ||
+      loadingError ||
+      !isNodesMount ||
+      initialViewportCalibratedRef.current ||
+      fallbackFitViewTriggeredRef.current ||
+      typeof ResizeObserver === 'undefined'
+    ) {
+      return;
+    }
+
+    const viewportHost = getWorkflowViewportHost();
+    if (!viewportHost) {
+      return;
+    }
+
+    let observer: ResizeObserver | undefined;
+    const tryCompensateFitView = async () => {
+      if (fallbackFitViewTriggeredRef.current) {
+        return;
+      }
+      const fitViewSuccess = await triggerFitViewIfReady();
+      if (fitViewSuccess) {
+        fallbackFitViewTriggeredRef.current = true;
+        observer?.disconnect();
+      }
+    };
+
+    observer = new ResizeObserver(() => {
+      void tryCompensateFitView();
+    });
+    observer.observe(viewportHost);
+    void tryCompensateFitView();
+
+    return () => {
+      observer?.disconnect();
+    };
+  }, [
+    getWorkflowViewportHost,
+    isNodesMount,
+    loading,
+    loadingError,
+    triggerFitViewIfReady,
+  ]);
 
   const onDragOver: DragEventHandler<HTMLDivElement> = useCallback(event => {
     event.preventDefault();
@@ -189,13 +286,11 @@ const WorkflowContainer = forwardRef<
     scrollToNode: (nodeId: string) => {
       if (nodeId) {
         scrollToNode(nodeId);
+        markInitialViewportCalibrated();
       }
     },
     triggerFitView: async () => {
-      if (!hasFitView.current) {
-        await workflowSaveService.fitView();
-        hasFitView.current = true;
-      }
+      await triggerFitViewIfReady();
     },
     loadGlobalVariables: async () => {
       await workflowSaveService.loadGlobalVariables();
@@ -218,8 +313,8 @@ const WorkflowContainer = forwardRef<
     const showTemplatePreview = !isBindDouyin;
     playgroundContent = (
       <QueryClientProvider client={workflowQueryClient}>
-        <div className="flex flex-1 h-full">
-          <div className="flex flex-1 flex-col">
+        <div className={styles.workflowLayout}>
+          <div className={styles.workflowMainColumn}>
             {props.renderHeader ? (
               props.renderHeader({ handleTestRun })
             ) : (
@@ -233,6 +328,7 @@ const WorkflowContainer = forwardRef<
               <AddNodeModalProvider ref={addNodeRef} readonly={readonly}>
                 <div
                   id={WORKFLOW_PLAYGROUND_CONTENT_ID}
+                  ref={workflowPlaygroundContentRef}
                   className={styles.workflowPlayground}
                 >
                   <div

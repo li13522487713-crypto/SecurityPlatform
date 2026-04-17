@@ -176,6 +176,9 @@ export interface WorkflowGlobalState {
    * Knowledge Base Information
    */
   sharedDataSet?: DataSetStore;
+
+  /** Whether the first-screen viewport has been calibrated */
+  initialViewportCalibrated?: boolean;
 }
 
 /**
@@ -206,6 +209,7 @@ export class WorkflowGlobalStateEntity extends ConfigEntity<WorkflowGlobalState>
       isInitWorkflow: false,
       isBindDouyin: false,
       sharedDataSet: new DataSetStore(),
+      initialViewportCalibrated: false,
     };
   }
 

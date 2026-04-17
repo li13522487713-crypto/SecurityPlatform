@@ -387,7 +387,7 @@ export function knowledgeUploadPath(
 }
 
 export function workflowListPath(appKey: string): string {
-  return `${appRootPath(appKey)}/work_flow`;
+  return `${appRootPath(appKey)}/workflows`;
 }
 
 export function workflowEditorPath(appKey: string, workflowId: string): string {
