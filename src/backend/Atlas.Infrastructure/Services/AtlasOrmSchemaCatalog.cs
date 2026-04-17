@@ -5,7 +5,6 @@ using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.Plugins;
 using Atlas.Domain.Setup.Entities;
@@ -133,15 +132,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(ApprovalParallelToken),
         typeof(ApprovalTimerJob),
         typeof(ApprovalTriggerJob),
-        typeof(LowCodeApp),
-        typeof(AppEntityAlias),
-        typeof(LowCodePage),
-        typeof(LowCodePageVersion),
-        typeof(LowCodeEnvironment),
-        typeof(FormDefinition),
-        typeof(DashboardDefinition),
-        typeof(ReportDefinition),
-        typeof(DataSourceDefinition),
         typeof(PersistedWorkflow),
         typeof(PersistedExecutionPointer),
         typeof(PersistedEvent),
@@ -177,8 +167,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(AppProject),
         typeof(AppProjectUser),
         typeof(Tenant),
-        typeof(LowCodeAppVersion),
-        typeof(FormDefinitionVersion),
         typeof(PluginConfig),
         typeof(PluginMarketEntry),
         typeof(PluginMarketVersion),
@@ -262,7 +250,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(LoginLog),
         typeof(AuthSession),
         typeof(RefreshToken),
-        typeof(LowCodeApp),
         typeof(AppDataRoutePolicy),
         typeof(AppRole),
         typeof(AppRolePermission),
