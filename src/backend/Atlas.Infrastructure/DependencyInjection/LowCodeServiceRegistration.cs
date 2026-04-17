@@ -38,6 +38,10 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IAppVariableQueryService, AppVariableQueryService>();
         services.AddScoped<IAppVariableCommandService, AppVariableCommandService>();
 
+        // M09 运行时工作流执行器 + 异步任务仓储
+        services.AddScoped<IRuntimeWorkflowAsyncJobRepository, RuntimeWorkflowAsyncJobRepository>();
+        services.AddScoped<IRuntimeWorkflowExecutor, RuntimeWorkflowExecutor>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {

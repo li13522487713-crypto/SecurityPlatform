@@ -249,7 +249,8 @@ public static class AtlasOrmSchemaCatalog
         typeof(AppPublishArtifact),
         typeof(AppResourceReference),
         typeof(AppDraftLock),
-        typeof(AppComponentOverride)
+        typeof(AppComponentOverride),
+        typeof(RuntimeWorkflowAsyncJob)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =
