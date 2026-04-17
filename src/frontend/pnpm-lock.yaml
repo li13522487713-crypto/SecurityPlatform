@@ -17239,11 +17239,30 @@ importers:
 
   packages/lowcode-collab-yjs: {}
 
-  packages/lowcode-component-registry: {}
+  packages/lowcode-component-registry:
+    dependencies:
+      '@atlas/lowcode-schema':
+        specifier: workspace:*
+        version: link:../lowcode-schema
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/lowcode-components-mini: {}
 
-  packages/lowcode-components-web: {}
+  packages/lowcode-components-web:
+    dependencies:
+      '@atlas/lowcode-component-registry':
+        specifier: workspace:*
+        version: link:../lowcode-component-registry
+      '@atlas/lowcode-schema':
+        specifier: workspace:*
+        version: link:../lowcode-schema
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/lowcode-debug-client: {}
 
