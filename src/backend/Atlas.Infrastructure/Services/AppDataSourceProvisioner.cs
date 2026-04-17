@@ -3,6 +3,7 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Options;
 using Microsoft.Data.Sqlite;

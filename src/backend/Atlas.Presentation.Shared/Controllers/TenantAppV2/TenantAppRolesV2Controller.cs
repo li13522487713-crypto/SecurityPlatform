@@ -1,4 +1,3 @@
-using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -23,7 +22,6 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     private readonly IAppRoleAssignmentQueryService _assignmentQueryService;
     private readonly IAppRoleAssignmentCommandService _assignmentCommandService;
     private readonly ILowCodePageRepository _pageRepository;
-    private readonly IDynamicTableRepository _dynamicTableRepository;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<TenantAppRoleCreateRequest> _createValidator;
@@ -36,7 +34,6 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
         IAppRoleAssignmentQueryService assignmentQueryService,
         IAppRoleAssignmentCommandService assignmentCommandService,
         ILowCodePageRepository pageRepository,
-        IDynamicTableRepository dynamicTableRepository,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<TenantAppRoleCreateRequest> createValidator,
@@ -48,7 +45,6 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
         _assignmentQueryService = assignmentQueryService;
         _assignmentCommandService = assignmentCommandService;
         _pageRepository = pageRepository;
-        _dynamicTableRepository = dynamicTableRepository;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _createValidator = createValidator;
@@ -282,18 +278,21 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), roleId = roleId.ToString() }, HttpContext.TraceIdentifier));
     }
 
-    /// <summary>获取应用下可用于字段权限配置的动态表列表（不依赖 Header 注入）</summary>
+    /// <summary>获取应用下可用于字段权限配置的动态表列表（DynamicTable 已下线，固定返回空集合）</summary>
     [HttpGet("available-dynamic-tables")]
     [Authorize(Policy = PermissionPolicies.AppRolesView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<object>>>> GetAvailableDynamicTables(
+    public Task<ActionResult<ApiResponse<IReadOnlyList<object>>>> GetAvailableDynamicTables(
         long appId,
         [FromQuery] string? keyword,
         CancellationToken cancellationToken)
     {
-        var tenantId = _tenantProvider.GetTenantId();
-        var (items, _) = await _dynamicTableRepository.QueryPageAsync(tenantId, 1, 200, keyword, appId, cancellationToken);
-        var result = items.Select(t => new { tableKey = t.TableKey, displayName = t.DisplayName }).ToArray();
-        return Ok(ApiResponse<IReadOnlyList<object>>.Ok(result, HttpContext.TraceIdentifier));
+        _ = appId;
+        _ = keyword;
+        _ = cancellationToken;
+        IReadOnlyList<object> empty = Array.Empty<object>();
+        ActionResult<ApiResponse<IReadOnlyList<object>>> result =
+            Ok(ApiResponse<IReadOnlyList<object>>.Ok(empty, HttpContext.TraceIdentifier));
+        return Task.FromResult(result);
     }
 }
 

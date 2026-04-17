@@ -193,22 +193,7 @@ public sealed class AppManifestQueryService : IAppManifestQueryService
     public async Task<WorkspaceOverviewResponse> GetWorkspaceOverviewAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default)
     {
         var pageCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>().CountAsync(x => x.AppId == id, cancellationToken);
-        var tableCount = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
-            .CountAsync(x => x.AppId == id, cancellationToken);
-        var tableKeys = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
-            .Where(x => x.AppId == id)
-            .Select(x => x.TableKey)
-            .ToListAsync(cancellationToken);
-        var formCount = tableKeys.Count == 0
-            ? 0
-            : await _db.Queryable<Atlas.Domain.LowCode.Entities.FormDefinition>()
-                .CountAsync(x => x.DataTableKey != null && SqlFunc.ContainsArray(tableKeys.ToArray(), x.DataTableKey!), cancellationToken);
-        var flowCount = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
-            .Where(table => table.AppId == id && table.ApprovalFlowDefinitionId != null)
-            .Select(table => table.ApprovalFlowDefinitionId!.Value)
-            .Distinct()
-            .CountAsync(cancellationToken);
-        return new WorkspaceOverviewResponse(pageCount, formCount, flowCount, tableCount);
+        return new WorkspaceOverviewResponse(pageCount, 0, 0, 0);
     }
 
     public async Task<PagedResult<object>> GetWorkspacePagesAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
@@ -238,102 +223,25 @@ public sealed class AppManifestQueryService : IAppManifestQueryService
         return new PagedResult<object>(items, total, pageIndex, pageSize);
     }
 
-    public async Task<PagedResult<object>> GetWorkspaceFormsAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
+    public Task<PagedResult<object>> GetWorkspaceFormsAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
     {
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var tableKeys = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
-            .Where(x => x.AppId == id)
-            .Select(x => x.TableKey)
-            .ToListAsync(cancellationToken);
-        if (tableKeys.Count == 0)
-        {
-            return new PagedResult<object>(Array.Empty<object>(), 0, pageIndex, pageSize);
-        }
-
-        var tableKeyArray = tableKeys.Distinct().ToArray();
-        var query = _db.Queryable<FormDefinition>()
-            .Where(x => x.DataTableKey != null && SqlFunc.ContainsArray(tableKeyArray, x.DataTableKey!));
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            var keyword = request.Keyword.Trim();
-            query = query.Where(form => form.Name.Contains(keyword));
-        }
-
-        var total = await query.CountAsync(cancellationToken);
-        var rows = await query.OrderByDescending(form => form.UpdatedAt).ToPageListAsync(pageIndex, pageSize, cancellationToken);
-        var items = rows.Select(x => (object)new
-        {
-            Id = x.Id.ToString(),
-            x.Name,
-            x.Category,
-            x.DataTableKey,
-            x.Version,
-            Status = x.Status.ToString(),
-            UpdatedAt = x.UpdatedAt.ToString("O")
-        }).ToArray();
-        return new PagedResult<object>(items, total, pageIndex, pageSize);
+        return Task.FromResult(new PagedResult<object>(Array.Empty<object>(), 0, pageIndex, pageSize));
     }
 
-    public async Task<PagedResult<object>> GetWorkspaceFlowsAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
+    public Task<PagedResult<object>> GetWorkspaceFlowsAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
     {
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var appFlowIds = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
-            .Where(x => x.AppId == id && x.ApprovalFlowDefinitionId != null)
-            .Select(x => x.ApprovalFlowDefinitionId!.Value)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        if (appFlowIds.Count == 0)
-        {
-            return new PagedResult<object>(Array.Empty<object>(), 0, pageIndex, pageSize);
-        }
-
-        var query = _db.Queryable<Atlas.Domain.Approval.Entities.ApprovalFlowDefinition>()
-            .Where(x => SqlFunc.ContainsArray(appFlowIds.ToArray(), x.Id));
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            var keyword = request.Keyword.Trim();
-            query = query.Where(x => x.Name.Contains(keyword));
-        }
-
-        var total = await query.CountAsync(cancellationToken);
-        var rows = await query.OrderByDescending(x => x.PublishedAt).ToPageListAsync(pageIndex, pageSize, cancellationToken);
-        var items = rows.Select(x => (object)new
-        {
-            Id = x.Id.ToString(),
-            x.Name,
-            x.Category,
-            x.Version,
-            Status = x.Status.ToString(),
-            UpdatedAt = x.PublishedAt?.ToString("O") ?? string.Empty
-        }).ToArray();
-        return new PagedResult<object>(items, total, pageIndex, pageSize);
+        return Task.FromResult(new PagedResult<object>(Array.Empty<object>(), 0, pageIndex, pageSize));
     }
 
-    public async Task<PagedResult<object>> GetWorkspaceDataAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
+    public Task<PagedResult<object>> GetWorkspaceDataAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
     {
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var query = _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>().Where(x => x.AppId == id);
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            var keyword = request.Keyword.Trim();
-            query = query.Where(x => x.TableKey.Contains(keyword) || x.DisplayName.Contains(keyword));
-        }
-
-        var total = await query.CountAsync(cancellationToken);
-        var rows = await query.OrderByDescending(x => x.UpdatedAt).ToPageListAsync(pageIndex, pageSize, cancellationToken);
-        var items = rows.Select(x => (object)new
-        {
-            Id = x.Id.ToString(),
-            x.TableKey,
-            x.DisplayName,
-            x.DbType,
-            x.Status,
-            UpdatedAt = x.UpdatedAt.ToString("O")
-        }).ToArray();
-        return new PagedResult<object>(items, total, pageIndex, pageSize);
+        return Task.FromResult(new PagedResult<object>(Array.Empty<object>(), 0, pageIndex, pageSize));
     }
 
     public async Task<WorkspacePermissionResponse> GetWorkspacePermissionsAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default)
@@ -470,8 +378,7 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
     {
         var pageCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
             .CountAsync(x => x.AppId == manifestId, cancellationToken);
-        var tableCount = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
-            .CountAsync(x => x.AppId == manifestId, cancellationToken);
+        const int tableCount = 0;
         var runtimeDb = await ResolveRuntimeDbByManifestIdAsync(tenantId, manifestId, cancellationToken);
         var routeCount = await runtimeDb.Queryable<RuntimeRoute>()
             .CountAsync(x => x.TenantIdValue == tenantId.Value && x.ManifestId == manifestId, cancellationToken);
@@ -526,13 +433,11 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
                 item.UpdatedAt))
             .ToArray();
 
-        var pageCountTask = _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
+        var pageCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
             .CountAsync(x => x.AppId == manifestId, cancellationToken);
-        var tableCountTask = _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
-            .CountAsync(x => x.AppId == manifestId, cancellationToken);
-        await Task.WhenAll(pageCountTask, tableCountTask);
+        const int tableCount = 0;
 
-        if (pageCountTask.Result == 0 && tableCountTask.Result == 0)
+        if (pageCount == 0 && tableCount == 0)
         {
             throw new InvalidOperationException("应用尚未配置任何页面或数据表，无法发布空版本。");
         }
@@ -540,7 +445,7 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var now = DateTimeOffset.UtcNow;
         manifest.Publish(userId, now);
         var snapshotJson = BuildReleaseSnapshotJson(
-            manifest, runtimeRoutes, pageCountTask.Result, tableCountTask.Result, now);
+            manifest, runtimeRoutes, pageCount, tableCount, now);
         var navigationProjectionSnapshotJson = BuildNavigationSnapshotJson(runtimeRoutes, pageSnapshots, now);
         var exposurePolicy = await _db.Queryable<AppExposurePolicy>()
             .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.AppInstanceId == manifestId, cancellationToken);
@@ -1120,13 +1025,6 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
 
 public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
 {
-    private static readonly HashSet<string> BlockingMigrationStatuses = new(StringComparer.Ordinal)
-    {
-        AppMigrationTaskStatuses.Pending,
-        AppMigrationTaskStatuses.Prechecking,
-        AppMigrationTaskStatuses.Running,
-        AppMigrationTaskStatuses.Validating
-    };
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -1490,23 +1388,15 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         return _mainDb;
     }
 
-    private async Task EnsureRuntimeReadableAsync(
+    private Task EnsureRuntimeReadableAsync(
         TenantId tenantId,
         long appInstanceId,
         CancellationToken cancellationToken)
     {
-        var latestTask = await _mainDb.Queryable<AppMigrationTask>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.TenantAppInstanceId == appInstanceId)
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstAsync(cancellationToken);
-        if (latestTask is null || !BlockingMigrationStatuses.Contains(latestTask.Status))
-        {
-            return;
-        }
-
-        throw new BusinessException(
-            ErrorCodes.AppMigrationPending,
-            "应用正在切库同步中，请稍后重试。");
+        _ = tenantId;
+        _ = appInstanceId;
+        _ = cancellationToken;
+        return Task.CompletedTask;
     }
 
     private sealed class RuntimeProjectionSnapshot

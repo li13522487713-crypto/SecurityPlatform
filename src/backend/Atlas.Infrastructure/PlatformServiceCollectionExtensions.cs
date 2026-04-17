@@ -25,12 +25,10 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();
         services.AddScoped<Atlas.Application.System.Abstractions.ITenantDataSourceService,
             Atlas.Infrastructure.Services.TenantDataSourceService>();
-        services.AddScoped<Atlas.Application.System.Abstractions.IAppMigrationService, Atlas.Infrastructure.Services.AppMigrationService>();
         services.AddScoped<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory,
             Atlas.Infrastructure.Services.TenantDbConnectionFactory>();
         services.AddScoped<Atlas.Application.System.Abstractions.IAppDataSourceProvisioner,
             Atlas.Infrastructure.Services.AppDataSourceProvisioner>();
-        services.AddScoped<Atlas.Infrastructure.Services.AppDatabaseProvisioningService>();
         services.AddScoped<Atlas.Application.System.Abstractions.IAppDbConnectionResolver>(sp =>
             (Atlas.Application.System.Abstractions.IAppDbConnectionResolver)sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>());
         services.AddScoped<Atlas.Infrastructure.Services.IAppDbScopeFactory, Atlas.Infrastructure.Services.AppDbScopeFactory>();
@@ -38,7 +36,6 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<IAppSqlSugarScopeFactory, AppSqlSugarScopeFactory>();
         services.AddSingleton<IPluginCatalogService, Atlas.Infrastructure.Services.PluginCatalogService>();
         services.AddScoped<Atlas.Application.System.Abstractions.ISqlQueryService, Atlas.Infrastructure.Services.SqlQueryService>();
-        services.AddScoped<Atlas.Application.System.Abstractions.IMetadataLinkQueryService, Atlas.Infrastructure.Services.MetadataLinkQueryService>();
 
         services.AddScoped<Atlas.Application.Plugins.Repositories.IPluginConfigRepository, Atlas.Infrastructure.Repositories.PluginConfigRepository>();
         services.AddScoped<Atlas.Application.Plugins.Abstractions.IPluginConfigService, Atlas.Infrastructure.Services.PluginConfigService>();

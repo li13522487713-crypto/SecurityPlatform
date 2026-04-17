@@ -77,7 +77,6 @@ public static class AiDesignServiceRegistration
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<ITeamAgentService, TeamAgentService>();
         services.AddScoped<ITeamAgentPublicationService, TeamAgentPublicationService>();
-        services.AddScoped<ITeamAgentSchemaDraftComposer, TeamAgentSchemaDraftComposer>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
         services.AddScoped<IAiVariableService, AiVariableService>();

@@ -5,8 +5,6 @@ using System.Threading.Channels;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Audit.Abstractions;
-using Atlas.Application.DynamicTables.Abstractions;
-using Atlas.Application.DynamicTables.Models;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Exceptions;
@@ -35,8 +33,6 @@ public sealed class TeamAgentService : ITeamAgentService
     private readonly MultiAgentOrchestrationRepository _multiAgentRepository;
     private readonly AgentRepository _agentRepository;
     private readonly ITeamAgentOrchestrationRuntime _orchestrationRuntime;
-    private readonly ITeamAgentSchemaDraftComposer _schemaDraftComposer;
-    private readonly IDynamicTableCommandService _dynamicTableCommandService;
     private readonly IAuditRecorder _auditRecorder;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
@@ -55,8 +51,6 @@ public sealed class TeamAgentService : ITeamAgentService
         MultiAgentOrchestrationRepository multiAgentRepository,
         AgentRepository agentRepository,
         ITeamAgentOrchestrationRuntime orchestrationRuntime,
-        ITeamAgentSchemaDraftComposer schemaDraftComposer,
-        IDynamicTableCommandService dynamicTableCommandService,
         IAuditRecorder auditRecorder,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork)
@@ -74,8 +68,6 @@ public sealed class TeamAgentService : ITeamAgentService
         _multiAgentRepository = multiAgentRepository;
         _agentRepository = agentRepository;
         _orchestrationRuntime = orchestrationRuntime;
-        _schemaDraftComposer = schemaDraftComposer;
-        _dynamicTableCommandService = dynamicTableCommandService;
         _auditRecorder = auditRecorder;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
@@ -607,53 +599,14 @@ public sealed class TeamAgentService : ITeamAgentService
         return MapExecution(execution, steps);
     }
 
-    public async Task<long> CreateSchemaDraftAsync(
+    public Task<long> CreateSchemaDraftAsync(
         TenantId tenantId,
         long teamAgentId,
         long userId,
         SchemaDraftCreateRequest request,
         string? appId,
         CancellationToken cancellationToken)
-    {
-        var teamAgent = await RequireTeamAgentAsync(tenantId, teamAgentId, cancellationToken);
-        var contributions = new List<TeamAgentMemberContribution>();
-        if (request.ConversationId.HasValue)
-        {
-            var executions = await _executionRepository.GetRecentAsync(tenantId, 20, cancellationToken);
-            var matchedExecution = executions.FirstOrDefault(item => item.ConversationId == request.ConversationId.Value && item.TeamAgentId == teamAgentId);
-            if (matchedExecution is not null)
-            {
-                var stepEntities = await _executionStepRepository.GetByExecutionIdAsync(tenantId, matchedExecution.Id, cancellationToken);
-                contributions.AddRange(stepEntities
-                    .Where(step => step.AgentId.HasValue && step.AgentId.Value > 0)
-                    .Select((step, index) => new TeamAgentMemberContribution(
-                        step.AgentId!.Value,
-                        step.AgentName,
-                        step.RoleName,
-                        step.Alias,
-                        step.InputMessage,
-                        step.OutputMessage ?? string.Empty,
-                        index + 1,
-                        step.StartedAt,
-                        step.CompletedAt ?? step.StartedAt)));
-            }
-        }
-
-        var draft = _schemaDraftComposer.Compose(teamAgent, request.Requirement, contributions, appId);
-        var entity = new TeamAgentSchemaDraft(
-            tenantId,
-            teamAgentId,
-            request.ConversationId,
-            userId,
-            string.IsNullOrWhiteSpace(request.Title) ? $"{teamAgent.Name} 草案" : request.Title.Trim(),
-            request.Requirement.Trim(),
-            JsonSerializer.Serialize(draft, JsonOptions),
-            JsonSerializer.Serialize(draft.OpenQuestions, JsonOptions),
-            appId ?? string.Empty,
-            _idGeneratorAccessor.NextId());
-        await _schemaDraftRepository.AddAsync(entity, cancellationToken);
-        return entity.Id;
-    }
+        => throw new BusinessException(ErrorCodes.ServerError, "DynamicTable 模块已下线，SchemaDraft 功能暂不可用。");
 
     public async Task<TeamAgentSchemaDraftDetail?> GetSchemaDraftAsync(TenantId tenantId, long teamAgentId, long draftId, CancellationToken cancellationToken)
     {
@@ -701,250 +654,26 @@ public sealed class TeamAgentService : ITeamAgentService
             item.CreatedAt)).ToList();
     }
 
-    public async Task UpdateSchemaDraftAsync(
+    public Task UpdateSchemaDraftAsync(
         TenantId tenantId,
         long teamAgentId,
         long draftId,
         long userId,
         SchemaDraftUpdateRequest request,
         CancellationToken cancellationToken)
-    {
-        _ = userId;
-        var entity = await RequireDraftAsync(tenantId, teamAgentId, draftId, cancellationToken);
-        if (entity.ConfirmationState == TeamAgentSchemaDraftConfirmationState.Confirmed)
-        {
-            throw new BusinessException("已确认的草案不能再修改。", ErrorCodes.ValidationError);
-        }
+        => throw new BusinessException(ErrorCodes.ServerError, "DynamicTable 模块已下线，SchemaDraft 功能暂不可用。");
 
-        if (entity.Status == TeamAgentSchemaDraftStatus.Discarded)
-        {
-            throw new BusinessException("已废弃的草案不能再修改。", ErrorCodes.ValidationError);
-        }
-
-        entity.UpdateDraft(
-            request.Title.Trim(),
-            request.Requirement.Trim(),
-            JsonSerializer.Serialize(request.SchemaDraft, JsonOptions),
-            JsonSerializer.Serialize(request.OpenQuestions ?? [], JsonOptions));
-        await _schemaDraftRepository.UpdateAsync(entity, cancellationToken);
-    }
-
-    public async Task<SchemaDraftConfirmationResponse> ConfirmSchemaDraftAsync(
+    public Task<SchemaDraftConfirmationResponse> ConfirmSchemaDraftAsync(
         TenantId tenantId,
         long teamAgentId,
         long draftId,
         long userId,
         SchemaDraftConfirmationRequest request,
         CancellationToken cancellationToken)
-    {
-        if (!request.Confirmed)
-        {
-            throw new BusinessException("必须显式确认后才能创建表。", ErrorCodes.ValidationError);
-        }
+        => throw new BusinessException(ErrorCodes.ServerError, "DynamicTable 模块已下线，SchemaDraft 功能暂不可用。");
 
-        var entity = await RequireDraftAsync(tenantId, teamAgentId, draftId, cancellationToken);
-        if (entity.Status == TeamAgentSchemaDraftStatus.Discarded)
-        {
-            throw new BusinessException("已废弃的草案不能再创建。", ErrorCodes.ValidationError);
-        }
-
-        var existingAudits = await _schemaDraftAuditRepository.GetByDraftIdAsync(tenantId, draftId, cancellationToken);
-        var auditSequence = existingAudits.Count;
-        var executionAudits = new List<TeamAgentSchemaDraftExecutionAudit>();
-        var draft = DeserializeDraft(entity.DraftJson);
-        if (draft.OpenQuestions.Count > 0)
-        {
-            throw new BusinessException("草案仍存在待确认问题，不能直接创建。", ErrorCodes.ValidationError);
-        }
-
-        if (entity.ConfirmationState == TeamAgentSchemaDraftConfirmationState.Confirmed)
-        {
-            var existingResponse = BuildConfirmedDraftResponse(entity);
-            AddSchemaDraftAudit(
-                executionAudits,
-                tenantId,
-                entity.Id,
-                ref auditSequence,
-                "confirm-create",
-                "reuse_confirmed_result",
-                "completed",
-                null,
-                null,
-                "草案已确认，直接返回已创建资源。");
-            await PersistSchemaDraftAuditsAsync(executionAudits, cancellationToken);
-            return existingResponse;
-        }
-
-        var resources = new List<SchemaDraftCreatedResourceDto>();
-        try
-        {
-            AddSchemaDraftAudit(
-                executionAudits,
-                tenantId,
-                entity.Id,
-                ref auditSequence,
-                "confirm-create",
-                "validate_draft",
-                "completed",
-                null,
-                null,
-                $"实体数={draft.Entities.Count}, 关系数={draft.Relations.Count}, 权限规则数={draft.SecurityPolicies.Count}");
-
-            foreach (var table in draft.Entities)
-            {
-                var fields = draft.Fields.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(item => item.SortOrder)
-                    .Select(MapField)
-                    .ToList();
-                var indexes = draft.Indexes.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                    .Select(index => new DynamicIndexDefinition(index.Name, index.IsUnique, index.Fields))
-                    .ToList();
-                var createRequest = new DynamicTableCreateRequest(table.TableKey, table.DisplayName, table.Description, "Sqlite", fields, indexes, entity.AppId);
-                var createdId = await _dynamicTableCommandService.CreateAsync(tenantId, userId, createRequest, cancellationToken);
-                resources.Add(new SchemaDraftCreatedResourceDto(table.TableKey, createdId.ToString()));
-                AddSchemaDraftAudit(
-                    executionAudits,
-                    tenantId,
-                    entity.Id,
-                    ref auditSequence,
-                    "create-table",
-                    "create_dynamic_table",
-                    "completed",
-                    table.TableKey,
-                    createdId.ToString(),
-                    table.DisplayName);
-            }
-
-            foreach (var table in draft.Entities)
-            {
-                var tableRelations = draft.Relations.Where(item => string.Equals(item.SourceTableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                    .Select(relation => new DynamicRelationDefinition(relation.RelatedTableKey, relation.SourceField, relation.TargetField, relation.RelationType, relation.CascadeRule))
-                    .ToList();
-                if (tableRelations.Count > 0)
-                {
-                    await _dynamicTableCommandService.SetRelationsAsync(tenantId, userId, table.TableKey, new DynamicRelationUpsertRequest(tableRelations), cancellationToken);
-                    AddSchemaDraftAudit(
-                        executionAudits,
-                        tenantId,
-                        entity.Id,
-                        ref auditSequence,
-                        "set-relations",
-                        "set_dynamic_relations",
-                        "completed",
-                        table.TableKey,
-                        null,
-                        $"关系数={tableRelations.Count}");
-                }
-
-                var permissions = draft.SecurityPolicies.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                    .Select(policy => new DynamicFieldPermissionRule(policy.FieldName, policy.RoleCode, policy.CanView, policy.CanEdit))
-                    .ToList();
-                if (permissions.Count > 0)
-                {
-                    await _dynamicTableCommandService.SetFieldPermissionsAsync(tenantId, userId, table.TableKey, new DynamicFieldPermissionUpsertRequest(permissions), cancellationToken);
-                    AddSchemaDraftAudit(
-                        executionAudits,
-                        tenantId,
-                        entity.Id,
-                        ref auditSequence,
-                        "set-permissions",
-                        "set_dynamic_field_permissions",
-                        "completed",
-                        table.TableKey,
-                        null,
-                        $"权限规则数={permissions.Count}");
-                }
-            }
-
-            entity.Confirm(
-                JsonSerializer.Serialize(resources.Select(item => item.TableKey).ToList(), JsonOptions),
-                JsonSerializer.Serialize(resources, JsonOptions));
-            AddSchemaDraftAudit(
-                executionAudits,
-                tenantId,
-                entity.Id,
-                ref auditSequence,
-                "confirm-create",
-                "confirm_schema_draft",
-                "completed",
-                null,
-                null,
-                $"已创建 {resources.Count} 张动态表。");
-
-            await _unitOfWork.ExecuteInTransactionAsync(async () =>
-            {
-                await _schemaDraftRepository.UpdateAsync(entity, cancellationToken);
-                await PersistSchemaDraftAuditsAsync(executionAudits, cancellationToken);
-            }, cancellationToken);
-
-            await RecordSchemaDraftAuditAsync(
-                tenantId,
-                userId,
-                "TEAM_AGENT_SCHEMA_DRAFT_CONFIRM_CREATE",
-                "Success",
-                draftId.ToString(),
-                $"TeamAgent={teamAgentId}; Tables={string.Join(',', resources.Select(item => item.TableKey))}",
-                cancellationToken);
-
-            return new SchemaDraftConfirmationResponse(entity.Id, entity.ConfirmationState.ToString().ToLowerInvariant(), resources.Select(item => item.TableKey).ToList(), resources);
-        }
-        catch (Exception ex)
-        {
-            AddSchemaDraftAudit(
-                executionAudits,
-                tenantId,
-                entity.Id,
-                ref auditSequence,
-                "confirm-create",
-                "confirm_schema_draft",
-                "failed",
-                null,
-                null,
-                ex.Message);
-
-            var rollbackFailures = await RollbackCreatedTablesAsync(
-                tenantId,
-                userId,
-                entity.Id,
-                resources,
-                executionAudits,
-                auditSequence,
-                cancellationToken);
-
-            await PersistSchemaDraftAuditsAsync(executionAudits, cancellationToken);
-            await RecordSchemaDraftAuditAsync(
-                tenantId,
-                userId,
-                "TEAM_AGENT_SCHEMA_DRAFT_CONFIRM_CREATE_FAILED",
-                "Failed",
-                draftId.ToString(),
-                rollbackFailures.Count == 0
-                    ? ex.Message
-                    : $"{ex.Message}; rollbackFailed={string.Join(',', rollbackFailures)}",
-                cancellationToken);
-
-            if (rollbackFailures.Count == 0)
-            {
-                throw new BusinessException($"SchemaDraft 创建动态表失败，已回滚：{ex.Message}", ErrorCodes.ServerError);
-            }
-
-            throw new BusinessException(
-                $"SchemaDraft 创建动态表失败，且以下表回滚失败：{string.Join(',', rollbackFailures)}。原始错误：{ex.Message}",
-                ErrorCodes.ServerError);
-        }
-    }
-
-    public async Task DiscardSchemaDraftAsync(TenantId tenantId, long teamAgentId, long draftId, CancellationToken cancellationToken)
-    {
-        var entity = await RequireDraftAsync(tenantId, teamAgentId, draftId, cancellationToken);
-        if (entity.ConfirmationState == TeamAgentSchemaDraftConfirmationState.Confirmed)
-        {
-            throw new BusinessException("已确认的草案不能废弃。", ErrorCodes.ValidationError);
-        }
-
-        entity.Discard();
-        await _schemaDraftRepository.UpdateAsync(entity, cancellationToken);
-    }
+    public Task DiscardSchemaDraftAsync(TenantId tenantId, long teamAgentId, long draftId, CancellationToken cancellationToken)
+        => throw new BusinessException(ErrorCodes.ServerError, "DynamicTable 模块已下线，SchemaDraft 功能暂不可用。");
 
     private async Task<TeamAgentChatResponse> ExecuteChatAsync(
         TenantId tenantId,
@@ -1031,12 +760,7 @@ public sealed class TeamAgentService : ITeamAgentService
             await PersistExecutionStepsAsync(tenantId, execution.Id, steps, linkedCts.Token);
             var currentMessage = runtimeResult.FinalMessage;
 
-            if (request.GenerateSchemaDraft == true || string.Equals(teamAgent.DefaultEntrySkill, "schema_builder", StringComparison.OrdinalIgnoreCase))
-            {
-                draft = _schemaDraftComposer.Compose(teamAgent, request.Message, runtimeResult.Contributions, appId);
-                await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("schema.draft.updated", JsonSerializer.Serialize(draft, JsonOptions)), linkedCts.Token);
-            }
-
+            // DynamicTable 模块已下线，SchemaDraft 自动生成能力已暂时移除；若需恢复，需重新接入新的 Schema 生成服务。
             await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("conversation.completed", JsonSerializer.Serialize(new
             {
                 executionId = execution.Id,
@@ -1141,54 +865,6 @@ public sealed class TeamAgentService : ITeamAgentService
         }
 
         await _schemaDraftAuditRepository.AddRangeAsync(items, cancellationToken);
-    }
-
-    private async Task<List<string>> RollbackCreatedTablesAsync(
-        TenantId tenantId,
-        long userId,
-        long draftId,
-        IReadOnlyList<SchemaDraftCreatedResourceDto> resources,
-        List<TeamAgentSchemaDraftExecutionAudit> audits,
-        int auditSequence,
-        CancellationToken cancellationToken)
-    {
-        var failedTableKeys = new List<string>();
-        var currentSequence = auditSequence;
-        foreach (var resource in resources.Reverse())
-        {
-            try
-            {
-                await _dynamicTableCommandService.DeleteAsync(tenantId, userId, resource.TableKey, cancellationToken);
-                AddSchemaDraftAudit(
-                    audits,
-                    tenantId,
-                    draftId,
-                    ref currentSequence,
-                    "rollback",
-                    "delete_dynamic_table",
-                    "completed",
-                    resource.TableKey,
-                    resource.ResourceId,
-                    "已回滚动态表。");
-            }
-            catch (Exception rollbackEx)
-            {
-                failedTableKeys.Add(resource.TableKey);
-                AddSchemaDraftAudit(
-                    audits,
-                    tenantId,
-                    draftId,
-                    ref currentSequence,
-                    "rollback",
-                    "delete_dynamic_table",
-                    "failed",
-                    resource.TableKey,
-                    resource.ResourceId,
-                    rollbackEx.Message);
-            }
-        }
-
-        return failedTableKeys;
     }
 
     private async Task<TeamAgentConversation> EnsureConversationAsync(
@@ -1467,21 +1143,6 @@ public sealed class TeamAgentService : ITeamAgentService
         };
         return JsonSerializer.Serialize(snapshot, JsonOptions);
     }
-
-    private static DynamicFieldDefinition MapField(SchemaDraftFieldDto field)
-        => new(
-            field.Name,
-            field.DisplayName,
-            field.FieldType,
-            field.Length,
-            field.Precision,
-            field.Scale,
-            field.AllowNull,
-            field.IsPrimaryKey,
-            field.IsAutoIncrement,
-            field.IsUnique,
-            field.DefaultValue,
-            field.SortOrder);
 
     private static List<TeamAgentMemberItem> NormalizeMembers(IReadOnlyList<TeamAgentMemberInput> members)
         => members
