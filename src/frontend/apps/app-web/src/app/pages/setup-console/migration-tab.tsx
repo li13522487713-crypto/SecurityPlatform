@@ -111,14 +111,16 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
     }
   }, []);
 
-  // 控制台进入 / 切换 active job 时拉取最新 progress 与 logs
+  // 控制台进入 / 切换 active job 时同步基础 job 信息与日志，
+  // 但不自动拉取 progress：在 mock 实现中 progress 调用本身会推进游标，自动 polling 会
+  // 把状态从 ready/running 自动推到 validating/cutover-ready，破坏用户的状态机控制。
+  // Progress 仅在用户点击 “progress-poll” 按钮时显式获取，与真实后端的“按需 polling”语义一致。
   useEffect(() => {
     if (activeMigration) {
       setJob(activeMigration);
-      void refreshProgressFor(activeMigration.id);
       void refreshLogsFor(activeMigration.id);
     }
-  }, [activeMigration, refreshLogsFor, refreshProgressFor]);
+  }, [activeMigration, refreshLogsFor]);
 
   const guarded = useCallback(
     async (label: string, executor: () => Promise<void>) => {

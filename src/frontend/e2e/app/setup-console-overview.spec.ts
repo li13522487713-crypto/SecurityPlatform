@@ -75,12 +75,12 @@ test.describe.serial("Setup Console - Dashboard Overview", () => {
 
     await page.getByTestId("setup-console-tab-system-init").click();
     await expect(page).toHaveURL(/\/setup-console\/system-init/);
-    await expect(page.getByTestId("setup-console-system-init-placeholder")).toBeVisible();
+    await expect(page.getByTestId("setup-console-system-init")).toBeVisible();
     await expect(page.getByTestId("setup-console-page")).toBeVisible();
 
     await page.getByTestId("setup-console-tab-migration").click();
     await expect(page).toHaveURL(/\/setup-console\/migration/);
-    await expect(page.getByTestId("setup-console-migration-placeholder")).toBeVisible();
+    await expect(page.getByTestId("setup-console-migration")).toBeVisible();
   });
 
   test("dashboard refresh button toggles the loading text", async ({ page, resetAuthForCase }) => {

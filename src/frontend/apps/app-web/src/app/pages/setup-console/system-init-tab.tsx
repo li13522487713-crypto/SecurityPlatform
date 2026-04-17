@@ -77,7 +77,7 @@ const INITIAL_WORKSPACE_FORM: DefaultWorkspaceFormState = {
 const OPTIONAL_ROLE_CODES = ["SecurityAdmin", "AuditAdmin", "AssetAdmin", "ApprovalAdmin"] as const;
 
 function indexOfState(state: SystemSetupState): number {
-  // 把状态机映射到"应该高亮第几步"。
+  // 仅作 fallback 起点：在没有任何 step 记录时，按系统状态机最近一次显式推进的状态推断当前步骤。
   switch (state) {
     case "not_started":
       return 0;
@@ -95,6 +95,35 @@ function indexOfState(state: SystemSetupState): number {
     default:
       return 0;
   }
+}
+
+/**
+ * 计算当前 highlight 的 step index：
+ * - 系统状态 `seed_initialized` 之后，bootstrap-user / default-workspace 不会再推动
+ *   `SystemSetupState`（两者都映射到 `seed_initialized -> seed_initialized`）。
+ *   仅靠 `indexOfState` 会让游标永远卡在 `seed_initialized` 对应的 bootstrap-user，
+ *   导致 default-workspace / complete 永远 locked。
+ * - 这里改用 step records 的"已 succeeded 的最后一步索引 + 1"作为真理来源，
+ *   并以 `indexOfState` 作为状态机层面的"不能比这个更靠后"的安全上限。
+ */
+function deriveCurrentStepIndex(system: SystemSetupStateDto): number {
+  const stateUpperBound = indexOfState(system.state);
+  if (stateUpperBound >= STEP_ORDER.length) {
+    return STEP_ORDER.length;
+  }
+
+  let succeededTip = 0;
+  for (let i = 0; i < STEP_ORDER.length; i += 1) {
+    const meta = STEP_ORDER[i];
+    const record = findRecord(system.steps, meta.step);
+    if (record?.state === "succeeded") {
+      succeededTip = i + 1;
+    } else {
+      break;
+    }
+  }
+
+  return Math.max(succeededTip, stateUpperBound);
 }
 
 function findRecord(steps: SetupStepRecordDto[] | undefined, step: SetupConsoleStep): SetupStepRecordDto | null {
@@ -121,7 +150,7 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const currentStepIndex = useMemo(() => (system ? indexOfState(system.state) : 0), [system]);
+  const currentStepIndex = useMemo(() => (system ? deriveCurrentStepIndex(system) : 0), [system]);
   const isDone = system ? isSystemInitDone(system.state) : false;
 
   const updateAdminField = useCallback(

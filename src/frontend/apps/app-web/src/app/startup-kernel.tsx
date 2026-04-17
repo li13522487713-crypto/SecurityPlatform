@@ -3,6 +3,28 @@ import { useBootstrap } from "./bootstrap-context";
 import { useAuth } from "./auth-context";
 import { loadAppFeatureFlags } from "./runtime-init";
 
+/**
+ * 启动前路由白名单：这些路由必须在 BootstrapProvider 完成之前就可以访问，
+ * 否则当后端尚未启动（典型场景：私有化首启 / setup 控制台 / 离线灾难恢复）时，
+ * 前端会被永久卡在 `LoadingPage` 上。
+ *
+ * 之所以放在这里而不是 BootstrapProvider 内部：BootstrapProvider 需要保留对启动失败的
+ * 全局降级语义（platformReady=false 时，业务路由会被 PlatformShellLayout 引导到错误页）；
+ * 而 startup gate 只需要在“肯定不依赖 bootstrap 的路由”上保持非阻塞即可。
+ */
+const PRE_BOOTSTRAP_ROUTE_PREFIXES = [
+  "/setup-console",
+  "/sign",
+  "/platform-not-ready",
+  "/app-setup"
+] as const;
+
+function isPreBootstrapPath(pathname: string): boolean {
+  return PRE_BOOTSTRAP_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 type FeatureFlagsPhase = "idle" | "loading" | "ready" | "error";
 
 export interface AppStartupState {
@@ -88,9 +110,12 @@ export function AppStartupKernel({
     refreshFeatureFlags
   ]);
 
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const bypassLoadingGate = isPreBootstrapPath(pathname);
+
   return (
     <AppStartupContext.Provider value={value}>
-      {bootstrap.loading ? loadingFallback ?? null : children}
+      {bootstrap.loading && !bypassLoadingGate ? loadingFallback ?? null : children}
     </AppStartupContext.Provider>
   );
 }

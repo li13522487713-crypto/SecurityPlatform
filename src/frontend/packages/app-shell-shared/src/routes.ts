@@ -390,7 +390,12 @@ export function workflowListPath(appKey: string): string {
   return `${appRootPath(appKey)}/workflows`;
 }
 
-export function workflowEditorPath(appKey: string, workflowId: string): string {
+/**
+ * Legacy app-key based workflow editor path. Renamed from `workflowEditorPath` to avoid
+ * clash with `workspace-routes.ts` (M10/D1 fix). New code should use the single-arg
+ * `workflowEditorPath` from workspace-routes.
+ */
+export function legacyAppWorkflowEditorPath(appKey: string, workflowId: string): string {
   return `${workflowListPath(appKey)}/${encodeSegment(workflowId)}/editor`;
 }
 
