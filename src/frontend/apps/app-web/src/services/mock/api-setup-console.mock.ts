@@ -7,7 +7,9 @@ import type {
   SetupConsoleOverviewDto,
   SystemSetupStateDto
 } from "../api-setup-console";
+import { setupConsoleApi } from "../api-setup-console";
 import { mockApiResponse, mockReject, MOCK_DELAY_MS } from "./mock-utils";
+import { shouldUseRealConsoleApi } from "./mock-switch";
 import { snapshotSystemState, snapshotWorkspaces, snapshotActiveMigration } from "./setup-console-store";
 
 /**
@@ -81,6 +83,9 @@ function buildCatalogSummary(): SetupConsoleCatalogSummaryDto {
 }
 
 export async function getSetupConsoleOverview(): Promise<ApiResponse<SetupConsoleOverviewDto>> {
+  if (shouldUseRealConsoleApi()) {
+    return setupConsoleApi.getOverview();
+  }
   return mockApiResponse<SetupConsoleOverviewDto>({
     system: snapshotSystemState(),
     workspaces: snapshotWorkspaces(),
@@ -92,6 +97,9 @@ export async function getSetupConsoleOverview(): Promise<ApiResponse<SetupConsol
 export async function authenticateSetupConsole(
   request: ConsoleAuthChallengeRequest
 ): Promise<ApiResponse<ConsoleAuthTokenDto>> {
+  if (shouldUseRealConsoleApi()) {
+    return setupConsoleApi.authenticate(request);
+  }
   const recoveryOk = typeof request.recoveryKey === "string" && request.recoveryKey.trim() === MOCK_RECOVERY_KEY;
   const credentialsOk =
     typeof request.bootstrapAdminUsername === "string" &&
@@ -114,6 +122,9 @@ export async function authenticateSetupConsole(
 }
 
 export async function refreshSetupConsoleAuth(consoleToken: string): Promise<ApiResponse<ConsoleAuthTokenDto>> {
+  if (shouldUseRealConsoleApi()) {
+    return setupConsoleApi.refreshAuth(consoleToken);
+  }
   if (!consoleToken || !consoleToken.startsWith("mock-console-token-")) {
     return mockReject("UNAUTHORIZED", "console token invalid or expired", MOCK_DELAY_MS);
   }
@@ -128,11 +139,53 @@ export async function refreshSetupConsoleAuth(consoleToken: string): Promise<Api
 }
 
 export async function getSetupConsoleSystemState(): Promise<ApiResponse<SystemSetupStateDto>> {
+  if (shouldUseRealConsoleApi()) {
+    return setupConsoleApi.getSystemState();
+  }
   return mockApiResponse<SystemSetupStateDto>(snapshotSystemState());
 }
 
 export async function getSetupConsoleCatalog(): Promise<ApiResponse<SetupConsoleCatalogSummaryDto>> {
+  if (shouldUseRealConsoleApi()) {
+    return setupConsoleApi.listEntityCatalog();
+  }
   return mockApiResponse<SetupConsoleCatalogSummaryDto>(buildCatalogSummary());
+}
+
+/**
+ * 实体目录下钻（M10/D9）：返回指定分类的全部实体名。
+ * 真接口走 setupConsoleApi.listEntityCatalogDetails；mock 暂用预定义清单。
+ */
+export async function getSetupConsoleCatalogEntities(category: string): Promise<ApiResponse<readonly string[]>> {
+  if (shouldUseRealConsoleApi()) {
+    // 真接口在 SetupConsoleController 上为 GET /catalog/entities/{category}/details
+    const response = await fetch(
+      `/api/v1/setup-console/catalog/entities/${encodeURIComponent(category)}/details`,
+      {
+        headers: { "X-Setup-Console-Token": readSessionToken() ?? "" }
+      }
+    );
+    return (await response.json()) as ApiResponse<readonly string[]>;
+  }
+  // mock：预设三类示例数据，满足 UI 下钻交互验证
+  const samples: Record<string, string[]> = {
+    "system-foundation": ["Tenant", "SystemConfig", "DictType", "DictData", "Notification", "FileRecord"],
+    "identity-permission": ["UserAccount", "Role", "Permission", "Menu", "Department", "Position", "UserRole"],
+    "workspace": ["Workspace", "WorkspaceRole", "WorkspaceMember", "WorkspaceFolder", "WorkspacePublishChannel"],
+    "business-domain": ["Agent", "AiApp", "WorkflowMeta", "AiPlugin", "KnowledgeBase", "Conversation", "ChatMessage"],
+    "resource-runtime": ["ModelConfig", "PluginConfig", "OutboxMessage", "InboxMessage", "Asset", "FileUploadSession"],
+    "audit-log": ["AuditRecord", "LoginLog", "ApiCallLog", "LlmUsageRecord", "AlertRecord"]
+  };
+  return mockApiResponse<readonly string[]>(samples[category] ?? []);
+}
+
+function readSessionToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem("atlas_setup_console_token");
+  } catch {
+    return null;
+  }
 }
 
 export const MOCK_SETUP_CONSOLE_CONSTANTS = Object.freeze({

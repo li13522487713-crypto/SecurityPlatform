@@ -1,4 +1,6 @@
+import { useCallback, useState } from "react";
 import { useAppI18n } from "../../i18n";
+import { getSetupConsoleCatalogEntities } from "../../../services/mock";
 import type {
   SetupConsoleOverviewDto,
   SystemSetupStateDto,
@@ -267,6 +269,33 @@ function MigrationCard({
 
 function CatalogCard({ catalog }: { catalog: SetupConsoleOverviewDto["catalogSummary"] }) {
   const { t } = useAppI18n();
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [details, setDetails] = useState<Record<string, readonly string[]>>({});
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const toggle = useCallback(
+    async (categoryId: string) => {
+      if (expanded === categoryId) {
+        setExpanded(null);
+        return;
+      }
+      setExpanded(categoryId);
+      if (details[categoryId]) {
+        return;
+      }
+      setLoading(categoryId);
+      try {
+        const response = await getSetupConsoleCatalogEntities(categoryId);
+        if (response.success && response.data) {
+          setDetails((previous) => ({ ...previous, [categoryId]: response.data ?? [] }));
+        }
+      } finally {
+        setLoading(null);
+      }
+    },
+    [details, expanded]
+  );
+
   return (
     <section className="atlas-setup-panel" data-testid="setup-console-catalog-card">
       <div className="atlas-section-title">{t("setupConsoleCatalogSectionTitle")}</div>
@@ -275,12 +304,40 @@ function CatalogCard({ catalog }: { catalog: SetupConsoleOverviewDto["catalogSum
         {t("setupConsoleCatalogCategoryUnit")})
       </p>
       <ul>
-        {catalog.categories.map((category) => (
-          <li key={category.category}>
-            {t(category.displayKey as AppMessageKey)} — {category.entityCount}
-            {category.hasSeed ? ` (${t("setupConsoleBooleanTrue")})` : ""}
-          </li>
-        ))}
+        {catalog.categories.map((category) => {
+          const isOpen = expanded === category.category;
+          const list = details[category.category];
+          return (
+            <li key={category.category} data-testid={`setup-console-catalog-row-${category.category}`}>
+              <button
+                type="button"
+                className="atlas-button atlas-button--text"
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit" }}
+                onClick={() => void toggle(category.category)}
+                data-testid={`setup-console-catalog-toggle-${category.category}`}
+              >
+                {isOpen ? "▼ " : "▶ "}
+                {t(category.displayKey as AppMessageKey)} — {category.entityCount}
+                {category.hasSeed ? ` (${t("setupConsoleBooleanTrue")})` : ""}
+              </button>
+              {isOpen ? (
+                loading === category.category ? (
+                  <p className="atlas-field-hint" style={{ marginLeft: 16 }}>
+                    {t("loading")}
+                  </p>
+                ) : (
+                  <ul style={{ marginLeft: 16 }} data-testid={`setup-console-catalog-details-${category.category}`}>
+                    {(list ?? []).map((entityName) => (
+                      <li key={entityName}>
+                        <code>{entityName}</code>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
       {catalog.missingCriticalTables.length > 0 ? (
         <div className="atlas-warning-banner" data-testid="setup-console-catalog-missing">

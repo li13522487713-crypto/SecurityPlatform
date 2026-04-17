@@ -8,6 +8,7 @@ import { DashboardTab } from "./dashboard-tab";
 import { SystemInitTab } from "./system-init-tab";
 import { WorkspaceInitTab } from "./workspace-init-tab";
 import { MigrationTab } from "./migration-tab";
+import { RepairTab } from "./repair-tab";
 import { clearConsoleToken, readConsoleToken } from "./console-token-storage";
 
 export type SetupConsoleTab = "dashboard" | "system-init" | "workspace-init" | "migration" | "repair";
@@ -159,33 +160,9 @@ export function SetupConsolePage() {
             />
           ) : null}
 
-          {activeTab === "repair" ? (
-            <PlaceholderPanel
-              testId="setup-console-repair-placeholder"
-              titleKey="setupConsoleTabRepair"
-              hintKey="setupConsoleM1Notice"
-            />
-          ) : null}
+          {activeTab === "repair" ? <RepairTab /> : null}
         </div>
       </div>
     </ConsoleAuthGate>
-  );
-}
-
-function PlaceholderPanel({
-  testId,
-  titleKey,
-  hintKey
-}: {
-  testId: string;
-  titleKey: AppMessageKey;
-  hintKey: AppMessageKey;
-}) {
-  const { t } = useAppI18n();
-  return (
-    <section className="atlas-setup-panel" data-testid={testId}>
-      <div className="atlas-section-title">{t(titleKey)}</div>
-      <p className="atlas-field-hint">{t(hintKey)}</p>
-    </section>
   );
 }
