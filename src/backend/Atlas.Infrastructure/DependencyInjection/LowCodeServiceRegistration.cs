@@ -47,6 +47,13 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IRuntimeFileService, RuntimeFileService>();
         services.AddSingleton<LowCodeAssetGcJob>();
 
+        // M11 chatflow / session / 消息日志
+        services.AddScoped<ILowCodeSessionRepository, LowCodeSessionRepository>();
+        services.AddScoped<ILowCodeMessageLogRepository, LowCodeMessageLogRepository>();
+        services.AddScoped<IRuntimeSessionService, RuntimeSessionService>();
+        services.AddScoped<IRuntimeChatflowService, RuntimeChatflowService>();
+        services.AddScoped<IRuntimeMessageLogService, RuntimeMessageLogService>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {

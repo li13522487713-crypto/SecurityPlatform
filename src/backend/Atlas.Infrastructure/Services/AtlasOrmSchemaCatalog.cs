@@ -251,7 +251,9 @@ public static class AtlasOrmSchemaCatalog
         typeof(AppDraftLock),
         typeof(AppComponentOverride),
         typeof(RuntimeWorkflowAsyncJob),
-        typeof(LowCodeAssetUploadSession)
+        typeof(LowCodeAssetUploadSession),
+        typeof(LowCodeSession),
+        typeof(LowCodeMessageLogEntry)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =

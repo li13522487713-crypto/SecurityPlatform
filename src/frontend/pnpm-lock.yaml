@@ -17360,9 +17360,25 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
-  packages/lowcode-asset-adapter: {}
+  packages/lowcode-asset-adapter:
+    dependencies:
+      '@atlas/lowcode-schema':
+        specifier: workspace:*
+        version: link:../lowcode-schema
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
-  packages/lowcode-chatflow-adapter: {}
+  packages/lowcode-chatflow-adapter:
+    dependencies:
+      '@atlas/lowcode-schema':
+        specifier: workspace:*
+        version: link:../lowcode-schema
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/lowcode-collab-yjs: {}
 
@@ -17527,7 +17543,15 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
-  packages/lowcode-session-adapter: {}
+  packages/lowcode-session-adapter:
+    dependencies:
+      '@atlas/lowcode-chatflow-adapter':
+        specifier: workspace:*
+        version: link:../lowcode-chatflow-adapter
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/lowcode-trigger-adapter: {}
 
