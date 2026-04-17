@@ -1111,3 +1111,81 @@ DTO：
 |---|---|
 | `WorkspaceTasksController` | `services/mock/api-tasks.mock.ts` |
 | `WorkspaceEvaluationsController`（含 testsets 子路径） | `services/mock/api-evaluations.mock.ts` |
+
+## Coze 平台第三阶段 API（M4：能力闭环 + 持久化升级）
+
+> 本批将 M1 / M3 的 in-memory 实现升级为持久化版本，并新增 OpenApiKeys 端点。
+> 共涉及 1 个新表 `WorkspaceFolderItem`、1 个新表 `PlatformContent`，
+> 复用 `EvaluationDataset / EvaluationCase / EvaluationTask`、`PersonalAccessToken` 现有表。
+> 全部通过 `AtlasOrmSchemaCatalog.RuntimeEntities` 自动 InitTables。
+
+### M4.1 OpenAPI 密钥（PRD 02-7.10）
+
+- `GET /api/v1/open/api-keys?keyword&pageIndex&pageSize` → `ApiResponse<OpenApiKeyDto[]>`
+- `POST /api/v1/open/api-keys` body `OpenApiKeyCreateRequest` → `ApiResponse<OpenApiKeyCreateResponse>`
+- `DELETE /api/v1/open/api-keys/{keyId}` → `ApiResponse<{ success }>`
+
+DTO：
+
+- `OpenApiKeyDto { id, alias, prefix, scopes[], createdAt, lastUsedAt?, expiresAt? }`
+- `OpenApiKeyCreateRequest { alias (1..64), scopes[]?, expiresAt? }`
+- `OpenApiKeyCreateResponse { key, item: OpenApiKeyDto }`（`key` 是 PAT 明文，仅在创建响应中返回一次）
+
+权限：`Permission:pat:view` / `Permission:pat:create` / `Permission:pat:delete`。
+后端复用 `IPersonalAccessTokenService`（`PersonalAccessTokenRepository` 持久化），
+当前用户隔离：所有列表/创建/删除都按 `tenantId + createdByUserId` 双键过滤，防止越权。
+
+### M4.2 文件夹 ↔ 对象关联表（PRD 03-5.4 增强）
+
+- `MoveItem` 行为升级：写入新表 `WorkspaceFolderItem`，并保证一个 (workspaceId, itemType, itemId) 只属于一个文件夹（先查后写，已存在则迁移）。
+- `List` 接口的 `itemCount` 由 `WorkspaceFolderItem` 表 `GROUP BY folderId COUNT(*)` 计算（**一次性批量查询，禁止循环内查库**）。
+- `Delete` 文件夹时先清理关联，再删 folder 自身，避免孤儿。
+- 表字段：`Id`, `TenantId`, `WorkspaceId`, `FolderId`, `ItemType`, `ItemId`, `AddedAt`。
+- `ItemType` 校验：`agent | app | project`，其它值返回 `VALIDATION_ERROR`。
+
+### M4.3 测试集持久化（PRD 05-4.8 持久化版）
+
+- 服务实现切换：`InMemoryWorkspaceTestsetService` → `WorkspaceTestsetService`，底层复用：
+  - `EvaluationDataset` 存测试集元数据（`Scene` 字段编码 `coze-testset:{workspaceId}|{workflowId}`）
+  - `EvaluationCase` 存测试集每行（`Input` 字段为整行 JSON 序列化）
+- 接口契约不变：`GET/POST /api/v1/workspaces/{wsId}/testsets`。
+- 列表：`EvaluationDatasetRepository.GetPagedByScenePrefixAsync(scenePrefix="coze-testset:{wsId}|")` + `EvaluationCaseRepository.CountByDatasetIdsAsync` 一次性聚合。
+- 创建：写入 1 条 `EvaluationDataset` + N 条 `EvaluationCase`。
+
+### M4.4 任务中心持久化（PRD 02-7.4 持久化版）
+
+- 服务实现切换：`InMemoryWorkspaceTaskService` → `WorkspaceTaskService`，底层从 `EvaluationTask` 读取。
+- `WorkspaceTaskItemDto.type` 当前固定为 `"evaluation"`。
+- `EvaluationTaskStatus` → `WorkspaceTaskStatus` 映射：
+  - `Pending → Pending`、`Running → Running`、`Completed → Succeeded`、`Failed → Failed`
+- `DurationMs` = `CompletedAt - StartedAt` 毫秒数（未启动时为 0）。
+- 当前限制：`EvaluationTask` 模型无 `WorkspaceId` 字段，**租户内任务对所有工作空间可见**；
+  下一轮 schema 演进为 `EvaluationTask` 增加 `WorkspaceId` 列后即可严格按工作空间过滤。
+  接 `BatchJobExecution` 与 Hangfire 时同样需要先扩展 schema。
+
+### M4.5 首页内容持久化（PRD 01 持久化版）
+
+- 服务实现切换：`InMemoryHomeContentService` → `PlatformHomeContentService`，底层用新表 `PlatformContent`。
+- 表字段：`Id`, `TenantId`, `Slot`, `ContentKey`, `ContentJson`, `Tag`, `OrderIndex`, `IsActive`, `PublishedAt`, `CreatedAt`, `UpdatedAt`。
+- `Slot` 取值：`banner | tutorial | announcement | recommended`，`ContentJson` 是对应 DTO（`HomeBannerDto / HomeTutorialCardDto / HomeAnnouncementItemDto / HomeRecommendedAgentDto`）的 JSON 序列化。
+- 行为：每个 Slot 优先读 `IsActive=true` 的记录（按 `OrderIndex ASC` + `PublishedAt DESC` 排序）；**当对应 Slot 无激活记录时 fallback 到内置默认数据**，保证空数据库场景仍可用。
+- `recent-activities` 仍返回空数组，等 `WorkspaceIdeService.RecordActivity` 接入后再补。
+- 运营 CRUD UI 暂未接入（直接 SQL `INSERT INTO PlatformContent` 即可上线运营内容）；下一迭代补 `PlatformContentsController`。
+
+### 替代/升级对照表（M4 总览）
+
+| 类别 | 之前实现 | M4 实现 | 涉及表 |
+|---|---|---|---|
+| OpenAPI 密钥 | 前端 in-memory mock | `OpenApiKeysController` + `IPersonalAccessTokenService` | `PersonalAccessToken` |
+| 文件夹 itemCount | `WorkspaceFolder.ItemCount` 字段累加 | `WorkspaceFolderItem` 关联表 + `GROUP BY` 聚合 | 新增 `WorkspaceFolderItem` |
+| 测试集 | `InMemoryWorkspaceTestsetService` | `WorkspaceTestsetService`（持久化） | `EvaluationDataset` + `EvaluationCase` |
+| 任务中心 | `InMemoryWorkspaceTaskService`（空集合） | `WorkspaceTaskService`（读 EvaluationTask） | `EvaluationTask` |
+| 首页内容 | `InMemoryHomeContentService`（写死常量） | `PlatformHomeContentService`（DB + fallback） | 新增 `PlatformContent` |
+
+### 安全与权限（M4）
+
+- OpenAPI 密钥：`Permission:pat:*` 系列。
+- 文件夹 / 测试集 / 任务中心 / 首页：沿用 `Permission:ai-workspace:view|update`。
+- 全部接口仍按 `tenantId` 隔离；`PersonalAccessToken` 额外按 `createdByUserId` 隔离防越权。
+- 持久化层强约束：所有列表查询走 `RefAsync<int>` 一次分页，禁止循环内查库；
+  关联统计走 `GROUP BY` 一次性聚合（`CountByFolderIdsAsync` / `CountByDatasetIdsAsync`）。

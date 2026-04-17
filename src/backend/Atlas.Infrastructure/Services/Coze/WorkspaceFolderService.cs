@@ -13,12 +13,24 @@ namespace Atlas.Infrastructure.Services.Coze;
 
 public sealed class WorkspaceFolderService : IWorkspaceFolderService
 {
+    private static readonly HashSet<string> AllowedItemTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "agent",
+        "app",
+        "project"
+    };
+
     private readonly WorkspaceFolderRepository _repository;
+    private readonly WorkspaceFolderItemRepository _itemRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
 
-    public WorkspaceFolderService(WorkspaceFolderRepository repository, IIdGeneratorAccessor idGenerator)
+    public WorkspaceFolderService(
+        WorkspaceFolderRepository repository,
+        WorkspaceFolderItemRepository itemRepository,
+        IIdGeneratorAccessor idGenerator)
     {
         _repository = repository;
+        _itemRepository = itemRepository;
         _idGenerator = idGenerator;
     }
 
@@ -40,8 +52,16 @@ public sealed class WorkspaceFolderService : IWorkspaceFolderService
             pageSize,
             cancellationToken);
 
+        // 批量统计每个文件夹的 ItemCount（一次查库，避免循环内查库）。
+        var folderIds = entities.Select(e => e.Id).ToArray();
+        var counts = await _itemRepository.CountByFolderIdsAsync(
+            tenantId,
+            workspaceId,
+            folderIds,
+            cancellationToken);
+
         return new PagedResult<WorkspaceFolderListItem>(
-            entities.Select(ToDto).ToArray(),
+            entities.Select(entity => ToDto(entity, counts.TryGetValue(entity.Id, out var c) ? c : entity.ItemCount)).ToArray(),
             total,
             pageIndex,
             pageSize);
@@ -97,6 +117,8 @@ public sealed class WorkspaceFolderService : IWorkspaceFolderService
         CancellationToken cancellationToken)
     {
         var entity = await LoadOrThrowAsync(tenantId, workspaceId, folderId, cancellationToken);
+        // 先清理关联，再删 folder 自身，避免出现孤儿引用。
+        await _itemRepository.DeleteByFolderAsync(tenantId, workspaceId, entity.Id, cancellationToken);
         await _repository.DeleteAsync(entity, cancellationToken);
     }
 
@@ -111,10 +133,46 @@ public sealed class WorkspaceFolderService : IWorkspaceFolderService
         {
             throw new BusinessException(ErrorCodes.ValidationError, "ItemIdRequired");
         }
+        var itemType = (request.ItemType ?? string.Empty).Trim().ToLowerInvariant();
+        if (!AllowedItemTypes.Contains(itemType))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "ItemTypeInvalid");
+        }
 
         var entity = await LoadOrThrowAsync(tenantId, workspaceId, folderId, cancellationToken);
-        entity.IncrementItemCount(1);
-        await _repository.UpdateAsync(entity, cancellationToken);
+
+        // 一个 (workspaceId, itemType, itemId) 只允许属于一个文件夹；先查后写。
+        var existing = await _itemRepository.FindAssignmentAsync(
+            tenantId,
+            workspaceId,
+            itemType,
+            request.ItemId.Trim(),
+            cancellationToken);
+
+        if (existing is null)
+        {
+            var assignment = new WorkspaceFolderItem(
+                tenantId,
+                workspaceId,
+                entity.Id,
+                itemType,
+                request.ItemId.Trim(),
+                _idGenerator.NextId());
+            await _itemRepository.AddAsync(assignment, cancellationToken);
+        }
+        else if (existing.FolderId != entity.Id)
+        {
+            // 已属于其它文件夹：删旧 + 加新（保持单一归属）。
+            await _itemRepository.DeleteAsync(existing, cancellationToken);
+            var assignment = new WorkspaceFolderItem(
+                tenantId,
+                workspaceId,
+                entity.Id,
+                itemType,
+                request.ItemId.Trim(),
+                _idGenerator.NextId());
+            await _itemRepository.AddAsync(assignment, cancellationToken);
+        }
     }
 
     private async Task<WorkspaceFolder> LoadOrThrowAsync(
@@ -147,14 +205,14 @@ public sealed class WorkspaceFolderService : IWorkspaceFolderService
         }
     }
 
-    internal static WorkspaceFolderListItem ToDto(WorkspaceFolder entity)
+    internal static WorkspaceFolderListItem ToDto(WorkspaceFolder entity, int itemCount)
     {
         return new WorkspaceFolderListItem(
             Id: entity.Id.ToString(),
             WorkspaceId: entity.WorkspaceId,
             Name: entity.Name,
             Description: string.IsNullOrEmpty(entity.Description) ? null : entity.Description,
-            ItemCount: entity.ItemCount,
+            ItemCount: itemCount,
             CreatedByDisplayName: entity.CreatedByDisplayName,
             CreatedAt: new DateTimeOffset(DateTime.SpecifyKind(entity.CreatedAt, DateTimeKind.Utc)),
             UpdatedAt: new DateTimeOffset(DateTime.SpecifyKind(entity.UpdatedAt ?? entity.CreatedAt, DateTimeKind.Utc)));

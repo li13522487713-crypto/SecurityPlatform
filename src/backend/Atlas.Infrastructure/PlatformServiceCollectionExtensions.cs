@@ -70,10 +70,11 @@ public static class PlatformServiceCollectionExtensions
         services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppRuntimeSupervisor, AppRuntimeSupervisor>();
         services.AddHostedService<AppRuntimeSupervisorHostedService>();
 
-        // Coze PRD Phase III - M1: 平台/个人级 in-memory 内容服务（首页/社区/通用管理/模板插件/个人设置）
-        // 协议见 docs/mock-api-protocols.md，等运营后台落地后升级为持久化实现。
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.IHomeContentService,
-            Atlas.Infrastructure.Services.Coze.InMemoryHomeContentService>();
+        // Coze PRD Phase III - M1: 平台/个人级 in-memory 内容服务（社区/通用管理/模板插件/个人设置）
+        // M4.5：HomeContent 已迁移为 PlatformHomeContentService（PlatformContent 表 + fallback）。
+        services.AddScoped<Atlas.Infrastructure.Repositories.PlatformContentRepository>();
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IHomeContentService,
+            Atlas.Infrastructure.Services.Coze.PlatformHomeContentService>();
         services.AddSingleton<Atlas.Application.Coze.Abstractions.ICommunityService,
             Atlas.Infrastructure.Services.Coze.InMemoryCommunityService>();
         services.AddSingleton<Atlas.Application.Coze.Abstractions.IPlatformGeneralService,
@@ -85,19 +86,23 @@ public static class PlatformServiceCollectionExtensions
 
         // Coze PRD Phase III - M2: 工作空间维度持久化对象（文件夹 / 发布渠道）
         services.AddScoped<Atlas.Infrastructure.Repositories.WorkspaceFolderRepository>();
+        // Coze PRD Phase III - M4.2: 文件夹与对象的关联表 Repository
+        services.AddScoped<Atlas.Infrastructure.Repositories.WorkspaceFolderItemRepository>();
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceFolderService,
             Atlas.Infrastructure.Services.Coze.WorkspaceFolderService>();
         services.AddScoped<Atlas.Infrastructure.Repositories.WorkspacePublishChannelRepository>();
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspacePublishChannelService,
             Atlas.Infrastructure.Services.Coze.WorkspacePublishChannelService>();
 
-        // Coze PRD Phase III - M3: 任务中心 / 评测 / 测试集（in-memory，第二批接入 BatchProcess + EvaluationDataset）
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.IWorkspaceTaskService,
-            Atlas.Infrastructure.Services.Coze.InMemoryWorkspaceTaskService>();
+        // Coze PRD Phase III - M4.4: 任务中心持久化（复用 EvaluationTask）。
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTaskService,
+            Atlas.Infrastructure.Services.Coze.WorkspaceTaskService>();
+        // 评测列表暂仍 in-memory；M4 之后接 EvaluationTask + EvaluationResult 完整模型。
         services.AddSingleton<Atlas.Application.Coze.Abstractions.IWorkspaceEvaluationService,
             Atlas.Infrastructure.Services.Coze.InMemoryWorkspaceEvaluationService>();
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.IWorkspaceTestsetService,
-            Atlas.Infrastructure.Services.Coze.InMemoryWorkspaceTestsetService>();
+        // Coze PRD Phase III - M4.3: 测试集持久化（复用 EvaluationDataset / EvaluationCase）。
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTestsetService,
+            Atlas.Infrastructure.Services.Coze.WorkspaceTestsetService>();
 
         return services;
     }

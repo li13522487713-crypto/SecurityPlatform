@@ -1,13 +1,12 @@
 import type { ApiResponse } from "@atlas/shared-react-core/types";
 import { requestApi } from "../api-core";
-import { mockResolve } from "./mock-utils";
 
 /**
- * 通用管理（PRD 02-7.12）。
+ * 通用管理（PRD 02-7.12） + API 管理（PRD 02-7.10）。
  *
- * - 平台公告与品牌：已切换为真实 REST（PlatformGeneralController）。
- * - OpenAPI 密钥：仍为 mock，等 M1 后续 milestone 把
- *   `OpenApiKeysController` 落地后切换。
+ * - 平台公告与品牌：真实 REST（PlatformGeneralController）。
+ * - OpenAPI 密钥：M4.1 已切换为真实 REST（OpenApiKeysController），
+ *   底层复用 IPersonalAccessTokenService（PAT 服务）。
  */
 
 export interface PlatformNoticeItem {
@@ -44,33 +43,37 @@ export interface OpenApiKeyItem {
   scopes: string[];
   createdAt: string;
   lastUsedAt?: string;
+  expiresAt?: string;
 }
 
-const API_KEYS: OpenApiKeyItem[] = [];
+interface OpenApiKeyCreateResponse {
+  key: string;
+  item: OpenApiKeyItem;
+}
 
 export async function listOpenApiKeys(): Promise<OpenApiKeyItem[]> {
-  return mockResolve<OpenApiKeyItem[]>(API_KEYS.slice());
+  const response = await requestApi<ApiResponse<OpenApiKeyItem[]>>("/open/api-keys");
+  return response.data ?? [];
 }
 
 export async function createOpenApiKey(alias: string): Promise<{ key: string; item: OpenApiKeyItem }> {
-  const item: OpenApiKeyItem = {
-    id: `key-${Date.now()}`,
-    alias: alias.trim(),
-    prefix: `pat_${Math.random().toString(36).slice(2, 10)}`,
-    scopes: ["agent:read", "workflow:run"],
-    createdAt: new Date().toISOString()
-  };
-  API_KEYS.push(item);
-  return mockResolve({
-    key: `${item.prefix}.${Math.random().toString(36).slice(2, 18)}`,
-    item
+  const response = await requestApi<ApiResponse<OpenApiKeyCreateResponse>>("/open/api-keys", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ alias })
   });
+  if (!response.data?.key || !response.data.item) {
+    throw new Error(response.message || "Failed to create API key");
+  }
+  return response.data;
 }
 
 export async function deleteOpenApiKey(keyId: string): Promise<void> {
-  const index = API_KEYS.findIndex(item => item.id === keyId);
-  if (index >= 0) {
-    API_KEYS.splice(index, 1);
+  const response = await requestApi<ApiResponse<{ success: boolean }>>(
+    `/open/api-keys/${encodeURIComponent(keyId)}`,
+    { method: "DELETE" }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "Failed to delete API key");
   }
-  return mockResolve(undefined);
 }

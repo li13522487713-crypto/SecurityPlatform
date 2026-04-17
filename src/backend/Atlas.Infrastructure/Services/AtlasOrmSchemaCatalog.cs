@@ -259,7 +259,11 @@ public static class AtlasOrmSchemaCatalog
         typeof(Atlas.Domain.LogicFlow.Governance.SysVersionFreeze),
         // Coze PRD Phase III - M2: 工作空间文件夹与发布渠道
         typeof(WorkspaceFolder),
-        typeof(WorkspacePublishChannel)
+        typeof(WorkspacePublishChannel),
+        // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
+        typeof(WorkspaceFolderItem),
+        // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）
+        typeof(PlatformContent)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =
