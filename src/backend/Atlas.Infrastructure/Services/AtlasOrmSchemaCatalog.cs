@@ -5,6 +5,7 @@ using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
+using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.Plugins;
 using Atlas.Domain.Setup.Entities;
@@ -238,7 +239,15 @@ public static class AtlasOrmSchemaCatalog
         typeof(DataMigrationReport),
         // M8 新增：ConsoleToken 持久化（A3） + 种子 bundle 应用日志（B1）
         typeof(SetupConsoleToken),
-        typeof(SetupSeedBundleLog)
+        typeof(SetupSeedBundleLog),
+        // M01 低代码 UI Builder：7 张表（PLAN.md §M01 S01-1）
+        typeof(AppDefinition),
+        typeof(PageDefinition),
+        typeof(AppVariable),
+        typeof(AppContentParam),
+        typeof(AppVersionArchive),
+        typeof(AppPublishArtifact),
+        typeof(AppResourceReference)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =
