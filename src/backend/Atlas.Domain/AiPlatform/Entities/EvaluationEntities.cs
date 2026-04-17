@@ -149,6 +149,23 @@ public sealed class EvaluationTask : TenantEntity
     public string ErrorMessage { get; private set; }
     [SugarColumn(ColumnDataType = "TEXT")]
     public string AggregateMetricsJson { get; private set; }
+
+    /// <summary>
+    /// Coze PRD（M5.1）：评测任务所属工作空间。Nullable 保证历史数据兼容：
+    /// 早期评测任务（EvaluationService 创建的 agent 评测）未知工作空间，保留 null；
+    /// 新由 Coze API 创建的任务必须赋值以便按 workspace 隔离。
+    /// </summary>
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? WorkspaceId { get; private set; }
+
+    public void AttachWorkspace(string workspaceId)
+    {
+        if (!string.IsNullOrWhiteSpace(workspaceId))
+        {
+            WorkspaceId = workspaceId.Trim();
+            UpdatedAt = DateTime.UtcNow;
+        }
+    }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
     public DateTime StartedAt { get; private set; }

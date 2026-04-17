@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Atlas.Application.Coze.Abstractions;
 using Atlas.Application.Coze.Models;
+using Atlas.Application.Platform.Abstractions;
+using Atlas.Application.Platform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
@@ -93,11 +95,23 @@ public sealed class PlatformHomeContentService : IHomeContentService
             "/agent/rec-2/editor")
     };
 
-    private readonly PlatformContentRepository _repository;
+    private static readonly HashSet<string> RecentResourceTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "agent",
+        "app",
+        "workflow",
+        "chatflow"
+    };
 
-    public PlatformHomeContentService(PlatformContentRepository repository)
+    private readonly PlatformContentRepository _repository;
+    private readonly IWorkspaceIdeService _workspaceIdeService;
+
+    public PlatformHomeContentService(
+        PlatformContentRepository repository,
+        IWorkspaceIdeService workspaceIdeService)
     {
         _repository = repository;
+        _workspaceIdeService = workspaceIdeService;
     }
 
     public async Task<HomeBannerDto> GetBannerAsync(
@@ -188,15 +202,59 @@ public sealed class PlatformHomeContentService : IHomeContentService
             .ToArray();
     }
 
-    public Task<IReadOnlyList<HomeRecentActivityDto>> GetRecentActivitiesAsync(
+    public async Task<IReadOnlyList<HomeRecentActivityDto>> GetRecentActivitiesAsync(
         TenantId tenantId,
         string workspaceId,
         long currentUserId,
         CancellationToken cancellationToken)
     {
-        // 第二轮接 WorkspaceIdeService 的 RecordActivity 历史记录；当前阶段保留空数组。
-        IReadOnlyList<HomeRecentActivityDto> empty = Array.Empty<HomeRecentActivityDto>();
-        return Task.FromResult(empty);
+        // M5.4：对接 WorkspaceIdeService 的最近访问/编辑资源卡片（按用户维度），
+        // 投影为 HomeRecentActivityDto；只保留 agent / app / workflow / chatflow 四类。
+        var request = new WorkspaceIdeResourceQueryRequest(
+            Keyword: null,
+            ResourceType: null,
+            FavoriteOnly: false,
+            PageIndex: 1,
+            PageSize: 20);
+
+        PagedResult<WorkspaceIdeResourceCardResponse> paged;
+        try
+        {
+            paged = await _workspaceIdeService.GetResourcesAsync(tenantId, currentUserId, request, cancellationToken);
+        }
+        catch
+        {
+            return Array.Empty<HomeRecentActivityDto>();
+        }
+
+        return paged.Items
+            .Where(item => RecentResourceTypes.Contains(item.ResourceType))
+            .Select(item =>
+            {
+                var updatedAt = item.LastEditedAt ?? item.LastOpenedAt ?? item.UpdatedAt;
+                return new HomeRecentActivityDto(
+                    Id: item.ResourceId,
+                    Type: NormalizeType(item.ResourceType),
+                    Name: item.Name,
+                    Description: string.IsNullOrWhiteSpace(item.Description) ? null : item.Description,
+                    UpdatedAt: new DateTimeOffset(DateTime.SpecifyKind(updatedAt, DateTimeKind.Utc)),
+                    EntryRoute: string.IsNullOrWhiteSpace(item.EntryRoute) ? "/" : item.EntryRoute);
+            })
+            .Take(10)
+            .ToArray();
+    }
+
+    private static string NormalizeType(string resourceType)
+    {
+        // HomeRecentActivityDto.Type 按前端协议只接 agent / app / workflow；
+        // 把 chatflow 归并为 workflow（前端做 UI 展示时可再细分）。
+        return resourceType.ToLowerInvariant() switch
+        {
+            "agent" => "agent",
+            "app" => "app",
+            "chatflow" => "workflow",
+            _ => "workflow"
+        };
     }
 
     private static T? Deserialize<T>(string json)

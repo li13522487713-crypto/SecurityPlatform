@@ -2135,6 +2135,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await AddColumnIfMissingAsync(db, "KnowledgeBase", "WorkspaceId", "INTEGER NULL", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiDatabase", "WorkspaceId", "INTEGER NULL", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiPlugin", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        // Coze M5.1：评测任务挂上工作空间归属（nullable，历史任务保留 NULL）
+        await AddColumnIfMissingAsync(db, "EvaluationTask", "WorkspaceId", "TEXT NULL", cancellationToken);
 
         var missingWorkspaceTables =
             !db.DbMaintenance.IsAnyTable("Workspace", false) ||

@@ -75,11 +75,16 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Infrastructure.Repositories.PlatformContentRepository>();
         services.AddScoped<Atlas.Application.Coze.Abstractions.IHomeContentService,
             Atlas.Infrastructure.Services.Coze.PlatformHomeContentService>();
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.ICommunityService,
+        // M5.3：平台运营内容 CRUD。
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IPlatformContentAdminService,
+            Atlas.Infrastructure.Services.Coze.PlatformContentAdminService>();
+        // M5.5：Community / PlatformGeneral / MarketSummary 升级为持久化（读 PlatformContent + fallback）。
+        // 依赖 Scoped 的 PlatformContentRepository，因此改注册为 Scoped。
+        services.AddScoped<Atlas.Application.Coze.Abstractions.ICommunityService,
             Atlas.Infrastructure.Services.Coze.InMemoryCommunityService>();
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.IPlatformGeneralService,
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IPlatformGeneralService,
             Atlas.Infrastructure.Services.Coze.InMemoryPlatformGeneralService>();
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.IMarketSummaryService,
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IMarketSummaryService,
             Atlas.Infrastructure.Services.Coze.InMemoryMarketSummaryService>();
         services.AddSingleton<Atlas.Application.Coze.Abstractions.IMeSettingsService,
             Atlas.Infrastructure.Services.Coze.InMemoryMeSettingsService>();
@@ -97,9 +102,9 @@ public static class PlatformServiceCollectionExtensions
         // Coze PRD Phase III - M4.4: 任务中心持久化（复用 EvaluationTask）。
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTaskService,
             Atlas.Infrastructure.Services.Coze.WorkspaceTaskService>();
-        // 评测列表暂仍 in-memory；M4 之后接 EvaluationTask + EvaluationResult 完整模型。
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.IWorkspaceEvaluationService,
-            Atlas.Infrastructure.Services.Coze.InMemoryWorkspaceEvaluationService>();
+        // Coze PRD Phase III - M5.1: 评测列表持久化（EvaluationTask + EvaluationResult 按 workspaceId 过滤）。
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceEvaluationService,
+            Atlas.Infrastructure.Services.Coze.WorkspaceEvaluationService>();
         // Coze PRD Phase III - M4.3: 测试集持久化（复用 EvaluationDataset / EvaluationCase）。
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTestsetService,
             Atlas.Infrastructure.Services.Coze.WorkspaceTestsetService>();

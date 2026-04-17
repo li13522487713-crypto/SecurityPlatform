@@ -1189,3 +1189,85 @@ DTO：
 - 全部接口仍按 `tenantId` 隔离；`PersonalAccessToken` 额外按 `createdByUserId` 隔离防越权。
 - 持久化层强约束：所有列表查询走 `RefAsync<int>` 一次分页，禁止循环内查库；
   关联统计走 `GROUP BY` 一次性聚合（`CountByFolderIdsAsync` / `CountByDatasetIdsAsync`）。
+
+## Coze 平台第三阶段 API（M5：运营 CRUD + 统一内容表 + 最近使用对接 + 评测按工作空间过滤）
+
+> 本批进一步把剩余 in-memory 内容服务全部接到 PlatformContent 统一表；
+> 给 EvaluationTask 补 WorkspaceId 列，让评测与任务列表按工作空间严格过滤；
+> 把首页"最近使用"对接到 WorkspaceIdeService 现有活动数据。
+> 不新增表，主要是行为升级与数据源替换。
+
+### M5.3 平台运营内容 CRUD（新 Controller）
+
+- `GET /api/v1/platform/contents?slot=&onlyActive=` → `ApiResponse<PlatformContentItemDto[]>`（视图权限）
+- `POST /api/v1/platform/contents` body `PlatformContentCreateRequest` → `ApiResponse<{ id, contentId }>`（SystemAdmin）
+- `PATCH /api/v1/platform/contents/{id}` body `PlatformContentUpdateRequest` → `ApiResponse<{ success }>`（SystemAdmin）
+- `DELETE /api/v1/platform/contents/{id}` → `ApiResponse<{ success }>`（SystemAdmin）
+
+DTO：
+
+- `PlatformContentItemDto { id, slot, contentKey, contentJson, tag?, orderIndex, isActive, publishedAt, createdAt, updatedAt? }`
+- `PlatformContentCreateRequest { slot (1..32), contentKey (1..64), contentJson, tag?, orderIndex, isActive?, publishedAt? }`
+- `PlatformContentUpdateRequest { contentJson, tag?, orderIndex, isActive, publishedAt? }`
+
+`Slot` 白名单枚举（`Atlas.Application.Coze.Models.PlatformContentSlots`）：
+
+- `banner | tutorial | announcement | recommended`（首页）
+- `community-work`（社区）
+- `platform-notice`（通用管理）
+- `market-template-summary | market-plugin-summary`（模板/插件摘要）
+
+Service 约束：`ContentJson` 长度 ≤ 32 KB；不合法 Slot 返回 `VALIDATION_ERROR`。
+
+### M5.5 统一内容表（三个 Service 接入 PlatformContent）
+
+以下三个 Service 行为升级（类名保留 `InMemory*` 前缀，内部已改为"PlatformContent 持久化 + 空表 fallback 到默认常量"）：
+
+- `InMemoryCommunityService` → 读 Slot=`community-work`，fallback 到 2 条默认 works
+- `InMemoryPlatformGeneralService` → 读 Slot=`platform-notice`（notices），branding 保留常量（单条信息，未来可加 Slot=`branding`）
+- `InMemoryMarketSummaryService` → 读 Slot=`market-template-summary` / `market-plugin-summary`，fallback 到默认分类
+
+注意：三个 Service 的 DI 注册由 Singleton 改为 Scoped（依赖 Scoped 的 `PlatformContentRepository`）。API 协议未变。
+
+### M5.4 最近使用对接 WorkspaceIde
+
+- `PlatformHomeContentService.GetRecentActivitiesAsync` 投影 `IWorkspaceIdeService.GetResourcesAsync` 的前 10 条：
+  - 过滤 resourceType ∈ `agent | app | workflow | chatflow`；`chatflow` 归并为 `workflow`（前端用 type 做 UI 区分）
+  - `updatedAt` = `LastEditedAt ?? LastOpenedAt ?? UpdatedAt`
+- 首页 `/home/recent-activities` 现在返回当前用户真实的最近访问/编辑资源列表。
+
+### M5.1 EvaluationTask 新增 WorkspaceId 列
+
+- Domain：`EvaluationTask.WorkspaceId` nullable `string?`，仅新加 `AttachWorkspace(workspaceId)` 行为方法。
+- Schema 迁移：`DatabaseInitializerHostedService.EnsureWorkspacePortalSchemaAsync` 增加
+  `AddColumnIfMissingAsync("EvaluationTask", "WorkspaceId", "TEXT NULL")`，SQLite 无痛迁移。
+- 历史兼容：旧 EvaluationService 创建的 agent 评测任务 WorkspaceId=NULL，不会进入任何 Coze 工作空间视图；原有评测跑批流程不变。
+
+### M5.1 评测列表持久化 `WorkspaceEvaluationService`
+
+- `GET /api/v1/workspaces/{workspaceId}/evaluations` 改为读 `EvaluationTask` WHERE `WorkspaceId = {workspaceId}`
+- `GET /api/v1/workspaces/{workspaceId}/evaluations/{evaluationId}` 严格按 workspace 校验；不匹配时返回 404
+- `EvaluationDetailDto.PassCount / FailCount` 从 `EvaluationResult` 按 `TaskId` 一次性聚合（`GetByTaskAsync`），单次 SQL 查询
+
+### M5.2 任务中心按工作空间过滤
+
+- `WorkspaceTaskService.ListAsync` 从 `GetPagedAsync(tenantId)` → `GetPagedByWorkspaceAsync(tenantId, workspaceId, keyword)`
+- `WorkspaceTaskService.GetAsync` 严格校验 `entity.WorkspaceId == workspaceId`
+- `keyword` 下推到 SQL 层（`Name.Contains`），不再内存过滤
+- 多源聚合（`BatchJobExecution` + `PersistedExecutionPointer` + Hangfire）延至 M6，需要先给相关 Entity 扩 WorkspaceId
+
+### 替代/升级对照表（M5 总览）
+
+| 类别 | M4 实现 | M5 实现 |
+|---|---|---|
+| 首页 `RecentActivities` | 空数组 | 对接 `WorkspaceIdeService.GetResourcesAsync`（最近访问/编辑） |
+| 社区 / 平台公告 / 模板插件摘要 | in-memory 常量 | PlatformContent 统一表（+ 默认常量 fallback） |
+| PlatformContent 维护 | 仅能 SQL 手工 `INSERT` | `PlatformContentsController` CRUD（SystemAdmin） |
+| 评测列表 | in-memory 空集合 | `WorkspaceEvaluationService` 读 EvaluationTask（按 WorkspaceId 过滤）+ 聚合 Pass/Fail |
+| 任务列表 | 按 tenantId 过滤（跨工作空间混杂） | 按 `(tenantId, workspaceId)` 严格过滤；keyword 下推 SQL |
+
+### 安全与权限（M5）
+
+- `PlatformContentsController`：读沿用 `Permission:ai-workspace:view`，写（POST/PATCH/DELETE）需 `Permission:system:admin`
+- Evaluation / Tasks 等接口继续使用 `Permission:ai-workspace:view|update`
+- 所有查询遵守"循环内零查库"原则：`GROUP BY` / `GetByTaskAsync` / `GetPagedByWorkspaceAsync` 都走单次批量查询

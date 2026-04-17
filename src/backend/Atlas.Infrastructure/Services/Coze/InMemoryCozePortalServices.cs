@@ -1,18 +1,76 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Atlas.Application.Coze.Abstractions;
 using Atlas.Application.Coze.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Infrastructure.Repositories;
 
 namespace Atlas.Infrastructure.Services.Coze;
 
 // Coze PRD Phase III - M4.5 后：InMemoryHomeContentService 已被 PlatformHomeContentService
 // 取代（基于 PlatformContent 表 + 内置默认数据 fallback）。原 in-memory 实现已删除。
+// M5.5 后：Community / PlatformGeneral / MarketSummary 三个 Service 也统一升级为
+// PlatformContent + fallback 模式，共用一张表。
+//
+// 命名保留 "InMemory*" 前缀以避免破坏现有注册；类行为已改为"持久化 + fallback"。
+// 未来可安全重命名为 "PlatformBacked*" 前缀。
 
+internal static class PlatformContentJson
+{
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+
+    public static T? Deserialize<T>(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return default;
+        }
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, Options);
+        }
+        catch (JsonException)
+        {
+            return default;
+        }
+    }
+
+    public static IReadOnlyList<T> MapRows<T>(IReadOnlyList<PlatformContent> rows, IReadOnlyList<T> fallback)
+    {
+        if (rows.Count == 0)
+        {
+            return fallback;
+        }
+
+        var mapped = rows
+            .Select(row => Deserialize<T>(row.ContentJson))
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToArray();
+
+        return mapped.Length == 0 ? fallback : mapped;
+    }
+
+    public static PagedResult<T> Paginate<T>(IEnumerable<T> source, PagedRequest request)
+    {
+        var pageIndex = Math.Max(1, request.PageIndex);
+        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var list = source as IReadOnlyList<T> ?? source.ToArray();
+        var skip = (pageIndex - 1) * pageSize;
+        var page = list.Skip(skip).Take(pageSize).ToArray();
+        return new PagedResult<T>(page, list.Count, pageIndex, pageSize);
+    }
+}
+
+/// <summary>
+/// 作品社区（PRD 02-7.9）。M5.5：读 PlatformContent Slot=community-work；空则 fallback。
+/// </summary>
 public sealed class InMemoryCommunityService : ICommunityService
 {
-    private static readonly IReadOnlyList<CommunityWorkItemDto> Works = new[]
+    private static readonly IReadOnlyList<CommunityWorkItemDto> DefaultWorks = new[]
     {
         new CommunityWorkItemDto(
             "work-1",
@@ -36,33 +94,43 @@ public sealed class InMemoryCommunityService : ICommunityService
             new[] { "RAG", "知识库" })
     };
 
-    public Task<PagedResult<CommunityWorkItemDto>> ListWorksAsync(
+    private readonly PlatformContentRepository _repository;
+
+    public InMemoryCommunityService(PlatformContentRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<PagedResult<CommunityWorkItemDto>> ListWorksAsync(
         TenantId tenantId,
         string? keyword,
         PagedRequest pagedRequest,
         CancellationToken cancellationToken)
     {
-        var filtered = Works
+        var rows = await _repository.ListBySlotAsync(
+            tenantId,
+            PlatformContentSlots.CommunityWork,
+            onlyActive: true,
+            cancellationToken);
+        var source = PlatformContentJson.MapRows(rows, DefaultWorks);
+
+        var filtered = source
             .Where(item => string.IsNullOrWhiteSpace(keyword)
                 || item.Title.Contains(keyword, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        var pageIndex = Math.Max(1, pagedRequest.PageIndex);
-        var pageSize = Math.Clamp(pagedRequest.PageSize, 1, 100);
-        var skip = (pageIndex - 1) * pageSize;
-        var page = filtered.Skip(skip).Take(pageSize).ToArray();
-
-        return Task.FromResult(new PagedResult<CommunityWorkItemDto>(
-            page,
-            filtered.LongLength,
-            pageIndex,
-            pageSize));
+        return PlatformContentJson.Paginate(filtered, pagedRequest);
     }
 }
 
+/// <summary>
+/// 通用管理（PRD 02-7.12）。M5.5：
+/// - notices 读 PlatformContent Slot=platform-notice；空则 fallback
+/// - branding 仍用默认常量（一条记录，未来可改为 Slot=branding 的单条记录）
+/// </summary>
 public sealed class InMemoryPlatformGeneralService : IPlatformGeneralService
 {
-    private static readonly IReadOnlyList<PlatformNoticeDto> Notices = new[]
+    private static readonly IReadOnlyList<PlatformNoticeDto> DefaultNotices = new[]
     {
         new PlatformNoticeDto(
             "notice-maintenance",
@@ -72,74 +140,93 @@ public sealed class InMemoryPlatformGeneralService : IPlatformGeneralService
             DateTimeOffset.UtcNow)
     };
 
-    private static readonly PlatformBrandingDto Branding = new(
+    private static readonly PlatformBrandingDto DefaultBranding = new(
         LogoUrl: null,
         ProductName: "Atlas Coze",
         ProductSlogan: "你的 AI 应用开发伙伴");
 
-    public Task<IReadOnlyList<PlatformNoticeDto>> ListNoticesAsync(
+    private readonly PlatformContentRepository _repository;
+
+    public InMemoryPlatformGeneralService(PlatformContentRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<IReadOnlyList<PlatformNoticeDto>> ListNoticesAsync(
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
-        return Task.FromResult(Notices);
+        var rows = await _repository.ListBySlotAsync(
+            tenantId,
+            PlatformContentSlots.PlatformNotice,
+            onlyActive: true,
+            cancellationToken);
+        return PlatformContentJson.MapRows(rows, DefaultNotices);
     }
 
     public Task<PlatformBrandingDto> GetBrandingAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        return Task.FromResult(Branding);
+        return Task.FromResult(DefaultBranding);
     }
 }
 
+/// <summary>
+/// 模板 / 插件商店分类摘要（PRD 02-7.7、7.8）。M5.5：读 PlatformContent，空则 fallback。
+/// </summary>
 public sealed class InMemoryMarketSummaryService : IMarketSummaryService
 {
-    private static readonly IReadOnlyList<MarketCategorySummaryDto> Templates = new[]
+    private static readonly IReadOnlyList<MarketCategorySummaryDto> DefaultTemplates = new[]
     {
         new MarketCategorySummaryDto("agent", "智能体模板", 12, "客服/营销/咨询场景"),
         new MarketCategorySummaryDto("workflow", "工作流模板", 28, "RAG / 多轮问答 / 数据处理"),
         new MarketCategorySummaryDto("app", "应用模板", 5, "面向终端用户的应用模板")
     };
 
-    private static readonly IReadOnlyList<MarketCategorySummaryDto> Plugins = new[]
+    private static readonly IReadOnlyList<MarketCategorySummaryDto> DefaultPlugins = new[]
     {
         new MarketCategorySummaryDto("search", "搜索类", 6, null),
         new MarketCategorySummaryDto("office", "办公类", 9, null),
         new MarketCategorySummaryDto("data", "数据类", 11, null)
     };
 
+    private readonly PlatformContentRepository _repository;
+
+    public InMemoryMarketSummaryService(PlatformContentRepository repository)
+    {
+        _repository = repository;
+    }
+
     public Task<PagedResult<MarketCategorySummaryDto>> ListTemplateCategoriesAsync(
         TenantId tenantId,
         string? keyword,
         PagedRequest pagedRequest,
         CancellationToken cancellationToken)
-        => PaginateAsync(Templates, keyword, pagedRequest);
+        => ListSummaryAsync(tenantId, PlatformContentSlots.MarketTemplateSummary, DefaultTemplates, keyword, pagedRequest, cancellationToken);
 
     public Task<PagedResult<MarketCategorySummaryDto>> ListPluginCategoriesAsync(
         TenantId tenantId,
         string? keyword,
         PagedRequest pagedRequest,
         CancellationToken cancellationToken)
-        => PaginateAsync(Plugins, keyword, pagedRequest);
+        => ListSummaryAsync(tenantId, PlatformContentSlots.MarketPluginSummary, DefaultPlugins, keyword, pagedRequest, cancellationToken);
 
-    private static Task<PagedResult<MarketCategorySummaryDto>> PaginateAsync(
-        IReadOnlyList<MarketCategorySummaryDto> source,
+    private async Task<PagedResult<MarketCategorySummaryDto>> ListSummaryAsync(
+        TenantId tenantId,
+        string slot,
+        IReadOnlyList<MarketCategorySummaryDto> fallback,
         string? keyword,
-        PagedRequest pagedRequest)
+        PagedRequest pagedRequest,
+        CancellationToken cancellationToken)
     {
+        var rows = await _repository.ListBySlotAsync(tenantId, slot, onlyActive: true, cancellationToken);
+        var source = PlatformContentJson.MapRows(rows, fallback);
+
         var filtered = source
             .Where(item => string.IsNullOrWhiteSpace(keyword)
                 || item.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        var pageIndex = Math.Max(1, pagedRequest.PageIndex);
-        var pageSize = Math.Clamp(pagedRequest.PageSize, 1, 100);
-        var skip = (pageIndex - 1) * pageSize;
-        var page = filtered.Skip(skip).Take(pageSize).ToArray();
-
-        return Task.FromResult(new PagedResult<MarketCategorySummaryDto>(
-            page,
-            filtered.LongLength,
-            pageIndex,
-            pageSize));
+        return PlatformContentJson.Paginate(filtered, pagedRequest);
     }
 }
 

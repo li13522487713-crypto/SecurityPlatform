@@ -8,13 +8,14 @@ using Atlas.Infrastructure.Repositories;
 namespace Atlas.Infrastructure.Services.Coze;
 
 /// <summary>
-/// 任务中心持久化版（M4.4）。
+/// 任务中心持久化版。
 ///
-/// 当前数据源仅 <see cref="EvaluationTask"/>（评测任务，按 tenantId 过滤）。
-/// 后续接入 BatchJobExecution / PersistedExecutionPointer / Hangfire job 时再加聚合源。
+/// - M4.4：接入 <see cref="EvaluationTask"/>，按 tenantId 过滤。
+/// - M5.1+5.2：EvaluationTask 新增 WorkspaceId 列后，严格按 (tenantId, workspaceId) 双键过滤；
+///   历史无 WorkspaceId 的任务（旧 EvaluationService 创建）不会出现在任何 Coze 工作空间视图里。
 ///
-/// 限制：现有 EvaluationTask 模型无 workspaceId 字段，租户内任务对所有工作空间可见；
-/// 第二轮 schema 演进时为 EvaluationTask 增加 WorkspaceId 列后即可严格按工作空间过滤。
+/// 规划（M6）：多源聚合 BatchJobExecution + PersistedExecutionPointer + Hangfire job，
+/// 需要先给相关 Entity 补 WorkspaceId 列。
 /// </summary>
 public sealed class WorkspaceTaskService : IWorkspaceTaskService
 {
@@ -39,21 +40,28 @@ public sealed class WorkspaceTaskService : IWorkspaceTaskService
         var pageIndex = Math.Max(1, pagedRequest.PageIndex);
         var pageSize = Math.Clamp(pagedRequest.PageSize, 1, 100);
 
-        // 仅当 type 未指定或匹配 "evaluation" 时返回数据；其它 type 暂无对应数据源。
+        // 仅当 type 未指定或匹配 "evaluation" 时返回数据；其它 type（workflow/batch/publish）
+        // 的数据源在 M6 多源聚合里接入。
         if (!string.IsNullOrWhiteSpace(type) && !string.Equals(type, TaskType, StringComparison.OrdinalIgnoreCase))
         {
             return new PagedResult<WorkspaceTaskItemDto>(Array.Empty<WorkspaceTaskItemDto>(), 0, pageIndex, pageSize);
         }
 
-        var (entities, total) = await _evaluationTaskRepository.GetPagedAsync(tenantId, pageIndex, pageSize, cancellationToken);
+        // M5.2：严格按 workspaceId 过滤。EvaluationTask.WorkspaceId 为 nullable，
+        // 旧任务不会进入该集合；Coze API 创建的任务必须显式 AttachWorkspace(workspaceId)。
+        var (entities, total) = await _evaluationTaskRepository.GetPagedByWorkspaceAsync(
+            tenantId,
+            workspaceId,
+            keyword,
+            pageIndex,
+            pageSize,
+            cancellationToken);
 
         var items = entities
             .Select(MapItem)
-            .Where(item => MatchStatus(item.Status, status) && MatchKeyword(item.Name, keyword))
+            .Where(item => MatchStatus(item.Status, status))
             .ToArray();
 
-        // 这里的 total 仍取自数据库总数，前端按此分页；状态/关键字过滤是 best-effort，
-        // 第二轮把 status / keyword 下推到 SQL 层后再返回严格分页。
         return new PagedResult<WorkspaceTaskItemDto>(items, total, pageIndex, pageSize);
     }
 
@@ -69,7 +77,7 @@ public sealed class WorkspaceTaskService : IWorkspaceTaskService
         }
 
         var entity = await _evaluationTaskRepository.FindByIdAsync(tenantId, id, cancellationToken);
-        if (entity is null)
+        if (entity is null || !string.Equals(entity.WorkspaceId, workspaceId, StringComparison.Ordinal))
         {
             return null;
         }
@@ -124,11 +132,5 @@ public sealed class WorkspaceTaskService : IWorkspaceTaskService
     private static bool MatchStatus(WorkspaceTaskStatus current, WorkspaceTaskStatus? filter)
     {
         return filter is null || current == filter.Value;
-    }
-
-    private static bool MatchKeyword(string name, string? keyword)
-    {
-        return string.IsNullOrWhiteSpace(keyword)
-            || name.Contains(keyword.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 }
