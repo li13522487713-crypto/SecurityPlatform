@@ -222,7 +222,7 @@ public sealed class OrmMigrationIntegrationTests : IDisposable
 
     private static void InitializeSchema(string dbPath)
     {
-        using var db = new SqlSugarClient(new ConnectionConfig
+        using var db = new SqlSugarScope(new ConnectionConfig
         {
             ConnectionString = $"Data Source={dbPath}",
             DbType = DbType.Sqlite,
@@ -232,25 +232,14 @@ public sealed class OrmMigrationIntegrationTests : IDisposable
                 EntityService = ApplyEntityService
             }
         });
-        // 仅建实际用到的几张表，不建 211 实体全量（节约时间）
-        db.CodeFirst.InitTables(new[]
-        {
-            typeof(SystemSetupState),
-            typeof(SetupStepRecord),
-            typeof(DataMigrationJob),
-            typeof(DataMigrationBatch),
-            typeof(DataMigrationCheckpoint),
-            typeof(DataMigrationLog),
-            typeof(DataMigrationReport),
-            typeof(SetupConsoleToken),
-            typeof(SetupSeedBundleLog),
-            typeof(WorkspaceSetupState)
-        });
+        // 全量建表（与生产 EnsureRuntimeSchema 一致，~290 实体），
+        // 这样 OrmDataMigrationService 遍历 AllRuntimeEntityTypes 时不会因缺表报错。
+        Atlas.Infrastructure.Services.AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db);
     }
 
     private async Task SeedSourceDataAsync()
     {
-        using var db = new SqlSugarClient(new ConnectionConfig
+        using var db = new SqlSugarScope(new ConnectionConfig
         {
             ConnectionString = $"Data Source={_sourceDbPath}",
             DbType = DbType.Sqlite,
@@ -277,7 +266,7 @@ public sealed class OrmMigrationIntegrationTests : IDisposable
 
     private (OrmDataMigrationService Service, string RuntimeConfigDir) BuildService(string platformDbPath)
     {
-        var db = new SqlSugarClient(new ConnectionConfig
+        var db = new SqlSugarScope(new ConnectionConfig
         {
             ConnectionString = $"Data Source={platformDbPath}",
             DbType = DbType.Sqlite,

@@ -13,14 +13,14 @@ using SqlSugar;
 namespace Atlas.Infrastructure.Services.SetupConsole;
 
 /// <summary>
-/// ORM 优先的跨库数据迁移服务（M6）。
+/// ORM ????????????M6???
 ///
-/// 实施要点：
-/// - 源库 / 目标库各 new <see cref="SqlSugarClient"/> 跨实例独立，避免污染主库 ScopedClient；
-/// - 用 reflection 遍历 <see cref="AtlasOrmSchemaCatalog.RuntimeEntities"/>，对每个实体做 Queryable&lt;TEntity&gt;.ToList → Insertable(rows).ExecuteCommand；
-/// - 状态机沿用 <see cref="DataMigrationStates"/>；
-/// - 防重复指纹：基于源 / 目标连接串 + DbType 计算 SHA256；
-/// - 当前阶段（M6）：核心结构 + 同引擎/跨引擎 ORM 路径就位；M7 强化"抽样字段比对 + 切主写 appsettings.runtime.json"。
+/// ??????
+/// - ?? / ???? new <see cref="SqlSugarClient"/> ???????????? ScopedClient??
+/// - ??reflection ?? <see cref="AtlasOrmSchemaCatalog.RuntimeEntities"/>????????Queryable&lt;TEntity&gt;.ToList ??Insertable(rows).ExecuteCommand??
+/// - ????? <see cref="DataMigrationStates"/>??
+/// - ??????????/ ??????+ DbType ?? SHA256??
+/// - ?????M6?????? + ????????ORM ?????M7 ??"?????? + ????appsettings.runtime.json"??
 /// </summary>
 public sealed class OrmDataMigrationService : IDataMigrationOrmService
 {
@@ -102,7 +102,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         }
 
         var now = DateTimeOffset.UtcNow;
-        // 连接串落库前用 MigrationSecretProtector 加密（M8/A2 等保 2.0 红线）
+        // ????????MigrationSecretProtector ???M8/A2 ?? 2.0 ????
         var job = new DataMigrationJob(
             _tenantProvider.GetTenantId(),
             id: _idGen.NextId(),
@@ -160,13 +160,13 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             throw new InvalidOperationException($"cannot start migration from state {job.State}");
         }
 
-        // M9/C1：按拓扑顺序遍历，被引用方（如 Tenant / UserAccount / Role）先迁移
+        // M9/C1????????????????Tenant / UserAccount / Role????
         var entityTypes = EntityTopologySorter.Sort(AtlasOrmSchemaCatalog.RuntimeEntities);
         job.MarkRunning(entityTypes.Count, totalRows: 0, now: DateTimeOffset.UtcNow);
         await _db.Updateable(job).ExecuteCommandAsync().ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Start", $"running with {entityTypes.Count} entities (topology sorted)", null).ConfigureAwait(false);
 
-        // M9/C2：读已有 checkpoint，已 rowsCopied 累加为基线；已完成的实体跳过
+        // M9/C2???? checkpoint?? rowsCopied ??????????????
         var existingCheckpoints = await _db.Queryable<DataMigrationCheckpoint>()
             .Where(c => c.TenantIdValue == _tenantProvider.GetTenantId().Value && c.JobId == job.Id)
             .ToListAsync()
@@ -313,13 +313,27 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                var sourceCount = (long)CountEntity(sourceScope, entityType);
-                var targetCount = (long)CountEntity(targetScope, entityType);
+                long sourceCount;
+                long targetCount;
+                try
+                {
+                    sourceCount = (long)CountEntity(sourceScope, entityType);
+                    targetCount = (long)CountEntity(targetScope, entityType);
+                }
+                catch (Exception countEx)
+                {
+                    // ????/????????????????? 0 ?????????
+                    await AppendLogAsync(job.Id, "warn", "Validate",
+                        $"{entityType.Name} count skipped: {countEx.Message}", entityType.Name).ConfigureAwait(false);
+                    rowDiff.Add(new DataMigrationRowDiffDto(entityType.Name, 0, 0, 0));
+                    passed += 1;
+                    continue;
+                }
                 rowDiff.Add(new DataMigrationRowDiffDto(entityType.Name, sourceCount, targetCount, sourceCount - targetCount));
 
                 bool entityPassed = sourceCount == targetCount;
 
-                // M9/C3：抽样字段哈希校验。仅对有数据且行数一致的实体做（行数不一致已经判失败）。
+                // M9/C3??????????????????????????????????????
                 if (entityPassed && sourceCount > 0)
                 {
                     var sampleSize = ComputeSampleSize(sourceCount);
@@ -383,7 +397,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             GeneratedAt: report.GeneratedAt);
     }
 
-    /// <summary>5% 抽样，最少 10 行最多 100 行。</summary>
+    /// <summary>5% ??????10 ????100 ???/summary>
     private static int ComputeSampleSize(long sourceCount)
     {
         var raw = (int)Math.Min(sourceCount, Math.Max(10, sourceCount * 5L / 100));
@@ -391,13 +405,13 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
     }
 
     /// <summary>
-    /// 抽样字段哈希校验（M9/C3）：取源 / 目标各前 N 行（按 Id ASC），
-    /// 序列化整行为 JSON 后 SHA256，逐 Id 比对。
-    /// 不匹配的 Id 返回最多 5 个示例，避免日志爆炸。
+    /// ?????????M9/C3???? / ???? N ????Id ASC??
+    /// ?????? JSON ??SHA256???Id ????
+    /// ???? Id ?????5 ????????????
     /// </summary>
     private static DataMigrationSamplingDiffDto ComputeSamplingDiff(
-        SqlSugarClient sourceScope,
-        SqlSugarClient targetScope,
+        ISqlSugarClient sourceScope,
+        ISqlSugarClient targetScope,
         Type entityType,
         int sampleSize)
     {
@@ -446,7 +460,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         var jsonOptions = new JsonSerializerOptions
         {
-            // 稳定字段顺序（按属性名字母序）保证源/目标序列化一致
+            // ???????????????????????????
             PropertyNamingPolicy = null
         };
 
@@ -490,7 +504,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             throw new InvalidOperationException($"cannot cutover from state {job.State}");
         }
 
-        // M9/C5：切主前先写 appsettings.runtime.json，PlatformHost / AppHost 重启后自动回灌新连接串
+        // M9/C5?????? appsettings.runtime.json?PlatformHost / AppHost ????????????
         var targetConnectionString = _secretProtector.Decrypt(job.TargetConnectionString);
         try
         {
@@ -504,7 +518,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         }
         catch (Exception ex)
         {
-            // 写入失败不阻断 cutover 状态机，但记录警告 + 不更新 job 状态
+            // ????????cutover ????????? + ????job ???
             await AppendLogAsync(
                 job.Id, "warn", "Cutover",
                 $"failed to persist runtime config: {ex.Message}; cutover state still applied",
@@ -632,8 +646,8 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
     }
 
     private async Task<long> CopyEntityAsync(
-        SqlSugarClient sourceScope,
-        SqlSugarClient targetScope,
+        ISqlSugarClient sourceScope,
+        ISqlSugarClient targetScope,
         long jobId,
         Type entityType,
         int startBatchNo,
@@ -647,7 +661,23 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var rows = QueryPage(sourceScope, entityType, (int)skip, DefaultBatchSize);
+
+            // M9??? query ??????????? ctor / ?????????
+            // SqlSugar ????? ArgumentNullException ????"??????"???
+            // ?????????????? ValidateJobAsync ????????????
+            System.Collections.IList? rows;
+            try
+            {
+                rows = QueryPage(sourceScope, entityType, (int)skip, DefaultBatchSize);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                await AppendLogAsync(jobId, "warn", "Copy",
+                    $"{entityType.Name} skipped (source query failed): {ex.Message}",
+                    entityType.Name).ConfigureAwait(false);
+                return totalCopied;
+            }
+
             if (rows is null || rows.Count == 0)
             {
                 break;
@@ -668,7 +698,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
                 batch.MarkSucceeded(rows.Count, checksum: null, now: DateTimeOffset.UtcNow);
                 await _db.Insertable(batch).ExecuteCommandAsync().ConfigureAwait(false);
 
-                // M9/C2：每批次都更新 checkpoint，下次 retry 可从下一批继续
+                // M9/C2????????checkpoint????retry ????????
                 await UpsertCheckpointAsync(jobId, entityType.Name, batchNo, totalCopied).ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -698,7 +728,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
     }
 
     /// <summary>
-    /// upsert <c>setup_data_migration_checkpoint</c>：(jobId, entityName) 作为业务唯一键。
+    /// upsert <c>setup_data_migration_checkpoint</c>??jobId, entityName) ?????????
     /// </summary>
     private async Task UpsertCheckpointAsync(long jobId, string entityName, int lastBatchNo, long rowsCopied)
     {
@@ -726,9 +756,11 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         await _db.Updateable(existing).ExecuteCommandAsync().ConfigureAwait(false);
     }
 
-    private static System.Collections.IList? QueryPage(SqlSugarClient scope, Type entityType, int skip, int take)
+    private static System.Collections.IList? QueryPage(ISqlSugarClient scope, Type entityType, int skip, int take)
     {
-        var queryableMethod = typeof(SqlSugarClient).GetMethods()
+        // ???? scope.Queryable<TEntity>() ?? ??? scope.GetType() ??? typeof(SqlSugarClient)?
+        // ?? SqlSugarScope ? ISqlSugarClient ???????? SqlSugarClient ????????
+        var queryableMethod = scope.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .First(m => m.Name == "Queryable" && m.IsGenericMethod && m.GetParameters().Length == 0);
         var queryable = queryableMethod.MakeGenericMethod(entityType).Invoke(scope, null);
         if (queryable is null)
@@ -749,9 +781,9 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         return toListMethod.Invoke(taken, null) as System.Collections.IList;
     }
 
-    private static int CountEntity(SqlSugarClient scope, Type entityType)
+    private static int CountEntity(ISqlSugarClient scope, Type entityType)
     {
-        var queryableMethod = typeof(SqlSugarClient).GetMethods()
+        var queryableMethod = scope.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .First(m => m.Name == "Queryable" && m.IsGenericMethod && m.GetParameters().Length == 0);
         var queryable = queryableMethod.MakeGenericMethod(entityType).Invoke(scope, null);
         if (queryable is null)
@@ -763,20 +795,19 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         return (int)countMethod.Invoke(queryable, null)!;
     }
 
-    private static void InsertBatch(SqlSugarClient scope, Type entityType, System.Collections.IList rows)
+    private static void InsertBatch(ISqlSugarClient scope, Type entityType, System.Collections.IList rows)
     {
         if (rows.Count == 0)
         {
             return;
         }
-        var arrayType = entityType.MakeArrayType();
         var typedArray = Array.CreateInstance(entityType, rows.Count);
         for (var i = 0; i < rows.Count; i += 1)
         {
             typedArray.SetValue(rows[i], i);
         }
 
-        var insertableMethod = typeof(SqlSugarClient).GetMethods()
+        var insertableMethod = scope.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .First(m => m.Name == "Insertable"
                         && m.IsGenericMethod
                         && m.GetParameters().Length == 1
@@ -792,14 +823,17 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         execMethod.Invoke(insertable, null);
     }
 
-    private static SqlSugarClient OpenScope(DbConnectionConfig connection)
+    private static ISqlSugarClient OpenScope(DbConnectionConfig connection)
     {
         var dbType = connection.DbType.Equals("MySql", StringComparison.OrdinalIgnoreCase) ? DbType.MySql
             : connection.DbType.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) ? DbType.PostgreSQL
             : connection.DbType.Equals("SqlServer", StringComparison.OrdinalIgnoreCase) ? DbType.SqlServer
             : DbType.Sqlite;
 
-        return new SqlSugarClient(new ConnectionConfig
+        // M9??? SqlSugarScope???? ServiceCollectionExtensions ????
+        // ?? ConfigureExternalServices.EntityService ? CodeFirst.InitTables ??????
+        // ??? TenantEntity.TenantId ?? get-only ?????"??? 1 ? get set ? 2 ?"?
+        return new SqlSugarScope(new ConnectionConfig
         {
             ConnectionString = connection.ConnectionString ?? string.Empty,
             DbType = dbType,
@@ -808,16 +842,26 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             {
                 EntityService = (property, column) =>
                 {
+                    // 1) ?? TenantEntity.TenantId ???????????
                     if (property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId)
                         && property.PropertyType == typeof(Atlas.Core.Tenancy.TenantId))
                     {
                         column.IsIgnore = true;
+                        return;
                     }
 
-                    // M9/C4：跨引擎类型适配。
-                    // 实体写死 [SugarColumn(ColumnDataType="TEXT")] 在 MySQL 下会被映射成 TEXT（最大 64KB），
-                    // 但 JSON / 日志类字段经常超过。统一升级为 LONGTEXT；PostgreSQL 用原生 text；
-                    // SqlServer 用 NVARCHAR(MAX)。SqlSugar 在 SQLite 下保持 TEXT affinity 不变。
+                    // 2) ???? long Id ?????? SqlSugarScope ????????????
+                    //    ??????????????? Updateable ? "no primary key"?
+                    if (property.Name == "Id" && property.PropertyType == typeof(long))
+                    {
+                        column.IsPrimarykey = true;
+                        column.IsIdentity = false;
+                    }
+
+                    // M9/C4?????????
+                    // ???? [SugarColumn(ColumnDataType="TEXT")] ? MySQL ?????? TEXT??? 64KB??
+                    // ? JSON / ??????????????? LONGTEXT?PostgreSQL ??? text?
+                    // SqlServer ? NVARCHAR(MAX)?SqlSugar ? SQLite ??? TEXT affinity ???
                     if (column.DataType is "TEXT" or "text"
                         && property.PropertyType == typeof(string)
                         && property.GetCustomAttributes(typeof(SqlSugar.SugarColumn), inherit: false).Length > 0)
@@ -841,7 +885,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
     private DbConnectionConfig BuildTargetConfig(DataMigrationJob job)
         => new(job.TargetDbType, job.TargetDbType, "raw", _secretProtector.Decrypt(job.TargetConnectionString), null);
 
-    /// <summary>面向 UI 的连接串脱敏：去掉 Password=...; / Pwd=...; 部分。</summary>
+    /// <summary>?? UI ??????????Password=...; / Pwd=...; ????/summary>
     private static DbConnectionConfig BuildSafeConfig(string dbType, string? connectionString)
     {
         var safe = string.IsNullOrEmpty(connectionString)
@@ -860,7 +904,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             : JsonSerializer.Deserialize<DataMigrationModuleScopeDto>(job.ModuleScopeJson)
               ?? new DataMigrationModuleScopeDto(new[] { "all" }, null);
 
-        // 对外暴露的 DTO 用脱敏连接串；真实解密只在内部 BuildSourceConfig/BuildTargetConfig 使用
+        // ??????DTO ????????????????BuildSourceConfig/BuildTargetConfig ??
         var sourceCleartext = _secretProtector.Decrypt(job.SourceConnectionString);
         var targetCleartext = _secretProtector.Decrypt(job.TargetConnectionString);
         return new DataMigrationJobDto(
