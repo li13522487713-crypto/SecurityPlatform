@@ -1,0 +1,12 @@
+{
+  "name": "atlas-lowcode-sdk-playground",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Web SDK 嵌入示例（M17，端口 5186，script/npm/iframe 三种）。M00 预创建骨架。",
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'lowcode-sdk-playground: skeleton, lint by M17'",
+    "build": "echo 'lowcode-sdk-playground: skeleton, build by M17'",
+    "dev": "echo 'lowcode-sdk-playground: skeleton, dev server by M17 on :5186'"
+  }
+}

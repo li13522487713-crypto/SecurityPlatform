@@ -1,0 +1,12 @@
+{
+  "name": "atlas-lowcode-mini-host",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Taro 多端宿主（M15，端口 5187，微信/抖音小程序 + H5）。M00 预创建骨架。",
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'lowcode-mini-host: skeleton, lint by M15'",
+    "build": "echo 'lowcode-mini-host: skeleton, build by M15'",
+    "dev": "echo 'lowcode-mini-host: skeleton, dev server by M15 on :5187 (Taro)'"
+  }
+}

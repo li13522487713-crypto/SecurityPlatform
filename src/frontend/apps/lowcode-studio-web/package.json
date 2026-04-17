@@ -1,0 +1,12 @@
+{
+  "name": "atlas-lowcode-studio-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码应用设计器主入口（M07，端口 5183）。M00 起跑前预创建的骨架。",
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'lowcode-studio-web: skeleton, lint by M07'",
+    "build": "echo 'lowcode-studio-web: skeleton, build by M07'",
+    "dev": "echo 'lowcode-studio-web: skeleton, dev server by M07 on :5183'"
+  }
+}

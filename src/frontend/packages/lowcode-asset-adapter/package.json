@@ -1,0 +1,17 @@
+{
+  "name": "@atlas/lowcode-asset-adapter",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Asset 适配器（M10）。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-asset-adapter: no lint configured yet'",
+    "build": "echo '@atlas/lowcode-asset-adapter: source-only package, no build step'",
+    "test": "echo '@atlas/lowcode-asset-adapter: no tests yet'"
+  }
+}

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Atlas.Domain.LowCode — 低代码 UI Builder 领域层。
+    M00 仅创建骨架与项目引用；具体实体（AppDefinition / PageDefinition / AppVariable /
+    AppContentParam / AppVersionArchive / AppPublishArtifact / AppResourceReference）
+    由 M01 完整落地。禁止在 M01 之外提前实现。
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

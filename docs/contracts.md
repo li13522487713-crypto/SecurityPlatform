@@ -1422,3 +1422,42 @@ ORM 优先实现要点（M6）：
 - `DatabaseInitializerHostedService.RunInitializationAsync` 不删，M5 拆出 6 个 public 幂等方法供 `SetupConsoleService` 调度
 - `AppMigrationService`（应用维度迁移）保持原职责，新 `OrmDataMigrationService`（控制台跨库迁移）共享 `AppMigrationTaskStatuses` 命名约定，但用独立的 `DataMigrationJob` 表
 - `BootstrapAdminOptions` / `appsettings.runtime.json` 持久化机制 100% 复用
+
+## 低代码应用 UI Builder（M01-M20）
+
+> 本章节为 docx 「Coze 低代码全量复刻」实施计划的契约总目录。各子契约规格分散在 `docs/lowcode-*-spec.md` 系列文档中，并由 PLAN.md 的 20 里程碑逐步落地。
+>
+> 设计期与运行时的端点严格分两套前缀，**禁止混用**：
+>
+> | 前缀 | Host | 端口 | 用途 |
+> | --- | --- | --- | --- |
+> | `/api/v1/lowcode/*` | PlatformHost | 5001 | 设计态写操作（schema / pages / variables / versions / publish / templates / faq / prompt-templates / plugins / overrides 等） |
+> | `/api/runtime/*` | AppHost | 5002 | 运行时只读 / 状态变更（schema / events:dispatch / workflows:invoke / chatflows:invoke / files / triggers / sessions / webview-domains / message-log / traces / publish artifacts / versions:archive\|rollback / plugins:invoke 等） |
+>
+> SignalR Hub 路径：
+> - `/hubs/lowcode-debug`（M13，AppHost）
+> - `/hubs/lowcode-collab`（M16，AppHost，SignalR + 自定义 Yjs provider）
+> - `/hubs/lowcode-preview`（M08，AppHost，HMR 推送）
+
+### 契约文档索引
+
+- 总览：`docs/contracts.md` 本章节 + 后续各小节
+- 协议层：`docs/lowcode-runtime-spec.md`（M01-M03 + M08-M14 接口与协议）
+- 模式 A/B 黄金样本：`docs/lowcode-binding-matrix.md`（M09）
+- 组件 6 维矩阵：`docs/lowcode-component-spec.md`（M06）
+- 发布契约：`docs/lowcode-publish-spec.md`（M17）
+- 协同契约：`docs/lowcode-collab-spec.md`（M16）
+- 智能体复刻契约：`docs/lowcode-assistant-spec.md`（M18）
+- 快捷键清单：`docs/lowcode-shortcut-spec.md`（M04 / M07）
+- 消息日志统一视图契约：`docs/lowcode-message-log-spec.md`（M11 / M13 / M18）
+- 弹性策略契约：`docs/lowcode-resilience-spec.md`（M09 / M11 / M19）
+- 编排哲学与有状态运行：`docs/lowcode-orchestration-spec.md`（M19 / M20）
+- 内容参数 6 类独立机制：`docs/lowcode-content-params-spec.md`（M05 / M06）
+- 插件全域：`docs/lowcode-plugin-spec.md`（M18）
+
+### 强约束
+
+- **标准化协议唯一桥梁**：UI 禁止直调 workflow / chatflow / files / triggers / sessions / plugins 零散 API；所有运行时事件必须经 `POST /api/runtime/events/dispatch`（M13 落地）。前端 CI 静态扫描守门，仅允许 `lowcode-action-runtime` 与 `lowcode-debug-client` 内部出现 dispatch 调用入口。
+- **作用域变量隔离**：page / app / system 三作用域禁止跨作用域 setVariable；component / event / workflow.outputs / chatflow.outputs 四作用域禁止写入。M02 表达式引擎 + M03 action-runtime 双层校验。
+- **元数据驱动禁硬编码**：组件实现禁止 fetch / import workflow client / 硬写业务逻辑；ComponentMeta 注册期校验（M06）。
+- **写接口安全基线**：沿用现行无 `Idempotency-Key` / `X-CSRF-TOKEN` 机制；所有写接口必须经 `IAuditWriter` 审计。

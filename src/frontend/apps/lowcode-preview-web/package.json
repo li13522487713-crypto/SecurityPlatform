@@ -1,0 +1,12 @@
+{
+  "name": "atlas-lowcode-preview-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码调试预览壳（M08，端口 5184，HMR + 扫码 + iframe 嵌套）。M00 预创建骨架。",
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'lowcode-preview-web: skeleton, lint by M08'",
+    "build": "echo 'lowcode-preview-web: skeleton, build by M08'",
+    "dev": "echo 'lowcode-preview-web: skeleton, dev server by M08 on :5184'"
+  }
+}
