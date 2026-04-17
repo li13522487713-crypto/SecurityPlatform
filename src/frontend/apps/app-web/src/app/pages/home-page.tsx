@@ -1,101 +1,98 @@
-import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { appSignPath, workspaceDevelopPath } from "../app-paths";
+import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { Spin } from "@douyinfe/semi-ui";
+import { getTenantId } from "@atlas/shared-react-core/utils";
+import { selectWorkspacePath, signPath, workspaceHomePath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 import { useAuth } from "../auth-context";
-import { rememberConfiguredAppKey } from "../../services/api-core";
+import { getWorkspaces } from "../../services/api-org-workspaces";
+import { rememberLastWorkspaceId, readLastWorkspaceId } from "../layouts/workspace-shell";
 
-function HomeLogoMark() {
-  return (
-    <div className="atlas-home-brand__icon" aria-hidden="true">
-      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(22,119,255,0.08)" stroke="#1677ff" strokeWidth="1.5" />
-        <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(22,119,255,0.12)" stroke="#1677ff" strokeWidth="1.5" />
-        <circle cx="16" cy="16" r="3" fill="#1677ff" />
-      </svg>
-    </div>
-  );
-}
-
+/**
+ * `/` 入口：纯重定向网关。
+ *
+ * 流程：
+ * 1. bootstrap loading / auth loading → 显示 Spin
+ * 2. platform 未就绪 → /platform-not-ready
+ * 3. app 未就绪 → /app-setup
+ * 4. 未登录 → /sign
+ * 5. 已登录 → 选目标工作空间：
+ *    a) localStorage 的 last workspace
+ *    b) 否则 getWorkspaces() 取第一个
+ *    c) 否则 /select-workspace
+ */
 export function HomePage() {
-  const navigate = useNavigate();
-  const auth = useAuth();
   const { t } = useAppI18n();
-  const { loading, platformReady, appReady, appKey, spaceId } = useBootstrap();
-  const [value, setValue] = useState(appKey);
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
+  const [resolving, setResolving] = useState(true);
+  const [target, setTarget] = useState<string | null>(null);
 
-  if (loading || auth.loading) {
+  useEffect(() => {
+    if (bootstrap.loading || auth.loading) {
+      return;
+    }
+    if (!bootstrap.platformReady) {
+      setTarget("/platform-not-ready");
+      setResolving(false);
+      return;
+    }
+    if (!bootstrap.appReady) {
+      setTarget("/app-setup");
+      setResolving(false);
+      return;
+    }
+    if (!auth.isAuthenticated) {
+      setTarget(signPath());
+      setResolving(false);
+      return;
+    }
+
+    const lastWorkspaceId = readLastWorkspaceId();
+    if (lastWorkspaceId) {
+      setTarget(workspaceHomePath(lastWorkspaceId));
+      setResolving(false);
+      return;
+    }
+
+    const orgId = getTenantId();
+    if (!orgId) {
+      setTarget(selectWorkspacePath());
+      setResolving(false);
+      return;
+    }
+
+    getWorkspaces(orgId)
+      .then(list => {
+        if (list.length === 0) {
+          setTarget(selectWorkspacePath());
+          return;
+        }
+        const first = list[0];
+        rememberLastWorkspaceId(first.id);
+        setTarget(workspaceHomePath(first.id));
+      })
+      .catch(() => {
+        setTarget(selectWorkspacePath());
+      })
+      .finally(() => {
+        setResolving(false);
+      });
+  }, [auth.isAuthenticated, auth.loading, bootstrap.appReady, bootstrap.loading, bootstrap.platformReady]);
+
+  if (resolving) {
     return (
-      <div className="atlas-home-gateway">
-        <div className="atlas-home-loading">{t("loading")}</div>
+      <div className="atlas-loading-page">
+        <Spin size="large" />
+        <span style={{ marginLeft: 8 }}>{t("loading")}</span>
       </div>
     );
   }
 
-  if (!platformReady) {
-    return <Navigate to="/platform-not-ready" replace />;
+  if (target) {
+    return <Navigate to={target} replace />;
   }
 
-  if (!appReady) {
-    return <Navigate to="/app-setup" replace />;
-  }
-
-  if (appKey) {
-    return (
-      <Navigate
-        to={auth.isAuthenticated ? workspaceDevelopPath(appKey, spaceId) : appSignPath(appKey)}
-        replace
-      />
-    );
-  }
-
-  return (
-    <div className="atlas-home-gateway">
-      <div className="atlas-home-gateway__content">
-        <div className="atlas-home-brand">
-          <HomeLogoMark />
-          <h1 className="atlas-home-brand__title">Atlas AppWeb</h1>
-          <p className="atlas-home-brand__subtitle">{t("homeSubtitle")}</p>
-        </div>
-
-        {!auth.isAuthenticated ? (
-          <div className="atlas-home-form">
-            <label className="atlas-home-form__label" htmlFor="atlas-home-appkey">
-              {t("homeAppKey")}
-            </label>
-            <input
-              id="atlas-home-appkey"
-              className="atlas-input atlas-home-form__input"
-              placeholder={t("homeAppKeyPlaceholder")}
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && value.trim()) {
-                  const nextAppKey = value.trim();
-                  rememberConfiguredAppKey(nextAppKey);
-                  navigate(appSignPath(nextAppKey), { replace: true });
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="atlas-button atlas-button--primary atlas-button--block"
-              disabled={!value.trim()}
-              onClick={() => {
-                const nextAppKey = value.trim();
-                if (!nextAppKey) {
-                  return;
-                }
-                rememberConfiguredAppKey(nextAppKey);
-                navigate(appSignPath(nextAppKey), { replace: true });
-              }}
-            >
-              {t("homeEnter")}
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <Navigate to={selectWorkspacePath()} replace />;
 }

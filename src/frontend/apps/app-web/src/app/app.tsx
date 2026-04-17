@@ -140,6 +140,22 @@ import { LoginPage } from "./pages/login-page";
 import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
+import { WorkspaceShellLayout, PlatformShellLayout } from "./layouts/workspace-shell";
+import { WorkspaceHomePage } from "./pages/workspace-home-page";
+import { WorkspaceProjectsPage } from "./pages/workspace-projects-page";
+import { WorkspaceTasksPage } from "./pages/workspace-tasks-page";
+import { WorkspaceEvaluationsPage } from "./pages/workspace-evaluations-page";
+import { WorkspaceSettingsPublishPage } from "./pages/workspace-settings-publish-page";
+import { WorkspaceSettingsModelsPage } from "./pages/workspace-settings-models-page";
+import { MarketTemplatesPage } from "./pages/market-templates-page";
+import { MarketPluginsPage } from "./pages/market-plugins-page";
+import { CommunityWorksPage } from "./pages/community-works-page";
+import { OpenApiPage } from "./pages/open-api-page";
+import { DocsPage } from "./pages/docs-page";
+import { PlatformGeneralPage } from "./pages/platform-general-page";
+import { MeProfilePage } from "./pages/me-profile-page";
+import { MeSettingsPage } from "./pages/me-settings-page";
+import { SelectWorkspacePage } from "./pages/select-workspace-page";
 import {
   backupNow,
   getDatabaseInfo,
@@ -2964,10 +2980,26 @@ function FatalErrorPage() {
   );
 }
 
+function ComingSoonRoute({ titleKey }: { titleKey: import("./messages").AppMessageKey }) {
+  const { t } = useAppI18n();
+  const navigate = useNavigate();
+  return (
+    <div className="coze-page" data-testid="coze-coming-soon">
+      <div className="coze-page__header">
+        <h2>{t(titleKey)}</h2>
+        <p>{t("cozeCommonComingSoon")}</p>
+        <button type="button" className="atlas-button" onClick={() => navigate(-1)}>
+          {t("cozeCommonGoBack")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const appRoutes = [
   {
     path: "/",
-    element: <RootEntryRoute />,
+    element: <HomePage />,
     handle: ROOT_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
@@ -2987,6 +3019,127 @@ export const appRoutes = [
     path: "/sign",
     element: <LoginPage />,
     handle: SIGN_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/select-workspace",
+    element: <SelectWorkspacePage />,
+    handle: WORKSPACE_LIST_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/workspace/:workspaceId",
+    element: <WorkspaceShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="home" replace /> },
+      { path: "home", element: <WorkspaceHomePage /> },
+      { path: "projects", element: <WorkspaceProjectsPage /> },
+      { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage /> },
+      { path: "resources", element: <ComingSoonRoute titleKey="cozeMenuResources" /> },
+      { path: "resources/:type", element: <ComingSoonRoute titleKey="cozeMenuResources" /> },
+      { path: "tasks", element: <WorkspaceTasksPage /> },
+      { path: "tasks/:taskId", element: <WorkspaceTasksPage /> },
+      { path: "evaluations", element: <WorkspaceEvaluationsPage /> },
+      { path: "evaluations/:evaluationId", element: <WorkspaceEvaluationsPage /> },
+      { path: "settings", element: <Navigate to="publish" replace /> },
+      { path: "settings/publish", element: <WorkspaceSettingsPublishPage /> },
+      { path: "settings/publish/:tab", element: <WorkspaceSettingsPublishPage /> },
+      { path: "settings/models", element: <WorkspaceSettingsModelsPage /> }
+    ]
+  },
+  {
+    path: "/me",
+    element: <PlatformShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="profile" replace /> },
+      { path: "profile", element: <MeProfilePage /> },
+      { path: "settings", element: <Navigate to="account" replace /> },
+      { path: "settings/:tab", element: <MeSettingsPage /> }
+    ]
+  },
+  {
+    path: "/market",
+    element: <PlatformShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="templates" replace /> },
+      { path: "templates", element: <MarketTemplatesPage /> },
+      { path: "plugins", element: <MarketPluginsPage /> }
+    ]
+  },
+  {
+    path: "/community",
+    element: <PlatformShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="works" replace /> },
+      { path: "works", element: <CommunityWorksPage /> }
+    ]
+  },
+  {
+    path: "/open",
+    element: <PlatformShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="api" replace /> },
+      { path: "api", element: <OpenApiPage /> }
+    ]
+  },
+  {
+    path: "/docs",
+    element: <PlatformShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <DocsPage /> },
+      { path: ":slug", element: <DocsPage /> }
+    ]
+  },
+  {
+    path: "/platform",
+    element: <PlatformShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="general" replace /> },
+      { path: "general", element: <PlatformGeneralPage /> }
+    ]
+  },
+  {
+    path: "/agent/:agentId/editor",
+    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/agent/:agentId/publish",
+    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/app/:projectId/editor",
+    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/app/:projectId/publish",
+    element: <ComingSoonRoute titleKey="cozeMenuProjects" />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/chatflow/:chatflowId/editor",
+    element: <ComingSoonRoute titleKey="cozeMenuResources" />,
+    handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {
