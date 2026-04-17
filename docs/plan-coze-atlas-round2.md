@@ -5,7 +5,7 @@
 本文件将第 2 轮 Coze Studio Atlas 化方案正式落入仓库，作为后续实现的唯一骨架说明。该方案基于当前 `SecurityPlatform` 已存在的以下事实推进，而不是另起一套平行系统：
 
 - 后端已存在 `Atlas.Application.AiPlatform`、`Atlas.Domain.AiPlatform`、`Atlas.Infrastructure.Services.AiPlatform`
-- 控制面已存在 `Atlas.PlatformHost.Controllers` 中的 `AiAppsController`、`AiWorkspacesController`、`AiPluginsController`、`AiDatabasesController`、`AiVariablesController`、`WorkflowV2Controller`、`WorkspaceIdeController`
+- 控制面已存在 `Atlas.PlatformHost.Controllers` 中的 `AiAppsController`、`AiWorkspacesController`、`AiPluginsController`、`AiDatabasesController`、`AiVariablesController`、`DagWorkflowController`（路由 `api/v2/workflows`）、`WorkspaceIdeController`
 - 运行面已存在 `Atlas.AppHost.Controllers` 中的 `ConversationsController`、`DraftAgentsController`、`Open/OpenBotsController`、`Open/OpenChatController`、`Open/OpenWorkflowsController`
 - 前端已存在 `app-web + module-studio-react + module-explore-react + module-workflow-react + workflow-editor-react + project-ide + agent-ide`
 

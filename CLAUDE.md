@@ -413,9 +413,9 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - Three similar lines of code is better than a premature abstraction
 - If something is unused, delete it completely (no backwards-compatibility hacks)
 
-## Workflow V2 (Coze Parity) Update
+## Dag 工作流引擎（Coze Parity）更新
 
-- Workflow V2 已合并 LogicFlow 表达式能力（`ExprEvaluator`）并在节点执行上下文提供 `EvaluateExpression()`。
+- Dag 工作流引擎（后端类型 `DagWorkflow*`；REST 路径 `api/v2/workflows` 中的 `v2` 为 API 版本号）已合并 LogicFlow 表达式能力（`ExprEvaluator`）并在节点执行上下文提供 `EvaluateExpression()`。
 - DagExecutor 支持：
   - Selector 条件分支剪枝
   - Loop + Break/Continue 控制信号

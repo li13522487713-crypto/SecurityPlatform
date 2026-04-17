@@ -137,9 +137,9 @@ pnpm run format                 # 格式化所有项目
 - **前端：** 使用 Vitest 进行单元测试、Playwright 进行 E2E 测试，并通过 `pnpm run i18n:check` 做词条完整性校验。
 - **新增测试时：** 优先复用现有 xUnit / Vitest / Playwright 体系，记录命名模式（如 `*Tests.cs`、`*.spec.ts`）与运行命令。
 
-## Workflow V2（Coze 复刻）补充约束
+## Dag 工作流引擎（Coze 复刻）补充约束
 
-- WorkflowV2 引擎必须保持与 LogicFlow 表达式能力对齐，节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
+- Dag 工作流引擎（原 WorkflowV2 命名已统一为后端 `DagWorkflow*` / REST `api/v2/workflows`，其中 `v2` 为 API 版本号）必须保持与 LogicFlow 表达式能力对齐，节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
 - `app-web` 工作流页面必须优先复用 Coze 原生适配层（`@coze-workflow/playground-adapter`、`@coze-studio/workspace-adapter`）与 `src/frontend/packages/workflow/**`，禁止再引入 Atlas 自研桥接包分叉实现。
 - DAG 运行时需保障以下能力长期可回归：
   - Batch 子图执行

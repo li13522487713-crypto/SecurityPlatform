@@ -3,14 +3,14 @@ using Atlas.Application.AiPlatform.Validators;
 
 namespace Atlas.SecurityPlatform.Tests.Validators;
 
-public sealed class WorkflowV2UpdateMetaRequestValidatorTests
+public sealed class DagWorkflowUpdateMetaRequestValidatorTests
 {
-    private readonly WorkflowV2UpdateMetaRequestValidator _validator = new();
+    private readonly DagWorkflowUpdateMetaRequestValidator _validator = new();
 
     [Fact]
     public void Validate_ShouldPass_WhenNameMatchesCozeRule()
     {
-        var request = new WorkflowV2UpdateMetaRequest(
+        var request = new DagWorkflowUpdateMetaRequest(
             "DemoWorkflow_01",
             "更新后的工作流描述。");
 
@@ -22,7 +22,7 @@ public sealed class WorkflowV2UpdateMetaRequestValidatorTests
     [Fact]
     public void Validate_ShouldPass_WhenDescriptionIsNull()
     {
-        var request = new WorkflowV2UpdateMetaRequest(
+        var request = new DagWorkflowUpdateMetaRequest(
             "DemoWorkflow_01",
             null);
 
@@ -38,33 +38,33 @@ public sealed class WorkflowV2UpdateMetaRequestValidatorTests
     [InlineData("workflow_name_is_far_more_than_thirty_chars")]
     public void Validate_ShouldFail_WhenNameViolatesCozeRule(string name)
     {
-        var request = new WorkflowV2UpdateMetaRequest(
+        var request = new DagWorkflowUpdateMetaRequest(
             name,
             "更新后的工作流描述。");
 
         var result = _validator.Validate(request);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.PropertyName == nameof(WorkflowV2UpdateMetaRequest.Name));
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(DagWorkflowUpdateMetaRequest.Name));
     }
 
     [Fact]
     public void Validate_ShouldFail_WhenNameIsEmpty()
     {
-        var request = new WorkflowV2UpdateMetaRequest(
+        var request = new DagWorkflowUpdateMetaRequest(
             string.Empty,
             "描述");
 
         var result = _validator.Validate(request);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, error => error.PropertyName == nameof(WorkflowV2UpdateMetaRequest.Name));
+        Assert.Contains(result.Errors, error => error.PropertyName == nameof(DagWorkflowUpdateMetaRequest.Name));
     }
 
     [Fact]
     public void Validate_ShouldPass_WhenNameLengthIsExactly30()
     {
-        var request = new WorkflowV2UpdateMetaRequest(
+        var request = new DagWorkflowUpdateMetaRequest(
             "a" + new string('b', 29),
             "30 字符边界，应当通过。");
 
@@ -76,7 +76,7 @@ public sealed class WorkflowV2UpdateMetaRequestValidatorTests
     [Fact]
     public void Validate_ShouldFail_WhenNameLengthIsExactly31()
     {
-        var request = new WorkflowV2UpdateMetaRequest(
+        var request = new DagWorkflowUpdateMetaRequest(
             "a" + new string('b', 30),
             "31 字符越界，应当失败。");
 
@@ -84,7 +84,7 @@ public sealed class WorkflowV2UpdateMetaRequestValidatorTests
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, error =>
-            error.PropertyName == nameof(WorkflowV2UpdateMetaRequest.Name) &&
-            error.ErrorCode == "WORKFLOW_V2_NAME_LENGTH");
+            error.PropertyName == nameof(DagWorkflowUpdateMetaRequest.Name) &&
+            error.ErrorCode == "DAG_WORKFLOW_NAME_LENGTH");
     }
 }

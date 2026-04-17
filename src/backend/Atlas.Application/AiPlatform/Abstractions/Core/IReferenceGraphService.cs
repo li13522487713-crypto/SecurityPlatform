@@ -11,7 +11,7 @@ public interface IReferenceGraphService
         long ownerId,
         CancellationToken cancellationToken);
 
-    Task<WorkflowV2DependencyDto?> GetWorkflowDependenciesAsync(
+    Task<DagWorkflowDependencyDto?> GetWorkflowDependenciesAsync(
         TenantId tenantId,
         long workflowId,
         CancellationToken cancellationToken);

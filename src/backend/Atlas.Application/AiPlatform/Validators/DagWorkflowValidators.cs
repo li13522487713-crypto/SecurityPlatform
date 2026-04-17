@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Atlas.Application.AiPlatform.Validators;
 
-internal static class WorkflowV2NameRules
+internal static class DagWorkflowNameRules
 {
     // 与 Coze 上游对齐：src/frontend/packages/workflow/base/src/constants/index.ts
     // WORKFLOW_NAME_REGEX = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/
@@ -14,66 +14,66 @@ internal static class WorkflowV2NameRules
 
     public const int MaxLength = 30;
 
-    public const string FormatErrorCode = "WORKFLOW_V2_NAME_FORMAT";
-    public const string LengthErrorCode = "WORKFLOW_V2_NAME_LENGTH";
+    public const string FormatErrorCode = "DAG_WORKFLOW_NAME_FORMAT";
+    public const string LengthErrorCode = "DAG_WORKFLOW_NAME_LENGTH";
 
     public const string FormatMessage = "工作流名称必须以英文字母开头，仅允许字母、数字和下划线。";
     public const string LengthMessage = "工作流名称最长 30 个字符。";
 }
 
-public sealed class WorkflowV2CreateRequestValidator : AbstractValidator<WorkflowV2CreateRequest>
+public sealed class DagWorkflowCreateRequestValidator : AbstractValidator<DagWorkflowCreateRequest>
 {
-    public WorkflowV2CreateRequestValidator()
+    public DagWorkflowCreateRequestValidator()
     {
         RuleFor(x => x.Name)
             .NotEmpty()
-            .MaximumLength(WorkflowV2NameRules.MaxLength)
-                .WithErrorCode(WorkflowV2NameRules.LengthErrorCode)
-                .WithMessage(WorkflowV2NameRules.LengthMessage)
-            .Matches(WorkflowV2NameRules.Regex)
-                .WithErrorCode(WorkflowV2NameRules.FormatErrorCode)
-                .WithMessage(WorkflowV2NameRules.FormatMessage);
+            .MaximumLength(DagWorkflowNameRules.MaxLength)
+                .WithErrorCode(DagWorkflowNameRules.LengthErrorCode)
+                .WithMessage(DagWorkflowNameRules.LengthMessage)
+            .Matches(DagWorkflowNameRules.Regex)
+                .WithErrorCode(DagWorkflowNameRules.FormatErrorCode)
+                .WithMessage(DagWorkflowNameRules.FormatMessage);
         RuleFor(x => x.Description)
             .NotEmpty()
             .MaximumLength(2000);
     }
 }
 
-public sealed class WorkflowV2SaveDraftRequestValidator : AbstractValidator<WorkflowV2SaveDraftRequest>
+public sealed class DagWorkflowSaveDraftRequestValidator : AbstractValidator<DagWorkflowSaveDraftRequest>
 {
-    public WorkflowV2SaveDraftRequestValidator()
+    public DagWorkflowSaveDraftRequestValidator()
     {
         RuleFor(x => x.CanvasJson).NotEmpty();
     }
 }
 
-public sealed class WorkflowV2UpdateMetaRequestValidator : AbstractValidator<WorkflowV2UpdateMetaRequest>
+public sealed class DagWorkflowUpdateMetaRequestValidator : AbstractValidator<DagWorkflowUpdateMetaRequest>
 {
-    public WorkflowV2UpdateMetaRequestValidator()
+    public DagWorkflowUpdateMetaRequestValidator()
     {
         RuleFor(x => x.Name)
             .NotEmpty()
-            .MaximumLength(WorkflowV2NameRules.MaxLength)
-                .WithErrorCode(WorkflowV2NameRules.LengthErrorCode)
-                .WithMessage(WorkflowV2NameRules.LengthMessage)
-            .Matches(WorkflowV2NameRules.Regex)
-                .WithErrorCode(WorkflowV2NameRules.FormatErrorCode)
-                .WithMessage(WorkflowV2NameRules.FormatMessage);
+            .MaximumLength(DagWorkflowNameRules.MaxLength)
+                .WithErrorCode(DagWorkflowNameRules.LengthErrorCode)
+                .WithMessage(DagWorkflowNameRules.LengthMessage)
+            .Matches(DagWorkflowNameRules.Regex)
+                .WithErrorCode(DagWorkflowNameRules.FormatErrorCode)
+                .WithMessage(DagWorkflowNameRules.FormatMessage);
         RuleFor(x => x.Description).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.Description));
     }
 }
 
-public sealed class WorkflowV2PublishRequestValidator : AbstractValidator<WorkflowV2PublishRequest>
+public sealed class DagWorkflowPublishRequestValidator : AbstractValidator<DagWorkflowPublishRequest>
 {
-    public WorkflowV2PublishRequestValidator()
+    public DagWorkflowPublishRequestValidator()
     {
         RuleFor(x => x.ChangeLog).MaximumLength(500).When(x => !string.IsNullOrWhiteSpace(x.ChangeLog));
     }
 }
 
-public sealed class WorkflowV2RunRequestValidator : AbstractValidator<WorkflowV2RunRequest>
+public sealed class DagWorkflowRunRequestValidator : AbstractValidator<DagWorkflowRunRequest>
 {
-    public WorkflowV2RunRequestValidator()
+    public DagWorkflowRunRequestValidator()
     {
         RuleFor(x => x.Source)
             .Must(source =>
@@ -107,9 +107,9 @@ public sealed class WorkflowV2RunRequestValidator : AbstractValidator<WorkflowV2
     }
 }
 
-public sealed class WorkflowV2NodeDebugRequestValidator : AbstractValidator<WorkflowV2NodeDebugRequest>
+public sealed class DagWorkflowNodeDebugRequestValidator : AbstractValidator<DagWorkflowNodeDebugRequest>
 {
-    public WorkflowV2NodeDebugRequestValidator()
+    public DagWorkflowNodeDebugRequestValidator()
     {
         RuleFor(x => x.NodeKey).NotEmpty().MaximumLength(200);
     }

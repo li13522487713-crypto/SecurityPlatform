@@ -7,30 +7,30 @@ namespace Atlas.Application.AiPlatform.Models;
 
 // ── 请求模型 ──────────────────────────────────────────────
 
-public sealed record WorkflowV2CreateRequest(
+public sealed record DagWorkflowCreateRequest(
     string Name,
     string? Description,
     WorkflowMode Mode,
     long? WorkspaceId = null);
 
-public sealed record WorkflowV2SaveDraftRequest(
+public sealed record DagWorkflowSaveDraftRequest(
     string CanvasJson,
     string? CommitId);
 
-public sealed record WorkflowV2UpdateMetaRequest(
+public sealed record DagWorkflowUpdateMetaRequest(
     string Name,
     string? Description);
 
-public sealed record WorkflowV2PublishRequest(
+public sealed record DagWorkflowPublishRequest(
     string? ChangeLog);
 
-public sealed record WorkflowV2RunRequest
+public sealed record DagWorkflowRunRequest
 {
-    public WorkflowV2RunRequest()
+    public DagWorkflowRunRequest()
     {
     }
 
-    public WorkflowV2RunRequest(string? inputsJson, string? source = null)
+    public DagWorkflowRunRequest(string? inputsJson, string? source = null)
     {
         InputsJson = inputsJson;
         Source = source;
@@ -43,24 +43,24 @@ public sealed record WorkflowV2RunRequest
     public string? Source { get; init; }
 }
 
-public sealed record WorkflowV2ResumeRequest(
+public sealed record DagWorkflowResumeRequest(
     string? InputsJson,
     Dictionary<string, JsonElement>? Data,
     Dictionary<string, JsonElement>? VariableOverrides = null);
 
-public sealed record WorkflowV2NodeDebugRequest(
+public sealed record DagWorkflowNodeDebugRequest(
     string NodeKey,
     string? InputsJson,
     string? Source = null,
     long? VersionId = null);
 
-public sealed record WorkflowV2ValidateRequest(
+public sealed record DagWorkflowValidateRequest(
     string? CanvasJson = null,
     CanvasSchema? Canvas = null);
 
 // ── 响应模型 ──────────────────────────────────────────────
 
-public sealed record WorkflowV2ListItem(
+public sealed record DagWorkflowListItem(
     long Id,
     string Name,
     string? Description,
@@ -72,7 +72,7 @@ public sealed record WorkflowV2ListItem(
     DateTime UpdatedAt,
     DateTime? PublishedAt);
 
-public sealed record WorkflowV2DetailDto(
+public sealed record DagWorkflowDetailDto(
     long Id,
     string Name,
     string? Description,
@@ -86,7 +86,7 @@ public sealed record WorkflowV2DetailDto(
     DateTime UpdatedAt,
     DateTime? PublishedAt);
 
-public sealed record WorkflowV2VersionDto(
+public sealed record DagWorkflowVersionDto(
     long Id,
     long WorkflowId,
     int VersionNumber,
@@ -95,7 +95,7 @@ public sealed record WorkflowV2VersionDto(
     DateTime PublishedAt,
     long PublishedByUserId);
 
-public sealed record WorkflowV2ExecutionDto(
+public sealed record DagWorkflowExecutionDto(
     long Id,
     long WorkflowId,
     int VersionNumber,
@@ -105,9 +105,9 @@ public sealed record WorkflowV2ExecutionDto(
     string? ErrorMessage,
     DateTime StartedAt,
     DateTime? CompletedAt,
-    IReadOnlyList<WorkflowV2NodeExecutionDto> NodeExecutions);
+    IReadOnlyList<DagWorkflowNodeExecutionDto> NodeExecutions);
 
-public sealed record WorkflowV2NodeExecutionDto(
+public sealed record DagWorkflowNodeExecutionDto(
     long Id,
     long ExecutionId,
     string NodeKey,
@@ -120,7 +120,7 @@ public sealed record WorkflowV2NodeExecutionDto(
     DateTime? CompletedAt,
     long? DurationMs);
 
-public sealed record WorkflowV2ExecutionCheckpointDto(
+public sealed record DagWorkflowExecutionCheckpointDto(
     long ExecutionId,
     long WorkflowId,
     ExecutionStatus Status,
@@ -131,20 +131,20 @@ public sealed record WorkflowV2ExecutionCheckpointDto(
     string? OutputsJson,
     string? ErrorMessage);
 
-public sealed record WorkflowV2ExecutionDebugViewDto(
-    WorkflowV2ExecutionDto Execution,
-    WorkflowV2NodeExecutionDto? FocusNode,
+public sealed record DagWorkflowExecutionDebugViewDto(
+    DagWorkflowExecutionDto Execution,
+    DagWorkflowNodeExecutionDto? FocusNode,
     string FocusReason);
 
-public sealed record WorkflowV2RunResult(
+public sealed record DagWorkflowRunResult(
     string ExecutionId,
     ExecutionStatus? Status = null,
     string? OutputsJson = null,
     string? ErrorMessage = null,
     string? DebugNodeKey = null,
-    WorkflowV2StepResultDto? StepResult = null);
+    DagWorkflowStepResultDto? StepResult = null);
 
-public sealed record WorkflowV2NodeTypeDto(
+public sealed record DagWorkflowNodeTypeDto(
     string Key,
     string Name,
     string Category,
@@ -153,13 +153,13 @@ public sealed record WorkflowV2NodeTypeDto(
     string? ConfigSchemaJson = null,
     WorkflowNodeUiMetadata? UiMeta = null);
 
-public sealed record WorkflowV2NodeTemplateDto(
+public sealed record DagWorkflowNodeTemplateDto(
     string Key,
     string Name,
     string Category,
     Dictionary<string, JsonElement> DefaultConfig);
 
-public sealed record WorkflowV2StepResultDto(
+public sealed record DagWorkflowStepResultDto(
     string ExecutionId,
     string NodeKey,
     WorkflowNodeType NodeType,
@@ -172,7 +172,7 @@ public sealed record WorkflowV2StepResultDto(
     string? ErrorMessage = null,
     Dictionary<string, JsonElement>? BranchDecision = null);
 
-public sealed record WorkflowV2EdgeRuntimeStatusDto(
+public sealed record DagWorkflowEdgeRuntimeStatusDto(
     string SourceNodeKey,
     string SourcePort,
     string TargetNodeKey,
@@ -180,31 +180,31 @@ public sealed record WorkflowV2EdgeRuntimeStatusDto(
     EdgeExecutionStatus Status,
     string? Reason = null);
 
-public sealed record WorkflowV2RunTraceDto(
+public sealed record DagWorkflowRunTraceDto(
     string ExecutionId,
     long? WorkflowId,
     ExecutionStatus Status,
     DateTime? StartedAt = null,
     DateTime? CompletedAt = null,
     long? DurationMs = null,
-    IReadOnlyList<WorkflowV2StepResultDto>? Steps = null,
-    IReadOnlyList<WorkflowV2EdgeRuntimeStatusDto>? EdgeStatuses = null);
+    IReadOnlyList<DagWorkflowStepResultDto>? Steps = null,
+    IReadOnlyList<DagWorkflowEdgeRuntimeStatusDto>? EdgeStatuses = null);
 
-public sealed record WorkflowV2DependencyItemDto(
+public sealed record DagWorkflowDependencyItemDto(
     string ResourceType,
     string ResourceId,
     string Name,
     string? Description = null,
     IReadOnlyList<string>? SourceNodeKeys = null);
 
-public sealed record WorkflowV2DependencyDto(
+public sealed record DagWorkflowDependencyDto(
     string WorkflowId,
-    IReadOnlyList<WorkflowV2DependencyItemDto> SubWorkflows,
-    IReadOnlyList<WorkflowV2DependencyItemDto> Plugins,
-    IReadOnlyList<WorkflowV2DependencyItemDto> KnowledgeBases,
-    IReadOnlyList<WorkflowV2DependencyItemDto> Databases,
-    IReadOnlyList<WorkflowV2DependencyItemDto> Variables,
-    IReadOnlyList<WorkflowV2DependencyItemDto> Conversations);
+    IReadOnlyList<DagWorkflowDependencyItemDto> SubWorkflows,
+    IReadOnlyList<DagWorkflowDependencyItemDto> Plugins,
+    IReadOnlyList<DagWorkflowDependencyItemDto> KnowledgeBases,
+    IReadOnlyList<DagWorkflowDependencyItemDto> Databases,
+    IReadOnlyList<DagWorkflowDependencyItemDto> Variables,
+    IReadOnlyList<DagWorkflowDependencyItemDto> Conversations);
 
 /// <summary>
 /// 变量来源类别：与 Coze 上游 GlobalVariableKey 体系对齐，
@@ -252,7 +252,7 @@ public sealed record WorkflowVariableGroup(
 /// 变量树聚合：供节点配置面板 / Prompt 编辑器 / JSON 映射器使用。
 ///
 /// 命名约定（M2 之后）：M1 新增的对外 DTO 不再带 V2 后缀，沿用业务正式名称；
-/// 存量 <c>WorkflowV2*</c> 命名（控制器、服务接口本身、路径）仍属遗留命名，等 M7+ 统一重命名。
+/// DAG 引擎请求/响应 DTO 使用 <c>DagWorkflow*</c> 前缀；HTTP 路径仍为 <c>api/v2/workflows</c>（<c>v2</c> 表示 API 版本号）。
 /// </summary>
 public sealed record WorkflowVariableTreeDto(
     string WorkflowId,

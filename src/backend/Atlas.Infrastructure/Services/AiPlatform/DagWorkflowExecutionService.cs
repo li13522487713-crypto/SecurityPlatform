@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
-public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
+public sealed class DagWorkflowExecutionService : IDagWorkflowExecutionService
 {
     private readonly IWorkflowMetaRepository _metaRepo;
     private readonly IWorkflowDraftRepository _draftRepo;
@@ -30,9 +30,9 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     private readonly WorkflowExecutionCancellationRegistry _cancellationRegistry;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly IAppContextAccessor _appContextAccessor;
-    private readonly ILogger<WorkflowV2ExecutionService> _logger;
+    private readonly ILogger<DagWorkflowExecutionService> _logger;
 
-    public WorkflowV2ExecutionService(
+    public DagWorkflowExecutionService(
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
         IWorkflowVersionRepository versionRepo,
@@ -43,7 +43,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         WorkflowExecutionCancellationRegistry cancellationRegistry,
         IIdGeneratorAccessor idGenerator,
         IAppContextAccessor appContextAccessor,
-        ILogger<WorkflowV2ExecutionService> logger)
+        ILogger<DagWorkflowExecutionService> logger)
     {
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
@@ -56,10 +56,10 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         _idGenerator = idGenerator;
         _appContextAccessor = appContextAccessor;
         _logger = logger;
-        _logger.LogDebug("WorkflowV2ExecutionService initialized.");
+        _logger.LogDebug("DagWorkflowExecutionService initialized.");
     }
 
-    public WorkflowV2ExecutionService(
+    public DagWorkflowExecutionService(
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
         IWorkflowVersionRepository versionRepo,
@@ -69,7 +69,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         IServiceScopeFactory scopeFactory,
         WorkflowExecutionCancellationRegistry cancellationRegistry,
         IIdGeneratorAccessor idGenerator,
-        ILogger<WorkflowV2ExecutionService> logger)
+        ILogger<DagWorkflowExecutionService> logger)
         : this(
             metaRepo,
             draftRepo,
@@ -85,8 +85,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     {
     }
 
-    public async Task<WorkflowV2RunResult> SyncRunAsync(
-        TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken)
+    public async Task<DagWorkflowRunResult> SyncRunAsync(
+        TenantId tenantId, long workflowId, long userId, DagWorkflowRunRequest request, CancellationToken cancellationToken)
     {
         _logger.LogInformation("ExecutionService SyncRun start: WorkflowId={WorkflowId}", workflowId);
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
@@ -102,15 +102,15 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             execution.Id,
             execution.Status,
             execution.ErrorMessage);
-        return new WorkflowV2RunResult(
+        return new DagWorkflowRunResult(
             execution.Id.ToString(),
             execution.Status,
             execution.OutputsJson,
             execution.ErrorMessage);
     }
 
-    public async Task<WorkflowV2RunResult> AsyncRunAsync(
-        TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken)
+    public async Task<DagWorkflowRunResult> AsyncRunAsync(
+        TenantId tenantId, long workflowId, long userId, DagWorkflowRunRequest request, CancellationToken cancellationToken)
     {
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
         // BE-30: 工作流总超时（默认 30 分钟），防止无限制运行。
@@ -139,7 +139,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             }
         }, CancellationToken.None);
 
-        return new WorkflowV2RunResult(
+        return new DagWorkflowRunResult(
             execution.Id.ToString(),
             ExecutionStatus.Pending,
             null,
@@ -164,7 +164,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     public async Task ResumeAsync(
         TenantId tenantId,
         long executionId,
-        WorkflowV2ResumeRequest? request,
+        DagWorkflowResumeRequest? request,
         CancellationToken cancellationToken)
     {
         await ResumeCoreAsync(tenantId, executionId, request, eventChannel: null, cancellationToken);
@@ -219,7 +219,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     private async Task ResumeCoreAsync(
         TenantId tenantId,
         long executionId,
-        WorkflowV2ResumeRequest? request,
+        DagWorkflowResumeRequest? request,
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken)
     {
@@ -292,8 +292,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             preCompletedNodeKeys);
     }
 
-    public async Task<WorkflowV2RunResult> DebugNodeAsync(
-        TenantId tenantId, long workflowId, long userId, WorkflowV2NodeDebugRequest request, CancellationToken cancellationToken)
+    public async Task<DagWorkflowRunResult> DebugNodeAsync(
+        TenantId tenantId, long workflowId, long userId, DagWorkflowNodeDebugRequest request, CancellationToken cancellationToken)
     {
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
@@ -333,7 +333,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         await _executionRepo.AddAsync(execution, cancellationToken);
 
         await _dagExecutor.RunAsync(tenantId, execution, debugCanvas, inputs, eventChannel: null, cancellationToken);
-        return new WorkflowV2RunResult(
+        return new DagWorkflowRunResult(
             execution.Id.ToString(),
             execution.Status,
             execution.OutputsJson,
@@ -342,7 +342,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     }
 
     public async IAsyncEnumerable<SseEvent> StreamRunAsync(
-        TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request,
+        TenantId tenantId, long workflowId, long userId, DagWorkflowRunRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
@@ -451,7 +451,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     }
 
     private async Task<(WorkflowExecution Execution, Domain.AiPlatform.ValueObjects.CanvasSchema Canvas, Dictionary<string, JsonElement> Inputs)>
-        PrepareExecutionAsync(TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken)
+        PrepareExecutionAsync(TenantId tenantId, long workflowId, long userId, DagWorkflowRunRequest request, CancellationToken cancellationToken)
     {
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);

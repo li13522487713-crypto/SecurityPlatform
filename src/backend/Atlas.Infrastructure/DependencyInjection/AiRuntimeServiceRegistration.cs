@@ -112,7 +112,7 @@ public static class AiRuntimeServiceRegistration
         services.AddScoped<INodeExecutor, JsonDeserializationNodeExecutor>();
         services.AddScoped<INodeExecutor, KnowledgeDeleterNodeExecutor>();
 
-        services.AddScoped<IWorkflowV2ExecutionService, WorkflowV2ExecutionService>();
+        services.AddScoped<IDagWorkflowExecutionService, DagWorkflowExecutionService>();
         services.AddHttpClient("WorkflowEngine", client => client.Timeout = TimeSpan.FromSeconds(30));
 
         return services;

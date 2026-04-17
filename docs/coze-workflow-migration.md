@@ -19,7 +19,7 @@
 ## 本次 Atlas 化改造
 
 - 保留 Atlas 现有后端契约：
-  - 工作流详情、草稿保存、发布、版本、试运行、Trace、变量仍走 `workflowV2Api`
+  - 工作流详情、草稿保存、发布、版本、试运行、Trace、变量仍走 Coze 侧 `workflowV2Api`（Thrift/IDL 命名）；Atlas REST 对应 `api/v2/workflows` + 后端 `DagWorkflow*` 类型（`v2` 为 API 版本号）
   - 路由保持 `work_flow/:id/editor` 与 `chat_flow/:id/editor`
 - 前端工作流内核改造为 Coze 真源：
   - `src/frontend/packages/workflow/**` 与 `src/frontend/packages/workflow/adapter/**` 以 `D:\Code\coze-studio-main\frontend\packages\workflow\**` 为真源

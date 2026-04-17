@@ -118,8 +118,8 @@ public static class AiDesignServiceRegistration
         services.AddTransient<HttpRequesterStep>();
         services.AddTransient<OutputEmitterStep>();
 
-        services.AddScoped<IWorkflowV2CommandService, WorkflowV2CommandService>();
-        services.AddScoped<IWorkflowV2QueryService, WorkflowV2QueryService>();
+        services.AddScoped<IDagWorkflowCommandService, DagWorkflowCommandService>();
+        services.AddScoped<IDagWorkflowQueryService, DagWorkflowQueryService>();
         services.AddScoped<WorkflowCompatServices>();
         services.AddScoped<IWorkflowTraceService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
         services.AddScoped<IWorkflowCollaboratorService>(sp => sp.GetRequiredService<WorkflowCompatServices>());

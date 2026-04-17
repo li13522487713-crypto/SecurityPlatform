@@ -28,13 +28,13 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
 
     private readonly ISqlSugarClient _db;
     private readonly IAiAppService _aiAppService;
-    private readonly IWorkflowV2CommandService _workflowCommandService;
+    private readonly IDagWorkflowCommandService _workflowCommandService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public WorkspaceIdeService(
         ISqlSugarClient db,
         IAiAppService aiAppService,
-        IWorkflowV2CommandService workflowCommandService,
+        IDagWorkflowCommandService workflowCommandService,
         IIdGeneratorAccessor idGeneratorAccessor)
     {
         _db = db;
@@ -224,7 +224,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var workflowId = await _workflowCommandService.CreateAsync(
             tenantId,
             userId,
-            new WorkflowV2CreateRequest(workflowName, request.Description?.Trim() ?? normalizedName, WorkflowMode.Standard),
+            new DagWorkflowCreateRequest(workflowName, request.Description?.Trim() ?? normalizedName, WorkflowMode.Standard),
             cancellationToken);
 
         var appId = await _aiAppService.CreateAsync(

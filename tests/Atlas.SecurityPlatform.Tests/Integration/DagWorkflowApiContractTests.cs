@@ -7,15 +7,15 @@ using Atlas.SecurityPlatform.Tests.Integration.Infrastructure;
 namespace Atlas.SecurityPlatform.Tests.Integration;
 
 /// <summary>
-/// TS-15: WorkflowV2 API 契约测试。
+/// TS-15: DagWorkflow API 契约测试。
 /// 每个端点验证正常路径(200/201)和错误路径(400/401/404)的状态码与响应体格式。
 /// </summary>
 [Collection("Integration")]
-public sealed class WorkflowV2ApiContractTests
+public sealed class DagWorkflowApiContractTests
 {
     private readonly HttpClient _client;
 
-    public WorkflowV2ApiContractTests(AtlasWebApplicationFactory factory)
+    public DagWorkflowApiContractTests(AtlasWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
     }

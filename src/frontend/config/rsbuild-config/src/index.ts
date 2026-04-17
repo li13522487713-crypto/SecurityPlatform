@@ -25,12 +25,13 @@ import { SemiRspackPlugin } from '@douyinfe/semi-rspack-plugin';
 import { GLOBAL_ENVS } from '@coze-arch/bot-env';
 import { PackageAtAliasResolverPlugin } from './package-at-alias-resolver-plugin';
 
-// 通过环境变量门控 Rspack 实验性持久化缓存：默认开启，遇到缓存类异常可临时关闭
-// 不直接升级 @rsbuild/core 是因为仓库内 30+ 个包都锁定 1.1.13，强升风险过大；
-// 这里走 tools.rspack 直通 @rspack/core 1.1.8 原生 API（与 webpack 5 cache 等价）。
+// 持久化缓存开关：默认关闭，因为当前仓库锁定 @rsbuild/core ~1.1（捆绑 @rspack/core 1.1.8），
+// 此版本 experiments.cache 仅支持 memory 模式，不接受 { type: 'persistent', ... }；
+// rsbuild 1.2.5+ 才提供 performance.buildCache，rsbuild 1.5+ / rspack 1.5+ 才接受 persistent。
+// 等仓库整体升级到 rsbuild ≥1.5 后，可通过 ATLAS_RSBUILD_PERSISTENT_CACHE=true 一键启用。
 const persistentCacheEnabled =
-  (process.env.ATLAS_RSBUILD_PERSISTENT_CACHE ?? 'true').toLowerCase() !==
-  'false';
+  (process.env.ATLAS_RSBUILD_PERSISTENT_CACHE ?? 'false').toLowerCase() ===
+  'true';
 
 const getDefine = () => {
   const define = {};

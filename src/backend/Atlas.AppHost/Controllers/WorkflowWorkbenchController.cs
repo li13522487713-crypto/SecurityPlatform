@@ -16,15 +16,15 @@ namespace Atlas.AppHost.Controllers;
 [Route("api/v1/workflow-playground")]
 public sealed class WorkflowWorkbenchController : ControllerBase
 {
-    private readonly IWorkflowV2ExecutionService _executionService;
-    private readonly IWorkflowV2QueryService _queryService;
+    private readonly IDagWorkflowExecutionService _executionService;
+    private readonly IDagWorkflowQueryService _queryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<WorkflowWorkbenchExecuteRequest> _validator;
 
     public WorkflowWorkbenchController(
-        IWorkflowV2ExecutionService executionService,
-        IWorkflowV2QueryService queryService,
+        IDagWorkflowExecutionService executionService,
+        IDagWorkflowQueryService queryService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<WorkflowWorkbenchExecuteRequest> validator)
@@ -59,7 +59,7 @@ public sealed class WorkflowWorkbenchController : ControllerBase
             tenantId,
             id,
             userId,
-            new WorkflowV2RunRequest(inputsJson, normalizedSource),
+            new DagWorkflowRunRequest(inputsJson, normalizedSource),
             cancellationToken);
 
         WorkflowWorkbenchTraceDto? traceDto = null;
@@ -80,7 +80,7 @@ public sealed class WorkflowWorkbenchController : ControllerBase
         return Ok(ApiResponse<WorkflowWorkbenchExecuteResultDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
-    private static WorkflowWorkbenchTraceDto MapTrace(WorkflowV2RunTraceDto trace)
+    private static WorkflowWorkbenchTraceDto MapTrace(DagWorkflowRunTraceDto trace)
     {
         return new WorkflowWorkbenchTraceDto(
             trace.ExecutionId,

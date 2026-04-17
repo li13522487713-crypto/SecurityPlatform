@@ -24,7 +24,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IAiAppService _aiAppService;
-    private readonly IWorkflowV2CommandService _workflowCommandService;
+    private readonly IDagWorkflowCommandService _workflowCommandService;
     private readonly WorkspaceRepository _workspaceRepository;
     private readonly WorkspaceRoleRepository _workspaceRoleRepository;
     private readonly WorkspaceMemberRepository _workspaceMemberRepository;
@@ -34,7 +34,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
         ISqlSugarClient db,
         IIdGeneratorAccessor idGeneratorAccessor,
         IAiAppService aiAppService,
-        IWorkflowV2CommandService workflowCommandService,
+        IDagWorkflowCommandService workflowCommandService,
         WorkspaceRepository workspaceRepository,
         WorkspaceRoleRepository workspaceRoleRepository,
         WorkspaceMemberRepository workspaceMemberRepository,
@@ -314,7 +314,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
         var workflowId = await _workflowCommandService.CreateAsync(
             tenantId,
             userId,
-            new WorkflowV2CreateRequest(
+            new DagWorkflowCreateRequest(
                 string.IsNullOrWhiteSpace(request.Name) ? "新建应用工作流" : request.Name.Trim(),
                 request.Description?.Trim(),
                 WorkflowMode.Standard,

@@ -1736,7 +1736,7 @@ public sealed class AppMigrationService : IAppMigrationService
     /// <summary>
     /// 应用库内按租户清空 V2 工作流相关表，避免残留与删除顺序问题；随后由后续步骤自主库写入。
     /// </summary>
-    private async Task PurgeTenantWorkflowV2InAppAsync(
+    private async Task PurgeTenantDagWorkflowInAppAsync(
         TenantId tenantId,
         ISqlSugarClient appDb,
         CancellationToken cancellationToken)
@@ -1774,7 +1774,7 @@ public sealed class AppMigrationService : IAppMigrationService
         int completed,
         CancellationToken cancellationToken)
     {
-        await PurgeTenantWorkflowV2InAppAsync(tenantId, appDb, cancellationToken);
+        await PurgeTenantDagWorkflowInAppAsync(tenantId, appDb, cancellationToken);
 
         var workflowIds = await _mainDb.Queryable<WorkflowExecution>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)

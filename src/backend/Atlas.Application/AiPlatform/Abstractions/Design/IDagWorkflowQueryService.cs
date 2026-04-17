@@ -7,45 +7,45 @@ namespace Atlas.Application.AiPlatform.Abstractions;
 /// <summary>
 /// V2 工作流查询服务（列表/详情/版本/执行进度/节点详情/节点类型）。
 /// </summary>
-public interface IWorkflowV2QueryService
+public interface IDagWorkflowQueryService
 {
-    Task<PagedResult<WorkflowV2ListItem>> ListAsync(
+    Task<PagedResult<DagWorkflowListItem>> ListAsync(
         TenantId tenantId, string? keyword, int pageIndex, int pageSize, CancellationToken cancellationToken);
 
-    Task<PagedResult<WorkflowV2ListItem>> ListPublishedAsync(
+    Task<PagedResult<DagWorkflowListItem>> ListPublishedAsync(
         TenantId tenantId, string? keyword, int pageIndex, int pageSize, CancellationToken cancellationToken);
 
-    Task<WorkflowV2DetailDto?> GetAsync(
+    Task<DagWorkflowDetailDto?> GetAsync(
         TenantId tenantId,
         long id,
         CancellationToken cancellationToken,
         string? source = null,
         long? versionId = null);
 
-    Task<IReadOnlyList<WorkflowV2VersionDto>> ListVersionsAsync(
+    Task<IReadOnlyList<DagWorkflowVersionDto>> ListVersionsAsync(
         TenantId tenantId, long workflowId, CancellationToken cancellationToken);
 
-    Task<WorkflowV2ExecutionDto?> GetExecutionProcessAsync(
+    Task<DagWorkflowExecutionDto?> GetExecutionProcessAsync(
         TenantId tenantId, long executionId, CancellationToken cancellationToken);
 
-    Task<WorkflowV2ExecutionCheckpointDto?> GetExecutionCheckpointAsync(
+    Task<DagWorkflowExecutionCheckpointDto?> GetExecutionCheckpointAsync(
         TenantId tenantId, long executionId, CancellationToken cancellationToken);
 
-    Task<WorkflowV2ExecutionDebugViewDto?> GetExecutionDebugViewAsync(
+    Task<DagWorkflowExecutionDebugViewDto?> GetExecutionDebugViewAsync(
         TenantId tenantId, long executionId, CancellationToken cancellationToken);
 
-    Task<WorkflowV2NodeExecutionDto?> GetNodeExecutionDetailAsync(
+    Task<DagWorkflowNodeExecutionDto?> GetNodeExecutionDetailAsync(
         TenantId tenantId, long executionId, string nodeKey, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<WorkflowV2NodeTypeDto>> GetNodeTypesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<DagWorkflowNodeTypeDto>> GetNodeTypesAsync(CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<WorkflowV2NodeTemplateDto>> GetNodeTemplatesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<DagWorkflowNodeTemplateDto>> GetNodeTemplatesAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// 节点面板搜索：用于编辑器节点面板的关键字过滤（名称、描述、分类、Key 模糊匹配），
     /// 与上游 Coze /api/workflow_api/node_panel_search 行为对齐。
     /// </summary>
-    Task<IReadOnlyList<WorkflowV2NodeTemplateDto>> SearchNodeTemplatesAsync(
+    Task<IReadOnlyList<DagWorkflowNodeTemplateDto>> SearchNodeTemplatesAsync(
         string? keyword,
         IReadOnlyList<string>? categories,
         int pageIndex,
@@ -95,12 +95,12 @@ public interface IWorkflowV2QueryService
     /// <summary>
     /// 获取执行实例的结构化 Trace（步骤列表 + 边状态），用于前端时间线回放。
     /// </summary>
-    Task<WorkflowV2RunTraceDto?> GetRunTraceAsync(
+    Task<DagWorkflowRunTraceDto?> GetRunTraceAsync(
         TenantId tenantId,
         long executionId,
         CancellationToken cancellationToken);
 
-    Task<WorkflowV2DependencyDto?> GetDependenciesAsync(
+    Task<DagWorkflowDependencyDto?> GetDependenciesAsync(
         TenantId tenantId,
         long workflowId,
         CancellationToken cancellationToken);

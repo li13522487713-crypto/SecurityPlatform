@@ -36,18 +36,18 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         "Ltm"
     };
 
-    private readonly IWorkflowV2CommandService _commandService;
-    private readonly IWorkflowV2QueryService _queryService;
-    private readonly IWorkflowV2ExecutionService _executionService;
+    private readonly IDagWorkflowCommandService _commandService;
+    private readonly IDagWorkflowQueryService _queryService;
+    private readonly IDagWorkflowExecutionService _executionService;
     private readonly ICanvasValidator _canvasValidator;
     private readonly IWorkspacePortalService _workspacePortalService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     protected CozeWorkflowCompatControllerBase(
-        IWorkflowV2CommandService commandService,
-        IWorkflowV2QueryService queryService,
-        IWorkflowV2ExecutionService executionService,
+        IDagWorkflowCommandService commandService,
+        IDagWorkflowQueryService queryService,
+        IDagWorkflowExecutionService executionService,
         ICanvasValidator canvasValidator,
         IWorkspacePortalService workspacePortalService,
         ITenantProvider tenantProvider,
@@ -240,7 +240,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         // 落库前必须把 Coze playground 的字符串数字 type 反向归一为 Atlas WorkflowNodeType 整型，
         // 否则 DagExecutor.ParseCanvas 在 SaveDraft 之后的 Run/DebugNode 路径上会找不到执行器（风险 3）。
         var schema = NormalizeCanvasJsonFromCoze(request.schema);
-        var saveRequest = new WorkflowV2SaveDraftRequest(schema, request.submit_commit_id);
+        var saveRequest = new DagWorkflowSaveDraftRequest(schema, request.submit_commit_id);
         await _commandService.SaveDraftAsync(_tenantProvider.GetTenantId(), workflowId, saveRequest, cancellationToken);
         await TryWriteAuditAsync("save_draft", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
@@ -270,7 +270,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _tenantProvider.GetTenantId(),
             workflowId,
             userId,
-            new WorkflowV2PublishRequest(request.version_description),
+            new DagWorkflowPublishRequest(request.version_description),
             cancellationToken);
         await TryWriteAuditAsync("publish", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
@@ -656,7 +656,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _tenantProvider.GetTenantId(),
             workflowId,
             _currentUserAccessor.GetCurrentUserOrThrow().UserId,
-            new WorkflowV2RunRequest(inputsJson, "draft"),
+            new DagWorkflowRunRequest(inputsJson, "draft"),
             cancellationToken);
         await TryWriteAuditAsync("test_run", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
@@ -727,7 +727,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         await _executionService.ResumeAsync(
             _tenantProvider.GetTenantId(),
             executionId,
-            new WorkflowV2ResumeRequest(request.data, null),
+            new DagWorkflowResumeRequest(request.data, null),
             cancellationToken);
 
         return Ok(SuccessWithoutData());
@@ -769,7 +769,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _tenantProvider.GetTenantId(),
             workflowId,
             _currentUserAccessor.GetCurrentUserOrThrow().UserId,
-            new WorkflowV2NodeDebugRequest(
+            new DagWorkflowNodeDebugRequest(
                 request.node_id,
                 request.input is null ? null : JsonSerializer.Serialize(request.input, JsonOptions),
                 "draft"),
@@ -807,7 +807,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
 
         return Ok(Success(new
         {
-            workflow_list = (dependencies?.SubWorkflows ?? Array.Empty<WorkflowV2DependencyItemDto>())
+            workflow_list = (dependencies?.SubWorkflows ?? Array.Empty<DagWorkflowDependencyItemDto>())
                 .Select(item => new
                 {
                     workflow_id = item.ResourceId,
@@ -899,7 +899,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         var workflowId = await _commandService.CreateAsync(
             _tenantProvider.GetTenantId(),
             creatorId,
-            new WorkflowV2CreateRequest(name, request.desc, mode, workspaceId),
+            new DagWorkflowCreateRequest(name, request.desc, mode, workspaceId),
             cancellationToken);
 
         return Ok(Success(new
@@ -1104,7 +1104,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         await _commandService.UpdateMetaAsync(
             _tenantProvider.GetTenantId(),
             workflowId,
-            new WorkflowV2UpdateMetaRequest(name, request.desc),
+            new DagWorkflowUpdateMetaRequest(name, request.desc),
             cancellationToken);
 
         return Ok(SuccessWithoutData());
@@ -1457,7 +1457,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             }));
         }
 
-        var steps = (trace.Steps ?? Array.Empty<WorkflowV2StepResultDto>()).ToArray();
+        var steps = (trace.Steps ?? Array.Empty<DagWorkflowStepResultDto>()).ToArray();
         var spans = new List<object>(steps.Length + 1)
         {
             BuildRootTraceSpan(trace)
@@ -1534,7 +1534,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         }));
     }
 
-    private object BuildRootTraceSpan(WorkflowV2RunTraceDto trace)
+    private object BuildRootTraceSpan(DagWorkflowRunTraceDto trace)
     {
         return new
         {
@@ -1887,14 +1887,14 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
 
     [HttpPost("/api/workflowV2/{**path}")]
     [Authorize]
-    public ActionResult<object> DeveloperWorkflowV2PostFallback([FromRoute] string? path)
+    public ActionResult<object> DeveloperDagWorkflowPostFallback([FromRoute] string? path)
     {
         return Ok(Success(BuildDeveloperFallbackData(path)));
     }
 
     [HttpGet("/api/workflowV2/{**path}")]
     [Authorize]
-    public ActionResult<object> DeveloperWorkflowV2GetFallback([FromRoute] string? path)
+    public ActionResult<object> DeveloperDagWorkflowGetFallback([FromRoute] string? path)
     {
         return Ok(Success(BuildDeveloperFallbackData(path)));
     }

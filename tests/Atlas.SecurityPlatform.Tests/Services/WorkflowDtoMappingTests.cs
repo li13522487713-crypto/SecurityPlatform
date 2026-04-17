@@ -5,7 +5,7 @@ using Atlas.Domain.AiPlatform.Enums;
 namespace Atlas.SecurityPlatform.Tests.Services;
 
 /// <summary>
-/// TS-22: WorkflowV2 DTO 映射测试。
+/// TS-22: DagWorkflow DTO 映射测试。
 /// 验证请求/响应 DTO 的构造、序列化、字段完整性。
 /// </summary>
 public sealed class WorkflowDtoMappingTests
@@ -19,11 +19,11 @@ public sealed class WorkflowDtoMappingTests
     // ─── Request DTOs ─────────────────────────────────────────────────────────
 
     [Fact]
-    public void WorkflowV2CreateRequest_ShouldRoundtripViaJson()
+    public void DagWorkflowCreateRequest_ShouldRoundtripViaJson()
     {
-        var req = new WorkflowV2CreateRequest("Test Flow", "A test", WorkflowMode.Standard);
+        var req = new DagWorkflowCreateRequest("Test Flow", "A test", WorkflowMode.Standard);
         var json = JsonSerializer.Serialize(req, JsonOpts);
-        var restored = JsonSerializer.Deserialize<WorkflowV2CreateRequest>(json, JsonOpts);
+        var restored = JsonSerializer.Deserialize<DagWorkflowCreateRequest>(json, JsonOpts);
 
         Assert.NotNull(restored);
         Assert.Equal(req.Name, restored.Name);
@@ -32,12 +32,12 @@ public sealed class WorkflowDtoMappingTests
     }
 
     [Fact]
-    public void WorkflowV2SaveDraftRequest_ShouldRoundtripViaJson()
+    public void DagWorkflowSaveDraftRequest_ShouldRoundtripViaJson()
     {
         const string canvas = """{"nodes":[],"connections":[]}""";
-        var req = new WorkflowV2SaveDraftRequest(canvas, "commit-abc");
+        var req = new DagWorkflowSaveDraftRequest(canvas, "commit-abc");
         var json = JsonSerializer.Serialize(req, JsonOpts);
-        var restored = JsonSerializer.Deserialize<WorkflowV2SaveDraftRequest>(json, JsonOpts);
+        var restored = JsonSerializer.Deserialize<DagWorkflowSaveDraftRequest>(json, JsonOpts);
 
         Assert.NotNull(restored);
         Assert.Equal(canvas, restored.CanvasJson);
@@ -45,9 +45,9 @@ public sealed class WorkflowDtoMappingTests
     }
 
     [Fact]
-    public void WorkflowV2RunRequest_DefaultsSource_ShouldBeNull()
+    public void DagWorkflowRunRequest_DefaultsSource_ShouldBeNull()
     {
-        var req = new WorkflowV2RunRequest("{}", null);
+        var req = new DagWorkflowRunRequest("{}", null);
         Assert.Null(req.Source);
         Assert.Equal("{}", req.InputsJson);
     }
@@ -55,9 +55,9 @@ public sealed class WorkflowDtoMappingTests
     // ─── Response DTOs ────────────────────────────────────────────────────────
 
     [Fact]
-    public void WorkflowV2ListItem_ShouldSerializeAllFields()
+    public void DagWorkflowListItem_ShouldSerializeAllFields()
     {
-        var item = new WorkflowV2ListItem(
+        var item = new DagWorkflowListItem(
             Id: 100L,
             Name: "My Workflow",
             Description: "desc",
@@ -81,9 +81,9 @@ public sealed class WorkflowDtoMappingTests
     }
 
     [Fact]
-    public void WorkflowV2RunResult_WithAllFields_ShouldRoundtrip()
+    public void DagWorkflowRunResult_WithAllFields_ShouldRoundtrip()
     {
-        var result = new WorkflowV2RunResult(
+        var result = new DagWorkflowRunResult(
             ExecutionId: "exec-123",
             Status: ExecutionStatus.Completed,
             OutputsJson: """{"output":"hello"}""",
@@ -92,7 +92,7 @@ public sealed class WorkflowDtoMappingTests
             StepResult: null);
 
         var json = JsonSerializer.Serialize(result, JsonOpts);
-        var restored = JsonSerializer.Deserialize<WorkflowV2RunResult>(json, JsonOpts);
+        var restored = JsonSerializer.Deserialize<DagWorkflowRunResult>(json, JsonOpts);
 
         Assert.NotNull(restored);
         Assert.Equal("exec-123", restored.ExecutionId);
@@ -101,7 +101,7 @@ public sealed class WorkflowDtoMappingTests
     }
 
     [Fact]
-    public void WorkflowV2StepResultDto_WithDictionaries_ShouldPreserveData()
+    public void DagWorkflowStepResultDto_WithDictionaries_ShouldPreserveData()
     {
         var inputs = new Dictionary<string, JsonElement>
         {
@@ -112,7 +112,7 @@ public sealed class WorkflowDtoMappingTests
             ["output"] = JsonDocument.Parse("42").RootElement
         };
 
-        var step = new WorkflowV2StepResultDto(
+        var step = new DagWorkflowStepResultDto(
             ExecutionId: "exec-1",
             NodeKey: "text_1",
             NodeType: WorkflowNodeType.TextProcessor,
@@ -133,9 +133,9 @@ public sealed class WorkflowDtoMappingTests
     }
 
     [Fact]
-    public void WorkflowV2RunTraceDto_ShouldSerializeSteps()
+    public void DagWorkflowRunTraceDto_ShouldSerializeSteps()
     {
-        var trace = new WorkflowV2RunTraceDto(
+        var trace = new DagWorkflowRunTraceDto(
             ExecutionId: "exec-999",
             WorkflowId: 1L,
             Status: ExecutionStatus.Completed,
@@ -144,12 +144,12 @@ public sealed class WorkflowDtoMappingTests
             DurationMs: 5000,
             Steps: new[]
             {
-                new WorkflowV2StepResultDto(
+                new DagWorkflowStepResultDto(
                     "exec-999", "entry_1", WorkflowNodeType.Entry, ExecutionStatus.Completed)
             });
 
         var json = JsonSerializer.Serialize(trace, JsonOpts);
-        var restored = JsonSerializer.Deserialize<WorkflowV2RunTraceDto>(json, JsonOpts);
+        var restored = JsonSerializer.Deserialize<DagWorkflowRunTraceDto>(json, JsonOpts);
 
         Assert.NotNull(restored);
         Assert.Equal("exec-999", restored.ExecutionId);

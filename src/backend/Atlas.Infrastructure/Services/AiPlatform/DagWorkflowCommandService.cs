@@ -12,7 +12,7 @@ using Atlas.Infrastructure.Services.WorkflowEngine;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
-public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
+public sealed class DagWorkflowCommandService : IDagWorkflowCommandService
 {
     private static readonly string WorkflowStarterCanvasJson = JsonSerializer.Serialize(
         new
@@ -157,7 +157,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
     private readonly ICanvasValidator _canvasValidator;
     private readonly IIdGeneratorAccessor _idGenerator;
 
-    public WorkflowV2CommandService(
+    public DagWorkflowCommandService(
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
         IWorkflowVersionRepository versionRepo,
@@ -172,7 +172,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
     }
 
     public async Task<long> CreateAsync(
-        TenantId tenantId, long creatorId, WorkflowV2CreateRequest request, CancellationToken cancellationToken)
+        TenantId tenantId, long creatorId, DagWorkflowCreateRequest request, CancellationToken cancellationToken)
     {
         var metaId = _idGenerator.NextId();
         var meta = new WorkflowMeta(tenantId, request.Name.Trim(), request.Description?.Trim(), request.Mode, creatorId, metaId, request.WorkspaceId);
@@ -186,7 +186,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
     }
 
     public async Task SaveDraftAsync(
-        TenantId tenantId, long id, WorkflowV2SaveDraftRequest request, CancellationToken cancellationToken)
+        TenantId tenantId, long id, DagWorkflowSaveDraftRequest request, CancellationToken cancellationToken)
     {
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
@@ -200,7 +200,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
     }
 
     public async Task UpdateMetaAsync(
-        TenantId tenantId, long id, WorkflowV2UpdateMetaRequest request, CancellationToken cancellationToken)
+        TenantId tenantId, long id, DagWorkflowUpdateMetaRequest request, CancellationToken cancellationToken)
     {
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
@@ -210,7 +210,7 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
     }
 
     public async Task PublishAsync(
-        TenantId tenantId, long id, long userId, WorkflowV2PublishRequest request, CancellationToken cancellationToken)
+        TenantId tenantId, long id, long userId, DagWorkflowPublishRequest request, CancellationToken cancellationToken)
     {
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);

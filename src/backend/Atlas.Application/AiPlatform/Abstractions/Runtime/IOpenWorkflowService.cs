@@ -5,28 +5,28 @@ namespace Atlas.Application.AiPlatform.Abstractions.Runtime;
 
 public interface IOpenWorkflowService
 {
-    Task<WorkflowV2DetailDto?> GetAsync(
+    Task<DagWorkflowDetailDto?> GetAsync(
         TenantId tenantId,
         long workflowId,
         CancellationToken cancellationToken);
 
-    Task<WorkflowV2RunResult> RunAsync(
+    Task<DagWorkflowRunResult> RunAsync(
         TenantId tenantId,
         long workflowId,
         long userId,
-        WorkflowV2RunRequest request,
+        DagWorkflowRunRequest request,
         CancellationToken cancellationToken);
 
     IAsyncEnumerable<SseEvent> StreamAsync(
         TenantId tenantId,
         long workflowId,
         long userId,
-        WorkflowV2RunRequest request,
+        DagWorkflowRunRequest request,
         CancellationToken cancellationToken);
 
     Task ResumeAsync(
         TenantId tenantId,
         long executionId,
-        WorkflowV2ResumeRequest request,
+        DagWorkflowResumeRequest request,
         CancellationToken cancellationToken);
 }

@@ -16,7 +16,7 @@ using NSubstitute;
 
 namespace Atlas.SecurityPlatform.Tests.Services;
 
-public sealed class WorkflowV2ExecutionServiceTests
+public sealed class DagWorkflowExecutionServiceTests
 {
     [Fact]
     public async Task DebugNodeAsync_ShouldRunOnlyTargetNode_WithoutSyntheticEntryExit()
@@ -98,7 +98,7 @@ public sealed class WorkflowV2ExecutionServiceTests
             provider,
             Substitute.For<ILogger<DagExecutor>>());
 
-        var executionService = new WorkflowV2ExecutionService(
+        var executionService = new DagWorkflowExecutionService(
             metaRepo,
             draftRepo,
             versionRepo,
@@ -109,13 +109,13 @@ public sealed class WorkflowV2ExecutionServiceTests
             new WorkflowExecutionCancellationRegistry(),
             idGenerator,
             appContextAccessor,
-            Substitute.For<ILogger<WorkflowV2ExecutionService>>());
+            Substitute.For<ILogger<DagWorkflowExecutionService>>());
 
         var result = await executionService.DebugNodeAsync(
             tenantId,
             workflowId,
             userId,
-            new WorkflowV2NodeDebugRequest(
+            new DagWorkflowNodeDebugRequest(
                 "text_1",
                 """
                 {

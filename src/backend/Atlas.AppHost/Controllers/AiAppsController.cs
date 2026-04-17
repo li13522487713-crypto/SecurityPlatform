@@ -20,8 +20,8 @@ namespace Atlas.AppHost.Controllers;
 public sealed class AiAppsController : ControllerBase
 {
     private readonly IAiAppService _aiAppService;
-    private readonly IWorkflowV2ExecutionService _workflowExecutionService;
-    private readonly IWorkflowV2QueryService _workflowQueryService;
+    private readonly IDagWorkflowExecutionService _workflowExecutionService;
+    private readonly IDagWorkflowQueryService _workflowQueryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<AiAppCreateRequest> _createValidator;
@@ -31,8 +31,8 @@ public sealed class AiAppsController : ControllerBase
 
     public AiAppsController(
         IAiAppService aiAppService,
-        IWorkflowV2ExecutionService workflowExecutionService,
-        IWorkflowV2QueryService workflowQueryService,
+        IDagWorkflowExecutionService workflowExecutionService,
+        IDagWorkflowQueryService workflowQueryService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<AiAppCreateRequest> createValidator,
@@ -298,7 +298,7 @@ public sealed class AiAppsController : ControllerBase
             tenantId,
             workflowId.Value,
             userId,
-            new WorkflowV2RunRequest(JsonSerializer.Serialize(inputs), "draft"),
+            new DagWorkflowRunRequest(JsonSerializer.Serialize(inputs), "draft"),
             cancellationToken);
 
         AiAppPreviewTrace? trace = null;

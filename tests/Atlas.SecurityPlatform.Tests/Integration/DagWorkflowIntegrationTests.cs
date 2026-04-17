@@ -6,11 +6,11 @@ using Atlas.SecurityPlatform.Tests.Integration.Infrastructure;
 namespace Atlas.SecurityPlatform.Tests.Integration;
 
 [Collection("Integration")]
-public sealed class WorkflowV2IntegrationTests
+public sealed class DagWorkflowIntegrationTests
 {
     private readonly HttpClient _client;
 
-    public WorkflowV2IntegrationTests(AtlasWebApplicationFactory factory)
+    public DagWorkflowIntegrationTests(AtlasWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
     }

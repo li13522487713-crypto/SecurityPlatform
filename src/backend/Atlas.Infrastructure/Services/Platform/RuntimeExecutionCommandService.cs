@@ -35,12 +35,12 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
 {
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
-    private readonly IWorkflowV2ExecutionService _workflowExecutionService;
+    private readonly IDagWorkflowExecutionService _workflowExecutionService;
 
     public RuntimeExecutionCommandService(
         ISqlSugarClient db,
         Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory,
-        IWorkflowV2ExecutionService workflowExecutionService)
+        IDagWorkflowExecutionService workflowExecutionService)
     {
         _mainDb = db;
         _appDbScopeFactory = appDbScopeFactory;
@@ -49,7 +49,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
 
     public RuntimeExecutionCommandService(
         ISqlSugarClient db,
-        IWorkflowV2ExecutionService workflowExecutionService)
+        IDagWorkflowExecutionService workflowExecutionService)
         : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db), workflowExecutionService)
     {
     }
@@ -97,7 +97,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
             tenantId,
             execution.WorkflowId,
             operatorUserId,
-            new WorkflowV2RunRequest(execution.InputsJson),
+            new DagWorkflowRunRequest(execution.InputsJson),
             cancellationToken);
         await WriteAuditAsync(
             tenantId,
@@ -149,7 +149,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
             throw new InvalidOperationException("NodeKey 不能为空。");
         }
 
-        var debugRequest = new WorkflowV2NodeDebugRequest(request.NodeKey.Trim(), request.InputsJson ?? execution.InputsJson);
+        var debugRequest = new DagWorkflowNodeDebugRequest(request.NodeKey.Trim(), request.InputsJson ?? execution.InputsJson);
         var debugResult = await _workflowExecutionService.DebugNodeAsync(
             tenantId,
             execution.WorkflowId,

@@ -17,14 +17,14 @@ namespace Atlas.PlatformHost.Controllers;
 public sealed class AiVariablesController : ControllerBase
 {
     private readonly IAiVariableService _service;
-    private readonly IWorkflowV2QueryService _workflowQueryService;
+    private readonly IDagWorkflowQueryService _workflowQueryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly IValidator<AiVariableCreateRequest> _createValidator;
     private readonly IValidator<AiVariableUpdateRequest> _updateValidator;
 
     public AiVariablesController(
         IAiVariableService service,
-        IWorkflowV2QueryService workflowQueryService,
+        IDagWorkflowQueryService workflowQueryService,
         ITenantProvider tenantProvider,
         IValidator<AiVariableCreateRequest> createValidator,
         IValidator<AiVariableUpdateRequest> updateValidator)

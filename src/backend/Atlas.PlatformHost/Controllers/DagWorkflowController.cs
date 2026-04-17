@@ -18,36 +18,36 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v2/workflows")]
-public sealed class WorkflowV2Controller : ControllerBase
+public sealed class DagWorkflowController : ControllerBase
 {
-    private readonly IWorkflowV2CommandService _commandService;
-    private readonly IWorkflowV2QueryService _queryService;
-    private readonly IWorkflowV2ExecutionService _executionService;
+    private readonly IDagWorkflowCommandService _commandService;
+    private readonly IDagWorkflowQueryService _queryService;
+    private readonly IDagWorkflowExecutionService _executionService;
     private readonly ICanvasValidator _canvasValidator;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
-    private readonly IValidator<WorkflowV2CreateRequest> _createValidator;
-    private readonly IValidator<WorkflowV2SaveDraftRequest> _saveDraftValidator;
-    private readonly IValidator<WorkflowV2UpdateMetaRequest> _updateMetaValidator;
-    private readonly IValidator<WorkflowV2PublishRequest> _publishValidator;
-    private readonly IValidator<WorkflowV2RunRequest> _runValidator;
-    private readonly IValidator<WorkflowV2NodeDebugRequest> _nodeDebugValidator;
-    private readonly ILogger<WorkflowV2Controller> _logger;
+    private readonly IValidator<DagWorkflowCreateRequest> _createValidator;
+    private readonly IValidator<DagWorkflowSaveDraftRequest> _saveDraftValidator;
+    private readonly IValidator<DagWorkflowUpdateMetaRequest> _updateMetaValidator;
+    private readonly IValidator<DagWorkflowPublishRequest> _publishValidator;
+    private readonly IValidator<DagWorkflowRunRequest> _runValidator;
+    private readonly IValidator<DagWorkflowNodeDebugRequest> _nodeDebugValidator;
+    private readonly ILogger<DagWorkflowController> _logger;
 
-    public WorkflowV2Controller(
-        IWorkflowV2CommandService commandService,
-        IWorkflowV2QueryService queryService,
-        IWorkflowV2ExecutionService executionService,
+    public DagWorkflowController(
+        IDagWorkflowCommandService commandService,
+        IDagWorkflowQueryService queryService,
+        IDagWorkflowExecutionService executionService,
         ICanvasValidator canvasValidator,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
-        IValidator<WorkflowV2CreateRequest> createValidator,
-        IValidator<WorkflowV2SaveDraftRequest> saveDraftValidator,
-        IValidator<WorkflowV2UpdateMetaRequest> updateMetaValidator,
-        IValidator<WorkflowV2PublishRequest> publishValidator,
-        IValidator<WorkflowV2RunRequest> runValidator,
-        IValidator<WorkflowV2NodeDebugRequest> nodeDebugValidator,
-        ILogger<WorkflowV2Controller> logger)
+        IValidator<DagWorkflowCreateRequest> createValidator,
+        IValidator<DagWorkflowSaveDraftRequest> saveDraftValidator,
+        IValidator<DagWorkflowUpdateMetaRequest> updateMetaValidator,
+        IValidator<DagWorkflowPublishRequest> publishValidator,
+        IValidator<DagWorkflowRunRequest> runValidator,
+        IValidator<DagWorkflowNodeDebugRequest> nodeDebugValidator,
+        ILogger<DagWorkflowController> logger)
     {
         _commandService = commandService;
         _queryService = queryService;
@@ -69,7 +69,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     [HttpPost]
     [Authorize(Policy = PermissionPolicies.AiWorkflowCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
-        [FromBody] WorkflowV2CreateRequest request, CancellationToken cancellationToken)
+        [FromBody] DagWorkflowCreateRequest request, CancellationToken cancellationToken)
     {
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
@@ -81,7 +81,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     [HttpPut("{id:long}/draft")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> SaveDraft(
-        long id, [FromBody] WorkflowV2SaveDraftRequest request, CancellationToken cancellationToken)
+        long id, [FromBody] DagWorkflowSaveDraftRequest request, CancellationToken cancellationToken)
     {
         _saveDraftValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
@@ -92,7 +92,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     [HttpPut("{id:long}/meta")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateMeta(
-        long id, [FromBody] WorkflowV2UpdateMetaRequest request, CancellationToken cancellationToken)
+        long id, [FromBody] DagWorkflowUpdateMetaRequest request, CancellationToken cancellationToken)
     {
         _updateMetaValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
@@ -103,7 +103,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     [HttpPost("{id:long}/publish")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Publish(
-        long id, [FromBody] WorkflowV2PublishRequest request, CancellationToken cancellationToken)
+        long id, [FromBody] DagWorkflowPublishRequest request, CancellationToken cancellationToken)
     {
         _publishValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
@@ -135,27 +135,27 @@ public sealed class WorkflowV2Controller : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<PagedResult<WorkflowV2ListItem>>>> List(
+    public async Task<ActionResult<ApiResponse<PagedResult<DagWorkflowListItem>>>> List(
         [FromQuery] PagedRequest request, [FromQuery] string? keyword = null, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.ListAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
-        return Ok(ApiResponse<PagedResult<WorkflowV2ListItem>>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<PagedResult<DagWorkflowListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("published")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<PagedResult<WorkflowV2ListItem>>>> ListPublished(
+    public async Task<ActionResult<ApiResponse<PagedResult<DagWorkflowListItem>>>> ListPublished(
         [FromQuery] PagedRequest request, [FromQuery] string? keyword = null, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.ListPublishedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
-        return Ok(ApiResponse<PagedResult<WorkflowV2ListItem>>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<PagedResult<DagWorkflowListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2DetailDto>>> GetById(
+    public async Task<ActionResult<ApiResponse<DagWorkflowDetailDto>>> GetById(
         long id,
         [FromQuery] string? source,
         [FromQuery] long? versionId,
@@ -165,25 +165,25 @@ public sealed class WorkflowV2Controller : ControllerBase
         var result = await _queryService.GetAsync(tenantId, id, cancellationToken, source, versionId);
         if (result is null)
         {
-            return NotFound(ApiResponse<WorkflowV2DetailDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"), HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<DagWorkflowDetailDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"), HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<WorkflowV2DetailDto>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowDetailDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/versions")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkflowV2VersionDto>>>> ListVersions(
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DagWorkflowVersionDto>>>> ListVersions(
         long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.ListVersionsAsync(tenantId, id, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<WorkflowV2VersionDto>>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<IReadOnlyList<DagWorkflowVersionDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/dependencies")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2DependencyDto>>> GetDependencies(
+    public async Task<ActionResult<ApiResponse<DagWorkflowDependencyDto>>> GetDependencies(
         long id,
         CancellationToken cancellationToken)
     {
@@ -191,10 +191,10 @@ public sealed class WorkflowV2Controller : ControllerBase
         var result = await _queryService.GetDependenciesAsync(tenantId, id, cancellationToken);
         if (result is null)
         {
-            return NotFound(ApiResponse<WorkflowV2DependencyDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"), HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<DagWorkflowDependencyDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"), HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<WorkflowV2DependencyDto>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowDependencyDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/versions/{fromId:long}/diff/{toId:long}")]
@@ -225,43 +225,43 @@ public sealed class WorkflowV2Controller : ControllerBase
 
     [HttpGet("node-types")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkflowV2NodeTypeDto>>>> GetNodeTypes(
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DagWorkflowNodeTypeDto>>>> GetNodeTypes(
         CancellationToken cancellationToken)
     {
         var result = await _queryService.GetNodeTypesAsync(cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<WorkflowV2NodeTypeDto>>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<IReadOnlyList<DagWorkflowNodeTypeDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("node-templates")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkflowV2NodeTemplateDto>>>> GetNodeTemplates(
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DagWorkflowNodeTemplateDto>>>> GetNodeTemplates(
         CancellationToken cancellationToken)
     {
         var result = await _queryService.GetNodeTemplatesAsync(cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<WorkflowV2NodeTemplateDto>>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<IReadOnlyList<DagWorkflowNodeTemplateDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     // ── 执行 ──────────────────────────────────────────────
 
     [HttpPost("{id:long}/run")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> Run(
-        long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<DagWorkflowRunResult>>> Run(
+        long id, [FromBody] DagWorkflowRunRequest? request, CancellationToken cancellationToken)
     {
-        var safeRequest = request ?? new WorkflowV2RunRequest(null);
+        var safeRequest = request ?? new DagWorkflowRunRequest(null);
         _runValidator.ValidateAndThrow(safeRequest);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         var result = await _executionService.SyncRunAsync(tenantId, id, userId, safeRequest, cancellationToken);
-        return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowRunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("{id:long}/stream")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
     public async Task StreamRun(
-        long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
+        long id, [FromBody] DagWorkflowRunRequest? request, CancellationToken cancellationToken)
     {
-        var safeRequest = request ?? new WorkflowV2RunRequest(null);
+        var safeRequest = request ?? new DagWorkflowRunRequest(null);
         _runValidator.ValidateAndThrow(safeRequest);
 
         Response.ContentType = "text/event-stream";
@@ -300,7 +300,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
     public async Task<ActionResult<ApiResponse<object>>> Resume(
         long execId,
-        [FromBody] WorkflowV2ResumeRequest? request,
+        [FromBody] DagWorkflowResumeRequest? request,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -326,51 +326,51 @@ public sealed class WorkflowV2Controller : ControllerBase
 
     [HttpGet("executions/{execId:long}/process")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2ExecutionDto>>> GetProcess(
+    public async Task<ActionResult<ApiResponse<DagWorkflowExecutionDto>>> GetProcess(
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.GetExecutionProcessAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
-            return NotFound(ApiResponse<WorkflowV2ExecutionDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<DagWorkflowExecutionDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<WorkflowV2ExecutionDto>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowExecutionDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("executions/{execId:long}/checkpoint")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2ExecutionCheckpointDto>>> GetCheckpoint(
+    public async Task<ActionResult<ApiResponse<DagWorkflowExecutionCheckpointDto>>> GetCheckpoint(
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.GetExecutionCheckpointAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
-            return NotFound(ApiResponse<WorkflowV2ExecutionCheckpointDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<DagWorkflowExecutionCheckpointDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<WorkflowV2ExecutionCheckpointDto>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowExecutionCheckpointDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("executions/{execId:long}/recover")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> Recover(
+    public async Task<ActionResult<ApiResponse<DagWorkflowRunResult>>> Recover(
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var checkpoint = await _queryService.GetExecutionCheckpointAsync(tenantId, execId, cancellationToken);
         if (checkpoint is null)
         {
-            return NotFound(ApiResponse<WorkflowV2RunResult>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<DagWorkflowRunResult>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
         }
 
         if (checkpoint.Status is not (ExecutionStatus.Failed or ExecutionStatus.Cancelled or ExecutionStatus.Interrupted))
         {
-            return BadRequest(ApiResponse<WorkflowV2RunResult>.Fail(
+            return BadRequest(ApiResponse<DagWorkflowRunResult>.Fail(
                 ErrorCodes.ValidationError,
-                ApiResponseLocalizer.T(HttpContext, "WorkflowV2ResumeInvalidState"),
+                ApiResponseLocalizer.T(HttpContext, "DagWorkflowResumeInvalidState"),
                 HttpContext.TraceIdentifier));
         }
 
@@ -379,51 +379,51 @@ public sealed class WorkflowV2Controller : ControllerBase
             tenantId,
             checkpoint.WorkflowId,
             userId,
-            new WorkflowV2RunRequest(checkpoint.InputsJson),
+            new DagWorkflowRunRequest(checkpoint.InputsJson),
             cancellationToken);
-        return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowRunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("executions/{execId:long}/debug-view")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2ExecutionDebugViewDto>>> GetDebugView(
+    public async Task<ActionResult<ApiResponse<DagWorkflowExecutionDebugViewDto>>> GetDebugView(
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.GetExecutionDebugViewAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
-            return NotFound(ApiResponse<WorkflowV2ExecutionDebugViewDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<DagWorkflowExecutionDebugViewDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"), HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<WorkflowV2ExecutionDebugViewDto>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowExecutionDebugViewDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("executions/{execId:long}/nodes/{nodeKey}")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2NodeExecutionDto>>> GetNodeDetail(
+    public async Task<ActionResult<ApiResponse<DagWorkflowNodeExecutionDto>>> GetNodeDetail(
         long execId, string nodeKey, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.GetNodeExecutionDetailAsync(tenantId, execId, nodeKey, cancellationToken);
         if (result is null)
         {
-            return NotFound(ApiResponse<WorkflowV2NodeExecutionDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowNodeExecutionNotFound"), HttpContext.TraceIdentifier));
+            return NotFound(ApiResponse<DagWorkflowNodeExecutionDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "WorkflowNodeExecutionNotFound"), HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<WorkflowV2NodeExecutionDto>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowNodeExecutionDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("{id:long}/debug-node")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowDebug)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> DebugNode(
-        long id, [FromBody] WorkflowV2NodeDebugRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<DagWorkflowRunResult>>> DebugNode(
+        long id, [FromBody] DagWorkflowNodeDebugRequest request, CancellationToken cancellationToken)
     {
         _nodeDebugValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         var result = await _executionService.DebugNodeAsync(tenantId, id, userId, request, cancellationToken);
-        return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowRunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     /// <summary>
@@ -431,14 +431,14 @@ public sealed class WorkflowV2Controller : ControllerBase
     /// </summary>
     [HttpGet("executions/{execId:long}/trace")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
-    public async Task<ActionResult<ApiResponse<WorkflowV2RunTraceDto>>> GetTrace(
+    public async Task<ActionResult<ApiResponse<DagWorkflowRunTraceDto>>> GetTrace(
         long execId, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var execution = await _queryService.GetExecutionProcessAsync(tenantId, execId, cancellationToken);
         if (execution is null)
         {
-            return NotFound(ApiResponse<WorkflowV2RunTraceDto>.Fail(
+            return NotFound(ApiResponse<DagWorkflowRunTraceDto>.Fail(
                 ErrorCodes.NotFound,
                 ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"),
                 HttpContext.TraceIdentifier));
@@ -447,13 +447,13 @@ public sealed class WorkflowV2Controller : ControllerBase
         var result = await _queryService.GetRunTraceAsync(tenantId, execId, cancellationToken);
         if (result is null)
         {
-            return NotFound(ApiResponse<WorkflowV2RunTraceDto>.Fail(
+            return NotFound(ApiResponse<DagWorkflowRunTraceDto>.Fail(
                 ErrorCodes.NotFound,
                 ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"),
                 HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<WorkflowV2RunTraceDto>.Ok(result, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<DagWorkflowRunTraceDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     /// <summary>
@@ -463,7 +463,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
     public async Task<ActionResult<ApiResponse<CanvasValidationResult>>> ValidateCanvas(
         long id,
-        [FromBody] WorkflowV2ValidateRequest? request,
+        [FromBody] DagWorkflowValidateRequest? request,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -487,7 +487,7 @@ public sealed class WorkflowV2Controller : ControllerBase
 
     private static string ResolveCanvasJsonForValidation(
         string persistedCanvasJson,
-        WorkflowV2ValidateRequest? request)
+        DagWorkflowValidateRequest? request)
     {
         if (!string.IsNullOrWhiteSpace(request?.CanvasJson))
         {

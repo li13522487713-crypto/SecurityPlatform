@@ -6,7 +6,7 @@
 > 本文件维护"前端调用 → 后端真实实现"的对应关系，是 M2 的唯一权威来源；任何端点状态变更需同步更新本表与 `docs/contracts.md` 的兼容层章节。
 >
 > 状态分级：
-> - **OK**：真实实现，行为与 Atlas WorkflowV2 服务一致。
+> - **OK**：真实实现，行为与 Atlas Dag 工作流服务（`IDagWorkflow*Service`）一致。
 > - **OK-Compat**：真实实现，但部分字段为占位/与上游字面对齐（标 `space_id`、`plugin_id` 等不区分场景）。
 > - **Fallback**：保留 catch-all/默认值返回，结构与上游兼容但不连后端语义；前端可正常拿到 `code:0` 但不会承载真实业务数据。
 > - **Missing**：完全缺失，未来需要补齐。
@@ -15,7 +15,7 @@
 
 | Thrift Method | HTTP | Atlas 状态 | 说明 |
 |---|---|---|---|
-| `CreateWorkflow` | POST `/create` | OK | `WorkflowV2CommandService.CreateAsync`；`flow_mode=3` 映射 ChatFlow。 |
+| `CreateWorkflow` | POST `/create` | OK | `DagWorkflowCommandService.CreateAsync`；`flow_mode=3` 映射 ChatFlow。 |
 | `SaveWorkflow` | POST `/save` | OK | 自动 HtmlDecode + `NormalizeCanvasJsonForCoze`。 |
 | `UpdateWorkflowMeta` | POST `/update_meta` | OK | `flow_mode` 字段忽略（后端单独维护 mode）。 |
 | `DeleteWorkflow` | POST `/delete` | OK | `action` 字段忽略，软删除走 `DeleteAsync`。 |
@@ -33,7 +33,7 @@
 | `NodePanelSearch` | POST `/node_panel_search` | OK（M1）| 节点目录关键字搜索；命中节点放在 `data.resource_workflow.workflow_list`。 |
 | `GetLLMNodeFCSettingsMerged` | POST `/llm_fc_setting_merged` | Fallback | 仍走 `BuildWorkflowFallbackData("operate_list")` 路径默认值。后续 M3+ 联动 `IPluginRegistryService` 与 `WorkflowFCItem`。 |
 | `GetLLMNodeFCSettingDetail` | POST `/llm_fc_setting_detail` | Fallback | 同上。 |
-| `WorkFlowTestRun` | POST `/test_run` | OK | 走 `IWorkflowV2ExecutionService.SyncRunAsync`。 |
+| `WorkFlowTestRun` | POST `/test_run` | OK | 走 `IDagWorkflowExecutionService.SyncRunAsync`。 |
 | `WorkFlowTestResume` | POST `/test_resume` | OK | 走 `ResumeAsync`。 |
 | `CancelWorkFlow` | POST `/cancel` | OK | 走 `CancelAsync`。 |
 | `GetWorkFlowProcess` | GET `/get_process` | OK | 节点输入/输出 + `errorLevel`。 |
@@ -46,7 +46,7 @@
 | `UpdateProjectConversationDef` | POST `/project_conversation/update` | Fallback | 同上。 |
 | `DeleteProjectConversationDef` | POST `/project_conversation/delete` | Fallback | 同上。 |
 | `ListProjectConversationDef` | GET `/project_conversation/list` | Fallback | 同上。 |
-| `ListRootSpans` | POST `/list_spans` | Fallback | 走 `WorkflowV2QueryService.ListAsync` 的浅层 spans 占位；保留 `total`、`spans` 字段空数组。 |
+| `ListRootSpans` | POST `/list_spans` | Fallback | 走 `DagWorkflowQueryService.ListAsync` 的浅层 spans 占位；保留 `total`、`spans` 字段空数组。 |
 | `GetTraceSDK` | POST `/get_trace` | OK（M1 改造）| 含根 span + `extra.{input,output,variables}` 三段。 |
 | `GetWorkflowDetail` | POST `/workflow_detail` | OK | 多 ID 批量查询。 |
 | `GetWorkflowDetailInfo` | POST `/workflow_detail_info` | OK | 单 ID 详情。 |
@@ -98,15 +98,15 @@
 
 | Method | HTTP | 说明 |
 |---|---|---|
-| `BatchDeleteWorkflow` | POST `/api/workflow_api/batch_delete` | 接入 `IWorkflowV2CommandService.DeleteAsync`，循环外预查存在性，单次事务内连串 `DeleteAsync`。返回 `deleted` 与 `not_found_workflow_ids`。 |
-| `GetDeleteStrategy` | POST `/api/workflow_api/delete_strategy` | 通过 `IWorkflowV2QueryService.GetDependenciesAsync` 判断是否被引用：被引用返回 `strategy=1`（提示），否则 `strategy=0`（直接删）。 |
+| `BatchDeleteWorkflow` | POST `/api/workflow_api/batch_delete` | 接入 `IDagWorkflowCommandService.DeleteAsync`，循环外预查存在性，单次事务内连串 `DeleteAsync`。返回 `deleted` 与 `not_found_workflow_ids`。 |
+| `GetDeleteStrategy` | POST `/api/workflow_api/delete_strategy` | 通过 `IDagWorkflowQueryService.GetDependenciesAsync` 判断是否被引用：被引用返回 `strategy=1`（提示），否则 `strategy=0`（直接删）。 |
 | `CopyWkTemplateApi` | POST `/api/workflow_api/copy_wk_template` | 对每个 workflow_id 逐个调 `CopyAsync`（在循环外做 ID 解析），返回 `copy_workflow_id_map`。 |
 | `GetExampleWorkFlowList` | POST `/api/workflow_api/example_workflow_list` | Atlas 当前不维护"示例工作流"概念，返回空 `workflow_list` + `total=0`，结构对齐上游，便于前端模板抽屉不报错。 |
-| `GetApiDetail` | GET `/api/workflow_api/apiDetail` | 通过 `IWorkflowV2QueryService.GetDependenciesAsync` 反查插件 API；命中返回 `api`/`plugin` 结构占位（后续 M4 节点 schema 对齐时补真实字段）。 |
+| `GetApiDetail` | GET `/api/workflow_api/apiDetail` | 通过 `IDagWorkflowQueryService.GetDependenciesAsync` 反查插件 API；命中返回 `api`/`plugin` 结构占位（后续 M4 节点 schema 对齐时补真实字段）。 |
 | `GetWorkflowUploadAuthToken` | POST `/api/workflow_api/upload/auth_token` | 接入 `IFileStorageService` 真实生成 16 位令牌 + 1 小时 TTL；`scene` 字段透传给响应。 |
 | `SignImageURL` | POST `/api/workflow_api/sign_image_url` | 接入 `IFileStorageService` 生成签名访问链接；URI 为空时返回空字符串。 |
 | `ListPublishWorkflow` | POST `/api/workflow_api/list_publish_workflow` | 走 `ListPublishedAsync`，按 `name` 关键字过滤；分页字段映射 `cursor_id`（=下一页号字符串）+ `has_more`。 |
-| `GetNodeAsyncExecuteHistory` | POST `/api/workflow_api/get_async_sub_process` | 通过 `IWorkflowV2QueryService.GetExecutionProcessAsync` 查执行实例；当 `parent_node_id` 命中子流程节点时返回该节点对应的子执行映射；否则返回空数组。 |
+| `GetNodeAsyncExecuteHistory` | POST `/api/workflow_api/get_async_sub_process` | 通过 `IDagWorkflowQueryService.GetExecutionProcessAsync` 查执行实例；当 `parent_node_id` 命中子流程节点时返回该节点对应的子执行映射；否则返回空数组。 |
 
 > 上述 9 个端点全部落地为真实实现（替换 fallback），具体代码见 `CozeWorkflowCompatControllerBase` 中的对应 `[HttpPost]` / `[HttpGet]` Action。
 

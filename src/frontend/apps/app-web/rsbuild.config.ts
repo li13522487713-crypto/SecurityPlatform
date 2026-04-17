@@ -63,6 +63,7 @@ export default defineConfig({
     strictPort: true,
     proxy: [
       {
+        // `api/v2/workflows`：v2 为 REST API 版本前缀（后端 `DagWorkflowController`），非产品「V2」语义
         context: ["/api/v2/workflows", "/api", "/v1"],
         target: appHostTarget,
         secure: false,

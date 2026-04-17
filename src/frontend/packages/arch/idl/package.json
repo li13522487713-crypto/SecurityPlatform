@@ -72,6 +72,7 @@
     "./trade_operation": "./src/auto-generated/trade_operation/index.ts",
     "./ui_builder": "./src/auto-generated/ui_builder/index.ts",
     "./workflow_api": "./src/auto-generated/workflow_api/index.ts",
+    "./dag-workflow-aliases": "./src/dag-workflow-aliases.ts",
     "./xmemory_api": "./src/auto-generated/xmemory_api/index.ts"
   },
   "main": "src/index.ts",
@@ -274,6 +275,9 @@
       ],
       "workflow_api": [
         "./src/auto-generated/workflow_api/index.ts"
+      ],
+      "dag-workflow-aliases": [
+        "./src/dag-workflow-aliases.ts"
       ],
       "xmemory_api": [
         "./src/auto-generated/xmemory_api/index.ts"

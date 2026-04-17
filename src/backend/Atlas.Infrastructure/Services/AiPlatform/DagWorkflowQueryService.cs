@@ -14,7 +14,7 @@ using System.Text.RegularExpressions;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
-public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
+public sealed class DagWorkflowQueryService : IDagWorkflowQueryService
 {
     private static readonly Regex TemplateVariableRegex = new("{{\\s*([^{}]+?)\\s*}}", RegexOptions.Compiled);
     private readonly IWorkflowMetaRepository _metaRepo;
@@ -30,7 +30,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
     private readonly NodeExecutorRegistry _registry;
     private readonly IAiVariableService? _variableService;
 
-    public WorkflowV2QueryService(
+    public DagWorkflowQueryService(
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
         IWorkflowVersionRepository versionRepo,
@@ -58,15 +58,15 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         _variableService = variableService;
     }
 
-    public async Task<PagedResult<WorkflowV2ListItem>> ListAsync(
+    public async Task<PagedResult<DagWorkflowListItem>> ListAsync(
         TenantId tenantId, string? keyword, int pageIndex, int pageSize, CancellationToken cancellationToken)
     {
         var (items, total) = await _metaRepo.GetPagedAsync(tenantId, keyword, pageIndex, pageSize, cancellationToken);
         var dtos = items.Select(MapListItem).ToList();
-        return new PagedResult<WorkflowV2ListItem>(dtos, total, pageIndex, pageSize);
+        return new PagedResult<DagWorkflowListItem>(dtos, total, pageIndex, pageSize);
     }
 
-    public async Task<PagedResult<WorkflowV2ListItem>> ListPublishedAsync(
+    public async Task<PagedResult<DagWorkflowListItem>> ListPublishedAsync(
         TenantId tenantId, string? keyword, int pageIndex, int pageSize, CancellationToken cancellationToken)
     {
         var (items, total) = await _metaRepo.GetPagedByStatusAsync(
@@ -77,10 +77,10 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             pageSize,
             cancellationToken);
         var dtos = items.Select(MapListItem).ToList();
-        return new PagedResult<WorkflowV2ListItem>(dtos, total, pageIndex, pageSize);
+        return new PagedResult<DagWorkflowListItem>(dtos, total, pageIndex, pageSize);
     }
 
-    public async Task<WorkflowV2DetailDto?> GetAsync(
+    public async Task<DagWorkflowDetailDto?> GetAsync(
         TenantId tenantId,
         long id,
         CancellationToken cancellationToken,
@@ -118,14 +118,14 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return MapDetail(meta, draft);
     }
 
-    public async Task<IReadOnlyList<WorkflowV2VersionDto>> ListVersionsAsync(
+    public async Task<IReadOnlyList<DagWorkflowVersionDto>> ListVersionsAsync(
         TenantId tenantId, long workflowId, CancellationToken cancellationToken)
     {
         var versions = await _versionRepo.ListByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
         return versions.Select(MapVersion).ToList();
     }
 
-    public async Task<WorkflowV2ExecutionDto?> GetExecutionProcessAsync(
+    public async Task<DagWorkflowExecutionDto?> GetExecutionProcessAsync(
         TenantId tenantId, long executionId, CancellationToken cancellationToken)
     {
         var execution = await _executionRepo.FindByIdAsync(tenantId, executionId, cancellationToken);
@@ -135,7 +135,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return MapExecution(execution, nodeExecutions);
     }
 
-    public async Task<WorkflowV2ExecutionCheckpointDto?> GetExecutionCheckpointAsync(
+    public async Task<DagWorkflowExecutionCheckpointDto?> GetExecutionCheckpointAsync(
         TenantId tenantId, long executionId, CancellationToken cancellationToken)
     {
         var execution = await _executionRepo.FindByIdAsync(tenantId, executionId, cancellationToken);
@@ -149,7 +149,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             .OrderByDescending(node => node.CompletedAt ?? node.StartedAt ?? DateTime.MinValue)
             .FirstOrDefault();
 
-        return new WorkflowV2ExecutionCheckpointDto(
+        return new DagWorkflowExecutionCheckpointDto(
             execution.Id,
             execution.WorkflowId,
             execution.Status,
@@ -161,7 +161,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             execution.ErrorMessage);
     }
 
-    public async Task<WorkflowV2ExecutionDebugViewDto?> GetExecutionDebugViewAsync(
+    public async Task<DagWorkflowExecutionDebugViewDto?> GetExecutionDebugViewAsync(
         TenantId tenantId, long executionId, CancellationToken cancellationToken)
     {
         var execution = await _executionRepo.FindByIdAsync(tenantId, executionId, cancellationToken);
@@ -187,23 +187,23 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
                     ? "聚焦中断节点，便于恢复执行。"
                     : "聚焦最近执行节点。";
 
-        return new WorkflowV2ExecutionDebugViewDto(executionDto, focusNode, reason);
+        return new DagWorkflowExecutionDebugViewDto(executionDto, focusNode, reason);
     }
 
-    public async Task<WorkflowV2NodeExecutionDto?> GetNodeExecutionDetailAsync(
+    public async Task<DagWorkflowNodeExecutionDto?> GetNodeExecutionDetailAsync(
         TenantId tenantId, long executionId, string nodeKey, CancellationToken cancellationToken)
     {
         var nodeExec = await _nodeExecutionRepo.FindByNodeKeyAsync(tenantId, executionId, nodeKey, cancellationToken);
         return nodeExec is null ? null : MapNodeExecution(nodeExec);
     }
 
-    public Task<IReadOnlyList<WorkflowV2NodeTypeDto>> GetNodeTypesAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<DagWorkflowNodeTypeDto>> GetNodeTypesAsync(CancellationToken cancellationToken)
     {
         var types = _registry.GetAllTypes()
             .Select(m =>
             {
                 var declaration = _registry.GetDeclaration(m.Type);
-                return new WorkflowV2NodeTypeDto(
+                return new DagWorkflowNodeTypeDto(
                     m.Key,
                     m.Name,
                     m.Category,
@@ -213,26 +213,26 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
                     declaration?.UiMeta);
             })
             .ToList();
-        return Task.FromResult<IReadOnlyList<WorkflowV2NodeTypeDto>>(types);
+        return Task.FromResult<IReadOnlyList<DagWorkflowNodeTypeDto>>(types);
     }
 
-    public Task<IReadOnlyList<WorkflowV2NodeTemplateDto>> GetNodeTemplatesAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<DagWorkflowNodeTemplateDto>> GetNodeTemplatesAsync(CancellationToken cancellationToken)
     {
         var templates = _registry.GetAllTypes()
             .Select(metadata =>
             {
                 var defaultConfig = BuiltInWorkflowNodeDeclarations.GetDefaultConfig(metadata.Type);
-                return new WorkflowV2NodeTemplateDto(
+                return new DagWorkflowNodeTemplateDto(
                     metadata.Key,
                     metadata.Name,
                     metadata.Category,
                     defaultConfig);
             })
             .ToList();
-        return Task.FromResult<IReadOnlyList<WorkflowV2NodeTemplateDto>>(templates);
+        return Task.FromResult<IReadOnlyList<DagWorkflowNodeTemplateDto>>(templates);
     }
 
-    public Task<IReadOnlyList<WorkflowV2NodeTemplateDto>> SearchNodeTemplatesAsync(
+    public Task<IReadOnlyList<DagWorkflowNodeTemplateDto>> SearchNodeTemplatesAsync(
         string? keyword,
         IReadOnlyList<string>? categories,
         int pageIndex,
@@ -274,14 +274,14 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         var results = paged.Select(metadata =>
         {
             var defaultConfig = BuiltInWorkflowNodeDeclarations.GetDefaultConfig(metadata.Type);
-            return new WorkflowV2NodeTemplateDto(
+            return new DagWorkflowNodeTemplateDto(
                 metadata.Key,
                 metadata.Name,
                 metadata.Category,
                 defaultConfig);
         }).ToList();
 
-        return Task.FromResult<IReadOnlyList<WorkflowV2NodeTemplateDto>>(results);
+        return Task.FromResult<IReadOnlyList<DagWorkflowNodeTemplateDto>>(results);
     }
 
     public async Task<WorkflowVariableTreeDto> GetVariableTreeAsync(
@@ -730,7 +730,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return source.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task<WorkflowV2RunTraceDto?> GetRunTraceAsync(
+    public async Task<DagWorkflowRunTraceDto?> GetRunTraceAsync(
         TenantId tenantId,
         long executionId,
         CancellationToken cancellationToken)
@@ -742,7 +742,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
 
         var steps = nodeExecutions
             .OrderBy(n => n.StartedAt ?? DateTime.MaxValue)
-            .Select(n => new WorkflowV2StepResultDto(
+            .Select(n => new DagWorkflowStepResultDto(
                 executionId.ToString(),
                 n.NodeKey,
                 n.NodeType,
@@ -760,7 +760,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             : null as long?;
         var edgeStatuses = await ResolveEdgeStatusesAsync(tenantId, execution, nodeExecutions, cancellationToken);
 
-        return new WorkflowV2RunTraceDto(
+        return new DagWorkflowRunTraceDto(
             executionId.ToString(),
             execution.WorkflowId,
             execution.Status,
@@ -771,7 +771,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
             edgeStatuses);
     }
 
-    public async Task<WorkflowV2DependencyDto?> GetDependenciesAsync(
+    public async Task<DagWorkflowDependencyDto?> GetDependenciesAsync(
         TenantId tenantId,
         long workflowId,
         CancellationToken cancellationToken)
@@ -785,27 +785,27 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
         if (draft is null || string.IsNullOrWhiteSpace(draft.CanvasJson))
         {
-            return new WorkflowV2DependencyDto(
+            return new DagWorkflowDependencyDto(
                 workflowId.ToString(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>());
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>());
         }
 
         var canvas = DagExecutor.ParseCanvas(draft.CanvasJson);
         if (canvas is null)
         {
-            return new WorkflowV2DependencyDto(
+            return new DagWorkflowDependencyDto(
                 workflowId.ToString(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>(),
-                Array.Empty<WorkflowV2DependencyItemDto>());
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>(),
+                Array.Empty<DagWorkflowDependencyItemDto>());
         }
         var dependencies = new WorkflowDependencyAccumulator();
 
@@ -846,7 +846,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         var knowledgeBases = await _knowledgeBaseRepository.QueryByIdsAsync(tenantId, knowledgeBaseIds, cancellationToken);
         var databases = await _databaseRepository.QueryByIdsAsync(tenantId, databaseIds, cancellationToken);
 
-        return new WorkflowV2DependencyDto(
+        return new DagWorkflowDependencyDto(
             workflowId.ToString(),
             BuildEntityDependencies(
                 "workflow",
@@ -878,7 +878,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
                 dependencies.DatabaseSources),
             dependencies.VariableSources
                 .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(item => new WorkflowV2DependencyItemDto(
+                .Select(item => new DagWorkflowDependencyItemDto(
                     "variable",
                     item.Key,
                     item.Key,
@@ -887,7 +887,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
                 .ToArray(),
             dependencies.ConversationSources
                 .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(item => new WorkflowV2DependencyItemDto(
+                .Select(item => new DagWorkflowDependencyItemDto(
                     "conversation",
                     item.Key,
                     item.Key,
@@ -916,7 +916,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         }
     }
 
-    private async Task<IReadOnlyList<WorkflowV2EdgeRuntimeStatusDto>> ResolveEdgeStatusesAsync(
+    private async Task<IReadOnlyList<DagWorkflowEdgeRuntimeStatusDto>> ResolveEdgeStatusesAsync(
         TenantId tenantId,
         WorkflowExecution execution,
         IReadOnlyList<WorkflowNodeExecution> nodeExecutions,
@@ -925,7 +925,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         var canvas = await ResolveExecutionCanvasAsync(tenantId, execution, cancellationToken);
         if (canvas is null || canvas.Connections.Count == 0)
         {
-            return Array.Empty<WorkflowV2EdgeRuntimeStatusDto>();
+            return Array.Empty<DagWorkflowEdgeRuntimeStatusDto>();
         }
 
         var nodeExecutionMap = nodeExecutions
@@ -937,7 +937,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
                     .First(),
                 StringComparer.OrdinalIgnoreCase);
         var nodeMap = canvas.Nodes.ToDictionary(node => node.Key, StringComparer.OrdinalIgnoreCase);
-        var statuses = new List<WorkflowV2EdgeRuntimeStatusDto>(canvas.Connections.Count);
+        var statuses = new List<DagWorkflowEdgeRuntimeStatusDto>(canvas.Connections.Count);
 
         foreach (var connection in canvas.Connections)
         {
@@ -951,7 +951,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
                 sourceNode,
                 sourceExecution,
                 targetExecution);
-            statuses.Add(new WorkflowV2EdgeRuntimeStatusDto(
+            statuses.Add(new DagWorkflowEdgeRuntimeStatusDto(
                 connection.SourceNodeKey,
                 connection.SourcePort,
                 connection.TargetNodeKey,
@@ -1098,7 +1098,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return null;
     }
 
-    private static IReadOnlyList<WorkflowV2DependencyItemDto> BuildEntityDependencies<T>(
+    private static IReadOnlyList<DagWorkflowDependencyItemDto> BuildEntityDependencies<T>(
         string resourceType,
         IEnumerable<long> requestedIds,
         IReadOnlyDictionary<long, T> entityMap,
@@ -1106,7 +1106,7 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         Func<T, string?> descriptionSelector,
         IReadOnlyDictionary<long, HashSet<string>> sourceMap)
     {
-        var result = new List<WorkflowV2DependencyItemDto>();
+        var result = new List<DagWorkflowDependencyItemDto>();
         foreach (var id in requestedIds.OrderBy(item => item))
         {
             var sourceNodeKeys = sourceMap.TryGetValue(id, out var sources)
@@ -1121,11 +1121,11 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
                     description = $"来源节点 {sourceNodeKeys.Length} 个";
                 }
 
-                result.Add(new WorkflowV2DependencyItemDto(resourceType, id.ToString(), name, description, sourceNodeKeys));
+                result.Add(new DagWorkflowDependencyItemDto(resourceType, id.ToString(), name, description, sourceNodeKeys));
                 continue;
             }
 
-            result.Add(new WorkflowV2DependencyItemDto(
+            result.Add(new DagWorkflowDependencyItemDto(
                 resourceType,
                 id.ToString(),
                 $"{resourceType} #{id}",
@@ -1540,34 +1540,34 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return 0;
     }
 
-    private static WorkflowV2ListItem MapListItem(WorkflowMeta meta)
+    private static DagWorkflowListItem MapListItem(WorkflowMeta meta)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
             meta.LatestVersionNumber, meta.CreatorId, meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
 
-    private static WorkflowV2DetailDto MapDetail(WorkflowMeta meta, WorkflowDraft? draft)
+    private static DagWorkflowDetailDto MapDetail(WorkflowMeta meta, WorkflowDraft? draft)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
             meta.LatestVersionNumber, meta.CreatorId,
             draft?.CanvasJson ?? "{}",
             draft?.CommitId,
             meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
 
-    private static WorkflowV2DetailDto MapDetail(WorkflowMeta meta, WorkflowVersion version)
+    private static DagWorkflowDetailDto MapDetail(WorkflowMeta meta, WorkflowVersion version)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
             meta.LatestVersionNumber, meta.CreatorId,
             version.CanvasJson,
             null,
             meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
 
-    private static WorkflowV2VersionDto MapVersion(WorkflowVersion v)
+    private static DagWorkflowVersionDto MapVersion(WorkflowVersion v)
         => new(v.Id, v.WorkflowId, v.VersionNumber, v.ChangeLog, v.CanvasJson, v.PublishedAt, v.PublishedByUserId);
 
-    private static WorkflowV2ExecutionDto MapExecution(WorkflowExecution exec, IReadOnlyList<WorkflowNodeExecution> nodes)
+    private static DagWorkflowExecutionDto MapExecution(WorkflowExecution exec, IReadOnlyList<WorkflowNodeExecution> nodes)
         => new(exec.Id, exec.WorkflowId, exec.VersionNumber, exec.Status,
             exec.InputsJson, exec.OutputsJson, exec.ErrorMessage,
             exec.StartedAt, exec.CompletedAt,
             nodes.Select(MapNodeExecution).ToList());
 
-    private static WorkflowV2NodeExecutionDto MapNodeExecution(WorkflowNodeExecution n)
+    private static DagWorkflowNodeExecutionDto MapNodeExecution(WorkflowNodeExecution n)
         => new(n.Id, n.ExecutionId, n.NodeKey, n.NodeType, n.Status,
             n.InputsJson, n.OutputsJson, n.ErrorMessage,
             n.StartedAt, n.CompletedAt, n.DurationMs);
