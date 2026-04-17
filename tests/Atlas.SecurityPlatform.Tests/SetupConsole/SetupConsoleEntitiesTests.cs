@@ -20,7 +20,7 @@ public sealed class SetupConsoleEntitiesTests
         var state = new SystemSetupState(TestTenant, id: 1, version: "v1", now: Now);
         Assert.Equal(SystemSetupStates.NotStarted, state.State);
         Assert.Equal("v1", state.Version);
-        Assert.False(state.RecoveryKeyConfigured);
+        Assert.False(state.IsRecoveryKeyConfigured());
         Assert.Null(state.FailureMessage);
     }
 
@@ -51,11 +51,11 @@ public sealed class SetupConsoleEntitiesTests
     public void SystemSetupState_SetRecoveryKeyHash_UpdatesConfiguredFlag()
     {
         var state = new SystemSetupState(TestTenant, id: 1, version: "v1", now: Now);
-        Assert.False(state.RecoveryKeyConfigured);
+        Assert.False(state.IsRecoveryKeyConfigured());
 
         state.SetRecoveryKeyHash("PBKDF2$1000$abc$def", Now.AddMinutes(1));
 
-        Assert.True(state.RecoveryKeyConfigured);
+        Assert.True(state.IsRecoveryKeyConfigured());
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class SetupConsoleEntitiesTests
         Assert.Equal(SetupStepStates.Failed, record.State);
         Assert.Equal("boom", record.ErrorMessage);
 
-        record.MarkSucceeded(Now.AddMinutes(2), payloadJson: "{\"tablesCreated\": 290}");
+        record.MarkSucceeded(Now.AddMinutes(2), payloadJson: "{\"tablesCreated\": 211}");
         Assert.Equal(SetupStepStates.Succeeded, record.State);
         Assert.Null(record.ErrorMessage);
         Assert.Contains("tablesCreated", record.PayloadJson);
@@ -120,9 +120,9 @@ public sealed class SetupConsoleEntitiesTests
             now: Now);
         Assert.Equal(DataMigrationStates.Pending, job.State);
 
-        job.MarkRunning(totalEntities: 290, totalRows: 1000, now: Now.AddMinutes(1));
+        job.MarkRunning(totalEntities: 211, totalRows: 1000, now: Now.AddMinutes(1));
         Assert.Equal(DataMigrationStates.Running, job.State);
-        Assert.Equal(290, job.TotalEntities);
+        Assert.Equal(211, job.TotalEntities);
         Assert.Equal(1000, job.TotalRows);
         Assert.Equal(0, job.CompletedEntities);
         Assert.Equal(0, job.ProgressPercent);

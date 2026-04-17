@@ -108,9 +108,8 @@ public sealed class SystemSetupState : TenantEntity
     [SugarColumn(IsNullable = true)]
     public string? BootstrapPasswordHash { get; private set; }
 
-    /// <summary>仅内存计算属性，SqlSugar 建表时忽略（否则 InitTables 会因 get-only 无法识别为列）。</summary>
-    [SugarColumn(IsIgnore = true)]
-    public bool RecoveryKeyConfigured => !string.IsNullOrEmpty(RecoveryKeyHash);
+    /// <summary>仅内存计算（不走 SqlSugar 列扫描）：判断恢复密钥是否已配置。</summary>
+    public bool IsRecoveryKeyConfigured() => !string.IsNullOrEmpty(RecoveryKeyHash);
 
     public void TransitionTo(string nextState, DateTimeOffset now, string? failureMessage = null)
     {

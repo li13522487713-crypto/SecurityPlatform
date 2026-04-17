@@ -89,7 +89,7 @@ public sealed class OrmMigrationIntegrationTests : IDisposable
     [Fact]
     public void EntityTopologySorter_HandlesAllRuntimeEntities()
     {
-        // 真实场景：调用方会传 AtlasOrmSchemaCatalog.RuntimeEntities，约 290 个实体
+        // 真实场景：调用方会传 AtlasOrmSchemaCatalog.RuntimeEntities（与 AllRuntimeEntityTypes 一致，当前 211 个）
         var sorted = EntityTopologySorter.Sort(new[]
         {
             typeof(SystemSetupState),
@@ -232,7 +232,7 @@ public sealed class OrmMigrationIntegrationTests : IDisposable
                 EntityService = ApplyEntityService
             }
         });
-        // 仅建实际用到的几张表，不建 290 全量（节约时间）
+        // 仅建实际用到的几张表，不建 211 实体全量（节约时间）
         db.CodeFirst.InitTables(new[]
         {
             typeof(SystemSetupState),

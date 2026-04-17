@@ -37,37 +37,37 @@ function buildCatalogSummary(): SetupConsoleCatalogSummaryDto {
     {
       category: "system-foundation",
       displayKey: "setupConsoleCatalogCategorySystemFoundation",
-      entityCount: 10,
+      entityCount: 8,
       hasSeed: true
     },
     {
       category: "identity-permission",
       displayKey: "setupConsoleCatalogCategoryIdentityPermission",
-      entityCount: 22,
+      entityCount: 17,
       hasSeed: true
     },
     {
       category: "workspace",
       displayKey: "setupConsoleCatalogCategoryWorkspace",
-      entityCount: 14,
+      entityCount: 11,
       hasSeed: true
     },
     {
       category: "business-domain",
       displayKey: "setupConsoleCatalogCategoryBusinessDomain",
-      entityCount: 192,
+      entityCount: 153,
       hasSeed: false
     },
     {
       category: "resource-runtime",
       displayKey: "setupConsoleCatalogCategoryResourceRuntime",
-      entityCount: 18,
+      entityCount: 14,
       hasSeed: false
     },
     {
       category: "audit-log",
       displayKey: "setupConsoleCatalogCategoryAuditLog",
-      entityCount: 10,
+      entityCount: 8,
       hasSeed: false
     }
   ];

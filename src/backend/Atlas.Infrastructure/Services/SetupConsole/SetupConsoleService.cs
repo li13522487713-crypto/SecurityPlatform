@@ -90,7 +90,7 @@ public sealed class SetupConsoleService : ISetupConsoleService
             state.Version,
             state.LastUpdatedAt,
             state.FailureMessage,
-            state.RecoveryKeyConfigured,
+            state.IsRecoveryKeyConfigured(),
             steps);
     }
 
@@ -122,8 +122,7 @@ public sealed class SetupConsoleService : ISetupConsoleService
                 "Atlas.Domain.AgentTeam",
                 "Atlas.Domain.LogicFlow",
                 "Atlas.Domain.BatchProcess",
-                "Atlas.Domain.Workflow",
-                "Atlas.Domain.DynamicTables"
+                "Atlas.Domain.Workflow"
             }),
             ("resource-runtime", StateLabelKeys["resource-runtime"], false, new[]
             {
@@ -187,10 +186,10 @@ public sealed class SetupConsoleService : ISetupConsoleService
         // 复用 GetCatalogSummaryAsync 的 namespace 规则；此处简化为直接按 category 重算。
         var rules = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
-            ["system-foundation"] = new[] { "Atlas.Domain.System", "Atlas.Core.Messaging", "Atlas.Domain.Events", "Atlas.Domain.Messaging", "Atlas.Domain.Saga", "Atlas.Domain.Setup" },
+            ["system-foundation"] = new[] { "Atlas.Domain.System", "Atlas.Domain.Events", "Atlas.Domain.Setup" },
             ["identity-permission"] = new[] { "Atlas.Domain.Identity", "Atlas.Domain.Platform.Entities.AppMembershipEntities", "Atlas.Domain.Platform.Entities.AppOrgEntities" },
             ["workspace"] = new[] { "Atlas.Domain.AiPlatform.Entities" },
-            ["business-domain"] = new[] { "Atlas.Domain.AiPlatform", "Atlas.Domain.Approval", "Atlas.Domain.AgentTeam", "Atlas.Domain.LogicFlow", "Atlas.Domain.BatchProcess", "Atlas.Domain.Workflow", "Atlas.Domain.DynamicTables", "Atlas.Domain.DynamicViews" },
+            ["business-domain"] = new[] { "Atlas.Domain.AiPlatform", "Atlas.Domain.Approval", "Atlas.Domain.AgentTeam", "Atlas.Domain.LogicFlow", "Atlas.Domain.BatchProcess", "Atlas.Domain.Workflow" },
             ["resource-runtime"] = new[] { "Atlas.Domain.Plugins", "Atlas.Domain.Templates", "Atlas.Domain.Integration", "Atlas.Domain.License", "Atlas.Domain.Assets", "Atlas.Domain.Platform" },
             ["audit-log"] = new[] { "Atlas.Domain.Audit", "Atlas.Domain.Alert" }
         };

@@ -15,14 +15,13 @@ interface CreateAppModalProps {
 interface AppFormValues {
   name: string;
   description?: string;
-  category?: string;
 }
 
 export function CreateAppModal({ visible, workspaceId: _workspaceId, onClose, onCreated }: CreateAppModalProps) {
   const { t } = useAppI18n();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
-  const [values, setValues] = useState<AppFormValues>({ name: "", description: "", category: "web" });
+  const [values, setValues] = useState<AppFormValues>({ name: "", description: "" });
 
   const handleSubmit = async () => {
     const trimmed = values.name.trim();
@@ -39,7 +38,7 @@ export function CreateAppModal({ visible, workspaceId: _workspaceId, onClose, on
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(result.appId);
       onClose();
-      setValues({ name: "", description: "", category: "web" });
+      setValues({ name: "", description: "" });
       navigate(appEditorPath(result.appId));
     } catch (error) {
       Toast.error((error as Error).message || t("cozeCreateFailed"));
@@ -85,14 +84,6 @@ export function CreateAppModal({ visible, workspaceId: _workspaceId, onClose, on
           placeholder={t("cozeCreateAppDescPlaceholder")}
           maxLength={500}
           rows={4}
-        />
-        <Form.Select
-          field="category"
-          label={t("cozeCreateAppCategoryLabel")}
-          optionList={[
-            { label: t("cozeCreateAppCategoryWeb"), value: "web" },
-            { label: t("cozeCreateAppCategoryLowCode"), value: "lowcode" }
-          ]}
         />
       </Form>
     </Modal>

@@ -50,7 +50,7 @@ public sealed class AuthorizationTests
     [Theory]
     [InlineData("/api/v1/assets?pageIndex=1&pageSize=1")]
     [InlineData("/api/v1/users?pageIndex=1&pageSize=1")]
-    [InlineData("/api/v1/lowcode-apps?pageIndex=1&pageSize=1")]
+    [InlineData("/api/v2/application-catalogs?pageIndex=1&pageSize=1")]
     public async Task AccessMultiResource_WithMismatchedTenantHeader_ShouldReturn403(string endpoint)
     {
         var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);

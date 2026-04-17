@@ -82,7 +82,7 @@ export async function initializeSchema(
     systemState: "schema_initialized",
     startedAt: record.startedAt,
     endedAt: record.endedAt,
-    payload: { tablesCreated: 290 }
+    payload: { tablesCreated: 211 }
   });
 }
 

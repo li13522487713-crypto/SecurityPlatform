@@ -1,6 +1,6 @@
 import type { ApiResponse } from "@atlas/shared-react-core";
 import type { RuntimeMenuResponse } from "../types/api";
-import type { LowCodePageRuntimeSchema } from "../types/lowcode-runtime";
+import type { RuntimePageSchema } from "../types/runtime-page-schema";
 import type { RuntimeManifest, RuntimeExecution, RuntimeAuditEvent } from "../runtime/release/runtime-release-types";
 import { isDirectRuntimeMode, requestApi, resolveAppHostPrefix } from "./api-core";
 export { requestApi } from "./api-core";
@@ -37,14 +37,14 @@ export function buildRuntimeRecordsUrl(pageKey: string, appKey?: string): string
   return `${resolveAppHostPrefix(runtimeAppKey)}/api/app/runtime/pages/${encodedPageKey}/records`;
 }
 
-export async function getRuntimePageSchema(pageKey: string, appKey?: string): Promise<LowCodePageRuntimeSchema> {
+export async function getRuntimePageSchema(pageKey: string, appKey?: string): Promise<RuntimePageSchema> {
   const encodedPageKey = encodeURIComponent(pageKey);
   const runtimeAppKey = resolveRuntimeAppKey(appKey);
   const requestPath = isDirectRuntimeMode() || !runtimeAppKey
     ? `/api/app/runtime/pages/${encodedPageKey}/schema`
     : `${resolveAppHostPrefix(runtimeAppKey)}/api/app/runtime/pages/${encodedPageKey}/schema`;
 
-  const response = await requestApi<ApiResponse<LowCodePageRuntimeSchema>>(
+  const response = await requestApi<ApiResponse<RuntimePageSchema>>(
     requestPath
   );
   if (!response.data) {

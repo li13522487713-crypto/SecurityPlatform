@@ -1285,7 +1285,7 @@ export interface FormDefinitionRef {
   status: string;
 }
 
-export interface LowCodePageRef {
+export interface RuntimePageRef {
   id: string;
   pageKey: string;
   name: string;
@@ -1301,7 +1301,7 @@ export interface ApprovalFlowRef {
 export interface EntityReferenceResult {
   tableKey: string;
   formDefinitions: FormDefinitionRef[];
-  lowCodePages: LowCodePageRef[];
+  runtimePages: RuntimePageRef[];
   boundApprovalFlow?: ApprovalFlowRef | null;
 }
 

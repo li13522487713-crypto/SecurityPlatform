@@ -1,4 +1,4 @@
-import { getAppInstanceIdByAppKey } from "./api-lowcode-runtime";
+import { getAppInstanceIdByAppKey } from "./api-app-runtime-catalog";
 import { getConfiguredAppKey } from "./api-core";
 import {
   clearAppInstanceStorage,

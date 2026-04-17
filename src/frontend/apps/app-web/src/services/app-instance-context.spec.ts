@@ -10,7 +10,7 @@ const { getAppInstanceIdByAppKey } = vi.hoisted(() => ({
   getAppInstanceIdByAppKey: vi.fn<(appKey: string) => Promise<string | null>>()
 }));
 
-vi.mock("./api-lowcode-runtime", () => ({
+vi.mock("./api-app-runtime-catalog", () => ({
   getAppInstanceIdByAppKey
 }));
 

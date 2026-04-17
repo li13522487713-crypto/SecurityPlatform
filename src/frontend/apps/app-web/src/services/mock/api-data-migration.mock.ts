@@ -32,7 +32,7 @@ import type { DataMigrationState } from "../../app/setup-console-state-machine";
  * - 切主：cutover 成功后 active migration 清空；UI 总览不再展示。
  */
 
-const MOCK_TOTAL_ENTITIES = 290;
+const MOCK_TOTAL_ENTITIES = 211;
 const MOCK_TOTAL_ROWS = 124680;
 
 function fingerprint(prefix: string, raw: string): string {

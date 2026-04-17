@@ -1287,7 +1287,7 @@ Service 约束：`ContentJson` 长度 ≤ 32 KB；不合法 Slot 返回 `VALIDAT
 - 二次认证：恢复密钥（首装时一次性下发的 24 字符 base32 字符串）或 BootstrapAdmin 凭证
 - 控制台 token：30 分钟过期，每次写操作 + 周期性自动 `refreshAuth`
 - 写操作审计：每次状态机转换、迁移命令均通过新的 `SetupConsoleAuditWriter` 写入 `AuditRecord`
-- 真理来源：后端 `AtlasOrmSchemaCatalog.AllRuntimeEntityTypes`（约 290 个实体）→ 控制台聚合为 6 大类展示
+- 真理来源：后端 `AtlasOrmSchemaCatalog.AllRuntimeEntityTypes`（当前 211 个实体）→ 控制台聚合为 6 大类展示
 
 ### 12.2 状态机
 

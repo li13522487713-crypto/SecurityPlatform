@@ -82,7 +82,7 @@ pnpm run dev:app-web
 | Step | 操作 | 实际副作用 |
 |---|---|---|
 | 1. Precheck | 点 Run | 写 `setup_step_record` 一条 succeeded 记录，状态机 → precheck_passed |
-| 2. Schema | 点 Run | 真实调用 `AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db)`，建 290+ 张表 |
+| 2. Schema | 点 Run | 真实调用 `AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db)`，建与 `AllRuntimeEntityTypes` 一致的表（当前 211 个实体） |
 | 3. Seed | 点 Run | 承认现有 `DatabaseInitializerHostedService` 启动时已写入的种子数据；可选填 bundleVersion 升级 |
 | 4. Bootstrap User | 填 admin 用户名/密码/租户 ID + 勾"生成恢复密钥" | 一次性返回 `ATLS-XXXX-XXXX-XXXX-XXXX-XXXX`，**必须立即保存** |
 | 5. Default Workspace | 填工作空间名 + Owner 用户名 | 写 `setup_workspace_state` `default` 行 → completed |
