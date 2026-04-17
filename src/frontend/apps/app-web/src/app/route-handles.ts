@@ -15,6 +15,14 @@ export const STATUS_ROUTE_HANDLE = createHandle({
   hasSider: false,
   requireAuth: false
 });
+/**
+ * 系统初始化与迁移控制台路由 handle。
+ * 永久免登录，由控制台内部的二次认证（恢复密钥 / BootstrapAdmin）保护。
+ */
+export const SETUP_CONSOLE_ROUTE_HANDLE = createHandle({
+  hasSider: false,
+  requireAuth: false
+});
 export const WORKSPACE_LIST_ROUTE_HANDLE = createHandle({
   hasSider: false,
   requireAuth: true,

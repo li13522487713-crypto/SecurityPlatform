@@ -204,16 +204,6 @@ GET {{baseUrl}}/api/v1/dynamic-tables/orders/field-permissions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### Get Dynamic CRUD AMIS Schema
-GET {{baseUrl}}/api/v1/amis/dynamic-tables/orders/crud
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### Get Dynamic Detail Form Schema
-GET {{baseUrl}}/api/v1/amis/dynamic-tables/orders/forms/detail?id=1
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
 ### Create Record
 POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json

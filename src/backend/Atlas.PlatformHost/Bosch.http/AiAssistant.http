@@ -23,18 +23,6 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 
-### AI 生成表单
-POST {{baseUrl}}/api/v1/ai/generate-form
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "description": "创建一个资产入库登记表单",
-  "category": "asset",
-  "dataTableKey": "asset_registry"
-}
-
 ### AI 生成 SQL
 POST {{baseUrl}}/api/v1/ai/generate-sql
 Authorization: Bearer {{accessToken}}
@@ -65,13 +53,4 @@ Content-Type: application/json
 {
   "message": "请解释等保2.0中最小权限原则",
   "context": "security"
-}
-
-POST {{baseUrl}}/api/v1/ai/generate-form
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "description": "缺少幂等键的请求"
 }

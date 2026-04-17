@@ -24,19 +24,6 @@ public sealed class AiAssistantController : ControllerBase
     }
 
     /// <summary>
-    /// AI 生成表单 Schema
-    /// </summary>
-    [HttpPost("generate-form")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
-    public async Task<ActionResult<ApiResponse<AiFormGenerateResponse>>> GenerateForm(
-        [FromBody] AiFormGenerateRequest request, CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var result = await _aiService.GenerateFormAsync(tenantId, request, cancellationToken);
-        return Ok(ApiResponse<AiFormGenerateResponse>.Ok(result, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
     /// AI 生成 SQL
     /// </summary>
     [HttpPost("generate-sql")]

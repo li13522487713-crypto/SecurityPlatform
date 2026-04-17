@@ -33,7 +33,7 @@
 
 ## 架构要点
 
-- Clean Architecture 分层：Domain / Application / Infrastructure / WebApi。
+- Clean Architecture 分层：Domain / Application / Infrastructure；控制面为 `Atlas.PlatformHost`，应用数据面为 `Atlas.AppHost`。
 - 多租户隔离与安全策略配置。
 - JWT + 证书认证、审计日志、HTTP 日志、CORS 白名单。
 
@@ -46,7 +46,8 @@
 ```bash
 dotnet restore Atlas.SecurityPlatform.slnx
 dotnet build Atlas.SecurityPlatform.slnx
-dotnet run --project src/backend/Atlas.WebApi --urls http://127.0.0.1:5000
+dotnet run --project src/backend/Atlas.PlatformHost
+# 如需应用数据面：dotnet run --project src/backend/Atlas.AppHost
 ```
 
 前端：
@@ -54,22 +55,20 @@ dotnet run --project src/backend/Atlas.WebApi --urls http://127.0.0.1:5000
 ```bash
 cd src/frontend
 pnpm install
-pnpm run dev:platform-web
 pnpm run dev:app-web
+pnpm run dev:app-web:platform
 pnpm run dev:app-web:direct
-pnpm run build:platform-web
 pnpm run build:app-web
 ```
 
-联调一键脚本（PowerShell）：
+联调脚本（PowerShell）：
 
 ```powershell
-# 平台集成模式：PlatformHost + AppHost + PlatformWeb + AppWeb
-powershell -ExecutionPolicy Bypass -File .\scripts\dev-start-integration.ps1
-
 # 应用直连模式：AppHost + AppWeb（direct）
 powershell -ExecutionPolicy Bypass -File .\scripts\dev-start-app-direct.ps1
 ```
+
+平台集成模式（PlatformHost + AppHost + AppWeb）请见 `docs/联调双模式启动手册.md` 或 `AGENTS.md` 中的启动命令。
 
 ### Docker Compose 部署（封板基线）
 

@@ -4,6 +4,12 @@ import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
 import { getSetupState } from "../services/api-setup";
 import { getConfiguredAppKey, rememberConfiguredAppKey } from "../services/api-core";
 import { resolveAppInstanceId } from "../services/app-instance-context";
+import { getSetupConsoleOverview } from "../services/mock";
+import type {
+  SetupConsoleOverviewDto,
+  SystemSetupStateDto,
+  WorkspaceSetupStateDto
+} from "../services/api-setup-console";
 
 interface BootstrapState {
   loading: boolean;
@@ -15,7 +21,14 @@ interface BootstrapState {
   workspaceLabel: string;
   platformStatus: string;
   appStatus: string;
+  /** 控制台总览（M1 mock；M5 切真接口）。系统初始化与工作空间初始化的真理来源。 */
+  setupConsole: SetupConsoleOverviewDto | null;
+  /** 控制台总览中的系统级状态快照，便于路由守卫与 UI 直接消费。 */
+  systemInit: SystemSetupStateDto | null;
+  /** 当前所有工作空间的初始化状态快照。 */
+  workspaceInits: WorkspaceSetupStateDto[];
   refresh: () => Promise<void>;
+  refreshSetupConsole: () => Promise<void>;
 }
 
 const BootstrapContext = createContext<BootstrapState | null>(null);
@@ -29,6 +42,19 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
   const [platformStatus, setPlatformStatus] = useState("");
   const [appStatus, setAppStatus] = useState("");
   const [workspaceLabel, setWorkspaceLabel] = useState("Workspace");
+  const [setupConsole, setSetupConsole] = useState<SetupConsoleOverviewDto | null>(null);
+
+  const refreshSetupConsole = async () => {
+    try {
+      const response = await getSetupConsoleOverview();
+      if (response.success && response.data) {
+        setSetupConsole(response.data);
+      }
+    } catch {
+      // mock 失败时不影响其它 bootstrap 流程；M5 真接口失败按 401 跳二次认证。
+      setSetupConsole(null);
+    }
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -74,6 +100,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
+    void refreshSetupConsole();
   }, []);
 
   const value = useMemo<BootstrapState>(() => ({
@@ -86,8 +113,22 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     workspaceLabel,
     platformStatus,
     appStatus,
-    refresh
-  }), [appInstanceId, appKey, appStatus, loading, platformReady, appReady, platformStatus, workspaceLabel]);
+    setupConsole,
+    systemInit: setupConsole?.system ?? null,
+    workspaceInits: setupConsole?.workspaces ?? [],
+    refresh,
+    refreshSetupConsole
+  }), [
+    appInstanceId,
+    appKey,
+    appStatus,
+    loading,
+    platformReady,
+    appReady,
+    platformStatus,
+    setupConsole,
+    workspaceLabel
+  ]);
 
   return (
     <BootstrapContext.Provider value={value}>

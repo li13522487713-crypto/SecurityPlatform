@@ -15,6 +15,8 @@ public static class PlatformContentSlots
     public const string PlatformNotice = "platform-notice";
     public const string MarketTemplateSummary = "market-template-summary";
     public const string MarketPluginSummary = "market-plugin-summary";
+    /// <summary>M6.1：平台品牌（产品名 / Slogan / Logo），单条 IsActive 记录生效。</summary>
+    public const string Branding = "branding";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
@@ -25,7 +27,8 @@ public static class PlatformContentSlots
         CommunityWork,
         PlatformNotice,
         MarketTemplateSummary,
-        MarketPluginSummary
+        MarketPluginSummary,
+        Branding
     };
 }
 

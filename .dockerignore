@@ -11,5 +11,3 @@
 **/*.tmp
 **/*.log
 deploy/.env.deploy
-src/backend/Atlas.WebApi/atlas.db
-src/backend/Atlas.WebApi/hangfire.db

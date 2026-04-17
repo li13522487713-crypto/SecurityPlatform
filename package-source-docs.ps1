@@ -11,7 +11,7 @@ $stage = Join-Path $env:TEMP ("SecurityPlatform_pack_{0}" -f ([Guid]::NewGuid().
 
 $includeExtensions = @(
     '.cs', '.csproj', '.sln', '.slnx', '.props', '.targets',
-    '.json', '.js', '.ts', '.tsx', '.vue', '.html', '.css', '.scss', '.less',
+    '.json', '.js', '.ts', '.tsx', '.html', '.css', '.scss', '.less',
     '.md', '.txt', '.xml', '.yaml', '.yml', '.http', '.sql', '.cmd', '.bat', '.ps1', '.sh',
     '.config', '.cshtml', '.razor'
 )

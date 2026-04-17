@@ -10,6 +10,7 @@ using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.Plugins;
+using Atlas.Domain.Setup.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Domain.Workflow.Entities;
 using SqlSugar;
@@ -263,7 +264,18 @@ public static class AtlasOrmSchemaCatalog
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）
-        typeof(PlatformContent)
+        typeof(PlatformContent),
+        // Coze PRD Phase III - M6.3: 用户级 KV 设置（per-user 偏好持久化）
+        typeof(UserSetting),
+        // 系统初始化与迁移控制台（Setup Console）8 张元数据表
+        typeof(SystemSetupState),
+        typeof(WorkspaceSetupState),
+        typeof(SetupStepRecord),
+        typeof(DataMigrationJob),
+        typeof(DataMigrationBatch),
+        typeof(DataMigrationCheckpoint),
+        typeof(DataMigrationLog),
+        typeof(DataMigrationReport)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =

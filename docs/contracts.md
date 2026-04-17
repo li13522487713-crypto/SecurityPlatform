@@ -1271,3 +1271,154 @@ Service 约束：`ContentJson` 长度 ≤ 32 KB；不合法 Slot 返回 `VALIDAT
 - `PlatformContentsController`：读沿用 `Permission:ai-workspace:view`，写（POST/PATCH/DELETE）需 `Permission:system:admin`
 - Evaluation / Tasks 等接口继续使用 `Permission:ai-workspace:view|update`
 - 所有查询遵守"循环内零查库"原则：`GROUP BY` / `GetByTaskAsync` / `GetPagedByWorkspaceAsync` 都走单次批量查询
+
+## 12. 系统初始化与迁移控制台（Setup Console）
+
+> 升级原 `/app-setup` 单步原子向导为常驻 `/setup-console`：可重入、可断点续跑、ORM 优先跨库迁移；
+> 永久免登录，由"恢复密钥 + BootstrapAdmin 凭证"双因子保护，所有写操作单独审计。
+>
+> 本章为 M1 草案 = 后端最终契约（M5 落地）；前端 mock 实现见 `src/frontend/apps/app-web/src/services/mock/api-setup-console.mock.ts` 等 4 个文件。
+> 状态机定义见 `src/frontend/apps/app-web/src/app/setup-console-state-machine.ts`，后端镜像 `src/backend/Atlas.Domain/Setup/SetupConsoleStateMachine.cs`（M5）。
+
+### 12.1 总体设计
+
+- 路由前缀：`/api/v1/setup-console/*`
+- 入口：`/setup-console`（前端永久免登录路由，`SetupModeMiddleware` M5 放行 `auth/recover` + 带 `X-Setup-Console-Token` 请求头的全部端点）
+- 二次认证：恢复密钥（首装时一次性下发的 24 字符 base32 字符串）或 BootstrapAdmin 凭证
+- 控制台 token：30 分钟过期，每次写操作 + 周期性自动 `refreshAuth`
+- 写操作审计：每次状态机转换、迁移命令均通过新的 `SetupConsoleAuditWriter` 写入 `AuditRecord`
+- 真理来源：后端 `AtlasOrmSchemaCatalog.AllRuntimeEntityTypes`（约 290 个实体）→ 控制台聚合为 6 大类展示
+
+### 12.2 状态机
+
+系统级状态（`SystemSetupState`，14 个）：
+
+- `not_started` / `precheck_passed` / `schema_initializing` / `schema_initialized` /
+  `seed_initializing` / `seed_initialized` / `migration_pending` / `migration_running` /
+  `migration_partially_completed` / `migration_completed` / `validation_running` /
+  `completed` / `failed` / `dismissed`
+
+工作空间级状态（`WorkspaceSetupState`，4 个）：
+
+- `workspace_init_pending` / `workspace_init_running` / `workspace_init_completed` / `workspace_init_failed`
+
+数据迁移状态（`DataMigrationState`，9 个，与现有 `AppMigrationTaskStatuses` 对齐，仅命名风格转 kebab-case）：
+
+- `pending` / `prechecking` / `ready` / `running` / `validating` /
+  `cutover-ready` / `cutover-completed` / `failed` / `rolled-back`
+
+合法转移矩阵的权威实现见前端 `setup-console-state-machine.ts` 与对应 Vitest `setup-console-state-machine.spec.ts`。
+
+### 12.3 控制台总览 + 二次认证
+
+- `GET /api/v1/setup-console/overview` → `ApiResponse<SetupConsoleOverviewDto>`
+- `POST /api/v1/setup-console/auth/recover` body `ConsoleAuthChallengeRequest` → `ApiResponse<ConsoleAuthTokenDto>`
+- `POST /api/v1/setup-console/auth/refresh` body `{ consoleToken }` → `ApiResponse<ConsoleAuthTokenDto>`
+- `GET /api/v1/setup-console/system/state` → `ApiResponse<SystemSetupStateDto>`
+- `GET /api/v1/setup-console/catalog/entities?category=` → `ApiResponse<SetupConsoleCatalogSummaryDto>`
+
+DTO 参考前端 [`api-setup-console.ts`](../src/frontend/apps/app-web/src/services/api-setup-console.ts)：
+
+- `SetupConsoleOverviewDto { system, workspaces[], activeMigration | null, catalogSummary }`
+- `SystemSetupStateDto { state, version, lastUpdatedAt, failureMessage, recoveryKeyConfigured, steps[] }`
+- `SetupStepRecordDto { step, state, startedAt, endedAt, attemptCount, errorMessage }`（`step ∈ precheck|schema|seed|bootstrap-user|default-workspace|complete`）
+- `WorkspaceSetupStateDto { workspaceId, workspaceName, state, seedBundleVersion, lastUpdatedAt }`
+- `SetupConsoleCatalogSummaryDto { totalEntities, totalCategories, missingCriticalTables[], categories[] }`
+- `ConsoleAuthChallengeRequest { recoveryKey?, bootstrapAdminUsername?, bootstrapAdminPassword? }`
+- `ConsoleAuthTokenDto { consoleToken, issuedAt, expiresAt, permissions[] }`
+
+错误码扩充：`RECOVERY_KEY_INVALID`、`CONSOLE_TOKEN_EXPIRED`、`SETUP_VERSION_LOCKED`、`MIGRATION_FINGERPRINT_DUPLICATED`、`SETUP_INVALID_TRANSITION`。
+
+### 12.4 系统级初始化（6 步）
+
+每个端点返回 `ApiResponse<SetupStepResultDto>`，`bootstrapUser` 额外返回一次性 `recoveryKey`：
+
+- `POST /api/v1/setup-console/system/precheck` body `SystemPrecheckRequest` → 校验数据库连通性、磁盘空间、必备扩展
+- `POST /api/v1/setup-console/system/schema` body `SystemSchemaRequest { dryRun? }` → 调用 `AtlasOrmSchemaCatalog.EnsureRuntimeSchema`
+- `POST /api/v1/setup-console/system/seed` body `SystemSeedRequest { bundleVersion?, forceReapply? }` → 角色 / 权限 / 菜单 / 字典 / 模型占位 / 审批模板等
+- `POST /api/v1/setup-console/system/bootstrap-user` body `SystemBootstrapUserRequest` → 默认管理员，`generateRecoveryKey=true` 时一次性返回 `recoveryKey`
+- `POST /api/v1/setup-console/system/default-workspace` body `SystemDefaultWorkspaceRequest` → 默认工作空间 + Owner / Editor / Viewer 角色 + 默认渠道
+- `POST /api/v1/setup-console/system/complete` → 终态切换，关闭后续 `SetupModeMiddleware` 拦截
+- `POST /api/v1/setup-console/system/retry/{step}` → 显式将该步从 `failed`/`succeeded` 重置为 `running`
+- `POST /api/v1/setup-console/system/reopen` → 把控制台从 `dismissed` 拉回 `not_started`，便于重做
+
+幂等约束（M5 强制）：
+
+- 每步开始前先 upsert `SetupStepRecord(StepState=Running)`，结束后 upsert 为 `Succeeded` / `Failed`
+- 已 `Succeeded` 的步骤再次调用不会重复执行写库操作（仅刷新 `attemptCount`）
+- 已 `completed` 的系统状态再调任意 `system/*` 接口直接返回 `succeeded`，不会回退状态机
+- `version` 字段用于种子包升级（`v1`/`v2`）；新版本可在已 completed 后通过 `system/seed` + `forceReapply=true` 增量补种
+
+### 12.5 工作空间级初始化
+
+- `GET /api/v1/setup-console/workspaces` → `ApiResponse<WorkspaceSetupStateDto[]>`
+- `POST /api/v1/setup-console/workspaces/{wsId}/init` body `WorkspaceInitRequest { workspaceName, seedBundleVersion, applyDefaultRoles, applyDefaultPublishChannels }` → `ApiResponse<WorkspaceSetupStateDto>`
+- `POST /api/v1/setup-console/workspaces/{wsId}/seed-bundle` body `WorkspaceSeedBundleRequest { bundleVersion, forceReapply? }` → 升级或补种空间级种子
+- `POST /api/v1/setup-console/workspaces/{wsId}/complete` → 把空间状态置 `workspace_init_completed`
+
+幂等约束：相同 `seedBundleVersion` 不重复执行（除非 `forceReapply=true`）；已 `completed` 的空间再次 `init` 直接返回当前状态。
+
+### 12.6 数据迁移（ORM 优先跨库）
+
+- `POST /api/v1/setup-console/migration/test-connection` body `MigrationTestConnectionRequest` → `ApiResponse<MigrationTestConnectionResponse>`
+- `POST /api/v1/setup-console/migration/jobs` body `DataMigrationJobCreateRequest` → `ApiResponse<DataMigrationJobDto>`
+- `POST /api/v1/setup-console/migration/jobs/{id}/precheck` → 推进到 `prechecking` → `ready`
+- `POST /api/v1/setup-console/migration/jobs/{id}/start` → 推进到 `running`
+- `GET /api/v1/setup-console/migration/jobs/{id}/progress` → 实时轮询，返回当前实体 / 批次 / 复制行数
+- `POST /api/v1/setup-console/migration/jobs/{id}/validate` → 行数 + 抽样字段 + 外键校验，生成 `DataMigrationReportDto`
+- `POST /api/v1/setup-console/migration/jobs/{id}/cutover` body `DataMigrationCutoverRequest { keepSourceReadonlyForDays }` → 写 `appsettings.runtime.json` 切主
+- `POST /api/v1/setup-console/migration/jobs/{id}/rollback` → 回滚（仅未 cutover 时可用）
+- `POST /api/v1/setup-console/migration/jobs/{id}/retry` → 失败 / 已回滚任务从最后 checkpoint 续跑
+- `GET /api/v1/setup-console/migration/jobs/{id}/report` → 校验报告
+- `GET /api/v1/setup-console/migration/jobs/{id}/logs?level=&pageIndex&pageSize` → 分页日志
+
+DTO 关键字段：
+
+- `DbConnectionConfig { driverCode, dbType: SQLite|MySql|PostgreSQL|SqlServer, mode: raw|visual, connectionString?, visualConfig? }`
+- `DataMigrationJobCreateRequest { source, target, mode, moduleScope, allowReExecute }`
+- `DataMigrationModuleScope { categories: ["all" | category...], entityNames? }`
+- `DataMigrationJobDto { id, state, mode, source, target, sourceFingerprint, targetFingerprint, moduleScope, totalEntities, completedEntities, failedEntities, totalRows, copiedRows, progressPercent, currentEntityName?, currentBatchNo?, startedAt?, finishedAt?, errorSummary?, createdAt, updatedAt }`
+- `DataMigrationReportDto { jobId, totalEntities, passedEntities, failedEntities, rowDiff[], samplingDiff[], overallPassed, generatedAt }`
+
+防重复机制：
+
+- `sourceFingerprint = hash(driverCode + dbType + connectionString-canonical + max(id) per critical table)`
+- `targetFingerprint` 同理
+- 同 `(sourceFingerprint, targetFingerprint)` 已存在 `cutover-completed` 任务时，必须 `allowReExecute=true` 才能创建新任务
+- 单个 `JobId` 内部用 `DataMigrationCheckpoint(JobId, EntityName)` 唯一约束，重启时从最后 batch + 1 续跑
+
+ORM 优先实现要点（M6）：
+
+- 源库 / 目标库各开一个 `SqlSugarScope`，用同一份 `EntityType[]` 双向 IO；类型差异由 SqlSugar 自动适配（`DateTimeOffset → DATETIME / TIMESTAMPTZ` 等）
+- 拓扑排序：基于 `[Navigate]` / 命名约定 `XxxId` 推断，`Tenant → UserAccount → Role → UserRole → Workspace → Agent → ...`
+- 大表分批：`Skip(page * batch).Take(batch).ToList()` + `Insertable(rows).ExecuteCommand()`，默认 batch=500
+- 校验：行数差 + 5% 抽样字段哈希 + 外键存在性
+
+### 12.7 新增元数据表（8 张）
+
+归属 `Atlas.Domain.Setup`，M5 通过 `AtlasOrmSchemaCatalog.AllRuntimeEntityTypes` 统一建表：
+
+- `SystemSetupState`：单例（每租户 1 行），`State / Version / RecoveryKeyHash / LastUpdatedAt / FailureMessage`
+- `WorkspaceSetupState`：每工作空间 1 行，`WorkspaceId / State / Version / SeedBundleVersion`
+- `SetupStepRecord`：明细，`Tenant / Step / State / StartedAt / EndedAt / AttemptCount / ErrorMessage / PayloadJson`
+- `DataMigrationJob`：跨库任务，`State / Mode / SourceConnectionString(加密) / SourceDbType / TargetConnectionString(加密) / TargetDbType / SourceFingerprint / TargetFingerprint / ModuleScopeJson / Counters`
+- `DataMigrationBatch`：每实体每批次记录
+- `DataMigrationCheckpoint`：唯一索引 `(JobId, EntityName)`，断点续跑核心
+- `DataMigrationLog`：明细审计日志
+- `DataMigrationReport`：校验汇总报告
+
+### 12.8 安全与权限（控制台）
+
+- `/api/v1/setup-console/auth/recover` 永远 `[AllowAnonymous]`，但每次失败计入审计并按 IP 限流
+- 其余端点必须带 `X-Setup-Console-Token`，由 M5 新增的 `SetupConsoleAuthMiddleware` 校验
+- 控制台 token 与 JWT 完全独立，互不影响
+- 任何写操作（schema/seed/bootstrap-user/default-workspace/complete/retry/reopen/migration/*）由 `SetupConsoleAuditWriter` 写 `AuditRecord`，`Action` 为 `setup-console.{step}`
+- 数据迁移连接串持久化时使用 `IDataProtector` 加密（M6）
+- 恢复密钥仅在 `bootstrap-user` 阶段一次性下发，密文用 PBKDF2 存 `SystemSetupState.RecoveryKeyHash`
+
+### 12.9 与现有资产的关系
+
+- `/api/v1/setup/*`（旧 `SetupController`）M5 全部加 `[Obsolete]` + 响应头 `Deprecation: true`，6 个月窗口期保兼容
+- `DatabaseInitializerHostedService.RunInitializationAsync` 不删，M5 拆出 6 个 public 幂等方法供 `SetupConsoleService` 调度
+- `AppMigrationService`（应用维度迁移）保持原职责，新 `OrmDataMigrationService`（控制台跨库迁移）共享 `AppMigrationTaskStatuses` 命名约定，但用独立的 `DataMigrationJob` 表
+- `BootstrapAdminOptions` / `appsettings.runtime.json` 持久化机制 100% 复用

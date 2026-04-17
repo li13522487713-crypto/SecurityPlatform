@@ -1788,7 +1788,7 @@ export function AgentChatPage({ api }: StudioPageProps) {
 }
 
 export function AiAssistantPage({ api }: StudioPageProps) {
-  const [kind, setKind] = useState<"form" | "sql" | "workflow">("workflow");
+  const [kind, setKind] = useState<"sql" | "workflow">("workflow");
   const [description, setDescription] = useState("");
   const [result, setResult] = useState("");
 
@@ -1797,7 +1797,6 @@ export function AiAssistantPage({ api }: StudioPageProps) {
       <div className="module-studio__stack">
         <div className="module-studio__actions">
           <Button theme={kind === "workflow" ? "solid" : "borderless"} onClick={() => setKind("workflow")}>Workflow</Button>
-          <Button theme={kind === "form" ? "solid" : "borderless"} onClick={() => setKind("form")}>Form</Button>
           <Button theme={kind === "sql" ? "solid" : "borderless"} onClick={() => setKind("sql")}>SQL</Button>
         </div>
         <textarea value={description} onChange={event => setDescription(event.target.value)} rows={8} className="module-studio__textarea" />

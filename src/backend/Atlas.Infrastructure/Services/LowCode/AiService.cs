@@ -30,33 +30,6 @@ public sealed class AiService : IAiService
         _aiOptions = aiOptions.Value;
     }
 
-    public async Task<AiFormGenerateResponse> GenerateFormAsync(
-        TenantId tenantId, AiFormGenerateRequest request, CancellationToken cancellationToken = default)
-    {
-        var prompt = $"请根据以下描述生成 amis JSON Schema 表单定义：\n\n{request.Description}";
-        if (!string.IsNullOrWhiteSpace(request.Category))
-        {
-            prompt += $"\n\n分类：{request.Category}";
-        }
-
-        var schemaJson = await CallAiAsync(prompt, cancellationToken);
-
-        // Try to extract JSON from the response
-        var jsonStart = schemaJson.IndexOf('{');
-        var jsonEnd = schemaJson.LastIndexOf('}');
-        if (jsonStart >= 0 && jsonEnd > jsonStart)
-        {
-            schemaJson = schemaJson[jsonStart..(jsonEnd + 1)];
-        }
-        else
-        {
-            // Generate a basic schema as fallback
-            schemaJson = GenerateBasicFormSchema(request.Description);
-        }
-
-        return new AiFormGenerateResponse(schemaJson, "AI 已根据描述生成表单 Schema");
-    }
-
     public async Task<AiSqlGenerateResponse> GenerateSqlAsync(
         TenantId tenantId, AiSqlGenerateRequest request, CancellationToken cancellationToken = default)
     {
@@ -195,11 +168,6 @@ public sealed class AiService : IAiService
     {
         await Task.CompletedTask;
 
-        if (prompt.Contains("表单", StringComparison.OrdinalIgnoreCase) || prompt.Contains("form", StringComparison.OrdinalIgnoreCase))
-        {
-            return new ChatCompletionResult(GenerateBasicFormSchema(prompt), Provider: "fallback");
-        }
-
         if (prompt.Contains("SQL", StringComparison.OrdinalIgnoreCase) || prompt.Contains("查询", StringComparison.OrdinalIgnoreCase))
         {
             return new ChatCompletionResult("SELECT * FROM table_name WHERE 1=1 LIMIT 100;", Provider: "fallback");
@@ -230,34 +198,5 @@ public sealed class AiService : IAiService
         return new ChatCompletionResult(
             "AI 服务已收到请求。请配置 AI 提供商（OpenAI / DeepSeek / Ollama）以启用完整功能。",
             Provider: "fallback");
-    }
-
-    private static string GenerateBasicFormSchema(string description)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            type = "page",
-            title = "AI 生成表单",
-            body = new object[]
-            {
-                new
-                {
-                    type = "form",
-                    title = "",
-                    body = new object[]
-                    {
-                        new { type = "input-text", name = "name", label = "名称", required = true },
-                        new { type = "textarea", name = "description", label = "描述" },
-                        new { type = "input-date", name = "date", label = "日期" },
-                        new { type = "select", name = "status", label = "状态", options = new[]
-                        {
-                            new { label = "草稿", value = "draft" },
-                            new { label = "已提交", value = "submitted" },
-                            new { label = "已完成", value = "completed" }
-                        }}
-                    }
-                }
-            }
-        }, new JsonSerializerOptions { WriteIndented = true });
     }
 }

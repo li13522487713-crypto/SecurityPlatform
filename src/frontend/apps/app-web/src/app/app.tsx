@@ -84,6 +84,7 @@ import { OrganizationProvider, useOptionalOrganizationContext } from "./organiza
 import {
   EXPLORE_ROUTE_HANDLE,
   ROOT_ROUTE_HANDLE,
+  SETUP_CONSOLE_ROUTE_HANDLE,
   SIGN_ROUTE_HANDLE,
   STANDALONE_WORKFLOW_ROUTE_HANDLE,
   STATUS_ROUTE_HANDLE,
@@ -140,6 +141,7 @@ import { LoginPage } from "./pages/login-page";
 import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
+import { SetupConsolePage } from "./pages/setup-console";
 import { WorkspaceShellLayout, PlatformShellLayout } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
 import {
@@ -3008,6 +3010,18 @@ export const appRoutes = [
     path: "/app-setup",
     element: <AppSetupPage />,
     handle: STATUS_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/setup-console",
+    element: <SetupConsolePage />,
+    handle: SETUP_CONSOLE_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/setup-console/:tab",
+    element: <SetupConsolePage />,
+    handle: SETUP_CONSOLE_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {

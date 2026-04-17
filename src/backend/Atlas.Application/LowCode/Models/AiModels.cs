@@ -4,9 +4,6 @@ namespace Atlas.Application.LowCode.Models;
 /// AI 辅助开发请求与响应模型
 /// </summary>
 
-public sealed record AiFormGenerateRequest(string Description, string? Category, string? DataTableKey);
-public sealed record AiFormGenerateResponse(string SchemaJson, string? Explanation);
-
 public sealed record AiSqlGenerateRequest(string Question, string? TableContext);
 public sealed record AiSqlGenerateResponse(string Sql, string? Explanation);
 

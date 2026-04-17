@@ -1,0 +1,9 @@
+export { SetupConsolePage, type SetupConsoleTab } from "./setup-console-page";
+export { ConsoleAuthGate } from "./console-auth-gate";
+export { DashboardTab } from "./dashboard-tab";
+export { SystemInitTab } from "./system-init-tab";
+export { WorkspaceInitTab } from "./workspace-init-tab";
+export { MigrationTab } from "./migration-tab";
+export { StepCard } from "./components/step-card";
+export { RecoveryKeyDisplay } from "./components/recovery-key-display";
+export { readConsoleToken, writeConsoleToken, clearConsoleToken } from "./console-token-storage";

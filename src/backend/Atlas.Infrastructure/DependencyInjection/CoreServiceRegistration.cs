@@ -155,9 +155,6 @@ public static class CoreServiceRegistration
         services.AddScoped<ITableViewQueryService, TableViewQueryService>();
         services.AddScoped<ITableViewCommandService, TableViewCommandService>();
 
-        // Amis
-        services.AddSingleton<Atlas.Application.Amis.Abstractions.IAmisSchemaProvider, Atlas.Infrastructure.Services.Amis.FileSystemAmisSchemaProvider>();
-
         // Dict & SystemConfig Repositories
         services.AddScoped<DictTypeRepository>();
         services.AddScoped<DictDataRepository>();

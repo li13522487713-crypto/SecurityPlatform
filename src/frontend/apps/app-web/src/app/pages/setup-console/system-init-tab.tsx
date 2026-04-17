@@ -1,0 +1,486 @@
+import { useCallback, useMemo, useState, type ChangeEvent } from "react";
+import { useAppI18n } from "../../i18n";
+import { useBootstrap } from "../../bootstrap-context";
+import type { AppMessageKey } from "../../messages";
+import {
+  bootstrapAdminUser,
+  bootstrapDefaultWorkspace,
+  completeSystemInit,
+  initializeSchema,
+  precheckSystem,
+  retrySystemStep,
+  seedSystem
+} from "../../../services/mock";
+import type {
+  SetupStepRecordDto,
+  SystemSetupStateDto
+} from "../../../services/api-setup-console";
+import {
+  isSystemInitDone,
+  type SetupConsoleStep,
+  type SystemSetupState
+} from "../../setup-console-state-machine";
+import { StepCard } from "./components/step-card";
+import { RecoveryKeyDisplay } from "./components/recovery-key-display";
+
+interface SystemInitTabProps {
+  system: SystemSetupStateDto | null;
+  onSnapshotChanged: () => Promise<void>;
+}
+
+interface StepMeta {
+  step: SetupConsoleStep;
+  titleKey: AppMessageKey;
+}
+
+const STEP_ORDER: ReadonlyArray<StepMeta> = [
+  { step: "precheck", titleKey: "setupConsoleStepPrecheck" },
+  { step: "schema", titleKey: "setupConsoleStepSchema" },
+  { step: "seed", titleKey: "setupConsoleStepSeed" },
+  { step: "bootstrap-user", titleKey: "setupConsoleStepBootstrapUser" },
+  { step: "default-workspace", titleKey: "setupConsoleStepDefaultWorkspace" },
+  { step: "complete", titleKey: "setupConsoleStepComplete" }
+];
+
+const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
+interface AdminFormState {
+  username: string;
+  password: string;
+  tenantId: string;
+  generateRecoveryKey: boolean;
+  optionalRoleCodes: string[];
+}
+
+interface DefaultWorkspaceFormState {
+  workspaceName: string;
+  ownerUsername: string;
+  applyDefaultPublishChannels: boolean;
+  applyDefaultModelStub: boolean;
+}
+
+const INITIAL_ADMIN_FORM: AdminFormState = {
+  username: "admin",
+  password: "P@ssw0rd!",
+  tenantId: DEFAULT_TENANT_ID,
+  generateRecoveryKey: true,
+  optionalRoleCodes: []
+};
+
+const INITIAL_WORKSPACE_FORM: DefaultWorkspaceFormState = {
+  workspaceName: "Default workspace",
+  ownerUsername: "admin",
+  applyDefaultPublishChannels: true,
+  applyDefaultModelStub: true
+};
+
+const OPTIONAL_ROLE_CODES = ["SecurityAdmin", "AuditAdmin", "AssetAdmin", "ApprovalAdmin"] as const;
+
+function indexOfState(state: SystemSetupState): number {
+  // 把状态机映射到"应该高亮第几步"。
+  switch (state) {
+    case "not_started":
+      return 0;
+    case "precheck_passed":
+      return 1;
+    case "schema_initializing":
+    case "schema_initialized":
+      return 2;
+    case "seed_initializing":
+      return 2;
+    case "seed_initialized":
+      return 3;
+    case "completed":
+      return STEP_ORDER.length;
+    default:
+      return 0;
+  }
+}
+
+function findRecord(steps: SetupStepRecordDto[] | undefined, step: SetupConsoleStep): SetupStepRecordDto | null {
+  if (!steps) {
+    return null;
+  }
+  const found = steps.find((item) => item.step === step);
+  if (!found) {
+    return null;
+  }
+  // running 默认状态过滤：还没真正跑过的步骤不视为有 record
+  if (found.attemptCount === 0 && found.state === "running") {
+    return null;
+  }
+  return found;
+}
+
+export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps) {
+  const { t } = useAppI18n();
+  const { refreshSetupConsole } = useBootstrap();
+  const [busyStep, setBusyStep] = useState<SetupConsoleStep | null>(null);
+  const [adminForm, setAdminForm] = useState<AdminFormState>(INITIAL_ADMIN_FORM);
+  const [workspaceForm, setWorkspaceForm] = useState<DefaultWorkspaceFormState>(INITIAL_WORKSPACE_FORM);
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const currentStepIndex = useMemo(() => (system ? indexOfState(system.state) : 0), [system]);
+  const isDone = system ? isSystemInitDone(system.state) : false;
+
+  const updateAdminField = useCallback(
+    <K extends keyof AdminFormState>(field: K, value: AdminFormState[K]) => {
+      setAdminForm((previous) => ({ ...previous, [field]: value }));
+    },
+    []
+  );
+
+  const updateWorkspaceField = useCallback(
+    <K extends keyof DefaultWorkspaceFormState>(field: K, value: DefaultWorkspaceFormState[K]) => {
+      setWorkspaceForm((previous) => ({ ...previous, [field]: value }));
+    },
+    []
+  );
+
+  const refreshAfterStep = useCallback(async () => {
+    await refreshSetupConsole();
+    await onSnapshotChanged();
+  }, [onSnapshotChanged, refreshSetupConsole]);
+
+  const guardedRun = useCallback(
+    async (step: SetupConsoleStep, executor: () => Promise<void>) => {
+      if (busyStep) {
+        return;
+      }
+      setBusyStep(step);
+      setErrorMessage(null);
+      try {
+        await executor();
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : t("setupConsoleStepStateFailed"));
+      } finally {
+        setBusyStep(null);
+        await refreshAfterStep();
+      }
+    },
+    [busyStep, refreshAfterStep, t]
+  );
+
+  const runPrecheck = useCallback(
+    () =>
+      guardedRun("precheck", async () => {
+        await precheckSystem({});
+      }),
+    [guardedRun]
+  );
+
+  const runSchema = useCallback(
+    () =>
+      guardedRun("schema", async () => {
+        await initializeSchema({});
+      }),
+    [guardedRun]
+  );
+
+  const runSeed = useCallback(
+    () =>
+      guardedRun("seed", async () => {
+        await seedSystem({});
+      }),
+    [guardedRun]
+  );
+
+  const runBootstrapUser = useCallback(
+    () =>
+      guardedRun("bootstrap-user", async () => {
+        const response = await bootstrapAdminUser({
+          username: adminForm.username,
+          password: adminForm.password,
+          tenantId: adminForm.tenantId,
+          isPlatformAdmin: true,
+          optionalRoleCodes: adminForm.optionalRoleCodes,
+          generateRecoveryKey: adminForm.generateRecoveryKey
+        });
+        if (response.success && response.data?.recoveryKey) {
+          setRecoveryKey(response.data.recoveryKey);
+        }
+      }),
+    [adminForm, guardedRun]
+  );
+
+  const runDefaultWorkspace = useCallback(
+    () =>
+      guardedRun("default-workspace", async () => {
+        await bootstrapDefaultWorkspace(workspaceForm);
+      }),
+    [guardedRun, workspaceForm]
+  );
+
+  const runComplete = useCallback(
+    () =>
+      guardedRun("complete", async () => {
+        await completeSystemInit();
+      }),
+    [guardedRun]
+  );
+
+  const retryStep = useCallback(
+    (step: SetupConsoleStep) =>
+      guardedRun(step, async () => {
+        await retrySystemStep(step);
+      }),
+    [guardedRun]
+  );
+
+  if (!system) {
+    return (
+      <section className="atlas-setup-panel" data-testid="setup-console-system-init-loading">
+        <p className="atlas-field-hint">{t("loading")}</p>
+      </section>
+    );
+  }
+
+  return (
+    <div data-testid="setup-console-system-init">
+      {isDone ? (
+        <section
+          className="atlas-result-card atlas-result-card--success"
+          data-testid="setup-console-system-init-done"
+        >
+          <div className="atlas-result-card__icon">+</div>
+          <h2 className="atlas-result-card__title">{t("setupConsoleStateCompleted")}</h2>
+          <p className="atlas-result-card__subtitle">{t("setupConsoleSystemAdminCreated")}</p>
+        </section>
+      ) : null}
+
+      {errorMessage ? (
+        <div className="atlas-warning-banner" data-testid="setup-console-system-init-error">
+          <strong>{t("setupConsoleStepStateFailed")}</strong>
+          <p>{errorMessage}</p>
+        </div>
+      ) : null}
+
+      {recoveryKey ? (
+        <RecoveryKeyDisplay
+          recoveryKey={recoveryKey}
+          onAcknowledge={() => setRecoveryKey(null)}
+        />
+      ) : null}
+
+      {STEP_ORDER.map((meta, index) => {
+        const record = findRecord(system.steps, meta.step);
+        const isCurrent = index === currentStepIndex && !isDone;
+        const isLocked = index > currentStepIndex && !isDone && record?.state !== "succeeded";
+        const stepBusy = busyStep === meta.step;
+        const onRunHandler = pickRunHandler(meta.step, {
+          runPrecheck,
+          runSchema,
+          runSeed,
+          runBootstrapUser,
+          runDefaultWorkspace,
+          runComplete
+        });
+        const onRetryHandler = () => void retryStep(meta.step);
+
+        return (
+          <StepCard
+            key={meta.step}
+            step={meta.step}
+            index={index}
+            titleKey={meta.titleKey}
+            record={record}
+            isCurrent={isCurrent}
+            isLocked={isLocked}
+            busy={stepBusy || (busyStep !== null && busyStep !== meta.step)}
+            onRun={onRunHandler}
+            onRetry={onRetryHandler}
+          >
+            {meta.step === "bootstrap-user" ? (
+              <BootstrapUserForm
+                form={adminForm}
+                disabled={record?.state === "succeeded" || isDone}
+                onChangeField={updateAdminField}
+              />
+            ) : null}
+            {meta.step === "default-workspace" ? (
+              <DefaultWorkspaceForm
+                form={workspaceForm}
+                disabled={record?.state === "succeeded" || isDone}
+                onChangeField={updateWorkspaceField}
+              />
+            ) : null}
+          </StepCard>
+        );
+      })}
+    </div>
+  );
+}
+
+interface RunHandlers {
+  runPrecheck: () => Promise<void>;
+  runSchema: () => Promise<void>;
+  runSeed: () => Promise<void>;
+  runBootstrapUser: () => Promise<void>;
+  runDefaultWorkspace: () => Promise<void>;
+  runComplete: () => Promise<void>;
+}
+
+function pickRunHandler(step: SetupConsoleStep, handlers: RunHandlers): () => void {
+  switch (step) {
+    case "precheck":
+      return () => void handlers.runPrecheck();
+    case "schema":
+      return () => void handlers.runSchema();
+    case "seed":
+      return () => void handlers.runSeed();
+    case "bootstrap-user":
+      return () => void handlers.runBootstrapUser();
+    case "default-workspace":
+      return () => void handlers.runDefaultWorkspace();
+    case "complete":
+    default:
+      return () => void handlers.runComplete();
+  }
+}
+
+interface BootstrapUserFormProps {
+  form: AdminFormState;
+  disabled: boolean;
+  onChangeField: <K extends keyof AdminFormState>(field: K, value: AdminFormState[K]) => void;
+}
+
+function BootstrapUserForm({ form, disabled, onChangeField }: BootstrapUserFormProps) {
+  const { t } = useAppI18n();
+  const togglesRoleCode = (code: string, checked: boolean) => {
+    const set = new Set(form.optionalRoleCodes);
+    if (checked) {
+      set.add(code);
+    } else {
+      set.delete(code);
+    }
+    onChangeField("optionalRoleCodes", Array.from(set));
+  };
+
+  return (
+    <div className="atlas-form-grid" data-testid="setup-console-bootstrap-user-form">
+      <label className="atlas-form-field atlas-form-field--full">
+        <span className="atlas-form-field__label">{t("setupConsoleSystemAdminTenantIdLabel")}</span>
+        <input
+          className="atlas-input"
+          data-testid="setup-console-bootstrap-user-tenant"
+          disabled={disabled}
+          value={form.tenantId}
+          onChange={(event) => onChangeField("tenantId", event.target.value)}
+        />
+      </label>
+      <label className="atlas-form-field atlas-form-field--full">
+        <span className="atlas-form-field__label">{t("setupConsoleSystemAdminUsernameLabel")}</span>
+        <input
+          className="atlas-input"
+          data-testid="setup-console-bootstrap-user-username"
+          disabled={disabled}
+          value={form.username}
+          onChange={(event) => onChangeField("username", event.target.value)}
+        />
+      </label>
+      <label className="atlas-form-field atlas-form-field--full">
+        <span className="atlas-form-field__label">{t("setupConsoleSystemAdminPasswordLabel")}</span>
+        <input
+          className="atlas-input"
+          data-testid="setup-console-bootstrap-user-password"
+          disabled={disabled}
+          type="password"
+          value={form.password}
+          onChange={(event) => onChangeField("password", event.target.value)}
+        />
+      </label>
+      <label
+        className="atlas-form-field"
+        style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+      >
+        <input
+          type="checkbox"
+          data-testid="setup-console-bootstrap-user-generate-recovery"
+          disabled={disabled}
+          checked={form.generateRecoveryKey}
+          onChange={(event) => onChangeField("generateRecoveryKey", event.target.checked)}
+        />
+        <span>{t("setupConsoleSystemAdminGenerateRecoveryLabel")}</span>
+      </label>
+
+      <div className="atlas-optional-role-block">
+        <div className="atlas-section-title">{t("setupOptionalRolesTitle")}</div>
+        <div className="atlas-role-grid">
+          {OPTIONAL_ROLE_CODES.map((code) => {
+            const checked = form.optionalRoleCodes.includes(code);
+            return (
+              <label
+                key={code}
+                className={`atlas-role-card ${checked ? "is-selected" : ""}`.trim()}
+              >
+                <input
+                  type="checkbox"
+                  data-testid={`setup-console-bootstrap-user-role-${code}`}
+                  disabled={disabled}
+                  checked={checked}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => togglesRoleCode(code, event.target.checked)}
+                />
+                <span>{code}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface DefaultWorkspaceFormProps {
+  form: DefaultWorkspaceFormState;
+  disabled: boolean;
+  onChangeField: <K extends keyof DefaultWorkspaceFormState>(field: K, value: DefaultWorkspaceFormState[K]) => void;
+}
+
+function DefaultWorkspaceForm({ form, disabled, onChangeField }: DefaultWorkspaceFormProps) {
+  const { t } = useAppI18n();
+  return (
+    <div className="atlas-form-grid" data-testid="setup-console-default-workspace-form">
+      <label className="atlas-form-field atlas-form-field--full">
+        <span className="atlas-form-field__label">{t("setupConsoleSystemDefaultWorkspaceNameLabel")}</span>
+        <input
+          className="atlas-input"
+          data-testid="setup-console-default-workspace-name"
+          disabled={disabled}
+          value={form.workspaceName}
+          onChange={(event) => onChangeField("workspaceName", event.target.value)}
+        />
+      </label>
+      <label className="atlas-form-field atlas-form-field--full">
+        <span className="atlas-form-field__label">{t("setupConsoleSystemDefaultWorkspaceOwnerLabel")}</span>
+        <input
+          className="atlas-input"
+          data-testid="setup-console-default-workspace-owner"
+          disabled={disabled}
+          value={form.ownerUsername}
+          onChange={(event) => onChangeField("ownerUsername", event.target.value)}
+        />
+      </label>
+      <label className="atlas-form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          data-testid="setup-console-default-workspace-channels"
+          disabled={disabled}
+          checked={form.applyDefaultPublishChannels}
+          onChange={(event) => onChangeField("applyDefaultPublishChannels", event.target.checked)}
+        />
+        <span>{t("setupConsoleSystemDefaultWorkspaceApplyChannelsLabel")}</span>
+      </label>
+      <label className="atlas-form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          data-testid="setup-console-default-workspace-models"
+          disabled={disabled}
+          checked={form.applyDefaultModelStub}
+          onChange={(event) => onChangeField("applyDefaultModelStub", event.target.checked)}
+        />
+        <span>{t("setupConsoleSystemDefaultWorkspaceApplyModelStubLabel")}</span>
+      </label>
+    </div>
+  );
+}

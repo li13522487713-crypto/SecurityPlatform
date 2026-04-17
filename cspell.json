@@ -33,7 +33,7 @@
     "等保2.0要求清单.md",
     "docs/**/*.{md,txt}",
     "src/backend/**/*.{cs,csproj,props,json,md}",
-    "src/frontend/**/*.{ts,tsx,js,vue,json,md}"
+    "src/frontend/**/*.{ts,tsx,js,json,md}"
   ],
   "words": [
     "等保",

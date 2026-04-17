@@ -86,8 +86,10 @@ public static class PlatformServiceCollectionExtensions
             Atlas.Infrastructure.Services.Coze.InMemoryPlatformGeneralService>();
         services.AddScoped<Atlas.Application.Coze.Abstractions.IMarketSummaryService,
             Atlas.Infrastructure.Services.Coze.InMemoryMarketSummaryService>();
-        services.AddSingleton<Atlas.Application.Coze.Abstractions.IMeSettingsService,
-            Atlas.Infrastructure.Services.Coze.InMemoryMeSettingsService>();
+        // M6.3：MeSettings 升级为持久化（UserSetting 表 + 跨进程偏好保留）。
+        services.AddScoped<Atlas.Infrastructure.Repositories.UserSettingRepository>();
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IMeSettingsService,
+            Atlas.Infrastructure.Services.Coze.PersistentMeSettingsService>();
 
         // Coze PRD Phase III - M2: 工作空间维度持久化对象（文件夹 / 发布渠道）
         services.AddScoped<Atlas.Infrastructure.Repositories.WorkspaceFolderRepository>();
@@ -108,6 +110,17 @@ public static class PlatformServiceCollectionExtensions
         // Coze PRD Phase III - M4.3: 测试集持久化（复用 EvaluationDataset / EvaluationCase）。
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTestsetService,
             Atlas.Infrastructure.Services.Coze.WorkspaceTestsetService>();
+
+        // 系统初始化与迁移控制台（M5）
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.ISetupRecoveryKeyService,
+            Atlas.Infrastructure.Services.SetupConsole.SetupRecoveryKeyService>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.ISetupConsoleService,
+            Atlas.Infrastructure.Services.SetupConsole.SetupConsoleService>();
+        // ORM 跨库迁移引擎（M6）
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationOrmService,
+            Atlas.Infrastructure.Services.SetupConsole.OrmDataMigrationService>();
+        // 控制台写操作审计（M7）
+        services.AddScoped<Atlas.Infrastructure.Services.SetupConsole.SetupConsoleAuditWriter>();
 
         return services;
     }

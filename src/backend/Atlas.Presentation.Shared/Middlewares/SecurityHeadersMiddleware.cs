@@ -26,7 +26,7 @@ public sealed class SecurityHeadersMiddleware
         // 内容安全策略（CSP）- 防御XSS和数据注入攻击
         // 注意：根据实际需求调整CSP策略
         var cspPolicy = "default-src 'self'; " +
-                       "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // AMIS编辑器需要unsafe-inline和unsafe-eval
+                       "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // 部分宿主/动态页面需 unsafe-inline 与 unsafe-eval（生产环境建议按需收紧）
                        "style-src 'self' 'unsafe-inline'; " +
                        "img-src 'self' data: https:; " +
                        "font-src 'self' data:; " +

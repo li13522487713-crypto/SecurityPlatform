@@ -2380,3 +2380,114 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ----- Setup Console (M2) ----- */
+
+.atlas-info-banner--compact {
+  padding: 8px 12px;
+  margin: 12px 0;
+  text-align: center;
+  font-size: 13px;
+}
+
+.atlas-tab-bar {
+  display: flex;
+  gap: 4px;
+  padding: 0;
+  margin: 16px 0;
+  border-bottom: 1px solid #e5e6eb;
+}
+
+.atlas-tab {
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  font-size: 14px;
+  color: #4e5969;
+  text-decoration: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.atlas-tab:hover {
+  background: rgba(22, 119, 255, 0.06);
+  color: #1d39c4;
+}
+
+.atlas-tab.is-active {
+  background: rgba(22, 119, 255, 0.1);
+  border-color: #d6e4ff;
+  color: var(--atlas-primary);
+  font-weight: 600;
+}
+
+.atlas-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.atlas-table th,
+.atlas-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f2f3f5;
+  font-size: 13px;
+}
+
+.atlas-table th {
+  background: rgba(22, 119, 255, 0.04);
+  color: var(--atlas-text);
+  font-weight: 600;
+}
+
+.atlas-table tbody tr:hover {
+  background: rgba(22, 119, 255, 0.03);
+}
+
+.atlas-setup-panel.is-current {
+  border: 1px solid rgba(22, 119, 255, 0.32);
+  box-shadow: 0 6px 18px rgba(22, 119, 255, 0.08);
+}
+
+.atlas-setup-panel.is-locked {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+
+.atlas-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(22, 119, 255, 0.12);
+  color: var(--atlas-primary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.atlas-pill.is-info {
+  background: rgba(22, 119, 255, 0.1);
+  border-color: #d6e4ff;
+  color: #1d39c4;
+}
+
+.atlas-progress {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(22, 119, 255, 0.08);
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.atlas-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--atlas-primary), #5b8df9);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}

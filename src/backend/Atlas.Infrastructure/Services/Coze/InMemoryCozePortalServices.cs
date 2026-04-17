@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using Atlas.Application.Coze.Abstractions;
 using Atlas.Application.Coze.Models;
-using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
@@ -124,9 +122,9 @@ public sealed class InMemoryCommunityService : ICommunityService
 }
 
 /// <summary>
-/// 通用管理（PRD 02-7.12）。M5.5：
+/// 通用管理（PRD 02-7.12）。M5.5 + M6.1：
 /// - notices 读 PlatformContent Slot=platform-notice；空则 fallback
-/// - branding 仍用默认常量（一条记录，未来可改为 Slot=branding 的单条记录）
+/// - branding 读 PlatformContent Slot=branding 取第一条 IsActive 记录；空则 fallback
 /// </summary>
 public sealed class InMemoryPlatformGeneralService : IPlatformGeneralService
 {
@@ -164,9 +162,18 @@ public sealed class InMemoryPlatformGeneralService : IPlatformGeneralService
         return PlatformContentJson.MapRows(rows, DefaultNotices);
     }
 
-    public Task<PlatformBrandingDto> GetBrandingAsync(TenantId tenantId, CancellationToken cancellationToken)
+    public async Task<PlatformBrandingDto> GetBrandingAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        return Task.FromResult(DefaultBranding);
+        var rows = await _repository.ListBySlotAsync(
+            tenantId,
+            PlatformContentSlots.Branding,
+            onlyActive: true,
+            cancellationToken);
+        if (rows.Count == 0)
+        {
+            return DefaultBranding;
+        }
+        return PlatformContentJson.Deserialize<PlatformBrandingDto>(rows[0].ContentJson) ?? DefaultBranding;
     }
 }
 
@@ -230,101 +237,5 @@ public sealed class InMemoryMarketSummaryService : IMarketSummaryService
     }
 }
 
-public sealed class InMemoryMeSettingsService : IMeSettingsService
-{
-    private static readonly ConcurrentDictionary<string, MeGeneralSettingsDto> GeneralSettings = new();
-
-    private static readonly IReadOnlyList<MePublishChannelDto> DefaultChannels = new[]
-    {
-        new MePublishChannelDto("ch-wechat-personal", "微信个人", "wechat-personal", false),
-        new MePublishChannelDto("ch-feishu-personal", "飞书个人", "feishu-personal", false)
-    };
-
-    private static readonly IReadOnlyList<MeDataSourceDto> DefaultDataSources = new[]
-    {
-        new MeDataSourceDto("ds-qdrant", "默认 Qdrant", "qdrant", true),
-        new MeDataSourceDto("ds-minio", "默认 MinIO", "minio", true)
-    };
-
-    public Task<MeGeneralSettingsDto> GetGeneralAsync(
-        TenantId tenantId,
-        CurrentUserInfo currentUser,
-        CancellationToken cancellationToken)
-    {
-        var key = BuildKey(tenantId, currentUser);
-        var settings = GeneralSettings.GetOrAdd(key, _ => new MeGeneralSettingsDto("zh-CN", "light", null));
-        return Task.FromResult(settings);
-    }
-
-    public Task<MeGeneralSettingsDto> UpdateGeneralAsync(
-        TenantId tenantId,
-        CurrentUserInfo currentUser,
-        MeGeneralSettingsUpdateRequest request,
-        CancellationToken cancellationToken)
-    {
-        var key = BuildKey(tenantId, currentUser);
-        var updated = GeneralSettings.AddOrUpdate(
-            key,
-            _ => Apply(new MeGeneralSettingsDto("zh-CN", "light", null), request),
-            (_, existing) => Apply(existing, request));
-        return Task.FromResult(updated);
-    }
-
-    public Task<IReadOnlyList<MePublishChannelDto>> ListPublishChannelsAsync(
-        TenantId tenantId,
-        CurrentUserInfo currentUser,
-        CancellationToken cancellationToken)
-    {
-        return Task.FromResult(DefaultChannels);
-    }
-
-    public Task<IReadOnlyList<MeDataSourceDto>> ListDataSourcesAsync(
-        TenantId tenantId,
-        CurrentUserInfo currentUser,
-        CancellationToken cancellationToken)
-    {
-        return Task.FromResult(DefaultDataSources);
-    }
-
-    public Task DeleteAccountAsync(
-        TenantId tenantId,
-        CurrentUserInfo currentUser,
-        CancellationToken cancellationToken)
-    {
-        // 第一阶段不真正删除账号；仅清空个人偏好（占位接口）。
-        var key = BuildKey(tenantId, currentUser);
-        GeneralSettings.TryRemove(key, out _);
-        return Task.CompletedTask;
-    }
-
-    private static string BuildKey(TenantId tenantId, CurrentUserInfo currentUser)
-    {
-        return $"{tenantId.Value:N}:{currentUser.UserId}";
-    }
-
-    private static MeGeneralSettingsDto Apply(MeGeneralSettingsDto current, MeGeneralSettingsUpdateRequest patch)
-    {
-        return new MeGeneralSettingsDto(
-            Locale: NormalizeLocale(patch.Locale ?? current.Locale),
-            Theme: NormalizeTheme(patch.Theme ?? current.Theme),
-            DefaultWorkspaceId: patch.DefaultWorkspaceId ?? current.DefaultWorkspaceId);
-    }
-
-    private static string NormalizeLocale(string locale)
-    {
-        return locale switch
-        {
-            "zh-CN" or "en-US" => locale,
-            _ => "zh-CN"
-        };
-    }
-
-    private static string NormalizeTheme(string theme)
-    {
-        return theme switch
-        {
-            "light" or "dark" or "system" => theme,
-            _ => "light"
-        };
-    }
-}
+// Coze PRD Phase III - M6.3 后：InMemoryMeSettingsService 已被 PersistentMeSettingsService
+// 取代（基于 UserSetting 表，跨进程保留）。原 in-memory 实现已删除。

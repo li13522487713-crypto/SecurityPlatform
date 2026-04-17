@@ -5,7 +5,7 @@ using Atlas.Domain.LowCode.Enums;
 namespace Atlas.Domain.LowCode.Entities;
 
 /// <summary>
-/// 低代码页面定义（存储 amis JSON schema + 路由配置）
+/// 低代码页面定义（存储通用 JSON Schema + 路由配置；与具体渲染框架解耦）
 /// </summary>
 public sealed class LowCodePage : TenantEntity
 {
@@ -69,7 +69,7 @@ public sealed class LowCodePage : TenantEntity
     /// <summary>页面类型</summary>
     public LowCodePageType PageType { get; private set; }
 
-    /// <summary>amis JSON Schema</summary>
+    /// <summary>通用 JSON Schema（与渲染框架解耦）</summary>
     public string SchemaJson { get; private set; }
 
     /// <summary>路由路径（如 /app/crm/customer-list）</summary>

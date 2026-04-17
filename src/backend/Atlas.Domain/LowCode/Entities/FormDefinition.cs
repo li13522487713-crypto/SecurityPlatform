@@ -5,7 +5,7 @@ using Atlas.Domain.LowCode.Enums;
 namespace Atlas.Domain.LowCode.Entities;
 
 /// <summary>
-/// 表单定义（存储 amis JSON schema + 元数据，支持版本管理）
+/// 表单定义（存储通用 JSON Schema + 元数据，支持版本管理；与具体渲染框架解耦）
 /// </summary>
 public sealed class FormDefinition : TenantEntity
 {
@@ -51,7 +51,7 @@ public sealed class FormDefinition : TenantEntity
     /// <summary>分类（如：人事类、财务类、采购类）</summary>
     public string? Category { get; private set; }
 
-    /// <summary>amis JSON Schema</summary>
+    /// <summary>通用 JSON Schema（与渲染框架解耦）</summary>
     public string SchemaJson { get; private set; }
 
     /// <summary>版本号</summary>

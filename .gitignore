@@ -398,11 +398,6 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Local SQLite runtime data (must not be committed)
-src/backend/Atlas.WebApi/*.db
-src/backend/Atlas.WebApi/*.db-shm
-src/backend/Atlas.WebApi/*.db-wal
-src/backend/Atlas.WebApi/backups/*.db
-src/backend/Atlas.WebApi/backups/*.db.sha256
 src/backend/Atlas.PlatformHost/*.db
 src/backend/Atlas.PlatformHost/*.db-shm
 src/backend/Atlas.PlatformHost/*.db-wal

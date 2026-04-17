@@ -7,7 +7,7 @@ import type {
   AgentUpdateRequest
 } from "./api-agent";
 
-export type AiAssistantFunctionType = "form" | "sql" | "workflow";
+export type AiAssistantFunctionType = "sql" | "workflow";
 
 export interface AiAssistantGenerateResponse {
   result: string;
@@ -15,7 +15,6 @@ export interface AiAssistantGenerateResponse {
 }
 
 const endpointMap: Record<AiAssistantFunctionType, string> = {
-  form: "/api/v1/ai/generate-form",
   sql: "/api/v1/ai/generate-sql",
   workflow: "/api/v1/ai/suggest-workflow",
 };

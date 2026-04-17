@@ -43,7 +43,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="AmisSchemas\**\*.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="appsettings.json" CopyToOutputDirectory="Always" />
     <Content Include="appsettings.*.json" CopyToOutputDirectory="Always" />
   </ItemGroup>

@@ -628,7 +628,7 @@ export interface StudioModuleApi {
     workflowId: string,
     incident: string
   ) => Promise<{ execution: WorkflowExecutionSummary; trace?: WorkbenchTrace }>;
-  generateAssistant: (kind: "form" | "sql" | "workflow", description: string) => Promise<{ result: string; explanation: string } | null>;
+  generateAssistant: (kind: "sql" | "workflow", description: string) => Promise<{ result: string; explanation: string } | null>;
   listModelConfigs: () => Promise<PagedResult<ModelConfigItem>>;
   getModelConfig: (id: number) => Promise<ModelConfigItem>;
   getModelConfigStats: (keyword?: string) => Promise<ModelConfigStats>;

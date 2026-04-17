@@ -27,10 +27,10 @@ public sealed class TemplateSeedDataService
             {
                 Name = "客户录入表单",
                 Category = TemplateCategory.Form,
-                Description = "标准客户录入 AMIS 表单模板",
+                Description = "标准客户录入表单模板",
                 Tags = "crm,form,customer",
                 Version = "1.0.0",
-                SchemaJson = "{\"type\":\"form\",\"title\":\"客户录入\",\"body\":[{\"type\":\"input-text\",\"name\":\"name\",\"label\":\"客户名称\"},{\"type\":\"input-text\",\"name\":\"mobile\",\"label\":\"手机号\"}]}"
+                SchemaJson = "{\"schemaVersion\":1,\"kind\":\"form\",\"title\":\"客户录入\",\"fields\":[{\"key\":\"name\",\"label\":\"客户名称\",\"control\":\"text\"},{\"key\":\"mobile\",\"label\":\"手机号\",\"control\":\"text\"}]}"
             },
             new
             {
@@ -48,7 +48,7 @@ public sealed class TemplateSeedDataService
                 Description = "通用列表查询页面模板",
                 Tags = "list,page,table",
                 Version = "1.0.0",
-                SchemaJson = "{\"type\":\"page\",\"title\":\"数据列表\",\"body\":[{\"type\":\"crud\",\"api\":\"/api/v1/dynamic-tables/sample/records/query\"}]}"
+                SchemaJson = "{\"schemaVersion\":1,\"kind\":\"page\",\"title\":\"数据列表\",\"layout\":{\"kind\":\"dataTable\",\"queryEndpoint\":\"/api/v1/dynamic-tables/sample/records/query\"}}"
             }
         };
 

@@ -19,7 +19,7 @@ const strict = hasFlag("--strict");
 const allowAutoFill = hasFlag("--allow-auto-fill");
 const includeUnused = hasFlag("--include-unused");
 
-const supportedTargets = new Set(["app-web", "platform-web"]);
+const supportedTargets = new Set(["app-web"]);
 if (!supportedTargets.has(target)) {
   console.error(`[i18n-audit] 无效 target: ${target}`);
   process.exit(2);
@@ -27,28 +27,18 @@ if (!supportedTargets.has(target)) {
 
 const repoRoot = path.resolve(process.cwd(), "..");
 const appSrc = path.join(repoRoot, "frontend", "apps", target, "src");
-const sharedUiSrc = path.join(repoRoot, "frontend", "packages", "shared-ui", "src");
-const localeZhPath = target === "app-web"
-  ? path.join(appSrc, "app", "messages.ts")
-  : path.join(appSrc, "i18n", "zh-CN.ts");
-const localeEnPath = target === "app-web"
-  ? path.join(appSrc, "app", "messages.ts")
-  : path.join(appSrc, "i18n", "en-US.ts");
+const localeZhPath = path.join(appSrc, "app", "messages.ts");
+const localeEnPath = path.join(appSrc, "app", "messages.ts");
 
 function loadLocaleObject(filePath, locale) {
   const raw = fs.readFileSync(filePath, "utf8");
-  const transformed =
-    target === "app-web"
-      ? `${raw
-          .replace(/^\s*import\s+.*$/gm, "")
-          .replace(/^\s*export\s+type\s+.*$/gm, "")
-          .replace(/:\s*typeof\s+\w+\s*=/g, " =")
-          .replace(/\s+as\s+const/g, "")
-          .replace(/^\s*const\s+/gm, "const ")
-          .replace(/export\s+const\s+APP_MESSAGES\s*=\s*/, "module.exports = ")}\nmodule.exports = module.exports["${locale}"];`
-      : raw
-          .replace(/^\s*import\s+.*$/gm, "")
-          .replace(/^\s*export\s+default\s+/, "module.exports = ");
+  const transformed = `${raw
+    .replace(/^\s*import\s+.*$/gm, "")
+    .replace(/^\s*export\s+type\s+.*$/gm, "")
+    .replace(/:\s*typeof\s+\w+\s*=/g, " =")
+    .replace(/\s+as\s+const/g, "")
+    .replace(/^\s*const\s+/gm, "const ")
+    .replace(/export\s+const\s+APP_MESSAGES\s*=\s*/, "module.exports = ")}\nmodule.exports = module.exports["${locale}"];`;
   const sandbox = { module: { exports: {} }, exports: {} };
   vm.runInNewContext(transformed, sandbox, { filename: filePath });
   return sandbox.module.exports;
@@ -76,7 +66,7 @@ function walkSourceFiles(dirPath, output = []) {
       walkSourceFiles(absolutePath, output);
       continue;
     }
-    if (!/\.(vue|ts|tsx)$/.test(entry.name)) continue;
+    if (!/\.(ts|tsx)$/.test(entry.name)) continue;
     output.push(absolutePath);
   }
   return output;
@@ -124,9 +114,7 @@ const localeEn = loadLocaleObject(localeEnPath, "en-US");
 const localeZhKeys = flattenKeys(localeZh);
 const localeEnKeys = flattenKeys(localeEn);
 
-const files = target === "app-web"
-  ? walkSourceFiles(appSrc)
-  : [...walkSourceFiles(appSrc), ...walkSourceFiles(sharedUiSrc)];
+const files = walkSourceFiles(appSrc);
 const usedKeys = extractUsedI18nKeys(files);
 
 const missingZh = [];
