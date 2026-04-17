@@ -255,7 +255,9 @@ public static class AtlasOrmSchemaCatalog
         typeof(LowCodeSession),
         typeof(LowCodeMessageLogEntry),
         typeof(LowCodeTrigger),
-        typeof(LowCodeWebviewDomain)
+        typeof(LowCodeWebviewDomain),
+        typeof(RuntimeTrace),
+        typeof(RuntimeSpan)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =

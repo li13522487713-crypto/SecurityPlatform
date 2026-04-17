@@ -1,0 +1,63 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### dispatch：set_variable + show_toast 组合
+# @name dispatch
+POST {{baseUrl}}/api/runtime/events/dispatch
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "appId": "demo-app",
+  "pageId": "home",
+  "componentId": "btn-1",
+  "eventName": "onClick",
+  "actions": [
+    { "kind": "set_variable", "payload": { "targetPath": "page.counter", "scopeRoot": "page", "value": 1 } },
+    { "kind": "show_toast", "payload": { "text": "已增加", "toastType": "success" } }
+  ]
+}
+
+###
+@traceId = {{dispatch.response.body.$.data.traceId}}
+
+### dispatch + call_workflow（委托 RuntimeWorkflowExecutor）
+POST {{baseUrl}}/api/runtime/events/dispatch
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "appId": "demo-app",
+  "actions": [
+    { "kind": "call_workflow", "payload": { "workflowId": "1234567890", "inputs": { "k": "v" } } }
+  ]
+}
+
+### Trace 6 维检索：按 traceId
+GET {{baseUrl}}/api/runtime/traces/{{traceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Trace 6 维检索：按时间范围 + 错误类型
+GET {{baseUrl}}/api/runtime/traces?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&errorType=workflow_error
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Trace 6 维检索：按 page + component
+GET {{baseUrl}}/api/runtime/traces?appId=demo-app&page=home&component=btn-1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

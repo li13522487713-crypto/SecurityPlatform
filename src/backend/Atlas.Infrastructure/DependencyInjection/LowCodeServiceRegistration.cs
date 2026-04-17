@@ -60,6 +60,12 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IRuntimeTriggerService, RuntimeTriggerService>();
         services.AddScoped<IRuntimeWebviewDomainService, RuntimeWebviewDomainService>();
 
+        // M13 dispatch + trace + 脱敏
+        services.AddSingleton<ISensitiveMaskingService, SensitiveMaskingService>();
+        services.AddScoped<IRuntimeTraceRepository, RuntimeTraceRepository>();
+        services.AddScoped<IRuntimeTraceService, RuntimeTraceService>();
+        services.AddScoped<IDispatchExecutor, DispatchExecutor>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {

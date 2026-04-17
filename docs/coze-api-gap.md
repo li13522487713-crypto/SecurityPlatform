@@ -46,7 +46,7 @@
 | `UpdateProjectConversationDef` | POST `/project_conversation/update` | Fallback | 同上。 |
 | `DeleteProjectConversationDef` | POST `/project_conversation/delete` | Fallback | 同上。 |
 | `ListProjectConversationDef` | GET `/project_conversation/list` | Fallback | 同上。 |
-| `ListRootSpans` | POST `/list_spans` | Fallback → 待 M13 改为 OK | M11 引入 `LowCodeMessageLogEntry` 与 `RuntimeMessageLogService` 后，M13 dispatch + RuntimeTraceService 落地时把本端点替换为完整链路（按 traceId 聚合 chatflow + workflow + agent + tool）。 |
+| `ListRootSpans` | POST `/list_spans` | **OK-via-runtime** | M13 已落地：`/api/runtime/traces` + `/api/runtime/traces/{traceId}` 提供完整 spans 树（基于 `RuntimeTrace`/`RuntimeSpan` 持久化），按 traceId / appId / page / component / 时间 / errorType / userId 6 维查询；`buildSpanTree` 客户端工具构造时间线视图。Coze 兼容层 `/list_spans` 转交给 `IRuntimeTraceService`，前端可同时通过两套路径访问。 |
 | `GetTraceSDK` | POST `/get_trace` | OK（M1 改造）| 含根 span + `extra.{input,output,variables}` 三段。 |
 | `GetWorkflowDetail` | POST `/workflow_detail` | OK | 多 ID 批量查询。 |
 | `GetWorkflowDetailInfo` | POST `/workflow_detail_info` | OK | 单 ID 详情。 |
@@ -69,7 +69,7 @@
 | `OpenAPIStreamRunFlow` | POST `/v1/workflow/stream_run` | Fallback | 同上。 |
 | `OpenAPIStreamResumeFlow` | POST `/v1/workflow/stream_resume` | Fallback | 同上。 |
 | `OpenAPIGetWorkflowRunHistory` | GET `/v1/workflow/get_run_history` | Fallback | M5 实现。 |
-| `OpenAPIChatFlowRun` | POST `/v1/workflows/chat` | Fallback | M5 实现。 |
+| `OpenAPIChatFlowRun` | POST `/v1/workflows/chat` | **OK-via-runtime** | M11 已落地 `/api/runtime/chatflows/{id}:invoke`（SSE 4 类事件 + 中断/恢复/插入 + 多会话）。Coze 兼容层端点保留为壳层；真实 LLM 流式接入由 IDagWorkflowExecutionService.StreamRunAsync 在后续模型对接里完整化。 |
 | `OpenAPIGetWorkflowInfo` | GET `/v1/workflows/{id}` | Fallback | M5 实现。 |
 | `OpenAPICreateConversation` | POST `/v1/workflow/conversation/create` | Fallback | M3 ChatFlow 一并完成。 |
 
