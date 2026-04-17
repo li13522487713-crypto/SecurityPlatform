@@ -2,16 +2,26 @@
   "name": "@atlas/lowcode-schema",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码 Schema 协议层（M01）。",
+  "description": "Atlas 低代码 Schema 协议层（M01）—— 17 类完整类型 + zod 校验 + 类型守卫 + Schema 升级器 + shared-types 子模块。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./shared": "./src/shared/index.ts",
+    "./zod": "./src/zod/index.ts",
+    "./guards": "./src/guards/index.ts",
+    "./migrate": "./src/migrate/index.ts"
   },
   "scripts": {
-    "lint": "echo '@atlas/lowcode-schema: no lint configured yet'",
+    "lint": "echo '@atlas/lowcode-schema: lint via root pipeline'",
     "build": "echo '@atlas/lowcode-schema: source-only package, no build step'",
-    "test": "echo '@atlas/lowcode-schema: no tests yet'"
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
   }
 }

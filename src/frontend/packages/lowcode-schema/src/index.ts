@@ -1,5 +1,23 @@
-// @atlas/lowcode-schema — 由 M00 预创建的空骨架。
-// 真实导出由对应里程碑（见 PLAN.md）逐步填充。
-// 当前导出此占位常量以避免 ts isolatedModules 报"空模块"错误。
+/**
+ * @atlas/lowcode-schema — 入口（M01）。
+ *
+ * 17 类完整类型 + zod 校验 + guards + migrate + shared-types 子模块。
+ * 详见 PLAN.md §M01 与 docs/lowcode-runtime-spec.md。
+ */
 
-export const __ATLAS_LOWCODE_PACKAGE__ = "@atlas/lowcode-schema";
+export * as Shared from './shared';
+export * from './shared/enums';
+export type {
+  JsonValue,
+  JsonObject,
+  JsonArray,
+  JsonPrimitive
+} from './shared/json';
+
+export * from './types';
+export * from './zod';
+export * from './guards';
+export * from './migrate';
+
+/** 标记常量（与 M00 骨架兼容，防止 isolatedModules 空模块错误。已迁移到正式 src/index.ts）。*/
+export const __ATLAS_LOWCODE_PACKAGE__ = '@atlas/lowcode-schema' as const;
