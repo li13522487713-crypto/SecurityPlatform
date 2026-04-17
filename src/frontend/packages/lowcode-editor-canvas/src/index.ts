@@ -1,5 +1,14 @@
-// @atlas/lowcode-editor-canvas — 由 M00 预创建的空骨架。
-// 真实导出由对应里程碑（见 PLAN.md）逐步填充。
-// 当前导出此占位常量以避免 ts isolatedModules 报"空模块"错误。
+/**
+ * @atlas/lowcode-editor-canvas — 入口（M04）。
+ */
 
-export const __ATLAS_LOWCODE_PACKAGE__ = "@atlas/lowcode-editor-canvas";
+export * from './history';
+export * from './clipboard';
+export * from './keymap';
+export * from './zoom';
+export * from './select';
+export * from './guides';
+export * from './layout';
+export * from './dnd';
+
+export const __ATLAS_LOWCODE_PACKAGE__ = '@atlas/lowcode-editor-canvas' as const;

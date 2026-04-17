@@ -29,6 +29,7 @@ public static class LowCodeServiceRegistration
         // Services
         services.AddScoped<IAppDefinitionQueryService, AppDefinitionQueryService>();
         services.AddScoped<IAppDefinitionCommandService, AppDefinitionCommandService>();
+        services.AddScoped<IAppDraftLockService, AppDraftLockService>();
 
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
