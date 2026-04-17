@@ -1,5 +1,5 @@
 import { expect, test } from "../fixtures/single-session";
-import { appBaseUrl, ensureAppSetup } from "./helpers";
+import { appBaseUrl, ensureAppSetup, navigateBySidebar } from "./helpers";
 
 const appId = "e2e-builder-app";
 
@@ -149,13 +149,106 @@ test.describe.serial("App Builder", () => {
       });
     };
 
+    const workspaceResourcesRoute = /\/api\/v1\/workspace-ide\/resources(?:\?.*)?$/;
+    const workspaceResourcesHandler = async (route: import("@playwright/test").Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          apiOk({
+            items: [
+              {
+                resourceType: "app",
+                resourceId: appId,
+                name: "E2E 预警处置应用",
+                description: "用于校验 App Builder 主流程。",
+                icon: null,
+                status: "Draft",
+                publishStatus: "draft",
+                updatedAt: "2026-04-14T09:10:00Z",
+                isFavorite: false,
+                lastEditedAt: "2026-04-14T09:10:00Z",
+                entryRoute: `/apps/${encodeURIComponent(appKey)}/studio/apps/${encodeURIComponent(appId)}`,
+                badge: null,
+                linkedWorkflowId: "wf-builder-001"
+              }
+            ],
+            total: 1,
+            pageIndex: 1,
+            pageSize: 120
+          })
+        )
+      });
+    };
+    const agentsRoute = /\/api\/v1\/ai-agents(?:\?.*)?$/;
+    const agentsHandler = async (route: import("@playwright/test").Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(apiOk({ items: [], total: 0, pageIndex: 1, pageSize: 20 }))
+      });
+    };
+    const modelConfigsListRoute = /\/api\/v1\/model-configs(?:\?.*)?$/;
+    const modelConfigsListHandler = async (route: import("@playwright/test").Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(apiOk({ items: [], total: 0, pageIndex: 1, pageSize: 50 }))
+      });
+    };
+    const workspaceOverviewRoute = /\/api\/v1\/workspace-ide\/overview(?:\?.*)?$/;
+    const workspaceOverviewHandler = async (route: import("@playwright/test").Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(apiOk({
+          appId: appKey,
+          memberCount: 1,
+          roleCount: 1,
+          departmentCount: 0,
+          positionCount: 0,
+          projectCount: 1,
+          uncoveredMemberCount: 0,
+          applications: []
+        }))
+      });
+    };
+    const workspaceSummaryRoute = /\/api\/v1\/workspace-ide\/summary(?:\?.*)?$/;
+    const workspaceSummaryHandler = async (route: import("@playwright/test").Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(apiOk({
+          appCount: 1,
+          agentCount: 0,
+          workflowCount: 1,
+          chatflowCount: 0,
+          pluginCount: 0,
+          knowledgeBaseCount: 0,
+          databaseCount: 0,
+          favoriteCount: 0,
+          recentCount: 0
+        }))
+      });
+    };
+
     await page.route(appDetailRoute, appDetailHandler);
     await page.route(builderConfigRoute, builderConfigHandler);
     await page.route(workflowsRoute, workflowsHandler);
     await page.route(previewRunRoute, previewRunHandler);
+    await page.route(workspaceResourcesRoute, workspaceResourcesHandler);
+    await page.route(agentsRoute, agentsHandler);
+    await page.route(modelConfigsListRoute, modelConfigsListHandler);
+    await page.route(workspaceOverviewRoute, workspaceOverviewHandler);
+    await page.route(workspaceSummaryRoute, workspaceSummaryHandler);
 
     try {
-      await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/studio/apps/${encodeURIComponent(appId)}`);
+      await navigateBySidebar(page, "develop", { pageTestId: "app-develop-page" });
+
+      await expect(page.getByTestId("app-develop-projects-grid")).toBeVisible({ timeout: 30_000 });
+      const appCard = page.getByTestId("app-develop-projects-grid").locator("article").filter({ hasText: "E2E 预警处置应用" }).first();
+      await expect(appCard).toBeVisible({ timeout: 15_000 });
+      await appCard.getByRole("button", { name: "详情页" }).click();
 
       await expect(page.getByTestId("app-studio-app-detail-page")).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText("应用构建器")).toBeVisible();
@@ -198,6 +291,11 @@ test.describe.serial("App Builder", () => {
       await page.unroute(builderConfigRoute, builderConfigHandler);
       await page.unroute(workflowsRoute, workflowsHandler);
       await page.unroute(previewRunRoute, previewRunHandler);
+      await page.unroute(workspaceResourcesRoute, workspaceResourcesHandler);
+      await page.unroute(agentsRoute, agentsHandler);
+      await page.unroute(modelConfigsListRoute, modelConfigsListHandler);
+      await page.unroute(workspaceOverviewRoute, workspaceOverviewHandler);
+      await page.unroute(workspaceSummaryRoute, workspaceSummaryHandler);
     }
   });
 });

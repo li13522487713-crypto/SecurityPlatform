@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+﻿import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import { signPath } from "@atlas/app-shell-shared";
 import {
   clamp,
@@ -49,7 +49,7 @@ async function ensureWorkflowListReady(
         await ensureLoggedInSession(appKey);
       }
       if (attempt === 2) {
-        throw new Error(`工作流列表页未稳定进入可操作状态，当前 URL: ${page.url()}`);
+        throw new Error(`宸ヤ綔娴佸垪琛ㄩ〉鏈ǔ瀹氳繘鍏ュ彲鎿嶄綔鐘舵€侊紝褰撳墠 URL: ${page.url()}`);
       }
     }
   }
@@ -88,7 +88,7 @@ export async function hoverCanvasAt(page: Page, offset: { x: number; y: number }
   const box = await canvas.boundingBox();
   expect(box).toBeTruthy();
   if (!box) {
-    throw new Error("工作流画布未能获取定位区域。");
+    throw new Error("Workflow canvas bounds are unavailable.");
   }
 
   const target = {
@@ -129,7 +129,7 @@ export async function dragNodeCatalogItemToCanvas(
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).toBeTruthy();
   if (!canvasBox) {
-    throw new Error("工作流画布不可用，无法执行拖拽。");
+    throw new Error("Workflow canvas is unavailable for drag action.");
   }
 
   const target = {
@@ -175,48 +175,60 @@ export async function loginToWorkflowList(
 }
 
 export async function createWorkflowAndOpenEditor(page: Page, appKey: string): Promise<string> {
-  const currentUrl = new URL(page.url());
-  currentUrl.searchParams.set("create", "1");
-  await page.goto(currentUrl.toString());
+  await ensureWorkflowListReady(page, appKey);
+  await expect(page.getByTestId("app-develop-page")).toBeVisible({ timeout: 30_000 });
+
+  const createResponsePromise = page.waitForResponse((response) => {
+    if (response.request().method() !== "POST") {
+      return false;
+    }
+
+    return /\/api\/v2\/workflows(?:\?.*)?$/.test(response.url()) || /\/api\/workflow_api\/create(?:\?.*)?$/.test(response.url());
+  }, { timeout: 30_000 });
+
+  await page.getByTestId("app-develop-create-menu").click();
+  const createWorkflowAction = page.locator(".module-studio__coze-menu-item").filter({ hasText: "新建工作流" }).first();
+  await expect(createWorkflowAction).toBeVisible({ timeout: 30_000 });
+  await createWorkflowAction.click();
+
   const dialog = page.locator(".semi-modal-content").last();
   const dialogVisible = await dialog.isVisible().catch(() => false);
-  if (!dialogVisible) {
-    const createButtonCandidates: Locator[] = [
-      page.getByRole("button", { name: /workspace_create|create workflow|new workflow|新建工作流/i }),
-      page.locator("button:has-text('workspace_create')"),
-      page.locator("button:has-text('Create Workflow')"),
-      page.locator("button:has-text('新建工作流')")
-    ];
-
-    for (const candidate of createButtonCandidates) {
-      if (await candidate.first().isVisible().catch(() => false)) {
-        await candidate.first().click();
-        break;
-      }
+  if (dialogVisible) {
+    const nameInput = dialog.getByRole("textbox").first();
+    const nameInputVisible = await nameInput.isVisible().catch(() => false);
+    if (nameInputVisible) {
+      await nameInput.fill(uniqueName("E2EWorkflow"));
+      await clickCrudSubmit(page);
     }
   }
 
-  await expect(dialog).toBeVisible({ timeout: 15_000 });
-  const nameInput = dialog.getByRole("textbox").first();
-  await expect(nameInput).toBeVisible({ timeout: 10_000 });
-  await nameInput.fill(uniqueName("E2EWorkflow"));
-  const createResponsePromise = page.waitForResponse((response) => {
-    return response.request().method() === "POST" && /\/api\/v2\/workflows$/.test(response.url());
-  });
-  await clickCrudSubmit(page);
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
 
-  const createPayload = (await createResponse.json()) as { data?: { id?: string } | string };
+  const createPayload = (await createResponse.json()) as {
+    data?: { id?: string | number; Id?: string | number; workflow_id?: string | number } | string | number;
+    workflow_id?: string | number;
+  };
   const createdWorkflowId =
-    typeof createPayload.data === "string"
-      ? createPayload.data
-      : (createPayload.data?.id ?? "");
+    typeof createPayload.data === "string" || typeof createPayload.data === "number"
+      ? String(createPayload.data)
+      : String(createPayload.data?.id ?? createPayload.data?.Id ?? createPayload.data?.workflow_id ?? createPayload.workflow_id ?? "");
   expect(createdWorkflowId).not.toBe("");
 
-  await page.waitForURL(new RegExp(`/org/[^/]+/workspaces/[^/]+/workflows/[^/?]+(?:\\?.*)?$`), {
-    timeout: 30_000
-  });
+  const currentUrl = new URL(page.url());
+  const editorSearch = new URLSearchParams(currentUrl.search);
+  editorSearch.delete("create");
+  editorSearch.set("workflow_id", createdWorkflowId);
+  const editorUrl = `${currentUrl.origin}${currentUrl.pathname}?${editorSearch.toString()}`;
+  await page.goto(editorUrl);
+  await page.waitForURL((url) => {
+    const hasWorkflowQuery = url.searchParams.get("workflow_id") === createdWorkflowId;
+    const hasWorkflowPath = url.pathname.endsWith(`/workflows/${encodeURIComponent(createdWorkflowId)}`);
+    return url.pathname.includes("/workflows") && (hasWorkflowQuery || hasWorkflowPath);
+  }, { timeout: 30_000 });
+
+  const editorPage = page.getByTestId("app-workflow-editor-page");
+  await expect(editorPage).toBeVisible({ timeout: 30_000 });
   await expectWorkflowEditorReady(page);
   return createdWorkflowId;
 }
@@ -257,3 +269,4 @@ export async function openWorkflowEditor(page: Page, appKey: string, workflowId:
   });
   await expectWorkflowEditorReady(page);
 }
+

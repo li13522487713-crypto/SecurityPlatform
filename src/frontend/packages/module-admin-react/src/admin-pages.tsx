@@ -916,9 +916,42 @@ export function VisualizationAdminPage({ api }: AdminPageCommonProps) {
   );
 }
 
+const settingsCopy: Record<AdminLocale, {
+  title: string;
+  subtitle: string;
+  databaseTab: string;
+  testConnection: string;
+  backupNow: string;
+  fileColumn: string;
+  createdColumn: string;
+  noData: string;
+}> = {
+  "zh-CN": {
+    title: "系统设置",
+    subtitle: "数据库运维与基础设置",
+    databaseTab: "数据库运维",
+    testConnection: "测试连接",
+    backupNow: "立即备份",
+    fileColumn: "文件名",
+    createdColumn: "创建时间",
+    noData: "暂无数据"
+  },
+  "en-US": {
+    title: "Settings",
+    subtitle: "Database operations and general settings",
+    databaseTab: "Database",
+    testConnection: "Test Connection",
+    backupNow: "Backup Now",
+    fileColumn: "File",
+    createdColumn: "Created",
+    noData: "No data"
+  }
+};
+
 export function SettingsAdminPage({ api, locale }: AdminPageCommonProps) {
   const [connectionResult, setConnectionResult] = useState<string>("");
   const [backups, setBackups] = useState<Array<{ fileName: string; sizeBytes: number; createdAt: string }>>([]);
+  const sc = settingsCopy[locale];
 
   const load = async () => {
     const result = await api.listBackups();
@@ -930,32 +963,104 @@ export function SettingsAdminPage({ api, locale }: AdminPageCommonProps) {
   }, []);
 
   return (
-    <PageShell title="Settings" subtitle="数据库运维与基础设置" testId="app-settings-page">
+    <PageShell title={sc.title} subtitle={sc.subtitle} testId="app-settings-page">
       <div className="module-admin__tabs">
-        <Button theme="solid">{locale === "zh-CN" ? "数据库运维" : "Database"}</Button>
+        <Button theme="solid">{sc.databaseTab}</Button>
       </div>
       <div className="module-admin__stack" data-testid="app-settings-db-tab">
         <div className="module-admin__actions">
-          <Button {...({ ["data-testid"]: "app-settings-db-test-connection" })} onClick={() => void api.testConnection().then(result => setConnectionResult(result.message))}>{locale === "zh-CN" ? "测试连接" : "Test Connection"}</Button>
-          <Button {...({ ["data-testid"]: "app-settings-db-backup-now" })} onClick={() => void api.backupNow().then(load)}>{locale === "zh-CN" ? "立即备份" : "Backup Now"}</Button>
+          <Button {...({ ["data-testid"]: "app-settings-db-test-connection" })} onClick={() => void api.testConnection().then(result => setConnectionResult(result.message))}>{sc.testConnection}</Button>
+          <Button {...({ ["data-testid"]: "app-settings-db-backup-now" })} onClick={() => void api.backupNow().then(load)}>{sc.backupNow}</Button>
         </div>
         {connectionResult ? <Banner data-testid="app-settings-db-connection-result" description={connectionResult} /> : null}
-        <DataTable testId="app-settings-db-backup-table" emptyText="No data" items={backups} columns={[
-          { key: "fileName", title: "File", render: item => item.fileName },
-          { key: "createdAt", title: "Created", render: item => item.createdAt }
+        <DataTable testId="app-settings-db-backup-table" emptyText={sc.noData} items={backups} columns={[
+          { key: "fileName", title: sc.fileColumn, render: item => item.fileName },
+          { key: "createdAt", title: sc.createdColumn, render: item => item.createdAt }
         ]} />
       </div>
     </PageShell>
   );
 }
 
-export function ProfileAdminPage({ api }: AdminPageCommonProps) {
+const profileCopy: Record<AdminLocale, {
+  title: string;
+  subtitle: string;
+  displayNameLabel: string;
+  displayNamePlaceholder: string;
+  emailLabel: string;
+  emailPlaceholder: string;
+  phoneLabel: string;
+  phonePlaceholder: string;
+  save: string;
+  saveSuccess: string;
+  saveFailed: string;
+  changePasswordSection: string;
+  currentPassword: string;
+  currentPasswordPlaceholder: string;
+  newPassword: string;
+  newPasswordPlaceholder: string;
+  confirmPassword: string;
+  confirmPasswordPlaceholder: string;
+  changePassword: string;
+  changePasswordSuccess: string;
+  changePasswordFailed: string;
+}> = {
+  "zh-CN": {
+    title: "个人中心",
+    subtitle: "查看和编辑当前账号资料。",
+    displayNameLabel: "显示名称",
+    displayNamePlaceholder: "请输入显示名称",
+    emailLabel: "邮箱",
+    emailPlaceholder: "请输入邮箱地址",
+    phoneLabel: "手机号",
+    phonePlaceholder: "请输入手机号",
+    save: "保存",
+    saveSuccess: "资料已保存。",
+    saveFailed: "保存失败，请重试。",
+    changePasswordSection: "修改密码",
+    currentPassword: "当前密码",
+    currentPasswordPlaceholder: "请输入当前密码",
+    newPassword: "新密码",
+    newPasswordPlaceholder: "请输入新密码（至少8位，含大小写字母、数字、特殊字符）",
+    confirmPassword: "确认新密码",
+    confirmPasswordPlaceholder: "请再次输入新密码",
+    changePassword: "修改密码",
+    changePasswordSuccess: "密码已修改成功。",
+    changePasswordFailed: "密码修改失败，请检查当前密码是否正确。"
+  },
+  "en-US": {
+    title: "Profile",
+    subtitle: "View and edit the current account profile.",
+    displayNameLabel: "Display Name",
+    displayNamePlaceholder: "Enter your display name",
+    emailLabel: "Email",
+    emailPlaceholder: "Enter your email address",
+    phoneLabel: "Phone Number",
+    phonePlaceholder: "Enter your phone number",
+    save: "Save",
+    saveSuccess: "Profile saved.",
+    saveFailed: "Failed to save profile. Please try again.",
+    changePasswordSection: "Change Password",
+    currentPassword: "Current Password",
+    currentPasswordPlaceholder: "Enter current password",
+    newPassword: "New Password",
+    newPasswordPlaceholder: "Enter new password (min. 8 chars, upper/lowercase, digit, special char)",
+    confirmPassword: "Confirm New Password",
+    confirmPasswordPlaceholder: "Re-enter your new password",
+    changePassword: "Change Password",
+    changePasswordSuccess: "Password changed successfully.",
+    changePasswordFailed: "Failed to change password. Please check your current password."
+  }
+};
+
+export function ProfileAdminPage({ api, locale }: AdminPageCommonProps) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const pc = profileCopy[locale];
 
   useEffect(() => {
     void api.getProfile().then(profile => {
@@ -965,17 +1070,55 @@ export function ProfileAdminPage({ api }: AdminPageCommonProps) {
     });
   }, [api]);
 
+  const handleSave = () => {
+    void api.updateProfile({ displayName, email: email || undefined, phoneNumber: phoneNumber || undefined })
+      .then(() => Toast.success(pc.saveSuccess))
+      .catch(() => Toast.error(pc.saveFailed));
+  };
+
+  const handleChangePassword = () => {
+    void api.changePassword({ currentPassword, newPassword, confirmPassword })
+      .then(() => {
+        Toast.success(pc.changePasswordSuccess);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      })
+      .catch(() => Toast.error(pc.changePasswordFailed));
+  };
+
   return (
-    <PageShell title="Profile" subtitle="当前登录人资料" testId="app-profile-page">
+    <PageShell title={pc.title} subtitle={pc.subtitle} testId="app-profile-page">
       <div className="module-admin__stack">
-        <Input value={displayName} onChange={setDisplayName} />
-        <Input value={email} onChange={setEmail} />
-        <Input value={phoneNumber} onChange={setPhoneNumber} />
-        <Button onClick={() => void api.updateProfile({ displayName, email: email || undefined, phoneNumber: phoneNumber || undefined })}>Save</Button>
-        <Input value={currentPassword} onChange={setCurrentPassword} />
-        <Input value={newPassword} onChange={setNewPassword} />
-        <Input value={confirmPassword} onChange={setConfirmPassword} />
-        <Button onClick={() => void api.changePassword({ currentPassword, newPassword, confirmPassword })}>Change Password</Button>
+        <div className="module-admin__field">
+          <label className="module-admin__label">{pc.displayNameLabel}</label>
+          <Input value={displayName} onChange={setDisplayName} placeholder={pc.displayNamePlaceholder} />
+        </div>
+        <div className="module-admin__field">
+          <label className="module-admin__label">{pc.emailLabel}</label>
+          <Input value={email} onChange={setEmail} placeholder={pc.emailPlaceholder} />
+        </div>
+        <div className="module-admin__field">
+          <label className="module-admin__label">{pc.phoneLabel}</label>
+          <Input value={phoneNumber} onChange={setPhoneNumber} placeholder={pc.phonePlaceholder} />
+        </div>
+        <Button theme="solid" onClick={handleSave}>{pc.save}</Button>
+      </div>
+      <div className="module-admin__stack module-admin__stack--section">
+        <Typography.Title heading={5} style={{ margin: "16px 0 8px" }}>{pc.changePasswordSection}</Typography.Title>
+        <div className="module-admin__field">
+          <label className="module-admin__label">{pc.currentPassword}</label>
+          <Input mode="password" value={currentPassword} onChange={setCurrentPassword} placeholder={pc.currentPasswordPlaceholder} />
+        </div>
+        <div className="module-admin__field">
+          <label className="module-admin__label">{pc.newPassword}</label>
+          <Input mode="password" value={newPassword} onChange={setNewPassword} placeholder={pc.newPasswordPlaceholder} />
+        </div>
+        <div className="module-admin__field">
+          <label className="module-admin__label">{pc.confirmPassword}</label>
+          <Input mode="password" value={confirmPassword} onChange={setConfirmPassword} placeholder={pc.confirmPasswordPlaceholder} />
+        </div>
+        <Button onClick={handleChangePassword}>{pc.changePassword}</Button>
       </div>
     </PageShell>
   );

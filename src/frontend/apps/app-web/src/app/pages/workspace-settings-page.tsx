@@ -42,19 +42,6 @@ interface WorkspaceSettingsPageProps {
   onSavePermissions: (items: Array<{ roleCode: string; actions: string[] }>) => Promise<void>;
 }
 
-const roleOptions = [
-  { label: "Owner", value: "Owner" },
-  { label: "Admin", value: "Admin" },
-  { label: "Member", value: "Member" }
-];
-
-const actionOptions = [
-  { label: "view", value: "view" },
-  { label: "edit", value: "edit" },
-  { label: "publish", value: "publish" },
-  { label: "delete", value: "delete" },
-  { label: "manage-permission", value: "manage-permission" }
-];
 
 export function WorkspaceSettingsPage({
   activeTab,
@@ -82,6 +69,18 @@ export function WorkspaceSettingsPage({
   onSavePermissions
 }: WorkspaceSettingsPageProps) {
   const { t } = useAppI18n();
+  const roleOptions = useMemo(() => [
+    { label: t("workspaceSettingsRoleOwner"), value: "Owner" },
+    { label: t("workspaceSettingsRoleAdmin"), value: "Admin" },
+    { label: t("workspaceSettingsRoleMember"), value: "Member" }
+  ], [t]);
+  const actionOptions = useMemo(() => [
+    { label: t("workspaceSettingsPermView"), value: "view" },
+    { label: t("workspaceSettingsPermEdit"), value: "edit" },
+    { label: t("workspaceSettingsPermPublish"), value: "publish" },
+    { label: t("workspaceSettingsPermDelete"), value: "delete" },
+    { label: t("workspaceSettingsPermManagePermission"), value: "manage-permission" }
+  ], [t]);
   const [memberSearchKeyword, setMemberSearchKeyword] = useState("");
   const [memberUserId, setMemberUserId] = useState("");
   const [memberRoleCode, setMemberRoleCode] = useState("Member");

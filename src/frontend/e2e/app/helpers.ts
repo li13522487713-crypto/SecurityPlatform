@@ -354,6 +354,60 @@ export async function resolveCanonicalAppKey(request: APIRequestContext): Promis
   return String(process.env.PLAYWRIGHT_APP_KEY ?? "dev-app");
 }
 
+async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> {
+  const loginPaths = Array.from(new Set([appSignPath(appKey), signPath()]));
+  const maxAttempts = loginPaths.length * 3;
+  let lastUrl = page.url();
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const currentPath = loginPaths[attempt % loginPaths.length];
+    await page.goto(`${appBaseUrl}${currentPath}`, { waitUntil: "domcontentloaded" });
+    lastUrl = page.url();
+
+    const loginFormVisible = await page
+      .getByTestId("app-login-tenant")
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    if (loginFormVisible) {
+      return;
+    }
+
+    const loginPageVisible = await page
+      .getByTestId("app-login-page")
+      .isVisible({ timeout: 2_000 })
+      .catch(() => false);
+    if (loginPageVisible) {
+      const tenantVisible = await page
+        .getByTestId("app-login-tenant")
+        .isVisible({ timeout: 5_000 })
+        .catch(() => false);
+      if (tenantVisible) {
+        return;
+      }
+    }
+
+    await page.waitForTimeout(350);
+  }
+
+  const diagnostics = await page.evaluate(() => {
+    const testIds = Array.from(document.querySelectorAll("[data-testid]"))
+      .slice(0, 20)
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((item): item is string => Boolean(item));
+    const bodyText = document.body?.innerText?.replace(/\s+/g, " ").trim().slice(0, 240) ?? "";
+    return {
+      href: window.location.href,
+      readyState: document.readyState,
+      testIds,
+      bodyText
+    };
+  });
+
+  throw new Error(
+    `App 登录页未就绪，尝试路径: ${loginPaths.join(", ")}，最后 URL: ${lastUrl}，诊断: ${JSON.stringify(diagnostics)}`
+  );
+}
+
 export async function loginApp(
   page: Page,
   appKey: string,
@@ -361,8 +415,7 @@ export async function loginApp(
   options?: { expectSuccess?: boolean }
 ) {
   const expectSuccess = options?.expectSuccess ?? true;
-  void appKey;
-  await page.goto(`${appBaseUrl}${signPath()}`);
+  await waitForLoginFormReady(page, appKey);
   await page.getByTestId("app-login-tenant").fill(defaultTenantId);
   await page.waitForTimeout(gazeShiftDelay());
   await page.getByTestId("app-login-username").fill(defaultUsername);

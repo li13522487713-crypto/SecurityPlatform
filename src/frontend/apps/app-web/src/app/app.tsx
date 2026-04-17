@@ -323,7 +323,7 @@ const loadExploreModule = () => import("@atlas/module-explore-react");
 const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
 const loadCozeWorkspaceDevelopModule = () => import("@coze-studio/workspace-adapter/develop");
-const loadCozeWorkspaceLibraryModule = () => import("@coze-studio/workspace-adapter/library");
+
 
 const CozeShell = lazyNamed(loadCozeShellModule, "CozeShell");
 const LibraryPage = lazyNamed(loadLibraryModule, "LibraryPage");
@@ -367,7 +367,6 @@ const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider
 const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
 const CozeWorkspaceDevelopPage = lazyNamed(loadCozeWorkspaceDevelopModule, "Develop");
-const CozeWorkspaceLibraryPage = lazyNamed(loadCozeWorkspaceLibraryModule, "LibraryPage");
 
 const libraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
@@ -1277,12 +1276,15 @@ function StudioAppsAliasRedirect() {
 function StudioLibraryAliasRedirect() {
   const { spaceId = "" } = useParams();
   const bootstrap = useBootstrap();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
   const effectiveSpaceId = spaceId || bootstrap.spaceId;
-  return (
-    <WorkflowRuntimeBoundary>
-      <CozeWorkspaceLibraryPage spaceId={effectiveSpaceId} />
-    </WorkflowRuntimeBoundary>
-  );
+  const studioLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
+    ...libraryApi,
+    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(effectiveSpaceId) }),
+    updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(effectiveSpaceId) })
+  }), [effectiveSpaceId]);
+  return <LibraryPage api={studioLibraryApi} locale={locale} appKey={bootstrap.appKey} spaceId={effectiveSpaceId} onNavigate={navigate} />;
 }
 
 function StudioVariablesRoute() {
@@ -1724,11 +1726,14 @@ function AppShellRoute() {
 
 function LibraryRoute() {
   const bootstrap = useBootstrap();
-  return (
-    <WorkflowRuntimeBoundary>
-      <CozeWorkspaceLibraryPage spaceId={bootstrap.spaceId} />
-    </WorkflowRuntimeBoundary>
-  );
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const routeLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
+    ...libraryApi,
+    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(bootstrap.spaceId) }),
+    updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(bootstrap.spaceId) })
+  }), [bootstrap.spaceId]);
+  return <LibraryPage api={routeLibraryApi} locale={locale} appKey={bootstrap.appKey} spaceId={bootstrap.spaceId} onNavigate={navigate} />;
 }
 
 function KnowledgeDetailRoute() {
@@ -2347,11 +2352,14 @@ function WorkspaceShellInner() {
 
 function WorkspaceLibraryRoute() {
   const workspace = useWorkspaceContext();
-  return (
-    <WorkflowRuntimeBoundary>
-      <CozeWorkspaceLibraryPage spaceId={workspace.id} />
-    </WorkflowRuntimeBoundary>
-  );
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
+    ...libraryApi,
+    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
+    updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(workspace.id) })
+  }), [workspace.id]);
+  return <LibraryPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} onNavigate={navigate} />;
 }
 
 function WorkspaceKnowledgeDetailRoute() {
@@ -2654,6 +2662,28 @@ function WorkspaceAppWorkflowRedirectRoute() {
 
 function WorkspaceAppChatflowRedirectRoute() {
   return <WorkspaceWorkflowWorkbenchRoute mode="chatflow" />;
+}
+
+function StandaloneWorkflowRoute() {
+  const { workflowId = "" } = useParams();
+  const location = useLocation();
+  const bootstrap = useBootstrap();
+  const resolvedAppKey = (bootstrap.appKey || getConfiguredAppKey()).trim();
+
+  if (!resolvedAppKey) {
+    return <EntryGatewayPage />;
+  }
+
+  if (location.pathname.startsWith("/workflow")) {
+    const nextSearch = new URLSearchParams(location.search);
+    if (workflowId && !nextSearch.has("workflow_id")) {
+      nextSearch.set("workflow_id", workflowId);
+    }
+    const queryText = nextSearch.toString();
+    return <Navigate to={`/apps/${encodeURIComponent(resolvedAppKey)}/work_flow${queryText ? `?${queryText}` : ""}`} replace />;
+  }
+
+  return <Navigate to={`/apps/${encodeURIComponent(resolvedAppKey)}${location.pathname}${location.search}`} replace />;
 }
 
 function LegacyAppRedirectRoute() {
@@ -3047,8 +3077,8 @@ export function AppRouter() {
 
 export function AppRoot() {
   return (
-    <AppErrorBoundary>
-      <AppI18nProvider>
+    <AppI18nProvider>
+      <AppErrorBoundary>
         <BootstrapProvider>
           <AuthProvider>
             <AppStartupKernel loadingFallback={<LoadingPage />}>
@@ -3056,7 +3086,7 @@ export function AppRoot() {
             </AppStartupKernel>
           </AuthProvider>
         </BootstrapProvider>
-      </AppI18nProvider>
-    </AppErrorBoundary>
+      </AppErrorBoundary>
+    </AppI18nProvider>
   );
 }
