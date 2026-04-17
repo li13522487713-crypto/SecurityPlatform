@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { type FC, type CSSProperties } from 'react';
+import { type FC, type CSSProperties, useState } from 'react';
 
 import classnames from 'classnames';
 import { Image } from '@coze-arch/coze-design';
@@ -37,19 +37,42 @@ export const NodeIconOutlined: FC<NodeIconOutlinedProps> = ({
   outlineColor = 'var(--coz-stroke-primary)',
   className,
   style,
-}) => (
+}) => {
+  const [imgError, setImgError] = useState(false);
+  
+  return (
   <div
     className={classnames(className, styles['node-icon-wrapper'])}
     style={{ borderRadius, width: size, height: size, ...style }}
   >
-    <Image
-      className={styles['node-icon']}
-      style={{ borderRadius }}
-      width={size}
-      height={size}
-      src={icon}
-      preview={false}
-    />
+    {imgError || !icon || (!icon.startsWith('http') && !icon.startsWith('data:') && !icon.startsWith('/') && !icon.startsWith('<svg') && !icon.includes('/')) ? (
+      <div
+        className={styles['node-icon']}
+        style={{ 
+          borderRadius, 
+          width: size, 
+          height: size,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--coz-bg-plus)',
+          fontSize: size * 0.6,
+          color: 'var(--coz-fg-primary)'
+        }}
+      >
+        ?
+      </div>
+    ) : (
+      <Image
+        className={styles['node-icon']}
+        style={{ borderRadius }}
+        width={size}
+        height={size}
+        src={icon}
+        preview={false}
+        onError={() => setImgError(true)}
+      />
+    )}
     {hideOutline ? null : (
       <div
         className={styles['node-icon-border']}
@@ -60,4 +83,4 @@ export const NodeIconOutlined: FC<NodeIconOutlinedProps> = ({
       ></div>
     )}
   </div>
-);
+)};

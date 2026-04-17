@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { type FC } from 'react';
+import { type FC, useState } from 'react';
 
 import { type FlowNodeEntity } from '@flowgram-adapter/free-layout-editor';
 import { usePlayground } from '@flowgram-adapter/free-layout-editor';
@@ -32,6 +32,7 @@ interface NodeIconProps {
 }
 export const NodeIcon: FC<WithCustomStyle<NodeIconProps>> = props => {
   const { nodeId, className, size, alt } = props;
+  const [imgError, setImgError] = useState(false);
 
   const playground = usePlayground();
 
@@ -57,17 +58,41 @@ export const NodeIcon: FC<WithCustomStyle<NodeIconProps>> = props => {
     return null;
   }
 
+  // If the icon is an SVG string or URL
+  if (!imgError && (nodeData.icon.startsWith('http') || nodeData.icon.startsWith('data:') || nodeData.icon.startsWith('/') || nodeData.icon.startsWith('<svg') || nodeData.icon.includes('/'))) {
+    return (
+      <div className={className}>
+        <img
+          className="object-cover"
+          src={nodeData.icon}
+          alt={alt}
+          onError={() => setImgError(true)}
+          style={{
+            width: size || 'auto',
+            height: size || 'auto',
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Fallback for icon names (e.g. "PlayCircleOutlined") or broken images
   return (
-    <div className={className}>
-      <img
-        className="object-cover"
-        src={nodeData.icon}
-        alt={alt}
-        style={{
-          width: size || 'auto',
-          height: size || 'auto',
-        }}
-      />
+    <div 
+      className={className} 
+      style={{ 
+        width: size || 24, 
+        height: size || 24, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'var(--coz-bg-plus)',
+        borderRadius: '4px',
+        fontSize: (size || 24) * 0.6,
+        color: 'var(--coz-fg-primary)'
+      }}
+    >
+      {nodeData.title ? nodeData.title.charAt(0) : '?'}
     </div>
   );
 };

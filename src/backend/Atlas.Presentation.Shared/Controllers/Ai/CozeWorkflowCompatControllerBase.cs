@@ -1124,7 +1124,9 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         var normalizedPath = NormalizeFallbackPath(path);
         return Ok(Success(normalizedPath switch
         {
-            "debugger/v1/coze/testcase/casedata/mget" => new { case_data = Array.Empty<object>() },
+            "debugger/v1/coze/testcase/casedata/mget" => new { cases = Array.Empty<object>(), hasNext = false, nextToken = string.Empty },
+            "debugger/v1/coze/testcase/casedata/check" => new { isPass = true, failReason = string.Empty, failCode = 0 },
+            "debugger/v1/coze/testcase/casedata/save" => new { caseDetail = (object?)null },
             _ => new { success = true }
         }));
     }

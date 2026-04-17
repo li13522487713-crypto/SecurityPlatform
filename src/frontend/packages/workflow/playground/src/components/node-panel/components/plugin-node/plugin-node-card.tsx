@@ -52,7 +52,6 @@ export const PluginNodeCard: FC<NodesContainerProps> = props => {
       <Typography.Text
         className={classNames(
           styles['node-title'],
-          "font-['PICO_Sans_VFE_SC']",
         )}
         ellipsis
       >

@@ -142,12 +142,14 @@ export const Batch = ({ batchModeName, name }: BatchProps) => {
                       title: I18n.t('workflow_detail_variable_input_name'),
                       style: {
                         flex: 2,
+                        minWidth: 80,
                       },
                     },
                     {
                       title: I18n.t('workflow_detail_variable_input_value'),
                       style: {
-                        flex: 3,
+                        flex: 4,
+                        minWidth: 120,
                       },
                     },
                   ]}
@@ -164,6 +166,7 @@ export const Batch = ({ batchModeName, name }: BatchProps) => {
                       <div
                         style={{
                           flex: 2,
+                          minWidth: 80,
                         }}
                       >
                         <NodeInputName
@@ -183,7 +186,7 @@ export const Batch = ({ batchModeName, name }: BatchProps) => {
                       field: childInputField,
                       fieldState: childInputState,
                     }: FieldRenderProps<ValueExpression | undefined>) => (
-                      <div style={{ flex: 3, overflow: 'hidden' }}>
+                      <div style={{ flex: 4, minWidth: 120, overflow: 'hidden' }}>
                         <ValueExpressionInput
                           {...childInputField}
                           key="ValueExpressionInput"

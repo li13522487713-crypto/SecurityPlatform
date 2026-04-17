@@ -48,7 +48,7 @@ export const AtomNodeList: FC<AtomNodeListProps> = ({
         {categoryName ? (
           <Typography.Text
             key={`${categoryName}_title`}
-            className="block coz-fg-secondary leading-5 mt-3 mb-1 font-['PICO_Sans_VFE_SC']"
+            className="block coz-fg-secondary leading-5 mt-3 mb-1"
             weight={500}
             size="normal"
             data-testid={concatTestId(

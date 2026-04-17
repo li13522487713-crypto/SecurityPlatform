@@ -33,7 +33,12 @@ export type ValueExpressionInputProps = Pick<
   | 'selectStyle'
   | 'literalConfig'
   | 'hideDeleteIcon'
+  | 'hideSettingIcon'
   | 'literalDisabled'
+  | 'refDisabled'
+  | 'showClear'
+  | 'placeholder'
+  | 'variableTypeConstraints'
 > & {
   testId?: string;
   className?: string;
@@ -54,7 +59,12 @@ function ValueExpressionInput({
   inputPlaceholder,
   literalConfig,
   hideDeleteIcon,
+  hideSettingIcon,
   literalDisabled,
+  refDisabled,
+  showClear,
+  placeholder,
+  variableTypeConstraints,
   customReadonly,
 }: ValueExpressionInputProps) {
   const { name, value, onChange, errors, onBlur, readonly } =
@@ -83,8 +93,13 @@ function ValueExpressionInput({
         selectStyle={selectStyle}
         inputPlaceholder={inputPlaceholder}
         literalDisabled={literalDisabled}
+        refDisabled={refDisabled}
         literalConfig={literalConfig}
         hideDeleteIcon={hideDeleteIcon}
+        hideSettingIcon={hideSettingIcon}
+        showClear={showClear}
+        placeholder={placeholder}
+        variableTypeConstraints={variableTypeConstraints}
         readonly={customReadonly}
       />
     </div>

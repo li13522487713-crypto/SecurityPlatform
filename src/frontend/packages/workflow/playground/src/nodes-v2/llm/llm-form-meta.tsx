@@ -158,12 +158,14 @@ const Render = ({ form }: FormRenderProps<FormData>) => {
                       title: I18n.t('workflow_detail_variable_input_name'),
                       style: {
                         flex: 2,
+                        minWidth: 80,
                       },
                     },
                     {
                       title: I18n.t('workflow_detail_variable_input_value'),
                       style: {
-                        flex: 3,
+                        flex: 4,
+                        minWidth: 120,
                       },
                     },
                   ]}
@@ -189,7 +191,7 @@ const Render = ({ form }: FormRenderProps<FormData>) => {
                         <div
                           style={{
                             flex: 2,
-                            minWidth: 0,
+                            minWidth: 80,
                           }}
                         >
                           <NodeInputName
@@ -209,7 +211,7 @@ const Render = ({ form }: FormRenderProps<FormData>) => {
                         field: childInputField,
                         fieldState: inputFieldState,
                       }: FieldRenderProps<ValueExpression | undefined>) => (
-                        <div style={{ flex: 3, minWidth: 0 }}>
+                        <div style={{ flex: 4, minWidth: 120 }}>
                           <ValueExpressionInput
                             {...childInputField}
                             isError={!!inputFieldState?.errors?.length}

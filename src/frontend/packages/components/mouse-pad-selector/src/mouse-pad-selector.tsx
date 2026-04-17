@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { type CSSProperties, useState } from 'react';
+import React, { type CSSProperties, useEffect, useState } from 'react';
 
 import cls from 'classnames';
 import { I18n } from '@coze-arch/i18n';
@@ -107,15 +107,17 @@ export const MousePadSelector: React.FC<
     const isMouse = value === InteractiveType.Mouse;
     const [visible, setVisible] = useState(false);
 
+    useEffect(() => {
+      onPopupVisibleChange?.(visible);
+    }, [onPopupVisibleChange, visible]);
+
     return (
       <Popover
         trigger="custom"
         position="topLeft"
         closeOnEsc
         visible={visible}
-        onVisibleChange={v => {
-          onPopupVisibleChange?.(v);
-        }}
+        onVisibleChange={setVisible}
         onClickOutSide={() => {
           setVisible(false);
         }}
@@ -156,7 +158,7 @@ export const MousePadSelector: React.FC<
           })}
           ref={ref}
           onClick={() => {
-            setVisible(!visible);
+            setVisible(currentVisible => !currentVisible);
           }}
           style={containerStyle}
         >

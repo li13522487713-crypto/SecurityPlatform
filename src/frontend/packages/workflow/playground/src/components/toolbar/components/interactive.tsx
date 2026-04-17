@@ -39,6 +39,7 @@ export const Interactive = () => {
   );
 
   const [showInteractivePanel, setShowInteractivePanel] = useState(false);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
 
   const mousePadTooltip = I18n.t(
     interactiveType === InteractiveType.Mouse
@@ -57,12 +58,20 @@ export const Interactive = () => {
 
   const interactiveSwitcher = (
     <Tooltip
+      trigger="custom"
       content={mousePadTooltip}
-      style={{ display: showInteractivePanel ? 'none' : 'block' }}
+      visible={tooltipVisible && !showInteractivePanel}
+      onVisibleChange={setTooltipVisible}
     >
       <div
         className="workflow-toolbar-interactive"
         data-testid="workflow.detail.toolbar.interactive"
+        onMouseEnter={() => {
+          setTooltipVisible(true);
+        }}
+        onMouseLeave={() => {
+          setTooltipVisible(false);
+        }}
       >
         <MousePadSelector
           value={interactiveType}
@@ -71,7 +80,12 @@ export const Interactive = () => {
             setPreferInteractiveType(value);
             tools.setInteractiveType(value as unknown as IdeInteractiveType);
           }}
-          onPopupVisibleChange={setShowInteractivePanel}
+          onPopupVisibleChange={visible => {
+            setShowInteractivePanel(visible);
+            if (visible) {
+              setTooltipVisible(false);
+            }
+          }}
           containerStyle={{
             border: 'none',
             height: '24px',

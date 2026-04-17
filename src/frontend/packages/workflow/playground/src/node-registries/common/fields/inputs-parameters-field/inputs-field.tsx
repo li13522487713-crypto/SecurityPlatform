@@ -109,13 +109,13 @@ export const InputsField = ({
                   title:
                     paramsTitle ??
                     I18n.t('workflow_detail_node_parameter_name'),
-                  style: { flex: 2 },
+                  style: { flex: 2, minWidth: 80 },
                 },
                 {
                   title:
                     expressionTitle ??
                     I18n.t('workflow_detail_end_output_value'),
-                  style: { flex: 3 },
+                  style: { flex: 4, minWidth: 120 },
                 },
               ]}
               readonly={readonly}
@@ -132,7 +132,7 @@ export const InputsField = ({
                   hiddenRemove={readonly}
                   onRemove={() => remove(index)}
                 >
-                  <div style={{ flex: 2 }}>
+                  <div style={{ flex: 2, minWidth: 80 }}>
                     <NodeInputNameField
                       name={`${item.name}.name`}
                       placeholder={I18n.t(
@@ -143,7 +143,7 @@ export const InputsField = ({
                       {...nameProps}
                     />
                   </div>
-                  <div style={{ flex: 3 }}>
+                  <div style={{ flex: 4, minWidth: 120 }}>
                     <ValueExpressionInputField
                       name={`${name}.${index}.input`}
                       disabledTypes={disabledTypes}

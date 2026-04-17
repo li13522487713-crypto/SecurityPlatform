@@ -31,7 +31,7 @@ export const NodeCategoryPanel = function ({
     <div className="node-category-panel">
       {categoryName ? (
         <Typography.Text
-          className="block coz-fg-secondary leading-5 mb-1 pl-1 font-['PICO_Sans_VFE_SC']"
+          className="block coz-fg-secondary leading-5 mb-1 pl-1"
           weight={500}
           size="normal"
           data-testid={concatTestId(
