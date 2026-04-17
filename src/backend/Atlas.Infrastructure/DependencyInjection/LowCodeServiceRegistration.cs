@@ -42,6 +42,11 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IRuntimeWorkflowAsyncJobRepository, RuntimeWorkflowAsyncJobRepository>();
         services.AddScoped<IRuntimeWorkflowExecutor, RuntimeWorkflowExecutor>();
 
+        // M10 运行时文件服务 + 上传会话仓储 + GC 作业
+        services.AddScoped<ILowCodeAssetUploadSessionRepository, LowCodeAssetUploadSessionRepository>();
+        services.AddScoped<IRuntimeFileService, RuntimeFileService>();
+        services.AddSingleton<LowCodeAssetGcJob>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {

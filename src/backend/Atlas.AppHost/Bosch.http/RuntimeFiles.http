@@ -1,0 +1,63 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### prepare-upload（颁发 token）
+# @name prepare
+POST {{baseUrl}}/api/runtime/files:prepare-upload
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "fileName": "demo.png",
+  "contentType": "image/png",
+  "size": 102400,
+  "sha256": null
+}
+
+###
+@uploadToken = {{prepare.response.body.$.data.token}}
+
+### complete-upload（multipart/form-data；REST Client 示例）
+POST {{baseUrl}}/api/runtime/files:complete-upload
+Content-Type: multipart/form-data; boundary=----AtlasBoundary
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+------AtlasBoundary
+Content-Disposition: form-data; name="token"
+
+{{uploadToken}}
+------AtlasBoundary
+Content-Disposition: form-data; name="file"; filename="demo.png"
+Content-Type: image/png
+
+< ./demo.png
+------AtlasBoundary--
+
+### 取消会话
+POST {{baseUrl}}/api/runtime/files/sessions/{{uploadToken}}:cancel
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 下载文件
+GET {{baseUrl}}/api/runtime/files/12345
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除文件（软删）
+DELETE {{baseUrl}}/api/runtime/files/12345
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
