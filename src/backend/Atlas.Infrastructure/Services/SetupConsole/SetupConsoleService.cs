@@ -120,7 +120,6 @@ public sealed class SetupConsoleService : ISetupConsoleService
                 "Atlas.Domain.AiPlatform",
                 "Atlas.Domain.Approval",
                 "Atlas.Domain.AgentTeam",
-                "Atlas.Domain.LowCode",
                 "Atlas.Domain.LogicFlow",
                 "Atlas.Domain.BatchProcess",
                 "Atlas.Domain.Workflow",
@@ -191,7 +190,7 @@ public sealed class SetupConsoleService : ISetupConsoleService
             ["system-foundation"] = new[] { "Atlas.Domain.System", "Atlas.Core.Messaging", "Atlas.Domain.Events", "Atlas.Domain.Messaging", "Atlas.Domain.Saga", "Atlas.Domain.Setup" },
             ["identity-permission"] = new[] { "Atlas.Domain.Identity", "Atlas.Domain.Platform.Entities.AppMembershipEntities", "Atlas.Domain.Platform.Entities.AppOrgEntities" },
             ["workspace"] = new[] { "Atlas.Domain.AiPlatform.Entities" },
-            ["business-domain"] = new[] { "Atlas.Domain.AiPlatform", "Atlas.Domain.Approval", "Atlas.Domain.AgentTeam", "Atlas.Domain.LowCode", "Atlas.Domain.LogicFlow", "Atlas.Domain.BatchProcess", "Atlas.Domain.Workflow", "Atlas.Domain.DynamicTables", "Atlas.Domain.DynamicViews" },
+            ["business-domain"] = new[] { "Atlas.Domain.AiPlatform", "Atlas.Domain.Approval", "Atlas.Domain.AgentTeam", "Atlas.Domain.LogicFlow", "Atlas.Domain.BatchProcess", "Atlas.Domain.Workflow", "Atlas.Domain.DynamicTables", "Atlas.Domain.DynamicViews" },
             ["resource-runtime"] = new[] { "Atlas.Domain.Plugins", "Atlas.Domain.Templates", "Atlas.Domain.Integration", "Atlas.Domain.License", "Atlas.Domain.Assets", "Atlas.Domain.Platform" },
             ["audit-log"] = new[] { "Atlas.Domain.Audit", "Atlas.Domain.Alert" }
         };

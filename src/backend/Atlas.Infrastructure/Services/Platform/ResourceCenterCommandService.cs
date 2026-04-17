@@ -1,8 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
-using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Identity;
-using Atlas.Application.LowCode.Models;
 using Atlas.Application.Options;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -16,8 +14,6 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
-using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.Logging;
@@ -113,7 +109,7 @@ public sealed class ResourceCenterCommandService : IResourceCenterCommandService
         var tenantValue = tenantId.Value;
         var tenantText = tenantValue.ToString();
 
-        var app = await _db.Queryable<LowCodeApp>()
+        var app = await _db.Queryable<AppManifest>()
             .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == appInstanceId, cancellationToken)
             ?? throw new InvalidOperationException("应用实例不存在。");
         var targetDataSource = await _db.Queryable<TenantDataSource>()
@@ -216,8 +212,8 @@ public sealed class ResourceCenterCommandService : IResourceCenterCommandService
         var binding = await _db.Queryable<TenantAppDataSourceBindingEntity>()
             .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == bindingId, cancellationToken)
             ?? throw new InvalidOperationException("绑定关系不存在。");
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == binding.TenantAppInstanceId, cancellationToken);
+        var app = await _db.Queryable<TenantApplication>()
+            .FirstAsync(item => item.TenantIdValue == tenantValue && item.AppInstanceId == binding.TenantAppInstanceId, cancellationToken);
         var dataSourceExists = await _db.Queryable<TenantDataSource>()
             .AnyAsync(item => item.TenantIdValue == tenantText && item.Id == binding.DataSourceId, cancellationToken);
         var isOrphan = app is null || !dataSourceExists;
@@ -230,7 +226,7 @@ public sealed class ResourceCenterCommandService : IResourceCenterCommandService
         binding.Deactivate(operatorUserId, now, "resource-center:unbind-orphan-binding");
         if (app is not null && app.DataSourceId == binding.DataSourceId)
         {
-            app.Update(app.Name, app.Description, app.Category, app.Icon, null, operatorUserId, now);
+            app.SyncWithInstance(app.CatalogId, app.AppInstanceId, app.AppKey, app.Name, null, app.Status, operatorUserId, now);
         }
 
         var audit = new AuditRecord(

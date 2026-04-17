@@ -11,7 +11,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
+using Atlas.Domain.Platform.Entities;
 using Atlas.Infrastructure.Repositories;
 using SqlSugar;
 
@@ -201,10 +201,15 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
             throw new BusinessException(ErrorCodes.ValidationError, "应用实例标识无效。");
         }
 
-        var app = await _db.Queryable<LowCodeApp>()
+        var appRows = await _db.Queryable<AppManifest>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appInstanceId)
-            .FirstAsync(cancellationToken)
-            ?? throw new BusinessException(ErrorCodes.NotFound, "应用实例不存在。");
+            .ToListAsync(cancellationToken);
+        if (appRows.Count == 0)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "应用实例不存在。");
+        }
+
+        var app = appRows[0];
 
         var exists = await _workspaceRepository.FindByAppInstanceIdAsync(tenantId, appInstanceId, cancellationToken);
         if (exists is not null)

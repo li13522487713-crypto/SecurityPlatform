@@ -16,7 +16,6 @@ using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Domain.Plugins;
@@ -190,8 +189,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             cancellationToken);
         await EnsureSystemConfigSchemaAsync(db, cancellationToken);
         await EnsureAssetSchemaAsync(db, cancellationToken);
-        await EnsureDashboardDefinitionSchemaAsync(db, cancellationToken);
-
         // Schema 迁移检查（兼容历史版本字段结构）
         report.MigrationsApplied = !effectiveInitializer.SkipSchemaMigrations;
         if (!effectiveInitializer.SkipSchemaMigrations)
@@ -201,8 +198,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureAuthSessionSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureRefreshTokenSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureApprovalSchemaAsync(db, cancellationToken); migrationCount++;
-            await EnsureLowCodeAppSchemaAsync(db, cancellationToken); migrationCount++;
-            await EnsureFormDefinitionSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureTenantDataSourceSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureProductizationSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken); migrationCount++;
@@ -1194,12 +1189,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("TenantAppDataSourceBinding", false)
-            || !db.DbMaintenance.IsAnyTable("LowCodeApp", false))
+            || !db.DbMaintenance.IsAnyTable("AppManifest", false))
         {
             return;
         }
 
-        var legacyBindings = await db.Queryable<LowCodeApp>()
+        var legacyBindings = await db.Queryable<AppManifest>()
             .Where(item => item.DataSourceId.HasValue)
             .Select(item => new LegacyAppBindingProjection
             {
@@ -1249,7 +1244,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 actor,
                 idGenerator.NextId(),
                 now,
-                "Migrated from LowCodeApp.DataSourceId");
+                "Migrated from AppManifest.DataSourceId");
             backfillRows.Add(binding);
         }
 
@@ -1271,13 +1266,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("TenantAppDataSourceBinding", false)
-            || !db.DbMaintenance.IsAnyTable("LowCodeApp", false)
+            || !db.DbMaintenance.IsAnyTable("AppManifest", false)
             || !db.DbMaintenance.IsAnyTable("TenantDataSource", false))
         {
             return;
         }
 
-        var apps = await db.Queryable<LowCodeApp>()
+        var apps = await db.Queryable<AppManifest>()
             .Select(item => new AppBindingHealthProjection
             {
                 TenantIdValue = item.TenantIdValue,
@@ -1403,14 +1398,14 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         ISqlSugarClient db,
         CancellationToken cancellationToken)
     {
-        if (!db.DbMaintenance.IsAnyTable("LowCodeApp", false)
+        if (!db.DbMaintenance.IsAnyTable("AppManifest", false)
             || !db.DbMaintenance.IsAnyTable("TenantAppDataSourceBinding", false)
             || !db.DbMaintenance.IsAnyTable("AppDataRoutePolicy", false))
         {
             return;
         }
 
-        var apps = await db.Queryable<LowCodeApp>()
+        var apps = await db.Queryable<AppManifest>()
             .Select(x => new
             {
                 x.TenantIdValue,
@@ -1954,22 +1949,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "CREATE INDEX IF NOT EXISTS IX_SystemConfig_Tenant_App_Key ON SystemConfig (TenantIdValue, AppId, ConfigKey)");
     }
 
-    private static async Task EnsureDashboardDefinitionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
-    {
-        var tableName = db.EntityMaintenance.GetTableName<DashboardDefinition>();
-        if (!db.DbMaintenance.IsAnyTable(tableName, false))
-        {
-            return;
-        }
-
-        if (!RequiresNullableColumnFix<DashboardDefinition>(db, "CanvasWidth", "CanvasHeight"))
-        {
-            return;
-        }
-
-        await RebuildTableViaOrmAsync<DashboardDefinition>(db, cancellationToken);
-    }
-
     private static async Task EnsureAuthSessionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AuthSession", false))
@@ -1999,37 +1978,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<Permission>(db, cancellationToken);
-    }
-
-    private static async Task EnsureLowCodeAppSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
-    {
-        if (!db.DbMaintenance.IsAnyTable("LowCodeApp", false))
-        {
-            return;
-        }
-
-        if (!RequiresNullableColumnFix<LowCodeApp>(db, "DataSourceId", "PublishedBy", "PublishedAt"))
-        {
-            return;
-        }
-
-        await RebuildTableViaOrmAsync<LowCodeApp>(db, cancellationToken);
-    }
-
-    private static async Task EnsureFormDefinitionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
-    {
-        var tableName = db.EntityMaintenance.GetTableName<FormDefinition>();
-        if (!db.DbMaintenance.IsAnyTable(tableName, false))
-        {
-            return;
-        }
-
-        if (!RequiresNullableColumnFix<FormDefinition>(db, "PublishedAt", "PublishedBy"))
-        {
-            return;
-        }
-
-        await RebuildTableViaOrmAsync<FormDefinition>(db, cancellationToken);
     }
 
     private static async Task EnsureTenantDataSourceSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -2365,7 +2313,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 .FirstAsync(cancellationToken);
             if (workspace is null)
             {
-                var primaryApp = await db.Queryable<LowCodeApp>()
+                var primaryApp = await db.Queryable<AppManifest>()
                     .Where(x => x.TenantIdValue == tenantGuid)
                     .OrderBy(x => x.Id, OrderByType.Asc)
                     .FirstAsync(cancellationToken);

@@ -1,9 +1,11 @@
 using Atlas.Application.Identity.Abstractions;
-using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Platform.Repositories;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Platform.Entities;
+using Atlas.Infrastructure.Services.Platform;
+using SqlSugar;
 using Atlas.Presentation.Shared.Authorization;
 using Atlas.Presentation.Shared.Security;
 using Microsoft.AspNetCore.Authentication;
@@ -61,9 +63,8 @@ public sealed class AppMembershipMiddleware
             return;
         }
 
-        var lowCodeAppRepository = context.RequestServices.GetRequiredService<ILowCodeAppRepository>();
-        var app = await lowCodeAppRepository.GetByIdAsync(tenantId, appId.Value, context.RequestAborted);
-        if (app is null)
+        var db = context.RequestServices.GetRequiredService<ISqlSugarClient>();
+        if (!await TenantAppInstanceGuard.ExistsAsync(db, tenantId, appId.Value, context.RequestAborted))
         {
             await WriteErrorAsync(
                 context,
@@ -72,6 +73,11 @@ public sealed class AppMembershipMiddleware
                 "应用实例不存在。");
             return;
         }
+
+        var manifestRows = await db.Queryable<AppManifest>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appId.Value)
+            .ToListAsync(context.RequestAborted);
+        var creatorUserId = manifestRows.Count > 0 ? manifestRows[0].CreatedBy : (long?)null;
 
         var currentUserAccessor = context.RequestServices.GetRequiredService<ICurrentUserAccessor>();
         var currentUser = currentUserAccessor.GetCurrentUser();
@@ -114,7 +120,7 @@ public sealed class AppMembershipMiddleware
             tenantId,
             appId.Value,
             context.RequestAborted);
-        if (!hasAnyMember && app.CreatedBy == currentUser.UserId)
+        if (!hasAnyMember && creatorUserId.HasValue && creatorUserId.Value == currentUser.UserId)
         {
             await _next(context);
             return;

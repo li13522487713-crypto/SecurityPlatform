@@ -1,8 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
-using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Identity;
-using Atlas.Application.LowCode.Models;
 using Atlas.Application.Options;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -16,8 +14,6 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
-using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.Logging;
@@ -71,10 +67,6 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var appInstancesTask = _mainDb.Queryable<LowCodeApp>()
-            .Where(item => item.TenantIdValue == tenantIdValue)
-            .OrderByDescending(item => item.UpdatedAt)
-            .ToListAsync(cancellationToken);
         var dataSourcesTask = _mainDb.Queryable<TenantDataSource>()
             .Where(item => item.TenantIdValue == tenantIdText)
             .OrderByDescending(item => item.UpdatedAt)
@@ -91,14 +83,13 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         await Task.WhenAll(
             catalogsTask,
             tenantApplicationsTask,
-            appInstancesTask,
             dataSourcesTask,
             releasesTask,
             auditsTask);
 
         var catalogs = catalogsTask.Result;
         var tenantApplications = tenantApplicationsTask.Result;
-        var appInstances = appInstancesTask.Result;
+        var appInstances = tenantApplications;
         var dataSources = dataSourcesTask.Result;
         var releases = releasesTask.Result;
         var runtimeContextResult = await LoadRuntimeRoutesAcrossAppsAsync(tenantId, appInstances, cancellationToken);
@@ -113,7 +104,9 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         var audits = auditsTask.Result;
 
         var catalogById = catalogs.ToDictionary(item => item.Id);
-        var appInstanceById = appInstances.ToDictionary(item => item.Id);
+        var appInstanceById = appInstances
+            .GroupBy(item => item.AppInstanceId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.UpdatedAt).First());
 
         var catalogItems = catalogs
             .Select(item => new ResourceCenterGroupEntry(
@@ -138,14 +131,14 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             .ToArray();
         var appInstanceItems = appInstances
             .Select(item => new ResourceCenterGroupEntry(
-                item.Id.ToString(),
+                item.AppInstanceId.ToString(),
                 item.Name,
                 "TenantAppInstance",
                 item.Status.ToString(),
-                item.Description,
-                $"/console/tenant-app-instances?instanceId={item.Id}",
+                $"AppKey={item.AppKey}",
+                $"/console/tenant-app-instances?instanceId={item.AppInstanceId}",
                 null,
-                item.Id.ToString()))
+                item.AppInstanceId.ToString()))
             .ToArray();
         var dataSourceItems = dataSources
             .Select(item => new ResourceCenterGroupEntry(
@@ -277,7 +270,7 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             .Where(item => item.TenantIdValue == tenantIdText)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var appInstancesTask = _mainDb.Queryable<LowCodeApp>()
+        var appInstancesTask = _mainDb.Queryable<TenantApplication>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
@@ -291,7 +284,9 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         var appInstances = appInstancesTask.Result;
         var bindings = bindingsTask.Result;
 
-        var appInstanceById = appInstances.ToDictionary(item => item.Id);
+        var appInstanceById = appInstances
+            .GroupBy(item => item.AppInstanceId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.UpdatedAt).First());
         var bindingAppSet = bindings
             .Select(item => item.TenantAppInstanceId)
             .ToHashSet();
@@ -308,16 +303,16 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             .ToList();
         allRelations.AddRange(
             appInstances
-                .Where(item => item.DataSourceId.HasValue && !bindingAppSet.Contains(item.Id))
+                .Where(item => item.DataSourceId.HasValue && !bindingAppSet.Contains(item.AppInstanceId))
                 .Select(item => new DataSourceBindingRelation(
-                    $"legacy-{item.Id}-{item.DataSourceId!.Value}",
-                    item.Id,
+                    $"legacy-{item.AppInstanceId}-{item.DataSourceId!.Value}",
+                    item.AppInstanceId,
                     item.DataSourceId!.Value,
                     TenantAppDataSourceBindingType.Primary.ToString(),
                     true,
                     null,
                     null,
-                    "LegacyLowCodeApp.DataSourceId")));
+                    "LegacyTenantApplication.DataSourceId")));
 
         var activeBoundAppSet = allRelations
             .Where(item => item.IsActive)
@@ -430,7 +425,7 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             .Select(MapDataSource)
             .ToArray();
         var unboundTenantApps = appInstances
-            .Where(item => !activeBoundAppSet.Contains(item.Id))
+            .Where(item => !activeBoundAppSet.Contains(item.AppInstanceId))
             .Select(MapAppConsumer)
             .ToArray();
 
@@ -462,10 +457,10 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             DateTimeOffset.UtcNow.ToString("O"));
     }
 
-    private static TenantAppConsumerItem MapAppConsumer(LowCodeApp app)
+    private static TenantAppConsumerItem MapAppConsumer(TenantApplication app)
     {
         return new TenantAppConsumerItem(
-            app.Id.ToString(),
+            app.AppInstanceId.ToString(),
             app.AppKey,
             app.Name,
             app.Status.ToString());
@@ -501,7 +496,7 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
 
     private async Task<ResourceCenterAppLoadResult<RuntimeRoute>> LoadRuntimeRoutesAcrossAppsAsync(
         TenantId tenantId,
-        IReadOnlyList<LowCodeApp> appInstances,
+        IReadOnlyList<TenantApplication> appInstances,
         CancellationToken cancellationToken)
     {
         using var gate = new SemaphoreSlim(ResourceCenterPerAppConcurrency);
@@ -514,15 +509,15 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.AppInstanceId, cancellationToken);
                 if (appDb is null)
                 {
                     return ResourceCenterPerAppLoadResult<RuntimeRoute>.Skipped(
                         new ResourceCenterAppLoadWarning(
-                            app.Id,
+                            app.AppInstanceId,
                             app.Name,
                             ErrorCodes.AppDataSourceNotBound,
-                            $"应用实例 {app.Id} 未绑定可用数据源，已跳过。"));
+                            $"应用实例 {app.AppInstanceId} 未绑定可用数据源，已跳过。"));
                 }
                 var items = await appDb.Queryable<RuntimeRoute>()
                     .Where(item => item.TenantIdValue == tenantId.Value)
@@ -553,7 +548,7 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
 
     private async Task<ResourceCenterAppLoadResult<WorkflowExecution>> LoadRuntimeExecutionsAcrossAppsAsync(
         TenantId tenantId,
-        IReadOnlyList<LowCodeApp> appInstances,
+        IReadOnlyList<TenantApplication> appInstances,
         CancellationToken cancellationToken)
     {
         using var gate = new SemaphoreSlim(ResourceCenterPerAppConcurrency);
@@ -566,15 +561,15 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.AppInstanceId, cancellationToken);
                 if (appDb is null)
                 {
                     return ResourceCenterPerAppLoadResult<WorkflowExecution>.Skipped(
                         new ResourceCenterAppLoadWarning(
-                            app.Id,
+                            app.AppInstanceId,
                             app.Name,
                             ErrorCodes.AppDataSourceNotBound,
-                            $"应用实例 {app.Id} 未绑定可用数据源，已跳过。"));
+                            $"应用实例 {app.AppInstanceId} 未绑定可用数据源，已跳过。"));
                 }
                 var items = await appDb.Queryable<WorkflowExecution>()
                     .Where(item => item.TenantIdValue == tenantId.Value)

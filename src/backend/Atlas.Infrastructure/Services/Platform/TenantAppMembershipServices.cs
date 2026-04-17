@@ -1,7 +1,6 @@
 using Atlas.Application.Abstractions;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Identity.Repositories;
-using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Application.Platform.Repositories;
@@ -13,12 +12,13 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.Platform.Entities;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.Platform;
 
 public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
 {
-    private readonly ILowCodeAppRepository _lowCodeAppRepository;
+    private readonly ISqlSugarClient _db;
     private readonly IAppMemberRepository _appMemberRepository;
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
@@ -31,7 +31,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
     private readonly IAppProjectRepository _appProjectRepository;
 
     public TenantAppMemberQueryService(
-        ILowCodeAppRepository lowCodeAppRepository,
+        ISqlSugarClient db,
         IAppMemberRepository appMemberRepository,
         IUserAccountRepository userAccountRepository,
         IAppUserRoleRepository appUserRoleRepository,
@@ -43,7 +43,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         IProjectUserRepository projectUserRepository,
         IAppProjectRepository appProjectRepository)
     {
-        _lowCodeAppRepository = lowCodeAppRepository;
+        _db = db;
         _appMemberRepository = appMemberRepository;
         _userAccountRepository = userAccountRepository;
         _appUserRoleRepository = appUserRoleRepository;
@@ -62,7 +62,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         PagedRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
@@ -91,7 +91,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         PagedRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
         var roleMappings = await _appUserRoleRepository.QueryByRoleIdsAsync(
             tenantId,
@@ -164,7 +164,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         PagedRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
         var deptUserIds = (await _userDepartmentRepository.QueryUserIdsByDepartmentIdsAsync(
             tenantId,
@@ -336,7 +336,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         long userId,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var member = (await _appMemberRepository.QueryByUserIdsAsync(
@@ -421,25 +421,11 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             projectNames);
     }
 
-    private async Task<Atlas.Domain.LowCode.Entities.LowCodeApp> RequireAppAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken)
-    {
-        var app = await _lowCodeAppRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (app is null)
-        {
-            throw new BusinessException(ErrorCodes.NotFound, "应用实例不存在。");
-        }
-
-        return app;
-    }
-
 }
 
 public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandService
 {
-    private readonly ILowCodeAppRepository _lowCodeAppRepository;
+    private readonly ISqlSugarClient _db;
     private readonly IAppMemberRepository _appMemberRepository;
     private readonly IAppRoleRepository _appRoleRepository;
     private readonly IUserAccountRepository _userAccountRepository;
@@ -456,7 +442,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public TenantAppMemberCommandService(
-        ILowCodeAppRepository lowCodeAppRepository,
+        ISqlSugarClient db,
         IAppMemberRepository appMemberRepository,
         IAppRoleRepository appRoleRepository,
         IUserAccountRepository userAccountRepository,
@@ -472,7 +458,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         IAuditWriter auditWriter,
         ICurrentUserAccessor currentUserAccessor)
     {
-        _lowCodeAppRepository = lowCodeAppRepository;
+        _db = db;
         _appMemberRepository = appMemberRepository;
         _appRoleRepository = appRoleRepository;
         _userAccountRepository = userAccountRepository;
@@ -496,7 +482,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         TenantAppMemberAssignRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var userIds = request.UserIds
@@ -700,7 +686,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         TenantAppMemberUpdateRolesRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
 
@@ -870,7 +856,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         long userId,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
@@ -899,20 +885,6 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             "Platform.AppMember.Removed",
             $"appId={appId};userId={userId}",
             cancellationToken);
-    }
-
-    private async Task<Atlas.Domain.LowCode.Entities.LowCodeApp> RequireAppAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken)
-    {
-        var app = await _lowCodeAppRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (app is null)
-        {
-            throw new BusinessException(ErrorCodes.NotFound, "应用实例不存在。");
-        }
-
-        return app;
     }
 
     private string ResolveActor(long? fallbackUserId = null)
@@ -949,20 +921,20 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
 
 public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
 {
-    private readonly ILowCodeAppRepository _lowCodeAppRepository;
+    private readonly ISqlSugarClient _db;
     private readonly IAppRoleRepository _appRoleRepository;
     private readonly IAppRolePermissionRepository _appRolePermissionRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
     private readonly IAppMemberRepository _appMemberRepository;
 
     public TenantAppRoleQueryService(
-        ILowCodeAppRepository lowCodeAppRepository,
+        ISqlSugarClient db,
         IAppRoleRepository appRoleRepository,
         IAppRolePermissionRepository appRolePermissionRepository,
         IAppUserRoleRepository appUserRoleRepository,
         IAppMemberRepository appMemberRepository)
     {
-        _lowCodeAppRepository = lowCodeAppRepository;
+        _db = db;
         _appRoleRepository = appRoleRepository;
         _appRolePermissionRepository = appRolePermissionRepository;
         _appUserRoleRepository = appUserRoleRepository;
@@ -976,7 +948,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         bool? isSystem = null,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
@@ -1037,7 +1009,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         long roleId,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
@@ -1073,7 +1045,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         long appId,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var roles = await _appRoleRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
@@ -1150,25 +1122,11 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
             governanceItems);
     }
 
-    private async Task<Atlas.Domain.LowCode.Entities.LowCodeApp> RequireAppAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken)
-    {
-        var app = await _lowCodeAppRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (app is null)
-        {
-            throw new BusinessException(ErrorCodes.NotFound, "应用实例不存在。");
-        }
-
-        return app;
-    }
-
 }
 
 public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
 {
-    private readonly ILowCodeAppRepository _lowCodeAppRepository;
+    private readonly ISqlSugarClient _db;
     private readonly IAppRoleRepository _appRoleRepository;
     private readonly IAppRolePermissionRepository _appRolePermissionRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
@@ -1178,7 +1136,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public TenantAppRoleCommandService(
-        ILowCodeAppRepository lowCodeAppRepository,
+        ISqlSugarClient db,
         IAppRoleRepository appRoleRepository,
         IAppRolePermissionRepository appRolePermissionRepository,
         IAppUserRoleRepository appUserRoleRepository,
@@ -1187,7 +1145,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         IAuditWriter auditWriter,
         ICurrentUserAccessor currentUserAccessor)
     {
-        _lowCodeAppRepository = lowCodeAppRepository;
+        _db = db;
         _appRoleRepository = appRoleRepository;
         _appRolePermissionRepository = appRolePermissionRepository;
         _appUserRoleRepository = appUserRoleRepository;
@@ -1204,7 +1162,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         TenantAppRoleCreateRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var normalizedCode = NormalizeCode(request.Code);
@@ -1244,7 +1202,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         TenantAppRoleUpdateRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
@@ -1275,7 +1233,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         TenantAppRoleAssignPermissionsRequest request,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
@@ -1299,7 +1257,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         long roleId,
         CancellationToken cancellationToken = default)
     {
-        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        await TenantAppInstanceGuard.EnsureExistsAsync(_db, tenantId, appId, cancellationToken);
 
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
@@ -1352,20 +1310,6 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
                 _idGeneratorAccessor.NextId()))
             .ToArray();
         await _appRolePermissionRepository.AddRangeAsync(entities, cancellationToken);
-    }
-
-    private async Task<Atlas.Domain.LowCode.Entities.LowCodeApp> RequireAppAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken)
-    {
-        var app = await _lowCodeAppRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (app is null)
-        {
-            throw new BusinessException(ErrorCodes.NotFound, "应用实例不存在。");
-        }
-
-        return app;
     }
 
     private static string NormalizeCode(string code)

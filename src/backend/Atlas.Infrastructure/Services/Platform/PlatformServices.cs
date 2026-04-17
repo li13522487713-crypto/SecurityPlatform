@@ -10,7 +10,6 @@ using Atlas.Domain.Approval.Enums;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
@@ -190,37 +189,22 @@ public sealed class AppManifestQueryService : IAppManifestQueryService
         return entity is null ? null : MapManifest(entity);
     }
 
-    public async Task<WorkspaceOverviewResponse> GetWorkspaceOverviewAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default)
+    public Task<WorkspaceOverviewResponse> GetWorkspaceOverviewAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default)
     {
-        var pageCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>().CountAsync(x => x.AppId == id, cancellationToken);
-        return new WorkspaceOverviewResponse(pageCount, 0, 0, 0);
+        _ = tenantId;
+        _ = id;
+        _ = cancellationToken;
+        return Task.FromResult(new WorkspaceOverviewResponse(0, 0, 0, 0));
     }
 
-    public async Task<PagedResult<object>> GetWorkspacePagesAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
+    public Task<PagedResult<object>> GetWorkspacePagesAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
     {
+        _ = tenantId;
+        _ = id;
+        _ = cancellationToken;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var query = _db.Queryable<LowCodePage>().Where(x => x.AppId == id);
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            var keyword = request.Keyword.Trim();
-            query = query.Where(x => x.Name.Contains(keyword) || x.PageKey.Contains(keyword));
-        }
-
-        var total = await query.CountAsync(cancellationToken);
-        var rows = await query.OrderBy(x => x.SortOrder).ToPageListAsync(pageIndex, pageSize, cancellationToken);
-        var items = rows.Select(x => (object)new
-        {
-            Id = x.Id.ToString(),
-            x.PageKey,
-            x.Name,
-            x.RoutePath,
-            x.Icon,
-            x.SortOrder,
-            x.Version,
-            x.IsPublished
-        }).ToArray();
-        return new PagedResult<object>(items, total, pageIndex, pageSize);
+        return Task.FromResult(new PagedResult<object>(Array.Empty<object>(), 0, pageIndex, pageSize));
     }
 
     public Task<PagedResult<object>> GetWorkspaceFormsAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default)
@@ -275,31 +259,10 @@ internal static class PlatformRuntimeAggregationHelper
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
-        var appIds = await mainDb.Queryable<LowCodeApp>()
-            .Where(x => x.TenantIdValue == tenantId.Value)
-            .Select(x => x.Id)
-            .ToListAsync(cancellationToken);
-        var countTasks = new List<Task<List<long>>>
-        {
-            mainDb.Queryable<RuntimeRoute>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.IsActive)
-                .Select(x => x.Id)
-                .ToListAsync(cancellationToken)
-        };
-        countTasks.AddRange(appIds.Select(async appId =>
-        {
-            var appDb = await appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
-            return await appDb.Queryable<RuntimeRoute>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.IsActive)
-                .Select(x => x.Id)
-                .ToListAsync(cancellationToken);
-        }));
-
-        await Task.WhenAll(countTasks);
-        return countTasks
-            .SelectMany(task => task.Result)
-            .Distinct()
-            .Count();
+        _ = appDbScopeFactory;
+        return await mainDb.Queryable<RuntimeRoute>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.IsActive)
+            .CountAsync(cancellationToken);
     }
 }
 
@@ -356,36 +319,25 @@ public sealed class AppManifestCommandService : IAppManifestCommandService
 public sealed class AppReleaseCommandService : IAppReleaseCommandService
 {
     private readonly ISqlSugarClient _db;
-    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
     private readonly IIdGeneratorAccessor _idGenerator;
 
-    public AppReleaseCommandService(
-        ISqlSugarClient db,
-        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory,
-        IIdGeneratorAccessor idGenerator)
+    public AppReleaseCommandService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
     {
         _db = db;
-        _appDbScopeFactory = appDbScopeFactory;
         _idGenerator = idGenerator;
-    }
-
-    public AppReleaseCommandService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
-        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db), idGenerator)
-    {
     }
 
     public async Task<ReleasePreCheckResult> PreCheckAsync(TenantId tenantId, long manifestId, CancellationToken cancellationToken = default)
     {
-        var pageCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
-            .CountAsync(x => x.AppId == manifestId, cancellationToken);
+        const int pageCount = 0;
         const int tableCount = 0;
         var runtimeDb = await ResolveRuntimeDbByManifestIdAsync(tenantId, manifestId, cancellationToken);
         var routeCount = await runtimeDb.Queryable<RuntimeRoute>()
             .CountAsync(x => x.TenantIdValue == tenantId.Value && x.ManifestId == manifestId, cancellationToken);
 
-        if (pageCount == 0 && tableCount == 0)
+        if (routeCount == 0 && tableCount == 0)
         {
-            return ReleasePreCheckResult.Fail("应用尚未配置任何页面或数据表，无法发布空版本。", pageCount, tableCount, routeCount);
+            return ReleasePreCheckResult.Fail("应用尚未配置任何运行时路由，无法发布空版本。", pageCount, tableCount, routeCount);
         }
 
         return ReleasePreCheckResult.Pass(pageCount, tableCount, routeCount);
@@ -400,19 +352,15 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var runtimeRoutes = await runtimeDb.Queryable<RuntimeRoute>()
             .Where(item => item.TenantIdValue == tenantId.Value && item.ManifestId == manifestId)
             .ToListAsync(cancellationToken);
-        var pageSnapshotRows = await _db.Queryable<LowCodePage>()
-            .Where(item => item.TenantIdValue == tenantId.Value && item.AppId == manifestId)
-            .Select(item => new
-            {
-                item.PageKey,
-                item.Name,
-                item.RoutePath,
-                item.Icon,
-                item.SortOrder
-            })
-            .ToListAsync(cancellationToken);
-        var pageSnapshots = pageSnapshotRows
-            .Select(item => new ReleasePageSnapshotInfo(item.PageKey, item.Name, item.RoutePath, item.Icon, item.SortOrder))
+        var pageSnapshots = runtimeRoutes
+            .GroupBy(r => r.PageKey, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Select(r => new ReleasePageSnapshotInfo(
+                r.PageKey,
+                r.PageKey,
+                $"/r/{r.AppKey}/{r.PageKey}",
+                null,
+                0))
             .ToArray();
         var orchestrationPlanRows = await _db.Queryable<OrchestrationPlan>()
             .Where(item =>
@@ -433,13 +381,12 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
                 item.UpdatedAt))
             .ToArray();
 
-        var pageCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
-            .CountAsync(x => x.AppId == manifestId, cancellationToken);
+        var pageCount = pageSnapshots.Length;
         const int tableCount = 0;
 
-        if (pageCount == 0 && tableCount == 0)
+        if (runtimeRoutes.Count == 0 && tableCount == 0)
         {
-            throw new InvalidOperationException("应用尚未配置任何页面或数据表，无法发布空版本。");
+            throw new InvalidOperationException("应用尚未配置任何运行时路由或数据表，无法发布空版本。");
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -626,34 +573,26 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
             null);
     }
 
-    private async Task<ISqlSugarClient> ResolveRuntimeDbByManifestIdAsync(
+    private Task<ISqlSugarClient> ResolveRuntimeDbByManifestIdAsync(
         TenantId tenantId,
         long manifestId,
         CancellationToken cancellationToken)
     {
-        var manifest = await _db.Queryable<AppManifest>()
-            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.Id == manifestId, cancellationToken);
-        if (manifest is null)
-        {
-            return _db;
-        }
-
-        return await ResolveRuntimeDbByAppKeyAsync(tenantId, manifest.AppKey, cancellationToken);
+        _ = tenantId;
+        _ = manifestId;
+        _ = cancellationToken;
+        return Task.FromResult(_db);
     }
 
-    private async Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
+    private Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
         TenantId tenantId,
         string appKey,
         CancellationToken cancellationToken)
     {
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey, cancellationToken);
-        if (app is not null && app.Id > 0)
-        {
-            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-        }
-
-        return _db;
+        _ = tenantId;
+        _ = appKey;
+        _ = cancellationToken;
+        return Task.FromResult(_db);
     }
 
     private static string BuildReleaseSnapshotJson(
@@ -1031,16 +970,13 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
     };
 
     private readonly ISqlSugarClient _mainDb;
-    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
     private readonly IApprovalOperationService _approvalOperationService;
 
     public RuntimeRouteQueryService(
         ISqlSugarClient db,
-        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory,
         IApprovalOperationService approvalOperationService)
     {
         _mainDb = db;
-        _appDbScopeFactory = appDbScopeFactory;
         _approvalOperationService = approvalOperationService;
     }
 
@@ -1165,30 +1101,14 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
                 && item.ManifestId == draftContext.AppId
                 && item.IsActive)
             .ToListAsync(cancellationToken);
-        var pageSnapshots = await _mainDb.Queryable<LowCodePage>()
-            .Where(item => item.TenantIdValue == tenantId.Value && item.AppId == draftContext.AppId)
-            .Select(item => new
-            {
-                item.PageKey,
-                item.Name,
-                item.RoutePath,
-                item.Icon,
-                item.SortOrder
-            })
-            .ToListAsync(cancellationToken);
-        var pageMap = pageSnapshots.ToDictionary(item => item.PageKey, StringComparer.OrdinalIgnoreCase);
         var items = runtimeRoutes
             .OrderBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
-            .Select(item =>
-            {
-                pageMap.TryGetValue(item.PageKey, out var page);
-                return new RuntimeMenuItem(
-                    item.PageKey,
-                    page is null || string.IsNullOrWhiteSpace(page.Name) ? item.PageKey : page.Name,
-                    page is null || string.IsNullOrWhiteSpace(page.RoutePath) ? $"/r/{item.AppKey}/{item.PageKey}" : page.RoutePath!,
-                    page?.Icon,
-                    page?.SortOrder ?? 0);
-            })
+            .Select(item => new RuntimeMenuItem(
+                item.PageKey,
+                item.PageKey,
+                $"/r/{item.AppKey}/{item.PageKey}",
+                null,
+                0))
             .OrderBy(item => item.SortOrder)
             .ThenBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -1285,18 +1205,7 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         CancellationToken cancellationToken)
     {
         var manifest = await GetManifestByAppKeyAsync(tenantId, appKey, cancellationToken);
-        if (manifest is not null)
-        {
-            return new DraftRuntimeContext(manifest.Id, appKey);
-        }
-
-        var app = await _mainDb.Queryable<LowCodeApp>()
-            .FirstAsync(
-                item => item.TenantIdValue == tenantId.Value && item.AppKey == appKey,
-                cancellationToken);
-        return app is null
-            ? null
-            : new DraftRuntimeContext(app.Id, app.AppKey);
+        return manifest is null ? null : new DraftRuntimeContext(manifest.Id, appKey);
     }
 
     private async Task<RuntimePageResponse?> GetDraftRuntimePageAsync(
@@ -1321,18 +1230,15 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
             : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
     }
 
-    private async Task<ISqlSugarClient> ResolveRuntimeDbByManifestIdAsync(
+    private Task<ISqlSugarClient> ResolveRuntimeDbByManifestIdAsync(
         TenantId tenantId,
         long manifestId,
         CancellationToken cancellationToken)
     {
-        if (manifestId > 0)
-        {
-            await EnsureRuntimeReadableAsync(tenantId, manifestId, cancellationToken);
-            return await _appDbScopeFactory.GetAppClientAsync(tenantId, manifestId, cancellationToken);
-        }
-
-        return _mainDb;
+        _ = tenantId;
+        _ = manifestId;
+        _ = cancellationToken;
+        return Task.FromResult(_mainDb);
     }
 
     private static IReadOnlyList<RuntimeProjectionRouteSnapshot> ParseRuntimeProjectionRoutes(string? runtimeProjectionJson)
@@ -1357,35 +1263,26 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         return snapshot?.Items ?? Array.Empty<NavigationProjectionItemSnapshot>();
     }
 
-    private async Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
+    private Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
         TenantId tenantId,
         string appKey,
         CancellationToken cancellationToken)
     {
-        var app = await _mainDb.Queryable<LowCodeApp>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
-            .FirstAsync(cancellationToken);
-        if (app is not null && app.Id > 0)
-        {
-            await EnsureRuntimeReadableAsync(tenantId, app.Id, cancellationToken);
-            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-        }
-
-        return _mainDb;
+        _ = tenantId;
+        _ = appKey;
+        _ = cancellationToken;
+        return Task.FromResult(_mainDb);
     }
 
-    private async Task<ISqlSugarClient> ResolveRuntimeDbByAppIdAsync(
+    private Task<ISqlSugarClient> ResolveRuntimeDbByAppIdAsync(
         TenantId tenantId,
         long appId,
         CancellationToken cancellationToken)
     {
-        if (appId > 0)
-        {
-            await EnsureRuntimeReadableAsync(tenantId, appId, cancellationToken);
-            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
-        }
-
-        return _mainDb;
+        _ = tenantId;
+        _ = appId;
+        _ = cancellationToken;
+        return Task.FromResult(_mainDb);
     }
 
     private Task EnsureRuntimeReadableAsync(

@@ -3,7 +3,6 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
@@ -251,67 +250,11 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         long appInstanceId,
         CancellationToken cancellationToken)
     {
-        var legacyDataSourceId = await _mainDb.Queryable<LowCodeApp>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appInstanceId)
-            .Select(x => x.DataSourceId)
-            .FirstAsync(cancellationToken);
-        if (!legacyDataSourceId.HasValue || legacyDataSourceId.Value <= 0)
-        {
-            return false;
-        }
-
-        var tenantIdText = tenantId.Value.ToString("D");
-        var dataSourceExists = await _mainDb.Queryable<TenantDataSource>()
-            .AnyAsync(x =>
-                x.TenantIdValue == tenantIdText
-                && x.Id == legacyDataSourceId.Value
-                && x.IsActive,
-                cancellationToken);
-        if (!dataSourceExists)
-        {
-            return false;
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        var binding = await _mainDb.Queryable<TenantAppDataSourceBinding>()
-            .Where(x =>
-                x.TenantIdValue == tenantId.Value
-                && x.TenantAppInstanceId == appInstanceId
-                && x.BindingType == TenantAppDataSourceBindingType.Primary)
-            .FirstAsync(cancellationToken);
-        if (binding is null)
-        {
-            var newBinding = new TenantAppDataSourceBinding(
-                tenantId,
-                appInstanceId,
-                legacyDataSourceId.Value,
-                TenantAppDataSourceBindingType.Primary,
-                0,
-                _idGeneratorAccessor.NextId(),
-                now,
-                "AppDbScopeFactory 自动修复绑定（legacy DataSourceId）");
-            await _mainDb.Insertable(newBinding).ExecuteCommandAsync(cancellationToken);
-        }
-        else
-        {
-            binding.Rebind(
-                legacyDataSourceId.Value,
-                TenantAppDataSourceBindingType.Primary,
-                0,
-                now,
-                "AppDbScopeFactory 自动修复绑定（legacy DataSourceId）");
-            await _mainDb.Updateable(binding)
-                .Where(x => x.Id == binding.Id && x.TenantIdValue == tenantId.Value)
-                .ExecuteCommandAsync(cancellationToken);
-        }
-
-        _connectionFactory.InvalidateCache(tenantIdText, appInstanceId);
-        _logger.LogWarning(
-            "检测到 legacy DataSourceId，已自动修复绑定。TenantId={TenantId}; AppInstanceId={AppInstanceId}; DataSourceId={DataSourceId}",
-            tenantId.Value,
-            appInstanceId,
-            legacyDataSourceId.Value);
-        return true;
+        // LowCodeApp 已移除：不再从旧表修复数据源绑定。
+        _ = tenantId;
+        _ = appInstanceId;
+        await Task.CompletedTask;
+        return false;
     }
 
     private async Task EnsureMainOnlyRoutePolicyAsync(

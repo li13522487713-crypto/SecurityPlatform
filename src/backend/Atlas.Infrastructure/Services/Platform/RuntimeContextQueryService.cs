@@ -1,8 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
-using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Identity;
-using Atlas.Application.LowCode.Models;
 using Atlas.Application.Options;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -16,8 +14,6 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
-using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.Logging;
@@ -151,14 +147,7 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
             return _mainDb;
         }
 
-        var app = await _mainDb.Queryable<LowCodeApp>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
-            .FirstAsync(cancellationToken);
-        if (app is not null && app.Id > 0)
-        {
-            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-        }
-
+        _ = appKey;
         return _mainDb;
     }
 
@@ -172,21 +161,6 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
         if (route is not null)
         {
             return route;
-        }
-
-        var appIds = await _mainDb.Queryable<LowCodeApp>()
-            .Where(x => x.TenantIdValue == tenantId.Value)
-            .Select(x => x.Id)
-            .ToListAsync(cancellationToken);
-        foreach (var appId in appIds)
-        {
-            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
-            route = await appDb.Queryable<RuntimeRoute>()
-                .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.Id == id, cancellationToken);
-            if (route is not null)
-            {
-                return route;
-            }
         }
 
         return null;

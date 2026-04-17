@@ -9,7 +9,6 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using SqlSugar;
 
@@ -42,11 +41,11 @@ public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommand
         PagedRequest request,
         CancellationToken cancellationToken = default)
     {
-        _ = tenantId;
+        var tenantValue = tenantId.Value;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 20 : request.PageSize;
 
-        var appQuery = _db.Queryable<LowCodeApp>();
+        var appQuery = _db.Queryable<AppManifest>().Where(item => item.TenantIdValue == tenantValue);
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim();
@@ -95,9 +94,8 @@ public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommand
         long appInstanceId,
         CancellationToken cancellationToken = default)
     {
-        _ = tenantId;
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(item => item.Id == appInstanceId, cancellationToken);
+        var app = await _db.Queryable<AppManifest>()
+            .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == appInstanceId, cancellationToken);
         if (app is null)
         {
             return null;
@@ -344,8 +342,8 @@ public sealed class AppBridgeService : IAppBridgeQueryService, IAppBridgeCommand
             request.Reason,
             now);
 
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(item => item.Id == appInstanceId, cancellationToken);
+        var app = await _db.Queryable<AppManifest>()
+            .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == appInstanceId, cancellationToken);
         command.BindAppKey(app?.AppKey);
 
         await _db.Insertable(command).ExecuteCommandAsync(cancellationToken);

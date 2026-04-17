@@ -1,8 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
-using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Identity;
-using Atlas.Application.LowCode.Models;
 using Atlas.Application.Options;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -16,8 +14,6 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
-using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.Logging;
@@ -58,13 +54,13 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
         var catalogsCountTask = _mainDb.Queryable<AppManifest>()
             .Where(item => item.TenantIdValue == tenantValue)
             .CountAsync(cancellationToken);
-        var appInstancesCountTask = _mainDb.Queryable<LowCodeApp>()
+        var appInstancesCountTask = _mainDb.Queryable<TenantApplication>()
             .Where(item => item.TenantIdValue == tenantValue)
             .CountAsync(cancellationToken);
         var releasesCountTask = _mainDb.Queryable<AppRelease>()
             .Where(item => item.TenantIdValue == tenantValue)
             .CountAsync(cancellationToken);
-        var appInstancesTask = _mainDb.Queryable<LowCodeApp>()
+        var appInstancesTask = _mainDb.Queryable<TenantApplication>()
             .Where(item => item.TenantIdValue == tenantValue)
             .ToListAsync(cancellationToken);
         var auditCountTask = _mainDb.Queryable<AuditRecord>()
@@ -89,7 +85,7 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
 
     private async Task<int> CountRuntimeRoutesAcrossAppsAsync(
         TenantId tenantId,
-        IReadOnlyList<LowCodeApp> appInstances,
+        IReadOnlyList<TenantApplication> appInstances,
         CancellationToken cancellationToken)
     {
         using var gate = new SemaphoreSlim(CozePerAppConcurrency);
@@ -105,7 +101,7 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.AppInstanceId, cancellationToken);
                 if (appDb is null)
                 {
                     return [];
@@ -130,7 +126,7 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
 
     private async Task<int> CountRuntimeExecutionsAcrossAppsAsync(
         TenantId tenantId,
-        IReadOnlyList<LowCodeApp> appInstances,
+        IReadOnlyList<TenantApplication> appInstances,
         CancellationToken cancellationToken)
     {
         using var gate = new SemaphoreSlim(CozePerAppConcurrency);
@@ -146,7 +142,7 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.AppInstanceId, cancellationToken);
                 if (appDb is null)
                 {
                     return [];

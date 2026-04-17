@@ -1,6 +1,5 @@
 using Atlas.Application.Platform.Repositories;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Infrastructure.Services;
 using SqlSugar;
@@ -64,16 +63,12 @@ public sealed class RuntimeRouteRepository : IRuntimeRouteRepository
         await db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
     }
 
-    private async Task<ISqlSugarClient> ResolveDbByAppKeyAsync(TenantId tenantId, string appKey, CancellationToken cancellationToken)
+    private Task<ISqlSugarClient> ResolveDbByAppKeyAsync(TenantId tenantId, string appKey, CancellationToken cancellationToken)
     {
-        var app = await _mainDb.Queryable<LowCodeApp>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
-            .FirstAsync(cancellationToken);
-        if (app is not null && app.Id > 0)
-        {
-            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-        }
-
-        return _mainDb;
+        // LowCodeApp 实体已移除：运行时路由不再按应用实例切库，统一走主库。
+        _ = tenantId;
+        _ = appKey;
+        _ = cancellationToken;
+        return Task.FromResult(_mainDb);
     }
 }

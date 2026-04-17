@@ -2,15 +2,11 @@ using Atlas.Application.Governance.Abstractions;
 using Atlas.Application.Governance.Models;
 using Atlas.Application.License.Abstractions;
 using Atlas.Application.License.Models;
-using Atlas.Application.System.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.LowCode.Entities;
-using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
-using Atlas.Infrastructure.Services;
 using SqlSugar;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -22,26 +18,13 @@ namespace Atlas.Infrastructure.Services.Governance;
 public sealed class PackageService : IPackageService
 {
     private readonly ISqlSugarClient _db;
-    private readonly IAppDbScopeFactory _appDbScopeFactory;
-    private readonly IAppDataSourceProvisioner _appDataSourceProvisioner;
     private readonly IIdGeneratorAccessor _idGenerator;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public PackageService(
-        ISqlSugarClient db,
-        IAppDbScopeFactory appDbScopeFactory,
-        IAppDataSourceProvisioner appDataSourceProvisioner,
-        IIdGeneratorAccessor idGenerator)
+    public PackageService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
     {
         _db = db;
-        _appDbScopeFactory = appDbScopeFactory;
-        _appDataSourceProvisioner = appDataSourceProvisioner;
         _idGenerator = idGenerator;
-    }
-
-    public PackageService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
-        : this(db, new MainOnlyAppDbScopeFactory(db), new NoopAppDataSourceProvisioner(), idGenerator)
-    {
     }
 
     public async Task<PackageOperationResponse> ExportAsync(TenantId tenantId, long userId, PackageExportRequest request, CancellationToken cancellationToken = default)
@@ -54,20 +37,13 @@ public sealed class PackageService : IPackageService
         var manifest = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == manifestId, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, "应用清单不存在。");
         var releases = await _db.Queryable<AppRelease>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
-        var lowCodeApp = await _db.Queryable<LowCodeApp>().FirstAsync(x => x.AppKey == manifest.AppKey, cancellationToken);
-        var runtimeDb = await ResolveRuntimeDbByAppKeyAsync(tenantId, manifest.AppKey, cancellationToken);
-        var routes = await runtimeDb.Queryable<RuntimeRoute>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
-        var pages = lowCodeApp is null
-            ? new List<LowCodePage>()
-            : await _db.Queryable<LowCodePage>().Where(x => x.AppId == lowCodeApp.Id).ToListAsync(cancellationToken);
+        var routes = await _db.Queryable<RuntimeRoute>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
 
         var payload = new ProductizationPackagePayload
         {
             Manifest = ManifestPackageDto.FromEntity(manifest),
             Releases = releases.Select(ReleasePackageDto.FromEntity).ToArray(),
-            Routes = routes.Select(RuntimeRoutePackageDto.FromEntity).ToArray(),
-            LowCodeApp = lowCodeApp is null ? null : LowCodeAppPackageDto.FromEntity(lowCodeApp),
-            Pages = pages.Select(LowCodePagePackageDto.FromEntity).ToArray()
+            Routes = routes.Select(RuntimeRoutePackageDto.FromEntity).ToArray()
         };
         var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
         var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
@@ -182,7 +158,6 @@ public sealed class PackageService : IPackageService
         }
 
         await ImportReleasesAsync(targetManifestId, payload.Releases, conflictPolicy, tenantId, userId, cancellationToken);
-        await ImportLowCodeAppAndPagesAsync(targetAppKey, payload.LowCodeApp, payload.Pages, conflictPolicy, tenantId, userId, cancellationToken);
         await ImportRuntimeRoutesAsync(targetManifestId, targetAppKey, payload.Routes, conflictPolicy, tenantId, cancellationToken);
 
         var entity = new PackageArtifact(
@@ -262,7 +237,7 @@ public sealed class PackageService : IPackageService
             return;
         }
 
-        var runtimeDb = await ResolveRuntimeDbByAppKeyAsync(tenantId, appKey, cancellationToken);
+        var runtimeDb = _db;
         var existingRoutes = await runtimeDb.Queryable<RuntimeRoute>()
             .Where(x => x.AppKey == appKey)
             .ToListAsync(cancellationToken);
@@ -338,158 +313,6 @@ public sealed class PackageService : IPackageService
         }
     }
 
-    private async Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
-        TenantId tenantId,
-        string appKey,
-        CancellationToken cancellationToken)
-    {
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey, cancellationToken);
-        if (app is not null && app.Id > 0)
-        {
-            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-        }
-
-        return _db;
-    }
-
-    private async Task ImportLowCodeAppAndPagesAsync(
-        string appKey,
-        LowCodeAppPackageDto? appDto,
-        IReadOnlyList<LowCodePagePackageDto> pageDtos,
-        string conflictPolicy,
-        TenantId tenantId,
-        long userId,
-        CancellationToken cancellationToken)
-    {
-        if (appDto is null && pageDtos.Count == 0)
-        {
-            return;
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(x => x.AppKey == appKey, cancellationToken);
-        if (app is null)
-        {
-            var appName = string.IsNullOrWhiteSpace(appDto?.Name) ? appKey : appDto.Name;
-            app = new LowCodeApp(
-                tenantId,
-                appKey,
-                appName,
-                null,
-                null,
-                null,
-                null,
-                userId,
-                _idGenerator.NextId(),
-                now);
-            await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
-        }
-        else if (appDto is not null && conflictPolicy == "overwrite" && !string.IsNullOrWhiteSpace(appDto.Name))
-        {
-            app.Update(appDto.Name, app.Description, app.Category, app.Icon, app.DataSourceId, userId, now);
-            await _db.Updateable(app).ExecuteCommandAsync(cancellationToken);
-        }
-
-        await _appDataSourceProvisioner.EnsureProvisionedAsync(
-            tenantId,
-            app.Id,
-            app.AppKey,
-            userId,
-            app.DataSourceId,
-            cancellationToken);
-
-        if (pageDtos.Count == 0)
-        {
-            return;
-        }
-
-        var existingPages = await _db.Queryable<LowCodePage>()
-            .Where(x => x.AppId == app.Id)
-            .ToListAsync(cancellationToken);
-        var pageByKey = existingPages
-            .GroupBy(x => x.PageKey, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
-        var toInsert = new List<LowCodePage>();
-        var toUpdate = new List<LowCodePage>();
-
-        foreach (var dto in pageDtos)
-        {
-            if (string.IsNullOrWhiteSpace(dto.PageKey))
-            {
-                continue;
-            }
-
-            if (pageByKey.TryGetValue(dto.PageKey, out var existing))
-            {
-                if (conflictPolicy == "overwrite")
-                {
-                    existing.RestoreSnapshot(
-                        string.IsNullOrWhiteSpace(dto.Name) ? existing.Name : dto.Name,
-                        existing.PageType,
-                        string.IsNullOrWhiteSpace(existing.SchemaJson) ? "{}" : existing.SchemaJson,
-                        dto.RoutePath,
-                        existing.Description,
-                        existing.Icon,
-                        existing.SortOrder,
-                        existing.ParentPageId,
-                        dto.Version <= 0 ? 1 : dto.Version,
-                        dto.IsPublished,
-                        existing.PermissionCode,
-                        existing.DataTableKey,
-                        userId,
-                        now);
-                    toUpdate.Add(existing);
-                }
-
-                continue;
-            }
-
-            var page = new LowCodePage(
-                tenantId,
-                app.Id,
-                dto.PageKey,
-                string.IsNullOrWhiteSpace(dto.Name) ? dto.PageKey : dto.Name,
-                LowCodePageType.Blank,
-                "{}",
-                dto.RoutePath,
-                null,
-                null,
-                0,
-                null,
-                userId,
-                _idGenerator.NextId(),
-                now);
-            page.RestoreSnapshot(
-                page.Name,
-                page.PageType,
-                page.SchemaJson,
-                dto.RoutePath,
-                page.Description,
-                page.Icon,
-                page.SortOrder,
-                page.ParentPageId,
-                dto.Version <= 0 ? 1 : dto.Version,
-                dto.IsPublished,
-                page.PermissionCode,
-                page.DataTableKey,
-                userId,
-                now);
-            toInsert.Add(page);
-        }
-
-        if (toInsert.Count > 0)
-        {
-            await _db.Insertable(toInsert).ExecuteCommandAsync(cancellationToken);
-        }
-
-        if (toUpdate.Count > 0)
-        {
-            await _db.Updateable(toUpdate).ExecuteCommandAsync(cancellationToken);
-        }
-    }
-
     public async Task<PackageOperationResponse> AnalyzeAsync(TenantId tenantId, long userId, PackageAnalyzeRequest request, CancellationToken cancellationToken = default)
     {
         byte[] zipBytes;
@@ -551,8 +374,6 @@ public sealed class PackageService : IPackageService
         public ManifestPackageDto? Manifest { get; set; }
         public IReadOnlyList<ReleasePackageDto> Releases { get; set; } = Array.Empty<ReleasePackageDto>();
         public IReadOnlyList<RuntimeRoutePackageDto> Routes { get; set; } = Array.Empty<RuntimeRoutePackageDto>();
-        public LowCodeAppPackageDto? LowCodeApp { get; set; }
-        public IReadOnlyList<LowCodePagePackageDto> Pages { get; set; } = Array.Empty<LowCodePagePackageDto>();
     }
 
     private sealed class ManifestPackageDto
@@ -607,49 +428,6 @@ public sealed class PackageService : IPackageService
         };
     }
 
-    private sealed class LowCodeAppPackageDto
-    {
-        public string AppKey { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-
-        public static LowCodeAppPackageDto FromEntity(LowCodeApp entity) => new()
-        {
-            AppKey = entity.AppKey,
-            Name = entity.Name
-        };
-    }
-
-    private sealed class LowCodePagePackageDto
-    {
-        public string PageKey { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string? RoutePath { get; set; }
-        public int Version { get; set; }
-        public bool IsPublished { get; set; }
-
-        public static LowCodePagePackageDto FromEntity(LowCodePage entity) => new()
-        {
-            PageKey = entity.PageKey,
-            Name = entity.Name,
-            RoutePath = entity.RoutePath,
-            Version = entity.Version,
-            IsPublished = entity.IsPublished
-        };
-    }
-
-    private sealed class NoopAppDataSourceProvisioner : IAppDataSourceProvisioner
-    {
-        public Task EnsureProvisionedAsync(
-            TenantId tenantId,
-            long appInstanceId,
-            string appKey,
-            long operatorUserId,
-            long? preferredDataSourceId = null,
-            CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-    }
 }
 
 public sealed class LicenseGrantService : ILicenseGrantService

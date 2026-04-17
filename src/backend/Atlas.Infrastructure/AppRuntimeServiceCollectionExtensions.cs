@@ -48,8 +48,6 @@ public static class AppRuntimeServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Integration.IApiKeyValidationService, Atlas.Infrastructure.Services.ApiKeyValidationService>();
         services.AddScoped<Atlas.Application.Resilience.ICompensationService, Atlas.Infrastructure.Resilience.CompensationService>();
         services.AddScoped<Atlas.Infrastructure.Services.EvidenceChainService>();
-        services.AddScoped<Atlas.Application.Platform.Abstractions.ITenantAppInstanceQueryService, Atlas.Infrastructure.Services.Platform.TenantAppInstanceQueryService>();
-        services.AddScoped<Atlas.Application.Platform.Abstractions.ITenantAppInstanceCommandService, Atlas.Infrastructure.Services.Platform.TenantAppInstanceCommandService>();
         services.AddScoped<Atlas.Application.Platform.Abstractions.ITenantAppMemberQueryService, Atlas.Infrastructure.Services.Platform.TenantAppMemberQueryService>();
         services.AddScoped<Atlas.Application.Platform.Abstractions.ITenantAppMemberCommandService, Atlas.Infrastructure.Services.Platform.TenantAppMemberCommandService>();
         services.AddScoped<Atlas.Application.Platform.Abstractions.ITenantAppRoleQueryService, Atlas.Infrastructure.Services.Platform.TenantAppRoleQueryService>();

@@ -1,8 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
-using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Identity;
-using Atlas.Application.LowCode.Models;
 using Atlas.Application.Options;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -16,8 +14,6 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
-using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.Logging;
@@ -388,21 +384,6 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
         if (execution is not null)
         {
             return execution;
-        }
-
-        var appIds = await _mainDb.Queryable<LowCodeApp>()
-            .Where(item => item.TenantIdValue == tenantId.Value)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        foreach (var appId in appIds)
-        {
-            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
-            execution = await appDb.Queryable<WorkflowExecution>()
-                .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == executionId, cancellationToken);
-            if (execution is not null)
-            {
-                return execution;
-            }
         }
 
         return null;

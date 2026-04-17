@@ -3,7 +3,6 @@ using Atlas.Application.Platform.Models;
 using Atlas.Application.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Infrastructure.Caching;
 using SqlSugar;
@@ -88,9 +87,10 @@ public sealed class NavigationProjectionService : INavigationProjectionService
             return cached.Value;
         }
 
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(item => item.Id == appInstanceId, cancellationToken);
-        var appKey = app?.AppKey;
+        var manifestRows = await _db.Queryable<AppManifest>()
+            .Where(item => item.TenantIdValue == tenantId.Value && item.Id == appInstanceId)
+            .ToListAsync(cancellationToken);
+        var appKey = manifestRows.Count > 0 ? manifestRows[0].AppKey : null;
 
         var permissionSet = await LoadWorkspacePermissionSetAsync(userId, appInstanceId, cancellationToken);
         var capabilities = await _capabilityRegistry.GetAllAsync(tenantId, cancellationToken);
@@ -145,8 +145,11 @@ public sealed class NavigationProjectionService : INavigationProjectionService
         }
 
         var normalizedAppKey = appKey.Trim();
-        var app = await _db.Queryable<LowCodeApp>()
-            .FirstAsync(item => item.AppKey == normalizedAppKey, cancellationToken);
+        var app = (await _db.Queryable<AppManifest>()
+            .Where(item => item.TenantIdValue == tenantId.Value && item.AppKey == normalizedAppKey)
+            .OrderByDescending(item => item.Id)
+            .Take(1)
+            .ToListAsync(cancellationToken)).FirstOrDefault();
         if (app is null)
         {
             return new NavigationProjectionResponse(

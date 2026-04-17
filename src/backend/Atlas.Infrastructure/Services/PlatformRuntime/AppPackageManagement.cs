@@ -7,7 +7,6 @@ using Atlas.Application.Platform.Models;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Shared.Contracts.Package;
 using Microsoft.Extensions.Configuration;
@@ -222,7 +221,7 @@ public sealed class FileSystemAppPackageInstaller : IAppPackageInstaller
         bool isRollback,
         CancellationToken cancellationToken)
     {
-        var app = await db.Queryable<LowCodeApp>()
+        var app = await db.Queryable<AppManifest>()
             .FirstAsync(row => row.TenantIdValue == tenantId.Value && row.Id == tenantAppInstanceId, cancellationToken);
         if (app is null)
         {
@@ -365,7 +364,7 @@ public sealed class AppEntryQueryService : IAppEntryQueryService
         CancellationToken cancellationToken = default)
     {
         var normalizedKey = appKey.Trim();
-        var app = await db.Queryable<LowCodeApp>()
+        var app = await db.Queryable<AppManifest>()
             .FirstAsync(row => row.TenantIdValue == tenantId.Value && row.AppKey == normalizedKey, cancellationToken);
         if (app is null)
         {

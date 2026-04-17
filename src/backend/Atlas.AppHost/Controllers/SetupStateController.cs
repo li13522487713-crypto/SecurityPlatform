@@ -10,7 +10,6 @@ using Atlas.Core.Models;
 using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
-using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Services;
@@ -414,7 +413,7 @@ public sealed class SetupStateController : ControllerBase
             var positions = SanitizePositions(request.Organization?.Positions);
 
             AppOrganizationSeedResult seedResult;
-            LowCodeApp app;
+            AppManifest app;
             using (BeginSetupScope(tenantId, appKey))
             {
                 var adminUser = await EnsureAppAdminUserAsync(db, tenantId, adminUsername, cancellationToken);
@@ -432,7 +431,7 @@ public sealed class SetupStateController : ControllerBase
                 await EnsureMainOnlyRoutePolicyAsync(db, tenantId, app.Id, adminUser.Id, cancellationToken);
 
                 // 当应用库与平台主库不同时，AppDbScopeFactory 从主库查询 AppDataRoutePolicy 来判断路由模式。
-                // 必须将 LowCodeApp 与 AppDataRoutePolicy 同步写入平台主库，否则动态表等依赖 GetAppClientAsync 的功能
+                // 必须将 AppManifest 与 AppDataRoutePolicy 同步写入平台主库，否则动态表等依赖 GetAppClientAsync 的功能
                 // 会因找不到 MainOnly 策略而尝试查找 TenantAppDataSourceBinding，导致 "未绑定可用数据源" 异常。
                 if (platformDb is not null
                     && !string.IsNullOrWhiteSpace(platformConnectionString)
@@ -643,7 +642,7 @@ public sealed class SetupStateController : ControllerBase
         return normalized.Length == 0 ? new[] { "Admin" } : normalized;
     }
 
-    private async Task<LowCodeApp> EnsureAppInstanceAsync(
+    private async Task<AppManifest> EnsureAppInstanceAsync(
         ISqlSugarClient db,
         TenantId tenantId,
         string appKey,
@@ -651,7 +650,7 @@ public sealed class SetupStateController : ControllerBase
         long adminUserId,
         CancellationToken cancellationToken)
     {
-        var existing = await db.Queryable<LowCodeApp>()
+        var existing = await db.Queryable<AppManifest>()
             .FirstAsync(
                 app => app.TenantIdValue == tenantId.Value && app.AppKey == appKey,
                 cancellationToken);
@@ -661,16 +660,8 @@ public sealed class SetupStateController : ControllerBase
         }
 
         var now = DateTimeOffset.UtcNow;
-        var app = new LowCodeApp(
-            tenantId,
-            appKey,
-            appName,
-            description: null,
-            category: null,
-            icon: null,
-            createdBy: adminUserId,
-            id: _idGeneratorAccessor.NextId(),
-            now: now);
+        var app = new AppManifest(tenantId, _idGeneratorAccessor.NextId(), appKey, appName, adminUserId, now);
+        app.Update(appName, null, null, null, null, adminUserId, now);
 
         await db.Insertable(app).ExecuteCommandAsync(cancellationToken);
         _logger.LogInformation("[AppSetup] AppKey={AppKey} 未命中实例，已自动创建 AppId={AppId}", appKey, app.Id);
@@ -719,10 +710,10 @@ public sealed class SetupStateController : ControllerBase
     private async Task SyncAppInstanceToPlatformDbAsync(
         ISqlSugarClient platformDb,
         TenantId tenantId,
-        LowCodeApp app,
+        AppManifest app,
         CancellationToken cancellationToken)
     {
-        var existing = await platformDb.Queryable<LowCodeApp>()
+        var existing = await platformDb.Queryable<AppManifest>()
             .FirstAsync(
                 item => item.TenantIdValue == tenantId.Value && item.Id == app.Id,
                 cancellationToken);
@@ -731,7 +722,7 @@ public sealed class SetupStateController : ControllerBase
             return;
         }
 
-        var existByAppKey = await platformDb.Queryable<LowCodeApp>()
+        var existByAppKey = await platformDb.Queryable<AppManifest>()
             .FirstAsync(
                 item => item.TenantIdValue == tenantId.Value && item.AppKey == app.AppKey,
                 cancellationToken);
@@ -754,7 +745,7 @@ public sealed class SetupStateController : ControllerBase
     private static void EnsurePlatformRoutingTables(ISqlSugarClient platformDb)
     {
         platformDb.CodeFirst.InitTables(
-            typeof(LowCodeApp),
+            typeof(AppManifest),
             typeof(AppDataRoutePolicy));
     }
 

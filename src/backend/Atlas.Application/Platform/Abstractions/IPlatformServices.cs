@@ -1,5 +1,4 @@
 using Atlas.Application.Platform.Models;
-using Atlas.Application.LowCode.Models;
 using Atlas.Application.System.Models;
 using Atlas.Application.Identity.Models;
 using Atlas.Core.Models;
@@ -172,93 +171,6 @@ public interface ITenantApplicationQueryService
     Task<TenantApplicationDetail?> GetByIdAsync(
         TenantId tenantId,
         long id,
-        CancellationToken cancellationToken = default);
-}
-
-public interface ITenantAppInstanceQueryService
-{
-    Task<PagedResult<TenantAppInstanceListItem>> QueryAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
-    Task<TenantAppInstanceDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<TenantAppInstanceRuntimeInfo?> GetRuntimeInfoAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<TenantAppInstanceHealthInfo?> GetHealthAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<LowCodeAppDataSourceInfo?> GetDataSourceInfoAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<TestConnectionResult> TestDataSourceAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<TenantAppFileStorageSettings?> GetFileStorageSettingsAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<TenantAppDataSourceBinding>> GetDataSourceBindingsAsync(
-        TenantId tenantId,
-        IReadOnlyCollection<long>? appInstanceIds,
-        CancellationToken cancellationToken = default);
-}
-
-public interface ITenantAppInstanceCommandService
-{
-    Task<TenantAppInstanceRuntimeInfo> StartAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        CancellationToken cancellationToken = default);
-
-    Task<TenantAppInstanceRuntimeInfo> StopAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        CancellationToken cancellationToken = default);
-
-    Task<TenantAppInstanceRuntimeInfo> RestartAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        CancellationToken cancellationToken = default);
-
-    Task<long> CreateAsync(
-        TenantId tenantId,
-        long userId,
-        LowCodeAppCreateRequest request,
-        CancellationToken cancellationToken = default);
-
-    Task UpdateAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        LowCodeAppUpdateRequest request,
-        CancellationToken cancellationToken = default);
-
-    Task PublishAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        CancellationToken cancellationToken = default);
-
-    Task UpdateEntityAliasesAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        LowCodeAppEntityAliasesUpdateRequest request,
-        CancellationToken cancellationToken = default);
-
-    Task UpdateFileStorageSettingsAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        TenantAppFileStorageSettingsUpdateRequest request,
-        CancellationToken cancellationToken = default);
-
-    Task DeleteAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        CancellationToken cancellationToken = default);
-
-    Task<LowCodeAppExportPackage?> ExportAsync(
-        TenantId tenantId,
-        long id,
-        CancellationToken cancellationToken = default);
-
-    Task<LowCodeAppImportResult> ImportAsync(
-        TenantId tenantId,
-        long userId,
-        LowCodeAppImportRequest request,
         CancellationToken cancellationToken = default);
 }
 
