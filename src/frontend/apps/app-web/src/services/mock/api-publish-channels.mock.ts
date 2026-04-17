@@ -1,15 +1,11 @@
-import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { matchKeyword, mockPaged, mockResolve } from "./mock-utils";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
+import { requestApi, toQuery } from "../api-core";
 
 /**
- * Mock：工作空间-发布渠道（PRD 04-空间配置 4.6）。
- *
- * 路由：
- *   GET    /api/v1/workspaces/{workspaceId}/publish-channels
- *   POST   /api/v1/workspaces/{workspaceId}/publish-channels
- *   PATCH  /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}
- *   POST   /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/reauth
- *   DELETE /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}
+ * 工作空间-发布渠道（PRD 04-4.6）。已切换为真实 REST：
+ *   Atlas.PlatformHost/Controllers/WorkspacePublishChannelsController.cs
+ *   Atlas.Infrastructure/Services/Coze/WorkspacePublishChannelService.cs
+ *   Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs
  */
 
 export type PublishChannelType = "web-sdk" | "open-api" | "wechat" | "feishu" | "lark" | "custom";
@@ -43,97 +39,87 @@ export interface PublishChannelUpdateRequest {
   supportedTargets?: Array<"agent" | "app" | "workflow">;
 }
 
-const CHANNELS: PublishChannelItem[] = [
-  {
-    id: "channel-web-sdk",
-    workspaceId: "default",
-    name: "Web SDK",
-    type: "web-sdk",
-    status: "active",
-    authStatus: "authorized",
-    description: "在外部站点嵌入聊天窗口",
-    supportedTargets: ["agent", "app"],
-    lastSyncAt: new Date().toISOString(),
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  },
-  {
-    id: "channel-open-api",
-    workspaceId: "default",
-    name: "Open API",
-    type: "open-api",
-    status: "active",
-    authStatus: "authorized",
-    description: "通过 OpenAPI 调用智能体能力",
-    supportedTargets: ["agent", "workflow"],
-    lastSyncAt: new Date().toISOString(),
-    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
-  }
-];
+function channelsBase(workspaceId: string): string {
+  return `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels`;
+}
 
 export async function listPublishChannels(
   workspaceId: string,
   request: PagedRequest & { keyword?: string }
 ): Promise<PagedResult<PublishChannelItem>> {
-  const items = CHANNELS.filter(item => item.workspaceId === workspaceId || item.workspaceId === "default")
-    .filter(item => matchKeyword(item.name, request.keyword));
-  return mockPaged(items, request);
+  const query = toQuery(
+    {
+      pageIndex: request.pageIndex ?? 1,
+      pageSize: request.pageSize ?? 50
+    },
+    { keyword: request.keyword }
+  );
+  const response = await requestApi<ApiResponse<PagedResult<PublishChannelItem>>>(
+    `${channelsBase(workspaceId)}?${query}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "Failed to load publish channels");
+  }
+  return response.data;
 }
 
 export async function createPublishChannel(
   workspaceId: string,
   request: PublishChannelCreateRequest
 ): Promise<{ channelId: string }> {
-  const id = `channel-${Date.now()}`;
-  CHANNELS.push({
-    id,
-    workspaceId,
-    name: request.name.trim(),
-    type: request.type,
-    status: "pending",
-    authStatus: "unauthorized",
-    description: request.description?.trim() ?? "",
-    supportedTargets: request.supportedTargets,
-    createdAt: new Date().toISOString()
-  });
-  return mockResolve({ channelId: id });
+  const response = await requestApi<ApiResponse<{ id?: string; channelId?: string }>>(
+    channelsBase(workspaceId),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  const channelId = response.data?.channelId ?? response.data?.id ?? "";
+  if (!channelId) {
+    throw new Error(response.message || "Failed to create channel");
+  }
+  return { channelId };
 }
 
 export async function updatePublishChannel(
-  _workspaceId: string,
+  workspaceId: string,
   channelId: string,
   request: PublishChannelUpdateRequest
 ): Promise<void> {
-  const channel = CHANNELS.find(item => item.id === channelId);
-  if (channel) {
-    if (request.name) {
-      channel.name = request.name.trim();
+  const response = await requestApi<ApiResponse<{ success: boolean }>>(
+    `${channelsBase(workspaceId)}/${encodeURIComponent(channelId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
     }
-    if (request.description !== undefined) {
-      channel.description = request.description.trim();
-    }
-    if (request.status) {
-      channel.status = request.status;
-    }
-    if (request.supportedTargets) {
-      channel.supportedTargets = request.supportedTargets;
-    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "Failed to update channel");
   }
-  return mockResolve(undefined);
 }
 
-export async function reauthPublishChannel(_workspaceId: string, channelId: string): Promise<void> {
-  const channel = CHANNELS.find(item => item.id === channelId);
-  if (channel) {
-    channel.authStatus = "authorized";
-    channel.lastSyncAt = new Date().toISOString();
+export async function reauthPublishChannel(workspaceId: string, channelId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ success: boolean }>>(
+    `${channelsBase(workspaceId)}/${encodeURIComponent(channelId)}/reauth`,
+    {
+      method: "POST"
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "Failed to reauthorize channel");
   }
-  return mockResolve(undefined);
 }
 
-export async function deletePublishChannel(_workspaceId: string, channelId: string): Promise<void> {
-  const index = CHANNELS.findIndex(item => item.id === channelId);
-  if (index >= 0) {
-    CHANNELS.splice(index, 1);
+export async function deletePublishChannel(workspaceId: string, channelId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ success: boolean }>>(
+    `${channelsBase(workspaceId)}/${encodeURIComponent(channelId)}`,
+    {
+      method: "DELETE"
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "Failed to delete channel");
   }
-  return mockResolve(undefined);
 }

@@ -1,14 +1,11 @@
-import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { matchKeyword, mockPaged, mockResolve } from "./mock-utils";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
+import { requestApi, toQuery } from "../api-core";
 
 /**
- * Mock：效果评测（PRD 02-左侧导航 7.5 + 工作流编辑器测试集）。
- *
- * 路由：
- *   GET    /api/v1/workspaces/{workspaceId}/evaluations
- *   GET    /api/v1/workspaces/{workspaceId}/testsets
- *   POST   /api/v1/workspaces/{workspaceId}/testsets
- *   GET    /api/v1/workspaces/{workspaceId}/evaluations/{evaluationId}
+ * 效果评测 + 测试集（PRD 02-7.5 / PRD 05-4.8）。已切换为真实 REST：
+ *   Atlas.PlatformHost/Controllers/WorkspaceEvaluationsController.cs
+ *   Atlas.Infrastructure/Services/Coze/InMemoryWorkspaceEvaluationService.cs
+ *   Atlas.Infrastructure/Services/Coze/InMemoryWorkspaceTestsetService.cs
  */
 
 export type EvaluationStatus = "pending" | "running" | "succeeded" | "failed";
@@ -48,52 +45,93 @@ export interface TestsetCreateRequest {
   rows: Array<Record<string, unknown>>;
 }
 
-const EVALUATIONS: EvaluationItem[] = [];
-const TESTSETS: TestsetItem[] = [];
+const EVAL_STATUS: EvaluationStatus[] = ["pending", "running", "succeeded", "failed"];
 
-export async function listEvaluations(
-  _workspaceId: string,
-  request: PagedRequest & { keyword?: string }
-): Promise<PagedResult<EvaluationItem>> {
-  const items = EVALUATIONS.filter(item => matchKeyword(item.name, request.keyword));
-  return mockPaged(items, request);
+interface RawEvaluation extends Omit<EvaluationItem, "status"> {
+  status: EvaluationStatus | number;
 }
 
-export async function getEvaluation(_workspaceId: string, evaluationId: string): Promise<EvaluationDetail> {
-  const summary = EVALUATIONS.find(item => item.id === evaluationId);
-  if (!summary) {
-    throw Object.assign(new Error("evaluation not found"), { code: "NOT_FOUND" });
+interface RawEvaluationDetail extends Omit<EvaluationDetail, "status"> {
+  status: EvaluationStatus | number;
+}
+
+function normalizeEval<T extends { status: EvaluationStatus | number }>(item: T): T & { status: EvaluationStatus } {
+  const status = typeof item.status === "number" ? EVAL_STATUS[item.status] ?? "pending" : item.status;
+  return { ...item, status };
+}
+
+function workspaceBase(workspaceId: string): string {
+  return `/workspaces/${encodeURIComponent(workspaceId)}`;
+}
+
+export async function listEvaluations(
+  workspaceId: string,
+  request: PagedRequest & { keyword?: string }
+): Promise<PagedResult<EvaluationItem>> {
+  const query = toQuery(
+    {
+      pageIndex: request.pageIndex ?? 1,
+      pageSize: request.pageSize ?? 20
+    },
+    { keyword: request.keyword }
+  );
+  const response = await requestApi<ApiResponse<PagedResult<RawEvaluation>>>(
+    `${workspaceBase(workspaceId)}/evaluations?${query}`
+  );
+  if (!response.data) {
+    return { items: [], total: 0, pageIndex: request.pageIndex ?? 1, pageSize: request.pageSize ?? 20 };
   }
-  return mockResolve({
-    ...summary,
-    totalCount: 0,
-    passCount: 0,
-    failCount: 0,
-    reportJson: "{}"
-  });
+  return {
+    ...response.data,
+    items: response.data.items.map(normalizeEval)
+  };
+}
+
+export async function getEvaluation(
+  workspaceId: string,
+  evaluationId: string
+): Promise<EvaluationDetail> {
+  const response = await requestApi<ApiResponse<RawEvaluationDetail>>(
+    `${workspaceBase(workspaceId)}/evaluations/${encodeURIComponent(evaluationId)}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "evaluation not found");
+  }
+  return normalizeEval(response.data);
 }
 
 export async function listTestsets(
-  _workspaceId: string,
+  workspaceId: string,
   request: PagedRequest & { keyword?: string }
 ): Promise<PagedResult<TestsetItem>> {
-  const items = TESTSETS.filter(item => matchKeyword(item.name, request.keyword));
-  return mockPaged(items, request);
+  const query = toQuery(
+    {
+      pageIndex: request.pageIndex ?? 1,
+      pageSize: request.pageSize ?? 50
+    },
+    { keyword: request.keyword }
+  );
+  const response = await requestApi<ApiResponse<PagedResult<TestsetItem>>>(
+    `${workspaceBase(workspaceId)}/testsets?${query}`
+  );
+  return response.data ?? { items: [], total: 0, pageIndex: request.pageIndex ?? 1, pageSize: request.pageSize ?? 50 };
 }
 
 export async function createTestset(
-  _workspaceId: string,
+  workspaceId: string,
   request: TestsetCreateRequest
 ): Promise<{ testsetId: string }> {
-  const id = `testset-${Date.now()}`;
-  TESTSETS.push({
-    id,
-    name: request.name.trim(),
-    description: request.description?.trim() ?? "",
-    workflowId: request.workflowId,
-    rowCount: request.rows.length,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  });
-  return mockResolve({ testsetId: id });
+  const response = await requestApi<ApiResponse<{ id?: string; testsetId?: string }>>(
+    `${workspaceBase(workspaceId)}/testsets`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  const id = response.data?.testsetId ?? response.data?.id ?? "";
+  if (!id) {
+    throw new Error(response.message || "Failed to create testset");
+  }
+  return { testsetId: id };
 }

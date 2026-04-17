@@ -70,6 +70,35 @@ public static class PlatformServiceCollectionExtensions
         services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppRuntimeSupervisor, AppRuntimeSupervisor>();
         services.AddHostedService<AppRuntimeSupervisorHostedService>();
 
+        // Coze PRD Phase III - M1: 平台/个人级 in-memory 内容服务（首页/社区/通用管理/模板插件/个人设置）
+        // 协议见 docs/mock-api-protocols.md，等运营后台落地后升级为持久化实现。
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.IHomeContentService,
+            Atlas.Infrastructure.Services.Coze.InMemoryHomeContentService>();
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.ICommunityService,
+            Atlas.Infrastructure.Services.Coze.InMemoryCommunityService>();
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.IPlatformGeneralService,
+            Atlas.Infrastructure.Services.Coze.InMemoryPlatformGeneralService>();
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.IMarketSummaryService,
+            Atlas.Infrastructure.Services.Coze.InMemoryMarketSummaryService>();
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.IMeSettingsService,
+            Atlas.Infrastructure.Services.Coze.InMemoryMeSettingsService>();
+
+        // Coze PRD Phase III - M2: 工作空间维度持久化对象（文件夹 / 发布渠道）
+        services.AddScoped<Atlas.Infrastructure.Repositories.WorkspaceFolderRepository>();
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceFolderService,
+            Atlas.Infrastructure.Services.Coze.WorkspaceFolderService>();
+        services.AddScoped<Atlas.Infrastructure.Repositories.WorkspacePublishChannelRepository>();
+        services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspacePublishChannelService,
+            Atlas.Infrastructure.Services.Coze.WorkspacePublishChannelService>();
+
+        // Coze PRD Phase III - M3: 任务中心 / 评测 / 测试集（in-memory，第二批接入 BatchProcess + EvaluationDataset）
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.IWorkspaceTaskService,
+            Atlas.Infrastructure.Services.Coze.InMemoryWorkspaceTaskService>();
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.IWorkspaceEvaluationService,
+            Atlas.Infrastructure.Services.Coze.InMemoryWorkspaceEvaluationService>();
+        services.AddSingleton<Atlas.Application.Coze.Abstractions.IWorkspaceTestsetService,
+            Atlas.Infrastructure.Services.Coze.InMemoryWorkspaceTestsetService>();
+
         return services;
     }
 }

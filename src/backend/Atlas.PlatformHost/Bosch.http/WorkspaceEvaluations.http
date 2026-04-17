@@ -1,0 +1,49 @@
+@baseUrl = http://localhost:5001
+@tenantId = 00000000-0000-0000-0000-000000000001
+@workspaceId = atlas-space
+@username = admin
+@password = P@ssw0rd!
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 评测任务列表
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/evaluations?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 评测详情
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/evaluations/eval-1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 测试集列表
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/testsets?pageIndex=1&pageSize=50
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建测试集
+POST {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/testsets
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "客服意图基础测试集",
+  "description": "10 条经典 case",
+  "workflowId": "wf-customer-intent",
+  "rows": [
+    { "input": "我想退款" },
+    { "input": "运费多少" }
+  ]
+}

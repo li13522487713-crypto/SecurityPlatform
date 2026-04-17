@@ -1,0 +1,49 @@
+@baseUrl = http://localhost:5001
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 个人设置 - 通用设置
+GET {{baseUrl}}/api/v1/me/settings/general
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 个人设置 - 更新通用设置（语言/主题/默认空间）
+PATCH {{baseUrl}}/api/v1/me/settings/general
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "locale": "zh-CN",
+  "theme": "light",
+  "defaultWorkspaceId": "atlas-space"
+}
+
+### 个人设置 - 个人发布渠道
+GET {{baseUrl}}/api/v1/me/settings/publish-channels
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 个人设置 - 个人数据源
+GET {{baseUrl}}/api/v1/me/settings/datasources
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 个人设置 - 删除账号（占位，第一阶段仅清空偏好）
+DELETE {{baseUrl}}/api/v1/me/account
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

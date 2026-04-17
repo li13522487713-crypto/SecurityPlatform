@@ -1,14 +1,14 @@
-import { mockResolve } from "./mock-utils";
+import type { ApiResponse } from "@atlas/shared-react-core/types";
+import { requestApi } from "../api-core";
 
 /**
- * Mock：个人设置（PRD 03-项目开发底部头像入口）。
+ * 个人设置（PRD 03 头像入口）。已切换为真实 REST：
+ *   Atlas.PlatformHost/Controllers/MeSettingsController.cs
+ *   Atlas.Infrastructure/Services/Coze/InMemoryMeSettingsService.cs
  *
- * 路由：
- *   GET    /api/v1/me/settings/general
- *   PATCH  /api/v1/me/settings/general
- *   GET    /api/v1/me/settings/publish-channels
- *   GET    /api/v1/me/settings/datasources
- *   DELETE /api/v1/me/account
+ * - General settings 用 ConcurrentDictionary 暂存（进程内）。
+ * - Publish channels / Data sources 当前返回内置常量。
+ * - DELETE /me/account 仅清空当前用户偏好，不真正删除账号。
  */
 
 export interface MeGeneralSettings {
@@ -31,37 +31,38 @@ export interface MeDataSourceItem {
   bound: boolean;
 }
 
-let GENERAL_SETTINGS: MeGeneralSettings = {
-  locale: "zh-CN",
-  theme: "light"
-};
-
 export async function getMeGeneralSettings(): Promise<MeGeneralSettings> {
-  return mockResolve({ ...GENERAL_SETTINGS });
+  const response = await requestApi<ApiResponse<MeGeneralSettings>>("/me/settings/general");
+  if (!response.data) {
+    throw new Error(response.message || "Failed to load general settings");
+  }
+  return response.data;
 }
 
 export async function updateMeGeneralSettings(patch: Partial<MeGeneralSettings>): Promise<MeGeneralSettings> {
-  GENERAL_SETTINGS = {
-    ...GENERAL_SETTINGS,
-    ...patch
-  };
-  return mockResolve({ ...GENERAL_SETTINGS });
+  const response = await requestApi<ApiResponse<MeGeneralSettings>>("/me/settings/general", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "Failed to update general settings");
+  }
+  return response.data;
 }
 
 export async function listMePublishChannels(): Promise<MePublishChannelItem[]> {
-  return mockResolve<MePublishChannelItem[]>([
-    { id: "ch-wechat-personal", name: "微信个人", type: "wechat-personal", bound: false },
-    { id: "ch-feishu-personal", name: "飞书个人", type: "feishu-personal", bound: false }
-  ]);
+  const response = await requestApi<ApiResponse<MePublishChannelItem[]>>("/me/settings/publish-channels");
+  return response.data ?? [];
 }
 
 export async function listMeDataSources(): Promise<MeDataSourceItem[]> {
-  return mockResolve<MeDataSourceItem[]>([
-    { id: "ds-qdrant", name: "默认 Qdrant", type: "qdrant", bound: true },
-    { id: "ds-minio", name: "默认 MinIO", type: "minio", bound: true }
-  ]);
+  const response = await requestApi<ApiResponse<MeDataSourceItem[]>>("/me/settings/datasources");
+  return response.data ?? [];
 }
 
 export async function deleteMeAccount(): Promise<void> {
-  return mockResolve(undefined);
+  await requestApi<ApiResponse<{ success: boolean }>>("/me/account", {
+    method: "DELETE"
+  });
 }

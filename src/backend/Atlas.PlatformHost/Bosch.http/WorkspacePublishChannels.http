@@ -1,0 +1,62 @@
+@baseUrl = http://localhost:5001
+@tenantId = 00000000-0000-0000-0000-000000000001
+@workspaceId = atlas-space
+@username = admin
+@password = P@ssw0rd!
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 渠道列表
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels?pageIndex=1&pageSize=50
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 新增渠道
+# @name createChannel
+POST {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "Web SDK",
+  "type": "web-sdk",
+  "description": "在外部站点嵌入聊天窗口",
+  "supportedTargets": ["agent", "app"]
+}
+
+###
+@channelId = {{createChannel.response.body.$.data.channelId}}
+
+### 修改渠道（启停 / 名称 / 目标）
+PATCH {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "Web SDK（生产）",
+  "status": "active",
+  "supportedTargets": ["agent"]
+}
+
+### 重新授权
+POST {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/reauth
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除渠道
+DELETE {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

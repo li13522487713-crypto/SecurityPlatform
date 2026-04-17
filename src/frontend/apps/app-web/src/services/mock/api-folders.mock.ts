@@ -1,15 +1,11 @@
-import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { matchKeyword, mockPaged, mockResolve } from "./mock-utils";
+import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
+import { requestApi, toQuery } from "../api-core";
 
 /**
- * Mock：项目开发-文件夹（PRD 03-项目开发）。
- *
- * 路由：
- *   GET    /api/v1/workspaces/{workspaceId}/folders
- *   POST   /api/v1/workspaces/{workspaceId}/folders
- *   PATCH  /api/v1/workspaces/{workspaceId}/folders/{folderId}
- *   DELETE /api/v1/workspaces/{workspaceId}/folders/{folderId}
- *   POST   /api/v1/workspaces/{workspaceId}/folders/{folderId}/items
+ * 项目开发-文件夹（PRD 03-5.4）。已切换为真实 REST：
+ *   Atlas.PlatformHost/Controllers/WorkspaceFoldersController.cs
+ *   Atlas.Infrastructure/Services/Coze/WorkspaceFolderService.cs
+ *   Atlas.Domain/AiPlatform/Entities/WorkspaceFolder.cs
  */
 
 export interface FolderListItem {
@@ -38,78 +34,93 @@ export interface FolderItemMoveRequest {
   itemId: string;
 }
 
-const FOLDERS: FolderListItem[] = [
-  {
-    id: "folder-default",
-    workspaceId: "default",
-    name: "示例文件夹",
-    description: "用于演示项目分组",
-    itemCount: 0,
-    createdByDisplayName: "RootUser",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-];
+function foldersBase(workspaceId: string): string {
+  return `/workspaces/${encodeURIComponent(workspaceId)}/folders`;
+}
 
 export async function listFolders(
   workspaceId: string,
   request: PagedRequest & { keyword?: string }
 ): Promise<PagedResult<FolderListItem>> {
-  const items = FOLDERS.filter(item => item.workspaceId === workspaceId || item.workspaceId === "default")
-    .filter(item => matchKeyword(item.name, request.keyword));
-  return mockPaged(items, request);
+  const query = toQuery(
+    {
+      pageIndex: request.pageIndex ?? 1,
+      pageSize: request.pageSize ?? 20
+    },
+    { keyword: request.keyword }
+  );
+  const response = await requestApi<ApiResponse<PagedResult<FolderListItem>>>(
+    `${foldersBase(workspaceId)}?${query}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "Failed to load folders");
+  }
+  return response.data;
 }
 
-export async function createFolder(workspaceId: string, request: FolderCreateRequest): Promise<{ folderId: string }> {
-  const id = `folder-${Date.now()}`;
-  FOLDERS.push({
-    id,
-    workspaceId,
-    name: request.name.trim(),
-    description: request.description?.trim() ?? "",
-    itemCount: 0,
-    createdByDisplayName: "Me",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  });
-  return mockResolve({ folderId: id });
+export async function createFolder(
+  workspaceId: string,
+  request: FolderCreateRequest
+): Promise<{ folderId: string }> {
+  const response = await requestApi<ApiResponse<{ id?: string; folderId?: string }>>(
+    foldersBase(workspaceId),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  const folderId = response.data?.folderId ?? response.data?.id ?? "";
+  if (!folderId) {
+    throw new Error(response.message || "Failed to create folder");
+  }
+  return { folderId };
 }
 
 export async function updateFolder(
-  _workspaceId: string,
+  workspaceId: string,
   folderId: string,
   request: FolderUpdateRequest
 ): Promise<void> {
-  const folder = FOLDERS.find(item => item.id === folderId);
-  if (folder) {
-    if (request.name) {
-      folder.name = request.name.trim();
+  const response = await requestApi<ApiResponse<{ success: boolean }>>(
+    `${foldersBase(workspaceId)}/${encodeURIComponent(folderId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
     }
-    if (request.description !== undefined) {
-      folder.description = request.description.trim();
-    }
-    folder.updatedAt = new Date().toISOString();
+  );
+  if (!response.success) {
+    throw new Error(response.message || "Failed to update folder");
   }
-  return mockResolve(undefined);
 }
 
-export async function deleteFolder(_workspaceId: string, folderId: string): Promise<void> {
-  const index = FOLDERS.findIndex(item => item.id === folderId);
-  if (index >= 0) {
-    FOLDERS.splice(index, 1);
+export async function deleteFolder(workspaceId: string, folderId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ success: boolean }>>(
+    `${foldersBase(workspaceId)}/${encodeURIComponent(folderId)}`,
+    {
+      method: "DELETE"
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "Failed to delete folder");
   }
-  return mockResolve(undefined);
 }
 
 export async function moveItemToFolder(
-  _workspaceId: string,
+  workspaceId: string,
   folderId: string,
-  _request: FolderItemMoveRequest
+  request: FolderItemMoveRequest
 ): Promise<void> {
-  const folder = FOLDERS.find(item => item.id === folderId);
-  if (folder) {
-    folder.itemCount += 1;
-    folder.updatedAt = new Date().toISOString();
+  const response = await requestApi<ApiResponse<{ success: boolean }>>(
+    `${foldersBase(workspaceId)}/${encodeURIComponent(folderId)}/items`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "Failed to move item");
   }
-  return mockResolve(undefined);
 }

@@ -1,11 +1,13 @@
+import type { ApiResponse } from "@atlas/shared-react-core/types";
+import { requestApi } from "../api-core";
 import { mockResolve } from "./mock-utils";
 
 /**
- * Mock：通用管理（PRD 02-左侧导航 7.12）。
+ * 通用管理（PRD 02-7.12）。
  *
- * 路由：
- *   GET /api/v1/platform/general/notices
- *   GET /api/v1/platform/general/branding
+ * - 平台公告与品牌：已切换为真实 REST（PlatformGeneralController）。
+ * - OpenAPI 密钥：仍为 mock，等 M1 后续 milestone 把
+ *   `OpenApiKeysController` 落地后切换。
  */
 
 export interface PlatformNoticeItem {
@@ -23,22 +25,16 @@ export interface PlatformBranding {
 }
 
 export async function listPlatformNotices(): Promise<PlatformNoticeItem[]> {
-  return mockResolve<PlatformNoticeItem[]>([
-    {
-      id: "notice-maintenance",
-      title: "系统例行维护通知",
-      message: "本周日 02:00-04:00 将进行例行维护，可能短暂不可用。",
-      level: "info",
-      publishedAt: new Date().toISOString()
-    }
-  ]);
+  const response = await requestApi<ApiResponse<PlatformNoticeItem[]>>("/platform/general/notices");
+  return response.data ?? [];
 }
 
 export async function getPlatformBranding(): Promise<PlatformBranding> {
-  return mockResolve({
-    productName: "Atlas Coze",
-    productSlogan: "你的 AI 应用开发伙伴"
-  });
+  const response = await requestApi<ApiResponse<PlatformBranding>>("/platform/general/branding");
+  if (!response.data) {
+    throw new Error(response.message || "Failed to load branding");
+  }
+  return response.data;
 }
 
 export interface OpenApiKeyItem {
