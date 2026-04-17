@@ -34,4 +34,15 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 
 dotnet restore "$ROOT_DIR/Atlas.SecurityPlatform.slnx"
-cd "$FRONTEND_DIR" && pnpm install
+
+cd "$FRONTEND_DIR"
+# 优先按 lockfile + 离线 store 安装；失败则回落允许更新 lockfile，避免离线缓存
+# 缺失少量 metadata 时整体阻塞
+if ! pnpm install --frozen-lockfile --prefer-offline; then
+  echo "frozen install failed, fallback to lockfile-update install" >&2
+  pnpm install --prefer-offline
+fi
+
+# 检查依赖图是否还能去重（任何重复版本都会导致 install/build 时间膨胀，并可能
+# 重新引入像 @swc/helpers 0.4.x 的传递性 metadata 阻塞链）
+pnpm dedupe --check

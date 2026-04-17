@@ -109,8 +109,11 @@ export default defineConfig({
       root: "dist",
     },
     // Use cheaper source maps in dev to reduce first compile time on large workspace graphs.
+    // dev: 同步关闭 css source-map 以避免 250+ packages 下重复构建 css map 的开销；
+    // 生产环境继续保留以便线上排错。
     sourceMap: {
       js: isDevelopment ? false : "source-map",
+      css: !isDevelopment,
     },
   },
   ...(isDevelopment

@@ -34,8 +34,8 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "name": "安全扫描流程",
-  "description": "自动化安全扫描与告警工作流",
+  "name": "SecurityScanFlow",
+  "description": "自动化安全扫描与告警工作流（name 必须满足 Coze 规则：首字母 + [A-Za-z0-9_]，长度 1..30）",
   "mode": 0
 }
 
@@ -43,7 +43,7 @@ X-Tenant-Id: {{tenantId}}
 @workflowId = {{createWorkflow.response.body.data.id}}
 
 ### ── List Workflows (paged) ──
-GET {{host}}/api/v2/workflows?pageIndex=1&pageSize=10&keyword=安全
+GET {{host}}/api/v2/workflows?pageIndex=1&pageSize=10&keyword=Security
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
@@ -74,8 +74,8 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "name": "安全扫描流程 v2",
-  "description": "更新后的安全扫描工作流"
+  "name": "SecurityScanFlow_v2",
+  "description": "更新后的安全扫描工作流（name 必须满足 Coze 规则：首字母 + [A-Za-z0-9_]，长度 1..30）"
 }
 
 ### ── Save Draft (Canvas JSON) ──

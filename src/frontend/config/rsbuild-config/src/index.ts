@@ -25,6 +25,13 @@ import { SemiRspackPlugin } from '@douyinfe/semi-rspack-plugin';
 import { GLOBAL_ENVS } from '@coze-arch/bot-env';
 import { PackageAtAliasResolverPlugin } from './package-at-alias-resolver-plugin';
 
+// 通过环境变量门控 Rspack 实验性持久化缓存：默认开启，遇到缓存类异常可临时关闭
+// 不直接升级 @rsbuild/core 是因为仓库内 30+ 个包都锁定 1.1.13，强升风险过大；
+// 这里走 tools.rspack 直通 @rspack/core 1.1.8 原生 API（与 webpack 5 cache 等价）。
+const persistentCacheEnabled =
+  (process.env.ATLAS_RSBUILD_PERSISTENT_CACHE ?? 'true').toLowerCase() !==
+  'false';
+
 const getDefine = () => {
   const define = {};
   Object.keys(GLOBAL_ENVS).forEach(key => {
@@ -133,7 +140,7 @@ export const defineConfig = (options: Partial<RsbuildConfig>) => {
           require('tailwindcss'),
         ]);
       },
-      rspack: (_, { appendPlugins }) => {
+      rspack: (rspackConfig, { appendPlugins, mergeConfig }) => {
         appendPlugins([
           new PackageAtAliasResolverPlugin({
             workspaceRoot,
@@ -142,6 +149,22 @@ export const defineConfig = (options: Partial<RsbuildConfig>) => {
             theme: '@coze-arch/semi-theme-hand01',
           }),
         ]);
+
+        if (!persistentCacheEnabled) {
+          return rspackConfig;
+        }
+
+        // 启用 Rspack 持久化缓存：cold start / cold build 后续重跑显著加速
+        // (rspack 1.x 实验特性，等价于 rsbuild 1.2.5+ 的 performance.buildCache)
+        return mergeConfig(rspackConfig, {
+          cache: true,
+          experiments: {
+            cache: {
+              type: 'persistent',
+              buildDependencies: [__filename],
+            },
+          },
+        });
       },
     },
   };

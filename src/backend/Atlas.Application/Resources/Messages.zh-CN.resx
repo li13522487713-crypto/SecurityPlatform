@@ -457,6 +457,8 @@
   <data name="PluginPackageUploadRequired" xml:space="preserve"><value>请上传插件包文件。</value></data>
   <data name="ModelConfigDtoNotFound" xml:space="preserve"><value>模型配置不存在。</value></data>
   <data name="WorkflowV2ResumeInvalidState" xml:space="preserve"><value>仅失败、取消或中断状态允许恢复。</value></data>
+  <data name="WorkflowV2NameFormat" xml:space="preserve"><value>工作流名称必须以英文字母开头，仅允许字母、数字和下划线。</value></data>
+  <data name="WorkflowV2NameLength" xml:space="preserve"><value>工作流名称最长 30 个字符。</value></data>
   <data name="PatMissingKnowledgeReadScope" xml:space="preserve"><value>PAT 缺少 open:knowledge:read 权限。</value></data>
   <data name="PatMissingFilesWriteScope" xml:space="preserve"><value>PAT 缺少 open:files:write 权限。</value></data>
   <data name="PatMissingFilesReadScope" xml:space="preserve"><value>PAT 缺少 open:files:read 权限。</value></data>

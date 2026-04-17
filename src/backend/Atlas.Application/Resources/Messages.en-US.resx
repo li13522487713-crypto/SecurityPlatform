@@ -457,6 +457,8 @@
   <data name="PluginPackageUploadRequired" xml:space="preserve"><value>Please upload a plugin package file.</value></data>
   <data name="ModelConfigDtoNotFound" xml:space="preserve"><value>Model configuration not found.</value></data>
   <data name="WorkflowV2ResumeInvalidState" xml:space="preserve"><value>Resume is only allowed for failed, cancelled, or interrupted executions.</value></data>
+  <data name="WorkflowV2NameFormat" xml:space="preserve"><value>Workflow name must start with a letter and contain only letters, digits, and underscores.</value></data>
+  <data name="WorkflowV2NameLength" xml:space="preserve"><value>Workflow name must be at most 30 characters long.</value></data>
   <data name="PatMissingKnowledgeReadScope" xml:space="preserve"><value>PAT is missing open:knowledge:read scope.</value></data>
   <data name="PatMissingFilesWriteScope" xml:space="preserve"><value>PAT is missing open:files:write scope.</value></data>
   <data name="PatMissingFilesReadScope" xml:space="preserve"><value>PAT is missing open:files:read scope.</value></data>

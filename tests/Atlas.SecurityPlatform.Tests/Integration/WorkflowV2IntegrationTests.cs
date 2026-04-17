@@ -20,7 +20,7 @@ public sealed class WorkflowV2IntegrationTests
     {
         var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
         var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
-        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_{Guid.NewGuid():N}");
+        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_{Guid.NewGuid():N}"[..30]);
 
         using var runRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/workflows/{workflowId}/run");
         runRequest.Headers.Authorization = new("Bearer", accessToken);
@@ -42,7 +42,7 @@ public sealed class WorkflowV2IntegrationTests
     {
         var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
         var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
-        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_{Guid.NewGuid():N}");
+        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_{Guid.NewGuid():N}"[..30]);
 
         using var runRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/workflows/{workflowId}/run");
         runRequest.Headers.Authorization = new("Bearer", accessToken);
@@ -66,7 +66,7 @@ public sealed class WorkflowV2IntegrationTests
     {
         var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
         var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
-        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_published_{Guid.NewGuid():N}");
+        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_published_{Guid.NewGuid():N}"[..30]);
 
         var publishedCanvas = BuildTextWorkflowCanvas("已发布版本");
         await SaveDraftAsync(accessToken, csrfToken, workflowId, publishedCanvas);
@@ -89,7 +89,7 @@ public sealed class WorkflowV2IntegrationTests
     {
         var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
         var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
-        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_validate_{Guid.NewGuid():N}");
+        var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"it_v2_validate_{Guid.NewGuid():N}"[..30]);
 
         using var validateRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/workflows/{workflowId}/validate");
         validateRequest.Headers.Authorization = new("Bearer", accessToken);

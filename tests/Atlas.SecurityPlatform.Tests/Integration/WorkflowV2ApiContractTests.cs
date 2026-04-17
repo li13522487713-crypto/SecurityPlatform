@@ -89,7 +89,7 @@ public sealed class WorkflowV2ApiContractTests
         CsrfIdempotencyHelper.AddWriteSecurityHeaders(req, csrfToken);
         req.Content = JsonContent.Create(new
         {
-            name = $"contract_test_{Guid.NewGuid():N}",
+            name = $"contract_test_{Guid.NewGuid():N}"[..30],
             description = "API contract test",
             mode = 0
         });
@@ -297,7 +297,7 @@ public sealed class WorkflowV2ApiContractTests
         CsrfIdempotencyHelper.AddWriteSecurityHeaders(req, csrfToken);
         req.Content = JsonContent.Create(new
         {
-            name = $"contract_{Guid.NewGuid():N}",
+            name = $"contract_{Guid.NewGuid():N}"[..30],
             description = "contract test",
             mode = 0
         });

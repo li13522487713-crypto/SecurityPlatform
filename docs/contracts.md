@@ -161,7 +161,37 @@
   - `WorkflowNodeExecutionHistoryDto`
   - `WorkflowHistorySchemaDto`
 - 与之相关的接口方法签名、服务实现、控制器返回类型、xUnit 测试同步使用上述名称。
-- 仓库中已存量的 `WorkflowV2*`（控制器 `WorkflowV2Controller`、服务接口 `IWorkflowV2QueryService` / `IWorkflowV2CommandService` / `IWorkflowV2ExecutionService`、路径 `api/v2/workflows`、模型 `WorkflowV2*Dto` / `WorkflowV2*Request`）作为遗留命名保留，不在本里程碑批量重命名（影响 200+ 文件 + 既有 e2e + 契约 + .http，必须独立里程碑评估）；后续 M7+ 由独立 issue 统一重命名为正式名称。
+- 仓库中已存量的 `WorkflowV2*`（控制器 `WorkflowV2Controller`、服务接口 `IWorkflowV2QueryService` / `IWorkflowV2CommandService` / `IWorkflowV2ExecutionService`、路径 `api/v2/workflows`、模型 `WorkflowV2*Dto` / `WorkflowV2*Request`）作为遗留命名保留，不在本里程碑批量重命名（影响 200+ 文件 + 既有 e2e + 契约 + .http，必须独立里程碑评估）；后续 M7+ 由独立 issue 统一重命名为正式名称，立项评估见 [`docs/plan-m7-workflowv2-rename.md`](plan-m7-workflowv2-rename.md)。
+
+### WorkflowV2 名称规则
+
+适用范围：
+
+- `POST /api/v2/workflows` 的 `WorkflowV2CreateRequest.Name`
+- `PUT /api/v2/workflows/{id}/meta` 的 `WorkflowV2UpdateMetaRequest.Name`
+
+校验规则：
+
+- 正则：`^[A-Za-z][A-Za-z0-9_]{0,29}$`（首字符必须是英文字母，仅允许字母、数字、下划线）
+- 长度：1..30（与 Coze 上游 `WORKFLOW_NAME_MAX_LEN = 30` 对齐）
+- 与前端真源对齐：[`src/frontend/packages/workflow/base/src/constants/index.ts`](../src/frontend/packages/workflow/base/src/constants/index.ts) 的 `WORKFLOW_NAME_REGEX` + `WORKFLOW_NAME_MAX_LEN`
+
+错误码（FluentValidation `WithErrorCode` 挂在 `Name` 字段）：
+
+- `WORKFLOW_V2_NAME_LENGTH`：长度超过 30
+- `WORKFLOW_V2_NAME_FORMAT`：字符集不符合（数字开头、含中文、含 `-` 等）
+
+i18n 资源 key（`Atlas.Application/Resources/Messages.{zh-CN,en-US}.resx`）：
+
+- `WorkflowV2NameFormat`
+- `WorkflowV2NameLength`
+- 注：`Atlas.Application` 内的 Validator 当前为无参构造、不注入 `IStringLocalizer`，错误消息为 `WithMessage` 直接挂中文文案 + `WithErrorCode` 挂错误码；需要英文回写时由控制器层基于 `ErrorCode` 通过 `IStringLocalizer<Messages>` 解析对应 key。
+
+兼容层差异（重要）：
+
+- `POST /api/workflow_api/create_workflow` 由 [`CozeWorkflowCompatControllerBase`](../src/backend/Atlas.Presentation.Shared/Controllers/Ai/CozeWorkflowCompatControllerBase.cs) 直接调用 `IWorkflowV2CommandService.CreateAsync`，**不**经过 `WorkflowV2CreateRequestValidator`；
+- 当 Coze 兼容层入参 `name` 为空时，会用中文默认名 `"未命名工作流"` 兜底，违反上述正则；
+- 这是 Coze 上游交互的既有契约，本里程碑保留兼容层既有行为不变；统一 REST 与 Coze 兼容层的命名规则归 M7（详见 [`docs/plan-m7-workflowv2-rename.md`](plan-m7-workflowv2-rename.md)）。
 
 ### M2 新端点 ↔ 上游 Thrift 字段差异说明
 
