@@ -1,5 +1,5 @@
 import { expect, test } from "../fixtures/single-session";
-import { appBaseUrl, expectNoI18nKeyLeak, seedLocale } from "./helpers";
+import { appBaseUrl, captureEvidenceScreenshot, expectNoI18nKeyLeak, seedLocale } from "./helpers";
 
 /**
  * E2E：/setup-console 二次认证门（M2）。
@@ -12,7 +12,7 @@ import { appBaseUrl, expectNoI18nKeyLeak, seedLocale } from "./helpers";
  * 本 spec 不依赖任何后端能力，仅验证前端 mock 流程。
  */
 test.describe.serial("Setup Console - Auth Gate", () => {
-  test("first visit lands on the auth gate (no console session yet)", async ({ page, resetAuthForCase }) => {
+  test("first visit lands on the auth gate (no console session yet)", async ({ page, resetAuthForCase }, testInfo) => {
     await resetAuthForCase();
     await seedLocale(page, "zh-CN");
 
@@ -21,9 +21,10 @@ test.describe.serial("Setup Console - Auth Gate", () => {
     await expect(page.getByTestId("setup-console-auth-gate")).toBeVisible();
     await expect(page.getByTestId("setup-console-page")).toHaveCount(0);
     await expectNoI18nKeyLeak(page, "setup-console-auth-gate");
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-auth-gate");
   });
 
-  test("invalid recovery key shows inline error and stays on auth gate", async ({ page, resetAuthForCase }) => {
+  test("invalid recovery key shows inline error and stays on auth gate", async ({ page, resetAuthForCase }, testInfo) => {
     await resetAuthForCase();
     await page.goto(`${appBaseUrl}/setup-console`);
 
@@ -33,9 +34,10 @@ test.describe.serial("Setup Console - Auth Gate", () => {
     await expect(page.getByTestId("setup-console-auth-error")).toBeVisible();
     await expect(page.getByTestId("setup-console-auth-gate")).toBeVisible();
     await expect(page.getByTestId("setup-console-page")).toHaveCount(0);
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-auth-invalid-key");
   });
 
-  test("valid recovery key unlocks the console and lands on dashboard", async ({ page, resetAuthForCase }) => {
+  test("valid recovery key unlocks the console and lands on dashboard", async ({ page, resetAuthForCase }, testInfo) => {
     await resetAuthForCase();
     await page.goto(`${appBaseUrl}/setup-console`);
 
@@ -47,9 +49,10 @@ test.describe.serial("Setup Console - Auth Gate", () => {
     await expect(page.getByTestId("setup-console-page")).toBeVisible();
     await expect(page.getByTestId("setup-console-tab-bar")).toBeVisible();
     await expect(page.getByTestId("setup-console-dashboard")).toBeVisible();
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-auth-recovery-success");
   });
 
-  test("bootstrap admin credentials also unlock the console", async ({ page, resetAuthForCase }) => {
+  test("bootstrap admin credentials also unlock the console", async ({ page, resetAuthForCase }, testInfo) => {
     await resetAuthForCase();
     await page.goto(`${appBaseUrl}/setup-console`);
 
@@ -59,9 +62,10 @@ test.describe.serial("Setup Console - Auth Gate", () => {
 
     await expect(page.getByTestId("setup-console-page")).toBeVisible();
     await expect(page.getByTestId("setup-console-dashboard")).toBeVisible();
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-auth-bootstrap-success");
   });
 
-  test("logout clears console session and shows auth gate again", async ({ page, resetAuthForCase }) => {
+  test("logout clears console session and shows auth gate again", async ({ page, resetAuthForCase }, testInfo) => {
     await resetAuthForCase();
     await page.goto(`${appBaseUrl}/setup-console`);
 
@@ -74,5 +78,6 @@ test.describe.serial("Setup Console - Auth Gate", () => {
     await page.getByTestId("setup-console-logout").click();
     await expect(page.getByTestId("setup-console-auth-gate")).toBeVisible();
     await expect(page.getByTestId("setup-console-page")).toHaveCount(0);
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-auth-logout");
   });
 });

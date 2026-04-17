@@ -151,6 +151,14 @@ importers:
         specifier: ~5.9.3
         version: 5.9.3
 
+  apps/lowcode-mini-host: {}
+
+  apps/lowcode-preview-web: {}
+
+  apps/lowcode-sdk-playground: {}
+
+  apps/lowcode-studio-web: {}
+
   config/eslint-config:
     dependencies:
       '@babel/eslint-parser':
@@ -17208,6 +17216,52 @@ importers:
       react-dom:
         specifier: 18.2.0
         version: 18.2.0(react@18.2.0)
+
+  packages/lowcode-action-runtime: {}
+
+  packages/lowcode-asset-adapter: {}
+
+  packages/lowcode-chatflow-adapter: {}
+
+  packages/lowcode-collab-yjs: {}
+
+  packages/lowcode-component-registry: {}
+
+  packages/lowcode-components-mini: {}
+
+  packages/lowcode-components-web: {}
+
+  packages/lowcode-debug-client: {}
+
+  packages/lowcode-editor-canvas: {}
+
+  packages/lowcode-editor-inspector: {}
+
+  packages/lowcode-editor-outline: {}
+
+  packages/lowcode-expression: {}
+
+  packages/lowcode-plugin-adapter: {}
+
+  packages/lowcode-property-forms: {}
+
+  packages/lowcode-runtime-mini: {}
+
+  packages/lowcode-runtime-web: {}
+
+  packages/lowcode-schema: {}
+
+  packages/lowcode-session-adapter: {}
+
+  packages/lowcode-trigger-adapter: {}
+
+  packages/lowcode-versioning-client: {}
+
+  packages/lowcode-web-sdk: {}
+
+  packages/lowcode-webview-policy-adapter: {}
+
+  packages/lowcode-workflow-adapter: {}
 
   packages/module-admin-react:
     dependencies:

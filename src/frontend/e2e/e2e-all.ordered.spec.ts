@@ -19,6 +19,11 @@ import "./app/reports-dashboards.spec";
 import "./app/settings-and-maintenance.spec";
 import "./app/visualization-and-runtime.spec";
 import "./app/screenshots.spec";
+// M10/D1: Setup Console 4 spec 全量纳入终验顺序，每 case 留下截图证据。
+import "./app/setup-console-auth.spec";
+import "./app/setup-console-overview.spec";
+import "./app/setup-console-system-init.spec";
+import "./app/setup-console-migration.spec";
 import "./app/workflow-orchestration.spec";
 import "./app/workflow-editor.spec";
 import "./app/workflow-collab.spec";

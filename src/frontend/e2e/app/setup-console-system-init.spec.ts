@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "../fixtures/single-session";
-import { appBaseUrl } from "./helpers";
+import { appBaseUrl, captureEvidenceScreenshot } from "./helpers";
 
 const RECOVERY_KEY = "ATLS-MOCK-AAAA-BBBB-CCCC-DDDD";
 
@@ -37,7 +37,7 @@ async function refreshOverviewIntoSystemInit(page: Page) {
  *  - 已 succeeded 的步骤再点击不会回退（按钮禁用 + 文案显示 succeeded）
  */
 test.describe.serial("Setup Console - System Init Flow", () => {
-  test("renders the 6 step cards with the precheck step as current", async ({ page, resetAuthForCase }) => {
+  test("renders the 6 step cards with the precheck step as current", async ({ page, resetAuthForCase }, testInfo) => {
     await resetAuthForCase();
     await unlockConsole(page);
     await gotoSystemInit(page);
@@ -52,12 +52,13 @@ test.describe.serial("Setup Console - System Init Flow", () => {
     ] as const) {
       await expect(page.getByTestId(`setup-console-step-${step}`)).toBeVisible();
     }
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-system-init-six-steps");
   });
 
   test("running each step in order eventually completes system initialization", async ({
     page,
     resetAuthForCase
-  }) => {
+  }, testInfo) => {
     await resetAuthForCase();
     await unlockConsole(page);
     await gotoSystemInit(page);
@@ -74,6 +75,7 @@ test.describe.serial("Setup Console - System Init Flow", () => {
     await page.getByTestId("setup-console-step-bootstrap-user-run").click();
     await expect(page.getByTestId("setup-console-recovery-key-display")).toBeVisible();
     await expect(page.getByTestId("setup-console-recovery-key-value")).toContainText(RECOVERY_KEY);
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-system-init-recovery-key");
 
     await page.getByTestId("setup-console-recovery-key-acknowledge").check();
     await page.getByTestId("setup-console-recovery-key-confirm").click();
@@ -87,16 +89,18 @@ test.describe.serial("Setup Console - System Init Flow", () => {
 
     await page.getByTestId("setup-console-step-complete-run").click();
     await expect(page.getByTestId("setup-console-system-init-done")).toBeVisible();
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-system-init-completed");
 
     await refreshOverviewIntoSystemInit(page);
     await page.getByTestId("setup-console-tab-dashboard").click();
     await expect(page.getByTestId("setup-console-system-state-badge")).toContainText(/已完成|Completed/);
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-dashboard-after-complete");
   });
 
   test("idempotent: re-clicking a succeeded step does not regress the badge", async ({
     page,
     resetAuthForCase
-  }) => {
+  }, testInfo) => {
     await resetAuthForCase();
     await unlockConsole(page);
     await gotoSystemInit(page);
@@ -106,5 +110,6 @@ test.describe.serial("Setup Console - System Init Flow", () => {
 
     // succeeded 后按钮被禁用；不会再触发推进。
     await expect(page.getByTestId("setup-console-step-precheck-run")).toBeDisabled();
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-system-init-idempotent");
   });
 });

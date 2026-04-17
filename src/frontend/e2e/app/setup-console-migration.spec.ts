@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "../fixtures/single-session";
-import { appBaseUrl } from "./helpers";
+import { appBaseUrl, captureEvidenceScreenshot } from "./helpers";
 
 const RECOVERY_KEY = "ATLS-MOCK-AAAA-BBBB-CCCC-DDDD";
 
@@ -21,7 +21,7 @@ async function unlockConsole(page: Page) {
  *   - 报告：fetch-report 后展示行数差表
  */
 test.describe.serial("Setup Console - Workspace Init", () => {
-  test("default workspace can be initialized via workspace-init tab", async ({ page, resetAuthForCase }) => {
+  test("default workspace can be initialized via workspace-init tab", async ({ page, resetAuthForCase }, testInfo) => {
     await resetAuthForCase();
     await unlockConsole(page);
 
@@ -36,6 +36,7 @@ test.describe.serial("Setup Console - Workspace Init", () => {
     await expect(page.getByTestId("setup-console-workspace-init-state-default")).toContainText(
       /已初始化|ready|Workspace ready|工作空间已初始化/
     );
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-workspace-init-ready");
   });
 });
 
@@ -43,7 +44,7 @@ test.describe.serial("Setup Console - Data Migration", () => {
   test("plan -> create -> precheck -> start -> validate -> cutover happy path", async ({
     page,
     resetAuthForCase
-  }) => {
+  }, testInfo) => {
     await resetAuthForCase();
     await unlockConsole(page);
 
@@ -61,6 +62,7 @@ test.describe.serial("Setup Console - Data Migration", () => {
     await page.getByTestId("setup-console-migration-create").click();
     await expect(page.getByTestId("setup-console-migration-execute")).toBeVisible();
     await expect(page.getByTestId("setup-console-migration-execute-state")).toContainText(/Pending|待启动/);
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-migration-job-created");
 
     // precheck → ready
     await page.getByTestId("setup-console-migration-precheck").click();
@@ -92,17 +94,19 @@ test.describe.serial("Setup Console - Data Migration", () => {
     await expect(page.getByTestId("setup-console-migration-execute-state")).toContainText(
       /Cutover completed|切主完成/
     );
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-migration-cutover-completed");
 
     // report 拉取并展示
     await page.getByTestId("setup-console-migration-report-fetch").click();
     await expect(page.getByTestId("setup-console-migration-report-summary")).toBeVisible();
     await expect(page.getByTestId("setup-console-migration-logs")).toBeVisible();
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-migration-report-summary");
   });
 
   test("creating a duplicate-fingerprint job without allowReExecute is rejected", async ({
     page,
     resetAuthForCase
-  }) => {
+  }, testInfo) => {
     await resetAuthForCase();
     await unlockConsole(page);
     await page.getByTestId("setup-console-tab-migration").click();
@@ -133,5 +137,6 @@ test.describe.serial("Setup Console - Data Migration", () => {
 
     await page.getByTestId("setup-console-migration-create").click();
     await expect(page.getByTestId("setup-console-migration-error")).toBeVisible();
+    await captureEvidenceScreenshot(page, testInfo, "setup-console-migration-duplicate-rejected");
   });
 });
