@@ -149,7 +149,7 @@ public sealed class RuntimeTraceService : IRuntimeTraceService
 /// <summary>
 /// dispatch 执行器（M13 S13-1）。统一处理事件 → 解析 ActionDto → 调用相应 Adapter / Service → 收集 statePatches。
 ///
-/// M13 阶段：内置实现 set_variable / navigate / open_external_link / show_toast / update_component（纯前端语义直接合成 patch），
+/// 内置实现：set_variable / navigate / open_external_link / show_toast / update_component（纯前端语义直接合成 patch），
 /// 把 call_workflow / call_chatflow / call_plugin 委托给后端 RuntimeWorkflowExecutor / RuntimeChatflowService。
 /// </summary>
 public sealed class DispatchExecutor : IDispatchExecutor

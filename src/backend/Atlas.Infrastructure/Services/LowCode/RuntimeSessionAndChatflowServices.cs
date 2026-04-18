@@ -74,7 +74,7 @@ public sealed class RuntimeSessionService : IRuntimeSessionService
 /// <summary>
 /// Chatflow SSE 服务（M11 S11-1 / S11-3 / S11-4）。
 ///
-/// M11 阶段：实现 SSE 协议的客户端契约 + 中断/恢复/插入的会话状态管理；
+/// 设计要点：实现 SSE 协议的客户端契约 + 中断/恢复/插入的会话状态管理；
 /// 真实模型流式由现有 Coze 兼容层逐步对接（docs/coze-api-gap.md 中 chatflow stream fallback → OK）。
 /// 本实现产出可被 RuntimeChatflowsController 转 text/event-stream 直接返回的字符串流。
 /// </summary>

@@ -90,7 +90,8 @@ X-Tenant-Id: {{tenantId}}
 ###
 @domainId = {{addDomain.response.body.$.data.id}}
 
-### 验证（M12 阶段简化通过；M17 接外部 DNS/HTTP 真实校验）
+### 验证（http_file 真实拉 https://{domain}/.well-known/atlas-webview-verify.txt 比对 token；
+###       dns_txt 因未引入 DnsClient 包标记 dns_txt:not-implemented 暂允许通过）
 POST {{baseUrl}}/api/runtime/webview-domains/{{domainId}}:verify
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

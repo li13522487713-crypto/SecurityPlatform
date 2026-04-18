@@ -153,7 +153,8 @@ public sealed class LowCodePluginService : ILowCodePluginService
     {
         var def = await _repo.FindDefByPluginIdAsync(tenantId, request.PluginId, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"插件不存在：{request.PluginId}");
-        // M18 阶段：仅做调用计量与回声（实际 HTTP 调用与 tool 路由由 PluginRegistry 在工作流 N10 节点中处理；本端点为 Studio 调试通道）。
+        // 设计：本端点为 Studio "插件调试通道"；真实 HTTP 调用与 tool 路由由 PluginRegistry 在工作流 N10 节点中处理。
+        // 这里只做调用计量（按日聚合）+ 回声 outputs，便于设计期验证 toolName/args 拼装。
         var day = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd");
         var usage = await _repo.FindUsageAsync(tenantId, request.PluginId, day, cancellationToken);
         if (usage is null)
