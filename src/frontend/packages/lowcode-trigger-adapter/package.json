@@ -1,0 +1,16 @@
+{
+  "name": "@atlas/lowcode-trigger-adapter",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Trigger 适配器（M12）—— upsert/list/delete/pause/resume + CRON / 事件 / Webhook 三种类型。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-trigger-adapter: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-trigger-adapter: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "devDependencies": { "vitest": "^4.1.4" }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@atlas/lowcode-components-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Web 组件库（M06 C06-3）—— 30+ 组件完整 ComponentMeta + 元数据驱动注册器（含 AI 原生 4 件 + 6 维矩阵 100% 覆盖）。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./meta": "./src/meta/index.ts"
+  },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-components-web: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-components-web: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-schema": "workspace:*",
+    "@atlas/lowcode-component-registry": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

@@ -123,6 +123,13 @@ public static class PermissionPolicies
     public const string AssetsCreate = "Permission:assets:create";
     public const string AlertView = "Permission:alert:view";
 
+    // 低代码 UI Builder（M01-M20）— 设计态权限
+    public const string LowcodeAppView = "Permission:lowcode-app:view";
+    public const string LowcodeAppCreate = "Permission:lowcode-app:create";
+    public const string LowcodeAppUpdate = "Permission:lowcode-app:update";
+    public const string LowcodeAppDelete = "Permission:lowcode-app:delete";
+    public const string LowcodeAppPublish = "Permission:lowcode-app:publish";
+
     public const string ModelConfigView = "Permission:model-config:view";
     public const string ModelConfigCreate = "Permission:model-config:create";
     public const string ModelConfigUpdate = "Permission:model-config:update";

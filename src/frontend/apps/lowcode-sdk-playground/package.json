@@ -1,0 +1,27 @@
+{
+  "name": "atlas-lowcode-sdk-playground",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Web SDK 嵌入示例（M17，端口 5186，script/npm/iframe 三种）。",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm exec rsbuild dev --host 0.0.0.0",
+    "build": "pnpm exec rsbuild build",
+    "preview": "pnpm exec rsbuild preview",
+    "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,tsx}\"",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-web-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "~1.1.0",
+    "@rsbuild/plugin-react": "~1.1.0",
+    "@types/react": "18.2.37",
+    "@types/react-dom": "18.2.15",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  }
+}

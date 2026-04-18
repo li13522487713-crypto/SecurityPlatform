@@ -24,13 +24,22 @@ public sealed class SetupConsoleAuditWriter
 
     private readonly IAuditWriter _inner;
     private readonly ITenantProvider _tenantProvider;
+    private readonly SetupConsoleAuditContext? _auditContext;
 
-    public SetupConsoleAuditWriter(IAuditWriter inner, ITenantProvider tenantProvider)
+    public SetupConsoleAuditWriter(
+        IAuditWriter inner,
+        ITenantProvider tenantProvider,
+        SetupConsoleAuditContext? auditContext = null)
     {
         _inner = inner;
         _tenantProvider = tenantProvider;
+        _auditContext = auditContext;
     }
 
+    /// <summary>
+    /// M10/D5：当 ipAddress / userAgent 未由调用方显式传入时，
+    /// 从 <see cref="SetupConsoleAuditContext"/> 中回退读取（由 SetupConsoleAuditEnricherMiddleware 注入）。
+    /// </summary>
     public Task WriteAsync(
         string action,
         string target,
@@ -40,14 +49,16 @@ public sealed class SetupConsoleAuditWriter
         string? userAgent = null,
         CancellationToken cancellationToken = default)
     {
+        var resolvedIp = !string.IsNullOrWhiteSpace(ipAddress) ? ipAddress : _auditContext?.IpAddress;
+        var resolvedUa = !string.IsNullOrWhiteSpace(userAgent) ? userAgent : _auditContext?.UserAgent;
         var record = new AuditRecord(
             _tenantProvider.GetTenantId(),
             actor: ActorAnonymousConsole,
             action: $"setup-console.{action}",
             result: string.IsNullOrEmpty(message) ? result : $"{result}: {message}",
             target: target,
-            ipAddress: ipAddress,
-            userAgent: userAgent);
+            ipAddress: resolvedIp,
+            userAgent: resolvedUa);
         return _inner.WriteAsync(record, cancellationToken);
     }
 }

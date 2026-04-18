@@ -1,0 +1,27 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@pluginId = plg_demo
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 运行时调用插件（M18 简化为回声 + 自动 usage 计量）
+POST {{baseUrl}}/api/runtime/plugins/{{pluginId}}:invoke
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "pluginId": "{{pluginId}}",
+  "toolName": "getWeather",
+  "args": { "city": "Beijing" }
+}

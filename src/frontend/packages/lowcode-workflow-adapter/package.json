@@ -1,0 +1,29 @@
+{
+  "name": "@atlas/lowcode-workflow-adapter",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Workflow 适配器（M09）—— 同步 / 异步 / 批量调用 + 模式 A/B 完整闭环 + 双哲学切换 + resilience 包装。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mappings": "./src/mappings/index.ts",
+    "./resilience": "./src/resilience/index.ts",
+    "./orchestration": "./src/orchestration/index.ts"
+  },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-workflow-adapter: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-workflow-adapter: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-action-runtime": "workspace:*",
+    "@atlas/lowcode-expression": "workspace:*",
+    "@atlas/lowcode-runtime-web": "workspace:*",
+    "@atlas/lowcode-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

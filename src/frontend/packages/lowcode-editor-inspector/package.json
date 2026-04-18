@@ -1,0 +1,23 @@
+{
+  "name": "@atlas/lowcode-editor-inspector",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码检查器（M05 C05-2 / C05-7）—— 三 Tab（属性 / 样式 / 事件）+ 事件配置面板（动作链可视化 + 弹性策略）。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-editor-inspector: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-editor-inspector: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-schema": "workspace:*",
+    "@atlas/lowcode-property-forms": "workspace:*",
+    "immer": "^10.1.1"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

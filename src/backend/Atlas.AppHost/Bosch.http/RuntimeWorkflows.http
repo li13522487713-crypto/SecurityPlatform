@@ -1,0 +1,85 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@workflowId = 1234567890
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 同步执行（默认 30s 超时 / 3 次重试 / 熔断 5 次/60s 窗口/30s 半开）
+# @name invoke
+POST {{baseUrl}}/api/runtime/workflows/{{workflowId}}:invoke
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "{{workflowId}}",
+  "inputs": { "keyword": "hello" },
+  "appId": "100",
+  "pageId": "200",
+  "componentId": "btn-1"
+}
+
+### 同步执行 + 自定义弹性策略 + 静态降级
+POST {{baseUrl}}/api/runtime/workflows/{{workflowId}}:invoke
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "{{workflowId}}",
+  "inputs": { "keyword": "hello" },
+  "resilience": {
+    "timeoutMs": 5000,
+    "retry": { "maxAttempts": 2, "backoff": "exponential", "initialDelayMs": 200 },
+    "circuitBreaker": { "failuresThreshold": 3, "windowMs": 30000, "openMs": 10000 },
+    "fallback": { "kind": "static", "staticValue": { "users": [] } }
+  }
+}
+
+### 异步提交
+# @name async
+POST {{baseUrl}}/api/runtime/workflows/{{workflowId}}:invoke-async
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "workflowId": "{{workflowId}}", "inputs": { "k": "v" } }
+
+###
+@jobId = {{async.response.body.$.data.jobId}}
+
+### 查询异步任务
+GET {{baseUrl}}/api/runtime/async-jobs/{{jobId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 取消异步任务
+POST {{baseUrl}}/api/runtime/async-jobs/{{jobId}}:cancel
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 批量执行（CSV/JSON 由前端转换为 rows 后调用）
+POST {{baseUrl}}/api/runtime/workflows/{{workflowId}}:invoke-batch
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "{{workflowId}}",
+  "rows": [
+    { "name": "alice" },
+    { "name": "bob" },
+    { "name": "carol" }
+  ],
+  "onFailure": "continue"
+}

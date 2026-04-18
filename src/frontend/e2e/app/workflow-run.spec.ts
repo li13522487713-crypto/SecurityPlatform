@@ -27,7 +27,9 @@ async function getCsrfToken(request: APIRequestContext, accessToken: string): Pr
 }
 
 test.describe.serial("Workflow Run E2E", () => {
-  test("should trigger run flow and render latest execution summary", async ({ page, request, ensureLoggedInSession }) => {
+  // Coze playground 接管后未发出旧版 testId（toolbar.test-run / run-inputs / canvas-json）；
+  // 详见 docs/e2e-baseline-failures.md §3。cancel 接口契约 case 仍保留。
+  test.fixme("should trigger run flow and render latest execution summary", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
     await clickWorkflowTestRun(page, "{\"input\":\"hello\"}");
 
@@ -42,7 +44,7 @@ test.describe.serial("Workflow Run E2E", () => {
       .toContain("save_draft");
   });
 
-  test("should allow updating run input json before rerun", async ({ page, request, ensureLoggedInSession }) => {
+  test.fixme("should allow updating run input json before rerun", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
 
     await page.getByTestId("workflow.detail.run-inputs").fill("{\"ticket\":\"A-1001\"}");

@@ -118,7 +118,8 @@ public static class PlatformServiceCollectionExtensions
         // ORM 跨库迁移引擎（M6）
         services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationOrmService,
             Atlas.Infrastructure.Services.SetupConsole.OrmDataMigrationService>();
-        // 控制台写操作审计（M7）
+        // 控制台写操作审计（M7） + M10/D5 IP/UA 上下文（per-request scoped）
+        services.AddScoped<Atlas.Infrastructure.Services.SetupConsole.SetupConsoleAuditContext>();
         services.AddScoped<Atlas.Infrastructure.Services.SetupConsole.SetupConsoleAuditWriter>();
         // M8/A2：迁移连接串加密保护
         services.AddSingleton<Atlas.Infrastructure.Services.SetupConsole.MigrationSecretProtector>();

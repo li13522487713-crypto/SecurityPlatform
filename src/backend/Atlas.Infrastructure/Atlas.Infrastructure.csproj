@@ -52,6 +52,8 @@
     <ProjectReference Include="..\Atlas.Application.Workflow\Atlas.Application.Workflow.csproj" />
     <ProjectReference Include="..\Atlas.Application.LogicFlow\Atlas.Application.LogicFlow.csproj" />
     <ProjectReference Include="..\Atlas.Application.BatchProcess\Atlas.Application.BatchProcess.csproj" />
+    <ProjectReference Include="..\Atlas.Application.LowCode\Atlas.Application.LowCode.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.LowCode\Atlas.Domain.LowCode.csproj" />
     <ProjectReference Include="..\Atlas.Domain.LogicFlow\Atlas.Domain.LogicFlow.csproj" />
     <ProjectReference Include="..\Atlas.Domain.BatchProcess\Atlas.Domain.BatchProcess.csproj" />
     <ProjectReference Include="..\Atlas.Infrastructure.LogicFlow\Atlas.Infrastructure.LogicFlow.csproj" />

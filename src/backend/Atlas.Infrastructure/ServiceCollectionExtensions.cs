@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
 
         services.AddCoreInfrastructure(configuration, includeAppRuntimeServices);
         services.AddAssetInfrastructure();
+        services.AddLowCodeInfrastructure(configuration);
 
         services.AddSingleton<INodeMetricsCollector, Atlas.Infrastructure.Observability.InMemoryNodeMetricsCollector>();
         services.AddSingleton<ITraceCorrelator, Atlas.Infrastructure.Observability.ActivityTraceCorrelator>();

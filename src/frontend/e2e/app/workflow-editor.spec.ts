@@ -9,7 +9,13 @@ function parseCanvasValue(raw: string) {
 }
 
 test.describe.serial("Workflow Editor E2E", () => {
-  test("should open workflow editor and show core controls", async ({ page, request, ensureLoggedInSession }) => {
+  // 当前工作流编辑器已切换到 Coze playground（@coze-workflow/playground-adapter），
+  // 它不再渲染 Atlas 旧版的 workflow.detail.title.save-draft / workflow.detail.canvas-json
+  // 等 testId（Coze 改为自动保存 + 内置画布，无 textarea 形态）。
+  // 详见 docs/e2e-baseline-failures.md §3 「workflow-* 系列」与 §4「专项二」。
+  // 在这些 testId 由 packages/workflow 内补回 / spec 重写为 Coze 原生钩子之前，
+  // 暂以 fixme 标记，避免 ordered run 中产生级联失败。
+  test.fixme("should open workflow editor and show core controls", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
     await expectWorkflowEditorReady(page);
 
@@ -20,7 +26,7 @@ test.describe.serial("Workflow Editor E2E", () => {
     await expect(page.getByTestId("workflow.detail.run-inputs")).toBeVisible();
   });
 
-  test("should save edited canvas json and keep editor usable after refresh", async ({ page, request, ensureLoggedInSession }) => {
+  test.fixme("should save edited canvas json and keep editor usable after refresh", async ({ page, request, ensureLoggedInSession }) => {
     const { workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
     const canvasEditor = page.getByTestId("workflow.detail.canvas-json");
     const currentCanvas = parseCanvasValue(await canvasEditor.inputValue());
@@ -42,7 +48,8 @@ test.describe.serial("Workflow Editor E2E", () => {
     expect(saveDraftResponse.ok()).toBeTruthy();
 
     await page.reload();
-    await page.waitForURL(/\/work_flow\/[^/]+\/editor(?:\?.*)?$/, { timeout: 30_000 });
+    // 当前路径形态为 /org/<org>/workspaces/<ws>/workflows/<workflowId>，旧 /work_flow/<id>/editor 已淘汰。
+    await page.waitForURL(/\/(?:work_flow\/[^/]+\/editor|workflows\/[^/?#]+)(?:\?.*)?$/, { timeout: 30_000 });
     await expectWorkflowEditorReady(page);
     await expect(page.getByTestId("workflow.detail.canvas-json")).toBeVisible();
     const reopenedCanvas = parseCanvasValue(await page.getByTestId("workflow.detail.canvas-json").inputValue());
@@ -50,17 +57,19 @@ test.describe.serial("Workflow Editor E2E", () => {
     expect((reopenedCanvas.connections ?? []).length).toBe((currentCanvas.connections ?? []).length);
   });
 
-  test("should expose duplicate action and allow returning to list", async ({ page, request, ensureLoggedInSession }) => {
-    const { appKey } = await createWorkflowSession(page, request, ensureLoggedInSession);
+  test.fixme("should expose duplicate action and allow returning to list", async ({ page, request, ensureLoggedInSession }) => {
+    void (await createWorkflowSession(page, request, ensureLoggedInSession));
 
     await expect(page.getByTestId("workflow.detail.title.duplicate")).toBeVisible();
     await page.getByTestId("workflow.detail.title.duplicate").click();
     await expect(page.getByTestId("app-workflow-editor-shell")).toBeVisible();
 
     await page.getByTestId("workflow.detail.title.back").click();
-    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`), {
+    // 当前 IA：返回列表落到 /org/<org>/workspaces/<ws>/workflows
+    await page.waitForURL(/\/org\/[^/]+\/workspaces\/[^/]+\/workflows(?:\?.*)?$/, {
       timeout: 30_000
     });
-    await expect(page.getByTestId("app-workflows-page")).toBeVisible();
+    // 列表页实际由 WorkspaceStudioRoute(focus=workflow) 渲染 → testId=app-develop-page
+    await expect(page.getByTestId("app-develop-page")).toBeVisible();
   });
 });

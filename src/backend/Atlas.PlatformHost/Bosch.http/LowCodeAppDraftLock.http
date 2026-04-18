@@ -1,0 +1,52 @@
+@baseUrl = http://localhost:5001
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1234567890
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取锁状态
+GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/status
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取锁
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/acquire
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "sessionId": "session-uuid-1" }
+
+### 续约（30s 一次）
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/renew
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "sessionId": "session-uuid-1" }
+
+### 强制夺锁（多设备并发警告后用）
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/takeover
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "sessionId": "session-uuid-2" }
+
+### 释放
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/release
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "sessionId": "session-uuid-1" }

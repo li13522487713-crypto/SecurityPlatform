@@ -1,0 +1,21 @@
+{
+  "name": "@atlas/lowcode-chatflow-adapter",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Chatflow 适配器（M11）—— SSE 4 类事件 (tool_call/message/error/final) + 中断/恢复/插入 + 模式 D 闭环。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-chatflow-adapter: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-chatflow-adapter: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

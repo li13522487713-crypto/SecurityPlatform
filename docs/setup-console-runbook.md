@@ -197,11 +197,12 @@ PlatformHost 启动时会自动检测 SQLite 损坏并触发 `AppMigrationServic
 
 ## 7. 审计与合规（等保 2.0）
 
-控制台所有写操作均通过 `SetupConsoleAuditWriter` 写入 `AuditRecord`（M7 落地）：
+控制台所有写操作均通过 `SetupConsoleAuditWriter` 写入 `AuditRecord`（M7 落地，M10/D5 加固 IP/UA 透传）：
 
 - `actor`: `setup-console:anonymous`（M7 阶段；M8 起接 ConsoleSession 真实身份）
 - `action`: `setup-console.{step}` 或 `setup-console.{operation}`
 - `target`: `system:{state}` 或 `workspace:{id}` 或 `migration:{jobId}`
+- `ipAddress` / `userAgent`：M10/D5 起由 `SetupConsoleAuditEnricherMiddleware` 在 `/api/v1/setup-console/*` 路径上自动注入到 `SetupConsoleAuditContext` Scoped 容器，`SetupConsoleAuthController.Recover` 显式传入；其他控制器调用 `SetupConsoleAuditWriter.WriteAsync` 时若未显式传入，自动从上下文 fallback。
 - `result`: `Success` 或 `Failed: {message}`
 
 审计保留期默认 180 天（与 `appsettings.json` 中 `Security.AuditRetentionDays` 一致）。
@@ -222,8 +223,10 @@ PlatformHost 启动时会自动检测 SQLite 损坏并触发 `AppMigrationServic
 - M5：后端实体 + Service + Controller + 真接口
 - M6：ORM 跨库迁移引擎
 - M7：审计 + 文档
-- M8（计划中）：ConsoleSession 真实身份接入；DataMigrationCheckpoint 完整断点续跑；跨引擎抽样字段哈希校验
-- M9（计划中）：Hangfire 后台执行长时间迁移；多租户并发隔离
+- M8：A1 中间件放行 + A2 连接串加密 + A3 密码哈希与 ConsoleToken 持久化；B1 拆种子幂等方法 + B2/B3/B4 真实 upsert 用户/工作空间/实体目录 + B5 首登强制改密
+- M9：C1 拓扑排序 + C2 断点续跑 + C3 抽样哈希校验 + C4 跨引擎类型适配 + C5 切主写 appsettings.runtime.json + C6 SQLite→SQLite Integration Test
+- M10：D1 Playwright 4 spec 全过 + 截图留痕；D2 SetupConsoleService 6 步 lifecycle 集成测试；D3 token 过期边界；D4 IP 限流（5 次/15 分钟）；D5 审计 IP/UA 自动注入（`SetupConsoleAuditContext` + middleware）；D6 mock/real 切换；D7 平台菜单入口；D8 Repair Tab；D9 实体目录下钻；D10 上生产 checklist 文档
+- M11+（计划中）：Hangfire 后台执行长时间迁移；ConsoleSession 真实身份接入审计 actor；多租户并发隔离；跨引擎 SQLite→MySQL Docker Integration Test
 
 ## 10. 相关代码
 

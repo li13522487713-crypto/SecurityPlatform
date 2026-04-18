@@ -86,3 +86,21 @@
 - 节点级错误：属性面板顶部汇总
 - 画布级错误：保存/发布前统一阻断与定位
 - 模型节点：属性面板应直接显示模型中心选择器，不再暴露手填 provider / model 作为默认交互
+
+## 附录：M19 父级工程能力验证矩阵
+
+> 范围：M19 工作流父级工程能力（AI 生成 / 批量 / 异步 / 封装解散 / 配额）。
+> 与 `Atlas.AppHost.Controllers.DagWorkflowEngineeringController` 完全对应。
+
+| # | 端点 | 校验点 |
+| - | --- | --- |
+| 1 | `POST /api/v2/workflows/generate (auto)` | mode 仅允许 auto/assisted；prompt 非空；产出包含 entry/llm/exit 三节点 + 2 边的 canvas JSON |
+| 2 | `POST /api/v2/workflows/generate (assisted)` | 把 prompt 切词为节点骨架（含 entry / 关键字推断 type / exit）|
+| 3 | `POST /api/v2/workflows/{id}/batch (csv)` | 首行 header；rows 等于 N-1；onFailure 控制 abort/continue |
+| 4 | `POST /api/v2/workflows/{id}/batch (json)` | 数组 + 对象元素；非数组拒绝 |
+| 5 | `POST /api/v2/workflows/{id}/batch (database)` | 接 IRuntimeDataSourceConnector（M19 简化为 stub）|
+| 6 | `POST /api/v2/workflows/{id}/compose` | selectedNodeKeys ≥ 1；产出 inferred input/output（M19 简化为 input/output 单字段）|
+| 7 | `POST /api/v2/workflows/{id}/decompose` | subWorkflowNodeKey 必填；写审计 |
+| 8 | `GET /api/v2/workflows/quota` | 返回默认配额（200/100/10/100k）|
+
+校验通过准则：每个端点均经 `IAuditWriter` 写入审计；JSON 输入服务端二次校验；超出配额走 docs/lowcode-resilience-spec.md §4 降级策略。

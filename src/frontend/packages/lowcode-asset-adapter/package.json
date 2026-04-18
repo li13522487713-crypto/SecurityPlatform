@@ -1,0 +1,21 @@
+{
+  "name": "@atlas/lowcode-asset-adapter",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Asset 适配器（M10）—— prepare-upload / complete-upload 两阶段 + 分片 + 断点续传 + mime/大小白名单 + 模式 C 闭环。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-asset-adapter: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-asset-adapter: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

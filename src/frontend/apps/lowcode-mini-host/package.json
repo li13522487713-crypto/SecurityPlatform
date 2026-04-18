@@ -1,0 +1,31 @@
+{
+  "name": "atlas-lowcode-mini-host",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Mini 多端宿主（M15，端口 5187，Taro 微信/抖音/H5；M15 阶段提供 H5 预览壳，Taro 真实 build 由运维流水线驱动）。",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm exec rsbuild dev --host 0.0.0.0",
+    "build": "pnpm exec rsbuild build",
+    "preview": "pnpm exec rsbuild preview",
+    "build:wx": "echo '微信小程序 build：需在本地用 @tarojs/cli + 微信开发者工具执行 taro build --type weapp'",
+    "build:douyin": "echo '抖音小程序 build：taro build --type tt'",
+    "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,tsx}\"",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-components-mini": "workspace:*",
+    "@atlas/lowcode-runtime-mini": "workspace:*",
+    "@atlas/lowcode-schema": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "~1.1.0",
+    "@rsbuild/plugin-react": "~1.1.0",
+    "@types/react": "18.2.37",
+    "@types/react-dom": "18.2.15",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.4"
+  }
+}

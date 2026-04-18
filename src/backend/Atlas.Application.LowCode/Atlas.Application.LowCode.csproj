@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    Atlas.Application.LowCode — 低代码 UI Builder 应用层。
+    M00 仅创建骨架与项目引用；具体 DTO / Validator / AutoMapper Profile / Service 抽象
+    由 M01 完整落地。禁止在 M01 之外提前实现。
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="14.0.0" />
+    <PackageReference Include="FluentValidation" Version="11.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.LowCode\Atlas.Domain.LowCode.csproj" />
+  </ItemGroup>
+
+</Project>

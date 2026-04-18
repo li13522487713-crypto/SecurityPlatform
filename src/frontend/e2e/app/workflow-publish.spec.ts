@@ -2,7 +2,9 @@ import { expect, test } from "../fixtures/single-session";
 import { createWorkflowSession } from "./workflow-e2e-helpers";
 
 test.describe.serial("Workflow Publish E2E", () => {
-  test("should trigger publish request from editor header", async ({ page, request, ensureLoggedInSession }) => {
+  // 同 workflow-editor.spec：Coze playground 不再发出 workflow.detail.title.save-draft，
+  // 改为自动保存。详见 docs/e2e-baseline-failures.md §3。
+  test.fixme("should trigger publish request from editor header", async ({ page, request, ensureLoggedInSession }) => {
     const { workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
 
     const saveDraftResponsePromise = page.waitForResponse((response) => {

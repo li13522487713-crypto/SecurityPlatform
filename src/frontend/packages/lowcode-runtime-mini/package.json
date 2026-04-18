@@ -1,0 +1,21 @@
+{
+  "name": "@atlas/lowcode-runtime-mini",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码 Mini 运行时（M15）—— 与 lowcode-runtime-web 共用 RuntimeContext / dispatch；mini 端按 ComponentMeta 降级。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-runtime-mini: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-runtime-mini: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-components-mini": "workspace:*",
+    "@atlas/lowcode-runtime-web": "workspace:*",
+    "@atlas/lowcode-schema": "workspace:*"
+  },
+  "devDependencies": { "vitest": "^4.1.4" }
+}

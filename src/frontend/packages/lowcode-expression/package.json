@@ -1,0 +1,30 @@
+{
+  "name": "@atlas/lowcode-expression",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Atlas 低代码表达式引擎（M02）—— jsonata + 模板 + 7 作用域 + 隔离 + 推断 + 依赖追踪 + Monaco LSP 适配器。",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jsonata": "./src/jsonata/index.ts",
+    "./template": "./src/template/index.ts",
+    "./scope": "./src/scope/index.ts",
+    "./inference": "./src/inference/index.ts",
+    "./deps": "./src/deps/index.ts",
+    "./monaco": "./src/monaco/index.ts"
+  },
+  "scripts": {
+    "lint": "echo '@atlas/lowcode-expression: lint via root pipeline'",
+    "build": "echo '@atlas/lowcode-expression: source-only package, no build step'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-schema": "workspace:*",
+    "jsonata": "^2.0.6"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

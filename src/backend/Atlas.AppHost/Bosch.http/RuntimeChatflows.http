@@ -1,0 +1,83 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@chatflowId = cf_demo
+@sessionId = sess_demo
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 创建会话
+POST {{baseUrl}}/api/runtime/sessions
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "title": "调试会话" }
+
+### 列出会话
+GET {{baseUrl}}/api/runtime/sessions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 流式调用 Chatflow（SSE）
+POST {{baseUrl}}/api/runtime/chatflows/{{chatflowId}}:invoke
+Content-Type: application/json
+Accept: text/event-stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "chatflowId": "{{chatflowId}}", "sessionId": "{{sessionId}}", "input": "你好世界" }
+
+### 中断当前会话
+POST {{baseUrl}}/api/runtime/chatflows/sessions/{{sessionId}}:pause
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 恢复会话（SSE）
+POST {{baseUrl}}/api/runtime/chatflows/sessions/{{sessionId}}:resume
+Accept: text/event-stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 插入用户消息
+POST {{baseUrl}}/api/runtime/chatflows/sessions/{{sessionId}}:inject
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "message": "继续上面的话题" }
+
+### 置顶 / 取消置顶
+POST {{baseUrl}}/api/runtime/sessions/{{sessionId}}/pin
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "pinned": true }
+
+### 归档
+POST {{baseUrl}}/api/runtime/sessions/{{sessionId}}/archive
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "archived": true }
+
+### 清空会话历史
+POST {{baseUrl}}/api/runtime/sessions/{{sessionId}}/clear
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 消息日志统一查询（M13 / M18 联动）
+GET {{baseUrl}}/api/runtime/message-log?sessionId={{sessionId}}&pageIndex=1&pageSize=50
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

@@ -213,6 +213,17 @@ builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
     .AddAtlasInfrastructurePlatform(builder.Configuration)
     .AddAtlasInfrastructureAppRuntime(builder.Configuration);
 
+// 低代码 Preview Hub 推送服务（M08 S08-3）
+builder.Services.AddSingleton<Atlas.Presentation.Shared.Hubs.ILowCodePreviewBroadcaster, Atlas.Presentation.Shared.Hubs.LowCodePreviewBroadcaster>();
+builder.Services.AddSingleton<Atlas.Application.LowCode.Abstractions.ILowCodePreviewSignal, Atlas.Presentation.Shared.Hubs.LowCodePreviewSignalAdapter>();
+
+// 低代码资产 GC 调度（M10 S10-3，每日 02:00）
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeAssetGcSchedulerHostedService>();
+// 低代码协同离线快照（M16 S16-2，每 10 分钟）
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeCollabSnapshotSchedulerHostedService>();
+// 低代码 cron 触发器启动期 reconcile（M12 → 真实 Hangfire 调度）
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeTriggerReconcileHostedService>();
+
 // ─── DI：AppHost-specific context accessors ───
 builder.Services.AddScoped<ITenantProvider, AppHostTenantProvider>();
 builder.Services.AddScoped<ICurrentUserAccessor, AppHostCurrentUserAccessor>();
@@ -357,7 +368,11 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
         tracing.AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation();
+            .AddHttpClientInstrumentation()
+            // M13 收尾：注册低代码 ActivitySource，dispatch / span 全部纳入 OTel 链路
+            .AddSource(Atlas.Infrastructure.Services.LowCode.LowCodeOtelInstrumentation.ActivitySourceName)
+            // OBS-145：WorkflowCore Activity（StartHost / Enrich workflow/step/result）纳入 OTel
+            .AddSource(Atlas.WorkflowCore.Services.WorkflowTracing.ActivitySourceName);
         var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
@@ -373,7 +388,9 @@ builder.Services.AddOpenTelemetry()
     {
         metrics.AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddRuntimeInstrumentation();
+            .AddRuntimeInstrumentation()
+            // M13 收尾：注册低代码 Meter（dispatch_latency / workflow_latency / error_count / circuit_state / chatflow.stream_chunk）
+            .AddMeter(Atlas.Infrastructure.Services.LowCode.LowCodeOtelInstrumentation.MeterName);
         var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
@@ -462,6 +479,8 @@ app.MapGet("/", () => Results.Ok(new
 }));
 app.MapControllers();
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
+app.MapHub<Atlas.Presentation.Shared.Hubs.LowCodePreviewHub>("/hubs/lowcode-preview");
+app.MapHub<Atlas.AppHost.Hubs.LowCodeCollabHub>("/hubs/lowcode-collab");
 
 var startupLogo = """
     ___  _______ _        ___   _____
