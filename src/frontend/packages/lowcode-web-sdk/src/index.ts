@@ -44,14 +44,16 @@ export function mount(opts: MountOptions): MountInstance {
   if (REGISTERED.has(container)) {
     throw new Error('AtlasLowcode: container 已挂载，请先 unmount()');
   }
-  // M17 阶段：mount 仅完成 baseUrl 校验 + 注入 placeholder DOM；
-  // React 渲染层接 lowcode-runtime-web 由调用方在 sdk-playground 中装配（避免本包强依赖 React 全量）。
-  const placeholder = document.createElement('div');
-  placeholder.dataset.lowcodeAppId = opts.appId;
-  placeholder.dataset.lowcodeVersion = opts.version ?? 'latest';
-  placeholder.style.cssText = 'min-height:120px;border:1px dashed #d9d9d9;padding:16px;font-family:system-ui;color:#666;';
-  placeholder.textContent = `[AtlasLowcode] mounted appId=${opts.appId} version=${opts.version ?? 'latest'}`;
-  container.appendChild(placeholder);
+  // SDK 直接以 vanilla DOM 渲染线框预览（避免本包强依赖 React 全量，保持 UMD 体积）；
+  // 调用方需要完整运行时（事件 / dispatch）时改用 @atlas/lowcode-runtime-web React 组件装配。
+  const root = document.createElement('div');
+  root.dataset.lowcodeAppId = opts.appId;
+  root.dataset.lowcodeVersion = opts.version ?? 'latest';
+  root.style.cssText = 'min-height:120px;border:1px dashed #d9d9d9;padding:16px;font-family:system-ui;color:#333;';
+  root.textContent = `[AtlasLowcode] loading appId=${opts.appId} version=${opts.version ?? 'latest'} ...`;
+  container.appendChild(root);
+
+  void loadAndRender(root, opts);
 
   let state = {
     page: { ...(opts.initialState?.page ?? {}) } as Record<string, JsonValue>,
@@ -61,7 +63,7 @@ export function mount(opts: MountOptions): MountInstance {
 
   const instance: MountInstance = {
     unmount() {
-      container.removeChild(placeholder);
+      container.removeChild(root);
       REGISTERED.delete(container);
     },
     update(patches) {
@@ -78,6 +80,79 @@ export function mount(opts: MountOptions): MountInstance {
   REGISTERED.set(container, instance);
   opts.onEvent?.({ type: 'mounted', payload: { appId: opts.appId } });
   return instance;
+}
+
+interface SdkComponentNode {
+  id: string;
+  type: string;
+  visible?: boolean;
+  metadata?: { displayName?: string };
+  children?: SdkComponentNode[];
+}
+
+interface SdkPageNode {
+  id: string;
+  code: string;
+  displayName: string;
+  path: string;
+  root: SdkComponentNode;
+}
+
+interface SdkAppNode {
+  appId?: string;
+  code?: string;
+  displayName?: string;
+  pages?: SdkPageNode[];
+}
+
+async function loadAndRender(root: HTMLElement, opts: MountOptions): Promise<void> {
+  const baseUrl = (opts.baseUrl ?? '').replace(/\/+$/, '');
+  const url = `${baseUrl}/api/v1/lowcode/apps/${encodeURIComponent(opts.appId)}/draft`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'X-Tenant-Id': opts.tenantId,
+        Authorization: opts.token ? `Bearer ${opts.token}` : ''
+      }
+    });
+    if (!res.ok) throw new Error(`fetch ${url} ${res.status}`);
+    const json = (await res.json()) as { data?: { schemaJson: string } };
+    const schemaJson = json?.data?.schemaJson;
+    if (!schemaJson) throw new Error('empty schemaJson');
+    const app = JSON.parse(schemaJson) as SdkAppNode;
+    const page = app.pages?.[0];
+    if (!page) {
+      root.textContent = `[AtlasLowcode] empty app ${opts.appId}`;
+      return;
+    }
+    root.innerHTML = '';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-weight:600;margin-bottom:8px;';
+    title.textContent = `${page.displayName} (${page.path})`;
+    root.appendChild(title);
+    root.appendChild(renderTree(page.root, 0));
+    opts.onEvent?.({ type: 'rendered', payload: { appId: opts.appId, pageCode: page.code } });
+  } catch (e) {
+    root.textContent = `[AtlasLowcode] load failed: ${(e as Error).message}`;
+    opts.onEvent?.({ type: 'error', payload: { message: (e as Error).message } });
+  }
+}
+
+function renderTree(node: SdkComponentNode, depth: number): HTMLElement {
+  const wrap = document.createElement('div');
+  if (node.visible === false) wrap.style.opacity = '0.6';
+  wrap.style.cssText += `margin-left:${depth * 12}px;margin-bottom:6px;padding:6px 10px;background:#fff;border:1px dashed #d8d8d8;border-radius:4px;`;
+  wrap.dataset.componentId = node.id;
+  const display = node.metadata?.displayName ?? node.type;
+  const head = document.createElement('div');
+  head.innerHTML = `<strong>${escapeHtml(display)}</strong> <span style="color:#999;font-size:11px;">${escapeHtml(node.type)}</span>`;
+  wrap.appendChild(head);
+  for (const c of node.children ?? []) wrap.appendChild(renderTree(c, depth + 1));
+  return wrap;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c));
 }
 
 function resolveContainer(c: HTMLElement | string): HTMLElement {
