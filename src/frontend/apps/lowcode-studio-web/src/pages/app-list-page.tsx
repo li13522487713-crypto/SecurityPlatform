@@ -15,7 +15,7 @@ export const AppListPage: React.FC = () => {
     mutationFn: (vals: { code: string; displayName: string; description?: string }) =>
       lowcodeApi.apps.create({ code: vals.code, displayName: vals.displayName, description: vals.description, targetTypes: 'web', defaultLocale: 'zh-CN' }),
     onSuccess: (r) => {
-      Toast.success('创建成功');
+      Toast.success(t('lowcode_studio.common.created'));
       qc.invalidateQueries({ queryKey: ['lowcode-apps'] });
       nav(lowcodeAppStudioPath(r.id));
     },
@@ -25,7 +25,7 @@ export const AppListPage: React.FC = () => {
   const deleteMut = useMutation({
     mutationFn: (id: string) => lowcodeApi.apps.delete(id),
     onSuccess: () => {
-      Toast.success('已删除');
+      Toast.success(t('lowcode_studio.common.deleted'));
       qc.invalidateQueries({ queryKey: ['lowcode-apps'] });
     },
     onError: (e: Error) => Toast.error(e.message)
@@ -36,7 +36,7 @@ export const AppListPage: React.FC = () => {
       title: t('lowcode_studio.app.delete'),
       content: `将永久删除应用 ${app.displayName}（${app.code}）。该操作不可撤销，相关草稿与历史版本仍按归档保留。`,
       okText: t('lowcode_studio.app.delete'),
-      cancelText: '取消',
+      cancelText: t('lowcode_studio.common.cancel'),
       onOk: () => deleteMut.mutate(app.id)
     });
   };
