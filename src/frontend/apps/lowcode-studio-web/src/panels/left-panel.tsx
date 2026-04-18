@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag } from '@douyinfe/semi-ui';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal } from '@douyinfe/semi-ui';
 import { listShortcuts } from '@atlas/lowcode-editor-canvas';
 import { lowcodeApi } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
@@ -19,6 +19,34 @@ import { t } from '../i18n';
 export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   const [keyword, setKeyword] = useState('');
   const { currentPageCode, setCurrentPageCode } = useStudioSelection();
+  const qc = useQueryClient();
+
+  // M07 模板应用：apply 后端返 templateJson → 提示用户确认 → 写入 draft
+  const applyTplMut = useMutation({
+    mutationFn: async (templateId: string) => {
+      const r = await lowcodeApi.templates.apply(templateId);
+      return r;
+    },
+    onSuccess: async (r) => {
+      Modal.confirm({
+        title: '应用模板将覆盖当前草稿',
+        content: `模板已下载（${r.templateJson.length} 字节）。确认后将写入应用草稿（不可撤销，建议先保存版本）。`,
+        okText: '覆盖草稿',
+        cancelText: '取消',
+        onOk: async () => {
+          try {
+            await lowcodeApi.apps.replaceDraft(appId, r.templateJson);
+            await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
+            await qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
+            Toast.success('模板应用成功');
+          } catch (e) {
+            Toast.error((e as Error).message);
+          }
+        }
+      });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
 
   // Tab 1：组件
   const componentsQuery = useQuery({
@@ -90,7 +118,15 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
             style={{ marginTop: 8 }}
             dataSource={templatesQuery.data ?? []}
             renderItem={(tpl) => (
-              <List.Item header={<Typography.Text strong>{tpl.name}</Typography.Text>} extra={<Tag size="small">{tpl.kind}</Tag>}>
+              <List.Item
+                header={<Typography.Text strong>{tpl.name}</Typography.Text>}
+                extra={
+                  <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    <Tag size="small">{tpl.kind}</Tag>
+                    <Button size="small" loading={applyTplMut.isPending} onClick={() => applyTplMut.mutate(tpl.id)}>应用</Button>
+                  </span>
+                }
+              >
                 <Typography.Paragraph style={{ margin: 0, fontSize: 12, color: '#666' }}>
                   ⭐ {tpl.stars} · 使用 {tpl.useCount}
                 </Typography.Paragraph>
