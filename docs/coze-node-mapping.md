@@ -70,7 +70,8 @@
 | 25 | SceneChat | 同上。 |
 | 26 | LTM | Atlas 用私有 `Ltm(62)` 替代，节点 ID 不与上游对齐；前端走 Atlas 自有节点目录。 |
 <!-- M12 已落地 TriggerUpsert(34) / TriggerRead(35) / TriggerDelete(36)，从缺失表移除。 -->
-<!-- 节点执行器与 RuntimeTriggerService 联动详见 BuiltInWorkflowNodeDeclarations.cs trigger 区块。 -->
+<!-- M20 已落地 Variable(11) / ImageGenerate(14) / Imageflow(15) / ImageReference(16) / ImageCanvas(17,23) / SceneVariable(24) / SceneChat(25) / LtmUpstream(26)，节点 ID 与上游对齐；缺失表已清空。 -->
+<!-- 节点执行器与 RuntimeTriggerService / 拆分 Memory(64/65/66) / 图像视频 N44-N49 详见 BuiltInWorkflowNodeDeclarations.cs M12+M20 节点区块；docs/lowcode-orchestration-spec.md §3 提供完整映射表。 -->
 
 ## 3. M4 节点执行器 DI 同步
 
