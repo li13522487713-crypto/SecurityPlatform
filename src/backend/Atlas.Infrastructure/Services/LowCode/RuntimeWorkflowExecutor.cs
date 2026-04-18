@@ -22,8 +22,8 @@ namespace Atlas.Infrastructure.Services.LowCode;
 ///
 /// 桥接 IDagWorkflowExecutionService（Coze DAG 引擎），并增强：
 ///  - 弹性策略：超时 / 重试 / 熔断 / 降级（按工作流粒度隔离）
-///  - 异步任务：基于 SQLite 持久化（M09 简化版，M19 接入 Hangfire）
-///  - 批量执行：同步循环 invoke + 失败策略（M09 单事务批量；大批量在 M19 走 Hangfire 分片）
+///  - 异步任务：SQLite + Hangfire 持久化（M09 + M19 落地，支持取消 / webhook 回调 / 进度查询）
+///  - 批量执行：同步循环 invoke + 失败策略；大批量经 Hangfire 分片（M19 S19-2）
 ///
 /// 注：所有 workflowId 接受字符串（Coze 上游约定），内部转 long 调用 IDagWorkflowExecutionService。
 /// </summary>

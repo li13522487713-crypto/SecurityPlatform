@@ -81,14 +81,16 @@ public sealed class RuntimeSessionService : IRuntimeSessionService
 public sealed class RuntimeChatflowService : IRuntimeChatflowService
 {
     private readonly ILowCodeSessionRepository _sessionRepo;
+    private readonly ILowCodeMessageLogRepository _messageLogRepo;
     private readonly IRuntimeMessageLogService _messageLog;
     private readonly IDagWorkflowExecutionService _engine;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
 
-    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, IRuntimeMessageLogService messageLog, IDagWorkflowExecutionService engine, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, ILowCodeMessageLogRepository messageLogRepo, IRuntimeMessageLogService messageLog, IDagWorkflowExecutionService engine, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
     {
         _sessionRepo = sessionRepo;
+        _messageLogRepo = messageLogRepo;
         _messageLog = messageLog;
         _engine = engine;
         _idGen = idGen;
@@ -98,7 +100,9 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
     public async IAsyncEnumerable<string> StreamSseAsync(TenantId tenantId, long currentUserId, RuntimeChatflowInvokeRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var sessionId = await EnsureSessionAsync(tenantId, currentUserId, request.SessionId, cancellationToken);
-        await _messageLog.RecordAsync(tenantId, "chatflow", "user_input", sessionId, null, null, null, JsonSerializer.Serialize(new { text = request.Input }), cancellationToken);
+        // user_input：把 chatflowId + 完整 input + context 写入 payload，便于 ResumeSseAsync 续流时按最近 user_input 重发
+        await _messageLog.RecordAsync(tenantId, "chatflow", "user_input", sessionId, request.ChatflowId, null, null,
+            JsonSerializer.Serialize(new { text = request.Input, chatflowId = request.ChatflowId, context = request.Context }), cancellationToken);
 
         // M11 收尾：若 chatflowId 是 long（DAG 工作流 ID），桥接到 IDagWorkflowExecutionService.StreamRunAsync 真实流式；
         // 否则走 mock pipeline（用于无后端 chatflow 时的本地调试）。
@@ -223,15 +227,67 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
         await _sessionRepo.UpdateAsync(s, cancellationToken);
         await _messageLog.RecordAsync(tenantId, "chatflow", "resume", sessionId, null, null, null, "{}", cancellationToken);
 
-        var seq = 0;
-        // M11 简化：恢复后给一帧 message + final，提示恢复成功；真实续流在对接模型时实现。
-        seq++;
-        yield return Sse(new { kind = "message", content = "[resumed]", markdown = false, seq });
-        await Task.Delay(10, cancellationToken);
-        seq++;
-        yield return Sse(new { kind = "final", outputs = new { resumed = true }, seq });
+        // 真实续流：从消息日志找该会话最近一条 user_input 提取 chatflowId+input，
+        // 拼出 RuntimeChatflowInvokeRequest 走完整 StreamSseAsync 流（同时把 user_inject 也合并）。
+        var entries = await _messageLogRepo.QueryAsync(tenantId, sessionId, null, null, null, null, 1, 200, cancellationToken);
+        var lastInput = entries.OrderByDescending(e => e.OccurredAt).FirstOrDefault(e => e.Source == "chatflow" && e.Kind == "user_input");
+        var injects = entries.Where(e => e.Source == "chatflow" && e.Kind == "user_inject" && lastInput is not null && e.OccurredAt >= lastInput.OccurredAt)
+                             .OrderBy(e => e.OccurredAt).ToList();
 
-        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.chatflow.resume", "success", $"sess:{sessionId}", null, null), cancellationToken);
+        if (lastInput is null)
+        {
+            // 无可续流上下文 → 仅发出一帧 final 表示恢复完成
+            yield return Sse(new { kind = "final", outputs = new { resumed = true, reason = "no-prior-input" }, seq = 1 });
+            await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.chatflow.resume", "success", $"sess:{sessionId}:no-input", null, null), cancellationToken);
+            yield break;
+        }
+
+        // 解析 payload 中的 chatflowId + input
+        string? chatflowId = lastInput.WorkflowId;
+        string input = "";
+        Dictionary<string, JsonElement>? context = null;
+        try
+        {
+            var payload = JsonSerializer.Deserialize<JsonElement>(lastInput.PayloadJson ?? "{}");
+            if (payload.TryGetProperty("chatflowId", out var cf) && cf.ValueKind == JsonValueKind.String)
+                chatflowId = cf.GetString();
+            if (payload.TryGetProperty("text", out var tx) && tx.ValueKind == JsonValueKind.String)
+                input = tx.GetString() ?? "";
+            if (payload.TryGetProperty("context", out var ctx) && ctx.ValueKind == JsonValueKind.Object)
+            {
+                context = new Dictionary<string, JsonElement>();
+                foreach (var p in ctx.EnumerateObject()) context[p.Name] = p.Value;
+            }
+        }
+        catch (JsonException) { /* 容错：无效 payload 仍继续以 chatflowId/empty input 续流 */ }
+
+        // 把 inject 的内容追加到 input 中（保持顺序）
+        foreach (var inj in injects)
+        {
+            try
+            {
+                var p = JsonSerializer.Deserialize<JsonElement>(inj.PayloadJson ?? "{}");
+                if (p.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String)
+                {
+                    input += "\n" + m.GetString();
+                }
+            }
+            catch (JsonException) { /* skip */ }
+        }
+
+        if (string.IsNullOrEmpty(chatflowId))
+        {
+            yield return Sse(new { kind = "final", outputs = new { resumed = true, reason = "no-chatflow-id" }, seq = 1 });
+            await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.chatflow.resume", "success", $"sess:{sessionId}:no-cf", null, null), cancellationToken);
+            yield break;
+        }
+
+        var resumeReq = new RuntimeChatflowInvokeRequest(chatflowId, sessionId, input, context);
+        await foreach (var chunk in StreamSseAsync(tenantId, currentUserId, resumeReq, cancellationToken))
+        {
+            yield return chunk;
+        }
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.chatflow.resume", "success", $"sess:{sessionId}:cf:{chatflowId}:injects:{injects.Count}", null, null), cancellationToken);
     }
 
     public async Task InjectAsync(TenantId tenantId, long currentUserId, string sessionId, RuntimeChatflowInjectRequest request, CancellationToken cancellationToken)
