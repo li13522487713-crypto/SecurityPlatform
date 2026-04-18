@@ -21,19 +21,22 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
     private readonly IAuditWriter _auditWriter;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IMapper _mapper;
+    private readonly IResourceReferenceIndex _referenceIndex;
 
     public AppDefinitionCommandService(
         IAppDefinitionRepository appRepo,
         IAppVersionArchiveRepository versionRepo,
         IAuditWriter auditWriter,
         IIdGeneratorAccessor idGen,
-        IMapper mapper)
+        IMapper mapper,
+        IResourceReferenceIndex referenceIndex)
     {
         _appRepo = appRepo;
         _versionRepo = versionRepo;
         _auditWriter = auditWriter;
         _idGen = idGen;
         _mapper = mapper;
+        _referenceIndex = referenceIndex;
     }
 
     public async Task<long> CreateAsync(TenantId tenantId, long currentUserId, AppDefinitionCreateRequest request, CancellationToken cancellationToken)
@@ -95,6 +98,7 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
 
         app.ReplaceDraftSchema(request.SchemaJson, currentUserId);
         await _appRepo.UpdateAsync(app, cancellationToken);
+        await _referenceIndex.ReindexFromSchemaJsonAsync(tenantId, id, request.SchemaJson, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.draft.replace", "success", $"app:{id}", null, null), cancellationToken);
     }
 
@@ -106,6 +110,7 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
 
         app.ReplaceDraftSchema(request.SchemaJson, currentUserId);
         await _appRepo.UpdateAsync(app, cancellationToken);
+        await _referenceIndex.ReindexFromSchemaJsonAsync(tenantId, id, request.SchemaJson, cancellationToken);
         // autosave 只写一条简化审计（短时间内可能高频，不做完整 payload 记录）
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.draft.autosave", "success", $"app:{id}", null, null), cancellationToken);
     }
@@ -135,6 +140,8 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         app.BindCurrentVersion(versionId);
         await _appRepo.UpdateAsync(app, cancellationToken);
 
+        // 快照时刻基于最新草稿 schema 重新索引，确保引用反查表与发布版本对齐。
+        await _referenceIndex.ReindexFromSchemaJsonAsync(tenantId, id, app.DraftSchemaJson, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.version.create", "success", $"app:{id}:version:{versionId}:label:{request.VersionLabel}", null, null), cancellationToken);
         return versionId;
     }

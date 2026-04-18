@@ -99,6 +99,9 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IAppTemplateRepository, AppTemplateRepository>();
         services.AddScoped<IAppTemplateService, AppTemplateService>();
 
+        // M14 S14-4：资源引用增量索引器（应用 schema 变更时自动 reindex）
+        services.AddScoped<IResourceReferenceIndex, ResourceReferenceIndex>();
+
         // M20 节点状态 + 双哲学
         services.AddScoped<INodeStateStore, NodeStateStore>();
         services.AddSingleton<IDualOrchestrationEngine, DualOrchestrationEngine>();
