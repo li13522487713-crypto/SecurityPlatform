@@ -61,6 +61,114 @@ export interface PagedResult<T> {
   pageSize: number;
 }
 
+/** 通用资源条目（M07 S07-3）。*/
+export interface ResourceItem {
+  resourceType: string;
+  id: string;
+  name: string;
+  description?: string;
+  updatedAt?: string;
+}
+
+export interface ResourceCatalog {
+  byType: Record<string, ResourceItem[]>;
+  total: number;
+}
+
+export interface ComponentMetaWire {
+  type: string;
+  displayName: string;
+  category: string;
+  group?: string;
+  version: string;
+  bindableProps: string[];
+  contentParams?: string[];
+  supportedEvents: string[];
+  childPolicy: { arity: string; allowTypes?: string[] };
+  runtimeRenderer: string[];
+}
+
+export interface ComponentRegistry {
+  components: ComponentMetaWire[];
+  overrides: Array<{ type: string; hidden: boolean; defaultPropsJson?: string }>;
+}
+
+export interface AppTemplate {
+  id: string;
+  code: string;
+  name: string;
+  kind: string;
+  description?: string;
+  industryTag?: string;
+  templateJson: string;
+  shareScope: string;
+  stars: number;
+  useCount: number;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppPage {
+  id: string;
+  appId: string;
+  code: string;
+  displayName: string;
+  path: string;
+  targetType: string;
+  layout: string;
+  orderNo: number;
+  isVisible: boolean;
+  isLocked: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppVariable {
+  id: string;
+  appId: string;
+  code: string;
+  displayName: string;
+  scope: string;
+  valueType: string;
+  isReadOnly: boolean;
+  isPersisted: boolean;
+  defaultValueJson: string;
+  description?: string;
+}
+
+export interface VersionDiff {
+  fromVersionId: string;
+  toVersionId: string;
+  fromLabel: string;
+  toLabel: string;
+  ops: Array<{ op: 'add' | 'remove' | 'replace'; path: string; before?: string; after?: string }>;
+}
+
+export interface FaqEntry {
+  id: string;
+  title: string;
+  body: string;
+  tags?: string;
+  hits: number;
+  updatedAt: string;
+}
+
+export interface PublishArtifact {
+  id: string;
+  appId: string;
+  versionId: string;
+  kind: 'hosted' | 'embedded-sdk' | 'preview';
+  status: string;
+  fingerprint: string;
+  publicUrl?: string;
+  rendererMatrixJson: string;
+  errorMessage?: string;
+  publishedByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const lowcodeApi = {
   apps: {
     list: (pageIndex = 1, pageSize = 20, keyword?: string, status?: string) => {
@@ -78,8 +186,60 @@ export const lowcodeApi = {
     autosave: (id: string, schemaJson: string) => request<unknown>('POST', `/apps/${id}/autosave`, { schemaJson } as never),
     snapshot: (id: string, versionLabel: string, note?: string) =>
       request<{ versionId: string }>('POST', `/apps/${id}/snapshot`, { versionLabel, note } as never),
-    listVersions: (id: string) => request<unknown[]>('GET', `/apps/${id}/versions`),
+    listVersions: (id: string) => request<Array<{ id: string; appId: string; versionLabel: string; note?: string; isSystemSnapshot: boolean; createdByUserId: number; createdAt: string }>>('GET', `/apps/${id}/versions`),
     getSchema: (id: string) => request<unknown>('GET', `/apps/${id}/schema`)
+  },
+  pages: {
+    list: (appId: string) => request<AppPage[]>('GET', `/apps/${appId}/pages`),
+    create: (appId: string, body: { code: string; displayName: string; path: string; targetType?: string; layout?: string }) =>
+      request<{ id: string }>('POST', `/apps/${appId}/pages`, body as never),
+    delete: (appId: string, pageId: string) => request<unknown>('DELETE', `/apps/${appId}/pages/${pageId}`)
+  },
+  variables: {
+    list: (appId: string, scope?: string) => request<AppVariable[]>('GET', `/apps/${appId}/variables${scope ? `?scope=${scope}` : ''}`),
+    create: (appId: string, body: AppVariable & { isReadOnly?: boolean; isPersisted?: boolean }) =>
+      request<{ id: string }>('POST', `/apps/${appId}/variables`, body as never)
+  },
+  resources: {
+    search: (appId: string, params: { types?: string; keyword?: string; pageIndex?: number; pageSize?: number } = {}) => {
+      const sp = new URLSearchParams();
+      if (params.types) sp.set('types', params.types);
+      if (params.keyword) sp.set('keyword', params.keyword);
+      sp.set('pageIndex', String(params.pageIndex ?? 1));
+      sp.set('pageSize', String(params.pageSize ?? 20));
+      return request<ResourceCatalog>('GET', `/apps/${appId}/resources?${sp}`);
+    }
+  },
+  templates: {
+    search: (params: { keyword?: string; kind?: string; shareScope?: string; industryTag?: string; pageIndex?: number; pageSize?: number } = {}) => {
+      const sp = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== '') sp.set(k, String(v));
+      }
+      return request<AppTemplate[]>('GET', `/templates?${sp}`);
+    },
+    apply: (id: string) => request<{ templateId: string; templateJson: string; useCount: number }>('POST', `/templates/${id}/apply`),
+    star: (id: string, increment = true) => request<{ stars: number }>('POST', `/templates/${id}/star?increment=${increment}`)
+  },
+  faq: {
+    search: (keyword?: string, pageIndex = 1, pageSize = 20) => {
+      const sp = new URLSearchParams({ pageIndex: String(pageIndex), pageSize: String(pageSize) });
+      if (keyword) sp.set('keyword', keyword);
+      return request<FaqEntry[]>('GET', `/faq?${sp}`);
+    },
+    hit: (id: string) => request<FaqEntry | null>('POST', `/faq/${id}/hit`)
+  },
+  versions: {
+    diff: (appId: string, fromId: string, toId: string) =>
+      request<VersionDiff>('GET', `/apps/${appId}/versions/${fromId}/diff/${toId}`),
+    rollback: (appId: string, versionId: string, note?: string) =>
+      request<unknown>('POST', `/apps/${appId}/versions/${versionId}/rollback`, { note } as never)
+  },
+  publish: {
+    list: (appId: string) => request<PublishArtifact[]>('GET', `/apps/${appId}/artifacts`),
+    publish: (appId: string, kind: 'hosted' | 'embedded-sdk' | 'preview', body?: { versionId?: string; rendererMatrixJson?: string }) =>
+      request<PublishArtifact>('POST', `/apps/${appId}/publish/${kind}`, { kind, ...body } as never),
+    rollback: (appId: string, artifactId: string) => request<unknown>('POST', `/apps/${appId}/publish/rollback`, { artifactId } as never)
   },
   draftLock: {
     acquire: (appId: string, sessionId: string) => request<unknown>('POST', `/apps/${appId}/draft-lock/acquire`, { sessionId } as never),
@@ -88,6 +248,6 @@ export const lowcodeApi = {
     status: (appId: string) => request<unknown>('GET', `/apps/${appId}/draft-lock/status`)
   },
   components: {
-    registry: (renderer = 'web') => request<unknown>('GET', `/components/registry?renderer=${renderer}`)
+    registry: (renderer = 'web') => request<ComponentRegistry>('GET', `/components/registry?renderer=${renderer}`)
   }
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, List, Space, Modal, Form, Toast } from '@douyinfe/semi-ui';
+import { lowcodeAppStudioPath } from '@atlas/app-shell-shared';
 import { lowcodeApi, type AppListItem } from '../services/api-core';
 import { t } from '../i18n';
 
@@ -16,7 +17,7 @@ export const AppListPage: React.FC = () => {
     onSuccess: (r) => {
       Toast.success('创建成功');
       qc.invalidateQueries({ queryKey: ['lowcode-apps'] });
-      nav(`/apps/${r.id}/studio`);
+      nav(lowcodeAppStudioPath(r.id));
     },
     onError: (e: Error) => Toast.error(e.message)
   });
@@ -37,7 +38,7 @@ export const AppListPage: React.FC = () => {
               header={<Card.Meta title={app.displayName} description={app.code} />}
               extra={
                 <Space>
-                  <Button onClick={() => nav(`/apps/${app.id}/studio`)}>打开</Button>
+                  <Button onClick={() => nav(lowcodeAppStudioPath(app.id))}>打开</Button>
                 </Space>
               }
             >
