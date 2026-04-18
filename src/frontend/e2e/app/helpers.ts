@@ -428,8 +428,18 @@ export async function loginApp(
     return;
   }
 
-  await page.waitForURL(new RegExp(`${orgWorkspacesPath(defaultTenantId)}(?:\\?.*)?$`), { timeout: 30_000 });
-  await expect(page.getByTestId("workspace-list-page")).toBeVisible({ timeout: 30_000 });
+  // 当前 IA：单租户单工作空间下登录会直接落到 dashboard；
+  // 多工作空间或新建后会落到工作空间列表。两种 URL 都视为登录成功。
+  const workspacesListPattern = new RegExp(`${orgWorkspacesPath(defaultTenantId)}(?:\\?.*)?$`);
+  const workspaceDashboardPattern = /\/org\/[^/]+\/workspaces\/[^/]+\/dashboard(?:\?.*)?$/;
+  await page.waitForURL((url) => workspacesListPattern.test(url.pathname + url.search) || workspaceDashboardPattern.test(url.pathname + url.search), {
+    timeout: 30_000
+  });
+  // 任一稳态都视为登录成功；后续 ensureAppWorkspace 会按需回到指定空间。
+  const onListPage = await page.getByTestId("workspace-list-page").isVisible().catch(() => false);
+  if (!onListPage) {
+    await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
+  }
 }
 
 export async function ensureAppWorkspace(page: Page, appKey: string) {

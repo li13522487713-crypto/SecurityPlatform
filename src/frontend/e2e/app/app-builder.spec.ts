@@ -35,6 +35,8 @@ test.describe.serial("App Builder", () => {
   });
 
   test("should configure inputs, outputs, workflow binding, and preview run", async ({ page }) => {
+    // App Builder 涉及多个 mock 路由 + 长链路交互，30s 默认 timeout 不够。
+    test.setTimeout(120_000);
     const appDetailRoute = new RegExp(`/api/v1/ai-apps/${appId}(?:\\?.*)?$`);
     const builderConfigRoute = new RegExp(`/api/v1/ai-apps/${appId}/builder-config(?:\\?.*)?$`);
     const previewRunRoute = new RegExp(`/api/v1/ai-apps/${appId}/preview-run(?:\\?.*)?$`);
