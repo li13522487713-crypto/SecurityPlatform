@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Atlas.Connectors.Feishu</RootNamespace>
+    <Description>Feishu / Lark connector: identity / directory / approval / messaging providers + Encrypt+VerificationToken event verifier.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atlas.Connectors.Core\Atlas.Connectors.Core.csproj" />
+  </ItemGroup>
+
+</Project>

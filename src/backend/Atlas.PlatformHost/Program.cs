@@ -43,6 +43,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Localization;
 using System.IO.Compression;
+using Atlas.PlatformHost.ExternalConnectors;
 using Atlas.PlatformHost.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
 
@@ -278,8 +279,12 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(Atlas.Application.Audit.Validators.AuditRecordValidator).Assembly,
     typeof(Atlas.Application.AgentTeam.Validators.AgentTeamCreateRequestValidator).Assembly,
     typeof(Atlas.Application.Workflow.Validators.PublishEventRequestValidator).Assembly,
+    typeof(Atlas.Application.ExternalConnectors.Validators.ManualBindingRequestValidator).Assembly,
     typeof(Atlas.Presentation.Shared.Validators.ChangePasswordViewModelValidator).Assembly,
 ]);
+
+// ─── External Collaboration Connector（v4 报告 27-31 章）───
+builder.Services.AddPlatformExternalConnectors();
 
 // ─── Security validation (production) ───
 var securityOptions = builder.Configuration.GetSection("Security").Get<SecurityOptions>() ?? new SecurityOptions();

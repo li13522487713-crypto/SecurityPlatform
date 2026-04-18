@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Atlas.Application.ExternalConnectors</RootNamespace>
+    <Description>External Collaboration Connector application layer: service interfaces, DTOs, validators, repository abstractions, AutoMapper profiles.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="14.0.0" />
+    <PackageReference Include="FluentValidation" Version="11.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Application\Atlas.Application.csproj" />
+    <ProjectReference Include="..\Atlas.Connectors.Core\Atlas.Connectors.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.ExternalConnectors\Atlas.Domain.ExternalConnectors.csproj" />
+  </ItemGroup>
+
+</Project>

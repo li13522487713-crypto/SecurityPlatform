@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Atlas.Sdk.ConnectorPlugins</RootNamespace>
+    <Description>Workflow node plugins that surface External Collaboration Connector capabilities (WeCom/Feishu/identity-bind/dir-sync) as first-class workflow nodes.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Connectors.Core\Atlas.Connectors.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Application.ExternalConnectors\Atlas.Application.ExternalConnectors.csproj" />
+    <ProjectReference Include="..\Atlas.Sdk.LogicFlowPlugins\Atlas.Sdk.LogicFlowPlugins.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\NodeCatalog.json" />
+  </ItemGroup>
+
+</Project>

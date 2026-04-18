@@ -11,6 +11,7 @@ using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.Plugins;
 using Atlas.Domain.Setup.Entities;
 using Atlas.Domain.System.Entities;
+using Atlas.Domain.ExternalConnectors.Entities;
 using Atlas.Domain.Workflow.Entities;
 using SqlSugar;
 
@@ -138,6 +139,21 @@ public static class AtlasOrmSchemaCatalog
         typeof(ApprovalParallelToken),
         typeof(ApprovalTimerJob),
         typeof(ApprovalTriggerJob),
+        // External Collaboration Connector 11 张表（v4 报告 27-31 章 P0 落地）
+        typeof(ExternalIdentityProvider),
+        typeof(ExternalIdentityBinding),
+        typeof(ExternalIdentityBindingAuditLog),
+        typeof(ExternalDepartmentMirror),
+        typeof(ExternalUserMirror),
+        typeof(ExternalDepartmentUserRelation),
+        typeof(LocalDepartmentMapping),
+        typeof(ExternalDirectorySyncJob),
+        typeof(ExternalDirectorySyncDiff),
+        typeof(ExternalApprovalTemplateCache),
+        typeof(ExternalApprovalTemplateMapping),
+        typeof(ExternalApprovalInstanceLink),
+        typeof(ExternalMessageDispatch),
+        typeof(ExternalCallbackEvent),
         typeof(PersistedWorkflow),
         typeof(PersistedExecutionPointer),
         typeof(PersistedEvent),

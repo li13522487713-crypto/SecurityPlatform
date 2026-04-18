@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import * as React from "react";
 import { Component, Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Spin } from "@douyinfe/semi-ui";
@@ -3364,6 +3365,14 @@ export const appRoutes = [
         path: "settings/:tab",
         element: <WorkspaceSettingsRoute />,
         handle: WORKSPACE_SETTINGS_ROUTE_HANDLE
+      },
+      {
+        path: "settings/connectors",
+        element: <ConnectorsListRoute />
+      },
+      {
+        path: "settings/connectors/:providerId",
+        element: <ConnectorDetailRoute />
       }
     ]
   },
@@ -3416,6 +3425,25 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />
   }
 ];
+
+const ConnectorsLazy = React.lazy(() => import("./pages/connectors/connectors-page"));
+const ConnectorDetailLazy = React.lazy(() => import("./pages/connectors/connector-detail-page"));
+
+function ConnectorsListRoute() {
+  return (
+    <Suspense fallback={<LoadingPage />}>
+      <ConnectorsLazy />
+    </Suspense>
+  );
+}
+
+function ConnectorDetailRoute() {
+  return (
+    <Suspense fallback={<LoadingPage />}>
+      <ConnectorDetailLazy />
+    </Suspense>
+  );
+}
 
 const appRouter = createBrowserRouter(appRoutes, {
   future: {

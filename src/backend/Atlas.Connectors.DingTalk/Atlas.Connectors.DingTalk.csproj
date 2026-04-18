@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Atlas.Connectors.DingTalk</RootNamespace>
+    <Description>DingTalk connector placeholder: registers ProviderType only, no functional implementation yet.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Atlas.Connectors.Core\Atlas.Connectors.Core.csproj" />
+  </ItemGroup>
+
+</Project>

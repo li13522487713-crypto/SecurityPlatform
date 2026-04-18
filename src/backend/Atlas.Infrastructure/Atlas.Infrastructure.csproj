@@ -61,6 +61,7 @@
     <ProjectReference Include="..\Atlas.Infrastructure.BatchProcess\Atlas.Infrastructure.BatchProcess.csproj" />
     <ProjectReference Include="..\Atlas.Domain.AgentTeam\Atlas.Domain.AgentTeam.csproj" />
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.ExternalConnectors\Atlas.Domain.ExternalConnectors.csproj" />
     <ProjectReference Include="..\Atlas.Domain.Workflow\Atlas.Domain.Workflow.csproj" />
     <ProjectReference Include="..\Atlas.WorkflowCore\Atlas.WorkflowCore.csproj" />
     <ProjectReference Include="..\Atlas.WorkflowCore.DSL\Atlas.WorkflowCore.DSL.csproj" />

@@ -1708,3 +1708,79 @@ ORM 优先实现要点（M6）：
 `IResourceWriteGate` 新增 `GuardByResourceAsync(tenantId, resourceType, resourceId, action, ct)`：通过 `IResourceWorkspaceLookup` 自动解析 (resourceType, resourceId) 所属 `WorkspaceId` 后调用 `GuardAsync`；`workspaceId` 解析失败（旧数据 / 资源不存在）则短路放行，保持向后兼容。
 
 接入控制器：`DagWorkflowController` / `AiAppsController` / `KnowledgeBasesController` / `AiDatabasesController`（PlatformHost + AppHost 各一份，共 8 个文件）的 Update / Delete / Publish / Run 等写动作前置 `GuardByResourceAsync(...)`，写后 `InvalidateAsync(...)` 清 PDP 资源 tag。资源类型常量：`workflow` / `app` / `knowledge` / `database`。
+
+## External Collaboration Connector（v4 报告 27-31 章）
+
+> 落地文档：v4 报告第 27-31 章 "外部协同接入能力" + "三种集成模式" + "核心官方来源"。
+> 库布局：`Atlas.Connectors.{Core,WeCom,Feishu,DingTalk}` + `Atlas.{Domain,Application,Infrastructure}.ExternalConnectors` + `Atlas.Sdk.ConnectorPlugins`。
+> 前端包：`@atlas/external-connectors-react`；app-web 路由 `/org/:orgId/workspaces/:workspaceId/settings/connectors/*`。
+
+### 三种集成模式（按 ApprovalFlowDefinition 级别可配置）
+
+| 代码 | 名称 | 数据所有权 | 待办入口 | 适用场景 |
+| --- | --- | --- | --- | --- |
+| `ExternalLed` | A 外部主导 | 外部审批中心 | 外部 | 表单提交即推外部审批，本地只采集与回流 |
+| `LocalLed` | B 本地主导 | 本地审批引擎 | 本地详情页 | 外部仅做消息卡片通知 |
+| `Hybrid` | C 双中心 | 双中心 | 外部入口跳本地详情 | 默认推荐：本地引擎 + 外部待办入口 + 三方审批同步 |
+
+### 统一 REST 接口（前缀 `/api/v1/connectors`）
+
+| Method + Path | 说明 |
+| --- | --- |
+| `GET /providers` | 列出连接器实例（可按 type 过滤、含/不含 disabled） |
+| `GET /providers/{id}` | 单个 provider 详情（密钥脱敏） |
+| `POST /providers` | 注册一个 provider 实例（密钥经 `DataProtectionService` 加密） |
+| `PUT /providers/{id}` | 更新 provider 配置 |
+| `POST /providers/{id}/secret:rotate` | 轮换密钥 |
+| `POST /providers/{id}:enable` / `:disable` | 启停 |
+| `DELETE /providers/{id}` | 删除 |
+| `POST /connectors/oauth/start` | OAuth 起跳；返回 authorizationUrl + state |
+| `POST /connectors/oauth/callback` | 回调；命中已绑定签发 JWT，否则返回 pendingBindingTicket |
+| `POST /providers/{id}/directory/sync/full` | 触发通讯录全量同步 |
+| `POST /providers/{id}/directory/sync/incremental` | 应用一次增量事件（事件可只带 EntityId，由服务层补拉详情） |
+| `GET /providers/{id}/directory/sync/jobs` | 最近同步任务列表 |
+| `GET /providers/{id}/directory/sync/jobs/{jobId}` | 单个任务详情 |
+| `GET /providers/{id}/directory/sync/jobs/{jobId}/diffs` | 差异行分页（对账面板） |
+| `GET /providers/{id}/approvals/templates` | 列出已缓存的外部审批模板 |
+| `POST /providers/{id}/approvals/templates/{externalTemplateId}:refresh` | 强制刷新模板缓存 |
+| `GET / PUT /providers/{id}/approvals/template-mappings/{flowDefinitionId}` | 字段映射 + IntegrationMode CRUD |
+| `GET / POST /identity-bindings` | 身份绑定列表 / 手动新建 |
+| `POST /identity-bindings/conflicts:resolve` | 冲突解决（KeepCurrent / SwitchToLocalUser / Revoke） |
+| `DELETE /identity-bindings/{id}` | 解绑 |
+| `POST /providers/{id}/callbacks/{topic}` | 入站 webhook（匿名；身份依赖 verifier 验签 + state 单次消费） |
+
+### 错误码（统一前缀 `CONNECTOR_*`）
+
+`CONNECTOR_PROVIDER_NOT_FOUND` / `CONNECTOR_PROVIDER_DISABLED` / `CONNECTOR_PROVIDER_CONFIG_INVALID` / `CONNECTOR_OAUTH_STATE_INVALID` / `CONNECTOR_OAUTH_STATE_EXPIRED` / `CONNECTOR_OAUTH_CODE_INVALID` / `CONNECTOR_TRUSTED_DOMAIN_MISMATCH`（企微 50001 映射）/ `CONNECTOR_VISIBILITY_SCOPE_DENIED`（企微 60011、飞书 99992402 等映射）/ `CONNECTOR_TOKEN_ACQUIRE_FAILED` / `CONNECTOR_TOKEN_EXPIRED` / `CONNECTOR_WEBHOOK_SIGNATURE_INVALID` / `CONNECTOR_WEBHOOK_REPLAY_DETECTED` / `CONNECTOR_WEBHOOK_DECRYPT_FAILED` / `CONNECTOR_IDENTITY_NOT_FOUND` / `CONNECTOR_IDENTITY_AMBIGUOUS` / `CONNECTOR_DIRECTORY_SYNC_FAILED` / `CONNECTOR_APPROVAL_SUBMIT_FAILED` / `CONNECTOR_APPROVAL_TEMPLATE_NOT_FOUND` / `CONNECTOR_APPROVAL_FIELD_MAPPING_INVALID` / `CONNECTOR_MESSAGING_FAILED`。
+
+### 4 档身份绑定策略
+
+- `Direct`：外部 user id 直接对应本地 user id（历史导入 / 手动）。
+- `Mobile`：手机号精确匹配。
+- `Email`：邮箱精确匹配。
+- `NameDept`：姓名 + 部门辅助匹配，必须管理员/本人确认。
+- `Manual`：纯人工，由 `POST /identity-bindings/manual` 触发。
+
+策略命中失败时返回 `BindingResolutionKind = PendingManual`，前端进入待绑定页；命中冲突（同本地用户在同 provider 已绑到不同 ExternalUserId）时返回 `Conflict` + 冲突 binding 摘要。
+
+### Workflow 节点族（`Atlas.Sdk.ConnectorPlugins`）
+
+| NodeType | 说明 |
+| --- | --- |
+| `external_identity_bind` | 外部登录绑定 |
+| `external_directory_sync_trigger` | 触发通讯录全量同步 |
+| `external_sync_department` | 同步部门变更 |
+| `external_sync_member` | 同步成员变更 |
+| `wecom_send_message` / `feishu_send_message` | 发外部消息（文本/卡片） |
+| `wecom_create_approval` / `feishu_create_approval` | 创建外部审批实例 |
+| `external_query_approval_status` | 同步外部审批状态 |
+| `external_process_callback` | 重放/处理外部回调 |
+
+节点目录元数据：`src/backend/Atlas.Sdk.ConnectorPlugins/Resources/NodeCatalog.json`。
+
+### 安全 & 等保
+
+- `ExternalIdentityProvider.SecretEncrypted` 经 `DataProtectionService` AES-CBC 加密；轮换走 `POST /providers/{id}/secret:rotate`。
+- OAuth state 单次消费（`IOAuthStateStore.ConsumeAsync`），跨租户校验（state.TenantId vs current）；TTL 默认 10 分钟。
+- 入站 webhook：HMAC-SHA256（飞书）+ XML+AES-CBC（企微 EncodingAESKey）；幂等键 + `IReplayGuard` + 失败入死信（`ExternalCallbackEvent.Status = DeadLetter`）。
+- 审计：所有自动绑定 / 换号 / 解绑 / 冲突解决都写 `ExternalIdentityBindingAuditLog`；连接器 API Key 调用走现有 `IAuditRecorder`。
