@@ -5,7 +5,8 @@ using SqlSugar;
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
 /// <summary>
-/// 自定义 SQL 节点：限制执行受控语句，避免注入与高危操作。
+/// 数据库 SQL 路由节点：仅根据 <c>sqlTemplate</c> 的首个关键字（SELECT/INSERT/UPDATE/DELETE）
+/// 转发到对应的标准数据库节点；<b>不解析、不执行</b> sqlTemplate 正文。用于兼容「看起来像 SQL」的画布配置。
 /// </summary>
 public sealed class DatabaseCustomSqlNodeExecutor : INodeExecutor
 {
@@ -32,12 +33,12 @@ public sealed class DatabaseCustomSqlNodeExecutor : INodeExecutor
         var sql = context.ReplaceVariables(sqlTemplate).Trim();
         if (string.IsNullOrWhiteSpace(sql))
         {
-            return Task.FromResult(new NodeExecutionResult(false, new Dictionary<string, JsonElement>(), "DatabaseCustomSql 缺少 sqlTemplate。"));
+            return Task.FromResult(new NodeExecutionResult(false, new Dictionary<string, JsonElement>(), "DatabaseSqlRoute 缺少 sqlTemplate。"));
         }
 
         if (ContainsDangerousToken(sql))
         {
-            return Task.FromResult(new NodeExecutionResult(false, new Dictionary<string, JsonElement>(), "DatabaseCustomSql 检测到潜在危险语句。"));
+            return Task.FromResult(new NodeExecutionResult(false, new Dictionary<string, JsonElement>(), "DatabaseSqlRoute 检测到潜在危险片段（如注释/分号/DROP 等）。"));
         }
 
         if (sql.StartsWith("select", StringComparison.OrdinalIgnoreCase))
@@ -60,7 +61,7 @@ public sealed class DatabaseCustomSqlNodeExecutor : INodeExecutor
             return _insertExecutor.ExecuteAsync(context, cancellationToken);
         }
 
-        return Task.FromResult(new NodeExecutionResult(false, new Dictionary<string, JsonElement>(), "DatabaseCustomSql 仅支持 SELECT/INSERT/UPDATE/DELETE。"));
+        return Task.FromResult(new NodeExecutionResult(false, new Dictionary<string, JsonElement>(), "DatabaseSqlRoute 仅支持以 SELECT/INSERT/UPDATE/DELETE 开头的路由关键字。"));
     }
 
     private static bool ContainsDangerousToken(string sql)

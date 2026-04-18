@@ -60,6 +60,15 @@ public sealed class AiNodeObservabilityTests
     }
 
     [Fact]
+    public void Mask_OnObject_ShouldZeroSensitiveNumericFields()
+    {
+        var input = JsonSerializer.SerializeToElement(new { ssn = 12345, ok = 42 });
+        var masked = AiNodeObservability.Mask(input);
+        Assert.Equal(0, masked.GetProperty("ssn").GetInt32());
+        Assert.Equal(42, masked.GetProperty("ok").GetInt32());
+    }
+
+    [Fact]
     public void Mask_OnArray_ShouldRecurseEachItem()
     {
         var input = JsonSerializer.SerializeToElement(new[]

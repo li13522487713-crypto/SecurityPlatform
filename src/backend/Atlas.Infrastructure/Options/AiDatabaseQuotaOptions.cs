@@ -9,8 +9,13 @@ public sealed class AiDatabaseQuotaOptions
     /// <summary>单数据库字段数量上限。</summary>
     public int MaxFieldsPerTable { get; set; } = 20;
 
-    /// <summary>单数据库行数上限（软上限，超过仅告警）。</summary>
+    /// <summary>单数据库行数上限。</summary>
     public int MaxRowsPerTable { get; set; } = 100_000;
+
+    /// <summary>
+    /// 为 true 时，超出 <see cref="MaxRowsPerTable"/> 将抛出业务异常；为 false 时仅记录警告（兼容旧行为）。
+    /// </summary>
+    public bool EnforceMaxRowsPerTable { get; set; } = true;
 
     /// <summary>单次批量写入上限。</summary>
     public int MaxBulkInsertRows { get; set; } = 1_000;

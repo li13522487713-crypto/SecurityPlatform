@@ -228,7 +228,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
         CancellationToken cancellationToken,
         long? ownerUserId = null,
         long? creatorUserId = null,
-        string? channelId = null)
+        string? channelId = null,
+        bool enforceSyncBulkRowLimit = true)
     {
         var entity = await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
         var rows = request.Rows ?? [];
@@ -237,7 +238,11 @@ public sealed class AiDatabaseService : IAiDatabaseService
             return new AiDatabaseRecordBulkCreateResult(0, 0, 0, Array.Empty<AiDatabaseRecordBulkRowResult>());
         }
 
-        _quotaPolicy.EnsureBulkInsertSize(rows.Count);
+        if (enforceSyncBulkRowLimit)
+        {
+            _quotaPolicy.EnsureBulkInsertSize(rows.Count);
+        }
+
         await _quotaPolicy.EnsureCanAddRowAsync(tenantId, databaseId, incoming: rows.Count, cancellationToken);
 
         var rowResults = new List<AiDatabaseRecordBulkRowResult>(rows.Count);
@@ -266,8 +271,11 @@ public sealed class AiDatabaseService : IAiDatabaseService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "AiDatabase 批量插入第 {Index} 行处理异常 db={DatabaseId}", i, databaseId);
-                rowResults.Add(new AiDatabaseRecordBulkRowResult(i, false, null, ex.Message));
+                rowResults.Add(new AiDatabaseRecordBulkRowResult(
+                    i,
+                    false,
+                    null,
+                    AiDatabasePublicErrors.ForRow(ex, _logger, i, databaseId)));
             }
         }
 
@@ -311,6 +319,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
                 $"批量异步任务行数超过上限（{maxAsync}）。",
                 ErrorCodes.ValidationError);
         }
+
+        await _quotaPolicy.EnsureCanAddRowAsync(tenantId, databaseId, incoming: rows.Count, cancellationToken);
 
         var payloadJson = JsonSerializer.Serialize(rows);
         var task = new AiDatabaseImportTask(
@@ -481,16 +491,21 @@ public sealed class AiDatabaseService : IAiDatabaseService
         CancellationToken cancellationToken)
     {
         var databaseRepository = serviceProvider.GetRequiredService<AiDatabaseRepository>();
-        var recordRepository = serviceProvider.GetRequiredService<AiDatabaseRecordRepository>();
         var importTaskRepository = serviceProvider.GetRequiredService<AiDatabaseImportTaskRepository>();
-        var idGeneratorAccessor = serviceProvider.GetRequiredService<IIdGeneratorAccessor>();
-        var unitOfWork = serviceProvider.GetRequiredService<IUnitOfWork>();
+
+        var task = await importTaskRepository.FindByIdAsync(tenantId, taskId, cancellationToken);
+        if (task is null)
+        {
+            _logger.LogWarning("数据库批量任务不存在。taskId={TaskId}", taskId);
+            return;
+        }
 
         var database = await databaseRepository.FindByIdAsync(tenantId, databaseId, cancellationToken);
-        var task = await importTaskRepository.FindByIdAsync(tenantId, taskId, cancellationToken);
-        if (database is null || task is null)
+        if (database is null)
         {
-            _logger.LogWarning("数据库批量任务缺失。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
+            _logger.LogWarning("数据库不存在。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
+            task.MarkFailed(AiDatabasePublicErrors.ImportTargetMissing);
+            await importTaskRepository.UpdateAsync(task, cancellationToken);
             return;
         }
 
@@ -499,70 +514,50 @@ public sealed class AiDatabaseService : IAiDatabaseService
             task.MarkRunning();
             await importTaskRepository.UpdateAsync(task, cancellationToken);
 
-            List<string>? rows = null;
-            if (!string.IsNullOrWhiteSpace(task.PayloadJson))
+            if (string.IsNullOrWhiteSpace(task.PayloadJson))
             {
-                try
-                {
-                    rows = JsonSerializer.Deserialize<List<string>>(task.PayloadJson) ?? new List<string>();
-                }
-                catch (JsonException ex)
-                {
-                    _logger.LogError(ex, "数据库批量任务 payload 解析失败。taskId={TaskId}", taskId);
-                }
-            }
-            rows ??= new List<string>();
-
-            if (rows.Count == 0)
-            {
-                task.MarkCompleted(0, 0, 0);
+                task.MarkFailed(AiDatabasePublicErrors.BulkPayloadInvalid);
                 await importTaskRepository.UpdateAsync(task, cancellationToken);
                 return;
             }
 
-            var validRecords = new List<AiDatabaseRecord>(rows.Count);
-            var failed = 0;
-            for (var i = 0; i < rows.Count; i++)
+            List<string> rows;
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    EnsureJsonObject(rows[i]);
-                    var coercedJson = AiDatabaseValueCoercer.Coerce(database.TableSchema, rows[i]);
-                    validRecords.Add(new AiDatabaseRecord(
-                        tenantId,
-                        databaseId,
-                        coercedJson,
-                        idGeneratorAccessor.NextId(),
-                        ownerUserId,
-                        creatorUserId,
-                        channelId));
-                }
-                catch (Exception ex)
-                {
-                    failed++;
-                    _logger.LogWarning(ex, "数据库批量任务第 {Index} 行处理失败 db={DatabaseId} task={TaskId}", i, databaseId, taskId);
-                }
+                rows = JsonSerializer.Deserialize<List<string>>(task.PayloadJson) ?? [];
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "数据库批量任务 payload 解析失败。taskId={TaskId}", taskId);
+                task.MarkFailed(AiDatabasePublicErrors.BulkPayloadInvalid);
+                await importTaskRepository.UpdateAsync(task, cancellationToken);
+                return;
             }
 
-            await unitOfWork.ExecuteInTransactionAsync(async () =>
+            if (rows.Count == 0)
             {
-                if (validRecords.Count > 0)
-                {
-                    await recordRepository.AddRangeAsync(validRecords, cancellationToken);
-                    var count = await recordRepository.CountByDatabaseAsync(tenantId, databaseId, cancellationToken);
-                    database.SetRecordCount(count);
-                    await databaseRepository.UpdateAsync(database, cancellationToken);
-                }
-            }, cancellationToken);
+                task.MarkFailed(AiDatabasePublicErrors.InlineJobEmptyPayload);
+                await importTaskRepository.UpdateAsync(task, cancellationToken);
+                return;
+            }
 
-            task.MarkCompleted(rows.Count, validRecords.Count, failed);
+            var aiDatabaseService = serviceProvider.GetRequiredService<IAiDatabaseService>();
+            var result = await aiDatabaseService.CreateRecordsBulkAsync(
+                tenantId,
+                databaseId,
+                new AiDatabaseRecordBulkCreateRequest(rows),
+                cancellationToken,
+                ownerUserId,
+                creatorUserId,
+                channelId,
+                enforceSyncBulkRowLimit: false);
+
+            task.MarkCompleted(result.Total, result.Succeeded, result.Failed);
             await importTaskRepository.UpdateAsync(task, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "数据库批量任务失败。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
-            task.MarkFailed(ex.Message);
+            task.MarkFailed(AiDatabasePublicErrors.ForJob(ex, _logger, databaseId, taskId));
             await importTaskRepository.UpdateAsync(task, cancellationToken);
         }
     }
@@ -582,11 +577,19 @@ public sealed class AiDatabaseService : IAiDatabaseService
         var idGeneratorAccessor = serviceProvider.GetRequiredService<IIdGeneratorAccessor>();
         var unitOfWork = serviceProvider.GetRequiredService<IUnitOfWork>();
 
-        var database = await databaseRepository.FindByIdAsync(tenantId, databaseId, cancellationToken);
         var task = await importTaskRepository.FindByIdAsync(tenantId, taskId, cancellationToken);
-        if (database is null || task is null)
+        if (task is null)
         {
-            _logger.LogWarning("数据库导入任务缺失。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
+            _logger.LogWarning("数据库导入任务不存在。taskId={TaskId}", taskId);
+            return;
+        }
+
+        var database = await databaseRepository.FindByIdAsync(tenantId, databaseId, cancellationToken);
+        if (database is null)
+        {
+            _logger.LogWarning("数据库不存在。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
+            task.MarkFailed(AiDatabasePublicErrors.ImportTargetMissing);
+            await importTaskRepository.UpdateAsync(task, cancellationToken);
             return;
         }
 
@@ -604,32 +607,49 @@ public sealed class AiDatabaseService : IAiDatabaseService
                 return;
             }
 
-            var records = rows
-                .Select(row => new AiDatabaseRecord(
-                    tenantId,
-                    databaseId,
-                    JsonSerializer.Serialize(row),
-                    idGeneratorAccessor.NextId(),
-                    task.OwnerUserId,
-                    task.CreatorUserId,
-                    task.ChannelId))
-                .ToArray();
+            var validRecords = new List<AiDatabaseRecord>(rows.Count);
+            var failed = 0;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    var rowJson = JsonSerializer.Serialize(rows[i]);
+                    EnsureJsonObject(rowJson);
+                    var coercedJson = AiDatabaseValueCoercer.Coerce(database.TableSchema, rowJson);
+                    validRecords.Add(new AiDatabaseRecord(
+                        tenantId,
+                        databaseId,
+                        coercedJson,
+                        idGeneratorAccessor.NextId(),
+                        task.OwnerUserId,
+                        task.CreatorUserId,
+                        task.ChannelId));
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    _logger.LogWarning(ex, "CSV 导入第 {Index} 行处理失败 db={DatabaseId} task={TaskId}", i, databaseId, taskId);
+                }
+            }
 
             await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                await recordRepository.AddRangeAsync(records, cancellationToken);
-                var count = await recordRepository.CountByDatabaseAsync(tenantId, databaseId, cancellationToken);
-                database.SetRecordCount(count);
-                await databaseRepository.UpdateAsync(database, cancellationToken);
+                if (validRecords.Count > 0)
+                {
+                    await recordRepository.AddRangeAsync(validRecords, cancellationToken);
+                    var count = await recordRepository.CountByDatabaseAsync(tenantId, databaseId, cancellationToken);
+                    database.SetRecordCount(count);
+                    await databaseRepository.UpdateAsync(database, cancellationToken);
+                }
             }, cancellationToken);
 
-            task.MarkCompleted(rows.Count, rows.Count, 0);
+            task.MarkCompleted(rows.Count, validRecords.Count, failed);
             await importTaskRepository.UpdateAsync(task, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "数据库导入任务失败。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
-            task.MarkFailed(ex.Message);
+            task.MarkFailed(AiDatabasePublicErrors.ForImport(ex, _logger, databaseId, taskId));
             await importTaskRepository.UpdateAsync(task, cancellationToken);
         }
     }

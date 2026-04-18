@@ -23,16 +23,18 @@ public static class AiNodeObservability
     private static readonly HashSet<string> SensitiveFieldNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "password", "passwd", "pwd",
-        "token", "secret", "apiKey", "api_key", "accessToken", "access_token", "refreshToken", "refresh_token",
+        "token", "secret", "key", "apiKey", "api_key", "accessToken", "access_token", "refreshToken", "refresh_token",
         "ssn", "idCard", "id_card", "idnumber", "id_number",
         "phone", "mobile", "telephone",
         "email", "mail",
-        "creditCard", "credit_card", "cardNumber", "card_number", "cvv",
-        "address", "addr"
+        "creditCard", "credit_card", "cardNumber", "card_number", "bankcard", "bank_card", "cvv",
+        "address", "addr",
+        "\u624b\u673a", "\u90ae\u7bb1", "\u8eab\u4efd\u8bc1", "\u94f6\u884c\u5361"
     };
 
     private static readonly Regex EmailPattern = new(@"^[\w\.\-]+@[\w\.\-]+$", RegexOptions.Compiled);
-    private static readonly Regex PhonePattern = new(@"^\+?\d{6,15}$", RegexOptions.Compiled);
+    /// <summary>允许空格、括号、连字符等常见本地格式（仍可能误伤纯数字串，由字段名优先判定）。</summary>
+    private static readonly Regex PhonePattern = new(@"^\+?[\d\s\-\(\)]{6,22}$", RegexOptions.Compiled);
 
     /// <summary>启动一个节点级 span，自动包含 tenantId、databaseId/knowledgeId 与 nodeKey。</summary>
     public static Activity? StartNodeActivity(
@@ -194,10 +196,10 @@ public static class AiNodeObservability
         return value.ValueKind switch
         {
             JsonValueKind.String => JsonSerializer.SerializeToElement(MaskString(value.GetString() ?? string.Empty)),
-            JsonValueKind.Number => JsonSerializer.SerializeToElement("***"),
-            JsonValueKind.True or JsonValueKind.False => JsonSerializer.SerializeToElement("***"),
+            JsonValueKind.Number => JsonSerializer.SerializeToElement(0),
+            JsonValueKind.True or JsonValueKind.False => JsonSerializer.SerializeToElement(false),
             JsonValueKind.Null => value.Clone(),
-            _ => JsonSerializer.SerializeToElement("***")
+            _ => JsonSerializer.SerializeToElement(false)
         };
     }
 

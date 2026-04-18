@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Core.Exceptions;
 using Atlas.Infrastructure.Services.AiPlatform;
 
@@ -86,5 +87,31 @@ public sealed class AiDatabaseValueCoercerTests
             { "orderId": "NO-1", "tags": "string-not-array" }
             """;
         Assert.Throws<BusinessException>(() => AiDatabaseValueCoercer.Coerce(SimpleSchema, raw));
+    }
+
+    [Fact]
+    public void Coerce_ShouldPreserveJsonArrayField()
+    {
+        var raw = """
+            { "orderId": "NO-1", "tags": [1, 2, 3] }
+            """;
+        var coerced = AiDatabaseValueCoercer.Coerce(SimpleSchema, raw);
+        using var doc = JsonDocument.Parse(coerced);
+        var tags = doc.RootElement.GetProperty("tags");
+        Assert.Equal(JsonValueKind.Array, tags.ValueKind);
+        Assert.Equal(3, tags.GetArrayLength());
+    }
+
+    [Fact]
+    public void Coerce_ShouldPreserveJsonObjectField()
+    {
+        var raw = """
+            { "orderId": "NO-1", "extra": { "a": 1, "b": "x" } }
+            """;
+        var coerced = AiDatabaseValueCoercer.Coerce(SimpleSchema, raw);
+        using var doc = JsonDocument.Parse(coerced);
+        var extra = doc.RootElement.GetProperty("extra");
+        Assert.Equal(JsonValueKind.Object, extra.ValueKind);
+        Assert.Equal(1, extra.GetProperty("a").GetInt32());
     }
 }
