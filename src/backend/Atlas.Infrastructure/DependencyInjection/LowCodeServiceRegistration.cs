@@ -95,6 +95,10 @@ public static class LowCodeServiceRegistration
         // M07 S07-3：应用资源聚合
         services.AddScoped<IAppResourceCatalogService, AppResourceCatalogService>();
 
+        // M07 S07-4：应用模板（CRUD + 共享市场）
+        services.AddScoped<IAppTemplateRepository, AppTemplateRepository>();
+        services.AddScoped<IAppTemplateService, AppTemplateService>();
+
         // M20 节点状态 + 双哲学
         services.AddScoped<INodeStateStore, NodeStateStore>();
         services.AddSingleton<IDualOrchestrationEngine, DualOrchestrationEngine>();
