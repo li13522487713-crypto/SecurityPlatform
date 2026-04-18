@@ -91,9 +91,27 @@
 > - ✅ **M18 凭据加密**：`LowCodeCredentialProtector`（AES-CBC + 'lcp:' 前缀幂等 + Mask + 主密钥多源回退）替换 plugin auth base64 占位；7 xUnit 单测全过；审计仅写 Mask 摘要。
 > - ✅ **M19 AI 生成 LLM**：`WorkflowGenerationService` 接 `IChatClientFactory.CreateAsync` + `Microsoft.Extensions.AI.IChatClient.GetResponseAsync`；30s 超时；JSON 解析失败 / 无 LLM 配置自动回退到模板/关键字 fallback；status='success-fallback' 区分。
 
+第三轮收尾批次（2026-04）：
+
+- ✅ **M03 数组路径**：`state-patch` 实装 `[index]` + dot-path 数字段（`a.list[0].title` / `a.list.0.title` 等价）；ensureChild/readAt/writeAt/deleteAt；5 项数组用例。
+- ✅ **M02→M18 模板增强**：`renderTemplate` 支持 `{% break %}` / `{% continue %}` + `{{ x | upper | default('-') }}` 链式 filter + 8 个内置 filter + `registerFilter` 扩展点；TOKEN_RE.lastIndex 复位修复跨调用残留 bug。
+- ✅ **M17 SDK applyPatches 完整**：`@atlas/lowcode-web-sdk` `mount().update()` 完整支持 set/merge/unset + `[index]` 数组路径 + 中间路径自动建对象/数组，与 action-runtime 语义一致但内联实现避免增大 UMD bundle。
+- ✅ **M08 → M14 历史快照**：`RuntimeSchemaController.GetVersionSchema` 真实加载 `app_version_archive.schema_snapshot_json` + `resource_snapshot_json`，新增 `AppVersionedSchemaSnapshotDto`；新增 `IAppDefinitionQueryService.GetVersionSchemaSnapshotAsync`。
+- ✅ **M11 真实续流**：`ResumeSseAsync` 从消息日志查最近 user_input + 后续 user_inject → 拼出 RuntimeChatflowInvokeRequest → 复用 `StreamSseAsync` 完整真实流；不再 stub 一帧 final。
+- ✅ **M19 S19-2 数据库批量源**：`WorkflowBatchService` database 源真实接 `AiDatabaseNodeHelper.LoadRecordsAsync`，复用 DatabaseQuery 节点底层逻辑，支持 `db:{databaseId}` 与纯数字两种 queryId 写法。
+- ✅ **M19 S19-4 IO 推断算法**：`WorkflowCompositionTopologyAnalyzer.Analyze` 解析 canvas edges，识别跨界边产 inferredInputs/inferredOutputs，兼容 source/target、sourceNodeKey/targetNodeKey、from/to 三种命名，端口字段优先级清晰；6 项单测覆盖。
+- ✅ **M19 S19-5 真实配额**：`WorkflowQuotaService` 接 `IOptionsMonitor<LowCodeWorkflowQuotaOptions>` + `ISqlSugarClient` 实时统计；配额超出抛 `BusinessException("WORKFLOW_QUOTA_EXCEEDED", ...)`；支持 `PerTenant` 字典覆盖。
+- ✅ **M12 → M17 Webview HTTP 文件验证**：`http_file` 模式真实拉 `https://{domain}/.well-known/atlas-webview-verify.txt` + token 比对；`dns_txt` 模式因未引入 DnsClient 包，标记 `dns_txt:not-implemented` 并允许通过（契约稳定，加包后替换实现即可）。
+- ✅ **M11/M19 Trigger FireAsync 真实链**：`SubmitAsyncAsync` 异步提交工作流到 Hangfire（不阻塞 cron 调度）；失败审计 detail 含 ExceptionType。
+- ✅ **M12 cron 真实调度**：`RuntimeTriggerService` 集成 `IRecurringJobManager`：UpsertAsync 自动 `AddOrUpdate`，Delete/Pause `RemoveIfExists`，Resume 重新 sync；`LowCodeTriggerCronJob` 桥接到 `FireAsync`；`LowCodeTriggerReconcileHostedService` 启动期跨租户重新注册（`ListAllAsync` ClearFilter）。
+- ✅ **M12 webhook 入口**：`POST /api/runtime/triggers/{id}:rotate-webhook-secret` 生成 24 字节随机 hex 密钥（whs_xxxx 前缀，明文响应只 1 次）；`POST /api/runtime/webhooks/triggers/{id}` `[AllowAnonymous]` + `X-Atlas-Webhook-Secret` 常量时间比对（防时序攻击）；与 cron/event 三类入口齐全。
+- ✅ **M12 event 总线入口**：`IRuntimeTriggerService.RaiseEventAsync(eventName)` + `POST /api/runtime/triggers/events/{eventName}:raise`；扫描所有 enabled + kind=event + EventName 严格相等的触发器并触发；返回触发数。
+- ✅ **Studio 三抽屉**：`VersionDrawer`（diff/rollback）/ `PublishDrawer`（hosted/embedded-sdk/preview + 撤回）/ `DebugDrawer`（6 维 trace + Span 时间线）全部接通真实 API；CanvasViewport + RightInspector 接通 schema 反序列化；preview-web 接通 SignalR HMR。
+- ✅ **lowcode-runtime-spec / content-params-spec / assistant-spec** 三份 stub 升级为完整契约文档（共 ~400 行新增）。
+
 剩余延后项（外部依赖性，无法在仓库内闭环）：
 
-- **Webview 域名外部验证**：M12 简化为模拟通过；上线时接外部 DNS TXT / HTTP 文件真实校验（需要 outbound 网络 + 真实域名）。
+- **DNS TXT 验证**：需引入 `DnsClient` NuGet 包。契约稳定，加包后替换 `TryVerifyAsync` 内 `dns_txt` 分支即可。
 - **Taro 真实 build**：M15 lowcode-mini-host 提供 H5 预览壳；微信 / 抖音小程序 build 由运维流水线 `taro build --type weapp/tt` 触发。
 - **License / 模型供应商真实接入**：现有 ModelRegistry 已可工作但部分供应商需运行时 API Key；M19 LLM 调用在租户未配置模型时自动回退到关键字模板。
 

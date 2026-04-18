@@ -10,7 +10,7 @@
 - 插件域 4 张表：
   - `LowCodePluginDefinition`（市场可见性 / latestVersion / toolsJson）
   - `LowCodePluginVersion`（版本归档）
-  - `LowCodePluginAuthorization`（api_key / oauth / basic / none，credentialEncrypted base64；M14 等保加密接入后替换）
+  - `LowCodePluginAuthorization`（api_key / oauth / basic / none，credentialEncrypted 经 LowCodeCredentialProtector AES-CBC + 'lcp:' 前缀加密）
   - `LowCodePluginUsage`（按日聚合 invocationCount / errorCount）
 
 ## 2. 设计态端点
