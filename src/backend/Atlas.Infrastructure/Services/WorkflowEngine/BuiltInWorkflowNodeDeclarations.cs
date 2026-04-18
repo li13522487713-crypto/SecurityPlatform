@@ -84,7 +84,33 @@ internal static class BuiltInWorkflowNodeDeclarations
         // M12 触发器节点（PLAN.md §M12 S12-3 + docs/coze-node-mapping.md TriggerUpsert(34) / TriggerRead(35) / TriggerDelete(36)）
         Create(WorkflowNodeType.TriggerUpsert, "TriggerUpsert", "触发器创建/更新", "trigger", "创建或更新一个低代码触发器（CRON/事件/Webhook）。", [In("input"), Out("output")], "#22C55E"),
         Create(WorkflowNodeType.TriggerRead, "TriggerRead", "触发器读取", "trigger", "读取触发器列表或详情。", [In("input"), Out("output")], "#22C55E"),
-        Create(WorkflowNodeType.TriggerDelete, "TriggerDelete", "触发器删除", "trigger", "删除指定触发器。", [In("input"), Out("output")], "#22C55E")
+        Create(WorkflowNodeType.TriggerDelete, "TriggerDelete", "触发器删除", "trigger", "删除指定触发器。", [In("input"), Out("output")], "#22C55E"),
+
+        // M20 节点 49 全集补齐（PLAN.md §M20）
+        // ── 上游对齐节点 ──
+        Create(WorkflowNodeType.Variable, "Variable", "读变量", "data", "读取单一变量值（与 VariableAggregator 区分）。", [In("input"), Out("output")], "#06B6D4"),
+        Create(WorkflowNodeType.ImageGenerate, "ImageGenerate", "图像生成（上游）", "image", "Coze 上游图像生成（ID 14）。", [In("input"), Out("output")], "#F472B6"),
+        Create(WorkflowNodeType.Imageflow, "Imageflow", "图像流", "image", "Coze 上游 Imageflow（ID 15）。", [In("input"), Out("output")], "#F472B6"),
+        Create(WorkflowNodeType.ImageReference, "ImageReference", "图像参考", "image", "Coze 上游 ImageReference（ID 16）。", [In("input"), Out("output")], "#F472B6"),
+        Create(WorkflowNodeType.ImageCanvas, "ImageCanvasUpstream", "图像画布（上游）", "image", "Coze 上游 ImageCanvas（ID 17/23）。", [In("input"), Out("output")], "#F472B6"),
+        Create(WorkflowNodeType.SceneVariable, "SceneVariable", "场景变量", "data", "Coze 上游场景变量（ID 24）。", [In("input"), Out("output")], "#06B6D4"),
+        Create(WorkflowNodeType.SceneChat, "SceneChat", "场景对话", "ai", "Coze 上游场景对话（ID 25）。", [In("input"), Out("output")], "#8B5CF6"),
+        Create(WorkflowNodeType.LtmUpstream, "LtmUpstream", "长期记忆（上游）", "knowledge", "Coze 上游长期记忆（ID 26）；与 Atlas 私有 Ltm(62) 联动。", [In("input"), Out("output")], "#10B981"),
+
+        // ── 内存读写删（拆分自 Ltm）──
+        Create(WorkflowNodeType.MemoryRead, "MemoryRead", "记忆读取", "knowledge", "按 key/userId 读取长期记忆。", [In("input"), Out("output")], "#10B981"),
+        Create(WorkflowNodeType.MemoryWrite, "MemoryWrite", "记忆写入", "knowledge", "写入长期记忆。", [In("input"), Out("output")], "#10B981"),
+        Create(WorkflowNodeType.MemoryDelete, "MemoryDelete", "记忆删除", "knowledge", "删除长期记忆。", [In("input"), Out("output")], "#10B981"),
+
+        // ── Atlas 私有图像 N44/N45/N46 ──
+        Create(WorkflowNodeType.ImageGeneration, "ImageGeneration", "图像生成（Atlas）", "image", "Atlas 私有图像生成节点（N44）。", [In("input"), Out("output")], "#FB7185"),
+        Create(WorkflowNodeType.Canvas, "Canvas", "画布合成", "image", "Atlas 私有画布合成节点（N45）。", [In("input"), Out("output")], "#FB7185"),
+        Create(WorkflowNodeType.ImagePlugin, "ImagePlugin", "图像插件", "image", "Atlas 私有图像插件节点（N46）。", [In("input"), Out("output")], "#FB7185"),
+
+        // ── Atlas 私有视频 N47/N48/N49 ──
+        Create(WorkflowNodeType.VideoGeneration, "VideoGeneration", "视频生成", "video", "Atlas 私有视频生成节点（N47）。", [In("input"), Out("output")], "#A855F7"),
+        Create(WorkflowNodeType.VideoToAudio, "VideoToAudio", "视频转音频", "video", "Atlas 私有视频转音频节点（N48）。", [In("input"), Out("output")], "#A855F7"),
+        Create(WorkflowNodeType.VideoFrameExtraction, "VideoFrameExtraction", "视频抽帧", "video", "Atlas 私有视频抽帧节点（N49）。", [In("input"), Out("output")], "#A855F7")
     ];
 
     private static readonly IReadOnlyDictionary<WorkflowNodeType, IReadOnlyList<WorkflowNodePortMetadata>> PortsByType =
