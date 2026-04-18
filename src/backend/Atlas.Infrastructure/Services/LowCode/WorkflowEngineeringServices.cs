@@ -219,13 +219,15 @@ public sealed class WorkflowBatchService : IWorkflowBatchService
     private readonly IBackgroundJobClient _backgroundJobs;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
+    private readonly ISqlSugarClient _db;
 
-    public WorkflowBatchService(IRuntimeWorkflowAsyncJobRepository jobRepo, IBackgroundJobClient backgroundJobs, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public WorkflowBatchService(IRuntimeWorkflowAsyncJobRepository jobRepo, IBackgroundJobClient backgroundJobs, IIdGeneratorAccessor idGen, IAuditWriter auditWriter, ISqlSugarClient db)
     {
         _jobRepo = jobRepo;
         _backgroundJobs = backgroundJobs;
         _idGen = idGen;
         _auditWriter = auditWriter;
+        _db = db;
     }
 
     public async Task<BatchExecuteResult> ExecuteBatchAsync(TenantId tenantId, long currentUserId, BatchExecuteRequest request, CancellationToken cancellationToken)
@@ -237,7 +239,7 @@ public sealed class WorkflowBatchService : IWorkflowBatchService
         {
             "csv" => ParseCsv(request.CsvText),
             "json" => ParseJsonRows(request.JsonRows),
-            "database" => ParseDatabaseStub(request.DatabaseQueryId),
+            "database" => await LoadDatabaseRowsAsync(tenantId, request.DatabaseQueryId, cancellationToken),
             _ => Array.Empty<Dictionary<string, JsonElement>>()
         };
 
@@ -286,15 +288,31 @@ public sealed class WorkflowBatchService : IWorkflowBatchService
         return list;
     }
 
-    private static IReadOnlyList<Dictionary<string, JsonElement>> ParseDatabaseStub(string? queryId)
+    /// <summary>
+    /// 从 AI 数据库（databaseId）读取所有行 → 转 Dictionary&lt;string, JsonElement&gt;。
+    /// queryId 接收形如 "db:{databaseId}" 或纯数字字符串；非数字回退到空集合并审计 invalid。
+    /// 与 DatabaseQuery 节点共用底层 AiDatabaseNodeHelper.LoadRecordsAsync，保证一致性。
+    /// </summary>
+    private async Task<IReadOnlyList<Dictionary<string, JsonElement>>> LoadDatabaseRowsAsync(TenantId tenantId, string? queryId, CancellationToken cancellationToken)
     {
-        // M19 简化：数据库查询走 mock；M19 后续接入 IRuntimeDataSourceConnector 后真实查询。
         if (string.IsNullOrWhiteSpace(queryId)) return Array.Empty<Dictionary<string, JsonElement>>();
-        return new[]
+        var key = queryId.StartsWith("db:", StringComparison.OrdinalIgnoreCase) ? queryId[3..] : queryId;
+        if (!long.TryParse(key, out var databaseId) || databaseId <= 0)
+            return Array.Empty<Dictionary<string, JsonElement>>();
+
+        var records = await Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors.AiDatabaseNodeHelper
+            .LoadRecordsAsync(_db, tenantId, databaseId, cancellationToken);
+
+        var list = new List<Dictionary<string, JsonElement>>(records.Count);
+        foreach (var record in records)
         {
-            new Dictionary<string, JsonElement> { ["row"] = JsonSerializer.SerializeToElement(1) },
-            new Dictionary<string, JsonElement> { ["row"] = JsonSerializer.SerializeToElement(2) }
-        };
+            var parsed = Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors.AiDatabaseNodeHelper.ParseRecordJson(record.DataJson);
+            if (parsed is null || parsed.Value.ValueKind != JsonValueKind.Object) continue;
+            var row = new Dictionary<string, JsonElement>();
+            foreach (var p in parsed.Value.EnumerateObject()) row[p.Name] = p.Value;
+            list.Add(row);
+        }
+        return list;
     }
 }
 
