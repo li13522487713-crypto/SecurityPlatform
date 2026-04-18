@@ -42,12 +42,20 @@
 
 ## 6. OTel 指标命名
 
-| 指标 | 单位 | 标签 |
+> M13 收尾（2026-04）已落地：`Atlas.Infrastructure.Services.LowCode.LowCodeOtelInstrumentation` 暴露 ActivitySource `lowcode.runtime` + Meter `lowcode.runtime` v1.0.0；AppHost.Program 已 `AddSource(...) / AddMeter(...)` 接入主 OTel pipeline。
+
+| 指标 | 类型 / 单位 | 标签 |
 | --- | --- | --- |
-| lowcode.workflow.invoke_latency | ms histogram | tenantId / workflowId / status |
-| lowcode.workflow.error_count | counter | tenantId / workflowId / errorKind |
-| lowcode.workflow.circuit_state | gauge | tenantId / workflowId / state |
-| lowcode.chatflow.stream_chunk | counter | tenantId / chatflowId / chunkKind |
+| `lowcode.dispatch_latency` | Histogram (ms) | tenant.id / lowcode.app_id / status |
+| `lowcode.workflow_latency` | Histogram (ms) | tenant.id / status |
+| `lowcode.error_count` | Counter | tenant.id / source / error.kind \| span.name |
+| `lowcode.circuit_state` | UpDownCounter | tenant.id / lowcode.workflow_id / state |
+| `lowcode.chatflow.stream_chunk` | Counter | tenant.id / lowcode.chatflow_id / chunk.kind |
+
+ActivitySource span 命名约定：
+
+- `lowcode.dispatch.start`：dispatch 入口（StartTraceAsync）
+- `action.{kind}` / `dispatcher.start` / `workflow.invoke` / `chatflow.stream` / `asset.upload` / `state.patch` / `error`：AddSpanAsync 写入
 
 ## 7. 调试日志脱敏
 

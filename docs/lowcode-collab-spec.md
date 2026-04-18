@@ -60,8 +60,10 @@ await provider.connect();
 
 ## 8. 离线快照
 
-- 服务端 `LowCodeCollabSnapshotCache` 内存暂存最近一次 update。
-- 周期 10 分钟（M16 后续接入 Hangfire）落 `AppVersionArchive`（`isSystemSnapshot=true`），与用户主动版本区分。
+- 服务端 `LowCodeCollabSnapshotCache`（位于 `Atlas.Infrastructure.Services.LowCode`）内存暂存最近一次 update。
+- M16 收尾（2026-04）已落地 **`LowCodeCollabSnapshotJob` Hangfire 周期任务**：cron `*/10 * * * *`（每 10 分钟）→ 将 cache 内 base64 update 落 `AppVersionArchive`（label `collab-snapshot-{ts}`，`isSystemSnapshot=true`，`note='Yjs 协同周期快照'`）；落表后 `Cache.Clear`，避免重复快照。
+- 由 `LowCodeCollabSnapshotSchedulerHostedService` 在 AppHost 启动时注册到 RecurringJobManager。
+- 写入全部经 `IAuditWriter`（`lowcode.collab.snapshot`）。
 
 ## 9. 性能约束
 

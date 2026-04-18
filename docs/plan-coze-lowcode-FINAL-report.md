@@ -79,20 +79,23 @@
 - `generate / {id}/batch / {id}/compose / {id}/decompose / quota`（M19）
 - `orchestration/plan`（M20）
 
-## 5. 已知简化与延后项（最终收尾后剩余）
+## 5. 已知简化与延后项（两轮收尾后剩余）
 
-> 已完成的收尾项（2026-04 收尾批次）：
+> 第一轮收尾批次（2026-04）：
 > - ✅ **M11 chatflow 真实流式**：RuntimeChatflowService 桥接 `IDagWorkflowExecutionService.StreamRunAsync`，SseEvent → ChatChunk 4 类自动映射；非 long chatflowId 回退 mock。
 > - ✅ **M16 Yjs 离线快照**：`LowCodeCollabSnapshotJob` Hangfire 每 10 分钟落 `AppVersionArchive(systemSnapshot=true)` + 自动 Cache.Clear。
 > - ✅ **M19 异步/批量 Hangfire**：`RuntimeWorkflowBackgroundJob` 接管 fire-and-forget 与同步循环；进度通过 `RuntimeWorkflowAsyncJob.UpdateProgress` 定期回写。
 > - ✅ **M13 OTel 全链路**：`LowCodeOtelInstrumentation` 暴露 ActivitySource 'lowcode.runtime' + Meter 5 项指标，AppHost 已 AddSource/AddMeter。
+>
+> 第二轮收尾批次（2026-04）：
+> - ✅ **M18 凭据加密**：`LowCodeCredentialProtector`（AES-CBC + 'lcp:' 前缀幂等 + Mask + 主密钥多源回退）替换 plugin auth base64 占位；7 xUnit 单测全过；审计仅写 Mask 摘要。
+> - ✅ **M19 AI 生成 LLM**：`WorkflowGenerationService` 接 `IChatClientFactory.CreateAsync` + `Microsoft.Extensions.AI.IChatClient.GetResponseAsync`；30s 超时；JSON 解析失败 / 无 LLM 配置自动回退到模板/关键字 fallback；status='success-fallback' 区分。
 
-剩余延后项：
+剩余延后项（外部依赖性，无法在仓库内闭环）：
 
-- **真实 LLM 接入（M19 AI 生成）**：M19 generate 仍走模板/关键字推断；接 ModelRegistry 后端模型对接里替换。接口与 DTO 已稳定。
-- **Webview 域名验证**：M12 简化为模拟通过；M17 上线时接外部 DNS TXT / HTTP 文件真实校验（需要外部网络）。
-- **凭据加密**：M18 plugin auth 用 base64 占位；待 M14 等保密钥加密层接入后替换为真实加密。
+- **Webview 域名外部验证**：M12 简化为模拟通过；上线时接外部 DNS TXT / HTTP 文件真实校验（需要 outbound 网络 + 真实域名）。
 - **Taro 真实 build**：M15 lowcode-mini-host 提供 H5 预览壳；微信 / 抖音小程序 build 由运维流水线 `taro build --type weapp/tt` 触发。
+- **License / 模型供应商真实接入**：现有 ModelRegistry 已可工作但部分供应商需运行时 API Key；M19 LLM 调用在租户未配置模型时自动回退到关键字模板。
 
 ## 6. 后续维护建议
 

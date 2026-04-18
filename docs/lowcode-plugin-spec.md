@@ -42,8 +42,12 @@
 
 ## 5. 等保 2.0
 
-- `credentialEncrypted` 字段在 M18 用 base64 占位；与 M14 等保密钥加密层 (`Pbkdf2`/AES) 联动后替换为真实加密。
+- `credentialEncrypted` 字段已经 **`LowCodeCredentialProtector`（AES-CBC + 'lcp:' 前缀幂等）** 加密（M18 收尾，2026-04）：
+  - 主密钥优先级：`Security:LowCode:CredentialProtectorKey` → `Security:SetupConsole:MigrationProtectorKey` → `Security:BootstrapAdmin:Password` → DefaultDevKey（仅开发环境）。
+  - 重复加密幂等；旧 base64 无前缀值在解密时原样返回（向后兼容），下次写入自动升级为带前缀密文。
+  - 静态 `Mask(value)` 方法用于审计/日志（前 4 + 后 2，中间 ****）。
 - 写接口全部经 IAuditWriter（lowcode.plugin.create/update/delete/publish/authorize/invoke）。
+  - 审计记录的 `target` 字段使用 Mask 摘要，不写明文 / 密文。
 - 计量记录用于配额治理（M19）。
 
 ## 6. 反例
