@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Layout, Select, Space, Typography, Empty } from '@douyinfe/semi-ui';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Layout, Select, Space, Typography, Empty, Spin, Banner, Tag } from '@douyinfe/semi-ui';
 import * as signalR from '@microsoft/signalr';
 import QRCode from 'qrcode';
+import type { AppSchema, ComponentSchema, PageSchema } from '@atlas/lowcode-schema';
 
 const DEVICES = [
   { value: 'desktop', label: '桌面 1280x800', width: 1280, height: 800 },
@@ -16,14 +17,46 @@ const DEVICES = [
  *  - 设备模拟：iPhone / iPad / 桌面 多分辨率
  *  - 状态注入：从 Studio 通过 postMessage 接收 mock state
  */
+async function fetchDraft(appId: string): Promise<{ schemaJson: string }> {
+  const tenantId = localStorage.getItem('atlas_tenant_id') ?? '00000000-0000-0000-0000-000000000001';
+  const token = localStorage.getItem('atlas_access_token') ?? '';
+  const res = await fetch(`/api/v1/lowcode/apps/${appId}/draft`, {
+    headers: { 'X-Tenant-Id': tenantId, Authorization: token ? `Bearer ${token}` : '' }
+  });
+  if (!res.ok) throw new Error(`fetch draft failed: ${res.status}`);
+  const json = await res.json();
+  return json.data;
+}
+
 export const PreviewShell: React.FC<{ appId: string }> = ({ appId }) => {
   const [device, setDevice] = useState<string>('desktop');
   const [qr, setQr] = useState<string>('');
-  const [lastDiff, setLastDiff] = useState<unknown>(null);
+  const [hmrTick, setHmrTick] = useState(0);
+  const [schemaJson, setSchemaJson] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!appId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const d = await fetchDraft(appId);
+      setSchemaJson(d.schemaJson);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [appId]);
 
   useEffect(() => {
     QRCode.toDataURL(window.location.href).then(setQr).catch(() => setQr(''));
   }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload, hmrTick]);
 
   useEffect(() => {
     if (!appId) return;
@@ -35,11 +68,10 @@ export const PreviewShell: React.FC<{ appId: string }> = ({ appId }) => {
       .start()
       .then(() => conn.invoke('JoinApp', appId))
       .catch((err) => console.error('SignalR connect failed', err));
-    conn.on('schemaDiff', (payload: unknown) => {
-      setLastDiff(payload);
-      // 简单反应式：弹出提示，正式渲染由 RuntimeRenderer + store.applyPatches 完成
-      // eslint-disable-next-line no-console
-      console.log('[lowcode-preview] schemaDiff received', payload);
+    conn.on('schemaDiff', () => {
+      // HMR：收到 schemaDiff 后重新拉取 draft（M08 C08-9 简化版本，
+      // 全增量 patch 流由 lowcode-runtime-web store.applyPatches 在后续装配阶段接入）。
+      setHmrTick((t) => t + 1);
     });
     return () => {
       void conn.stop();
@@ -47,6 +79,12 @@ export const PreviewShell: React.FC<{ appId: string }> = ({ appId }) => {
   }, [appId]);
 
   const dev = DEVICES.find((d) => d.value === device) ?? DEVICES[0];
+
+  const app = useMemo<AppSchema | null>(() => {
+    if (!schemaJson) return null;
+    try { return JSON.parse(schemaJson) as AppSchema; } catch { return null; }
+  }, [schemaJson]);
+  const page: PageSchema | null = app?.pages?.[0] ?? null;
 
   return (
     <Layout style={{ height: '100vh' }}>
@@ -71,19 +109,47 @@ export const PreviewShell: React.FC<{ appId: string }> = ({ appId }) => {
             background: '#fff',
             border: '1px solid #ddd',
             borderRadius: 8,
-            overflow: 'auto'
+            overflow: 'auto',
+            padding: 16
           }}
         >
-          <Empty
-            title="预览渲染"
-            description={
-              lastDiff
-                ? '已收到设计态 schemaDiff，运行时渲染由 @atlas/lowcode-runtime-web 接入'
-                : '等待设计态 autosave 推送 schemaDiff（HMR）...'
-            }
-          />
+          {loading && <Spin />}
+          {error && <Banner type="danger" description={error} />}
+          {!loading && !error && !page && <Empty title="该应用暂无页面" />}
+          {!loading && !error && page && (
+            <>
+              <Typography.Title heading={6} style={{ margin: '0 0 12px' }}>
+                {page.displayName} <Tag size="small" style={{ marginLeft: 8 }}>{page.path}</Tag>
+              </Typography.Title>
+              <PreviewNode node={page.root} depth={0} />
+            </>
+          )}
         </div>
       </Layout.Content>
     </Layout>
+  );
+};
+
+const PreviewNode: React.FC<{ node: ComponentSchema; depth: number }> = ({ node, depth }) => {
+  if (node.visible === false) return null;
+  return (
+    <div
+      style={{
+        marginLeft: depth * 12,
+        marginBottom: 8,
+        padding: '8px 12px',
+        background: '#fff',
+        border: '1px dashed #d8d8d8',
+        borderRadius: 4
+      }}
+      data-component-id={node.id}
+    >
+      <Typography.Text strong style={{ fontSize: 13 }}>{node.type}</Typography.Text>
+      {(node.children ?? []).length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {(node.children ?? []).map((c) => <PreviewNode key={c.id} node={c} depth={depth + 1} />)}
+        </div>
+      )}
+    </div>
   );
 };

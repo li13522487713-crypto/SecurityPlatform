@@ -4,7 +4,10 @@
     "jsx": "react-jsx",
     "noEmit": true,
     "isolatedModules": true,
-    "types": []
+    "types": [],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src"]
 }
