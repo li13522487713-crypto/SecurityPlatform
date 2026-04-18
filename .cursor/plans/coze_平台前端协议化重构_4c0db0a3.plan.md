@@ -266,13 +266,22 @@ interface MockApiError {
 }
 ```
 
-## F. 当前完成度（仅前端，0 行后端）
+## F. 当前完成度（截至 2026-04-18，仅前端，0 行后端）
 
-- 路由：0 / 25（待第一批落地）
-- 一级菜单：0 / 12
-- 一级页面：0 / 14（含 `/me/*` 与 `/select-workspace`）
-- 创建弹窗：0 / 4（global-create / folder / agent / app）
-- Mock 服务：0 / 9 个文件 + 1 份协议文档
+仓库验证后的实际落地情况：
+
+| 维度 | 计划 | 已落地 | 完成度 |
+| --- | --- | --- | --- |
+| 路由（含 `/me/*` `/market/*` `/community/*` `/open/*` `/docs` `/platform/*` `/select-workspace`） | 25 | ≈25（`app.tsx` 已重写、`workspace-routes.ts` 在位） | 100% |
+| 一级菜单 | 12 | 12（`menu-config.ts` + `workspace-shell.tsx` 已就位） | 100% |
+| 一级页面 | 14 | 14（home / projects / tasks / evaluations / settings(publish/models) / market(templates/plugins) / community / open-api / docs / platform-general / me-profile / me-settings） | 100% |
+| 创建弹窗 | 4 | 4（`global-create-modal` / `create-folder-modal` / `create-agent-modal` / `create-app-modal` 全部在位） | 100% |
+| Mock 服务 + 协议文档 | 9 ts + 1 md | 9 mock + `docs/mock-api-protocols.md` | 100% |
+| Permission / 路由守卫 | `permission-context.tsx` + `route-guards.tsx` | `permission-context.tsx` 在位；**`route-guards.tsx` 未独立成文件**（守卫逻辑已合并进 `app.tsx` / 各 layout） | 部分 |
+| i18n 第一批 ~80 key | ≥80 key | 已完成（`zh-CN.ts` / `en-US.ts` 同步） | 100% |
+| 验收（lint / build / i18n / unit） | 4 项 | 已完成 | 100% |
+
+**整体进度：第一阶段 10 / 10 todo 已完成；唯一遗留是路由守卫未拆为独立文件（功能等价），建议在第二阶段开工前抽出 `route-guards.tsx` 或在 D 节里把该文件从清单移除。**
 
 ## G. 下一批前端优先项（第二阶段，本计划批准并交付第一批之后再启动）
 

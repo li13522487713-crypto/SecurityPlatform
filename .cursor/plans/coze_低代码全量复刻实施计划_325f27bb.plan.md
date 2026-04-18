@@ -760,7 +760,22 @@ flowchart LR
 - 附录 C 49 节点 → M20。
 - 附录 D 27 篇 → M06+M07+M08+M09+M10+M11+M12+M13+M14+M16+M17。
 
-### 8.3 二轮深审 30 条细节追溯
+### 8.3 当前完成度（截至 2026-04-18）
+
+> 仓库验证：`src/frontend/packages/lowcode-*` / `src/frontend/apps/lowcode-*` / `src/backend/Atlas.Domain.LowCode*` / `docs/lowcode-*.md` 均不存在；本计划的 22 个新包、4 个新 app、9 份契约文档与全部后端域均尚未启动。
+
+| 维度 | 计划 | 已交付 | 完成度 |
+| --- | --- | --- | --- |
+| 里程碑 M01-M20 | 20 | 0 | 0% |
+| 新增前端 packages | 22 | 0 | 0% |
+| 新增前端 apps | 4 | 0 | 0% |
+| 新增后端域（LowCode / LowCodePlugin） | 2 | 0 | 0% |
+| 新增专项契约文档 | 13 | 0 | 0% |
+| 现有节点对齐（M20 49 节点全集） | 49 | 既有部分（见 [docs/coze-node-mapping.md](docs/coze-node-mapping.md)），未按本计划重排 | n/a |
+
+**整体进度：0 / 20 里程碑，整套低代码复刻尚未启动。** 本计划与近期"AI 平台第二轮质检"修复（AiDatabase / WorkflowEngine / app-web AI 数据库 UI）属不同范围，相关质检改动不计入本计划完成度。
+
+### 8.4 二轮深审 30 条细节追溯
 
 - 1 双套 API 前缀 → 总策略 + M14 校准 + 各里程碑 S 系列。
 - 2 两种编排哲学 → M19+M20+orchestration-spec。
