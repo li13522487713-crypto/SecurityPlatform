@@ -62,10 +62,10 @@ test.describe.serial("Workflow Complete Flow", () => {
     await expect(page.getByTestId("workflow.detail.node.testrun.result-panel")).toBeVisible();
 
     await page.getByTestId("workflow.detail.title.back").click();
-    await expect(page).toHaveURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`), {
+    await expect(page).toHaveURL(/\/org\/[^/]+\/workspaces\/[^/]+\/workflows(?:\?.*)?$/, {
       timeout: 30_000
     });
-    await expect(page.getByTestId("app-workflows-page")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("app-develop-page")).toBeVisible({ timeout: 30_000 });
 
     await openWorkflowEditor(page, appKey, workflowId);
     const reopenedCanvas = parseCanvasValue(await page.getByTestId("workflow.detail.canvas-json").inputValue());

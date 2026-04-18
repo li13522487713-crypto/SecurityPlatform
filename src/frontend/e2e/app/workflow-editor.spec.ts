@@ -42,7 +42,8 @@ test.describe.serial("Workflow Editor E2E", () => {
     expect(saveDraftResponse.ok()).toBeTruthy();
 
     await page.reload();
-    await page.waitForURL(/\/work_flow\/[^/]+\/editor(?:\?.*)?$/, { timeout: 30_000 });
+    // 当前路径形态为 /org/<org>/workspaces/<ws>/workflows/<workflowId>，旧 /work_flow/<id>/editor 已淘汰。
+    await page.waitForURL(/\/(?:work_flow\/[^/]+\/editor|workflows\/[^/?#]+)(?:\?.*)?$/, { timeout: 30_000 });
     await expectWorkflowEditorReady(page);
     await expect(page.getByTestId("workflow.detail.canvas-json")).toBeVisible();
     const reopenedCanvas = parseCanvasValue(await page.getByTestId("workflow.detail.canvas-json").inputValue());
@@ -51,16 +52,18 @@ test.describe.serial("Workflow Editor E2E", () => {
   });
 
   test("should expose duplicate action and allow returning to list", async ({ page, request, ensureLoggedInSession }) => {
-    const { appKey } = await createWorkflowSession(page, request, ensureLoggedInSession);
+    void (await createWorkflowSession(page, request, ensureLoggedInSession));
 
     await expect(page.getByTestId("workflow.detail.title.duplicate")).toBeVisible();
     await page.getByTestId("workflow.detail.title.duplicate").click();
     await expect(page.getByTestId("app-workflow-editor-shell")).toBeVisible();
 
     await page.getByTestId("workflow.detail.title.back").click();
-    await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/work_flow(?:\\?.*)?$`), {
+    // 当前 IA：返回列表落到 /org/<org>/workspaces/<ws>/workflows
+    await page.waitForURL(/\/org\/[^/]+\/workspaces\/[^/]+\/workflows(?:\?.*)?$/, {
       timeout: 30_000
     });
-    await expect(page.getByTestId("app-workflows-page")).toBeVisible();
+    // 列表页实际由 WorkspaceStudioRoute(focus=workflow) 渲染 → testId=app-develop-page
+    await expect(page.getByTestId("app-develop-page")).toBeVisible();
   });
 });
