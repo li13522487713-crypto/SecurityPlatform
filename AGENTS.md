@@ -162,6 +162,15 @@ pnpm run format                 # 格式化所有项目
 - 前端工作流编辑器维持"节点声明驱动 + 动态表单渲染"模式。
 - 新增/修改节点能力时，必须同步更新：节点目录/模板 API、前端节点面板分组与属性表单、i18n 词条、单测/E2E/`.http` 示例、`docs/workflow-editor-validation-matrix.md`。
 
+## 知识库专题（v5 §32-44）补充约束
+
+- 知识库 API 唯一权威路由前缀为 `api/v1/knowledge-bases`：基础 CRUD 由 `KnowledgeBasesController` 提供，v5 §32-44 扩展（jobs / bindings / permissions / versions / retrieval-logs / provider-configs / table / image / 统一 retrieval）由 `KnowledgeBasesV5Controller` 同前缀挂载，禁止重复实现。
+- 前端组件统一通过 `@atlas/library-module-react` 的 `LibraryKnowledgeApi` 抽象消费，`apps/app-web/src/services/api-knowledge.ts` 与 `mock/adapter.ts` 必须保持同型；切换走 `VITE_LIBRARY_MOCK` 环境开关。
+- 知识库新增 SqlSugar 实体 / 仓储必须挂入 `Atlas.Infrastructure.Services.AtlasOrmSchemaCatalog`，否则平台启动时不会建表。
+- ParsingStrategy / ChunkingProfile / RetrievalProfile / RetrievalCallerContext 是前后端共用契约：前端在 `library-module-react/src/types.ts`、后端在 `Atlas.Application/AiPlatform/Models/KnowledgeStrategyModels.cs` 与 `RetrievalLogModels.cs`，扩展字段必须双侧同步。
+- `KnowledgeRetriever` / `KnowledgeIndexer` DAG 节点扩展时必须同步更新 `BuiltInWorkflowNodeDeclarations`（默认 config + form-meta + 端口 schema）和 `docs/workflow-editor-validation-matrix.md`；新增字段必须既保留旧字段以兼容历史画布，又把新字段写到 form-meta 让节点面板能渲染。
+- 完整里程碑、契约对照、验收命令清单与回滚指引见 `docs/plan-knowledge-platform-v5.md`，与 `docs/contracts.md` 共同构成本专题的契约权威。
+
 ## 提交与变更
 
 - **提交信息：** 采用 conventional commits（`feat:`、`fix:`、`docs:` 等）。
