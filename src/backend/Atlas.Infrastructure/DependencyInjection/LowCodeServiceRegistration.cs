@@ -97,6 +97,9 @@ public static class LowCodeServiceRegistration
         // M18 收尾：插件凭据 AES 加密保护（替换 base64 占位）
         services.AddSingleton<LowCodeCredentialProtector>();
 
+        // Webview 域名验证 HttpClient（M12 → M17）
+        services.AddHttpClient("lowcode-webview-verify");
+
         // M19 工作流父级工程能力
         services.AddScoped<IWorkflowGenerationService, WorkflowGenerationService>();
         services.AddScoped<IWorkflowBatchService, WorkflowBatchService>();

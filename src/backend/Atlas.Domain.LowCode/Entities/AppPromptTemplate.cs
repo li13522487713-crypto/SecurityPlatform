@@ -205,7 +205,8 @@ public sealed class LowCodePluginAuthorization : TenantEntity
     [SugarColumn(Length = 32, IsNullable = false)]
     public string AuthKind { get; private set; }
 
-    /// <summary>加密后的凭据（M18 阶段简化 base64；M14 等保密钥加密接入后替换）。</summary>
+    /// <summary>加密后的凭据（AES-CBC + 'lcp:' 前缀，由 LowCodeCredentialProtector 加解密；
+    /// 解密时对无前缀数据保持向后兼容）。</summary>
     [SugarColumn(Length = 1024, IsNullable = true)]
     public string? CredentialEncrypted { get; private set; }
 

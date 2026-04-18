@@ -8,7 +8,8 @@ public sealed record AppVersionDiffDto(
     string ToVersionId,
     string FromLabel,
     string ToLabel,
-    /// <summary>JSON Patch (RFC 6902) 风格 ops；M14 简化为 add/remove/replace 三类。</summary>
+    /// <summary>JSON Patch (RFC 6902) 风格 ops；低代码 schema diff 只产出 add/remove/replace 三类
+    /// （不需要 move/copy/test，因为 schema 节点 id 稳定，比较以"路径"为主键即可）。</summary>
     IReadOnlyList<AppVersionDiffOp> Ops);
 
 public sealed record AppVersionDiffOp(string Op, string Path, string? Before, string? After);
