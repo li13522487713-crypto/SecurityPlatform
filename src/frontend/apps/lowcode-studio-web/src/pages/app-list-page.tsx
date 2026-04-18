@@ -22,6 +22,25 @@ export const AppListPage: React.FC = () => {
     onError: (e: Error) => Toast.error(e.message)
   });
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => lowcodeApi.apps.delete(id),
+    onSuccess: () => {
+      Toast.success('已删除');
+      qc.invalidateQueries({ queryKey: ['lowcode-apps'] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
+
+  const confirmDelete = (app: AppListItem) => {
+    Modal.confirm({
+      title: t('lowcode_studio.app.delete'),
+      content: `将永久删除应用 ${app.displayName}（${app.code}）。该操作不可撤销，相关草稿与历史版本仍按归档保留。`,
+      okText: t('lowcode_studio.app.delete'),
+      cancelText: '取消',
+      onOk: () => deleteMut.mutate(app.id)
+    });
+  };
+
   const [open, setOpen] = React.useState(false);
 
   return (
@@ -39,6 +58,7 @@ export const AppListPage: React.FC = () => {
               extra={
                 <Space>
                   <Button onClick={() => nav(lowcodeAppStudioPath(app.id))}>打开</Button>
+                  <Button type="danger" onClick={() => confirmDelete(app)} loading={deleteMut.isPending}>{t('lowcode_studio.app.delete')}</Button>
                 </Space>
               }
             >
