@@ -45,7 +45,8 @@ public sealed record AgentDetail(
     bool EnableLongTermMemory,
     int LongTermMemoryTopK,
     IReadOnlyList<long>? KnowledgeBaseIds,
-    IReadOnlyList<AgentPluginBindingItem>? PluginBindings);
+    IReadOnlyList<AgentPluginBindingItem>? PluginBindings,
+    long? WorkspaceId = null);
 
 public sealed record AgentCreateRequest(
     string Name,

@@ -98,7 +98,8 @@ public sealed class AgentQueryService : IAgentQueryService
                 binding.SortOrder,
                 binding.IsEnabled,
                 binding.ToolConfigJson,
-                ParsePluginToolBindings(binding.ToolConfigJson))).ToArray());
+                ParsePluginToolBindings(binding.ToolConfigJson))).ToArray(),
+            entity.WorkspaceId);
     }
 
     private static AgentListItem MapListItem(Agent entity)
