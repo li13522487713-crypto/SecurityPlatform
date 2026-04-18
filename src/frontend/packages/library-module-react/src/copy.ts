@@ -314,6 +314,27 @@ type CopyTree = {
   resourceLabels: Record<ResourceType, string>;
   statusLabels: Record<string, string>;
   docStatusLabels: Record<DocumentProcessingStatus, string>;
+  /* === M3：从 8 个组件迁入的散落 CJK === */
+  close: string;
+  bindingsRetrievalProfileOverrideHint: string;
+  permissionsSelectDocumentRequired: string;
+  permissionsSelectDocumentPlaceholder: string;
+  retrievalProfileCustomRerankerPlaceholder: string;
+  commonRemove: string;
+  commonAddFilter: string;
+  commonClear: string;
+  tablePreviewFilterByColumnPlaceholder: string;
+  tablePreviewKeywordsPlaceholder: string;
+  databaseValidationFieldRequired: string;
+  databaseValidationFieldDuplicate: string;
+  databaseValidationMustBePositive: string;
+  databaseValidationMustBeNumber: string;
+  databaseValidationMinGreaterThanMax: string;
+  databaseValidationNotApplicable: string;
+  imageAnnotationFilterAll: string;
+  imageAnnotationKeywordPlaceholder: string;
+  appNoMainWorkflowWarning: string;
+  databaseBotIdPlaceholder: string;
 };
 
 const zhCN: CopyTree = {
@@ -651,7 +672,27 @@ const zhCN: CopyTree = {
   parsingCompareTitle: "解析策略对比",
   parsingCompareLeft: "策略 A",
   parsingCompareRight: "策略 B",
-  parsingCompareRun: "并排重跑解析"
+  parsingCompareRun: "并排重跑解析",
+  close: "关闭",
+  bindingsRetrievalProfileOverrideHint: "此 RetrievalProfile 将作为新增绑定时的 retrievalProfileOverride 写入；后端检索时优先使用绑定上的 override。",
+  permissionsSelectDocumentRequired: "请选择 documentId",
+  permissionsSelectDocumentPlaceholder: "选择目标文档",
+  retrievalProfileCustomRerankerPlaceholder: "自定义 reranker model id",
+  commonRemove: "移除",
+  commonAddFilter: "+ 添加 filter",
+  commonClear: "清除",
+  tablePreviewFilterByColumnPlaceholder: "按列筛选",
+  tablePreviewKeywordsPlaceholder: "关键词",
+  databaseValidationFieldRequired: "{field} 不能为空",
+  databaseValidationFieldDuplicate: "{field} 重复: {name}",
+  databaseValidationMustBePositive: "{name}: {field} 必须是正数",
+  databaseValidationMustBeNumber: "{name}: {field} 必须是数字",
+  databaseValidationMinGreaterThanMax: "{name}: {min} 不能大于 {max}",
+  databaseValidationNotApplicable: "{name}: {field} 不适用于 {type}",
+  imageAnnotationFilterAll: "全部标注",
+  imageAnnotationKeywordPlaceholder: "标注关键词",
+  appNoMainWorkflowWarning: "当前应用还没有关联主工作流。",
+  databaseBotIdPlaceholder: "botId（可选）"
 };
 
 const enUS: CopyTree = {
@@ -989,7 +1030,27 @@ const enUS: CopyTree = {
   parsingCompareTitle: "Parsing strategy compare",
   parsingCompareLeft: "Strategy A",
   parsingCompareRight: "Strategy B",
-  parsingCompareRun: "Run side-by-side parse"
+  parsingCompareRun: "Run side-by-side parse",
+  close: "Close",
+  bindingsRetrievalProfileOverrideHint: "This RetrievalProfile is written as retrievalProfileOverride on new bindings; the backend prefers the binding override on retrieval.",
+  permissionsSelectDocumentRequired: "Please select a documentId",
+  permissionsSelectDocumentPlaceholder: "Select target document",
+  retrievalProfileCustomRerankerPlaceholder: "Custom reranker model id",
+  commonRemove: "Remove",
+  commonAddFilter: "+ Add filter",
+  commonClear: "Clear",
+  tablePreviewFilterByColumnPlaceholder: "Filter by column",
+  tablePreviewKeywordsPlaceholder: "Keywords",
+  databaseValidationFieldRequired: "{field} is required",
+  databaseValidationFieldDuplicate: "{field} duplicate: {name}",
+  databaseValidationMustBePositive: "{name}: {field} must be positive",
+  databaseValidationMustBeNumber: "{name}: {field} must be a number",
+  databaseValidationMinGreaterThanMax: "{name}: {min} cannot be greater than {max}",
+  databaseValidationNotApplicable: "{name}: {field} is not applicable for {type}",
+  imageAnnotationFilterAll: "All annotations",
+  imageAnnotationKeywordPlaceholder: "Annotation keyword",
+  appNoMainWorkflowWarning: "This app has no main workflow associated.",
+  databaseBotIdPlaceholder: "botId (optional)"
 };
 
 export function getLibraryCopy(locale: SupportedLocale): CopyTree {

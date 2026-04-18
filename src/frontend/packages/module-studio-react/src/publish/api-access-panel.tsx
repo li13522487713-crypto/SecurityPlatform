@@ -1,5 +1,6 @@
 import { Card, Tag, Typography } from "@douyinfe/semi-ui";
 import type { OpenApiPublicMeta, StudioLocale } from "../types";
+import { getStudioCopy } from "../copy";
 
 export interface ApiAccessPanelProps {
   locale: StudioLocale;
@@ -26,6 +27,7 @@ export function ApiAccessPanel({
   openApiPublicMeta,
   testId = "studio-publish-api-access-panel"
 }: ApiAccessPanelProps) {
+  const copy = getStudioCopy(locale);
   const effectiveEndpoint = openApiPublicMeta?.endpoint
     ? openApiPublicMeta.endpoint
     : `${apiBase.replace(/\/$/, "")}/${resourcePath.replace(/^\//, "")}`;
@@ -40,36 +42,28 @@ export function ApiAccessPanel({
     `  -d '{"agentId":"<published_agent_id>","message":"hello"}'`
   ].join("\n");
 
-  const title = locale === "en-US" ? "HTTP / API access" : "HTTP / API 接入";
-  const hint =
-    locale === "en-US"
-      ? "Replace placeholders with your tenant, token, and the endpoint returned for each published resource."
-      : "将占位符替换为租户 ID、访问令牌，以及各已发布资源返回的实际 API 路径。";
-
   return (
-    <Card data-testid={testId} title={title} bordered>
-      <Typography.Paragraph type="tertiary">{hint}</Typography.Paragraph>
+    <Card data-testid={testId} title={copy.apiAccess.title} bordered>
+      <Typography.Paragraph type="tertiary">{copy.apiAccess.hint}</Typography.Paragraph>
 
       {openApiPublicMeta ? (
         <>
-          <Typography.Title heading={6}>
-            {locale === "en-US" ? "Active endpoint" : "当前发布端点"}
-          </Typography.Title>
+          <Typography.Title heading={6}>{copy.apiAccess.activeEndpoint}</Typography.Title>
           <Typography.Paragraph>
             <Typography.Text copyable>{effectiveEndpoint}</Typography.Text>
           </Typography.Paragraph>
           <Typography.Paragraph>
-            {locale === "en-US" ? "Token (masked): " : "令牌（脱敏）："}
+            {copy.apiAccess.tokenLabel}
             <Typography.Text>{openApiPublicMeta.tokenMasked || "—"}</Typography.Text>
           </Typography.Paragraph>
           <Typography.Paragraph>
-            {locale === "en-US" ? "Rate limit: " : "速率限制："}
+            {copy.apiAccess.rateLimitLabel}
             <Tag color="blue">{openApiPublicMeta.rateLimitPerMinute}/min</Tag>
           </Typography.Paragraph>
           {openApiPublicMeta.endpoints.length > 0 ? (
             <>
               <Typography.Title heading={6} style={{ marginTop: 12 }}>
-                {locale === "en-US" ? "Available endpoints" : "可用端点"}
+                {copy.apiAccess.availableEndpoints}
               </Typography.Title>
               <ul style={{ marginTop: 4, paddingLeft: 18 }}>
                 {openApiPublicMeta.endpoints.map((ep) => (
@@ -84,19 +78,15 @@ export function ApiAccessPanel({
       ) : null}
 
       <Typography.Title heading={6} style={{ marginTop: openApiPublicMeta ? 24 : 0 }}>
-        {locale === "en-US" ? "cURL" : "cURL 示例"}
+        {copy.apiAccess.curlSection}
       </Typography.Title>
       <pre className="module-studio__message-content" style={{ marginTop: 8 }} data-testid={`${testId}-curl`}>
         {curl}
       </pre>
       <Typography.Title heading={6} style={{ marginTop: 16 }}>
-        {locale === "en-US" ? "Headers" : "请求头说明"}
+        {copy.apiAccess.headersSection}
       </Typography.Title>
-      <Typography.Text type="tertiary">
-        {locale === "en-US"
-          ? "Authorization: JWT from sign-in. X-Tenant-Id: must match the tenant bound to the token."
-          : "Authorization：登录后下发的 JWT。X-Tenant-Id：必须与令牌中的租户一致。"}
-      </Typography.Text>
+      <Typography.Text type="tertiary">{copy.apiAccess.headersHint}</Typography.Text>
     </Card>
   );
 }

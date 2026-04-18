@@ -111,7 +111,7 @@ function buildColumns(
       width: 120,
       render: (value: unknown) => {
         const normalized = String(value ?? "draft");
-        return <StatusTag status={normalized} label={statusLabel(locale, normalized)} />;
+        return <StatusTag status={normalized} label={statusLabel(locale, normalized)} locale={locale} />;
       }
     },
     {

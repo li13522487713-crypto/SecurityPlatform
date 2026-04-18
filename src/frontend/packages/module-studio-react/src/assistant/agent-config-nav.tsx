@@ -1,6 +1,8 @@
 import { Typography } from "@douyinfe/semi-ui";
 import type { AgentConfigNavKey } from "./agent-workbench-types";
 import { AGENT_CONFIG_SECTIONS } from "./agent-config-sections";
+import { getStudioCopy } from "../copy";
+import type { StudioLocale } from "../types";
 
 export interface AgentConfigNavProps {
   activeKey: AgentConfigNavKey;
@@ -10,6 +12,7 @@ export interface AgentConfigNavProps {
   /** 资源同步提示（模型数、工作流数等） */
   resourceHint?: string;
   workbenchLoading: boolean;
+  locale: StudioLocale;
 }
 
 export function AgentConfigNav({
@@ -17,14 +20,16 @@ export function AgentConfigNav({
   onActiveKeyChange,
   statusLabel,
   resourceHint,
-  workbenchLoading
+  workbenchLoading,
+  locale
 }: AgentConfigNavProps) {
+  const copy = getStudioCopy(locale);
   return (
     <nav className="module-studio__agent-workbench-nav" aria-label="Agent configuration">
       <div className="module-studio__section-head">
         <div>
-          <Typography.Title heading={5} style={{ margin: 0 }}>配置导航</Typography.Title>
-          <Typography.Text type="tertiary">按模块拆分人设、能力与记忆，避免单页表单过长。</Typography.Text>
+          <Typography.Title heading={5} style={{ margin: 0 }}>{copy.assistant.configNavTitle}</Typography.Title>
+          <Typography.Text type="tertiary">{copy.assistant.configNavSubtitle}</Typography.Text>
         </div>
         {statusLabel ? <span className="module-studio__meta">{statusLabel}</span> : null}
       </div>
@@ -49,7 +54,7 @@ export function AgentConfigNav({
         ))}
       </div>
       <div className="module-studio__meta" data-testid="app-bot-ide-resource-status">
-        {workbenchLoading ? "资源加载中" : resourceHint}
+        {workbenchLoading ? copy.assistant.configNavLoadingResources : resourceHint}
       </div>
     </nav>
   );

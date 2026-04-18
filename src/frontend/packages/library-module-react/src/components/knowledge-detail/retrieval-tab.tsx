@@ -218,10 +218,10 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
                     onChange={value => setFilterRow(idx, { value })}
                     style={{ width: 240 }}
                   />
-                  <Button type="danger" theme="borderless" onClick={() => removeFilterRow(idx)}>移除</Button>
+                  <Button type="danger" theme="borderless" onClick={() => removeFilterRow(idx)}>{copy.commonRemove}</Button>
                 </Space>
               ))}
-              <Button onClick={addFilterRow}>+ 添加 filter</Button>
+              <Button onClick={addFilterRow}>{copy.commonAddFilter}</Button>
             </Space>
 
             <Button type="primary" loading={busy} onClick={handleRun}>{copy.runTest}</Button>

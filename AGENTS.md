@@ -127,6 +127,31 @@ pnpm run format                 # 格式化所有项目
 - **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认是否为最新 `pnpm run build` 产物。
 - **中英键对齐**：对比 `zh-CN.ts` / `en-US.ts` 是否同步更新，避免新增 key 漏翻。
 
+### 包级 i18n 契约（M2-M6 收口规则，强制约束）
+
+`pnpm run i18n:check` 现在不仅校验 `apps/app-web/src/app/messages.ts` 的中英对齐，还会扫描 `packages/*/src/**/*.{ts,tsx}` 内的 CJK 硬编码与包导出 Labels 的宿主接管覆盖（实现见 [src/frontend/scripts/i18n-audit.mjs](src/frontend/scripts/i18n-audit.mjs)）。
+
+**两种合规模式（任选一种，单包内必须一致）**：
+
+1. **Required Labels 模式**（推荐用于"组件库类"包，如 `@atlas/external-connectors-react`）
+   - 包内每个用户可见组件导出 `XxxLabelsKey` 联合类型 + `XxxLabels = Record<XxxLabelsKey, string>` 类型 + `XXX_LABELS_KEYS` `as const` 数组 + `defaultXxxLabels: XxxLabels`（中性英文兜底）。
+   - 组件 props 必须 `labels: XxxLabels`（**Required**，禁止 `Partial`），编译期强制宿主穷举注入。
+   - 宿主 `apps/app-web` 在 `messages.ts` 加对应 zh/en keys，在页面里显式 `t("namespace_xxx")` 注入每个 label。
+
+2. **包级 copy.ts 字典模式**（推荐用于"业务模块类"包，如 `@atlas/library-module-react`、`@atlas/module-studio-react`）
+   - 包内统一维护 `src/copy.ts`（导出 `getStudioCopy(locale)` / `getLibraryCopy(locale)` 等），文件本身按 `i18n-baseline.json` 加白名单豁免 CJK 检查。
+   - 每个组件接 `locale: SupportedLocale` prop，内部用 `getXxxCopy(locale)` 拿翻译，不再使用内联 `locale === "en-US" ? ... : ...` 三元。
+   - 字典分子节点（按功能域分组），便于增量扩充。
+
+**强制约束**：
+
+- 包内任何用户可见 UI 文案禁止硬编码 CJK；新加 / 修改组件时同步更新对应字典或 Labels 类型。
+- 测试 fixture / mock data / `*.test.tsx` / `*.spec.tsx` / `__tests__/**` 自动豁免；**`copy.ts` 字典文件本身**必须列入 `i18n-baseline.json` 的 `allowedCjkFiles`。
+- 纯开发者诊断（`throw new Error(...)` / `console.warn(...)` / 调试日志）允许 CJK 但**应尽量保留英文**；如必须用 CJK，加入 `allowedCjkFiles` 并标注 reason。
+- baseline 中的 `_pendingUserFacingFiles` 是 TODO 清单，新建 PR 时不允许在该清单中追加新文件，只允许移除（即只能更"干净"，不能更"脏"）。
+
+**新增包必读**：开发新包时，先决定走模式 1 还是模式 2，参照 `external-connectors-react` 或 `library-module-react` 的实现照搬。
+
 ## 前后端约束
 
 - 后端：禁止反射、`dynamic`、运行时编译或表达式树等弱类型特性；必须使用强类型 DTO、实体与接口，所有公共 API 输入输出显式类型声明与验证。

@@ -1,19 +1,53 @@
 import { useEffect, useState } from 'react';
+import { Banner, Spin, Typography } from '@douyinfe/semi-ui';
 import type { ConnectorApi } from '../api';
 import type { OAuthCallbackResult } from '../types';
 
+export type ConnectorOAuthCallbackPageLabelsKey =
+  | 'loginFailed'
+  | 'loadingText'
+  | 'externalUserPrefix'
+  | 'alreadyBoundLocalUserPrefix'
+  | 'needBindingHint';
+
+export type ConnectorOAuthCallbackPageLabels = Record<ConnectorOAuthCallbackPageLabelsKey, string>;
+
+export const CONNECTOR_OAUTH_CALLBACK_PAGE_LABELS_KEYS = [
+  'loginFailed',
+  'loadingText',
+  'externalUserPrefix',
+  'alreadyBoundLocalUserPrefix',
+  'needBindingHint',
+] as const satisfies readonly ConnectorOAuthCallbackPageLabelsKey[];
+
+export const defaultConnectorOAuthCallbackPageLabels: ConnectorOAuthCallbackPageLabels = {
+  loginFailed: 'Login failed',
+  loadingText: 'Completing external login...',
+  externalUserPrefix: 'External user:',
+  alreadyBoundLocalUserPrefix: 'Already bound to local user',
+  needBindingHint: 'Manual binding by an admin or yourself is required before sign-in.',
+};
+
 export interface ConnectorOAuthCallbackPageProps {
   api: ConnectorApi;
-  /** 从浏览器 URL 解析出的 state / code，由宿主路由层注入。 */
+  /** state / code parsed from the browser URL by the host router. */
   state: string;
   code: string;
-  /** 已绑定情况下持久化 token 的回调。 */
+  /** Persist token when the user is already bound. */
   onAuthenticated?: (token: { accessToken: string; refreshToken?: string; expiresAt?: string; localUserId?: number }) => void;
-  /** 未绑定 / 冲突情况下让宿主跳到 PendingBinding 页。 */
+  /** Redirect to PendingBinding page on conflict / not-yet-bound. */
   onPending?: (info: { kind: 'manual' | 'conflict'; ticket?: string; redirectTo?: string }) => void;
+  labels: ConnectorOAuthCallbackPageLabels;
 }
 
-export function ConnectorOAuthCallbackPage({ api, state, code, onAuthenticated, onPending }: ConnectorOAuthCallbackPageProps) {
+export function ConnectorOAuthCallbackPage({
+  api,
+  state,
+  code,
+  onAuthenticated,
+  onPending,
+  labels,
+}: ConnectorOAuthCallbackPageProps) {
   const [result, setResult] = useState<OAuthCallbackResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,23 +85,31 @@ export function ConnectorOAuthCallbackPage({ api, state, code, onAuthenticated, 
   if (error) {
     return (
       <div data-testid="connector-oauth-callback-error" style={{ padding: 24 }}>
-        <h3>登录失败</h3>
-        <p style={{ color: 'red' }}>{error}</p>
+        <Typography.Title heading={5}>{labels.loginFailed}</Typography.Title>
+        <Banner type="danger" fullMode={false} description={error} closeIcon={null} style={{ marginTop: 12 }} />
       </div>
     );
   }
 
   if (!result) {
-    return <p data-testid="connector-oauth-callback-loading">正在完成外部登录...</p>;
+    return (
+      <div data-testid="connector-oauth-callback-loading" style={{ padding: 24 }}>
+        <Spin tip={labels.loadingText} />
+      </div>
+    );
   }
 
   return (
     <div data-testid="connector-oauth-callback-result" style={{ padding: 24 }}>
-      <p>
-        外部用户：{result.displayName ?? result.externalUserId}（{result.externalUserId}）
-      </p>
-      {result.localUserId && <p>已绑定本地用户 #{result.localUserId}</p>}
-      {!result.accessToken && <p>需要管理员或本人完成绑定后才能登录。</p>}
+      <Typography.Paragraph>
+        {labels.externalUserPrefix} {result.displayName ?? result.externalUserId} ({result.externalUserId})
+      </Typography.Paragraph>
+      {result.localUserId && (
+        <Typography.Paragraph>
+          {labels.alreadyBoundLocalUserPrefix} #{result.localUserId}
+        </Typography.Paragraph>
+      )}
+      {!result.accessToken && <Typography.Paragraph>{labels.needBindingHint}</Typography.Paragraph>}
     </div>
   );
 }

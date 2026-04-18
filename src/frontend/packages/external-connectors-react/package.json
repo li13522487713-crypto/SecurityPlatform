@@ -19,9 +19,13 @@
   },
   "peerDependencies": {
     "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react-dom": "^18.0.0",
+    "@douyinfe/semi-ui": "^2.82.0",
+    "@douyinfe/semi-icons": "^2.82.0"
   },
   "devDependencies": {
+    "@douyinfe/semi-icons": "^2.82.0",
+    "@douyinfe/semi-ui": "^2.82.0",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^18.0.0",

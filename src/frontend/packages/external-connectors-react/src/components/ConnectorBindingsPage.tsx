@@ -1,40 +1,75 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent } from 'react';
+import { Banner, Select, Space, Spin, Table, Tag, Typography } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ConnectorApi } from '../api';
 import type { ExternalIdentityBindingListItem, IdentityBindingStatus } from '../types';
-import { IdentityBindingConflictCenter } from './IdentityBindingConflictCenter';
+import {
+  IdentityBindingConflictCenter,
+  defaultIdentityBindingConflictCenterLabels,
+  type IdentityBindingConflictCenterLabels,
+} from './IdentityBindingConflictCenter';
+
+export type ConnectorBindingsPageLabelsKey =
+  | 'title'
+  | 'statusFilter'
+  | 'all'
+  | 'columnLocalUser'
+  | 'columnExternalUser'
+  | 'columnStatus'
+  | 'columnStrategy'
+  | 'columnLastLogin'
+  | 'totalSuffix'
+  | 'conflictsHint'
+  | 'loadingText'
+  | 'dashPlaceholder';
+
+export type ConnectorBindingsPageLabels = Record<ConnectorBindingsPageLabelsKey, string>;
+
+export const CONNECTOR_BINDINGS_PAGE_LABELS_KEYS = [
+  'title',
+  'statusFilter',
+  'all',
+  'columnLocalUser',
+  'columnExternalUser',
+  'columnStatus',
+  'columnStrategy',
+  'columnLastLogin',
+  'totalSuffix',
+  'conflictsHint',
+  'loadingText',
+  'dashPlaceholder',
+] as const satisfies readonly ConnectorBindingsPageLabelsKey[];
+
+export const defaultConnectorBindingsPageLabels: ConnectorBindingsPageLabels = {
+  title: 'Identity bindings',
+  statusFilter: 'Status filter',
+  all: 'All',
+  columnLocalUser: 'Local user',
+  columnExternalUser: 'External user id',
+  columnStatus: 'Status',
+  columnStrategy: 'Match strategy',
+  columnLastLogin: 'Last login',
+  totalSuffix: 'records',
+  conflictsHint: '{count} pending conflicts',
+  loadingText: 'Loading...',
+  dashPlaceholder: '-',
+};
 
 export interface ConnectorBindingsPageProps {
   api: ConnectorApi;
   providerId: number;
-  labels?: Partial<Record<
-    | 'title'
-    | 'statusFilter'
-    | 'all'
-    | 'columnLocalUser'
-    | 'columnExternalUser'
-    | 'columnStatus'
-    | 'columnStrategy'
-    | 'columnLastLogin'
-    | 'totalSuffix',
-    string
-  >>;
+  labels: ConnectorBindingsPageLabels;
+  conflictCenterLabels: IdentityBindingConflictCenterLabels;
 }
 
-const defaultLabels = {
-  title: '身份绑定',
-  statusFilter: '状态筛选',
-  all: '全部',
-  columnLocalUser: '本地用户',
-  columnExternalUser: '外部 user id',
-  columnStatus: '状态',
-  columnStrategy: '匹配策略',
-  columnLastLogin: '最后登录',
-  totalSuffix: '条',
+const STATUS_TAG_COLORS: Record<IdentityBindingStatus, 'green' | 'amber' | 'red' | 'grey'> = {
+  Active: 'green',
+  PendingConfirm: 'amber',
+  Conflict: 'red',
+  Revoked: 'grey',
 };
 
-export function ConnectorBindingsPage({ api, providerId, labels }: ConnectorBindingsPageProps) {
-  const text = { ...defaultLabels, ...labels };
+export function ConnectorBindingsPage({ api, providerId, labels, conflictCenterLabels }: ConnectorBindingsPageProps) {
   const [items, setItems] = useState<ExternalIdentityBindingListItem[]>([]);
   const [conflicts, setConflicts] = useState<ExternalIdentityBindingListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -62,55 +97,66 @@ export function ConnectorBindingsPage({ api, providerId, labels }: ConnectorBind
 
   useEffect(() => {
     void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, providerId, statusFilter]);
 
   const conflictCount = useMemo(() => conflicts.length, [conflicts]);
+  const conflictHint = conflictCount > 0
+    ? `, ${labels.conflictsHint.replace('{count}', String(conflictCount))}`
+    : '';
+
+  const columns: ColumnProps<ExternalIdentityBindingListItem & { __key: number }>[] = [
+    { title: labels.columnLocalUser, dataIndex: 'localUserId', width: 120 },
+    { title: labels.columnExternalUser, dataIndex: 'externalUserId' },
+    {
+      title: labels.columnStatus,
+      dataIndex: 'status',
+      width: 140,
+      render: (_, record) => <Tag color={STATUS_TAG_COLORS[record.status] ?? 'grey'}>{record.status}</Tag>,
+    },
+    { title: labels.columnStrategy, dataIndex: 'matchStrategy', width: 140 },
+    {
+      title: labels.columnLastLogin,
+      dataIndex: 'lastLoginAt',
+      width: 200,
+      render: (_, record) =>
+        record.lastLoginAt ? new Date(record.lastLoginAt).toLocaleString() : labels.dashPlaceholder,
+    },
+  ];
+
+  const dataSource = items.map((b) => ({ ...b, __key: b.id }));
+  const conflictCenterEffectiveLabels = conflictCenterLabels ?? defaultIdentityBindingConflictCenterLabels;
 
   return (
     <section data-testid="connector-bindings-page">
-      <h3>{text.title}（{total}{text.totalSuffix}{conflictCount > 0 ? `，其中 ${conflictCount} 条冲突待处理` : ''}）</h3>
-      <div style={{ marginBottom: 8 }}>
-        <label>
-          {text.statusFilter}：
-          <select
-            value={statusFilter ?? ''}
-            onChange={(e: ChangeEvent<HTMLSelectElement>) => setStatusFilter((e.target.value || undefined) as IdentityBindingStatus | undefined)}
-          >
-            <option value="">{text.all}</option>
-            <option value="Active">Active</option>
-            <option value="PendingConfirm">PendingConfirm</option>
-            <option value="Conflict">Conflict</option>
-            <option value="Revoked">Revoked</option>
-          </select>
-        </label>
-      </div>
+      <Typography.Title heading={4}>
+        {labels.title} ({total} {labels.totalSuffix}{conflictHint})
+      </Typography.Title>
 
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      <Space style={{ marginBottom: 12 }}>
+        <Typography.Text>{labels.statusFilter}:</Typography.Text>
+        <Select
+          style={{ width: 180 }}
+          value={statusFilter ?? ''}
+          onChange={(v) => {
+            const value = v as string;
+            setStatusFilter(value === '' ? undefined : (value as IdentityBindingStatus));
+          }}
+          optionList={[
+            { value: '', label: labels.all },
+            { value: 'Active', label: 'Active' },
+            { value: 'PendingConfirm', label: 'PendingConfirm' },
+            { value: 'Conflict', label: 'Conflict' },
+            { value: 'Revoked', label: 'Revoked' },
+          ]}
+        />
+      </Space>
+
+      {loading && <Spin tip={labels.loadingText} />}
+      {error && <Banner type="danger" fullMode={false} description={error} closeIcon={null} />}
 
       {!loading && items.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <th align="left">{text.columnLocalUser}</th>
-              <th align="left">{text.columnExternalUser}</th>
-              <th align="left">{text.columnStatus}</th>
-              <th align="left">{text.columnStrategy}</th>
-              <th align="left">{text.columnLastLogin}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((b) => (
-              <tr key={b.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td>{b.localUserId}</td>
-                <td>{b.externalUserId}</td>
-                <td style={{ color: b.status === 'Conflict' ? '#c00' : undefined }}>{b.status}</td>
-                <td>{b.matchStrategy}</td>
-                <td>{b.lastLoginAt ? new Date(b.lastLoginAt).toLocaleString() : '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table rowKey="__key" columns={columns} dataSource={dataSource} pagination={false} size="small" />
       )}
 
       <IdentityBindingConflictCenter
@@ -118,6 +164,7 @@ export function ConnectorBindingsPage({ api, providerId, labels }: ConnectorBind
         providerId={providerId}
         conflicts={conflicts}
         onResolved={() => void reload()}
+        labels={conflictCenterEffectiveLabels}
       />
     </section>
   );

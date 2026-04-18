@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Banner, Button, Card, Form, Space, Spin, Toast, Typography } from "@douyinfe/semi-ui";
 import type { StudioLocale } from "../types";
+import { getStudioCopy } from "../copy";
 
 /**
  * 治理 M-G02-C11（S4）：微信公众号渠道凭据 Tab。
@@ -36,6 +37,7 @@ export function WechatMpPublishTab({
   webhookUrl,
   testId = "studio-publish-wechat-mp-tab"
 }: WechatMpPublishTabProps) {
+  const copy = getStudioCopy(locale);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [credential, setCredential] = useState<WechatMpCredentialDto | null>(null);
@@ -76,7 +78,7 @@ export function WechatMpPublishTab({
         }
       });
       setCredential(dto);
-      Toast.success(locale === "en-US" ? "WeChat MP credential saved." : "微信公众号凭据已保存。");
+      Toast.success(copy.wechatMpTab.credentialSaved);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "save failed";
       setError(msg);
@@ -92,7 +94,7 @@ export function WechatMpPublishTab({
     try {
       await fetcher({ url: baseUrl, method: "DELETE" });
       setCredential(null);
-      Toast.success(locale === "en-US" ? "WeChat MP credential cleared." : "微信公众号凭据已清除。");
+      Toast.success(copy.wechatMpTab.credentialCleared);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "delete failed";
       setError(msg);
@@ -102,39 +104,32 @@ export function WechatMpPublishTab({
     }
   }
 
-  const title = locale === "en-US" ? "WeChat Official Account" : "微信公众号渠道";
-  const hint =
-    locale === "en-US"
-      ? "Provide AppId / AppSecret / Token / EncodingAesKey from the WeChat Official Account admin console."
-      : "在微信公众平台「基本配置」中获取 AppId、AppSecret、Token 与 EncodingAesKey 后填写。";
-
   return (
-    <Card data-testid={testId} title={title} bordered>
-      <Typography.Paragraph type="tertiary">{hint}</Typography.Paragraph>
+    <Card data-testid={testId} title={copy.wechatMpTab.title} bordered>
+      <Typography.Paragraph type="tertiary">{copy.wechatMpTab.hint}</Typography.Paragraph>
       {error ? <Banner type="danger" description={error} closeIcon={null} fullMode={false} /> : null}
       {loading ? (
-        <Spin size="middle" tip={locale === "en-US" ? "Loading…" : "加载中…"} />
+        <Spin size="middle" tip={copy.wechatMpTab.loading} />
       ) : (
         <>
           {credential ? (
             <Space vertical align="start" spacing={6} style={{ marginBottom: 12, width: "100%" }}>
               <Typography.Text type="tertiary" size="small">
-                {locale === "en-US" ? "App Id" : "App Id"}：<strong>{credential.appId}</strong>
+                {copy.wechatMpTab.appIdLabel}: <strong>{credential.appId}</strong>
                 <span style={{ marginLeft: 8 }}>({credential.appIdMasked})</span>
               </Typography.Text>
               <Typography.Text type="tertiary" size="small">
-                {locale === "en-US" ? "Server Token" : "服务器 Token"}：{credential.token}
+                {copy.wechatMpTab.serverTokenLabel}: {credential.token}
               </Typography.Text>
               <Typography.Text type="tertiary" size="small">
-                {locale === "en-US" ? "EncodingAesKey" : "EncodingAesKey"}：
-                {credential.hasEncodingAesKey ? (locale === "en-US" ? "configured" : "已配置") : locale === "en-US" ? "not set" : "未设置"}
+                {copy.wechatMpTab.encodingAesKeyLabel}: {credential.hasEncodingAesKey ? copy.wechatMpTab.encodingAesKeyConfigured : copy.wechatMpTab.encodingAesKeyNotSet}
               </Typography.Text>
               <Typography.Text type="tertiary" size="small">
-                {locale === "en-US" ? "Access token refresh count" : "AccessToken 刷新次数"}：{credential.refreshCount}
+                {copy.wechatMpTab.accessTokenRefreshCountLabel}: {credential.refreshCount}
               </Typography.Text>
               {credential.accessTokenExpiresAt ? (
                 <Typography.Text type="tertiary" size="small">
-                  {locale === "en-US" ? "Access token expires at" : "AccessToken 过期时间"}：{credential.accessTokenExpiresAt}
+                  {copy.wechatMpTab.accessTokenExpiresAtLabel}: {credential.accessTokenExpiresAt}
                 </Typography.Text>
               ) : null}
             </Space>
@@ -146,7 +141,7 @@ export function WechatMpPublishTab({
               fullMode={false}
               description={
                 <Typography.Text size="small">
-                  {locale === "en-US" ? "Configure WeChat MP server URL: " : "请在微信公众平台「服务器地址 (URL)」中填写："}
+                  {copy.wechatMpTab.webhookHint}
                   <code>{webhookUrl}</code>
                 </Typography.Text>
               }
@@ -157,34 +152,34 @@ export function WechatMpPublishTab({
           <Form layout="vertical" onSubmit={handleSubmit}>
             <Form.Input
               field="appId"
-              label={locale === "en-US" ? "App Id" : "App Id"}
+              label={copy.wechatMpTab.appIdLabel}
               initValue={credential?.appId ?? ""}
               rules={[{ required: true, message: "required" }]}
             />
             <Form.Input
               field="appSecret"
-              label={locale === "en-US" ? "App Secret" : "App Secret（落库前自动加密）"}
+              label={copy.wechatMpTab.formAppSecretLabel}
               type="password"
               rules={[{ required: true, message: "required" }]}
             />
             <Form.Input
               field="token"
-              label={locale === "en-US" ? "Server Token" : "服务器 Token"}
+              label={copy.wechatMpTab.serverTokenLabel}
               initValue={credential?.token ?? ""}
               rules={[{ required: true, message: "required" }]}
             />
             <Form.Input
               field="encodingAesKey"
-              label={locale === "en-US" ? "EncodingAesKey (optional)" : "EncodingAesKey（可选）"}
+              label={copy.wechatMpTab.formEncodingAesKeyOptionalLabel}
               type="password"
             />
             <Space>
               <Button type="primary" htmlType="submit" loading={submitting}>
-                {locale === "en-US" ? "Save credential" : "保存凭据"}
+                {copy.wechatMpTab.saveCredential}
               </Button>
               {credential ? (
                 <Button type="danger" loading={submitting} onClick={handleDelete}>
-                  {locale === "en-US" ? "Clear" : "清除"}
+                  {copy.wechatMpTab.clear}
                 </Button>
               ) : null}
             </Space>

@@ -1,5 +1,6 @@
 import { Card, Tag, Typography } from "@douyinfe/semi-ui";
 import type { StudioLocale, WebSdkPublicMeta } from "../types";
+import { getStudioCopy } from "../copy";
 
 export interface ChatSdkPanelProps {
   locale: StudioLocale;
@@ -20,8 +21,12 @@ export function ChatSdkPanel({
   webSdkPublicMeta,
   testId = "studio-publish-chat-sdk-panel"
 }: ChatSdkPanelProps) {
+  const copy = getStudioCopy(locale);
+
+  /* 代码示例使用 ASCII / 通用编程惯例文本，hello 在中文上下文下显示 "Hi" 即可避免硬编码 CJK；
+     代码注释统一英文，与平台开发者文档一致。 */
   const reactSnippet = [
-    `// React（示例：在宿主内使用 fetch 调用已发布智能体）`,
+    `// React: invoke a published agent via fetch from inside the host app`,
     `const res = await fetch("${chatEndpoint}", {`,
     `  method: "POST",`,
     `  headers: {`,
@@ -32,14 +37,14 @@ export function ChatSdkPanel({
     `  body: JSON.stringify({`,
     `    agentId: "<published_agent_id>",`,
     `    conversationId: undefined,`,
-    `    message: "你好",`,
+    `    message: "Hello",`,
     `    enableRag: true`,
     `  })`,
     `});`
   ].join("\n");
 
   const webSnippet = [
-    `// 浏览器原生 Web（需处理 CORS 与令牌安全存储）`,
+    `// Browser Web (handle CORS and store tokens securely)`,
     `await fetch("${chatEndpoint}", {`,
     `  method: "POST",`,
     `  credentials: "include",`,
@@ -48,11 +53,8 @@ export function ChatSdkPanel({
     `});`
   ].join("\n");
 
-  const title = locale === "en-US" ? "Web / React snippets" : "Web / React 示例";
-  const hint =
-    locale === "en-US"
-      ? "Use the published agent id and the API base from the release center. Prefer server-side proxy for tokens in production."
-      : "使用发布中心展示的已发布智能体 ID 与 API 根路径；生产环境建议通过服务端代理保护令牌。";
+  const title = copy.chatSdk.title;
+  const hint = copy.chatSdk.hint;
 
   return (
     <Card data-testid={testId} title={title} bordered>
@@ -60,30 +62,26 @@ export function ChatSdkPanel({
 
       {webSdkPublicMeta ? (
         <>
-          <Typography.Title heading={6}>
-            {locale === "en-US" ? "Active embed snippet" : "当前发布 snippet"}
-          </Typography.Title>
+          <Typography.Title heading={6}>{copy.chatSdk.activeSnippet}</Typography.Title>
           {webSdkPublicMeta.snippet ? (
             <pre className="module-studio__message-content" style={{ marginTop: 8 }} data-testid={`${testId}-snippet`}>
               {webSdkPublicMeta.snippet}
             </pre>
           ) : (
-            <Typography.Text type="tertiary">
-              {locale === "en-US" ? "Snippet not provided in metadata." : "metadata 未提供 snippet。"}
-            </Typography.Text>
+            <Typography.Text type="tertiary">{copy.chatSdk.snippetMissing}</Typography.Text>
           )}
           <Typography.Paragraph style={{ marginTop: 8 }}>
-            {locale === "en-US" ? "Endpoint: " : "Endpoint："}
+            {copy.chatSdk.endpointLabel}
             <Typography.Text copyable={Boolean(webSdkPublicMeta.endpoint)}>{webSdkPublicMeta.endpoint || "—"}</Typography.Text>
           </Typography.Paragraph>
           <Typography.Paragraph>
-            {locale === "en-US" ? "Secret (masked): " : "密钥（脱敏）："}
+            {copy.chatSdk.secretLabel}
             <Typography.Text>{webSdkPublicMeta.secretMasked || "—"}</Typography.Text>
           </Typography.Paragraph>
           <Typography.Paragraph>
-            {locale === "en-US" ? "Allowed origins: " : "允许来源："}
+            {copy.chatSdk.originsLabel}
             {webSdkPublicMeta.originAllowlist.length === 0 ? (
-              <Tag color="amber">{locale === "en-US" ? "No restriction" : "未限制"}</Tag>
+              <Tag color="amber">{copy.chatSdk.originsNoRestriction}</Tag>
             ) : (
               webSdkPublicMeta.originAllowlist.map((origin) => (
                 <Tag key={origin} style={{ marginRight: 4 }}>

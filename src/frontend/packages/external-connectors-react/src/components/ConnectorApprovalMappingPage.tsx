@@ -1,65 +1,119 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Banner, Button, Space, Spin, Table, Tag, Typography } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ConnectorApi } from '../api';
 import type {
   ExternalApprovalTemplateMappingResponse,
   ExternalApprovalTemplateResponse,
   IntegrationMode,
 } from '../types';
-import { ConnectorTemplateMappingDesigner, type LocalFormField } from './ConnectorTemplateMappingDesigner';
+import {
+  ConnectorTemplateMappingDesigner,
+  defaultConnectorTemplateMappingDesignerLabels,
+  type ConnectorTemplateMappingDesignerLabels,
+  type LocalFormField,
+} from './ConnectorTemplateMappingDesigner';
+
+export type ConnectorApprovalMappingPageLabelsKey =
+  | 'title'
+  | 'templatesHeader'
+  | 'mappingsHeader'
+  | 'designerHeader'
+  | 'designerEmpty'
+  | 'refresh'
+  | 'startMapping'
+  | 'columnTemplateId'
+  | 'columnTemplateName'
+  | 'columnControls'
+  | 'columnFetchedAt'
+  | 'columnTemplateActions'
+  | 'columnFlowId'
+  | 'columnExternalTpl'
+  | 'columnIntegrationMode'
+  | 'columnEnabled'
+  | 'columnUpdatedAt'
+  | 'enabled'
+  | 'disabled'
+  | 'integrationModeExternalLed'
+  | 'integrationModeLocalLed'
+  | 'integrationModeHybrid'
+  | 'loadingText';
+
+export type ConnectorApprovalMappingPageLabels = Record<ConnectorApprovalMappingPageLabelsKey, string>;
+
+export const CONNECTOR_APPROVAL_MAPPING_PAGE_LABELS_KEYS = [
+  'title',
+  'templatesHeader',
+  'mappingsHeader',
+  'designerHeader',
+  'designerEmpty',
+  'refresh',
+  'startMapping',
+  'columnTemplateId',
+  'columnTemplateName',
+  'columnControls',
+  'columnFetchedAt',
+  'columnTemplateActions',
+  'columnFlowId',
+  'columnExternalTpl',
+  'columnIntegrationMode',
+  'columnEnabled',
+  'columnUpdatedAt',
+  'enabled',
+  'disabled',
+  'integrationModeExternalLed',
+  'integrationModeLocalLed',
+  'integrationModeHybrid',
+  'loadingText',
+] as const satisfies readonly ConnectorApprovalMappingPageLabelsKey[];
+
+export const defaultConnectorApprovalMappingPageLabels: ConnectorApprovalMappingPageLabels = {
+  title: 'Approval templates & field mapping',
+  templatesHeader: 'Cached external approval templates',
+  mappingsHeader: 'Local flow definitions ↔ external templates',
+  designerHeader: 'Mapping designer',
+  designerEmpty: 'Select a template row above and provide flowDefinitionId / localFields to enable the designer.',
+  refresh: 'Refresh',
+  startMapping: 'Start mapping',
+  columnTemplateId: 'Template ID',
+  columnTemplateName: 'Name',
+  columnControls: 'Controls',
+  columnFetchedAt: 'Last fetched',
+  columnTemplateActions: 'Actions',
+  columnFlowId: 'FlowDefinitionId',
+  columnExternalTpl: 'External template',
+  columnIntegrationMode: 'Integration mode',
+  columnEnabled: 'Enabled',
+  columnUpdatedAt: 'Last updated',
+  enabled: 'On',
+  disabled: 'Off',
+  integrationModeExternalLed: 'A. External-led',
+  integrationModeLocalLed: 'B. Local-led',
+  integrationModeHybrid: 'C. Hybrid',
+  loadingText: 'Loading...',
+};
 
 export interface ConnectorApprovalMappingPageProps {
   api: ConnectorApi;
   providerId: number;
   /**
-   * 当前流程定义 ID + 该流程已知的本地字段元信息。
-   * 由调用方（app-web）通过 ApprovalFlowDefinition.formMeta 解析后传入。
+   * Current flow-definition ID + local field metadata of that flow.
+   * Caller (app-web) parses these from `ApprovalFlowDefinition.formMeta`.
    */
   flowDefinitionId?: number;
   localFields?: LocalFormField[];
-  labels?: Partial<Record<
-    | 'title'
-    | 'templatesHeader'
-    | 'mappingsHeader'
-    | 'designerEmpty'
-    | 'refresh'
-    | 'startMapping'
-    | 'columnTemplateId'
-    | 'columnTemplateName'
-    | 'columnControls'
-    | 'columnFetchedAt'
-    | 'columnFlowId'
-    | 'columnExternalTpl'
-    | 'columnIntegrationMode'
-    | 'columnEnabled'
-    | 'columnUpdatedAt'
-    | 'enabled'
-    | 'disabled',
-    string
-  >>;
+  labels: ConnectorApprovalMappingPageLabels;
+  designerLabels: ConnectorTemplateMappingDesignerLabels;
 }
 
-const defaultLabels = {
-  title: '审批模板与字段映射',
-  templatesHeader: '已缓存的外部审批模板',
-  mappingsHeader: '本地流程定义 ↔ 外部模板映射',
-  designerEmpty: '请选择上方一行模板，并提供 flowDefinitionId / localFields 后启用设计器。',
-  refresh: '刷新',
-  startMapping: '开始映射',
-  columnTemplateId: '模板 ID',
-  columnTemplateName: '名称',
-  columnControls: '控件数',
-  columnFetchedAt: '最后拉取',
-  columnFlowId: 'FlowDefinitionId',
-  columnExternalTpl: '外部模板',
-  columnIntegrationMode: '集成模式',
-  columnEnabled: '启用',
-  columnUpdatedAt: '最后更新',
-  enabled: '启用',
-  disabled: '停用',
-};
-
-export function ConnectorApprovalMappingPage({ api, providerId, flowDefinitionId, localFields, labels }: ConnectorApprovalMappingPageProps) {
-  const text = { ...defaultLabels, ...labels };
+export function ConnectorApprovalMappingPage({
+  api,
+  providerId,
+  flowDefinitionId,
+  localFields,
+  labels,
+  designerLabels,
+}: ConnectorApprovalMappingPageProps) {
   const [templates, setTemplates] = useState<ExternalApprovalTemplateResponse[]>([]);
   const [mappings, setMappings] = useState<ExternalApprovalTemplateMappingResponse[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -85,6 +139,7 @@ export function ConnectorApprovalMappingPage({ api, providerId, flowDefinitionId
 
   useEffect(() => {
     void reloadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, providerId]);
 
   const refreshTemplate = async (id: string) => {
@@ -108,78 +163,122 @@ export function ConnectorApprovalMappingPage({ api, providerId, flowDefinitionId
     );
   }, [mappings, flowDefinitionId, selectedTemplate]);
 
+  const integrationLabel = (mode: IntegrationMode): string => {
+    switch (mode) {
+      case 'ExternalLed':
+        return labels.integrationModeExternalLed;
+      case 'LocalLed':
+        return labels.integrationModeLocalLed;
+      case 'Hybrid':
+        return labels.integrationModeHybrid;
+      default:
+        return mode;
+    }
+  };
+
+  const templatesColumns: ColumnProps<ExternalApprovalTemplateResponse & { __key: string }>[] = [
+    { title: labels.columnTemplateId, dataIndex: 'externalTemplateId' },
+    { title: labels.columnTemplateName, dataIndex: 'name' },
+    {
+      title: labels.columnControls,
+      dataIndex: '__controls',
+      align: 'right',
+      width: 100,
+      render: (_, record) => record.controls.length,
+    },
+    {
+      title: labels.columnFetchedAt,
+      dataIndex: 'fetchedAt',
+      width: 200,
+      render: (_, record) => new Date(record.fetchedAt).toLocaleString(),
+    },
+    {
+      title: labels.columnTemplateActions,
+      dataIndex: '__actions',
+      width: 200,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" type="primary" onClick={() => setSelectedTemplateId(record.externalTemplateId)}>
+            {labels.startMapping}
+          </Button>
+          <Button size="small" onClick={() => void refreshTemplate(record.externalTemplateId)}>
+            {labels.refresh}
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  const mappingsColumns: ColumnProps<ExternalApprovalTemplateMappingResponse & { __key: number }>[] = [
+    { title: labels.columnFlowId, dataIndex: 'flowDefinitionId', width: 160 },
+    { title: labels.columnExternalTpl, dataIndex: 'externalTemplateId' },
+    {
+      title: labels.columnIntegrationMode,
+      dataIndex: 'integrationMode',
+      width: 220,
+      render: (_, record) => integrationLabel(record.integrationMode),
+    },
+    {
+      title: labels.columnEnabled,
+      dataIndex: 'enabled',
+      width: 100,
+      render: (_, record) => (
+        <Tag color={record.enabled ? 'green' : 'grey'}>{record.enabled ? labels.enabled : labels.disabled}</Tag>
+      ),
+    },
+    {
+      title: labels.columnUpdatedAt,
+      dataIndex: 'updatedAt',
+      width: 200,
+      render: (_, record) => new Date(record.updatedAt).toLocaleString(),
+    },
+  ];
+
+  const designerEffectiveLabels = designerLabels ?? defaultConnectorTemplateMappingDesignerLabels;
+
   return (
     <section data-testid="connector-approval-mapping-page">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>{text.title}</h3>
-        <button type="button" onClick={() => void reloadAll()}>{text.refresh}</button>
-      </header>
+      <Space spacing="medium" style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
+        <Typography.Title heading={5} style={{ margin: 0 }}>
+          {labels.title}
+        </Typography.Title>
+        <Button onClick={() => void reloadAll()}>{labels.refresh}</Button>
+      </Space>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {loading && <p>Loading...</p>}
+      {error && <Banner type="danger" fullMode={false} description={error} closeIcon={null} style={{ marginBottom: 12 }} />}
+      {loading && <Spin tip={labels.loadingText} />}
 
       {!loading && (
         <>
-          <h4>{text.templatesHeader}</h4>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #ddd' }}>
-                <th align="left">{text.columnTemplateId}</th>
-                <th align="left">{text.columnTemplateName}</th>
-                <th align="right">{text.columnControls}</th>
-                <th align="left">{text.columnFetchedAt}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map((t) => (
-                <tr
-                  key={t.externalTemplateId}
-                  style={{
-                    borderBottom: '1px solid #f0f0f0',
-                    background: selectedTemplateId === t.externalTemplateId ? '#fffbe6' : undefined,
-                  }}
-                >
-                  <td>{t.externalTemplateId}</td>
-                  <td>{t.name}</td>
-                  <td align="right">{t.controls.length}</td>
-                  <td>{new Date(t.fetchedAt).toLocaleString()}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <button type="button" onClick={() => setSelectedTemplateId(t.externalTemplateId)}>
-                      {text.startMapping}
-                    </button>{' '}
-                    <button type="button" onClick={() => void refreshTemplate(t.externalTemplateId)}>{text.refresh}</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Typography.Title heading={6} style={{ marginTop: 8 }}>
+            {labels.templatesHeader}
+          </Typography.Title>
+          <Table
+            rowKey="__key"
+            size="small"
+            pagination={false}
+            columns={templatesColumns}
+            dataSource={templates.map((t) => ({ ...t, __key: t.externalTemplateId }))}
+            style={{ marginBottom: 24 }}
+            rowSelection={undefined}
+            onRow={(record) =>
+              selectedTemplateId === record?.externalTemplateId
+                ? { style: { background: 'var(--semi-color-warning-light-default)' } }
+                : {}
+            }
+          />
 
-          <h4>{text.mappingsHeader}</h4>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #ddd' }}>
-                <th align="left">{text.columnFlowId}</th>
-                <th align="left">{text.columnExternalTpl}</th>
-                <th align="left">{text.columnIntegrationMode}</th>
-                <th align="left">{text.columnEnabled}</th>
-                <th align="left">{text.columnUpdatedAt}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mappings.map((m) => (
-                <tr key={m.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td>{m.flowDefinitionId}</td>
-                  <td>{m.externalTemplateId}</td>
-                  <td>{integrationModeLabel(m.integrationMode)}</td>
-                  <td>{m.enabled ? text.enabled : text.disabled}</td>
-                  <td>{new Date(m.updatedAt).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Typography.Title heading={6}>{labels.mappingsHeader}</Typography.Title>
+          <Table
+            rowKey="__key"
+            size="small"
+            pagination={false}
+            columns={mappingsColumns}
+            dataSource={mappings.map((m) => ({ ...m, __key: m.id }))}
+            style={{ marginBottom: 24 }}
+          />
 
-          <h4>映射设计器</h4>
+          <Typography.Title heading={6}>{labels.designerHeader}</Typography.Title>
           {selectedTemplate && flowDefinitionId && localFields ? (
             <ConnectorTemplateMappingDesigner
               template={selectedTemplate}
@@ -187,33 +286,25 @@ export function ConnectorApprovalMappingPage({ api, providerId, flowDefinitionId
               existing={existingMapping}
               providerId={providerId}
               flowDefinitionId={flowDefinitionId}
+              labels={designerEffectiveLabels}
               onSave={async (payload) => {
                 await api.upsertApprovalTemplateMapping(providerId, flowDefinitionId, payload);
                 await reloadAll();
               }}
-              onDelete={existingMapping ? async () => {
-                await api.deleteApprovalTemplateMapping(providerId, existingMapping.id);
-                await reloadAll();
-              } : undefined}
+              onDelete={
+                existingMapping
+                  ? async () => {
+                      await api.deleteApprovalTemplateMapping(providerId, existingMapping.id);
+                      await reloadAll();
+                    }
+                  : undefined
+              }
             />
           ) : (
-            <p style={{ color: '#888' }}>{text.designerEmpty}</p>
+            <Typography.Text type="tertiary">{labels.designerEmpty}</Typography.Text>
           )}
         </>
       )}
     </section>
   );
-}
-
-function integrationModeLabel(mode: IntegrationMode): string {
-  switch (mode) {
-    case 'ExternalLed':
-      return 'A 外部主导';
-    case 'LocalLed':
-      return 'B 本地主导';
-    case 'Hybrid':
-      return 'C 双中心';
-    default:
-      return mode;
-  }
 }

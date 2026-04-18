@@ -1,23 +1,28 @@
 import { Button, Input, Select, Typography } from "@douyinfe/semi-ui";
 import { IconDelete, IconPlus } from "@douyinfe/semi-icons";
-import type { AppOutputComponent } from "../types";
+import type { AppOutputComponent, StudioLocale } from "../types";
 import { createEmptyOutput } from "./app-builder-helpers";
-
-const OUTPUT_TYPE_OPTIONS: Array<{ label: string; value: AppOutputComponent["type"] }> = [
-  { label: "纯文本", value: "text" },
-  { label: "Markdown", value: "markdown" },
-  { label: "JSON", value: "json" },
-  { label: "表格", value: "table" },
-  { label: "图表", value: "chart" }
-];
+import { getStudioCopy } from "../copy";
 
 export interface OutputComponentPanelProps {
   value: AppOutputComponent[];
   onChange: (next: AppOutputComponent[]) => void;
   disabled?: boolean;
+  locale: StudioLocale;
 }
 
-export function OutputComponentPanel({ value, onChange, disabled }: OutputComponentPanelProps) {
+export function OutputComponentPanel({ value, onChange, disabled, locale }: OutputComponentPanelProps) {
+  const copy = getStudioCopy(locale);
+
+  /* Markdown / JSON 是国际通用术语，沿用原文不再走字典；其余通过 copy.outputComponent 翻译。 */
+  const outputTypeOptions: Array<{ label: string; value: AppOutputComponent["type"] }> = [
+    { label: copy.outputComponent.typeText, value: "text" },
+    { label: "Markdown", value: "markdown" },
+    { label: "JSON", value: "json" },
+    { label: copy.outputComponent.typeTable, value: "table" },
+    { label: copy.outputComponent.typeChart, value: "chart" }
+  ];
+
   function updateAt(index: number, patch: Partial<AppOutputComponent>) {
     onChange(value.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
@@ -33,52 +38,52 @@ export function OutputComponentPanel({ value, onChange, disabled }: OutputCompon
   return (
     <div className="module-studio__coze-inspector-card module-studio__app-builder-panel">
       <div className="module-studio__card-head">
-        <span>输出组件</span>
+        <span>{copy.outputComponent.cardTitle}</span>
         <Typography.Text type="tertiary" size="small">
-          {value.length} 项
+          {value.length} {copy.outputComponent.itemSuffix}
         </Typography.Text>
       </div>
       <Typography.Text type="tertiary" size="small" style={{ display: "block", marginTop: 0 }}>
-        使用源表达式从运行结果中取值（支持顶层键或点路径，如 result.items）。
+        {copy.outputComponent.bodyHint}
       </Typography.Text>
       <div className="module-studio__app-builder-array">
         {value.length === 0 ? (
-          <Typography.Text type="tertiary">暂无输出项。</Typography.Text>
+          <Typography.Text type="tertiary">{copy.outputComponent.emptyHint}</Typography.Text>
         ) : (
           value.map((row, index) => (
             <div key={row.id} className="module-studio__app-builder-row">
               <div className="module-studio__form-grid">
                 <div className="module-studio__field">
-                  <span>标签</span>
+                  <span>{copy.outputComponent.fieldLabel}</span>
                   <Input
                     value={row.label}
                     disabled={disabled}
-                    placeholder="展示标题"
+                    placeholder={copy.outputComponent.placeholderLabel}
                     onChange={v => updateAt(index, { label: v })}
                   />
                 </div>
                 <div className="module-studio__field">
-                  <span>展示类型</span>
+                  <span>{copy.outputComponent.fieldType}</span>
                   <Select
                     value={row.type}
                     disabled={disabled}
-                    optionList={OUTPUT_TYPE_OPTIONS}
+                    optionList={outputTypeOptions}
                     onChange={v => updateAt(index, { type: v as AppOutputComponent["type"] })}
                   />
                 </div>
                 <div className="module-studio__field module-studio__field--full">
-                  <span>源表达式</span>
+                  <span>{copy.outputComponent.fieldSourceExpression}</span>
                   <Input
                     value={row.sourceExpression}
                     disabled={disabled}
-                    placeholder="如 answer 或 data.summary"
+                    placeholder={copy.outputComponent.placeholderSourceExpression}
                     onChange={v => updateAt(index, { sourceExpression: v })}
                   />
                 </div>
               </div>
               <div className="module-studio__app-builder-row-actions">
                 <Button icon={<IconDelete />} type="danger" theme="borderless" disabled={disabled} onClick={() => removeAt(index)}>
-                  删除
+                  {copy.outputComponent.removeRow}
                 </Button>
               </div>
             </div>
@@ -86,7 +91,7 @@ export function OutputComponentPanel({ value, onChange, disabled }: OutputCompon
         )}
       </div>
       <Button icon={<IconPlus />} theme="light" disabled={disabled} onClick={addRow} block>
-        添加输出项
+        {copy.outputComponent.addRow}
       </Button>
     </div>
   );

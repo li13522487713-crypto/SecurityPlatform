@@ -159,7 +159,7 @@ export function SlicesTab({ api, locale, knowledge, selectedDocumentId, onSelect
           {!selectedDocumentId ? (
             <div style={{ padding: 32 }}><Empty description={copy.selectDocumentHint} /></div>
           ) : kind === "table" ? (
-            <TableRowsView columns={tableColumns} rows={tableRows} loading={loading} emptyText={copy.slicesEmpty} />
+            <TableRowsView columns={tableColumns} rows={tableRows} loading={loading} emptyText={copy.slicesEmpty} copy={copy} />
           ) : kind === "image" ? (
             <ImageItemsView items={imageItems} loading={loading} copy={copy} />
           ) : (
@@ -212,12 +212,14 @@ function TableRowsView({
   columns,
   rows,
   loading,
-  emptyText
+  emptyText,
+  copy
 }: {
   columns: KnowledgeTableColumn[];
   rows: KnowledgeTableRow[];
   loading: boolean;
   emptyText: string;
+  copy: ReturnType<typeof getLibraryCopy>;
 }) {
   const sortedColumns = [...columns].sort((a, b) => a.ordinal - b.ordinal);
   // v5 §37 / 计划 G8：按列过滤 — 选定列名 + 子串关键词
@@ -264,7 +266,7 @@ function TableRowsView({
     <div>
       <Space style={{ marginBottom: 8 }}>
         <Select
-          placeholder="按列筛选"
+          placeholder={copy.tablePreviewFilterByColumnPlaceholder}
           style={{ width: 160 }}
           value={filterColumn}
           showClear
@@ -272,14 +274,14 @@ function TableRowsView({
           optionList={sortedColumns.map(col => ({ value: col.name, label: col.name }))}
         />
         <Input
-          placeholder="关键词"
+          placeholder={copy.tablePreviewKeywordsPlaceholder}
           value={filterKeyword}
           onChange={value => setFilterKeyword(value)}
           style={{ width: 240 }}
           disabled={!filterColumn}
         />
         {(filterColumn || filterKeyword) && (
-          <Button onClick={() => { setFilterColumn(undefined); setFilterKeyword(""); }}>清除</Button>
+          <Button onClick={() => { setFilterColumn(undefined); setFilterKeyword(""); }}>{copy.commonClear}</Button>
         )}
       </Space>
       {filteredRows.length === 0 ? (
@@ -325,7 +327,7 @@ function ImageItemsView({
           value={annotationType}
           onChange={value => setAnnotationType(value as typeof annotationType)}
           optionList={[
-            { value: "all", label: "全部标注" },
+            { value: "all", label: copy.imageAnnotationFilterAll },
             { value: "caption", label: copy.imageItemAnnotationCaption },
             { value: "ocr", label: copy.imageItemAnnotationOcr },
             { value: "tag", label: copy.imageItemAnnotationTag },
@@ -333,13 +335,13 @@ function ImageItemsView({
           ]}
         />
         <Input
-          placeholder="标注关键词"
+          placeholder={copy.imageAnnotationKeywordPlaceholder}
           value={annotationKeyword}
           onChange={value => setAnnotationKeyword(value)}
           style={{ width: 240 }}
         />
         {(annotationType !== "all" || annotationKeyword) && (
-          <Button onClick={() => { setAnnotationType("all"); setAnnotationKeyword(""); }}>清除</Button>
+          <Button onClick={() => { setAnnotationType("all"); setAnnotationKeyword(""); }}>{copy.commonClear}</Button>
         )}
       </Space>
       {filteredItems.length === 0 ? (

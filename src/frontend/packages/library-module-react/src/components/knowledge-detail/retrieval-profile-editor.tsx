@@ -80,7 +80,7 @@ export function RetrievalProfileFields({ locale, value, onChange, showRerankMode
           {(isCustom || (value.rerankModel === "" && customRerank)) && (
             <input
               type="text"
-              placeholder="自定义 reranker model id"
+              placeholder={copy.retrievalProfileCustomRerankerPlaceholder}
               value={customRerank}
               onChange={e => {
                 setCustomRerank(e.target.value);

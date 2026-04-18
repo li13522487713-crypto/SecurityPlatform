@@ -11,6 +11,7 @@ import { ApiAccessPanel } from "./api-access-panel";
 import { ChatSdkPanel } from "./chat-sdk-panel";
 import { FeishuPublishTab } from "./feishu-publish-tab";
 import { WechatMpPublishTab } from "./wechat-mp-publish-tab";
+import { formatStudioTemplate, getStudioCopy } from "../copy";
 
 /**
  * 治理 R1-F1：根据 channel.type 调度具体配置面板。
@@ -105,7 +106,7 @@ export function ChannelDetailRouter({
       .catch((e: unknown) => {
         if (!disposed) {
           Toast.error(
-            e instanceof Error ? e.message : locale === "en-US" ? "Failed to load active release." : "加载当前发布失败。"
+            e instanceof Error ? e.message : getStudioCopy(locale).channelDetail.loadActiveReleaseFailed
           );
           setParsed({ raw: null });
         }
@@ -119,12 +120,14 @@ export function ChannelDetailRouter({
   }, [releaseLoader, workspaceId, channel.id, channel.type, locale]);
 
   const headerNote = useMemo(() => {
+    const copy = getStudioCopy(locale);
     if (parsed.raw === null) {
-      return locale === "en-US" ? "No active release." : "暂无生效发布。";
+      return copy.channelDetail.noActiveRelease;
     }
-    return locale === "en-US"
-      ? `Active release v${parsed.raw.releaseNo} (${parsed.raw.status}).`
-      : `当前生效 v${parsed.raw.releaseNo}（${parsed.raw.status}）。`;
+    return formatStudioTemplate(copy.channelDetail.activeReleaseInfoTemplate, {
+      releaseNo: parsed.raw.releaseNo,
+      status: parsed.raw.status
+    });
   }, [parsed.raw, locale]);
 
   if (loading) {
@@ -164,12 +167,13 @@ export function ChannelDetailRouter({
       ) : (
         <Card>
           <Typography.Title heading={5}>
-            {locale === "en-US" ? "Channel UI not available yet" : "该渠道类型尚未提供 UI"}
+            {getStudioCopy(locale).channelDetail.channelUiNotAvailable}
           </Typography.Title>
           <Typography.Paragraph type="tertiary">
-            {locale === "en-US"
-              ? `Type "${channel.type}" detected. Use the HTTP / API tab or contact platform admin.`
-              : `检测到渠道类型 "${channel.type}"，请改走 HTTP / API Tab 或联系平台管理员。`}
+            {formatStudioTemplate(
+              getStudioCopy(locale).channelDetail.channelUiNotAvailableHintTemplate,
+              { type: channel.type }
+            )}
           </Typography.Paragraph>
         </Card>
       )}

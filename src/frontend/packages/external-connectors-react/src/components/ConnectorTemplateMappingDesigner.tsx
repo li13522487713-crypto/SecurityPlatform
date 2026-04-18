@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent } from 'react';
+import { Banner, Button, Checkbox, Input, Select, Space, Table, Typography } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type {
   ExternalApprovalTemplateMappingRequest,
   ExternalApprovalTemplateMappingResponse,
@@ -7,9 +8,7 @@ import type {
   IntegrationMode,
 } from '../types';
 
-/**
- * 单个本地表单字段的描述（由调用方传入；通常来自 ApprovalFlowDefinition.formMeta）。
- */
+/** Local form-field descriptor (provided by the host; usually from `ApprovalFlowDefinition.formMeta`). */
 export interface LocalFormField {
   key: string;
   label: string;
@@ -17,64 +16,104 @@ export interface LocalFormField {
   required?: boolean;
 }
 
-/** 一行映射：本地字段 ↔ 外部模板控件（+ 可选枚举映射）。 */
+/** A single mapping row: local field <-> external template control (+ optional enum mapping). */
 export interface MappingRow {
   localFieldKey: string;
   externalControlId: string;
   valueType: string;
-  /** 枚举映射：本地选项 key → 外部 option key */
+  /** Enum mapping: local option key -> external option key. */
   enumMapping?: Record<string, string>;
 }
+
+export type ConnectorTemplateMappingDesignerLabelsKey =
+  | 'title'
+  | 'templateLabelPrefix'
+  | 'localField'
+  | 'externalControl'
+  | 'valueType'
+  | 'integrationMode'
+  | 'enabled'
+  | 'enumMapping'
+  | 'enumMappingPlaceholder'
+  | 'addRow'
+  | 'removeRow'
+  | 'save'
+  | 'delete'
+  | 'noTemplate'
+  | 'unmappedRequired'
+  | 'selectLocalFieldPlaceholder'
+  | 'selectExternalControlPlaceholder'
+  | 'integrationModeExternalLed'
+  | 'integrationModeLocalLed'
+  | 'integrationModeHybrid';
+
+export type ConnectorTemplateMappingDesignerLabels = Record<ConnectorTemplateMappingDesignerLabelsKey, string>;
+
+export const CONNECTOR_TEMPLATE_MAPPING_DESIGNER_LABELS_KEYS = [
+  'title',
+  'templateLabelPrefix',
+  'localField',
+  'externalControl',
+  'valueType',
+  'integrationMode',
+  'enabled',
+  'enumMapping',
+  'enumMappingPlaceholder',
+  'addRow',
+  'removeRow',
+  'save',
+  'delete',
+  'noTemplate',
+  'unmappedRequired',
+  'selectLocalFieldPlaceholder',
+  'selectExternalControlPlaceholder',
+  'integrationModeExternalLed',
+  'integrationModeLocalLed',
+  'integrationModeHybrid',
+] as const satisfies readonly ConnectorTemplateMappingDesignerLabelsKey[];
+
+export const defaultConnectorTemplateMappingDesignerLabels: ConnectorTemplateMappingDesignerLabels = {
+  title: 'Approval field mapping designer',
+  templateLabelPrefix: 'Template:',
+  localField: 'Local form field',
+  externalControl: 'External template control',
+  valueType: 'Value type',
+  integrationMode: 'Integration mode',
+  enabled: 'Enable this mapping',
+  enumMapping: 'Enum mapping (JSON)',
+  enumMappingPlaceholder: '{"high":"H","low":"L"}',
+  addRow: '+ Add mapping row',
+  removeRow: 'Remove',
+  save: 'Save',
+  delete: 'Delete entire mapping',
+  noTemplate: 'Current template has no mappable controls',
+  unmappedRequired: 'Required local fields are not mapped; please complete before saving',
+  selectLocalFieldPlaceholder: '-- Select local field --',
+  selectExternalControlPlaceholder: '-- Select external control --',
+  integrationModeExternalLed: 'A. External-led',
+  integrationModeLocalLed: 'B. Local-led',
+  integrationModeHybrid: 'C. Hybrid (dual-master)',
+};
 
 export interface ConnectorTemplateMappingDesignerProps {
   template: ExternalApprovalTemplateResponse;
   localFields: LocalFormField[];
-  /** 已存在的映射（编辑模式）；缺省即创建模式。 */
+  /** Existing mapping (edit mode); omit for create mode. */
   existing?: ExternalApprovalTemplateMappingResponse;
   flowDefinitionId: number;
   providerId: number;
   onSave: (payload: ExternalApprovalTemplateMappingRequest) => Promise<void>;
   onDelete?: () => Promise<void>;
-  labels?: Partial<Record<
-    | 'title'
-    | 'localField'
-    | 'externalControl'
-    | 'valueType'
-    | 'integrationMode'
-    | 'enabled'
-    | 'enumMapping'
-    | 'addRow'
-    | 'removeRow'
-    | 'save'
-    | 'delete'
-    | 'noTemplate'
-    | 'unmappedRequired',
-    string
-  >>;
+  labels: ConnectorTemplateMappingDesignerLabels;
 }
 
-const defaultLabels = {
-  title: '审批字段映射设计器',
-  localField: '本地表单字段',
-  externalControl: '外部模板控件',
-  valueType: '值类型',
-  integrationMode: '集成模式',
-  enabled: '启用此映射',
-  enumMapping: '枚举映射（JSON）',
-  addRow: '+ 新增一行映射',
-  removeRow: '删除',
-  save: '保存',
-  delete: '删除整条映射',
-  noTemplate: '当前模板没有可映射的控件',
-  unmappedRequired: '存在未映射的本地必填字段，保存前请补齐',
-};
-
 /**
- * 字段映射设计器：左本地字段 / 右外部控件 / 中行级映射 + 枚举映射 + 集成模式选择。
- * 写出 ExternalApprovalTemplateMapping，由 ConnectorApprovalMappingPage 提交。
+ * Field-mapping designer: left local fields / right external controls / center per-row mapping
+ * with optional enum mapping and integration-mode select. Emits ExternalApprovalTemplateMapping
+ * which the surrounding ConnectorApprovalMappingPage submits.
  */
 export function ConnectorTemplateMappingDesigner(props: ConnectorTemplateMappingDesignerProps) {
-  const text = { ...defaultLabels, ...props.labels };
+  const { labels } = props;
 
   const initialRows: MappingRow[] = useMemo(() => {
     if (!props.existing?.fieldMappingJson) {
@@ -118,7 +157,7 @@ export function ConnectorTemplateMappingDesigner(props: ConnectorTemplateMapping
   const onSubmit = async () => {
     setError(null);
     if (unmappedRequired.length > 0) {
-      setError(`${text.unmappedRequired}: ${unmappedRequired.map((f) => f.label).join(', ')}`);
+      setError(`${labels.unmappedRequired}: ${unmappedRequired.map((f) => f.label).join(', ')}`);
       return;
     }
     setSaving(true);
@@ -139,113 +178,169 @@ export function ConnectorTemplateMappingDesigner(props: ConnectorTemplateMapping
   };
 
   if (props.template.controls.length === 0) {
-    return <p style={{ color: '#888' }}>{text.noTemplate}</p>;
+    return <Typography.Text type="tertiary">{labels.noTemplate}</Typography.Text>;
   }
+
+  const localFieldOptions = props.localFields.map((f) => ({
+    value: f.key,
+    label: `${f.label}${f.required ? ' *' : ''} (${f.valueType})`,
+  }));
+  const externalControlOptions = props.template.controls.map((c) => ({
+    value: c.controlId,
+    label: `${c.title}${c.required ? ' *' : ''} (${c.controlType})`,
+    controlType: c.controlType,
+  }));
+
+  const columns: ColumnProps<MappingRow & { __idx: number }>[] = [
+    {
+      title: labels.localField,
+      dataIndex: 'localFieldKey',
+      render: (_text, record) => (
+        <Select
+          value={record.localFieldKey || undefined}
+          placeholder={labels.selectLocalFieldPlaceholder}
+          optionList={localFieldOptions}
+          onChange={(v) => updateRow(record.__idx, { localFieldKey: String(v ?? '') })}
+          style={{ width: '100%', minWidth: 180 }}
+        />
+      ),
+    },
+    {
+      title: labels.externalControl,
+      dataIndex: 'externalControlId',
+      render: (_text, record) => (
+        <Select
+          value={record.externalControlId || undefined}
+          placeholder={labels.selectExternalControlPlaceholder}
+          optionList={externalControlOptions}
+          onChange={(v) => {
+            const value = String(v ?? '');
+            const ctl = externalControlOptions.find((c) => c.value === value);
+            updateRow(record.__idx, { externalControlId: value, valueType: ctl?.controlType ?? record.valueType });
+          }}
+          style={{ width: '100%', minWidth: 180 }}
+        />
+      ),
+    },
+    {
+      title: labels.valueType,
+      dataIndex: 'valueType',
+      width: 110,
+      render: (_text, record) => <Typography.Text>{record.valueType}</Typography.Text>,
+    },
+    {
+      title: labels.enumMapping,
+      dataIndex: 'enumMapping',
+      render: (_text, record) => (
+        <Input
+          placeholder={labels.enumMappingPlaceholder}
+          value={record.enumMapping ? JSON.stringify(record.enumMapping) : ''}
+          onChange={(value) => {
+            const text = value.trim();
+            if (!text) {
+              updateRow(record.__idx, { enumMapping: undefined });
+              return;
+            }
+            try {
+              updateRow(record.__idx, { enumMapping: JSON.parse(text) as Record<string, string> });
+            } catch {
+              // Keep typing — only update once parses successfully
+            }
+          }}
+        />
+      ),
+    },
+    {
+      title: '',
+      dataIndex: '__action',
+      width: 90,
+      render: (_text, record) => (
+        <Button type="danger" theme="borderless" onClick={() => removeRow(record.__idx)}>
+          {labels.removeRow}
+        </Button>
+      ),
+    },
+  ];
+
+  const dataSource = rows.map((r, idx) => ({ ...r, __idx: idx, __key: idx }));
 
   return (
     <section data-testid="connector-template-mapping-designer">
       <header style={{ marginBottom: 12 }}>
-        <h4 style={{ margin: 0 }}>
-          {text.title} <small style={{ color: '#888' }}>（模板：{props.template.name}）</small>
-        </h4>
+        <Typography.Title heading={5} style={{ margin: 0 }}>
+          {labels.title}{' '}
+          <Typography.Text type="tertiary" size="small">
+            ({labels.templateLabelPrefix} {props.template.name})
+          </Typography.Text>
+        </Typography.Title>
       </header>
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
-        <label>
-          {text.integrationMode}：
-          <select value={mode} onChange={(e: ChangeEvent<HTMLSelectElement>) => setMode(e.target.value as IntegrationMode)}>
-            <option value="ExternalLed">A 外部主导</option>
-            <option value="LocalLed">B 本地主导</option>
-            <option value="Hybrid">C 双中心混合</option>
-          </select>
-        </label>
-        <label>
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {text.enabled}
-        </label>
-      </div>
+      <Space spacing="loose" style={{ marginBottom: 12 }}>
+        <Space>
+          <Typography.Text>{labels.integrationMode}:</Typography.Text>
+          <Select
+            value={mode}
+            onChange={(v) => setMode((v as IntegrationMode) ?? 'Hybrid')}
+            optionList={[
+              { value: 'ExternalLed', label: labels.integrationModeExternalLed },
+              { value: 'LocalLed', label: labels.integrationModeLocalLed },
+              { value: 'Hybrid', label: labels.integrationModeHybrid },
+            ]}
+            style={{ minWidth: 200 }}
+          />
+        </Space>
+        <Checkbox checked={enabled} onChange={(e) => setEnabled(Boolean(e.target.checked))}>
+          {labels.enabled}
+        </Checkbox>
+      </Space>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12 }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid #ddd' }}>
-            <th align="left">{text.localField}</th>
-            <th align="left">{text.externalControl}</th>
-            <th align="left">{text.valueType}</th>
-            <th align="left">{text.enumMapping}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => (
-            <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
-              <td>
-                <select value={row.localFieldKey} onChange={(e) => updateRow(idx, { localFieldKey: e.target.value })}>
-                  <option value="">-- 选择本地字段 --</option>
-                  {props.localFields.map((f) => (
-                    <option key={f.key} value={f.key}>
-                      {f.label}{f.required ? ' *' : ''} ({f.valueType})
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>
-                <select value={row.externalControlId} onChange={(e) => {
-                  const ctl = props.template.controls.find((c) => c.controlId === e.target.value);
-                  updateRow(idx, { externalControlId: e.target.value, valueType: ctl?.controlType ?? row.valueType });
-                }}>
-                  <option value="">-- 选择外部控件 --</option>
-                  {props.template.controls.map((c) => (
-                    <option key={c.controlId} value={c.controlId}>
-                      {c.title}{c.required ? ' *' : ''} ({c.controlType})
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>{row.valueType}</td>
-              <td>
-                <input
-                  type="text"
-                  style={{ width: 220 }}
-                  placeholder='{"high":"高","low":"低"}'
-                  value={row.enumMapping ? JSON.stringify(row.enumMapping) : ''}
-                  onChange={(e) => {
-                    const text = e.target.value.trim();
-                    if (!text) {
-                      updateRow(idx, { enumMapping: undefined });
-                      return;
-                    }
-                    try {
-                      updateRow(idx, { enumMapping: JSON.parse(text) as Record<string, string> });
-                    } catch {
-                      // Keep typing — only update once parses successfully
-                    }
-                  }}
-                />
-              </td>
-              <td>
-                <button type="button" onClick={() => removeRow(idx)}>{text.removeRow}</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Table
+        rowKey="__key"
+        size="small"
+        pagination={false}
+        columns={columns}
+        dataSource={dataSource}
+        style={{ marginBottom: 12 }}
+      />
 
-      <button type="button" onClick={addRow}>{text.addRow}</button>
+      <Button type="primary" theme="light" onClick={addRow}>
+        {labels.addRow}
+      </Button>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && (
+        <Banner
+          type="danger"
+          fullMode={false}
+          description={error}
+          closeIcon={null}
+          style={{ marginTop: 12 }}
+        />
+      )}
       {unmappedRequired.length > 0 && (
-        <p style={{ color: '#c80' }}>
-          {text.unmappedRequired}：{unmappedRequired.map((f) => f.label).join(', ')}
-        </p>
+        <Banner
+          type="warning"
+          fullMode={false}
+          description={`${labels.unmappedRequired}: ${unmappedRequired.map((f) => f.label).join(', ')}`}
+          closeIcon={null}
+          style={{ marginTop: 12 }}
+        />
       )}
 
-      <footer style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-        <button type="button" onClick={() => void onSubmit()} disabled={saving}>{text.save}</button>
+      <Space spacing="medium" style={{ marginTop: 12, width: '100%', justifyContent: 'space-between' }}>
+        <Button type="primary" loading={saving} onClick={() => void onSubmit()}>
+          {labels.save}
+        </Button>
         {props.onDelete && (
-          <button type="button" disabled={saving} onClick={() => void props.onDelete?.()} style={{ color: '#c00', marginLeft: 'auto' }}>
-            {text.delete}
-          </button>
+          <Button
+            type="danger"
+            theme="borderless"
+            disabled={saving}
+            onClick={() => void props.onDelete?.()}
+          >
+            {labels.delete}
+          </Button>
         )}
-      </footer>
+      </Space>
     </section>
   );
 }

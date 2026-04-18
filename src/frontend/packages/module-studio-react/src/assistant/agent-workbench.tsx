@@ -896,6 +896,7 @@ export function AgentWorkbench({
             statusLabel={detail?.status || "draft"}
             resourceHint={`${autosaveHint} · 模型 ${modelConfigs.length} 个 / 工作流 ${workflowOptions.length} 个`}
             workbenchLoading={workbenchLoading}
+            locale={locale}
           />
         }
         config={
@@ -1005,6 +1006,7 @@ export function AgentWorkbench({
             onClearConversationContext={() => void handleClearConversationContext()}
             onClearConversationHistory={() => void handleClearConversationHistory()}
             onDeleteConversation={() => void handleDeleteConversation()}
+            locale={locale}
           />
         }
       />
@@ -1015,6 +1017,7 @@ export function AgentWorkbench({
         onCancel={() => setPublishModalOpen(false)}
         onConfirm={() => void submitPublish()}
         submitting={publishSubmitting}
+        locale={locale}
       />
     </Surface>
   );

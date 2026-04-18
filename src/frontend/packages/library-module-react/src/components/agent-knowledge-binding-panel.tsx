@@ -153,13 +153,13 @@ export function AgentKnowledgeBindingPanel({
         visible={profileModalVisible}
         onOk={() => setProfileModalVisible(false)}
         onCancel={() => setProfileModalVisible(false)}
-        okText="保存"
-        cancelText="关闭"
+        okText={copy.save}
+        cancelText={copy.close}
         width={520}
       >
         <Banner
           type="info"
-          description="此 RetrievalProfile 将作为新增绑定时的 retrievalProfileOverride 写入；后端检索时优先使用绑定上的 override。"
+          description={copy.bindingsRetrievalProfileOverrideHint}
           style={{ marginBottom: 12 }}
         />
         <RetrievalProfileFields locale={locale} value={profile} onChange={setProfile} />

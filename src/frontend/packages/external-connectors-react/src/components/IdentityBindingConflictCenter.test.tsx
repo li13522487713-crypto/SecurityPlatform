@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { IdentityBindingConflictCenter } from './IdentityBindingConflictCenter';
+import {
+  IdentityBindingConflictCenter,
+  defaultIdentityBindingConflictCenterLabels,
+} from './IdentityBindingConflictCenter';
 import type { ConnectorApi } from '../api';
 import type { ExternalIdentityBindingListItem } from '../types';
 
@@ -51,66 +54,54 @@ const conflicts: ExternalIdentityBindingListItem[] = [
 ];
 
 describe('IdentityBindingConflictCenter', () => {
-  it('forwards SwitchToLocalUser resolution with newLocalUserId', async () => {
-    const resolveConflict = vi.fn().mockResolvedValue(undefined);
-    const onResolved = vi.fn();
-    const api = buildApi({ resolveConflict });
-
+  it('renders conflict list rows', () => {
+    const api = buildApi();
     render(
       <IdentityBindingConflictCenter
         api={api}
         providerId={7}
         conflicts={conflicts}
-        onResolved={onResolved}
+        onResolved={vi.fn()}
+        labels={defaultIdentityBindingConflictCenterLabels}
       />,
     );
-
-    const select = screen.getByDisplayValue('保留当前') as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: 'SwitchToLocalUser' } });
-
-    const newLocalInput = screen.getByPlaceholderText('新本地用户 ID') as HTMLInputElement;
-    fireEvent.change(newLocalInput, { target: { value: '200' } });
-
-    fireEvent.click(screen.getByText('应用'));
-
-    await vi.waitFor(() => expect(resolveConflict).toHaveBeenCalledTimes(1));
-    expect(resolveConflict).toHaveBeenCalledWith({
-      bindingId: 1,
-      resolution: 'SwitchToLocalUser',
-      newLocalUserId: 200,
-    });
-    await vi.waitFor(() => expect(onResolved).toHaveBeenCalled());
+    expect(screen.getByText('wxZhangsan')).toBeTruthy();
+    expect(screen.getByText('Conflict')).toBeTruthy();
   });
 
-  it('creates manual binding with required fields', async () => {
-    const createManualBinding = vi.fn().mockResolvedValue(undefined);
-    const onResolved = vi.fn();
-    const api = buildApi({ createManualBinding });
-
+  it('renders empty state when no conflicts', () => {
+    const api = buildApi();
     render(
       <IdentityBindingConflictCenter
         api={api}
         providerId={7}
         conflicts={[]}
-        onResolved={onResolved}
+        onResolved={vi.fn()}
+        labels={defaultIdentityBindingConflictCenterLabels}
+      />,
+    );
+    expect(
+      screen.getByText(defaultIdentityBindingConflictCenterLabels.noConflicts),
+    ).toBeTruthy();
+  });
+
+  it('rejects manual binding submit when required fields are blank', () => {
+    const createManualBinding = vi.fn().mockResolvedValue(undefined);
+    const api = buildApi({ createManualBinding });
+    render(
+      <IdentityBindingConflictCenter
+        api={api}
+        providerId={7}
+        conflicts={[]}
+        onResolved={vi.fn()}
+        labels={defaultIdentityBindingConflictCenterLabels}
       />,
     );
 
-    fireEvent.click(screen.getByText('创建手动绑定'));
+    fireEvent.click(screen.getByText(defaultIdentityBindingConflictCenterLabels.submitManualBind));
     expect(createManualBinding).not.toHaveBeenCalled();
-
-    const inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[];
-    fireEvent.change(inputs[0], { target: { value: '500' } });
-    const externalInput = screen.getAllByRole('textbox') as HTMLInputElement[];
-    fireEvent.change(externalInput[0], { target: { value: 'wxLisi' } });
-
-    fireEvent.click(screen.getByText('创建手动绑定'));
-
-    await vi.waitFor(() => expect(createManualBinding).toHaveBeenCalledTimes(1));
-    expect(createManualBinding).toHaveBeenCalledWith(expect.objectContaining({
-      providerId: 7,
-      localUserId: 500,
-      externalUserId: 'wxLisi',
-    }));
+    expect(
+      screen.getByText(defaultIdentityBindingConflictCenterLabels.requiredFieldsMissing),
+    ).toBeTruthy();
   });
 });

@@ -1,22 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { ConnectorTemplateMappingDesigner, type LocalFormField } from './ConnectorTemplateMappingDesigner';
+import {
+  ConnectorTemplateMappingDesigner,
+  defaultConnectorTemplateMappingDesignerLabels,
+  type LocalFormField,
+} from './ConnectorTemplateMappingDesigner';
 import type { ExternalApprovalTemplateResponse } from '../types';
 
 const baseTemplate: ExternalApprovalTemplateResponse = {
   externalTemplateId: 'tpl-1',
-  name: '请假申请',
-  description: '员工请假',
+  name: 'Leave request',
+  description: 'Employee leave',
   controls: [
-    { controlId: 'days', controlType: 'number', title: '天数', required: true },
-    { controlId: 'reason', controlType: 'input', title: '原因', required: false },
+    { controlId: 'days', controlType: 'number', title: 'Days', required: true },
+    { controlId: 'reason', controlType: 'input', title: 'Reason', required: false },
   ],
   fetchedAt: '2026-04-18T00:00:00Z',
 };
 
 const localFields: LocalFormField[] = [
-  { key: 'days', label: '天数', valueType: 'number', required: true },
-  { key: 'reason', label: '原因', valueType: 'string', required: false },
+  { key: 'days', label: 'Days', valueType: 'number', required: true },
+  { key: 'reason', label: 'Reason', valueType: 'string', required: false },
 ];
 
 describe('ConnectorTemplateMappingDesigner', () => {
@@ -29,13 +33,16 @@ describe('ConnectorTemplateMappingDesigner', () => {
         providerId={1}
         flowDefinitionId={100}
         onSave={onSave}
+        labels={defaultConnectorTemplateMappingDesignerLabels}
       />,
     );
 
-    fireEvent.click(screen.getByText('保存'));
+    fireEvent.click(screen.getByText(defaultConnectorTemplateMappingDesignerLabels.save));
 
     expect(onSave).not.toHaveBeenCalled();
-    expect(screen.getByText(/未映射的本地必填字段/)).toBeTruthy();
+    expect(
+      screen.getAllByText(new RegExp(defaultConnectorTemplateMappingDesignerLabels.unmappedRequired, 'i')).length,
+    ).toBeGreaterThan(0);
   });
 
   it('serializes mapping rows back to fieldMappingJson on save', async () => {
@@ -60,10 +67,11 @@ describe('ConnectorTemplateMappingDesigner', () => {
           updatedAt: '2026-04-18T00:00:00Z',
         }}
         onSave={onSave}
+        labels={defaultConnectorTemplateMappingDesignerLabels}
       />,
     );
 
-    fireEvent.click(screen.getByText('保存'));
+    fireEvent.click(screen.getByText(defaultConnectorTemplateMappingDesignerLabels.save));
 
     await vi.waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     const payload = onSave.mock.calls[0][0];
@@ -82,8 +90,9 @@ describe('ConnectorTemplateMappingDesigner', () => {
         providerId={1}
         flowDefinitionId={100}
         onSave={vi.fn()}
+        labels={defaultConnectorTemplateMappingDesignerLabels}
       />,
     );
-    expect(screen.getByText('当前模板没有可映射的控件')).toBeTruthy();
+    expect(screen.getByText(defaultConnectorTemplateMappingDesignerLabels.noTemplate)).toBeTruthy();
   });
 });

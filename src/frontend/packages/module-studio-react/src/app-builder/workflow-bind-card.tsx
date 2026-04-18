@@ -1,5 +1,6 @@
 import { Button, Select, Space, Tag, Typography } from "@douyinfe/semi-ui";
-import type { WorkflowListItem } from "../types";
+import type { StudioLocale, WorkflowListItem } from "../types";
+import { getStudioCopy } from "../copy";
 
 export interface WorkflowBindCardProps {
   boundWorkflowId: string | undefined;
@@ -8,6 +9,7 @@ export interface WorkflowBindCardProps {
   loading?: boolean;
   disabled?: boolean;
   onOpenWorkflow?: (workflowId: string) => void;
+  locale: StudioLocale;
 }
 
 export function WorkflowBindCard({
@@ -16,25 +18,27 @@ export function WorkflowBindCard({
   workflows,
   loading,
   disabled,
-  onOpenWorkflow
+  onOpenWorkflow,
+  locale
 }: WorkflowBindCardProps) {
+  const copy = getStudioCopy(locale);
   const selected = workflows.find(w => w.id === boundWorkflowId);
 
   return (
     <div className="module-studio__coze-inspector-card module-studio__app-builder-panel">
       <div className="module-studio__card-head">
-        <span>工作流绑定</span>
+        <span>{copy.appBuilder.workflowBindHeader}</span>
         {selected?.latestVersionNumber != null ? (
           <Tag color="cyan">v{selected.latestVersionNumber}</Tag>
         ) : null}
       </div>
       <Typography.Text type="tertiary" size="small" style={{ display: "block", marginTop: 0 }}>
-        请选择已发布的工作流作为应用运行入口。
+        {copy.appBuilder.workflowBindHint}
       </Typography.Text>
       <Select
         loading={loading}
         disabled={disabled}
-        placeholder="选择已发布工作流"
+        placeholder={copy.appBuilder.workflowBindPlaceholder}
         value={boundWorkflowId}
         style={{ width: "100%" }}
         filter
@@ -47,7 +51,7 @@ export function WorkflowBindCard({
       />
       {selected ? (
         <Typography.Text type="tertiary" size="small" style={{ display: "block", marginTop: 8 }}>
-          {selected.description || "无描述"}
+          {selected.description || copy.appBuilder.workflowBindNoDescription}
         </Typography.Text>
       ) : null}
       <Space style={{ marginTop: 12 }} wrap>
@@ -59,7 +63,7 @@ export function WorkflowBindCard({
             }
           }}
         >
-          在工作流编辑器中打开
+          {copy.appBuilder.workflowBindOpenInEditor}
         </Button>
       </Space>
     </div>

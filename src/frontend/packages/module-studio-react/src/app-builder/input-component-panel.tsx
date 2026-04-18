@@ -1,24 +1,28 @@
 import { Button, Input, Select, Space, Switch, Typography } from "@douyinfe/semi-ui";
 import { IconDelete, IconPlus } from "@douyinfe/semi-icons";
-import type { AppInputComponent } from "../types";
+import type { AppInputComponent, StudioLocale } from "../types";
 import { createEmptyInput } from "./app-builder-helpers";
-
-const INPUT_TYPE_OPTIONS: Array<{ label: string; value: AppInputComponent["type"] }> = [
-  { label: "单行文本", value: "text" },
-  { label: "多行文本", value: "textarea" },
-  { label: "数字", value: "number" },
-  { label: "日期", value: "date" },
-  { label: "下拉", value: "select" },
-  { label: "文件", value: "file" }
-];
+import { getStudioCopy } from "../copy";
 
 export interface InputComponentPanelProps {
   value: AppInputComponent[];
   onChange: (next: AppInputComponent[]) => void;
   disabled?: boolean;
+  locale: StudioLocale;
 }
 
-export function InputComponentPanel({ value, onChange, disabled }: InputComponentPanelProps) {
+export function InputComponentPanel({ value, onChange, disabled, locale }: InputComponentPanelProps) {
+  const copy = getStudioCopy(locale);
+
+  const inputTypeOptions: Array<{ label: string; value: AppInputComponent["type"] }> = [
+    { label: copy.inputComponent.typeText, value: "text" },
+    { label: copy.inputComponent.typeTextarea, value: "textarea" },
+    { label: copy.inputComponent.typeNumber, value: "number" },
+    { label: copy.inputComponent.typeDate, value: "date" },
+    { label: copy.inputComponent.typeSelect, value: "select" },
+    { label: copy.inputComponent.typeFile, value: "file" }
+  ];
+
   function updateAt(index: number, patch: Partial<AppInputComponent>) {
     const next = value.map((row, i) => (i === index ? { ...row, ...patch } : row));
     onChange(next);
@@ -35,56 +39,60 @@ export function InputComponentPanel({ value, onChange, disabled }: InputComponen
   return (
     <div className="module-studio__coze-inspector-card module-studio__app-builder-panel">
       <div className="module-studio__card-head">
-        <span>输入组件</span>
+        <span>{copy.inputComponent.cardTitle}</span>
         <Typography.Text type="tertiary" size="small">
-          {value.length} 项
+          {value.length} {copy.inputComponent.itemSuffix}
         </Typography.Text>
       </div>
       <Typography.Text type="tertiary" size="small" style={{ display: "block", marginTop: 0 }}>
-        定义表单字段与变量键，预览与运行将按变量键组装入参。
+        {copy.inputComponent.bodyHint}
       </Typography.Text>
       <div className="module-studio__app-builder-array">
         {value.length === 0 ? (
-          <Typography.Text type="tertiary">暂无输入项，请点击下方添加。</Typography.Text>
+          <Typography.Text type="tertiary">{copy.inputComponent.emptyHint}</Typography.Text>
         ) : (
           value.map((row, index) => (
             <div key={row.id} className="module-studio__app-builder-row">
               <div className="module-studio__form-grid">
                 <div className="module-studio__field">
-                  <span>标签</span>
+                  <span>{copy.inputComponent.fieldLabel}</span>
                   <Input
                     value={row.label}
                     disabled={disabled}
-                    placeholder="显示名称"
+                    placeholder={copy.inputComponent.placeholderLabel}
                     onChange={v => updateAt(index, { label: v })}
                   />
                 </div>
                 <div className="module-studio__field">
-                  <span>变量键</span>
+                  <span>{copy.inputComponent.fieldVariableKey}</span>
                   <Input
                     value={row.variableKey}
                     disabled={disabled}
-                    placeholder="如 userQuery"
+                    placeholder={copy.inputComponent.placeholderVariableKey}
                     onChange={v => updateAt(index, { variableKey: v })}
                   />
                 </div>
                 <div className="module-studio__field">
-                  <span>类型</span>
+                  <span>{copy.inputComponent.fieldType}</span>
                   <Select
                     value={row.type}
                     disabled={disabled}
-                    optionList={INPUT_TYPE_OPTIONS}
+                    optionList={inputTypeOptions}
                     onChange={v => {
                       const nextType = v as AppInputComponent["type"];
                       updateAt(index, {
                         type: nextType,
-                        options: nextType === "select" ? row.options?.length ? row.options : [{ label: "选项 A", value: "a" }] : undefined
+                        options: nextType === "select"
+                          ? row.options?.length
+                            ? row.options
+                            : [{ label: copy.inputComponent.defaultOptionLabel, value: "a" }]
+                          : undefined
                       });
                     }}
                   />
                 </div>
                 <div className="module-studio__field module-studio__switch-item">
-                  <span>必填</span>
+                  <span>{copy.inputComponent.fieldRequired}</span>
                   <Switch
                     checked={row.required}
                     disabled={disabled}
@@ -93,14 +101,14 @@ export function InputComponentPanel({ value, onChange, disabled }: InputComponen
                 </div>
                 {row.type === "select" ? (
                   <div className="module-studio__field module-studio__field--full">
-                    <span>选项（标签 / 值）</span>
+                    <span>{copy.inputComponent.fieldOptions}</span>
                     <div className="module-studio__stack">
                       {(row.options ?? []).map((opt, optIndex) => (
                         <Space key={`${row.id}-opt-${optIndex}`} wrap>
                           <Input
                             value={opt.label}
                             disabled={disabled}
-                            placeholder="标签"
+                            placeholder={copy.inputComponent.placeholderOptionLabel}
                             onChange={v => {
                               const options = [...(row.options ?? [])];
                               options[optIndex] = { ...options[optIndex], label: v };
@@ -110,7 +118,7 @@ export function InputComponentPanel({ value, onChange, disabled }: InputComponen
                           <Input
                             value={opt.value}
                             disabled={disabled}
-                            placeholder="值"
+                            placeholder={copy.inputComponent.placeholderOptionValue}
                             onChange={v => {
                               const options = [...(row.options ?? [])];
                               options[optIndex] = { ...options[optIndex], value: v };
@@ -138,24 +146,24 @@ export function InputComponentPanel({ value, onChange, disabled }: InputComponen
                           updateAt(index, { options });
                         }}
                       >
-                        添加选项
+                        {copy.inputComponent.addOption}
                       </Button>
                     </div>
                   </div>
                 ) : null}
                 <div className="module-studio__field module-studio__field--full">
-                  <span>默认值（可选）</span>
+                  <span>{copy.inputComponent.fieldDefault}</span>
                   <Input
                     value={row.defaultValue ?? ""}
                     disabled={disabled}
-                    placeholder="未填写时的默认值"
+                    placeholder={copy.inputComponent.placeholderDefault}
                     onChange={v => updateAt(index, { defaultValue: v || undefined })}
                   />
                 </div>
               </div>
               <div className="module-studio__app-builder-row-actions">
                 <Button icon={<IconDelete />} type="danger" theme="borderless" disabled={disabled} onClick={() => removeAt(index)}>
-                  删除
+                  {copy.inputComponent.removeRow}
                 </Button>
               </div>
             </div>
@@ -163,7 +171,7 @@ export function InputComponentPanel({ value, onChange, disabled }: InputComponen
         )}
       </div>
       <Button icon={<IconPlus />} theme="light" disabled={disabled} onClick={addRow} block>
-        添加输入项
+        {copy.inputComponent.addRow}
       </Button>
     </div>
   );

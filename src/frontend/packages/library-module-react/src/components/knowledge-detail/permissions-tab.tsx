@@ -166,7 +166,7 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
       return;
     }
     if (scope === "document" && !documentId) {
-      Toast.warning("请选择 documentId");
+      Toast.warning(copy.permissionsSelectDocumentRequired);
       return;
     }
     try {
@@ -255,7 +255,7 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
                 style={{ width: "100%" }}
                 onChange={value => setDocumentId(value as string)}
                 optionList={documents.map(d => ({ label: `#${d.id} ${d.fileName}`, value: String(d.id) }))}
-                placeholder="选择目标文档"
+                placeholder={copy.permissionsSelectDocumentPlaceholder}
               />
             </>
           ) : null}

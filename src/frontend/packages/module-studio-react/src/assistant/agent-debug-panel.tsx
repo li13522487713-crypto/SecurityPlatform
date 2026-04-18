@@ -58,6 +58,7 @@ export interface AgentDebugPanelProps {
   onClearConversationContext: () => void;
   onClearConversationHistory: () => void;
   onDeleteConversation: () => void;
+  locale: import("../types").StudioLocale;
 }
 
 export function AgentDebugPanel({
@@ -95,7 +96,8 @@ export function AgentDebugPanel({
   lastTrace,
   onClearConversationContext,
   onClearConversationHistory,
-  onDeleteConversation
+  onDeleteConversation,
+  locale
 }: AgentDebugPanelProps) {
   const chatInteractionLocked =
     Boolean(workbenchError) ||
@@ -184,7 +186,7 @@ export function AgentDebugPanel({
               </Button>
             </Space>
           </div>
-          <AgentVersionHistory publications={publications} publicationLoading={publicationLoading} />
+          <AgentVersionHistory publications={publications} publicationLoading={publicationLoading} locale={locale} />
         </div>
       </div>
 

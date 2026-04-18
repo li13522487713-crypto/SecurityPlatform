@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react';
+import { Input, Typography } from '@douyinfe/semi-ui';
 
 export interface ConnectorOAuthConfigValue {
   callbackBaseUrl: string;
@@ -8,107 +8,135 @@ export interface ConnectorOAuthConfigValue {
   agentId?: string;
 }
 
+export type ConnectorOAuthConfigFormLabelsKey =
+  | 'callbackBaseUrl'
+  | 'trustedDomains'
+  | 'visibilityScope'
+  | 'syncCron'
+  | 'agentId'
+  | 'callbackHelp'
+  | 'trustedDomainsHelp'
+  | 'syncCronHelp'
+  | 'trustedDomainsPlaceholder'
+  | 'visibilityScopePlaceholder'
+  | 'syncCronPlaceholder'
+  | 'agentIdPlaceholder';
+
+export type ConnectorOAuthConfigFormLabels = Record<ConnectorOAuthConfigFormLabelsKey, string>;
+
+export const CONNECTOR_OAUTH_CONFIG_FORM_LABELS_KEYS = [
+  'callbackBaseUrl',
+  'trustedDomains',
+  'visibilityScope',
+  'syncCron',
+  'agentId',
+  'callbackHelp',
+  'trustedDomainsHelp',
+  'syncCronHelp',
+  'trustedDomainsPlaceholder',
+  'visibilityScopePlaceholder',
+  'syncCronPlaceholder',
+  'agentIdPlaceholder',
+] as const satisfies readonly ConnectorOAuthConfigFormLabelsKey[];
+
+export const defaultConnectorOAuthConfigFormLabels: ConnectorOAuthConfigFormLabels = {
+  callbackBaseUrl: 'Callback Base URL',
+  trustedDomains: 'Trusted domains (comma-separated)',
+  visibilityScope: 'Visibility scope (optional JSON)',
+  syncCron: 'Directory sync cron expression',
+  agentId: 'AgentId',
+  callbackHelp: 'Example: https://platform.example.com/api/v1/connectors/providers/{id}/callbacks',
+  trustedDomainsHelp: 'Must match the host of OAuth redirect URL; configure at least 1.',
+  syncCronHelp: '6-segment (sec min hour day month week); e.g. 0 0 */1 * * ? hourly',
+  trustedDomainsPlaceholder: 'login.example.com,platform.example.com',
+  visibilityScopePlaceholder: 'e.g. {"departmentIds":[1,2,3],"includeInherit":true}',
+  syncCronPlaceholder: '0 0 */1 * * ?',
+  agentIdPlaceholder: 'e.g. 1000003',
+};
+
 export interface ConnectorOAuthConfigFormProps {
   value: ConnectorOAuthConfigValue;
   onChange: (next: ConnectorOAuthConfigValue) => void;
-  /** 是否需要 AgentId（仅 WeCom/DingTalk 需要）。 */
+  /** Whether AgentId is required (only WeCom / DingTalk). */
   showAgentId?: boolean;
-  labels?: Partial<Record<
-    | 'callbackBaseUrl'
-    | 'trustedDomains'
-    | 'visibilityScope'
-    | 'syncCron'
-    | 'agentId'
-    | 'callbackHelp'
-    | 'trustedDomainsHelp'
-    | 'syncCronHelp',
-    string
-  >>;
+  labels: ConnectorOAuthConfigFormLabels;
 }
 
-const defaultLabels = {
-  callbackBaseUrl: 'Callback Base URL',
-  trustedDomains: '可信域名（逗号分隔）',
-  visibilityScope: '可见范围（可选 JSON）',
-  syncCron: '通讯录同步 Cron 表达式',
-  agentId: 'AgentId',
-  callbackHelp: '示例：https://platform.example.com/api/v1/connectors/providers/{id}/callbacks',
-  trustedDomainsHelp: '与 OAuth 重定向 URL 的 host 必须匹配，至少配置 1 个',
-  syncCronHelp: '6 段式（秒 分 时 日 月 周）；示例 0 0 */1 * * ? 每小时同步一次',
-};
+interface FieldProps {
+  label: string;
+  required?: boolean;
+  helper?: string;
+  children: React.ReactNode;
+}
+
+function Field({ label, required, helper, children }: FieldProps) {
+  return (
+    <label style={{ display: 'block' }}>
+      <Typography.Text strong style={{ display: 'block', marginBottom: 4 }}>
+        {label}
+        {required ? ' *' : ''}
+      </Typography.Text>
+      {children}
+      {helper && (
+        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+          {helper}
+        </Typography.Text>
+      )}
+    </label>
+  );
+}
 
 /**
- * Connector OAuth + 可见范围 + 通讯录同步统一配置子表单。
- * 由 ConnectorProviderEditDrawer 嵌入；也可独立用于诊断面板。
+ * Connector OAuth + visibility-scope + directory-sync sub-form, embedded inside
+ * ConnectorProviderEditDrawer; can also be reused in diagnostic panels.
  */
 export function ConnectorOAuthConfigForm(props: ConnectorOAuthConfigFormProps) {
-  const text = { ...defaultLabels, ...props.labels };
-  const { value, onChange, showAgentId = false } = props;
-
+  const { value, onChange, showAgentId = false, labels } = props;
   const update = (patch: Partial<ConnectorOAuthConfigValue>) => onChange({ ...value, ...patch });
 
   return (
     <div data-testid="connector-oauth-config-form" style={{ display: 'grid', rowGap: 12 }}>
-      <label style={{ display: 'block' }}>
-        <span style={{ display: 'block', marginBottom: 4 }}>{text.callbackBaseUrl} *</span>
-        <input
-          type="url"
-          required
-          style={{ width: '100%', padding: 6 }}
+      <Field label={labels.callbackBaseUrl} required>
+        <Input
           value={value.callbackBaseUrl}
-          placeholder={text.callbackHelp}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => update({ callbackBaseUrl: e.target.value })}
+          placeholder={labels.callbackHelp}
+          onChange={(v) => update({ callbackBaseUrl: v })}
         />
-      </label>
+      </Field>
 
-      <label style={{ display: 'block' }}>
-        <span style={{ display: 'block', marginBottom: 4 }}>{text.trustedDomains} *</span>
-        <input
-          type="text"
-          required
-          style={{ width: '100%', padding: 6 }}
+      <Field label={labels.trustedDomains} required helper={labels.trustedDomainsHelp}>
+        <Input
           value={value.trustedDomains}
-          placeholder="login.example.com,platform.example.com"
-          onChange={(e: ChangeEvent<HTMLInputElement>) => update({ trustedDomains: e.target.value })}
+          placeholder={labels.trustedDomainsPlaceholder}
+          onChange={(v) => update({ trustedDomains: v })}
         />
-        <small style={{ color: '#888' }}>{text.trustedDomainsHelp}</small>
-      </label>
+      </Field>
 
       {showAgentId && (
-        <label style={{ display: 'block' }}>
-          <span style={{ display: 'block', marginBottom: 4 }}>{text.agentId}</span>
-          <input
-            type="text"
-            style={{ width: '100%', padding: 6 }}
+        <Field label={labels.agentId}>
+          <Input
             value={value.agentId ?? ''}
-            placeholder="例如 1000003"
-            onChange={(e: ChangeEvent<HTMLInputElement>) => update({ agentId: e.target.value })}
+            placeholder={labels.agentIdPlaceholder}
+            onChange={(v) => update({ agentId: v })}
           />
-        </label>
+        </Field>
       )}
 
-      <label style={{ display: 'block' }}>
-        <span style={{ display: 'block', marginBottom: 4 }}>{text.visibilityScope}</span>
-        <input
-          type="text"
-          style={{ width: '100%', padding: 6 }}
+      <Field label={labels.visibilityScope}>
+        <Input
           value={value.visibilityScope ?? ''}
-          placeholder='示例：{"departmentIds":[1,2,3],"includeInherit":true}'
-          onChange={(e: ChangeEvent<HTMLInputElement>) => update({ visibilityScope: e.target.value })}
+          placeholder={labels.visibilityScopePlaceholder}
+          onChange={(v) => update({ visibilityScope: v })}
         />
-      </label>
+      </Field>
 
-      <label style={{ display: 'block' }}>
-        <span style={{ display: 'block', marginBottom: 4 }}>{text.syncCron}</span>
-        <input
-          type="text"
-          style={{ width: '100%', padding: 6 }}
+      <Field label={labels.syncCron} helper={labels.syncCronHelp}>
+        <Input
           value={value.syncCron ?? ''}
-          placeholder="0 0 */1 * * ?"
-          onChange={(e: ChangeEvent<HTMLInputElement>) => update({ syncCron: e.target.value })}
+          placeholder={labels.syncCronPlaceholder}
+          onChange={(v) => update({ syncCron: v })}
         />
-        <small style={{ color: '#888' }}>{text.syncCronHelp}</small>
-      </label>
+      </Field>
     </div>
   );
 }

@@ -277,15 +277,18 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
 
     const errors: string[] = [];
     const normalizedNames = new Set<string>();
+    const fmt = (template: string, params: Record<string, string>) =>
+      Object.entries(params).reduce((acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, "g"), v), template);
+
     for (const column of databaseForm.columns) {
       const name = column.name.trim();
       if (!name) {
-        errors.push(`${copy.databaseFieldName} 不能为空`);
+        errors.push(fmt(copy.databaseValidationFieldRequired, { field: copy.databaseFieldName }));
         continue;
       }
 
       if (normalizedNames.has(name.toLowerCase())) {
-        errors.push(`${copy.databaseFieldName} 重复: ${name}`);
+        errors.push(fmt(copy.databaseValidationFieldDuplicate, { field: copy.databaseFieldName, name }));
       } else {
         normalizedNames.add(name.toLowerCase());
       }
@@ -295,27 +298,27 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
       const max = column.max.trim() ? Number(column.max.trim()) : null;
 
       if (length !== null && (!Number.isFinite(length) || length <= 0)) {
-        errors.push(`${name}: ${copy.databaseFieldLength} 必须是正数`);
+        errors.push(fmt(copy.databaseValidationMustBePositive, { name, field: copy.databaseFieldLength }));
       }
 
       if (min !== null && !Number.isFinite(min)) {
-        errors.push(`${name}: ${copy.databaseFieldMin} 必须是数字`);
+        errors.push(fmt(copy.databaseValidationMustBeNumber, { name, field: copy.databaseFieldMin }));
       }
 
       if (max !== null && !Number.isFinite(max)) {
-        errors.push(`${name}: ${copy.databaseFieldMax} 必须是数字`);
+        errors.push(fmt(copy.databaseValidationMustBeNumber, { name, field: copy.databaseFieldMax }));
       }
 
       if (min !== null && max !== null && min > max) {
-        errors.push(`${name}: ${copy.databaseFieldMin} 不能大于 ${copy.databaseFieldMax}`);
+        errors.push(fmt(copy.databaseValidationMinGreaterThanMax, { name, min: copy.databaseFieldMin, max: copy.databaseFieldMax }));
       }
 
       if ((column.type === "string" || column.type === "json") && min !== null) {
-        errors.push(`${name}: ${copy.databaseFieldMin} 不适用于 ${column.type}`);
+        errors.push(fmt(copy.databaseValidationNotApplicable, { name, field: copy.databaseFieldMin, type: column.type }));
       }
 
       if ((column.type === "string" || column.type === "json") && max !== null) {
-        errors.push(`${name}: ${copy.databaseFieldMax} 不适用于 ${column.type}`);
+        errors.push(fmt(copy.databaseValidationNotApplicable, { name, field: copy.databaseFieldMax, type: column.type }));
       }
     }
 
@@ -474,7 +477,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           try {
             const detail = await api.getApplicationDetail(record.resourceId);
             if (!detail.workflowId) {
-              Toast.warning("当前应用还没有关联主工作流。");
+              Toast.warning(copy.appNoMainWorkflowWarning);
               return;
             }
 
@@ -1027,7 +1030,7 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
               <div className="atlas-library-create-section">
                 <Typography.Text strong>{copy.databaseBasicInfo}</Typography.Text>
                 <Input value={databaseForm.description} placeholder={copy.noDescription} onChange={value => setDatabaseForm(current => ({ ...current, description: value }))} />
-                <Input value={databaseForm.botId} placeholder="botId（可选）" onChange={value => setDatabaseForm(current => ({ ...current, botId: value }))} />
+                <Input value={databaseForm.botId} placeholder={copy.databaseBotIdPlaceholder} onChange={value => setDatabaseForm(current => ({ ...current, botId: value }))} />
               </div>
               <div className="atlas-library-create-section">
                 <Typography.Text strong>{copy.databaseSchemaMode}</Typography.Text>

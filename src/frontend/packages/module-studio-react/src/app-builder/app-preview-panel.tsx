@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Banner, Button, DatePicker, Input, InputNumber, Select, Spin, Tag, Typography } from "@douyinfe/semi-ui";
-import type { AppBuilderConfig, AppInputComponent, AppOutputComponent, WorkbenchTrace } from "../types";
+import type { AppBuilderConfig, AppInputComponent, AppOutputComponent, StudioLocale, WorkbenchTrace } from "../types";
 import { resolveOutputValue } from "./app-builder-helpers";
+import { getStudioCopy, type StudioCopy } from "../copy";
 
 function formatUnknown(value: unknown): string {
   if (value === undefined) {
@@ -22,10 +23,11 @@ function formatUnknown(value: unknown): string {
 
 function renderOutputBody(
   type: AppOutputComponent["type"],
-  raw: unknown
+  raw: unknown,
+  copy: StudioCopy
 ): ReactNode {
   if (raw === undefined) {
-    return <Typography.Text type="tertiary">（无数据）</Typography.Text>;
+    return <Typography.Text type="tertiary">{copy.appPreview.noData}</Typography.Text>;
   }
   switch (type) {
     case "text":
@@ -56,6 +58,7 @@ export interface AppPreviewPanelProps {
   running: boolean;
   onRun: () => void;
   disabled?: boolean;
+  locale: StudioLocale;
 }
 
 export function AppPreviewPanel({
@@ -67,8 +70,10 @@ export function AppPreviewPanel({
   runResult,
   running,
   onRun,
-  disabled
+  disabled,
+  locale
 }: AppPreviewPanelProps) {
+  const copy = getStudioCopy(locale);
   function setKey(key: string, value: unknown) {
     onPreviewValuesChange({ ...previewValues, [key]: value });
   }
@@ -76,7 +81,7 @@ export function AppPreviewPanel({
   function renderInputControl(row: AppInputComponent) {
     const key = row.variableKey.trim();
     if (!key) {
-      return <Typography.Text type="tertiary">请先填写变量键</Typography.Text>;
+      return <Typography.Text type="tertiary">{copy.appPreview.fillVariableKeyFirst}</Typography.Text>;
     }
     const current = previewValues[key];
 
@@ -144,7 +149,7 @@ export function AppPreviewPanel({
             />
             {typeof current === "string" && current ? (
               <Typography.Text type="tertiary" size="small">
-                已选：{current}
+                {copy.appPreview.selectedFilePrefix}{current}
               </Typography.Text>
             ) : null}
           </div>
@@ -162,40 +167,47 @@ export function AppPreviewPanel({
     }
   }
 
+  const layoutTagText =
+    layoutMode === "form"
+      ? copy.appPreview.layoutForm
+      : layoutMode === "chat"
+        ? copy.appPreview.layoutChat
+        : copy.appPreview.layoutHybrid;
+
   return (
     <div className="module-studio__app-preview-root module-studio__coze-inspector-card module-studio__app-builder-preview">
       <div className="module-studio__app-preview-hero">
         <div className="module-studio__card-head module-studio__app-preview-hero-head">
           <div>
-            <div className="module-studio__app-preview-kicker">实时预览</div>
-            <span className="module-studio__app-preview-title">预览与运行</span>
+            <div className="module-studio__app-preview-kicker">{copy.appPreview.kicker}</div>
+            <span className="module-studio__app-preview-title">{copy.appPreview.title}</span>
           </div>
-          <Tag color="blue">{layoutMode === "form" ? "表单" : layoutMode === "chat" ? "对话" : "混合"}</Tag>
+          <Tag color="blue">{layoutTagText}</Tag>
         </div>
         <Banner
           type="info"
           bordered={false}
           fullMode={false}
-          title="说明"
-          description="左侧配置保存后，可在此填写预览值并运行，查看输出映射结果与执行轨迹摘要。"
+          title={copy.appPreview.bannerTitle}
+          description={copy.appPreview.bannerDescription}
         />
       </div>
 
       <div className="module-studio__app-builder-preview-section module-studio__app-preview-section">
         <div className="module-studio__app-preview-section-head">
           <Typography.Title heading={6} style={{ margin: 0 }}>
-            表单预览
+            {copy.appPreview.formPreviewSection}
           </Typography.Title>
         </div>
         {inputs.length === 0 ? (
-          <Typography.Text type="tertiary">尚未配置输入组件。</Typography.Text>
+          <Typography.Text type="tertiary">{copy.appPreview.noInputsHint}</Typography.Text>
         ) : (
           <div className="module-studio__stack module-studio__app-preview-form-stack">
             {inputs.map(row => (
               <div key={row.id} className="module-studio__field module-studio__app-preview-field">
                 <span>
-                  {row.label || row.variableKey || "未命名"}
-                  {row.required ? <Tag color="orange" size="small" style={{ marginLeft: 6 }}>必填</Tag> : null}
+                  {row.label || row.variableKey || copy.appPreview.unnamed}
+                  {row.required ? <Tag color="orange" size="small" style={{ marginLeft: 6 }}>{copy.appPreview.required}</Tag> : null}
                 </span>
                 {renderInputControl(row)}
               </div>
@@ -204,7 +216,7 @@ export function AppPreviewPanel({
         )}
         <div className="module-studio__app-preview-run-row">
           <Button theme="solid" type="primary" loading={running} disabled={disabled} onClick={() => onRun()}>
-            运行预览
+            {copy.appPreview.runPreview}
           </Button>
         </div>
       </div>
@@ -212,7 +224,7 @@ export function AppPreviewPanel({
       <div className="module-studio__app-builder-preview-section module-studio__app-preview-section module-studio__app-preview-section--output">
         <div className="module-studio__app-preview-section-head">
           <Typography.Title heading={6} style={{ margin: 0 }}>
-            输出结果
+            {copy.appPreview.outputResultSection}
           </Typography.Title>
         </div>
         {running ? (
@@ -222,7 +234,7 @@ export function AppPreviewPanel({
         ) : runResult ? (
           <div className="module-studio__stack">
             {outputs.length === 0 ? (
-              <Typography.Text type="tertiary">未配置输出映射，以下为完整返回对象：</Typography.Text>
+              <Typography.Text type="tertiary">{copy.appPreview.noOutputMappingHint}</Typography.Text>
             ) : null}
             {outputs.length === 0 ? (
               <pre className="module-studio__message-content">{formatUnknown(runResult.outputs)}</pre>
@@ -232,10 +244,10 @@ export function AppPreviewPanel({
                 return (
                   <div key={out.id} className="module-studio__coze-inspector-card module-studio__app-preview-output-card">
                     <div className="module-studio__card-head">
-                      <strong>{out.label || out.sourceExpression || "输出"}</strong>
+                      <strong>{out.label || out.sourceExpression || copy.appPreview.outputFallbackTitle}</strong>
                       <Tag size="small">{out.type}</Tag>
                     </div>
-                    {renderOutputBody(out.type, raw)}
+                    {renderOutputBody(out.type, raw, copy)}
                   </div>
                 );
               })
@@ -243,7 +255,7 @@ export function AppPreviewPanel({
             {runResult.trace ? (
               <div className="module-studio__coze-inspector-card module-studio__app-preview-trace-card">
                 <div className="module-studio__card-head">
-                  <span>执行轨迹</span>
+                  <span>{copy.appPreview.traceTitle}</span>
                   <Tag color="green">{runResult.trace.status}</Tag>
                 </div>
                 <Typography.Text type="tertiary" size="small">
@@ -264,7 +276,7 @@ export function AppPreviewPanel({
             ) : null}
           </div>
         ) : (
-          <Typography.Text type="tertiary">尚未运行。点击「运行预览」加载结果。</Typography.Text>
+          <Typography.Text type="tertiary">{copy.appPreview.notRunHint}</Typography.Text>
         )}
       </div>
     </div>

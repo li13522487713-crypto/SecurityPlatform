@@ -1,18 +1,43 @@
 import type { ConnectorProviderType, ExternalMessageCard } from '../types';
 
+export type MessageCardPreviewLabelsKey =
+  | 'viewDetails'
+  | 'providerWeCom'
+  | 'providerFeishu'
+  | 'providerDingTalk'
+  | 'providerCustomOidc';
+
+export type MessageCardPreviewLabels = Record<MessageCardPreviewLabelsKey, string>;
+
+export const MESSAGE_CARD_PREVIEW_LABELS_KEYS = [
+  'viewDetails',
+  'providerWeCom',
+  'providerFeishu',
+  'providerDingTalk',
+  'providerCustomOidc',
+] as const satisfies readonly MessageCardPreviewLabelsKey[];
+
+export const defaultMessageCardPreviewLabels: MessageCardPreviewLabels = {
+  viewDetails: 'View details',
+  providerWeCom: 'WeCom · template_card',
+  providerFeishu: 'Feishu · interactive',
+  providerDingTalk: 'DingTalk · action_card',
+  providerCustomOidc: 'Custom OIDC',
+};
+
 export interface MessageCardPreviewProps {
-  /** wecom / feishu / dingtalk / customOidc：决定渲染样式与配色。 */
   providerType: ConnectorProviderType;
   card: ExternalMessageCard;
-  /** 自定义最大宽度（默认 360px，对齐企微 / 飞书移动端卡片宽度）。 */
+  /** Defaults to 360 px so the preview matches WeCom / Feishu mobile card width. */
   maxWidth?: number;
+  labels: MessageCardPreviewLabels;
 }
 
 /**
- * 跨厂商消息卡片预览：按 provider 渲染近似真实卡片样式（企微 template_card / 飞书 interactive / 钉钉 action_card）。
- * 设计目标：让管理员在配置阶段就能"所见即所得"，避免发到生产才发现样式偏差。
+ * Cross-vendor message-card preview. Intentionally rendered with raw HTML so each
+ * provider visual stays close to its real IM card; do NOT migrate to Semi.
  */
-export function MessageCardPreview({ providerType, card, maxWidth = 360 }: MessageCardPreviewProps) {
+export function MessageCardPreview({ providerType, card, maxWidth = 360, labels }: MessageCardPreviewProps) {
   const palette = getPalette(providerType);
   const tone = card.tone ?? 'info';
   const accentColor = palette.toneColors[tone] ?? palette.toneColors.info;
@@ -58,13 +83,13 @@ export function MessageCardPreview({ providerType, card, maxWidth = 360 }: Messa
               ))
             : (
               <a href={card.jumpUrl} style={{ color: accentColor, textDecoration: 'none', fontSize: 13 }} target="_blank" rel="noopener">
-                查看详情 →
+                {labels.viewDetails}
               </a>
             )}
         </footer>
       )}
 
-      <ProviderBadge providerType={providerType} palette={palette} cardVersion={card.cardVersion} />
+      <ProviderBadge providerType={providerType} palette={palette} cardVersion={card.cardVersion} labels={labels} />
     </article>
   );
 }
@@ -78,7 +103,17 @@ function DataRow({ label, value, labelColor }: { label: string; value: string; l
   );
 }
 
-function ProviderBadge({ providerType, palette, cardVersion }: { providerType: ConnectorProviderType; palette: Palette; cardVersion?: number }) {
+function ProviderBadge({
+  providerType,
+  palette,
+  cardVersion,
+  labels,
+}: {
+  providerType: ConnectorProviderType;
+  palette: Palette;
+  cardVersion?: number;
+  labels: MessageCardPreviewLabels;
+}) {
   return (
     <div
       style={{
@@ -89,7 +124,7 @@ function ProviderBadge({ providerType, palette, cardVersion }: { providerType: C
         justifyContent: 'space-between',
       }}
     >
-      <span>{getProviderLabel(providerType)}</span>
+      <span>{getProviderLabel(providerType, labels)}</span>
       {cardVersion !== undefined && <span>v{cardVersion}</span>}
     </div>
   );
@@ -145,14 +180,16 @@ function getPalette(providerType: ConnectorProviderType): Palette {
   }
 }
 
-function getProviderLabel(providerType: ConnectorProviderType): string {
+function getProviderLabel(providerType: ConnectorProviderType, labels: MessageCardPreviewLabels): string {
   switch (providerType) {
     case 'WeCom':
-      return '企业微信 · template_card';
+      return labels.providerWeCom;
     case 'Feishu':
-      return '飞书 · interactive';
+      return labels.providerFeishu;
     case 'DingTalk':
-      return '钉钉 · action_card';
+      return labels.providerDingTalk;
+    case 'CustomOidc':
+      return labels.providerCustomOidc;
     default:
       return providerType;
   }

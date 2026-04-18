@@ -400,7 +400,7 @@ export function KnowledgeUploadPage({
             {tasks.find(t => t.documentId) && knowledge ? (
               <div style={{ marginTop: 24 }}>
                 <Typography.Title heading={6} style={{ marginBottom: 8 }}>
-                  策略对比（A/B）
+                  {copy.parsingCompareTitle}
                 </Typography.Title>
                 <ParsingStrategyComparePanel
                   api={api}

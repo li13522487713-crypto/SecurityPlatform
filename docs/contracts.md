@@ -1957,3 +1957,68 @@ sequenceDiagram
 - OAuth state 单次消费（`IOAuthStateStore.ConsumeAsync`），跨租户校验（state.TenantId vs current）；TTL 默认 10 分钟。
 - 入站 webhook：HMAC-SHA256（飞书）+ XML+AES-CBC（企微 EncodingAESKey，**N1 强制 corpId tail 校验**）+ HMAC-SHA1+AES-CBC（钉钉，**N3 新增**，强制 corpId tail 校验）；幂等键 + `IReplayGuard` + 失败入死信（`ExternalCallbackEvent.Status = DeadLetter`）+ `ExternalCallbackInboxRetryHostedService` 每分钟扫描重投（指数退避 60→960s）。
 - 审计：所有自动绑定 / 换号 / 解绑 / 冲突解决都写 `ExternalIdentityBindingAuditLog`；连接器 API Key 调用走现有 `IAuditRecorder`。
+
+## 前端包级 i18n 契约（M2-M6 收口）
+
+`pnpm run i18n:check` 现在覆盖 `apps/app-web` 的 messages.ts 中英对齐 + Atlas 自有 `packages/*` 内的 CJK 硬编码扫描 + 包导出 Labels 类型 / KEYS 常量被宿主接管的覆盖度校验。脚本实现见 [src/frontend/scripts/i18n-audit.mjs](src/frontend/scripts/i18n-audit.mjs)，运行时 baseline 见 [src/frontend/scripts/i18n-baseline.json](src/frontend/scripts/i18n-baseline.json)。
+
+### 模式 1：Required Labels（组件库类，参照 `@atlas/external-connectors-react`）
+
+每个用户可见组件文件统一导出：
+
+```ts
+export type ConnectorXxxLabelsKey = 'a' | 'b' | ...;
+export type ConnectorXxxLabels = Record<ConnectorXxxLabelsKey, string>;
+export const CONNECTOR_XXX_LABELS_KEYS = ['a', 'b', ...] as const satisfies readonly ConnectorXxxLabelsKey[];
+export const defaultConnectorXxxLabels: ConnectorXxxLabels = { a: 'A', b: 'B', ... };
+
+export interface ConnectorXxxProps {
+  labels: ConnectorXxxLabels; // Required，TS 编译期强制宿主穷举
+  // ...
+}
+```
+
+- `defaultLabels` **必须**用中性英文兜底，禁止出现 CJK；
+- `labels` prop 为 Required；
+- `index.ts` 重新导出 `XxxLabels` 类型 + `XXX_LABELS_KEYS` 常量 + `defaultXxxLabels` 实例 + 组件本身；
+- 宿主侧用 `import type { XxxLabels } from '@atlas/...'` + 显式 `{ a: t("ns_a"), b: t("ns_b"), ... }` 注入；
+- 中英对应 keys 在 `apps/app-web/src/app/messages.ts` 的 `zhCN` / `enUS` 双侧同步维护，命名空间用下划线分段（如 `connector_providersPage_title`）。
+
+### 模式 2：包级 copy.ts 字典（业务模块类，参照 `@atlas/library-module-react`、`@atlas/module-studio-react`）
+
+每个包根目录维护 `src/copy.ts`：
+
+```ts
+export interface StudioCopy { ... }
+const zhCN: StudioCopy = { ... };
+const enUS: StudioCopy = { ... };
+export function getStudioCopy(locale: StudioLocale): StudioCopy { ... }
+export function formatStudioTemplate(template: string, params: Record<string, string | number>): string { ... }
+```
+
+- `copy.ts` 文件本身因为是字典源文件，**必须**列入 `i18n-baseline.json` 的 `allowedCjkFiles` 永久豁免；
+- 组件接 `locale: SupportedLocale` prop，内部用 `getXxxCopy(locale)` 拿翻译；
+- 不允许内联 `locale === "en-US" ? ... : ...` 三元；
+- 复杂模板字符串用 `formatXxxTemplate(template, params)` 替换占位符。
+
+### 强制约束
+
+- 包内任何用户可见 UI 文案禁止硬编码 CJK；新加 / 修改组件时同步更新对应字典或 Labels 类型；
+- 测试 fixture / mock data / `*.test.tsx` / `*.spec.tsx` / `__tests__/**` 自动豁免；
+- 纯开发者诊断（`throw new Error(...)` / `console.warn(...)` / 调试日志）建议保留英文；如必须用 CJK，加入 `allowedCjkFiles` 并在 `_pendingUserFacingFiles` 之外的位置标注 reason；
+- baseline 中的 `_pendingUserFacingFiles` 是 TODO 清单，新建 PR 时**只允许移除**该清单项（即只能更"干净"，不能更"脏"）。
+
+### M2-M6 实施纪要
+
+| 里程碑 | 范围 | 状态 |
+|---|---|---|
+| M1 | 增强 `i18n-audit.mjs`（`--scan-packages` / `--check-labels-coverage`），建立 baseline | 完成 |
+| M2 | `external-connectors-react` 全包 Semi 化 + 9 组件 i18n 收口（Required Labels 模式） | 完成 |
+| M3 | `library-module-react` 散落 CJK 迁入 `copy.ts`、zh/en 字典对齐 | 完成 |
+| M4a | `module-studio-react` 建包级 `copy.ts` + 第一批 12 文件迁入 | 完成 |
+| M4b | `module-studio-react` 第二批 9/12 文件（publish 模块 5 + app-builder 3 + shared 1） | 完成 |
+| M4c | 剩余巨型页面（`pages.tsx` 446 / `agent-workbench-config-tab` 67 / `dashboard-page` 47 / `agent-workbench` 45 / `agent-debug-panel` 34 / `agent-config-sections` 32 / `publish-center-page` 29 / `app-builder-page` 19 / `agent-ide-helpers` 16 / `create-wizard-modal` 13） | baseline 待续 |
+| M5 | 其他 Atlas 自有包按"开发者诊断 / 用户可见 UI"分类豁免 | 完成（用户可见 UI 部分待续） |
+| M6 | AGENTS.md / docs/contracts.md 加包级 i18n 契约；i18n:check + lint + build 全过 | 完成 |
+
+详情见 `src/frontend/scripts/i18n-baseline.json` 中 `_pendingUserFacingFiles` 清单。

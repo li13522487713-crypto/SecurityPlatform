@@ -150,7 +150,7 @@ export function DashboardPage({
 
   return (
     <div className="module-studio__dashboard" data-testid="app-dashboard-page">
-      <PageStateWrapper status={status} error={error} onRetry={reload}>
+      <PageStateWrapper status={status} error={error} onRetry={reload} locale={locale}>
         {data && (
           <Space vertical align="start" style={{ width: "100%" }} spacing={24}>
             <section className="module-studio__dashboard-hero">

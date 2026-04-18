@@ -1,57 +1,101 @@
 import { useEffect, useState } from 'react';
+import { Banner, Button, Empty, Modal, Space, Spin, Table, Tag, Typography } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ConnectorApi } from '../api';
 import type { ExternalIdentityProviderListItem } from '../types';
-import { ConnectorProviderEditDrawer } from './ConnectorProviderEditDrawer';
+import {
+  ConnectorProviderEditDrawer,
+  defaultConnectorProviderEditDrawerLabels,
+  type ConnectorProviderEditDrawerLabels,
+} from './ConnectorProviderEditDrawer';
+import {
+  defaultConnectorOAuthConfigFormLabels,
+  type ConnectorOAuthConfigFormLabels,
+} from './ConnectorOAuthConfigForm';
+
+export type ConnectorProvidersPageLabelsKey =
+  | 'title'
+  | 'enable'
+  | 'disable'
+  | 'delete'
+  | 'edit'
+  | 'add'
+  | 'refresh'
+  | 'empty'
+  | 'statusOn'
+  | 'statusOff'
+  | 'columnProvider'
+  | 'columnCode'
+  | 'columnName'
+  | 'columnEnabled'
+  | 'columnUpdatedAt'
+  | 'columnActions'
+  | 'confirmDelete'
+  | 'confirmDeleteTitle'
+  | 'loadingText';
+
+export type ConnectorProvidersPageLabels = Record<ConnectorProvidersPageLabelsKey, string>;
+
+export const CONNECTOR_PROVIDERS_PAGE_LABELS_KEYS = [
+  'title',
+  'enable',
+  'disable',
+  'delete',
+  'edit',
+  'add',
+  'refresh',
+  'empty',
+  'statusOn',
+  'statusOff',
+  'columnProvider',
+  'columnCode',
+  'columnName',
+  'columnEnabled',
+  'columnUpdatedAt',
+  'columnActions',
+  'confirmDelete',
+  'confirmDeleteTitle',
+  'loadingText',
+] as const satisfies readonly ConnectorProvidersPageLabelsKey[];
+
+export const defaultConnectorProvidersPageLabels: ConnectorProvidersPageLabels = {
+  title: 'External connectors',
+  enable: 'Enable',
+  disable: 'Disable',
+  delete: 'Delete',
+  edit: 'Edit',
+  add: 'Add connector',
+  refresh: 'Refresh',
+  empty: 'No external connectors configured yet',
+  statusOn: 'On',
+  statusOff: 'Off',
+  columnProvider: 'Provider',
+  columnCode: 'Code',
+  columnName: 'Display name',
+  columnEnabled: 'Enabled',
+  columnUpdatedAt: 'Updated at',
+  columnActions: 'Actions',
+  confirmDelete: 'Delete this connector? All bindings and sync jobs will be invalidated.',
+  confirmDeleteTitle: 'Delete connector',
+  loadingText: 'Loading...',
+};
 
 export interface ConnectorProvidersPageProps {
   api: ConnectorApi;
-  /** 平台外可指定 i18n 词表覆盖。 */
-  labels?: Partial<Record<
-    | 'title'
-    | 'enable'
-    | 'disable'
-    | 'delete'
-    | 'edit'
-    | 'add'
-    | 'refresh'
-    | 'empty'
-    | 'statusOn'
-    | 'statusOff'
-    | 'columnProvider'
-    | 'columnCode'
-    | 'columnName'
-    | 'columnEnabled'
-    | 'columnUpdatedAt'
-    | 'columnActions'
-    | 'confirmDelete',
-    string
-  >>;
-  /** 当用户点击行时触发；宿主可用于跳转到详情页。 */
+  labels: ConnectorProvidersPageLabels;
+  /** Triggered when a row is clicked; host can navigate to detail page. */
   onRowClick?: (item: ExternalIdentityProviderListItem) => void;
+  drawerLabels: ConnectorProviderEditDrawerLabels;
+  oauthFormLabels: ConnectorOAuthConfigFormLabels;
 }
 
-const defaultLabels = {
-  title: '外部连接器',
-  enable: '启用',
-  disable: '停用',
-  delete: '删除',
-  edit: '编辑',
-  add: '新建连接器',
-  refresh: '刷新',
-  empty: '尚未配置任何外部连接器',
-  statusOn: '启用',
-  statusOff: '停用',
-  columnProvider: 'Provider',
-  columnCode: 'Code',
-  columnName: 'Display Name',
-  columnEnabled: 'Enabled',
-  columnUpdatedAt: 'UpdatedAt',
-  columnActions: 'Actions',
-  confirmDelete: '确定删除该连接器？关联的所有绑定与同步任务将一并失效。',
-};
-
-export function ConnectorProvidersPage({ api, labels, onRowClick }: ConnectorProvidersPageProps) {
-  const text = { ...defaultLabels, ...labels };
+export function ConnectorProvidersPage({
+  api,
+  labels,
+  onRowClick,
+  drawerLabels,
+  oauthFormLabels,
+}: ConnectorProvidersPageProps) {
   const [items, setItems] = useState<ExternalIdentityProviderListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +118,7 @@ export function ConnectorProvidersPage({ api, labels, onRowClick }: ConnectorPro
 
   useEffect(() => {
     void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api]);
 
   const openCreate = () => {
@@ -86,67 +131,97 @@ export function ConnectorProvidersPage({ api, labels, onRowClick }: ConnectorPro
     setDrawerOpen(true);
   };
 
-  const onDelete = async (item: ExternalIdentityProviderListItem) => {
-    if (!confirm(text.confirmDelete)) {
-      return;
-    }
-    await api.deleteProvider(item.id);
-    await reload();
+  const onDelete = (item: ExternalIdentityProviderListItem) => {
+    Modal.confirm({
+      title: labels.confirmDeleteTitle,
+      content: labels.confirmDelete,
+      onOk: async () => {
+        await api.deleteProvider(item.id);
+        await reload();
+      },
+    });
   };
+
+  const drawerEffectiveLabels = drawerLabels ?? defaultConnectorProviderEditDrawerLabels;
+  const oauthEffectiveLabels = oauthFormLabels ?? defaultConnectorOAuthConfigFormLabels;
+
+  const columns: ColumnProps<ExternalIdentityProviderListItem & { __key: number }>[] = [
+    {
+      title: labels.columnProvider,
+      dataIndex: 'providerType',
+      width: 140,
+      render: (_, record) =>
+        onRowClick ? (
+          <Button theme="borderless" type="primary" onClick={() => onRowClick(record)}>
+            {record.providerType}
+          </Button>
+        ) : (
+          <Typography.Text>{record.providerType}</Typography.Text>
+        ),
+    },
+    { title: labels.columnCode, dataIndex: 'code', width: 200 },
+    { title: labels.columnName, dataIndex: 'displayName' },
+    {
+      title: labels.columnEnabled,
+      dataIndex: 'enabled',
+      width: 100,
+      render: (_, record) => <Tag color={record.enabled ? 'green' : 'grey'}>{record.enabled ? labels.statusOn : labels.statusOff}</Tag>,
+    },
+    {
+      title: labels.columnUpdatedAt,
+      dataIndex: 'updatedAt',
+      width: 200,
+      render: (_, record) => new Date(record.updatedAt).toLocaleString(),
+    },
+    {
+      title: labels.columnActions,
+      dataIndex: '__actions',
+      width: 280,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => openEdit(record.id)}>
+            {labels.edit}
+          </Button>
+          {record.enabled ? (
+            <Button size="small" onClick={() => api.disableProvider(record.id).then(reload)}>
+              {labels.disable}
+            </Button>
+          ) : (
+            <Button size="small" type="primary" onClick={() => api.enableProvider(record.id).then(reload)}>
+              {labels.enable}
+            </Button>
+          )}
+          <Button size="small" type="danger" theme="borderless" onClick={() => onDelete(record)}>
+            {labels.delete}
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  const dataSource = items.map((item) => ({ ...item, __key: item.id }));
 
   return (
     <section data-testid="connector-providers-page">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>{text.title}</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => void reload()} disabled={loading}>{text.refresh}</button>
-          <button type="button" onClick={openCreate}>{text.add}</button>
-        </div>
-      </header>
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {!loading && items.length === 0 && <p>{text.empty}</p>}
+      <Space spacing="medium" style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
+        <Typography.Title heading={4} style={{ margin: 0 }}>
+          {labels.title}
+        </Typography.Title>
+        <Space>
+          <Button onClick={() => void reload()} disabled={loading}>
+            {labels.refresh}
+          </Button>
+          <Button type="primary" onClick={openCreate}>
+            {labels.add}
+          </Button>
+        </Space>
+      </Space>
+
+      {loading && <Spin tip={labels.loadingText} />}
+      {error && <Banner type="danger" fullMode={false} description={error} closeIcon={null} />}
+      {!loading && items.length === 0 && <Empty description={labels.empty} />}
       {!loading && items.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <th align="left">{text.columnProvider}</th>
-              <th align="left">{text.columnCode}</th>
-              <th align="left">{text.columnName}</th>
-              <th align="left">{text.columnEnabled}</th>
-              <th align="left">{text.columnUpdatedAt}</th>
-              <th align="left">{text.columnActions}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} data-testid={`connector-row-${item.id}`} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td>
-                  {onRowClick ? (
-                    <button type="button" style={{ background: 'none', border: 'none', color: '#0a66c2', cursor: 'pointer', padding: 0 }} onClick={() => onRowClick(item)}>
-                      {item.providerType}
-                    </button>
-                  ) : (
-                    item.providerType
-                  )}
-                </td>
-                <td>{item.code}</td>
-                <td>{item.displayName}</td>
-                <td>{item.enabled ? text.statusOn : text.statusOff}</td>
-                <td>{new Date(item.updatedAt).toLocaleString()}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  <button type="button" onClick={() => openEdit(item.id)}>{text.edit}</button>{' '}
-                  {item.enabled ? (
-                    <button type="button" onClick={() => api.disableProvider(item.id).then(reload)}>{text.disable}</button>
-                  ) : (
-                    <button type="button" onClick={() => api.enableProvider(item.id).then(reload)}>{text.enable}</button>
-                  )}{' '}
-                  <button type="button" onClick={() => void onDelete(item)} style={{ color: '#c00' }}>{text.delete}</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table rowKey="__key" columns={columns} dataSource={dataSource} pagination={false} size="small" />
       )}
 
       <ConnectorProviderEditDrawer
@@ -157,6 +232,8 @@ export function ConnectorProvidersPage({ api, labels, onRowClick }: ConnectorPro
         onSaved={() => {
           void reload();
         }}
+        labels={drawerEffectiveLabels}
+        oauthFormLabels={oauthEffectiveLabels}
       />
     </section>
   );

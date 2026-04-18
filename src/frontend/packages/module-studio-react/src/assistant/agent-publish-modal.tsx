@@ -1,4 +1,6 @@
 import { Button, Modal, Typography } from "@douyinfe/semi-ui";
+import type { StudioLocale } from "../types";
+import { getStudioCopy } from "../copy";
 
 export interface AgentPublishModalProps {
   visible: boolean;
@@ -8,6 +10,7 @@ export interface AgentPublishModalProps {
   onConfirm: () => void;
   /** 提交中（发布 API 调用期间） */
   submitting: boolean;
+  locale: StudioLocale;
 }
 
 export function AgentPublishModal({
@@ -16,32 +19,34 @@ export function AgentPublishModal({
   onReleaseNoteChange,
   onCancel,
   onConfirm,
-  submitting
+  submitting,
+  locale
 }: AgentPublishModalProps) {
+  const copy = getStudioCopy(locale);
   return (
     <Modal
-      title="发布智能体"
+      title={copy.assistant.publishModalTitle}
       visible={visible}
       onCancel={onCancel}
       footer={
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <Button onClick={onCancel} disabled={submitting}>
-            取消
+            {copy.common.cancel}
           </Button>
           <Button theme="solid" type="primary" loading={submitting} onClick={onConfirm}>
-            确认发布
+            {copy.assistant.publishModalConfirm}
           </Button>
         </div>
       }
     >
       <div className="module-studio__stack">
         <Typography.Text type="tertiary">
-          发布说明将随版本记录保存，便于审计与回滚对照（可选）。
+          {copy.assistant.publishModalNoteHint}
         </Typography.Text>
         <textarea
           className="module-studio__textarea"
           rows={5}
-          placeholder="例如：修复知识库检索阈值、更新插件工具超时策略。"
+          placeholder={copy.assistant.publishModalNotePlaceholder}
           value={releaseNote}
           onChange={event => onReleaseNoteChange(event.target.value)}
           disabled={submitting}

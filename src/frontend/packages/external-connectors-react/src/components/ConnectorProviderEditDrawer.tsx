@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { FormEvent } from 'react';
+import { Banner, Button, Input, Modal, Select, SideSheet, Space, TextArea, Typography } from '@douyinfe/semi-ui';
 import type { ConnectorApi } from '../api';
 import type {
   ConnectorProviderType,
@@ -7,60 +8,115 @@ import type {
   ExternalIdentityProviderResponse,
   ExternalIdentityProviderUpdateRequest,
 } from '../types';
-import { ConnectorOAuthConfigForm, type ConnectorOAuthConfigValue } from './ConnectorOAuthConfigForm';
+import {
+  ConnectorOAuthConfigForm,
+  type ConnectorOAuthConfigFormLabels,
+  type ConnectorOAuthConfigValue,
+} from './ConnectorOAuthConfigForm';
+
+export type ConnectorProviderEditDrawerLabelsKey =
+  | 'titleCreate'
+  | 'titleEdit'
+  | 'providerType'
+  | 'code'
+  | 'displayName'
+  | 'providerTenantId'
+  | 'appId'
+  | 'secretJson'
+  | 'secretJsonHelp'
+  | 'rotateSecret'
+  | 'rotateConfirm'
+  | 'rotateConfirmTitle'
+  | 'rotateBeforeFillError'
+  | 'submitCreate'
+  | 'submitUpdate'
+  | 'cancel'
+  | 'closeDrawer'
+  | 'codePlaceholder'
+  | 'displayNamePlaceholder'
+  | 'providerTenantIdPlaceholder'
+  | 'appIdPlaceholder'
+  | 'providerTypeWeCom'
+  | 'providerTypeFeishu'
+  | 'providerTypeDingTalk'
+  | 'providerTypeCustomOidc';
+
+export type ConnectorProviderEditDrawerLabels = Record<ConnectorProviderEditDrawerLabelsKey, string>;
+
+export const CONNECTOR_PROVIDER_EDIT_DRAWER_LABELS_KEYS = [
+  'titleCreate',
+  'titleEdit',
+  'providerType',
+  'code',
+  'displayName',
+  'providerTenantId',
+  'appId',
+  'secretJson',
+  'secretJsonHelp',
+  'rotateSecret',
+  'rotateConfirm',
+  'rotateConfirmTitle',
+  'rotateBeforeFillError',
+  'submitCreate',
+  'submitUpdate',
+  'cancel',
+  'closeDrawer',
+  'codePlaceholder',
+  'displayNamePlaceholder',
+  'providerTenantIdPlaceholder',
+  'appIdPlaceholder',
+  'providerTypeWeCom',
+  'providerTypeFeishu',
+  'providerTypeDingTalk',
+  'providerTypeCustomOidc',
+] as const satisfies readonly ConnectorProviderEditDrawerLabelsKey[];
+
+export const defaultConnectorProviderEditDrawerLabels: ConnectorProviderEditDrawerLabels = {
+  titleCreate: 'Create external connector',
+  titleEdit: 'Edit external connector',
+  providerType: 'Provider type',
+  code: 'Unique code',
+  displayName: 'Display name',
+  providerTenantId: 'External tenant id (CorpId / TenantKey)',
+  appId: 'App AppId',
+  secretJson: 'Secret JSON (encrypted at rest)',
+  secretJsonHelp:
+    'Examples — WeCom: {"corpSecret":"xxx","callbackToken":"xxx","callbackEncodingAesKey":"xxx"} | Feishu: {"corpSecret":"appSecret","eventVerificationToken":"xxx","eventEncryptKey":"xxx"} | DingTalk: {"appSecret":"xxx","callbackToken":"xxx","callbackAesKey":"xxx"}',
+  rotateSecret: 'Rotate secret',
+  rotateConfirm: 'Rotate the secret? Old secret will be invalidated.',
+  rotateConfirmTitle: 'Rotate connector secret',
+  rotateBeforeFillError: 'Please fill in the new secretJson before rotating.',
+  submitCreate: 'Create',
+  submitUpdate: 'Save',
+  cancel: 'Cancel',
+  closeDrawer: 'Close',
+  codePlaceholder: 'wecom-default',
+  displayNamePlaceholder: 'Group WeCom',
+  providerTenantIdPlaceholder: 'wxCorpId123 / fsTenantKey / dingCorpId',
+  appIdPlaceholder: 'wxAppId / cli_xxx / dingxxxAppKey',
+  providerTypeWeCom: 'WeCom',
+  providerTypeFeishu: 'Feishu',
+  providerTypeDingTalk: 'DingTalk',
+  providerTypeCustomOidc: 'Custom OIDC',
+};
 
 export interface ConnectorProviderEditDrawerProps {
   api: ConnectorApi;
-  /** 当存在时表示编辑模式（按 id 拉详情），缺省即为新建。 */
+  /** Edit mode when not null; create mode when null. */
   editProviderId?: number | null;
   open: boolean;
   onClose: () => void;
   onSaved: (saved: ExternalIdentityProviderResponse) => void;
-  labels?: Partial<Record<
-    | 'titleCreate'
-    | 'titleEdit'
-    | 'providerType'
-    | 'code'
-    | 'displayName'
-    | 'providerTenantId'
-    | 'appId'
-    | 'secretJson'
-    | 'secretJsonHelp'
-    | 'rotateSecret'
-    | 'rotateConfirm'
-    | 'submitCreate'
-    | 'submitUpdate'
-    | 'cancel'
-    | 'closeDrawer',
-    string
-  >>;
+  labels: ConnectorProviderEditDrawerLabels;
+  oauthFormLabels: ConnectorOAuthConfigFormLabels;
 }
 
-const defaultLabels = {
-  titleCreate: '新建外部连接器',
-  titleEdit: '编辑外部连接器',
-  providerType: 'Provider 类型',
-  code: '唯一编码',
-  displayName: '显示名称',
-  providerTenantId: '外部租户标识（CorpId / TenantKey）',
-  appId: '应用 AppId',
-  secretJson: '密钥 JSON（加密入库）',
-  secretJsonHelp:
-    '示例（WeCom）：{"corpSecret":"xxx","callbackToken":"xxx","callbackEncodingAesKey":"xxx"}\n（Feishu）：{"corpSecret":"appSecret","eventVerificationToken":"xxx","eventEncryptKey":"xxx"}\n（DingTalk）：{"appSecret":"xxx","callbackToken":"xxx","callbackAesKey":"xxx"}',
-  rotateSecret: '轮换密钥',
-  rotateConfirm: '确定要轮换密钥？老密钥将失效。',
-  submitCreate: '创建',
-  submitUpdate: '保存',
-  cancel: '取消',
-  closeDrawer: '关闭',
-};
-
 /**
- * 外部连接器新建 / 编辑 / 密钥轮换抽屉。
- * 注意：本包不依赖 UI 库，使用原生 HTML + 内联样式实现 drawer 视觉，由宿主可换皮。
+ * Connector create / edit / secret-rotate side-sheet, built with Semi SideSheet so it
+ * matches the rest of the app's drawer affordance.
  */
 export function ConnectorProviderEditDrawer(props: ConnectorProviderEditDrawerProps) {
-  const text = { ...defaultLabels, ...props.labels };
+  const { labels, oauthFormLabels } = props;
   const isEdit = props.editProviderId != null;
 
   const [providerType, setProviderType] = useState<ConnectorProviderType>('WeCom');
@@ -87,7 +143,6 @@ export function ConnectorProviderEditDrawer(props: ConnectorProviderEditDrawerPr
       return;
     }
     if (!isEdit) {
-      // 新建模式：重置默认。
       setProviderType('WeCom');
       setCode('');
       setDisplayName('');
@@ -98,7 +153,6 @@ export function ConnectorProviderEditDrawer(props: ConnectorProviderEditDrawerPr
       setError(null);
       return;
     }
-    // 编辑模式：拉详情回填（secretMasked 不回填到 secretJson 输入，需走轮换）。
     void (async () => {
       try {
         const detail = await props.api.getProvider(props.editProviderId!);
@@ -165,149 +219,121 @@ export function ConnectorProviderEditDrawer(props: ConnectorProviderEditDrawerPr
     }
   };
 
-  const rotateSecret = async () => {
+  const rotateSecret = () => {
     if (!isEdit || !secretJson) {
-      setError('请先填写新的 secretJson 再点击轮换');
+      setError(labels.rotateBeforeFillError);
       return;
     }
-    if (!confirm(text.rotateConfirm)) {
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const saved = await props.api.rotateSecret(props.editProviderId!, secretJson);
-      props.onSaved(saved);
-      setSecretJson('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    Modal.confirm({
+      title: labels.rotateConfirmTitle,
+      content: labels.rotateConfirm,
+      onOk: async () => {
+        setSubmitting(true);
+        setError(null);
+        try {
+          const saved = await props.api.rotateSecret(props.editProviderId!, secretJson);
+          props.onSaved(saved);
+          setSecretJson('');
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        } finally {
+          setSubmitting(false);
+        }
+      },
+    });
   };
 
-  if (!props.open) {
-    return null;
-  }
+  const fieldLabel = (text: string, required = false) => (
+    <Typography.Text strong style={{ display: 'block', marginBottom: 4 }}>
+      {text}
+      {required ? ' *' : ''}
+    </Typography.Text>
+  );
 
   return (
-    <aside
+    <SideSheet
       data-testid="connector-provider-edit-drawer"
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        right: 0,
-        top: 0,
-        bottom: 0,
-        width: 480,
-        maxWidth: '90vw',
-        background: '#fff',
-        boxShadow: '-2px 0 12px rgba(0,0,0,0.12)',
-        padding: 16,
-        zIndex: 1000,
-        overflowY: 'auto',
-      }}
+      title={isEdit ? labels.titleEdit : labels.titleCreate}
+      visible={props.open}
+      onCancel={props.onClose}
+      width={520}
+      closable
+      maskClosable={false}
+      bodyStyle={{ padding: 16 }}
     >
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>{isEdit ? text.titleEdit : text.titleCreate}</h3>
-        <button type="button" onClick={props.onClose} aria-label={text.closeDrawer}>×</button>
-      </header>
-
       <form onSubmit={submit} style={{ display: 'grid', rowGap: 12 }}>
         <label>
-          <span style={{ display: 'block', marginBottom: 4 }}>{text.providerType} *</span>
-          <select
+          {fieldLabel(labels.providerType, true)}
+          <Select
             value={providerType}
             disabled={isEdit}
-            onChange={(e: ChangeEvent<HTMLSelectElement>) => setProviderType(e.target.value as ConnectorProviderType)}
-            style={{ width: '100%', padding: 6 }}
-          >
-            <option value="WeCom">WeCom 企业微信</option>
-            <option value="Feishu">Feishu 飞书</option>
-            <option value="DingTalk">DingTalk 钉钉</option>
-            <option value="CustomOidc">CustomOidc 通用 OIDC</option>
-          </select>
-        </label>
-
-        <label>
-          <span style={{ display: 'block', marginBottom: 4 }}>{text.code} *</span>
-          <input
-            required
-            disabled={isEdit}
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            style={{ width: '100%', padding: 6 }}
-            placeholder="wecom-default"
+            onChange={(v) => setProviderType((v as ConnectorProviderType) ?? 'WeCom')}
+            style={{ width: '100%' }}
+            optionList={[
+              { value: 'WeCom', label: labels.providerTypeWeCom },
+              { value: 'Feishu', label: labels.providerTypeFeishu },
+              { value: 'DingTalk', label: labels.providerTypeDingTalk },
+              { value: 'CustomOidc', label: labels.providerTypeCustomOidc },
+            ]}
           />
         </label>
 
         <label>
-          <span style={{ display: 'block', marginBottom: 4 }}>{text.displayName} *</span>
-          <input
-            required
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            style={{ width: '100%', padding: 6 }}
-            placeholder="集团企业微信"
-          />
+          {fieldLabel(labels.code, true)}
+          <Input value={code} disabled={isEdit} onChange={setCode} placeholder={labels.codePlaceholder} />
         </label>
 
         <label>
-          <span style={{ display: 'block', marginBottom: 4 }}>{text.providerTenantId} *</span>
-          <input
-            required
-            value={providerTenantId}
-            onChange={(e) => setProviderTenantId(e.target.value)}
-            style={{ width: '100%', padding: 6 }}
-            placeholder="wxCorpId123 / fsTenantKey / dingCorpId"
-          />
+          {fieldLabel(labels.displayName, true)}
+          <Input value={displayName} onChange={setDisplayName} placeholder={labels.displayNamePlaceholder} />
         </label>
 
         <label>
-          <span style={{ display: 'block', marginBottom: 4 }}>{text.appId} *</span>
-          <input
-            required
-            value={appId}
-            onChange={(e) => setAppId(e.target.value)}
-            style={{ width: '100%', padding: 6 }}
-            placeholder="wxAppId / cli_xxx / dingxxxAppKey"
-          />
+          {fieldLabel(labels.providerTenantId, true)}
+          <Input value={providerTenantId} onChange={setProviderTenantId} placeholder={labels.providerTenantIdPlaceholder} />
         </label>
 
         <label>
-          <span style={{ display: 'block', marginBottom: 4 }}>
-            {text.secretJson} {!isEdit && '*'}
-          </span>
-          <textarea
-            required={!isEdit}
+          {fieldLabel(labels.appId, true)}
+          <Input value={appId} onChange={setAppId} placeholder={labels.appIdPlaceholder} />
+        </label>
+
+        <label>
+          {fieldLabel(labels.secretJson, !isEdit)}
+          <TextArea
             rows={4}
             value={secretJson}
-            onChange={(e) => setSecretJson(e.target.value)}
-            style={{ width: '100%', padding: 6, fontFamily: 'monospace' }}
-            placeholder={text.secretJsonHelp}
+            onChange={setSecretJson}
+            placeholder={labels.secretJsonHelp}
+            style={{ fontFamily: 'monospace' }}
           />
-          <small style={{ color: '#888', whiteSpace: 'pre-wrap' }}>{text.secretJsonHelp}</small>
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4, whiteSpace: 'pre-wrap' }}>
+            {labels.secretJsonHelp}
+          </Typography.Text>
         </label>
 
-        <ConnectorOAuthConfigForm value={oauthConfig} onChange={setOAuthConfig} showAgentId={showAgentId} />
+        <ConnectorOAuthConfigForm value={oauthConfig} onChange={setOAuthConfig} showAgentId={showAgentId} labels={oauthFormLabels} />
 
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <Banner type="danger" fullMode={false} description={error} closeIcon={null} />}
 
-        <footer style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-          {isEdit && (
-            <button type="button" onClick={rotateSecret} disabled={submitting} style={{ marginRight: 'auto' }}>
-              {text.rotateSecret}
-            </button>
+        <Space spacing="medium" style={{ marginTop: 8, width: '100%', justifyContent: 'space-between' }}>
+          {isEdit ? (
+            <Button onClick={rotateSecret} disabled={submitting}>
+              {labels.rotateSecret}
+            </Button>
+          ) : (
+            <span />
           )}
-          <button type="button" onClick={props.onClose} disabled={submitting}>
-            {text.cancel}
-          </button>
-          <button type="submit" disabled={submitting}>
-            {isEdit ? text.submitUpdate : text.submitCreate}
-          </button>
-        </footer>
+          <Space>
+            <Button onClick={props.onClose} disabled={submitting}>
+              {labels.cancel}
+            </Button>
+            <Button type="primary" htmlType="submit" loading={submitting}>
+              {isEdit ? labels.submitUpdate : labels.submitCreate}
+            </Button>
+          </Space>
+        </Space>
       </form>
-    </aside>
+    </SideSheet>
   );
 }

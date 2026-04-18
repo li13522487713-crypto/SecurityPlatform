@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Banner, Button, Card, Empty, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ConnectorApi } from '../api';
 import type {
   BindingConflictResolution,
@@ -7,72 +9,103 @@ import type {
   ManualBindingRequest,
 } from '../types';
 
-export interface IdentityBindingConflictCenterProps {
-  api: ConnectorApi;
-  /** 当前 provider id，用于手动绑定时填充。 */
-  providerId: number;
-  /** Conflict 状态的绑定列表（由父组件按 status=Conflict 过滤后传入）。 */
-  conflicts: ExternalIdentityBindingListItem[];
-  /** 父组件的刷新钩子。 */
-  onResolved: () => void;
-  labels?: Partial<Record<
-    | 'title'
-    | 'manualBindHeader'
-    | 'localUserId'
-    | 'externalUserId'
-    | 'mobile'
-    | 'email'
-    | 'submitManualBind'
-    | 'noConflicts'
-    | 'columnId'
-    | 'columnLocalUser'
-    | 'columnExternalUser'
-    | 'columnStatus'
-    | 'columnAction'
-    | 'resolutionLabel'
-    | 'resolutionKeepCurrent'
-    | 'resolutionSwitchToLocalUser'
-    | 'resolutionRevoke'
-    | 'newLocalUserIdLabel'
-    | 'apply'
-    | 'revoke'
-    | 'revokeConfirm',
-    string
-  >>;
-}
+export type IdentityBindingConflictCenterLabelsKey =
+  | 'title'
+  | 'manualBindHeader'
+  | 'localUserId'
+  | 'externalUserId'
+  | 'mobile'
+  | 'email'
+  | 'submitManualBind'
+  | 'noConflicts'
+  | 'columnId'
+  | 'columnLocalUser'
+  | 'columnExternalUser'
+  | 'columnStatus'
+  | 'columnAction'
+  | 'resolutionLabel'
+  | 'resolutionKeepCurrent'
+  | 'resolutionSwitchToLocalUser'
+  | 'resolutionRevoke'
+  | 'newLocalUserIdLabel'
+  | 'apply'
+  | 'revoke'
+  | 'revokeConfirm'
+  | 'revokeConfirmTitle'
+  | 'requiredFieldsMissing';
 
-const defaultLabels = {
-  title: '身份绑定冲突中心',
-  manualBindHeader: '手动绑定（重名 / 换号 / 重绑）',
-  localUserId: '本地用户 ID',
-  externalUserId: '外部 user id',
-  mobile: '手机号（可选）',
-  email: '邮箱（可选）',
-  submitManualBind: '创建手动绑定',
-  noConflicts: '当前没有需要处理的冲突',
+export type IdentityBindingConflictCenterLabels = Record<IdentityBindingConflictCenterLabelsKey, string>;
+
+export const IDENTITY_BINDING_CONFLICT_CENTER_LABELS_KEYS = [
+  'title',
+  'manualBindHeader',
+  'localUserId',
+  'externalUserId',
+  'mobile',
+  'email',
+  'submitManualBind',
+  'noConflicts',
+  'columnId',
+  'columnLocalUser',
+  'columnExternalUser',
+  'columnStatus',
+  'columnAction',
+  'resolutionLabel',
+  'resolutionKeepCurrent',
+  'resolutionSwitchToLocalUser',
+  'resolutionRevoke',
+  'newLocalUserIdLabel',
+  'apply',
+  'revoke',
+  'revokeConfirm',
+  'revokeConfirmTitle',
+  'requiredFieldsMissing',
+] as const satisfies readonly IdentityBindingConflictCenterLabelsKey[];
+
+export const defaultIdentityBindingConflictCenterLabels: IdentityBindingConflictCenterLabels = {
+  title: 'Identity binding conflict center',
+  manualBindHeader: 'Manual binding (rename / switch number / rebind)',
+  localUserId: 'Local user ID',
+  externalUserId: 'External user id',
+  mobile: 'Mobile (optional)',
+  email: 'Email (optional)',
+  submitManualBind: 'Create manual binding',
+  noConflicts: 'No pending conflicts',
   columnId: 'BindingId',
-  columnLocalUser: '本地用户',
-  columnExternalUser: '外部 user id',
-  columnStatus: '状态',
-  columnAction: '处理',
-  resolutionLabel: '解决方式',
-  resolutionKeepCurrent: '保留当前',
-  resolutionSwitchToLocalUser: '切换到指定本地用户',
-  resolutionRevoke: '撤销绑定',
-  newLocalUserIdLabel: '新本地用户 ID',
-  apply: '应用',
-  revoke: '撤销',
-  revokeConfirm: '确认撤销该绑定？',
+  columnLocalUser: 'Local user',
+  columnExternalUser: 'External user id',
+  columnStatus: 'Status',
+  columnAction: 'Action',
+  resolutionLabel: 'Resolution',
+  resolutionKeepCurrent: 'Keep current',
+  resolutionSwitchToLocalUser: 'Switch to specified local user',
+  resolutionRevoke: 'Revoke binding',
+  newLocalUserIdLabel: 'New local user ID',
+  apply: 'Apply',
+  revoke: 'Revoke',
+  revokeConfirm: 'Confirm revoking this binding?',
+  revokeConfirmTitle: 'Revoke binding',
+  requiredFieldsMissing: 'Local user id and external user id are required.',
 };
 
+export interface IdentityBindingConflictCenterProps {
+  api: ConnectorApi;
+  /** Current provider id, used when filling manual binding form. */
+  providerId: number;
+  /** Conflict bindings (parent already filtered by status=Conflict). */
+  conflicts: ExternalIdentityBindingListItem[];
+  /** Refresh hook supplied by parent. */
+  onResolved: () => void;
+  labels: IdentityBindingConflictCenterLabels;
+}
+
 /**
- * 身份绑定冲突中心：展示 status=Conflict 的绑定，支持「保留 / 换号 / 撤销」三种解决方式 + 手动绑定。
- * 配合 ConnectorBindingsPage 使用。
+ * Identity-binding conflict center: lists status=Conflict bindings, supports
+ * "Keep / Switch / Revoke" resolutions and a manual-binding form.
  */
 export function IdentityBindingConflictCenter(props: IdentityBindingConflictCenterProps) {
-  const text = { ...defaultLabels, ...props.labels };
+  const { labels } = props;
 
-  // 手动绑定子表单
   const [bindLocalUserId, setBindLocalUserId] = useState<string>('');
   const [bindExternalUserId, setBindExternalUserId] = useState<string>('');
   const [bindMobile, setBindMobile] = useState<string>('');
@@ -80,13 +113,14 @@ export function IdentityBindingConflictCenter(props: IdentityBindingConflictCent
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 单行解决子状态
-  const [resolutions, setResolutions] = useState<Record<number, { resolution: BindingConflictResolution; newLocalUserId?: string }>>({});
+  const [resolutions, setResolutions] = useState<
+    Record<number, { resolution: BindingConflictResolution; newLocalUserId?: string }>
+  >({});
 
   const onCreateManual = async () => {
     setError(null);
     if (!bindLocalUserId.trim() || !bindExternalUserId.trim()) {
-      setError(`${text.localUserId} / ${text.externalUserId} 必填`);
+      setError(labels.requiredFieldsMissing);
       return;
     }
     setSubmitting(true);
@@ -112,7 +146,7 @@ export function IdentityBindingConflictCenter(props: IdentityBindingConflictCent
   };
 
   const applyResolution = async (binding: ExternalIdentityBindingListItem) => {
-    const cfg = resolutions[binding.id] ?? { resolution: 'KeepCurrent' };
+    const cfg = resolutions[binding.id] ?? { resolution: 'KeepCurrent' as BindingConflictResolution };
     const payload: BindingConflictResolutionRequest = {
       bindingId: binding.id,
       resolution: cfg.resolution,
@@ -130,102 +164,136 @@ export function IdentityBindingConflictCenter(props: IdentityBindingConflictCent
     }
   };
 
-  const onRevoke = async (binding: ExternalIdentityBindingListItem) => {
-    if (!confirm(text.revokeConfirm)) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await props.api.deleteBinding(binding.id);
-      props.onResolved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+  const onRevoke = (binding: ExternalIdentityBindingListItem) => {
+    Modal.confirm({
+      title: labels.revokeConfirmTitle,
+      content: labels.revokeConfirm,
+      onOk: async () => {
+        setSubmitting(true);
+        setError(null);
+        try {
+          await props.api.deleteBinding(binding.id);
+          props.onResolved();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        } finally {
+          setSubmitting(false);
+        }
+      },
+    });
   };
+
+  const columns: ColumnProps<ExternalIdentityBindingListItem & { __key: number }>[] = [
+    { title: labels.columnId, dataIndex: 'id', width: 100 },
+    { title: labels.columnLocalUser, dataIndex: 'localUserId', width: 120 },
+    { title: labels.columnExternalUser, dataIndex: 'externalUserId' },
+    {
+      title: labels.columnStatus,
+      dataIndex: 'status',
+      width: 120,
+      render: (_, record) => <Tag color="red">{record.status}</Tag>,
+    },
+    {
+      title: labels.columnAction,
+      dataIndex: '__action',
+      render: (_, record) => {
+        const cfg = resolutions[record.id] ?? { resolution: 'KeepCurrent' as BindingConflictResolution };
+        return (
+          <Space>
+            <Select
+              size="small"
+              value={cfg.resolution}
+              style={{ width: 200 }}
+              onChange={(v) =>
+                setResolutions((prev) => ({
+                  ...prev,
+                  [record.id]: { ...cfg, resolution: v as BindingConflictResolution },
+                }))
+              }
+              optionList={[
+                { value: 'KeepCurrent', label: labels.resolutionKeepCurrent },
+                { value: 'SwitchToLocalUser', label: labels.resolutionSwitchToLocalUser },
+                { value: 'Revoke', label: labels.resolutionRevoke },
+              ]}
+            />
+            {cfg.resolution === 'SwitchToLocalUser' && (
+              <Input
+                size="small"
+                placeholder={labels.newLocalUserIdLabel}
+                value={cfg.newLocalUserId ?? ''}
+                onChange={(v) =>
+                  setResolutions((prev) => ({
+                    ...prev,
+                    [record.id]: { ...cfg, newLocalUserId: v },
+                  }))
+                }
+                style={{ width: 140 }}
+              />
+            )}
+            <Button size="small" type="primary" disabled={submitting} onClick={() => void applyResolution(record)}>
+              {labels.apply}
+            </Button>
+            <Button size="small" type="danger" theme="borderless" disabled={submitting} onClick={() => onRevoke(record)}>
+              {labels.revoke}
+            </Button>
+          </Space>
+        );
+      },
+    },
+  ];
+
+  const dataSource = props.conflicts.map((b) => ({ ...b, __key: b.id }));
 
   return (
     <section data-testid="identity-binding-conflict-center" style={{ marginTop: 16 }}>
-      <h3>{text.title}</h3>
+      <Typography.Title heading={5} style={{ marginBottom: 12 }}>
+        {labels.title}
+      </Typography.Title>
 
-      <fieldset style={{ border: '1px solid #eee', padding: 12, marginBottom: 16 }}>
-        <legend>{text.manualBindHeader}</legend>
+      <Card title={labels.manualBindHeader} style={{ marginBottom: 16 }} bordered>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', columnGap: 12, rowGap: 8 }}>
           <label>
-            <span style={{ display: 'block', fontSize: 12, color: '#888' }}>{text.localUserId}</span>
-            <input value={bindLocalUserId} onChange={(e) => setBindLocalUserId(e.target.value)} type="number" style={{ width: '100%', padding: 4 }} />
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
+              {labels.localUserId}
+            </Typography.Text>
+            <InputNumber
+              value={bindLocalUserId === '' ? undefined : Number(bindLocalUserId)}
+              onChange={(v) => setBindLocalUserId(v === undefined || v === '' ? '' : String(v))}
+              style={{ width: '100%' }}
+            />
           </label>
           <label>
-            <span style={{ display: 'block', fontSize: 12, color: '#888' }}>{text.externalUserId}</span>
-            <input value={bindExternalUserId} onChange={(e) => setBindExternalUserId(e.target.value)} style={{ width: '100%', padding: 4 }} />
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
+              {labels.externalUserId}
+            </Typography.Text>
+            <Input value={bindExternalUserId} onChange={setBindExternalUserId} />
           </label>
           <label>
-            <span style={{ display: 'block', fontSize: 12, color: '#888' }}>{text.mobile}</span>
-            <input value={bindMobile} onChange={(e) => setBindMobile(e.target.value)} style={{ width: '100%', padding: 4 }} />
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
+              {labels.mobile}
+            </Typography.Text>
+            <Input value={bindMobile} onChange={setBindMobile} />
           </label>
           <label>
-            <span style={{ display: 'block', fontSize: 12, color: '#888' }}>{text.email}</span>
-            <input value={bindEmail} onChange={(e) => setBindEmail(e.target.value)} type="email" style={{ width: '100%', padding: 4 }} />
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
+              {labels.email}
+            </Typography.Text>
+            <Input value={bindEmail} onChange={setBindEmail} type="email" />
           </label>
         </div>
-        <div style={{ marginTop: 12 }}>
-          <button type="button" disabled={submitting} onClick={() => void onCreateManual()}>{text.submitManualBind}</button>
-        </div>
-      </fieldset>
+        <Button type="primary" disabled={submitting} onClick={() => void onCreateManual()} style={{ marginTop: 12 }}>
+          {labels.submitManualBind}
+        </Button>
+      </Card>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && (
+        <Banner type="danger" fullMode={false} description={error} closeIcon={null} style={{ marginBottom: 12 }} />
+      )}
 
       {props.conflicts.length === 0 ? (
-        <p style={{ color: '#888' }}>{text.noConflicts}</p>
+        <Empty description={labels.noConflicts} />
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #ddd' }}>
-              <th align="left">{text.columnId}</th>
-              <th align="left">{text.columnLocalUser}</th>
-              <th align="left">{text.columnExternalUser}</th>
-              <th align="left">{text.columnStatus}</th>
-              <th align="left">{text.columnAction}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {props.conflicts.map((b) => {
-              const cfg = resolutions[b.id] ?? { resolution: 'KeepCurrent' as BindingConflictResolution };
-              return (
-                <tr key={b.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td>{b.id}</td>
-                  <td>{b.localUserId}</td>
-                  <td>{b.externalUserId}</td>
-                  <td style={{ color: '#c00' }}>{b.status}</td>
-                  <td>
-                    <select
-                      value={cfg.resolution}
-                      onChange={(e) => setResolutions((prev) => ({ ...prev, [b.id]: { ...cfg, resolution: e.target.value as BindingConflictResolution } }))}
-                    >
-                      <option value="KeepCurrent">{text.resolutionKeepCurrent}</option>
-                      <option value="SwitchToLocalUser">{text.resolutionSwitchToLocalUser}</option>
-                      <option value="Revoke">{text.resolutionRevoke}</option>
-                    </select>
-                    {cfg.resolution === 'SwitchToLocalUser' && (
-                      <>
-                        {' '}
-                        <input
-                          type="number"
-                          placeholder={text.newLocalUserIdLabel}
-                          value={cfg.newLocalUserId ?? ''}
-                          onChange={(e) => setResolutions((prev) => ({ ...prev, [b.id]: { ...cfg, newLocalUserId: e.target.value } }))}
-                          style={{ width: 120 }}
-                        />
-                      </>
-                    )}{' '}
-                    <button type="button" disabled={submitting} onClick={() => void applyResolution(b)}>{text.apply}</button>{' '}
-                    <button type="button" disabled={submitting} onClick={() => void onRevoke(b)} style={{ color: '#c00' }}>{text.revoke}</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <Table rowKey="__key" columns={columns} dataSource={dataSource} pagination={false} size="small" />
       )}
     </section>
   );

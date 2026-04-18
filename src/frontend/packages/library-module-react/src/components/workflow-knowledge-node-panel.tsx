@@ -190,10 +190,10 @@ export function WorkflowKnowledgeNodePanel({
               onChange={value => setFilterRow(idx, { value })}
               style={{ width: 220 }}
             />
-            <Button type="danger" theme="borderless" onClick={() => removeFilterRow(idx)}>移除</Button>
+            <Button type="danger" theme="borderless" onClick={() => removeFilterRow(idx)}>{copy.commonRemove}</Button>
           </Space>
         ))}
-        <Button onClick={addFilterRow}>+ 添加 filter</Button>
+        <Button onClick={addFilterRow}>{copy.commonAddFilter}</Button>
       </Space>
 
       <Typography.Text strong>CallerContextOverride</Typography.Text>
