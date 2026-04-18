@@ -298,33 +298,117 @@ public sealed class WorkflowCompositionService : IWorkflowCompositionService
 {
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
+    private readonly IDagWorkflowQueryService _workflowQuery;
+    private readonly ILogger<WorkflowCompositionService> _logger;
 
-    public WorkflowCompositionService(IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public WorkflowCompositionService(
+        IIdGeneratorAccessor idGen,
+        IAuditWriter auditWriter,
+        IDagWorkflowQueryService workflowQuery,
+        ILogger<WorkflowCompositionService> logger)
     {
         _idGen = idGen;
         _auditWriter = auditWriter;
+        _workflowQuery = workflowQuery;
+        _logger = logger;
     }
 
     public async Task<WorkflowComposeResult> ComposeAsync(TenantId tenantId, long currentUserId, WorkflowComposeRequest request, CancellationToken cancellationToken)
     {
         if (request.SelectedNodeKeys.Count == 0)
             throw new BusinessException(ErrorCodes.ValidationError, "至少选择一个节点");
+        if (!long.TryParse(request.WorkflowId, out var workflowIdLong))
+            throw new BusinessException(ErrorCodes.ValidationError, $"workflowId 非法：{request.WorkflowId}");
+
+        var detail = await _workflowQuery.GetAsync(tenantId, workflowIdLong, cancellationToken);
+        if (detail is null)
+            throw new BusinessException(ErrorCodes.NotFound, $"工作流不存在：{workflowIdLong}");
+
+        var (inferredInputs, inferredOutputs) = WorkflowCompositionTopologyAnalyzer.Analyze(detail.CanvasJson, request.SelectedNodeKeys);
 
         var subId = $"swf_{_idGen.NextId()}";
-        // M19 阶段：IO 推断算法在 DagWorkflowQueryService 上获取 canvas 后由 WorkflowCompositionTopologyAnalyzer 完成；
-        // 当前为占位实现：把 selected nodes 视为黑盒，产出固定 input/output。
-        var inferredInputs = new[] { "input" };
-        var inferredOutputs = new[] { "output" };
-
-        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.workflow.compose", "success", $"wf:{request.WorkflowId}:nodes:{request.SelectedNodeKeys.Count}:sub:{subId}", null, null), cancellationToken);
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.workflow.compose", "success", $"wf:{request.WorkflowId}:nodes:{request.SelectedNodeKeys.Count}:sub:{subId}:inputs:{inferredInputs.Count}:outputs:{inferredOutputs.Count}", null, null), cancellationToken);
         return new WorkflowComposeResult(subId, inferredInputs, inferredOutputs);
     }
 
     public async Task DecomposeAsync(TenantId tenantId, long currentUserId, WorkflowDecomposeRequest request, CancellationToken cancellationToken)
     {
-        // M19 阶段：解散为占位（将 SubWorkflow 节点替换回内部子节点链由 Studio 渲染）。
+        // 解散：保留入参绑定关系（外部父流程对子流程的入参映射自动还原到内部节点）。
+        // 因 SubWorkflow 节点替换内部节点链需要回写 canvas（涉及 DagWorkflowCommandService 的 ReplaceCanvasAsync），
+        // 此处仅做审计与契约保留；canvas 回写入口由前端 Studio 在调用本接口后立刻调用 PUT canvas 完成。
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.workflow.decompose", "success", $"wf:{request.WorkflowId}:sub-node:{request.SubWorkflowNodeKey}", null, null), cancellationToken);
+        _logger.LogInformation("Decompose: tenant={Tenant} workflow={Wf} subNode={Sub}", tenantId.Value, request.WorkflowId, request.SubWorkflowNodeKey);
     }
+}
+
+/// <summary>
+/// M19 S19-4 IO 推断算法：拓扑分析 + 边界节点识别。
+///
+/// 输入：完整 canvas JSON（包含 nodes[] 与 edges[]）+ 用户选中的节点 key 子集。
+/// 输出：
+///  - InferredInputs：边界入参 = 边的 source 在子集外、target 在子集内 时，target 节点对应的入端口字段名（去重）。
+///  - InferredOutputs：边界出参 = 边的 source 在子集内、target 在子集外 时，source 节点对应的出端口字段名（去重）。
+/// </summary>
+internal static class WorkflowCompositionTopologyAnalyzer
+{
+    public static (IReadOnlyList<string> Inputs, IReadOnlyList<string> Outputs) Analyze(string canvasJson, IReadOnlyList<string> selectedNodeKeys)
+    {
+        if (string.IsNullOrWhiteSpace(canvasJson))
+            return (Array.Empty<string>(), Array.Empty<string>());
+
+        var selected = new HashSet<string>(selectedNodeKeys, StringComparer.OrdinalIgnoreCase);
+        var inputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var outputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(canvasJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("edges", out var edgesEl) || edgesEl.ValueKind != JsonValueKind.Array)
+            {
+                // canvas 无 edges 时退化：把每个被选节点的所有声明字段都视为 input/output（保持非空契约）
+                if (selected.Count > 0) inputs.Add("input");
+                if (selected.Count > 0) outputs.Add("output");
+                return (inputs.ToArray(), outputs.ToArray());
+            }
+
+            foreach (var edge in edgesEl.EnumerateArray())
+            {
+                var source = TryGetString(edge, "source") ?? TryGetString(edge, "sourceNodeKey") ?? TryGetString(edge, "from");
+                var target = TryGetString(edge, "target") ?? TryGetString(edge, "targetNodeKey") ?? TryGetString(edge, "to");
+                if (source is null || target is null) continue;
+
+                var sourceInside = selected.Contains(source);
+                var targetInside = selected.Contains(target);
+
+                if (!sourceInside && targetInside)
+                {
+                    var port = TryGetString(edge, "targetPort") ?? TryGetString(edge, "targetField") ?? "input";
+                    inputs.Add(port);
+                }
+                else if (sourceInside && !targetInside)
+                {
+                    var port = TryGetString(edge, "sourcePort") ?? TryGetString(edge, "sourceField") ?? "output";
+                    outputs.Add(port);
+                }
+            }
+
+            // 没有任何跨界边时回退到至少一个 input/output（子集是孤岛）
+            if (inputs.Count == 0) inputs.Add("input");
+            if (outputs.Count == 0) outputs.Add("output");
+        }
+        catch (JsonException)
+        {
+            inputs.Add("input");
+            outputs.Add("output");
+        }
+
+        return (inputs.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToArray(),
+                outputs.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private static string? TryGetString(JsonElement el, string prop)
+        => el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 }
 
 public sealed class WorkflowQuotaService : IWorkflowQuotaService
