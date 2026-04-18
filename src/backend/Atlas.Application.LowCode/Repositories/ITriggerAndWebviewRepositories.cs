@@ -10,6 +10,8 @@ public interface ILowCodeTriggerRepository
     Task<LowCodeTrigger?> FindByTriggerIdAsync(TenantId tenantId, string triggerId, CancellationToken cancellationToken);
     Task<IReadOnlyList<LowCodeTrigger>> ListAsync(TenantId tenantId, CancellationToken cancellationToken);
     Task<bool> DeleteAsync(TenantId tenantId, string triggerId, CancellationToken cancellationToken);
+    /// <summary>跨租户列出所有触发器（仅供启动期 Hangfire reconcile 等系统级任务使用）。</summary>
+    Task<IReadOnlyList<LowCodeTrigger>> ListAllAsync(CancellationToken cancellationToken);
 }
 
 public interface ILowCodeWebviewDomainRepository

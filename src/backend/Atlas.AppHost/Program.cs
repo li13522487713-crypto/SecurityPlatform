@@ -220,6 +220,8 @@ builder.Services.AddSingleton<Atlas.AppHost.Hubs.ILowCodePreviewBroadcaster, Atl
 builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeAssetGcSchedulerHostedService>();
 // 低代码协同离线快照（M16 S16-2，每 10 分钟）
 builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeCollabSnapshotSchedulerHostedService>();
+// 低代码 cron 触发器启动期 reconcile（M12 → 真实 Hangfire 调度）
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeTriggerReconcileHostedService>();
 
 // ─── DI：AppHost-specific context accessors ───
 builder.Services.AddScoped<ITenantProvider, AppHostTenantProvider>();

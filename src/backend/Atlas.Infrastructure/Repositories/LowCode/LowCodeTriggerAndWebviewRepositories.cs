@@ -29,6 +29,8 @@ public sealed class LowCodeTriggerRepository : ILowCodeTriggerRepository
         var rows = await _db.Deleteable<LowCodeTrigger>().Where(x => x.TenantIdValue == tenantId.Value && x.TriggerId == triggerId).ExecuteCommandAsync(cancellationToken);
         return rows > 0;
     }
+    public async Task<IReadOnlyList<LowCodeTrigger>> ListAllAsync(CancellationToken cancellationToken)
+        => await _db.Queryable<LowCodeTrigger>().ClearFilter().ToListAsync(cancellationToken);
 }
 
 public sealed class LowCodeWebviewDomainRepository : ILowCodeWebviewDomainRepository

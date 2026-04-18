@@ -100,6 +100,9 @@ public static class LowCodeServiceRegistration
         // Webview 域名验证 HttpClient（M12 → M17）
         services.AddHttpClient("lowcode-webview-verify");
 
+        // Hangfire 桥接：cron 触发器实际执行类（由 RuntimeTriggerService AddOrUpdate 注册）
+        services.AddTransient<LowCodeTriggerCronJob>();
+
         // M19 工作流父级工程能力
         services.AddScoped<IWorkflowGenerationService, WorkflowGenerationService>();
         services.AddScoped<IWorkflowBatchService, WorkflowBatchService>();

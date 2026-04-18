@@ -9,6 +9,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
+using Hangfire;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services.LowCode;
@@ -21,6 +22,7 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
     private readonly IRuntimeWorkflowExecutor _workflowExecutor;
+    private readonly IRecurringJobManager _recurringJobs;
     private readonly ILogger<RuntimeTriggerService> _logger;
 
     public RuntimeTriggerService(
@@ -28,14 +30,18 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
         IIdGeneratorAccessor idGen,
         IAuditWriter auditWriter,
         IRuntimeWorkflowExecutor workflowExecutor,
+        IRecurringJobManager recurringJobs,
         ILogger<RuntimeTriggerService> logger)
     {
         _repo = repo;
         _idGen = idGen;
         _auditWriter = auditWriter;
         _workflowExecutor = workflowExecutor;
+        _recurringJobs = recurringJobs;
         _logger = logger;
     }
+
+    private static string CronJobId(TenantId tenantId, string triggerId) => $"lowcode-trigger:{tenantId.Value}:{triggerId}";
 
     public async Task<IReadOnlyList<TriggerInfoDto>> ListAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
@@ -67,6 +73,8 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
             entity.Update(request.Name, request.Kind, request.Cron, request.EventName, request.WorkflowId, request.ChatflowId, request.Enabled ?? true);
             await _repo.InsertAsync(entity, cancellationToken);
         }
+        // 同步到 Hangfire RecurringJob：cron 触发器才注册到调度器；event/webhook 不走 cron
+        SyncCronRegistration(tenantId, entity);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.trigger.upsert", "success", $"trg:{entity.TriggerId}:kind:{entity.Kind}", null, null), cancellationToken);
         return ToDto(entity);
     }
@@ -74,6 +82,8 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
     public async Task DeleteAsync(TenantId tenantId, long currentUserId, string triggerId, CancellationToken cancellationToken)
     {
         await _repo.DeleteAsync(tenantId, triggerId, cancellationToken);
+        try { _recurringJobs.RemoveIfExists(CronJobId(tenantId, triggerId)); }
+        catch (Exception ex) { _logger.LogWarning(ex, "RemoveIfExists failed: trigger={Trigger}", triggerId); }
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.trigger.delete", "success", $"trg:{triggerId}", null, null), cancellationToken);
     }
 
@@ -83,6 +93,8 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
             ?? throw new BusinessException(ErrorCodes.NotFound, $"触发器不存在：{triggerId}");
         t.SetEnabled(false);
         await _repo.UpdateAsync(t, cancellationToken);
+        try { _recurringJobs.RemoveIfExists(CronJobId(tenantId, triggerId)); }
+        catch (Exception ex) { _logger.LogWarning(ex, "RemoveIfExists on pause failed: trigger={Trigger}", triggerId); }
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.trigger.pause", "success", $"trg:{triggerId}", null, null), cancellationToken);
     }
 
@@ -92,7 +104,35 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
             ?? throw new BusinessException(ErrorCodes.NotFound, $"触发器不存在：{triggerId}");
         t.SetEnabled(true);
         await _repo.UpdateAsync(t, cancellationToken);
+        SyncCronRegistration(tenantId, t);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.trigger.resume", "success", $"trg:{triggerId}", null, null), cancellationToken);
+    }
+
+    /// <summary>
+    /// 把 Trigger 同步注册（或移除）到 Hangfire RecurringJob：
+    ///  - kind=cron 且 Enabled 且 Cron 非空 → AddOrUpdate
+    ///  - 其它 → RemoveIfExists（避免遗留 job 在调度器中残留）
+    /// 调度时通过 LowCodeTriggerCronJob 桥接到 IRuntimeTriggerService.FireAsync。
+    /// </summary>
+    private void SyncCronRegistration(TenantId tenantId, LowCodeTrigger t)
+    {
+        var jobId = CronJobId(tenantId, t.TriggerId);
+        var isCron = string.Equals(t.Kind, "cron", StringComparison.OrdinalIgnoreCase) && t.Enabled && !string.IsNullOrWhiteSpace(t.Cron);
+        try
+        {
+            if (isCron)
+            {
+                _recurringJobs.AddOrUpdate<LowCodeTriggerCronJob>(jobId, job => job.RunAsync(tenantId.Value, t.TriggerId), t.Cron!);
+            }
+            else
+            {
+                _recurringJobs.RemoveIfExists(jobId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SyncCronRegistration failed: trigger={Trigger} cron={Cron}", t.TriggerId, t.Cron);
+        }
     }
 
     public async Task FireAsync(TenantId tenantId, string triggerId, CancellationToken cancellationToken)
@@ -132,6 +172,26 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
 
     private static TriggerInfoDto ToDto(LowCodeTrigger t) => new(
         t.TriggerId, t.Name, t.Kind, t.Cron, t.EventName, t.WorkflowId, t.ChatflowId, t.Enabled, t.CreatedAt, t.UpdatedAt, t.LastFiredAt);
+}
+
+/// <summary>
+/// Hangfire 桥接：被 Recurring 调度时回调到 IRuntimeTriggerService.FireAsync。
+/// 必须为 public + 无参构造（DI 通过 Activator 实例化）。
+/// </summary>
+public sealed class LowCodeTriggerCronJob
+{
+    private readonly IRuntimeTriggerService _trigger;
+
+    public LowCodeTriggerCronJob(IRuntimeTriggerService trigger)
+    {
+        _trigger = trigger;
+    }
+
+    public Task RunAsync(Guid tenantIdValue, string triggerId)
+    {
+        var tenantId = new TenantId(tenantIdValue);
+        return _trigger.FireAsync(tenantId, triggerId, CancellationToken.None);
+    }
 }
 
 public sealed class RuntimeWebviewDomainService : IRuntimeWebviewDomainService
