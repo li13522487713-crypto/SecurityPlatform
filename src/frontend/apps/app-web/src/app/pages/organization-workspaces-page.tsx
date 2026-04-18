@@ -1,6 +1,8 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { Button, Card, Empty, Input, Modal, Skeleton, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import type {
+  WorkspaceAppInstanceCreateRequest,
+  WorkspaceAppInstanceDto,
   WorkspaceCreateRequest,
   WorkspaceSummaryDto,
   WorkspaceUpdateRequest
@@ -21,6 +23,11 @@ interface OrganizationWorkspacesPageProps {
   onCreateWorkspace: (request: WorkspaceCreateRequest) => Promise<void>;
   onUpdateWorkspace: (workspaceId: string, request: WorkspaceUpdateRequest) => Promise<void>;
   onDeleteWorkspace: (workspaceId: string) => Promise<void>;
+  /** 1→N 模型：在已有工作空间内创建一个新的应用实例（AppManifest）。 */
+  onCreateAppInstance?: (
+    workspaceId: string,
+    request: WorkspaceAppInstanceCreateRequest
+  ) => Promise<WorkspaceAppInstanceDto>;
 }
 
 export function OrganizationWorkspacesPage({
@@ -34,7 +41,8 @@ export function OrganizationWorkspacesPage({
   onOpenWorkspace,
   onCreateWorkspace,
   onUpdateWorkspace,
-  onDeleteWorkspace
+  onDeleteWorkspace,
+  onCreateAppInstance
 }: OrganizationWorkspacesPageProps) {
   const { t } = useAppI18n();
   const deferredKeyword = useDeferredValue(keyword.trim().toLowerCase());
@@ -44,10 +52,23 @@ export function OrganizationWorkspacesPage({
   const [createName, setCreateName] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createIcon, setCreateIcon] = useState("");
-  const [createAppInstanceId, setCreateAppInstanceId] = useState("");
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editIcon, setEditIcon] = useState("");
+
+  // 1→N 模型：「在工作空间内创建应用实例」的对话框状态
+  const [appInstanceTarget, setAppInstanceTarget] = useState<WorkspaceSummaryDto | null>(null);
+  const [appInstanceName, setAppInstanceName] = useState("");
+  const [appInstanceDescription, setAppInstanceDescription] = useState("");
+  const [appInstanceAppKey, setAppInstanceAppKey] = useState("");
+  const [appInstanceSaving, setAppInstanceSaving] = useState(false);
+  const resetAppInstanceDialog = () => {
+    setAppInstanceTarget(null);
+    setAppInstanceName("");
+    setAppInstanceDescription("");
+    setAppInstanceAppKey("");
+    setAppInstanceSaving(false);
+  };
 
   const filteredItems = useMemo(() => {
     if (!deferredKeyword) {
@@ -55,7 +76,7 @@ export function OrganizationWorkspacesPage({
     }
 
     return items.filter(item => {
-      const haystack = `${item.name} ${item.description ?? ""} ${item.appKey}`.toLowerCase();
+      const haystack = `${item.name} ${item.description ?? ""} ${item.appKey ?? ""}`.toLowerCase();
       return haystack.includes(deferredKeyword);
     });
   }, [deferredKeyword, items]);
@@ -64,7 +85,6 @@ export function OrganizationWorkspacesPage({
     setCreateName("");
     setCreateDescription("");
     setCreateIcon("");
-    setCreateAppInstanceId("");
   };
 
   const openEditDialog = (item: WorkspaceSummaryDto) => {
@@ -184,6 +204,21 @@ export function OrganizationWorkspacesPage({
                     </Text>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
+                    {canManage && onCreateAppInstance ? (
+                      <Button
+                        theme="light"
+                        onClick={() => {
+                          setAppInstanceTarget(item);
+                          setAppInstanceName("");
+                          setAppInstanceDescription("");
+                          setAppInstanceAppKey("");
+                        }}
+                        disabled={saving || deletingWorkspaceId === item.id}
+                        data-testid={`workspace-create-app-instance-${item.id}`}
+                      >
+                        创建应用实例
+                      </Button>
+                    ) : null}
                     {canManage ? (
                       <Button
                         theme="light"
@@ -231,8 +266,7 @@ export function OrganizationWorkspacesPage({
           void onCreateWorkspace({
             name: createName.trim(),
             description: createDescription.trim() || undefined,
-            icon: createIcon.trim() || undefined,
-            appInstanceId: createAppInstanceId.trim()
+            icon: createIcon.trim() || undefined
           })
             .then(() => {
               Toast.success(t("workspaceListCreatedSuccess"));
@@ -241,7 +275,7 @@ export function OrganizationWorkspacesPage({
             })
             .catch(() => undefined);
         }}
-        okButtonProps={{ disabled: !createName.trim() || !createAppInstanceId.trim(), loading: saving }}
+        okButtonProps={{ disabled: !createName.trim(), loading: saving }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Input value={createName} onChange={setCreateName} placeholder={t("workspaceListNamePlaceholder")} />
@@ -251,11 +285,6 @@ export function OrganizationWorkspacesPage({
             placeholder={t("workspaceListDescriptionPlaceholder")}
           />
           <Input value={createIcon} onChange={setCreateIcon} placeholder={t("workspaceListIconPlaceholder")} />
-          <Input
-            value={createAppInstanceId}
-            onChange={setCreateAppInstanceId}
-            placeholder={t("workspaceListAppInstancePlaceholder")}
-          />
         </div>
       </Modal>
 
@@ -325,6 +354,46 @@ export function OrganizationWorkspacesPage({
         <Text>
           {t("workspaceListArchiveConfirmContent").replace("{workspace}", archiveTarget?.name ?? "")}
         </Text>
+      </Modal>
+
+      {/* 1→N 模型：在工作空间内创建应用实例 */}
+      <Modal
+        title={`在「${appInstanceTarget?.name ?? ""}」中创建应用实例`}
+        visible={appInstanceTarget !== null}
+        onCancel={() => resetAppInstanceDialog()}
+        onOk={() => {
+          if (!appInstanceTarget || !onCreateAppInstance) {
+            return;
+          }
+          setAppInstanceSaving(true);
+          void onCreateAppInstance(appInstanceTarget.id, {
+            name: appInstanceName.trim(),
+            description: appInstanceDescription.trim() || undefined,
+            appKey: appInstanceAppKey.trim() || undefined
+          })
+            .then(result => {
+              Toast.success(`应用实例已创建：${result.appKey}`);
+              resetAppInstanceDialog();
+            })
+            .catch(() => {
+              setAppInstanceSaving(false);
+            });
+        }}
+        okButtonProps={{ disabled: !appInstanceName.trim(), loading: appInstanceSaving }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Input value={appInstanceName} onChange={setAppInstanceName} placeholder="应用实例名称（必填）" />
+          <Input
+            value={appInstanceDescription}
+            onChange={setAppInstanceDescription}
+            placeholder="应用实例描述（可选）"
+          />
+          <Input
+            value={appInstanceAppKey}
+            onChange={setAppInstanceAppKey}
+            placeholder="AppKey（留空则后端自动生成）"
+          />
+        </div>
       </Modal>
     </div>
   );

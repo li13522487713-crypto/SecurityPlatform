@@ -1962,17 +1962,10 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         CancellationToken cancellationToken)
     {
         var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
-        var existing = await _workspacePortalService.ListWorkspacesAsync(
-            tenantId,
-            currentUser.UserId,
-            currentUser.IsPlatformAdmin,
-            cancellationToken);
-        var appInstanceId = existing.FirstOrDefault()?.AppInstanceId;
-        if (string.IsNullOrWhiteSpace(appInstanceId))
-        {
-            return Ok(Fail("app_instance_id is required"));
-        }
 
+        // 1→N 模型：创建工作空间不再需要预先存在的应用实例。
+        // Coze 兼容层在工作空间创建后，可由调用方再单独通过
+        // POST /api/v1/organizations/{orgId}/workspaces/{id}/app-instances 创建应用实例。
         var normalizedName = string.IsNullOrWhiteSpace(request?.Name)
             ? "未命名工作空间"
             : request.Name.Trim();
@@ -1982,8 +1975,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             new WorkspaceCreateRequest(
                 normalizedName,
                 request?.Description?.Trim(),
-                null,
-                appInstanceId),
+                null),
             cancellationToken);
 
         return Ok(Success(new

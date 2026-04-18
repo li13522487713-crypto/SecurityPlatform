@@ -371,6 +371,7 @@ import {
 import {
   addWorkspaceMember,
   createWorkspace,
+  createWorkspaceAppInstance,
   deleteWorkspace,
   getWorkspaceByAppKey,
   getWorkspaceMembers,
@@ -2500,6 +2501,11 @@ function WorkspaceListRoute() {
             } finally {
               setDeletingWorkspaceId(null);
             }
+          }}
+          onCreateAppInstance={async (workspaceId, request) => {
+            const result = await createWorkspaceAppInstance(orgId, workspaceId, request);
+            await loadWorkspaces();
+            return result;
           }}
         />
       </OrganizationProvider>

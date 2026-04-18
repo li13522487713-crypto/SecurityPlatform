@@ -2035,6 +2035,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             cancellationToken.ThrowIfCancellationRequested();
             db.CodeFirst.InitTables<Workspace, WorkspaceRole, WorkspaceMember, WorkspaceResourcePermission>();
         }
+
+        // 1→N 模型：Workspace.AppInstanceId / AppKey 改为可空（历史一对一字段，仅作为「默认主应用」回填）
+        if (db.DbMaintenance.IsAnyTable("Workspace", false)
+            && RequiresNullableColumnFix<Workspace>(db, "AppInstanceId", "AppKey"))
+        {
+            await RebuildTableViaOrmAsync<Workspace>(db, cancellationToken);
+        }
     }
 
     private static async Task EnsureAiMemorySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -2305,6 +2312,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
                 var ownerUserId = activeUsers.FirstOrDefault(x => x.IsPlatformAdmin)?.Id
                     ?? activeUsers[0].Id;
+#pragma warning disable CS0618 // 历史一对一构造保留给本迁移路径专用
                 workspace = new Workspace(
                     tenantId,
                     string.IsNullOrWhiteSpace(primaryApp.Name) ? "默认工作空间" : $"{primaryApp.Name} 工作空间",
@@ -2314,6 +2322,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                     primaryApp.AppKey,
                     ownerUserId,
                     idGeneratorAccessor.NextId());
+#pragma warning restore CS0618
                 await db.Insertable(workspace).ExecuteCommandAsync(cancellationToken);
             }
 
@@ -2442,7 +2451,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AppManifest", false)) return;
-        if (!RequiresNullableColumnFix<AppManifest>(db, "DataSourceId", "PublishedBy", "PublishedAt")) return;
+        // 1→N 模型：WorkspaceId 是新加的可空列；先补列，再判断 nullable 修复。
+        await AddColumnIfMissingAsync(db, "AppManifest", "WorkspaceId", "INTEGER NULL", cancellationToken);
+        if (!RequiresNullableColumnFix<AppManifest>(db, "DataSourceId", "PublishedBy", "PublishedAt", "WorkspaceId")) return;
         await RebuildTableViaOrmAsync<AppManifest>(db, cancellationToken);
     }
 

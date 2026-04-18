@@ -28,11 +28,34 @@ public sealed class Workspace : TenantEntity
         Name = string.Empty;
         Description = string.Empty;
         Icon = string.Empty;
-        AppKey = string.Empty;
+        AppKey = null;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
 
+    public Workspace(
+        TenantId tenantId,
+        string name,
+        string? description,
+        string? icon,
+        long createdBy,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        Name = name.Trim();
+        Description = description?.Trim() ?? string.Empty;
+        Icon = icon?.Trim() ?? string.Empty;
+        AppInstanceId = null;
+        AppKey = null;
+        CreatedBy = createdBy;
+        CreatedAt = DateTime.UtcNow;
+        UpdatedBy = createdBy;
+        UpdatedAt = CreatedAt;
+        IsArchived = false;
+    }
+
+    [Obsolete("旧的一对一绑定构造已废弃；请使用无 AppInstance/AppKey 的构造，应用实例通过 AssignWorkspace 反向关联。仅保留给历史 Coze/迁移路径使用。")]
     public Workspace(
         TenantId tenantId,
         string name,
@@ -48,8 +71,8 @@ public sealed class Workspace : TenantEntity
         Name = name.Trim();
         Description = description?.Trim() ?? string.Empty;
         Icon = icon?.Trim() ?? string.Empty;
-        AppInstanceId = appInstanceId;
-        AppKey = appKey.Trim();
+        AppInstanceId = appInstanceId > 0 ? appInstanceId : null;
+        AppKey = string.IsNullOrWhiteSpace(appKey) ? null : appKey.Trim();
         CreatedBy = createdBy;
         CreatedAt = DateTime.UtcNow;
         UpdatedBy = createdBy;
@@ -62,8 +85,16 @@ public sealed class Workspace : TenantEntity
     public string? Description { get; private set; }
     [SugarColumn(IsNullable = true)]
     public string? Icon { get; private set; }
-    public long AppInstanceId { get; private set; }
-    public string AppKey { get; private set; }
+    /// <summary>
+    /// 历史「主应用实例」绑定字段。1→N 模型下保留给前端兼容（详情接口会回填默认 manifest）。
+    /// </summary>
+    [SugarColumn(IsNullable = true)]
+    public long? AppInstanceId { get; private set; }
+    /// <summary>
+    /// 历史「主应用 Key」绑定字段。1→N 模型下保留给前端兼容（详情接口会回填默认 manifest 的 AppKey）。
+    /// </summary>
+    [SugarColumn(IsNullable = true)]
+    public string? AppKey { get; private set; }
     public bool IsArchived { get; private set; }
     public long CreatedBy { get; private set; }
     public DateTime CreatedAt { get; private set; }
@@ -105,6 +136,23 @@ public sealed class Workspace : TenantEntity
     public void Archive(long updatedBy)
     {
         IsArchived = true;
+        UpdatedBy = updatedBy;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// 把某个应用实例（AppManifest）绑定为本工作空间的「默认/主应用」。
+    /// 仅用于回填历史 AppInstanceId/AppKey 字段以保持前端兼容；真正的 1→N 关系由 AppManifest.WorkspaceId 维护。
+    /// </summary>
+    public void BindDefaultAppInstance(long appInstanceId, string appKey, long updatedBy)
+    {
+        if (appInstanceId <= 0)
+        {
+            return;
+        }
+
+        AppInstanceId = appInstanceId;
+        AppKey = string.IsNullOrWhiteSpace(appKey) ? null : appKey.Trim();
         UpdatedBy = updatedBy;
         UpdatedAt = DateTime.UtcNow;
     }

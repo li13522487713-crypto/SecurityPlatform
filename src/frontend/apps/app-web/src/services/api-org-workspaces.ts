@@ -7,7 +7,9 @@ export interface WorkspaceSummaryDto {
   name: string;
   description?: string;
   icon?: string;
+  /** 1→N 模型：默认/主应用实例 ID。若工作空间尚未绑定任何应用实例，API 层会规范化为空字符串。 */
   appInstanceId: string;
+  /** 1→N 模型：默认/主应用 Key。若工作空间尚未绑定任何应用实例，API 层会规范化为空字符串。 */
   appKey: string;
   roleCode: string;
   appCount: number;
@@ -23,7 +25,9 @@ export interface WorkspaceDetailDto {
   name: string;
   description?: string;
   icon?: string;
+  /** 1→N 模型：默认/主应用实例 ID。若工作空间尚未绑定任何应用实例，API 层会规范化为空字符串。 */
   appInstanceId: string;
+  /** 1→N 模型：默认/主应用 Key。若工作空间尚未绑定任何应用实例，API 层会规范化为空字符串。 */
   appKey: string;
   roleCode: string;
   allowedActions: string[];
@@ -35,7 +39,6 @@ export interface WorkspaceCreateRequest {
   name: string;
   description?: string;
   icon?: string;
-  appInstanceId: string;
 }
 
 export interface WorkspaceUpdateRequest {
@@ -116,8 +119,53 @@ export interface WorkspaceResourcePermissionUpdateRequest {
   items: WorkspaceRolePermissionUpdateItem[];
 }
 
+/**
+ * 1→N 模型：在已有工作空间内创建一个 AppManifest（应用实例）。
+ * AppKey 留空时由后端自动生成。
+ */
+export interface WorkspaceAppInstanceCreateRequest {
+  name: string;
+  description?: string;
+  icon?: string;
+  category?: string;
+  appKey?: string;
+}
+
+export interface WorkspaceAppInstanceDto {
+  appInstanceId: string;
+  appKey: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  category?: string;
+  status: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 function base(orgId: string): string {
   return `/organizations/${encodeURIComponent(orgId)}/workspaces`;
+}
+
+/**
+ * 1→N 模型适配层：后端 Workspace.AppInstanceId/AppKey 现在是可空字段（未绑定主应用时为 null）。
+ * 老的前端代码大量使用 `workspace.appKey` 做字符串拼接和回退，因此在边界处统一规范化为空串。
+ */
+function normalizeWorkspaceSummary(item: WorkspaceSummaryDto): WorkspaceSummaryDto {
+  return {
+    ...item,
+    appInstanceId: item.appInstanceId ?? "",
+    appKey: item.appKey ?? ""
+  };
+}
+
+function normalizeWorkspaceDetail(item: WorkspaceDetailDto): WorkspaceDetailDto {
+  return {
+    ...item,
+    appInstanceId: item.appInstanceId ?? "",
+    appKey: item.appKey ?? ""
+  };
 }
 
 export async function getWorkspaces(orgId: string): Promise<WorkspaceSummaryDto[]> {
@@ -125,7 +173,7 @@ export async function getWorkspaces(orgId: string): Promise<WorkspaceSummaryDto[
   if (!response.data) {
     throw new Error(response.message || "获取工作空间列表失败");
   }
-  return response.data;
+  return response.data.map(normalizeWorkspaceSummary);
 }
 
 export async function getWorkspaceById(orgId: string, workspaceId: string): Promise<WorkspaceDetailDto> {
@@ -133,7 +181,7 @@ export async function getWorkspaceById(orgId: string, workspaceId: string): Prom
   if (!response.data) {
     throw new Error(response.message || "获取工作空间详情失败");
   }
-  return response.data;
+  return normalizeWorkspaceDetail(response.data);
 }
 
 export async function getWorkspaceByIdOrNull(orgId: string, workspaceId: string): Promise<WorkspaceDetailDto | null> {
@@ -144,14 +192,14 @@ export async function getWorkspaceByIdOrNull(orgId: string, workspaceId: string)
       suppressErrorMessage: true
     }
   );
-  return response.data ?? null;
+  return response.data ? normalizeWorkspaceDetail(response.data) : null;
 }
 
 export async function getWorkspaceByAppKey(orgId: string, appKey: string): Promise<WorkspaceDetailDto | null> {
   const response = await requestApi<ApiResponse<WorkspaceDetailDto>>(`${base(orgId)}/by-app-key/${encodeURIComponent(appKey)}`, undefined, {
     suppressErrorMessage: true
   });
-  return response.data ?? null;
+  return response.data ? normalizeWorkspaceDetail(response.data) : null;
 }
 
 export async function createWorkspace(orgId: string, request: WorkspaceCreateRequest): Promise<string> {
@@ -332,6 +380,28 @@ export async function getWorkspaceResourcePermissions(
   );
   if (!response.data) {
     throw new Error(response.message || "获取资源权限失败");
+  }
+  return response.data;
+}
+
+/**
+ * 1→N 模型：在工作空间内创建一个新的应用实例（AppManifest）。
+ * 后端会自动把 AppManifest.WorkspaceId 设为该 workspace；若 workspace 还没有默认主应用，会回填为本应用。
+ */
+export async function createWorkspaceAppInstance(
+  orgId: string,
+  workspaceId: string,
+  request: WorkspaceAppInstanceCreateRequest
+): Promise<WorkspaceAppInstanceDto> {
+  const response = await requestApi<ApiResponse<WorkspaceAppInstanceDto>>(
+    `${base(orgId)}/${encodeURIComponent(workspaceId)}/app-instances`,
+    {
+      method: "POST",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "创建应用实例失败");
   }
   return response.data;
 }
