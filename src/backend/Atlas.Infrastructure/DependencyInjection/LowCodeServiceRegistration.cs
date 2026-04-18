@@ -2,9 +2,11 @@ using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Mappings;
 using Atlas.Application.LowCode.Repositories;
 using Atlas.Application.LowCode.Validators;
+using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories.LowCode;
 using Atlas.Infrastructure.Services.LowCode;
 using FluentValidation;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.DependencyInjection;
@@ -15,8 +17,17 @@ namespace Atlas.Infrastructure.DependencyInjection;
 /// </summary>
 public static class LowCodeServiceRegistration
 {
-    public static IServiceCollection AddLowCodeInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddLowCodeInfrastructure(this IServiceCollection services, IConfiguration? configuration = null)
     {
+        // M19 配额选项：仅当宿主传入 IConfiguration 时绑定，否则使用默认值
+        if (configuration is not null)
+        {
+            services.Configure<LowCodeWorkflowQuotaOptions>(configuration.GetSection(LowCodeWorkflowQuotaOptions.SectionName));
+        }
+        else
+        {
+            services.AddOptions<LowCodeWorkflowQuotaOptions>();
+        }
         // Repositories
         services.AddScoped<IAppDefinitionRepository, AppDefinitionRepository>();
         services.AddScoped<IPageDefinitionRepository, PageDefinitionRepository>();
@@ -90,7 +101,7 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IWorkflowGenerationService, WorkflowGenerationService>();
         services.AddScoped<IWorkflowBatchService, WorkflowBatchService>();
         services.AddScoped<IWorkflowCompositionService, WorkflowCompositionService>();
-        services.AddSingleton<IWorkflowQuotaService, WorkflowQuotaService>();
+        services.AddScoped<IWorkflowQuotaService, WorkflowQuotaService>();
 
         // M07 S07-3：应用资源聚合
         services.AddScoped<IAppResourceCatalogService, AppResourceCatalogService>();

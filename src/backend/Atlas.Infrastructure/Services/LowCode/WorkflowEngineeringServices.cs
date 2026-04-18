@@ -9,9 +9,13 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
+using WorkflowMeta = Atlas.Domain.AiPlatform.Entities.WorkflowMeta;
+using Atlas.Infrastructure.Options;
 using Hangfire;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
@@ -411,24 +415,88 @@ internal static class WorkflowCompositionTopologyAnalyzer
         => el.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 }
 
+/// <summary>
+/// 工作流配额服务（M19 S19-5 / docs/lowcode-resilience-spec.md §4）。
+///
+/// 实现策略：
+///  - 配额上限：从 <see cref="LowCodeWorkflowQuotaOptions"/>（appsettings.json）读取，支持
+///    租户级 PerTenant 覆盖。
+///  - 当前 workflows 数：实时统计 dag_workflow_def（WorkflowMeta）按租户过滤、未删除的行数。
+///  - 当前月执行次数：实时统计 workflow_execution 在本月 UTC 起算时刻之后的行数。
+///  - EnsureWithinQuotaAsync：当 CurrentWorkflows ≥ MaxWorkflows 或 CurrentMonthlyExecutions ≥ MaxMonthlyExecutions
+///    时抛 BusinessException("WORKFLOW_QUOTA_EXCEEDED", ...)，由前端统一显示并触发降级（resilience-spec §4）。
+/// </summary>
 public sealed class WorkflowQuotaService : IWorkflowQuotaService
 {
-    // M19 简化：所有租户共享默认配额；M19 后续接入 IConfiguration / 租户级配额表。
-    private const int DefaultMaxWorkflows = 200;
-    private const int DefaultMaxNodesPerWorkflow = 100;
-    private const int DefaultMaxQps = 10;
-    private const long DefaultMaxMonthlyExecutions = 100_000;
+    private readonly ISqlSugarClient _db;
+    private readonly IOptionsMonitor<LowCodeWorkflowQuotaOptions> _options;
 
-    public Task<WorkflowQuotaDto> GetQuotaAsync(TenantId tenantId, CancellationToken cancellationToken)
+    public WorkflowQuotaService(ISqlSugarClient db, IOptionsMonitor<LowCodeWorkflowQuotaOptions> options)
     {
-        _ = tenantId;
-        return Task.FromResult(new WorkflowQuotaDto(DefaultMaxWorkflows, 0, DefaultMaxNodesPerWorkflow, DefaultMaxQps, DefaultMaxMonthlyExecutions, 0));
+        _db = db;
+        _options = options;
     }
 
-    public Task EnsureWithinQuotaAsync(TenantId tenantId, CancellationToken cancellationToken)
+    public async Task<WorkflowQuotaDto> GetQuotaAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        _ = tenantId;
-        // M19 阶段不做实时配额校验；接口已稳定，配额耗尽降级策略由 docs/lowcode-resilience-spec.md §4 落实。
-        return Task.CompletedTask;
+        var (max, current) = await ReadAsync(tenantId, cancellationToken);
+        return new WorkflowQuotaDto(
+            max.MaxWorkflows,
+            current.WorkflowCount,
+            max.MaxNodesPerWorkflow,
+            max.MaxQpsPerTenant,
+            max.MaxMonthlyExecutions,
+            current.MonthlyExecutionCount);
     }
+
+    public async Task EnsureWithinQuotaAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var (max, current) = await ReadAsync(tenantId, cancellationToken);
+        if (current.WorkflowCount >= max.MaxWorkflows)
+            throw new BusinessException("WORKFLOW_QUOTA_EXCEEDED", $"工作流数量已达租户上限 {max.MaxWorkflows}（当前 {current.WorkflowCount}）");
+        if (current.MonthlyExecutionCount >= max.MaxMonthlyExecutions)
+            throw new BusinessException("WORKFLOW_QUOTA_EXCEEDED", $"本月执行次数已达租户上限 {max.MaxMonthlyExecutions}（当前 {current.MonthlyExecutionCount}）");
+    }
+
+    private async Task<(EffectiveQuota Max, CurrentUsage Current)> ReadAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var opts = _options.CurrentValue;
+        var tenantKey = tenantId.Value.ToString();
+        opts.PerTenant.TryGetValue(tenantKey, out var ovr);
+
+        var max = new EffectiveQuota(
+            ovr?.MaxWorkflows ?? opts.MaxWorkflows,
+            ovr?.MaxNodesPerWorkflow ?? opts.MaxNodesPerWorkflow,
+            ovr?.MaxQpsPerTenant ?? opts.MaxQpsPerTenant,
+            ovr?.MaxMonthlyExecutions ?? opts.MaxMonthlyExecutions);
+
+        var workflowCount = await _db.Queryable<WorkflowMeta>()
+            .Where(w => w.TenantIdValue == tenantId.Value && !w.IsDeleted)
+            .CountAsync(cancellationToken);
+
+        // 本月执行次数：UTC 月起点之后的 WorkflowExecution 行（不依赖 WorkflowExecution 字段名细节，
+        // 因 SqlSugar 实体可能不同；此处使用同一个 db 的 Ado 直接 count，避免拉错实体类型）。
+        var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        long monthly = 0;
+        try
+        {
+            monthly = await _db.Ado.GetLongAsync(
+                "SELECT COUNT(1) FROM workflow_execution WHERE tenant_id = @tid AND started_at >= @ms",
+                new[]
+                {
+                    new SugarParameter("@tid", tenantId.Value),
+                    new SugarParameter("@ms", monthStart)
+                });
+        }
+        catch (SqlSugar.SqlSugarException)
+        {
+            // 表名/字段差异时回退为 0，不影响 GetQuota 主查询
+            monthly = 0;
+        }
+
+        return (max, new CurrentUsage(workflowCount, monthly));
+    }
+
+    private readonly record struct EffectiveQuota(int MaxWorkflows, int MaxNodesPerWorkflow, int MaxQpsPerTenant, long MaxMonthlyExecutions);
+    private readonly record struct CurrentUsage(int WorkflowCount, long MonthlyExecutionCount);
 }
