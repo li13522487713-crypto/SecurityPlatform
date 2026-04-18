@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Button, Card, Input, Space, Typography } from '@douyinfe/semi-ui';
 import { installToWindow, mount, type MountInstance } from '@atlas/lowcode-web-sdk';
+
+const { Title, Text } = Typography;
 
 /**
  * Atlas Lowcode SDK 嵌入示例（M17 C17-3 + P2-3 真实化）。
@@ -58,54 +61,95 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ fontFamily: 'system-ui', padding: 24, maxWidth: 960, margin: '0 auto' }}>
-      <h2>Atlas Lowcode SDK Playground</h2>
-      <p style={{ color: '#666' }}>三种嵌入方式同页演示（P2-3 真实可跑）。</p>
+    <div style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
+      <Card bodyStyle={{ padding: 24 }}>
+        <Title heading={3} style={{ margin: 0 }}>
+          Atlas Lowcode SDK Playground
+        </Title>
+        <Text type="tertiary" style={{ display: 'block', marginTop: 4 }}>
+          三种嵌入方式同页演示（P2-3 真实可跑）。
+        </Text>
 
-      <h3>1) npm import</h3>
-      <div ref={npmRef} />
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button onClick={() => { npmInstance?.update([{ scope: 'page', path: 'page.count', op: 'set', value: count + 1 }]); setCount(count + 1); }}>
-          update count = {count + 1}
-        </button>
-        <        button onClick={async () => {
-          try {
-            const r = await npmInstance?.dispatch({
-              eventName: 'demo.click',
-              actions: [{ kind: 'set_variable', payload: { targetPath: 'page.fromDispatch', scopeRoot: 'page', value: { sourceType: 'static', value: 'set via dispatch', valueType: 'string' } } }]
-            });
-            console.log('dispatch result', r);
-          } catch (e) {
-            console.error('dispatch failed', e);
-          }
-        }}>
-          调用 dispatch（M13 唯一桥梁）
-        </button>
-      </div>
+        <Title heading={5} style={{ marginTop: 24 }}>
+          1) npm import
+        </Title>
+        <div ref={npmRef} />
+        <Space style={{ marginTop: 8 }}>
+          <Button
+            type="primary"
+            theme="solid"
+            onClick={() => {
+              npmInstance?.update([
+                { scope: 'page', path: 'page.count', op: 'set', value: count + 1 }
+              ]);
+              setCount(count + 1);
+            }}
+          >
+            update count = {count + 1}
+          </Button>
+          <Button
+            type="tertiary"
+            theme="light"
+            onClick={async () => {
+              try {
+                const r = await npmInstance?.dispatch({
+                  eventName: 'demo.click',
+                  actions: [
+                    {
+                      kind: 'set_variable',
+                      payload: {
+                        targetPath: 'page.fromDispatch',
+                        scopeRoot: 'page',
+                        value: { sourceType: 'static', value: 'set via dispatch', valueType: 'string' }
+                      }
+                    }
+                  ]
+                });
+                console.log('dispatch result', r);
+              } catch (e) {
+                console.error('dispatch failed', e);
+              }
+            }}
+          >
+            调用 dispatch（M13 唯一桥梁）
+          </Button>
+        </Space>
 
-      <h3 style={{ marginTop: 24 }}>2) &lt;script&gt; 嵌入（real）</h3>
-      <p style={{ color: '#666', fontSize: 12 }}>
-        通过 <code>installToWindow()</code> 把 mount 注入 <code>window.AtlasLowcode</code>，与生产页面的 UMD <code>&lt;script src="…umd.js"&gt;</code> 等价：
-      </p>
-      <div ref={scriptRef} />
-      <div style={{ marginTop: 8 }}>
-        <button onClick={() => scriptInstance?.update([{ scope: 'app', path: 'app.lastClickAt', op: 'set', value: new Date().toISOString() }])}>
-          script 实例 update app.lastClickAt
-        </button>
-      </div>
+        <Title heading={5} style={{ marginTop: 24 }}>
+          2) &lt;script&gt; 嵌入（real）
+        </Title>
+        <Text type="tertiary" style={{ display: 'block', fontSize: 12 }}>
+          通过 <code>installToWindow()</code> 把 mount 注入 <code>window.AtlasLowcode</code>，与生产页面的 UMD{' '}
+          <code>&lt;script src="…umd.js"&gt;</code> 等价：
+        </Text>
+        <div ref={scriptRef} />
+        <div style={{ marginTop: 8 }}>
+          <Button
+            type="tertiary"
+            theme="light"
+            onClick={() =>
+              scriptInstance?.update([
+                { scope: 'app', path: 'app.lastClickAt', op: 'set', value: new Date().toISOString() }
+              ])
+            }
+          >
+            script 实例 update app.lastClickAt
+          </Button>
+        </div>
 
-      <h3 style={{ marginTop: 24 }}>3) iframe 嵌套（preview / hosted）</h3>
-      <div style={{ marginBottom: 8 }}>
-        <label>
-          iframe src：
-          <input
-            value={iframeSrc}
-            onChange={(e) => setIframeSrc(e.target.value)}
-            style={{ width: 400, padding: 4, marginLeft: 8 }}
-          />
+        <Title heading={5} style={{ marginTop: 24 }}>
+          3) iframe 嵌套（preview / hosted）
+        </Title>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+          <Text strong>iframe src</Text>
+          <Input value={iframeSrc} onChange={(value) => setIframeSrc(value)} style={{ maxWidth: 480 }} />
         </label>
-      </div>
-      <iframe title="hosted-demo" src={iframeSrc} style={{ width: '100%', height: 240, border: '1px solid #d9d9d9' }} />
+        <iframe
+          title="hosted-demo"
+          src={iframeSrc}
+          style={{ width: '100%', height: 240, border: '1px solid var(--semi-color-border, #d9d9d9)' }}
+        />
+      </Card>
     </div>
   );
 };

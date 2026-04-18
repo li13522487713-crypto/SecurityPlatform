@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space, Select } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space } from '@douyinfe/semi-ui';
 import { listShortcuts } from '@atlas/lowcode-editor-canvas';
 import { lowcodeApi, type AppVariable } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';

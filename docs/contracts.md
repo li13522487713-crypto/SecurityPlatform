@@ -2043,3 +2043,35 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 - 壳组件内部不得再嵌套 `atlas-*` className；
 - `app.css` 仅保留 `:root` 全局变量、`html/body/#app` reset、`body` 渐变背景、`.app-nav-glyph` 与 `.coze-*` 命名空间；新增 `atlas-*` 选择器视为破坏性变更；
 - 单测在 [`semi-*.spec.tsx`](src/frontend/apps/app-web/src/app/_shared/) 内 mock `@douyinfe/semi-ui` 后断言行为，避免在 jsdom 中触发 lottie-web 副作用 import。
+
+## monorepo Semi Design 全量覆盖与豁免名单（M0-M14）
+
+### 已 Semi 化范围（强制）
+
+- `src/frontend/apps/app-web/`：全部 `pages` / `components` / `layouts`（M0-M8 已完成）。
+- `src/frontend/apps/lowcode-studio-web/`：12/13 文件已 Semi（除 `main.tsx` 纯路由装配，见下文豁免）。
+- `src/frontend/apps/lowcode-sdk-playground/`：`src/main.tsx` 已 Semi 化（M10 完成）。
+- `src/frontend/apps/lowcode-mini-host/`：`src/main.tsx` 已 Semi 化（M11 完成）。
+- `src/frontend/apps/lowcode-preview-web/`：`preview-shell.tsx` + `main.tsx` 全部 Semi（M12 完成）。
+
+### Semi 豁免名单（11 项，每条带理由）
+
+| 文件 | 类型 | 豁免理由 |
+|---|---|---|
+| [`apps/app-web/src/main.tsx`](src/frontend/apps/app-web/src/main.tsx) | 装配入口 | 纯 `createRoot` 装配，无任何 UI 渲染 |
+| [`apps/app-web/src/app/workflow-runtime-boundary.tsx`](src/frontend/apps/app-web/src/app/workflow-runtime-boundary.tsx) | 运行时边界 | 引入 Semi 会触发 lottie-web 副作用 import，导致 `workflow-runtime-boundary.spec.tsx` 在 jsdom 阶段崩溃；用纯 inline style + Semi token 等价实现状态卡片（M6 决策） |
+| [`apps/lowcode-studio-web/src/main.tsx`](src/frontend/apps/lowcode-studio-web/src/main.tsx) | 装配入口 | 仅 `BrowserRouter` + `Routes` 装配，所有 `Route element=` 都是 `Navigate` 或子页面（已 Semi 化），自身无 UI |
+| [`packages/external-connectors-react/src/components/MessageCardPreview.tsx`](src/frontend/packages/external-connectors-react/src/components/MessageCardPreview.tsx) | 跨厂商预览 | 作者注释明确：跨飞书/钉钉/企微的卡片预览必须使用原生语义标签 + 内联样式以贴近真实渲染，不要迁 Semi |
+| [`packages/external-connectors-react/src/components/MessageCardPreview.test.tsx`](src/frontend/packages/external-connectors-react/src/components/MessageCardPreview.test.tsx) | 测试 | 测试文件，配套 MessageCardPreview |
+| [`packages/external-connectors-react/src/components/ConnectorTemplateMappingDesigner.test.tsx`](src/frontend/packages/external-connectors-react/src/components/ConnectorTemplateMappingDesigner.test.tsx) | 测试 | 测试文件 |
+| [`packages/external-connectors-react/src/components/IdentityBindingConflictCenter.test.tsx`](src/frontend/packages/external-connectors-react/src/components/IdentityBindingConflictCenter.test.tsx) | 测试 | 测试文件 |
+| [`packages/external-connectors-react/src/components/ConnectorOAuthConfigForm.test.tsx`](src/frontend/packages/external-connectors-react/src/components/ConnectorOAuthConfigForm.test.tsx) | 测试 | 测试文件 |
+| [`packages/module-studio-react/src/assistant/agent-workbench-layout.tsx`](src/frontend/packages/module-studio-react/src/assistant/agent-workbench-layout.tsx) | 纯布局 | 三列容器壳（3 个 div），无 UI 控件，样式由 `styles.css` 中 `module-studio__agent-workbench-*` 提供 |
+| [`packages/module-studio-react/src/shared/studio-context.tsx`](src/frontend/packages/module-studio-react/src/shared/studio-context.tsx) | 纯 Context | 仅 React `Context.Provider`，无 UI |
+| `packages/app-shell-shared/` 与 `packages/shared-react-core/` | 仅 `.ts` | 路径常量与工具函数，不含 `.tsx`，不适用 UI 库判定 |
+
+### 强制约束
+
+- 新增 `.tsx` 用户可见 UI 必须 import `@douyinfe/semi-ui`，禁止再以原生 `<button>` / `<input>` / `<select>` / `<textarea>` 构造可交互控件（已 Semi 化的 `<button className=coze-create-card>` 之类卡片型按钮属于历史保留，新增不允许）；
+- 上述豁免清单仅由架构师在做语义/工程决策时新增；新增豁免必须先在 PR 描述中说明工程理由，并同步更新本表；
+- 4 个 lowcode 子应用与 app-web 互不引用，可独立 `pnpm --filter atlas-lowcode-* run lint` 验证。

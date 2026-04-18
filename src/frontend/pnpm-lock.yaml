@@ -165,6 +165,12 @@ importers:
       '@atlas/lowcode-schema':
         specifier: workspace:*
         version: link:../../packages/lowcode-schema
+      '@douyinfe/semi-icons':
+        specifier: ^2.82.0
+        version: 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
         version: 18.2.0
@@ -257,6 +263,12 @@ importers:
       '@atlas/lowcode-web-sdk':
         specifier: workspace:*
         version: link:../../packages/lowcode-web-sdk
+      '@douyinfe/semi-icons':
+        specifier: ^2.82.0
+        version: 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
     devDependencies:
       '@rsbuild/core':
         specifier: ~1.1.0

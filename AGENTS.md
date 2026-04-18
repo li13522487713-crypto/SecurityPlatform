@@ -227,6 +227,7 @@ pnpm run format                 # 格式化所有项目
 
 - 涉及登录页或入口体验调整时，必须先检查 `src/frontend/apps/app-web` 的现有实现、i18n 文案、认证接口与相关计划文档，再决定改动范围。
 - **app-web 已全量 Semi Design 化（M0-M7 完成）**：`src/frontend/apps/app-web/src/app/{pages,components,layouts}` 内所有页面与组件已统一使用 Semi 组件 + `apps/app-web/src/app/_shared/` 公共壳，**禁止再引入 `atlas-button` / `atlas-input` / `atlas-pill` / `atlas-tab` / `atlas-form-field` / `atlas-result-card` / `atlas-setup-panel` / `atlas-setup-card` / `atlas-loading-page` / `atlas-status-card` 等自绘 className**；新增 UI 必须走 `_shared/` 公共壳（PageShell / FormCard / SectionCard / StateBadge / StepsBar / ResultCard / InfoBanner）或直接用 Semi UI 组件。`app.css` 仅保留 `:root` 全局变量、`html/body/#app` reset、`body` 渐变背景、`.app-nav-glyph` 与 `.coze-*` 命名空间布局规则；新增 atlas-* 选择器视为破坏性变更，PR 不予合并。
+- **lowcode 子应用 Semi 化（M9-M14 完成）**：`apps/lowcode-sdk-playground` / `apps/lowcode-mini-host` / `apps/lowcode-preview-web` / `apps/lowcode-studio-web` 全部 `.tsx`（除纯路由装配 `main.tsx` 与已豁免文件外）已 Semi 化；新增 lowcode 子应用必须在 `package.json` `dependencies` 加 `@douyinfe/semi-ui ^2.82.0` + `@douyinfe/semi-icons ^2.82.0`，并以 Semi 组件实现可交互 UI。完整豁免名单见 [docs/contracts.md](docs/contracts.md) "monorepo Semi Design 全量覆盖与豁免名单"章节。
 
 ## Cursor Cloud specific instructions
 
