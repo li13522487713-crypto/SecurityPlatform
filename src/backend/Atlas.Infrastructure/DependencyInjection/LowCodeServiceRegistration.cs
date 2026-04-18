@@ -78,6 +78,12 @@ public static class LowCodeServiceRegistration
         // M17 发布服务
         services.AddScoped<IAppPublishService, AppPublishService>();
 
+        // M18 提示词模板 + 插件全域
+        services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
+        services.AddScoped<ILowCodePluginRepository, LowCodePluginRepository>();
+        services.AddScoped<IPromptTemplateService, PromptTemplateService>();
+        services.AddScoped<ILowCodePluginService, LowCodePluginService>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {
