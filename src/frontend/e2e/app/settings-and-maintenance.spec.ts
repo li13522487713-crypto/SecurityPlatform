@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures/single-session";
 import {
-  ensureAppSetup,
-  navigateBySidebar
+  appBaseUrl,
+  ensureAppSetup
 } from "./helpers";
 
 test.describe.serial("App Settings And Maintenance", () => {
@@ -13,10 +13,11 @@ test.describe.serial("App Settings And Maintenance", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await navigateBySidebar(page, "settings", {
-      pageTestId: "app-settings-page",
-      urlPattern: new RegExp(`/apps/${encodeURIComponent(appKey)}/admin/settings(?:\\?.*)?$`)
-    });
+    // 当前 sidebar "settings" 指向工作空间设置（成员/发布渠道）；
+    // 应用管理-数据库设置仍在 legacy 路径 /apps/<appKey>/admin/settings
+    // 这里直接 goto 该 legacy 路径，由 legacy-route-mapping 统一处理。
+    await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/admin/settings`);
+    await expect(page.getByTestId("app-settings-page")).toBeVisible({ timeout: 30_000 });
   });
 
   test("database tab should test connection and trigger backup", async ({ page }) => {
