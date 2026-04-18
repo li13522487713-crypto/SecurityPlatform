@@ -34,6 +34,16 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
     onError: (e: Error) => Toast.error(e.message)
   });
 
+  const deletePageMut = useMutation({
+    mutationFn: (pageId: string) => lowcodeApi.pages.delete(appId, pageId),
+    onSuccess: () => {
+      Toast.success('页面已删除');
+      qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
+      qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
+
   const createVarMut = useMutation({
     mutationFn: (vals: { code: string; displayName: string; scope: string; valueType: string; defaultValueJson?: string; description?: string }) =>
       lowcodeApi.variables.create(appId, {
@@ -185,7 +195,26 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
                 <List.Item
                   style={{ cursor: 'pointer', background: active ? '#e6f4ff' : undefined }}
                   onClick={() => setCurrentPageCode(p.code)}
-                  extra={<Tag size="small">{p.layout}</Tag>}
+                  extra={
+                    <Space>
+                      <Tag size="small">{p.layout}</Tag>
+                      <Button
+                        size="small"
+                        type="danger"
+                        loading={deletePageMut.isPending}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          Modal.confirm({
+                            title: t('lowcode_studio.pages.delete'),
+                            content: `将永久删除页面 ${p.displayName}（${p.code}）。此操作不可撤销。`,
+                            okText: t('lowcode_studio.pages.delete'),
+                            cancelText: '取消',
+                            onOk: () => deletePageMut.mutate(p.id)
+                          });
+                        }}
+                      >删除</Button>
+                    </Space>
+                  }
                 >
                   <Typography.Text strong={active}>{p.displayName}</Typography.Text>
                   <Typography.Text type="tertiary" style={{ marginLeft: 8, fontSize: 12 }}>{p.path}</Typography.Text>
