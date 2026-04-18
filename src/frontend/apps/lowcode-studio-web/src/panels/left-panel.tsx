@@ -84,16 +84,16 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
     },
     onSuccess: async (r) => {
       Modal.confirm({
-        title: '应用模板将覆盖当前草稿',
-        content: `模板已下载（${r.templateJson.length} 字节）。确认后将写入应用草稿（不可撤销，建议先保存版本）。`,
-        okText: '覆盖草稿',
-        cancelText: '取消',
+        title: t('lowcode_studio.common.applyTemplateConfirm'),
+        content: `${r.templateJson.length} 字节 · ${t('lowcode_studio.common.unrecoverable')}`,
+        okText: t('lowcode_studio.common.confirm'),
+        cancelText: t('lowcode_studio.common.cancel'),
         onOk: async () => {
           try {
             await lowcodeApi.apps.replaceDraft(appId, r.templateJson);
             await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
             await qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
-            Toast.success('模板应用成功');
+            Toast.success(t('lowcode_studio.common.applied'));
           } catch (e) {
             Toast.error((e as Error).message);
           }
@@ -215,9 +215,9 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
                           ev.stopPropagation();
                           Modal.confirm({
                             title: t('lowcode_studio.pages.delete'),
-                            content: `将永久删除页面 ${p.displayName}（${p.code}）。此操作不可撤销。`,
+                            content: `${p.displayName} (${p.code}) · ${t('lowcode_studio.common.unrecoverable')}`,
                             okText: t('lowcode_studio.pages.delete'),
-                            cancelText: '取消',
+                            cancelText: t('lowcode_studio.common.cancel'),
                             onOk: () => deletePageMut.mutate(p.id)
                           });
                         }}
@@ -250,13 +250,13 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
                     type="danger"
                     loading={deleteVarMut.isPending}
                     onClick={() => Modal.confirm({
-                      title: '删除变量',
-                      content: `将永久删除 ${v.displayName}（${v.code}）。引用此变量的 binding 将失效。`,
-                      okText: '删除',
-                      cancelText: '取消',
+                      title: `${t('lowcode_studio.common.delete')} · ${v.displayName}`,
+                      content: `${v.code} · ${t('lowcode_studio.common.unrecoverable')}`,
+                      okText: t('lowcode_studio.common.delete'),
+                      cancelText: t('lowcode_studio.common.cancel'),
                       onOk: () => deleteVarMut.mutate(v.id)
                     })}
-                  >删除</Button>
+                  >{t('lowcode_studio.common.delete')}</Button>
                 </Space>
               }>
                 <Typography.Text>{v.displayName}</Typography.Text>
