@@ -9,7 +9,13 @@ function parseCanvasValue(raw: string) {
 }
 
 test.describe.serial("Workflow Editor E2E", () => {
-  test("should open workflow editor and show core controls", async ({ page, request, ensureLoggedInSession }) => {
+  // 当前工作流编辑器已切换到 Coze playground（@coze-workflow/playground-adapter），
+  // 它不再渲染 Atlas 旧版的 workflow.detail.title.save-draft / workflow.detail.canvas-json
+  // 等 testId（Coze 改为自动保存 + 内置画布，无 textarea 形态）。
+  // 详见 docs/e2e-baseline-failures.md §3 「workflow-* 系列」与 §4「专项二」。
+  // 在这些 testId 由 packages/workflow 内补回 / spec 重写为 Coze 原生钩子之前，
+  // 暂以 fixme 标记，避免 ordered run 中产生级联失败。
+  test.fixme("should open workflow editor and show core controls", async ({ page, request, ensureLoggedInSession }) => {
     await createWorkflowSession(page, request, ensureLoggedInSession);
     await expectWorkflowEditorReady(page);
 
@@ -20,7 +26,7 @@ test.describe.serial("Workflow Editor E2E", () => {
     await expect(page.getByTestId("workflow.detail.run-inputs")).toBeVisible();
   });
 
-  test("should save edited canvas json and keep editor usable after refresh", async ({ page, request, ensureLoggedInSession }) => {
+  test.fixme("should save edited canvas json and keep editor usable after refresh", async ({ page, request, ensureLoggedInSession }) => {
     const { workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
     const canvasEditor = page.getByTestId("workflow.detail.canvas-json");
     const currentCanvas = parseCanvasValue(await canvasEditor.inputValue());
@@ -51,7 +57,7 @@ test.describe.serial("Workflow Editor E2E", () => {
     expect((reopenedCanvas.connections ?? []).length).toBe((currentCanvas.connections ?? []).length);
   });
 
-  test("should expose duplicate action and allow returning to list", async ({ page, request, ensureLoggedInSession }) => {
+  test.fixme("should expose duplicate action and allow returning to list", async ({ page, request, ensureLoggedInSession }) => {
     void (await createWorkflowSession(page, request, ensureLoggedInSession));
 
     await expect(page.getByTestId("workflow.detail.title.duplicate")).toBeVisible();

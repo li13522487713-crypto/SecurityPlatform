@@ -1,9 +1,1 @@
-{
-  "status": "Ready",
-  "completedAt": "2026-04-18T00:32:02.521771+00:00",
-  "failedAt": null,
-  "failureMessage": null,
-  "appName": "App E2E Regression",
-  "adminUsername": "admin",
-  "appKey": "app-default"
-}
+{}

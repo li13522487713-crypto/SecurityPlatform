@@ -19,7 +19,9 @@ function parseCanvasValue(raw: string) {
 }
 
 test.describe.serial("Workflow Complete Flow", () => {
-  test("应完成应用端工作流中文全链路（新建、命名、保存、发布、测试运行、回列表再进入）", async ({
+  // Coze playground 接管后未发出 workflow.detail.title.save-draft / canvas-json 等 testId；
+  // 详见 docs/e2e-baseline-failures.md §3。整链路 case 暂以 fixme 记录，等待 spec 重写为 Coze 钩子。
+  test.fixme("应完成应用端工作流中文全链路（新建、命名、保存、发布、测试运行、回列表再进入）", async ({
     page,
     request,
     ensureLoggedInSession

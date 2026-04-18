@@ -23,6 +23,10 @@ const defaultPlaywrightConfig = process.env.PLAYWRIGHT_E2E_CONFIG?.trim() || "pl
 const playwrightArgs = hasExplicitConfigArg
   ? ["test", ...rawPlaywrightArgs]
   : ["test", "-c", defaultPlaywrightConfig, ...rawPlaywrightArgs];
+// 当 ordered 全量配置（e2e-all）启用时，setup 系列 spec 会作为前置 case 自行执行平台/应用初始化；
+// 此时跳过本脚本内的 ensurePlatform/AppSetupState 自动初始化，避免 wizard URL 不可达。
+const orderedConfigInUse = playwrightArgs.some((arg) => typeof arg === "string" && arg.includes("playwright.e2e-all.config.ts"))
+  || (defaultPlaywrightConfig.includes("playwright.e2e-all.config.ts") && !hasExplicitConfigArg);
 const appWebPort = 5181;
 const appWebScript = "dev:app-web";
 const platformApiBase = "http://127.0.0.1:5001";
@@ -364,13 +368,21 @@ async function cleanupOnce() {
 async function startServices() {
   spawnService(platformHostService);
   await waitForUrl(platformHostService.url, 180_000, platformHostService.name);
-  await ensurePlatformSetupState();
-  await restartService(platformHostService);
+  if (orderedConfigInUse) {
+    log("ordered 全量配置启用，跳过 ensurePlatformSetupState（由 setup spec 自身完成）");
+  } else {
+    await ensurePlatformSetupState();
+    await restartService(platformHostService);
+  }
 
   spawnService(appHostService);
   await waitForUrl(appHostService.url, 180_000, appHostService.name);
-  await ensureAppSetupState();
-  await restartService(appHostService);
+  if (orderedConfigInUse) {
+    log("ordered 全量配置启用，跳过 ensureAppSetupState（由 setup spec 自身完成）");
+  } else {
+    await ensureAppSetupState();
+    await restartService(appHostService);
+  }
 
   spawnService(appWebService);
   await waitForUrl(appWebService.url, 180_000, appWebService.name);

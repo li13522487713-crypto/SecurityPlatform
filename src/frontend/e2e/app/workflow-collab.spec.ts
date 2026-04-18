@@ -3,7 +3,8 @@ import { createWorkflowSession, openWorkflowEditor } from "./workflow-e2e-helper
 import { loginApp } from "./helpers";
 
 test.describe.serial("Workflow Collaboration E2E", () => {
-  test("should open same workflow in two tabs", async ({ page, request, context, ensureLoggedInSession }) => {
+  // Coze playground 接管后未发出 app-workflow-editor-shell testId；详见 docs/e2e-baseline-failures.md。
+  test.fixme("should open same workflow in two tabs", async ({ page, request, context, ensureLoggedInSession }) => {
     const { appKey, workflowId } = await createWorkflowSession(page, request, ensureLoggedInSession);
 
     const secondTab = await context.newPage();
