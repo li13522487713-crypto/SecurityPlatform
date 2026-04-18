@@ -2,8 +2,11 @@
 import * as React from "react";
 import { Component, Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Spin } from "@douyinfe/semi-ui";
+import { Button, Card, Typography } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
+import { PageShell } from "./_shared";
+
+const { Title, Text } = Typography;
 import type { CozeNavSection } from "@atlas/coze-shell-react";
 import type { LibraryKnowledgeApi } from "@atlas/library-module-react";
 import {
@@ -534,11 +537,7 @@ function navGlyph(label: string) {
 }
 
 function LoadingPage() {
-  return (
-    <div className="atlas-loading-page">
-      <Spin size="large" />
-    </div>
-  );
+  return <PageShell loading />;
 }
 
 function useResolvedOrgId(): string {
@@ -2186,14 +2185,22 @@ function WorkspaceWorkflowWorkbenchRoute({
   if (!selectedWorkflowId) {
     if (shouldCreate) {
       return (
-        <div className="atlas-centered-page" data-testid={`workspace-${mode}-create`}>
-          <div className="atlas-status-card atlas-status-card--workflow">
-            <div className="atlas-status-card__body">
-              <h1>{creationError ? (mode === "chatflow" ? t("studioCreateChatflowFailed") : t("studioCreateWorkflowFailed")) : (mode === "chatflow" ? t("studioCreateChatflowPending") : t("studioCreateWorkflowPending"))}</h1>
-              <p>{creationError || t("workflowRuntimePreparing")}</p>
-            </div>
-          </div>
-        </div>
+        <PageShell centered maxWidth={520} testId={`workspace-${mode}-create`}>
+          <Card bodyStyle={{ padding: 32 }}>
+            <Title heading={3} style={{ margin: 0 }}>
+              {creationError
+                ? mode === "chatflow"
+                  ? t("studioCreateChatflowFailed")
+                  : t("studioCreateWorkflowFailed")
+                : mode === "chatflow"
+                  ? t("studioCreateChatflowPending")
+                  : t("studioCreateWorkflowPending")}
+            </Title>
+            <Text type="tertiary" style={{ display: "block", marginTop: 8 }}>
+              {creationError || t("workflowRuntimePreparing")}
+            </Text>
+          </Card>
+        </PageShell>
       );
     }
 
@@ -3161,17 +3168,19 @@ function FatalErrorPage() {
   };
 
   return (
-    <div className="atlas-setup-page">
-      <div className="atlas-setup-card">
-        <h1>{t("fatalErrorTitle")}</h1>
-        <p>{t("fatalErrorDescription")}</p>
-        <div className="atlas-setup-actions">
-          <button type="button" className="atlas-button atlas-button--primary" onClick={handleReload}>
+    <PageShell centered maxWidth={520}>
+      <Card bodyStyle={{ padding: 32 }}>
+        <Title heading={3}>{t("fatalErrorTitle")}</Title>
+        <Text type="tertiary" style={{ display: "block", marginTop: 8, marginBottom: 16 }}>
+          {t("fatalErrorDescription")}
+        </Text>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button type="primary" theme="solid" onClick={handleReload}>
             {t("fatalErrorReload")}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }
 

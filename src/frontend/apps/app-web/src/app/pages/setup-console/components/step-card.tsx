@@ -1,7 +1,16 @@
+import { Button, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../../i18n";
 import type { AppMessageKey } from "../../../messages";
 import type { SetupStepRecordDto } from "../../../../services/api-setup-console";
 import type { SetupConsoleStep } from "../../../setup-console-state-machine";
+import {
+  InfoBanner,
+  SectionCard,
+  StateBadge,
+  type StateBadgeVariant
+} from "../../../_shared";
+
+const { Text } = Typography;
 
 interface StepCardProps {
   step: SetupConsoleStep;
@@ -24,11 +33,11 @@ const STEP_STATE_LABEL_KEY: Record<SetupStepRecordDto["state"], AppMessageKey> =
   skipped: "setupConsoleStepStateSkipped"
 };
 
-const STEP_STATE_VARIANT: Record<SetupStepRecordDto["state"], string> = {
-  running: "is-info",
-  succeeded: "is-success",
-  failed: "is-error",
-  skipped: ""
+const STEP_STATE_VARIANT: Record<SetupStepRecordDto["state"], StateBadgeVariant> = {
+  running: "info",
+  succeeded: "success",
+  failed: "danger",
+  skipped: "neutral"
 };
 
 export function StepCard({
@@ -45,69 +54,96 @@ export function StepCard({
   children
 }: StepCardProps) {
   const { t } = useAppI18n();
-  const stateLabel = record ? t(STEP_STATE_LABEL_KEY[record.state]) : "";
-  const stateVariant = record ? STEP_STATE_VARIANT[record.state] : "";
   const failed = record?.state === "failed";
   const succeeded = record?.state === "succeeded";
 
+  const stepNumber = (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 24,
+        height: 24,
+        borderRadius: "50%",
+        background: isCurrent ? "var(--semi-color-primary)" : "var(--semi-color-fill-2)",
+        color: isCurrent ? "#fff" : "var(--semi-color-text-2)",
+        fontSize: 12,
+        fontWeight: 600,
+        marginRight: 8
+      }}
+      aria-hidden="true"
+    >
+      {index + 1}
+    </span>
+  );
+
   return (
-    <section
-      className={`atlas-setup-panel ${isCurrent ? "is-current" : ""} ${isLocked ? "is-locked" : ""}`.trim()}
+    <div
       data-testid={`setup-console-step-${step}`}
       aria-current={isCurrent ? "step" : undefined}
+      style={{ opacity: isLocked ? 0.6 : 1 }}
     >
-      <div className="atlas-org-section__header">
-        <div>
-          <div className="atlas-section-title">
-            <span className="atlas-step-index" aria-hidden="true">
-              {index + 1}
-            </span>
-            <span style={{ marginLeft: 8 }}>{t(titleKey)}</span>
-          </div>
-          {hintKey ? <div className="atlas-field-hint">{t(hintKey)}</div> : null}
-        </div>
-        {record ? (
-          <span
-            className={`atlas-pill ${stateVariant}`.trim()}
-            data-testid={`setup-console-step-${step}-badge`}
-          >
-            {stateLabel}
+      <SectionCard
+        title={
+          <span style={{ display: "inline-flex", alignItems: "center" }}>
+            {stepNumber}
+            <span>{t(titleKey)}</span>
           </span>
+        }
+        subtitle={hintKey ? t(hintKey) : undefined}
+        actions={
+          record ? (
+            <StateBadge
+              variant={STEP_STATE_VARIANT[record.state]}
+              testId={`setup-console-step-${step}-badge`}
+            >
+              {t(STEP_STATE_LABEL_KEY[record.state])}
+            </StateBadge>
+          ) : null
+        }
+      >
+        {failed && record?.errorMessage ? (
+          <div style={{ marginBottom: 12 }}>
+            <InfoBanner
+              variant="danger"
+              compact
+              title={t("setupConsoleStepStateFailed")}
+              description={record.errorMessage}
+              testId={`setup-console-step-${step}-error`}
+            />
+          </div>
         ) : null}
-      </div>
 
-      {failed && record?.errorMessage ? (
+        {children}
+
         <div
-          className="atlas-warning-banner atlas-warning-banner--compact"
-          data-testid={`setup-console-step-${step}-error`}
+          style={{
+            marginTop: 16,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            alignItems: "center"
+          }}
         >
-          <strong>{t("setupConsoleStepStateFailed")}</strong>
-          <p>{record.errorMessage}</p>
-        </div>
-      ) : null}
-
-      {children}
-
-      <div className="atlas-setup-actions">
-        <span />
-        <div style={{ display: "flex", gap: 8 }}>
           {failed ? (
-            <button
-              type="button"
-              className="atlas-button atlas-button--secondary"
+            <Button
+              type="tertiary"
+              theme="light"
               data-testid={`setup-console-step-${step}-retry`}
               disabled={busy}
               onClick={onRetry}
             >
               {t("setupConsoleSystemRetry")}
-            </button>
+            </Button>
           ) : null}
           {onRun ? (
-            <button
-              type="button"
-              className="atlas-button atlas-button--primary"
+            <Button
+              type="primary"
+              theme="solid"
               data-testid={`setup-console-step-${step}-run`}
               disabled={busy || isLocked || succeeded}
+              loading={busy && isCurrent}
               onClick={onRun}
             >
               {succeeded
@@ -115,10 +151,14 @@ export function StepCard({
                 : busy && isCurrent
                   ? t("setupConsoleStepStateRunning")
                   : t("setupConsoleSystemResume")}
-            </button>
-          ) : null}
+            </Button>
+          ) : (
+            <Text type="tertiary" style={{ fontSize: 12 }}>
+              {isLocked ? "" : ""}
+            </Text>
+          )}
         </div>
-      </div>
-    </section>
+      </SectionCard>
+    </div>
   );
 }

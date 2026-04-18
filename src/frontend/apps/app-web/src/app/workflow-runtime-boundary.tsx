@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ReactNode } from "react";
+﻿import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { I18nProvider } from "../../../../packages/arch/i18n/src/i18n-provider";
 import { I18n, initI18nInstance } from "../../../../packages/arch/i18n/src/raw";
 import { setAtlasFoundationHost } from "@atlas/foundation-bridge";
@@ -9,6 +9,62 @@ import { useBootstrap } from "./bootstrap-context";
 import { useAppStartup } from "./startup-kernel";
 import { useOptionalWorkspaceContext } from "./workspace-context";
 import { useOptionalOrganizationContext } from "./organization-context";
+
+/**
+ * 注意：本文件刻意不引入 `@douyinfe/semi-ui` 组件。
+ * - 工作流运行边界处于 React 渲染早期阶段，且作为 cozelib i18n 的容器，
+ *   引入 Semi 会触发 lottie-web 的副作用 import，使 jsdom 单测崩溃。
+ * - 这里的状态卡片只承担"加载中 / 失败"等极简文案展示，使用纯 inline style + 共享 token 即可。
+ */
+const STATUS_PAGE_STYLE: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "100vh",
+  padding: 32,
+  width: "100%"
+};
+
+const STATUS_CARD_STYLE: CSSProperties = {
+  width: "min(520px, 100%)",
+  padding: "32px 28px",
+  borderRadius: 12,
+  background: "var(--semi-color-bg-2, #ffffff)",
+  border: "1px solid var(--semi-color-border, rgba(15,23,42,0.08))",
+  boxShadow: "0 8px 24px rgba(15,23,42,0.06)"
+};
+
+const STATUS_TITLE_STYLE: CSSProperties = {
+  margin: 0,
+  fontSize: 18,
+  fontWeight: 600,
+  color: "var(--semi-color-text-0, #0f172a)"
+};
+
+const STATUS_DESC_STYLE: CSSProperties = {
+  margin: "8px 0 0",
+  color: "var(--semi-color-text-2, #64748b)"
+};
+
+const STATUS_ACTION_BTN: CSSProperties = {
+  marginTop: 16,
+  padding: "8px 16px",
+  borderRadius: 8,
+  border: "none",
+  background: "var(--semi-color-primary, #1677ff)",
+  color: "#fff",
+  cursor: "pointer",
+  fontSize: 14
+};
+
+const LOADING_PAGE_STYLE: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "100vh",
+  padding: 32,
+  color: "var(--semi-color-text-2, #64748b)"
+};
 
 function WorkflowRuntimeStatusCard({
   title,
@@ -22,20 +78,26 @@ function WorkflowRuntimeStatusCard({
   onAction?: () => void | Promise<void>;
 }) {
   return (
-    <div className="atlas-centered-page">
-      <div className="atlas-status-card atlas-status-card--workflow">
-        <div className="atlas-status-card__body">
-          <h1>{title}</h1>
-          <p>{description}</p>
-          {actionLabel && onAction ? (
-            <div className="atlas-setup-actions">
-              <button type="button" className="atlas-button atlas-button--primary" onClick={() => void onAction()}>
-                {actionLabel}
-              </button>
-            </div>
-          ) : null}
-        </div>
+    <div style={STATUS_PAGE_STYLE}>
+      <div style={STATUS_CARD_STYLE}>
+        <h1 style={STATUS_TITLE_STYLE}>{title}</h1>
+        <p style={STATUS_DESC_STYLE}>{description}</p>
+        {actionLabel && onAction ? (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button type="button" style={STATUS_ACTION_BTN} onClick={() => void onAction()}>
+              {actionLabel}
+            </button>
+          </div>
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+function WorkflowRuntimeLoadingPage({ tip, testId }: { tip: ReactNode; testId: string }) {
+  return (
+    <div style={LOADING_PAGE_STYLE} data-testid={testId}>
+      {tip}
     </div>
   );
 }
@@ -78,71 +140,62 @@ export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
     const workspaceId = workspace?.id ?? bootstrap.spaceId;
     const workspaceName = workspace?.name ?? "Atlas Workspace";
     setAtlasFoundationHost({
-      loginStatus: auth?.isAuthenticated ? "logined" : auth?.loading ? "settling" : "not_login",
-      theme: "light",
-      user: profile
+      organization: organization
         ? {
-            userIdStr: profile.id,
-            name: profile.displayName || profile.username,
-            screenName: profile.username,
-            email: undefined,
-            avatarUrl: undefined,
-            locale,
-            tenantId: profile.tenantId,
+            orgId: organization.orgId,
+            orgName: organization.orgName ?? null,
+            orgType: organization.orgType ?? null
           }
         : null,
-      spaces: workspaceId
-        ? [
-            {
-              id: workspaceId,
-              name: workspaceName,
-              description: workspace?.description,
-              iconUrl: workspace?.icon,
-              spaceType: 2,
-              spaceMode: 0,
-              roleType: workspace?.roleCode === "Owner" ? 1 : workspace?.roleCode === "Admin" ? 2 : 3,
-            },
-          ]
-        : [],
-      activeSpaceId: workspaceId,
+      user: profile
+        ? {
+            id: profile.id,
+            username: profile.username,
+            displayName: profile.displayName ?? profile.username,
+            email: profile.email ?? null,
+            avatarUrl: profile.avatarUrl ?? null
+          }
+        : null,
+      workspace: workspaceId
+        ? {
+            id: workspaceId,
+            name: workspaceName,
+            ownerUserId: profile?.id ?? null,
+            iconUrl: workspace?.iconUrl ?? null,
+            createTime: workspace?.createTime ?? null,
+            roleType: workspace?.roleType ?? null
+          }
+        : null,
+      session: profile
+        ? {
+            isAuthenticated: Boolean(auth?.isAuthenticated),
+            tokenExpiresAt: auth?.tokenExpiresAt ?? null
+          }
+        : null,
+      theme: { mode: "light" }
     });
-  }, [
-    auth?.isAuthenticated,
-    auth?.loading,
-    auth?.profile,
-    bootstrap.spaceId,
-    locale,
-    workspace?.id,
-    workspace?.name,
-    workspace?.description,
-    workspace?.icon,
-    workspace?.roleCode
-  ]);
+  }, [auth, bootstrap.spaceId, organization, workspace]);
 
   useEffect(() => {
-    let cancelled = false;
-    setCozeReady(false);
-
-    try {
-      window.localStorage.setItem("i18next", cozeLocale);
-    } catch {
-      // 忽略本地存储异常，避免阻断编辑器加载。
+    if (cozeReady) {
+      I18n.setLang(cozeLocale);
+      return;
     }
 
-    Promise.race([
-      initI18nInstance({ lng: cozeLocale }),
-      new Promise(resolve => setTimeout(resolve, 500))
-    ]).then(() => {
-      I18n.setLang(cozeLocale);
-      if (!cancelled) {
-        setCozeReady(true);
-      }
-    }).catch(() => {
-      I18n.setLang(cozeLocale);
-      if (!cancelled) {
-        setCozeReady(true);
-      }
-    });
+    let cancelled = false;
+    initI18nInstance({ language: cozeLocale })
+      .then(() => {
+        I18n.setLang(cozeLocale);
+        if (!cancelled) {
+          setCozeReady(true);
+        }
+      })
+      .catch(() => {
+        I18n.setLang(cozeLocale);
+        if (!cancelled) {
+          setCozeReady(true);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -151,9 +204,10 @@ export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
 
   if (bootstrap.loading || !startup.bootstrapReady || workspace?.loading) {
     return (
-      <div className="atlas-loading-page" data-testid="workflow-runtime-loading">
-        {t("workflowRuntimeLoading")}
-      </div>
+      <WorkflowRuntimeLoadingPage
+        tip={t("workflowRuntimeLoading")}
+        testId="workflow-runtime-loading"
+      />
     );
   }
 
@@ -177,9 +231,10 @@ export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
 
   if (startup.featureFlagsLoading || !startup.featureFlagsReady) {
     return (
-      <div className="atlas-loading-page" data-testid="workflow-runtime-preparing">
-        {t("workflowRuntimePreparing")}
-      </div>
+      <WorkflowRuntimeLoadingPage
+        tip={t("workflowRuntimePreparing")}
+        testId="workflow-runtime-preparing"
+      />
     );
   }
 
@@ -205,9 +260,10 @@ export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
 
   if (!cozeReady) {
     return (
-      <div className="atlas-loading-page" data-testid="workflow-runtime-i18n-loading">
-        {t("workflowRuntimePreparing")}
-      </div>
+      <WorkflowRuntimeLoadingPage
+        tip={t("workflowRuntimePreparing")}
+        testId="workflow-runtime-i18n-loading"
+      />
     );
   }
 

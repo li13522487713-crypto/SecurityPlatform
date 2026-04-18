@@ -1,6 +1,6 @@
 import { Suspense, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Button, Spin } from "@douyinfe/semi-ui";
+import { Button } from "@douyinfe/semi-ui";
 import {
   agentPublishPath,
   appPublishPath,
@@ -13,6 +13,7 @@ import { useWorkspaceContext } from "../workspace-context";
 import { WorkflowRuntimeBoundary } from "../workflow-runtime-boundary";
 import { useAppApis } from "../app";
 import { TestsetDrawer } from "../components/testset-drawer";
+import { PageShell } from "../_shared";
 
 const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
@@ -25,11 +26,7 @@ const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
 
 function EditorLoading() {
-  return (
-    <div className="atlas-loading-page" data-testid="coze-editor-loading">
-      <Spin size="large" />
-    </div>
-  );
+  return <PageShell loading testId="coze-editor-loading" />;
 }
 
 /**

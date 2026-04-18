@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { Checkbox, Input, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../i18n";
 import { useBootstrap } from "../../bootstrap-context";
 import type { AppMessageKey } from "../../messages";
@@ -20,8 +21,11 @@ import {
   type SetupConsoleStep,
   type SystemSetupState
 } from "../../setup-console-state-machine";
+import { InfoBanner, ResultCard, SectionCard } from "../../_shared";
 import { StepCard } from "./components/step-card";
 import { RecoveryKeyDisplay } from "./components/recovery-key-display";
+
+const { Text, Title } = Typography;
 
 interface SystemInitTabProps {
   system: SystemSetupStateDto | null;
@@ -259,29 +263,32 @@ export function SystemInitTab({ system, onSnapshotChanged }: SystemInitTabProps)
 
   if (!system) {
     return (
-      <section className="atlas-setup-panel" data-testid="setup-console-system-init-loading">
-        <p className="atlas-field-hint">{t("loading")}</p>
-      </section>
+      <SectionCard testId="setup-console-system-init-loading">
+        <Text type="tertiary">{t("loading")}</Text>
+      </SectionCard>
     );
   }
 
   return (
     <div data-testid="setup-console-system-init">
       {isDone ? (
-        <section
-          className="atlas-result-card atlas-result-card--success"
-          data-testid="setup-console-system-init-done"
-        >
-          <div className="atlas-result-card__icon">+</div>
-          <h2 className="atlas-result-card__title">{t("setupConsoleStateCompleted")}</h2>
-          <p className="atlas-result-card__subtitle">{t("setupConsoleSystemAdminCreated")}</p>
-        </section>
+        <div data-testid="setup-console-system-init-done">
+          <ResultCard
+            status="success"
+            title={t("setupConsoleStateCompleted")}
+            description={t("setupConsoleSystemAdminCreated")}
+          />
+        </div>
       ) : null}
 
       {errorMessage ? (
-        <div className="atlas-warning-banner" data-testid="setup-console-system-init-error">
-          <strong>{t("setupConsoleStepStateFailed")}</strong>
-          <p>{errorMessage}</p>
+        <div style={{ marginBottom: 12 }}>
+          <InfoBanner
+            variant="danger"
+            title={t("setupConsoleStepStateFailed")}
+            description={errorMessage}
+            testId="setup-console-system-init-error"
+          />
         </div>
       ) : null}
 
@@ -374,6 +381,15 @@ interface BootstrapUserFormProps {
   onChangeField: <K extends keyof AdminFormState>(field: K, value: AdminFormState[K]) => void;
 }
 
+function FieldStack({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <Text strong>{label}</Text>
+      {children}
+    </label>
+  );
+}
+
 function BootstrapUserForm({ form, disabled, onChangeField }: BootstrapUserFormProps) {
   const { t } = useAppI18n();
   const togglesRoleCode = (code: string, checked: boolean) => {
@@ -387,70 +403,82 @@ function BootstrapUserForm({ form, disabled, onChangeField }: BootstrapUserFormP
   };
 
   return (
-    <div className="atlas-form-grid" data-testid="setup-console-bootstrap-user-form">
-      <label className="atlas-form-field atlas-form-field--full">
-        <span className="atlas-form-field__label">{t("setupConsoleSystemAdminTenantIdLabel")}</span>
-        <input
-          className="atlas-input"
+    <div
+      data-testid="setup-console-bootstrap-user-form"
+      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+    >
+      <FieldStack label={t("setupConsoleSystemAdminTenantIdLabel")}>
+        <Input
           data-testid="setup-console-bootstrap-user-tenant"
           disabled={disabled}
           value={form.tenantId}
-          onChange={(event) => onChangeField("tenantId", event.target.value)}
+          onChange={(value) => onChangeField("tenantId", value)}
         />
-      </label>
-      <label className="atlas-form-field atlas-form-field--full">
-        <span className="atlas-form-field__label">{t("setupConsoleSystemAdminUsernameLabel")}</span>
-        <input
-          className="atlas-input"
+      </FieldStack>
+      <FieldStack label={t("setupConsoleSystemAdminUsernameLabel")}>
+        <Input
           data-testid="setup-console-bootstrap-user-username"
           disabled={disabled}
           value={form.username}
-          onChange={(event) => onChangeField("username", event.target.value)}
+          onChange={(value) => onChangeField("username", value)}
         />
-      </label>
-      <label className="atlas-form-field atlas-form-field--full">
-        <span className="atlas-form-field__label">{t("setupConsoleSystemAdminPasswordLabel")}</span>
-        <input
-          className="atlas-input"
+      </FieldStack>
+      <FieldStack label={t("setupConsoleSystemAdminPasswordLabel")}>
+        <Input
+          mode="password"
           data-testid="setup-console-bootstrap-user-password"
           disabled={disabled}
-          type="password"
           value={form.password}
-          onChange={(event) => onChangeField("password", event.target.value)}
+          onChange={(value) => onChangeField("password", value)}
         />
-      </label>
-      <label
-        className="atlas-form-field"
-        style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-      >
-        <input
-          type="checkbox"
+      </FieldStack>
+
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <Checkbox
           data-testid="setup-console-bootstrap-user-generate-recovery"
           disabled={disabled}
           checked={form.generateRecoveryKey}
-          onChange={(event) => onChangeField("generateRecoveryKey", event.target.checked)}
+          onChange={(event) => onChangeField("generateRecoveryKey", Boolean(event.target.checked))}
         />
-        <span>{t("setupConsoleSystemAdminGenerateRecoveryLabel")}</span>
+        <Text>{t("setupConsoleSystemAdminGenerateRecoveryLabel")}</Text>
       </label>
 
-      <div className="atlas-optional-role-block">
-        <div className="atlas-section-title">{t("setupOptionalRolesTitle")}</div>
-        <div className="atlas-role-grid">
+      <div>
+        <Title heading={6} style={{ margin: "8px 0" }}>
+          {t("setupOptionalRolesTitle")}
+        </Title>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: 8
+          }}
+        >
           {OPTIONAL_ROLE_CODES.map((code) => {
             const checked = form.optionalRoleCodes.includes(code);
             return (
               <label
                 key={code}
-                className={`atlas-role-card ${checked ? "is-selected" : ""}`.trim()}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${
+                    checked ? "var(--semi-color-primary)" : "var(--semi-color-border)"
+                  }`,
+                  background: checked ? "var(--semi-color-primary-light-default)" : "transparent",
+                  cursor: disabled ? "not-allowed" : "pointer"
+                }}
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   data-testid={`setup-console-bootstrap-user-role-${code}`}
                   disabled={disabled}
                   checked={checked}
-                  onChange={(event: ChangeEvent<HTMLInputElement>) => togglesRoleCode(code, event.target.checked)}
+                  onChange={(event) => togglesRoleCode(code, Boolean(event.target.checked))}
                 />
-                <span>{code}</span>
+                <Text>{code}</Text>
               </label>
             );
           })}
@@ -469,46 +497,43 @@ interface DefaultWorkspaceFormProps {
 function DefaultWorkspaceForm({ form, disabled, onChangeField }: DefaultWorkspaceFormProps) {
   const { t } = useAppI18n();
   return (
-    <div className="atlas-form-grid" data-testid="setup-console-default-workspace-form">
-      <label className="atlas-form-field atlas-form-field--full">
-        <span className="atlas-form-field__label">{t("setupConsoleSystemDefaultWorkspaceNameLabel")}</span>
-        <input
-          className="atlas-input"
+    <div
+      data-testid="setup-console-default-workspace-form"
+      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+    >
+      <FieldStack label={t("setupConsoleSystemDefaultWorkspaceNameLabel")}>
+        <Input
           data-testid="setup-console-default-workspace-name"
           disabled={disabled}
           value={form.workspaceName}
-          onChange={(event) => onChangeField("workspaceName", event.target.value)}
+          onChange={(value) => onChangeField("workspaceName", value)}
         />
-      </label>
-      <label className="atlas-form-field atlas-form-field--full">
-        <span className="atlas-form-field__label">{t("setupConsoleSystemDefaultWorkspaceOwnerLabel")}</span>
-        <input
-          className="atlas-input"
+      </FieldStack>
+      <FieldStack label={t("setupConsoleSystemDefaultWorkspaceOwnerLabel")}>
+        <Input
           data-testid="setup-console-default-workspace-owner"
           disabled={disabled}
           value={form.ownerUsername}
-          onChange={(event) => onChangeField("ownerUsername", event.target.value)}
+          onChange={(value) => onChangeField("ownerUsername", value)}
         />
-      </label>
-      <label className="atlas-form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <input
-          type="checkbox"
+      </FieldStack>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <Checkbox
           data-testid="setup-console-default-workspace-channels"
           disabled={disabled}
           checked={form.applyDefaultPublishChannels}
-          onChange={(event) => onChangeField("applyDefaultPublishChannels", event.target.checked)}
+          onChange={(event) => onChangeField("applyDefaultPublishChannels", Boolean(event.target.checked))}
         />
-        <span>{t("setupConsoleSystemDefaultWorkspaceApplyChannelsLabel")}</span>
+        <Text>{t("setupConsoleSystemDefaultWorkspaceApplyChannelsLabel")}</Text>
       </label>
-      <label className="atlas-form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <input
-          type="checkbox"
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <Checkbox
           data-testid="setup-console-default-workspace-models"
           disabled={disabled}
           checked={form.applyDefaultModelStub}
-          onChange={(event) => onChangeField("applyDefaultModelStub", event.target.checked)}
+          onChange={(event) => onChangeField("applyDefaultModelStub", Boolean(event.target.checked))}
         />
-        <span>{t("setupConsoleSystemDefaultWorkspaceApplyModelStubLabel")}</span>
+        <Text>{t("setupConsoleSystemDefaultWorkspaceApplyModelStubLabel")}</Text>
       </label>
     </div>
   );

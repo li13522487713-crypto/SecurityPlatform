@@ -1,5 +1,19 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import {
+  Button,
+  Checkbox,
+  Descriptions,
+  Input,
+  InputNumber,
+  Radio,
+  RadioGroup,
+  Select,
+  Space,
+  Tag,
+  TextArea,
+  Typography
+} from "@douyinfe/semi-ui";
 import { appSignPath } from "../app-paths";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
@@ -13,6 +27,17 @@ import {
   type AppSetupPositionConfig,
   type DriverDefinition
 } from "../../services/api-setup";
+import {
+  FormCard,
+  InfoBanner,
+  PageShell,
+  ResultCard,
+  SectionCard,
+  StateBadge,
+  StepsBar
+} from "../_shared";
+
+const { Title, Text } = Typography;
 
 type SetupStep = 0 | 1 | 2 | 3 | 4;
 
@@ -48,58 +73,13 @@ function LocaleSwitchButton() {
   const { locale, setLocale, t } = useAppI18n();
 
   return (
-    <button
-      type="button"
-      className="atlas-locale-switch"
+    <Button
+      theme="borderless"
+      type="tertiary"
       onClick={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
     >
       {locale === "zh-CN" ? t("switchToEnglish") : t("switchToChinese")}
-    </button>
-  );
-}
-
-function SetupSteps({ currentStep }: { currentStep: SetupStep }) {
-  const { t } = useAppI18n();
-  const steps = [
-    t("setupStepDatabase"),
-    t("setupStepAdmin"),
-    t("setupStepRoles"),
-    t("setupStepOrganization"),
-    t("setupStepComplete")
-  ];
-
-  return (
-    <ol className="atlas-setup-steps">
-      {steps.map((step, index) => {
-        const status =
-          currentStep === index ? "is-current" : currentStep > index ? "is-completed" : "";
-        return (
-          <li key={step} className={`atlas-setup-step ${status}`.trim()}>
-            <span className="atlas-setup-step__dot">{index + 1}</span>
-            <span className="atlas-setup-step__title">{step}</span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function SetupReportRow({
-  label,
-  value,
-  testId
-}: {
-  label: string;
-  value: string | number;
-  testId?: string;
-}) {
-  return (
-    <div className="atlas-setup-report__row">
-      <span className="atlas-setup-report__label">{label}</span>
-      <span className="atlas-setup-report__value" data-testid={testId}>
-        {value}
-      </span>
-    </div>
+    </Button>
   );
 }
 
@@ -153,39 +133,41 @@ export function PlatformNotReadyPage() {
   }
 
   return (
-    <div className="atlas-not-ready-page">
-      <div className="atlas-not-ready-result">
-        <div className="atlas-not-ready-result__icon">!</div>
-        <h1 className="atlas-not-ready-result__title">{t("platformNotReadyTitle")}</h1>
-        <p className="atlas-not-ready-result__subtitle">{t("platformNotReadyDesc")}</p>
-        <div className="atlas-not-ready-result__actions">
-          <button
-            type="button"
-            className="atlas-button atlas-button--primary"
-            onClick={() => {
-              window.location.href = "/app-setup";
-            }}
-          >
-            {t("platformNotReadyGoToAppSetup")}
-          </button>
-          <button
-            type="button"
-            className="atlas-button atlas-button--secondary"
-            disabled={checking}
-            onClick={async () => {
-              setChecking(true);
-              try {
-                await refresh();
-              } finally {
-                setChecking(false);
-              }
-            }}
-          >
-            {checking ? t("setupTesting") : t("platformNotReadyRetry")}
-          </button>
-        </div>
-      </div>
-    </div>
+    <PageShell centered maxWidth={520}>
+      <ResultCard
+        status="warning"
+        title={t("platformNotReadyTitle")}
+        description={t("platformNotReadyDesc")}
+        actions={
+          <>
+            <Button
+              type="primary"
+              theme="solid"
+              onClick={() => {
+                window.location.href = "/app-setup";
+              }}
+            >
+              {t("platformNotReadyGoToAppSetup")}
+            </Button>
+            <Button
+              type="tertiary"
+              theme="light"
+              loading={checking}
+              onClick={async () => {
+                setChecking(true);
+                try {
+                  await refresh();
+                } finally {
+                  setChecking(false);
+                }
+              }}
+            >
+              {checking ? t("setupTesting") : t("platformNotReadyRetry")}
+            </Button>
+          </>
+        }
+      />
+    </PageShell>
   );
 }
 
@@ -298,8 +280,8 @@ export function AppSetupPage() {
     }));
   };
 
-  const onDriverChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    const nextDriverCode = event.target.value;
+  const onDriverChange = (value: string | number | unknown[] | Record<string, unknown> | undefined) => {
+    const nextDriverCode = String(value ?? "");
     const driver = drivers.find((item) => item.code === nextDriverCode);
     const visualConfig: Record<string, string> = {};
     if (driver?.supportsVisual) {
@@ -410,322 +392,322 @@ export function AppSetupPage() {
     navigate(appSignPath(resolvedAppKey), { replace: true });
   };
 
+  const stepsConfig = [
+    { title: t("setupStepDatabase") },
+    { title: t("setupStepAdmin") },
+    { title: t("setupStepRoles") },
+    { title: t("setupStepOrganization") },
+    { title: t("setupStepComplete") }
+  ];
+
   return (
-    <div className="atlas-setup-page" data-testid="app-setup-page">
-      <div className="atlas-setup-page__locale">
+    <PageShell centered maxWidth={960} testId="app-setup-page">
+      <div style={{ position: "absolute", top: 24, right: 24 }}>
         <LocaleSwitchButton />
       </div>
-      <div className="atlas-setup-card">
-        <h1 className="atlas-setup-card__title">{t("appSetupTitle")}</h1>
-        <p className="atlas-setup-card__subtitle">{t("appSetupSubtitle")}</p>
-
+      <FormCard title={t("appSetupTitle")} subtitle={t("appSetupSubtitle")}>
         {!loading && !platformReady ? (
-          <div className="atlas-warning-banner atlas-warning-banner--compact">
-            <strong>{t("platformNotReadyTitle")}</strong>
-            <p>{t("platformNotReadyDesc")}</p>
+          <div style={{ marginBottom: 16 }}>
+            <InfoBanner
+              variant="warning"
+              compact
+              title={t("platformNotReadyTitle")}
+              description={t("platformNotReadyDesc")}
+            />
           </div>
         ) : null}
 
-        <SetupSteps currentStep={currentStep} />
+        <StepsBar steps={stepsConfig} current={currentStep} />
 
         {currentStep === 0 ? (
-          <section className="atlas-setup-panel atlas-setup-panel--database">
-            <div className="atlas-form-grid">
-              <label className="atlas-form-field">
-                <span className="atlas-form-field__label">{t("setupDatabaseDriver")}</span>
-                <select
-                  className="atlas-input"
+          <SectionCard>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <FieldLabel label={t("setupDatabaseDriver")}>
+                <Select
                   data-testid="app-setup-driver"
                   value={dbForm.driverCode}
                   onChange={onDriverChange}
-                >
-                  {drivers.map((driver) => (
-                    <option key={driver.code} value={driver.code}>
-                      {driver.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  style={{ width: "100%" }}
+                  optionList={drivers.map((driver) => ({
+                    label: driver.displayName,
+                    value: driver.code
+                  }))}
+                />
+              </FieldLabel>
 
-              <fieldset className="atlas-radio-group" data-testid="app-setup-mode">
-                <legend className="atlas-form-field__label">{t("setupConnectionMode")}</legend>
-                <label className={`atlas-radio-card ${dbForm.mode === "raw" ? "is-selected" : ""}`.trim()}>
-                  <input
-                    checked={dbForm.mode === "raw"}
-                    name="setup-mode"
-                    type="radio"
-                    value="raw"
-                    onChange={() => setDbForm((previous) => ({ ...previous, mode: "raw" }))}
-                  />
-                  <span>{t("setupModeRaw")}</span>
-                </label>
-                {selectedDriver?.supportsVisual ? (
-                  <label className={`atlas-radio-card ${dbForm.mode === "visual" ? "is-selected" : ""}`.trim()}>
-                    <input
-                      checked={dbForm.mode === "visual"}
-                      name="setup-mode"
-                      type="radio"
-                      value="visual"
-                      onChange={() => setDbForm((previous) => ({ ...previous, mode: "visual" }))}
-                    />
-                    <span>{t("setupModeVisual")}</span>
-                  </label>
-                ) : null}
-              </fieldset>
+              <FieldLabel label={t("setupConnectionMode")}>
+                <RadioGroup
+                  data-testid="app-setup-mode"
+                  type="button"
+                  value={dbForm.mode}
+                  onChange={(event) => {
+                    const nextMode = String(event.target.value) === "visual" ? "visual" : "raw";
+                    setDbForm((previous) => ({ ...previous, mode: nextMode }));
+                  }}
+                >
+                  <Radio value="raw">{t("setupModeRaw")}</Radio>
+                  {selectedDriver?.supportsVisual ? (
+                    <Radio value="visual">{t("setupModeVisual")}</Radio>
+                  ) : null}
+                </RadioGroup>
+              </FieldLabel>
 
               {dbForm.mode === "raw" ? (
-                <label className="atlas-form-field atlas-form-field--full">
-                  <span className="atlas-form-field__label">{t("setupConnectionString")}</span>
-                  <input
-                    className="atlas-input"
+                <FieldLabel label={t("setupConnectionString")}>
+                  <Input
                     data-testid="app-setup-connection-string"
                     placeholder={selectedDriver?.connectionStringExample || ""}
                     value={dbForm.connectionString}
-                    onChange={(event) =>
-                      setDbForm((previous) => ({
-                        ...previous,
-                        connectionString: event.target.value
-                      }))
+                    onChange={(value) =>
+                      setDbForm((previous) => ({ ...previous, connectionString: value }))
                     }
                   />
-                </label>
+                </FieldLabel>
               ) : null}
 
               {dbForm.mode === "visual" && selectedDriver ? (
-                <div className="atlas-visual-fields atlas-form-field--full">
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {selectedDriver.fields.map((field) => (
-                    <label key={field.code} className="atlas-form-field">
-                      <span className="atlas-form-field__label">
-                        {field.label}
-                        {field.required ? <em className="atlas-required">*</em> : null}
-                      </span>
+                    <FieldLabel
+                      key={field.code}
+                      label={
+                        <span>
+                          {field.label}
+                          {field.required ? (
+                            <Text type="danger" style={{ marginLeft: 4 }}>
+                              *
+                            </Text>
+                          ) : null}
+                        </span>
+                      }
+                    >
                       {field.secret ? (
-                        <input
-                          className="atlas-input"
+                        <Input
+                          mode="password"
                           data-testid={`app-setup-visual-${field.code}`}
                           placeholder={field.placeholder ?? ""}
-                          type="password"
                           value={dbForm.visualConfig[field.code] ?? ""}
-                          onChange={(event) => setVisualField(field.code, event.target.value)}
+                          onChange={(value) => setVisualField(field.code, value)}
                         />
                       ) : field.multiline ? (
-                        <textarea
-                          className="atlas-input atlas-input--textarea"
+                        <TextArea
                           data-testid={`app-setup-visual-${field.code}`}
                           placeholder={field.placeholder ?? ""}
                           rows={3}
                           value={dbForm.visualConfig[field.code] ?? ""}
-                          onChange={(event) => setVisualField(field.code, event.target.value)}
+                          onChange={(value) => setVisualField(field.code, value)}
                         />
                       ) : (
-                        <input
-                          className="atlas-input"
+                        <Input
                           data-testid={`app-setup-visual-${field.code}`}
                           placeholder={field.placeholder ?? field.defaultValue ?? ""}
                           value={dbForm.visualConfig[field.code] ?? ""}
-                          onChange={(event) => setVisualField(field.code, event.target.value)}
+                          onChange={(value) => setVisualField(field.code, value)}
                         />
                       )}
-                    </label>
+                    </FieldLabel>
                   ))}
                 </div>
               ) : null}
-            </div>
 
-            <div className="atlas-setup-toolbar">
-              <button
-                type="button"
-                className="atlas-button atlas-button--secondary"
-                data-testid="app-setup-test-connection"
-                disabled={testingConnection}
-                onClick={() => void handleTestConnection()}
-              >
-                {testingConnection ? t("setupTesting") : t("setupTestConnection")}
-              </button>
-              {connectionTestResult !== null ? (
-                <span
-                  className={`atlas-pill ${connectionTestResult ? "is-success" : "is-error"}`.trim()}
-                  data-testid="app-setup-test-result"
+              <Space align="center">
+                <Button
+                  type="tertiary"
+                  theme="light"
+                  data-testid="app-setup-test-connection"
+                  loading={testingConnection}
+                  onClick={() => void handleTestConnection()}
                 >
-                  {connectionTestResult ? t("setupTestSuccess") : connectionTestMessage}
-                </span>
-              ) : null}
-            </div>
+                  {testingConnection ? t("setupTesting") : t("setupTestConnection")}
+                </Button>
+                {connectionTestResult !== null ? (
+                  <StateBadge
+                    variant={connectionTestResult ? "success" : "danger"}
+                    testId="app-setup-test-result"
+                  >
+                    {connectionTestResult ? t("setupTestSuccess") : connectionTestMessage}
+                  </StateBadge>
+                ) : null}
+              </Space>
 
-            <div className="atlas-setup-actions">
-              <span />
-              <button
-                type="button"
-                className="atlas-button atlas-button--primary"
-                data-testid="app-setup-next-step"
-                disabled={!connectionTestResult}
-                onClick={() => setCurrentStep(1)}
-              >
-                {t("setupNext")}
-              </button>
+              <StepActions>
+                <span />
+                <Button
+                  type="primary"
+                  theme="solid"
+                  data-testid="app-setup-next-step"
+                  disabled={!connectionTestResult}
+                  onClick={() => setCurrentStep(1)}
+                >
+                  {t("setupNext")}
+                </Button>
+              </StepActions>
             </div>
-          </section>
+          </SectionCard>
         ) : null}
 
         {currentStep === 1 ? (
-          <section className="atlas-setup-panel">
-            <div className="atlas-form-grid">
-              <label className="atlas-form-field atlas-form-field--full">
-                <span className="atlas-form-field__label">{t("setupAppName")}</span>
-                <input
-                  className="atlas-input"
+          <SectionCard>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <FieldLabel label={t("setupAppName")}>
+                <Input
                   data-testid="app-setup-name"
                   placeholder={t("setupAppNamePlaceholder")}
                   value={adminForm.appName}
-                  onChange={(event) =>
-                    setAdminForm((previous) => ({
-                      ...previous,
-                      appName: event.target.value
-                    }))
-                  }
+                  onChange={(value) => setAdminForm((previous) => ({ ...previous, appName: value }))}
                 />
-              </label>
+              </FieldLabel>
 
-              <label className="atlas-form-field atlas-form-field--full">
-                <span className="atlas-form-field__label">{t("setupAdminUsername")}</span>
-                <input
-                  className="atlas-input"
+              <FieldLabel label={t("setupAdminUsername")}>
+                <Input
                   data-testid="app-setup-admin-username"
                   placeholder={t("setupAdminUsernamePlaceholder")}
                   value={adminForm.adminUsername}
-                  onChange={(event) =>
-                    setAdminForm((previous) => ({
-                      ...previous,
-                      adminUsername: event.target.value
-                    }))
+                  onChange={(value) =>
+                    setAdminForm((previous) => ({ ...previous, adminUsername: value }))
                   }
                 />
-              </label>
+              </FieldLabel>
 
-              <label className="atlas-form-field atlas-form-field--full">
-                <span className="atlas-form-field__label">{t("setupAppKey")}</span>
-                <input
-                  className="atlas-input"
+              <FieldLabel label={t("setupAppKey")}>
+                <Input
                   data-testid="app-setup-app-key"
                   placeholder={t("setupAppKeyPlaceholder")}
                   value={adminForm.appKey}
-                  onChange={(event) =>
-                    setAdminForm((previous) => ({
-                      ...previous,
-                      appKey: event.target.value
-                    }))
-                  }
+                  onChange={(value) => setAdminForm((previous) => ({ ...previous, appKey: value }))}
                 />
-              </label>
-            </div>
+              </FieldLabel>
 
-            <div className="atlas-setup-actions">
-              <button
-                type="button"
-                className="atlas-button atlas-button--secondary"
-                data-testid="app-setup-prev-step"
-                onClick={() => setCurrentStep(0)}
-              >
-                {t("setupPrev")}
-              </button>
-              <button
-                type="button"
-                className="atlas-button atlas-button--primary"
-                data-testid="app-setup-next-to-roles"
-                disabled={!adminFormValid}
-                onClick={() => setCurrentStep(2)}
-              >
-                {t("setupNext")}
-              </button>
+              <StepActions>
+                <Button
+                  type="tertiary"
+                  theme="light"
+                  data-testid="app-setup-prev-step"
+                  onClick={() => setCurrentStep(0)}
+                >
+                  {t("setupPrev")}
+                </Button>
+                <Button
+                  type="primary"
+                  theme="solid"
+                  data-testid="app-setup-next-to-roles"
+                  disabled={!adminFormValid}
+                  onClick={() => setCurrentStep(2)}
+                >
+                  {t("setupNext")}
+                </Button>
+              </StepActions>
             </div>
-          </section>
+          </SectionCard>
         ) : null}
 
         {currentStep === 2 ? (
-          <section className="atlas-setup-panel">
-            <div className="atlas-info-banner">{t("setupRequiredRolesHint")}</div>
-            <div className="atlas-required-role-list">
-              <span className="atlas-tag" data-testid="app-setup-role-required-app-admin">
-                AppAdmin
-              </span>
-              <span className="atlas-tag" data-testid="app-setup-role-required-app-member">
-                AppMember
-              </span>
-            </div>
+          <SectionCard>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <InfoBanner variant="info" compact description={t("setupRequiredRolesHint")} />
+              <Space>
+                <Tag color="blue" data-testid="app-setup-role-required-app-admin">
+                  AppAdmin
+                </Tag>
+                <Tag color="blue" data-testid="app-setup-role-required-app-member">
+                  AppMember
+                </Tag>
+              </Space>
 
-            <div className="atlas-optional-role-block">
-              <div className="atlas-section-title">{t("setupOptionalRolesTitle")}</div>
-              <div className="atlas-field-hint">{t("setupOptionalRolesDesc")}</div>
-              <div className="atlas-role-grid">
-                {optionalRoleTemplates.map((role) => {
-                  const checked = rolesForm.selectedRoleCodes.includes(role.code);
-                  return (
-                    <label
-                      key={role.code}
-                      className={`atlas-role-card ${checked ? "is-selected" : ""}`.trim()}
-                    >
-                      <span className="atlas-role-card__header">
-                        <input
-                          checked={checked}
-                          data-testid={`app-setup-role-${role.code}`}
-                          type="checkbox"
-                          value={role.code}
-                          onChange={(event) => {
-                            setRolesForm((previous) => {
-                              const current = new Set(previous.selectedRoleCodes);
-                              if (event.target.checked) {
-                                current.add(role.code);
-                              } else {
-                                current.delete(role.code);
-                              }
-
-                              return {
-                                selectedRoleCodes: Array.from(current)
-                              };
-                            });
-                          }}
-                        />
-                        <span>{t(role.labelKey)}</span>
-                      </span>
-                      <span className="atlas-field-hint">{t(role.descKey)}</span>
-                    </label>
-                  );
-                })}
+              <div>
+                <Title heading={6} style={{ margin: "0 0 4px" }}>
+                  {t("setupOptionalRolesTitle")}
+                </Title>
+                <Text type="tertiary" style={{ display: "block", marginBottom: 12 }}>
+                  {t("setupOptionalRolesDesc")}
+                </Text>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                    gap: 12
+                  }}
+                >
+                  {optionalRoleTemplates.map((role) => {
+                    const checked = rolesForm.selectedRoleCodes.includes(role.code);
+                    return (
+                      <label
+                        key={role.code}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 4,
+                          padding: 12,
+                          borderRadius: 8,
+                          border: `1px solid ${
+                            checked ? "var(--semi-color-primary)" : "var(--semi-color-border)"
+                          }`,
+                          background: checked
+                            ? "var(--semi-color-primary-light-default)"
+                            : "var(--semi-color-bg-2)",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Checkbox
+                            checked={checked}
+                            data-testid={`app-setup-role-${role.code}`}
+                            value={role.code}
+                            onChange={(event) => {
+                              const isChecked = Boolean(event.target.checked);
+                              setRolesForm((previous) => {
+                                const current = new Set(previous.selectedRoleCodes);
+                                if (isChecked) {
+                                  current.add(role.code);
+                                } else {
+                                  current.delete(role.code);
+                                }
+                                return { selectedRoleCodes: Array.from(current) };
+                              });
+                            }}
+                          />
+                          <Text strong>{t(role.labelKey)}</Text>
+                        </span>
+                        <Text type="tertiary" style={{ fontSize: 12 }}>
+                          {t(role.descKey)}
+                        </Text>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="atlas-setup-actions">
-              <button
-                type="button"
-                className="atlas-button atlas-button--secondary"
-                data-testid="app-setup-back-to-admin"
-                onClick={() => setCurrentStep(1)}
-              >
-                {t("setupPrev")}
-              </button>
-              <button
-                type="button"
-                className="atlas-button atlas-button--primary"
-                data-testid="app-setup-next-to-org"
-                onClick={() => setCurrentStep(3)}
-              >
-                {t("setupNext")}
-              </button>
+              <StepActions>
+                <Button
+                  type="tertiary"
+                  theme="light"
+                  data-testid="app-setup-back-to-admin"
+                  onClick={() => setCurrentStep(1)}
+                >
+                  {t("setupPrev")}
+                </Button>
+                <Button
+                  type="primary"
+                  theme="solid"
+                  data-testid="app-setup-next-to-org"
+                  onClick={() => setCurrentStep(3)}
+                >
+                  {t("setupNext")}
+                </Button>
+              </StepActions>
             </div>
-          </section>
+          </SectionCard>
         ) : null}
 
         {currentStep === 3 ? (
-          <section className="atlas-setup-panel">
-            <div className="atlas-org-section">
-              <div className="atlas-org-section__header">
-                <div>
-                  <div className="atlas-section-title">{t("setupDepartmentSectionTitle")}</div>
-                  <div className="atlas-field-hint">{t("setupDepartmentSectionDesc")}</div>
-                </div>
-                <button
-                  type="button"
-                  className="atlas-button atlas-button--secondary"
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <SectionCard
+              title={t("setupDepartmentSectionTitle")}
+              subtitle={t("setupDepartmentSectionDesc")}
+              actions={
+                <Button
+                  type="tertiary"
+                  theme="light"
                   data-testid="app-setup-add-department"
                   onClick={() =>
                     setOrganizationForm((previous) => ({
@@ -743,101 +725,87 @@ export function AppSetupPage() {
                   }
                 >
                   {t("setupAddDepartment")}
-                </button>
-              </div>
-
-              {organizationForm.departments.map((department, index) => (
-                <div key={`department-${index}`} className="atlas-config-row">
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-department-name-${index}`}
-                    placeholder={t("setupDepartmentNamePlaceholder")}
-                    value={department.name}
-                    onChange={(event) =>
+                </Button>
+              }
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {organizationForm.departments.map((department, index) => (
+                  <ConfigRow
+                    key={`department-${index}`}
+                    canRemove={organizationForm.departments.length > 1}
+                    onRemove={() =>
                       setOrganizationForm((previous) => ({
                         ...previous,
-                        departments: previous.departments.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, name: event.target.value } : item
-                        )
+                        departments: previous.departments.filter((_, itemIndex) => itemIndex !== index)
                       }))
                     }
-                  />
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-department-code-${index}`}
-                    placeholder={t("setupDepartmentCodePlaceholder")}
-                    value={department.code ?? ""}
-                    onChange={(event) =>
-                      setOrganizationForm((previous) => ({
-                        ...previous,
-                        departments: previous.departments.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, code: event.target.value } : item
-                        )
-                      }))
-                    }
-                  />
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-department-parent-${index}`}
-                    placeholder={t("setupDepartmentParentPlaceholder")}
-                    value={department.parentCode ?? ""}
-                    onChange={(event) =>
-                      setOrganizationForm((previous) => ({
-                        ...previous,
-                        departments: previous.departments.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, parentCode: event.target.value } : item
-                        )
-                      }))
-                    }
-                  />
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-department-sort-${index}`}
-                    inputMode="numeric"
-                    type="number"
-                    value={department.sortOrder}
-                    onChange={(event) =>
-                      setOrganizationForm((previous) => ({
-                        ...previous,
-                        departments: previous.departments.map((item, itemIndex) =>
-                          itemIndex === index
-                            ? {
-                                ...item,
-                                sortOrder: Number.parseInt(event.target.value || "0", 10) || 0
-                              }
-                            : item
-                        )
-                      }))
-                    }
-                  />
-                  {organizationForm.departments.length > 1 ? (
-                    <button
-                      type="button"
-                      className="atlas-button atlas-button--danger"
-                      data-testid={`app-setup-remove-department-${index}`}
-                      onClick={() =>
+                    removeTestId={`app-setup-remove-department-${index}`}
+                  >
+                    <Input
+                      data-testid={`app-setup-department-name-${index}`}
+                      placeholder={t("setupDepartmentNamePlaceholder")}
+                      value={department.name}
+                      onChange={(value) =>
                         setOrganizationForm((previous) => ({
                           ...previous,
-                          departments: previous.departments.filter((_, itemIndex) => itemIndex !== index)
+                          departments: previous.departments.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, name: value } : item
+                          )
                         }))
                       }
-                    >
-                      {t("setupRemoveRow")}
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                    />
+                    <Input
+                      data-testid={`app-setup-department-code-${index}`}
+                      placeholder={t("setupDepartmentCodePlaceholder")}
+                      value={department.code ?? ""}
+                      onChange={(value) =>
+                        setOrganizationForm((previous) => ({
+                          ...previous,
+                          departments: previous.departments.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, code: value } : item
+                          )
+                        }))
+                      }
+                    />
+                    <Input
+                      data-testid={`app-setup-department-parent-${index}`}
+                      placeholder={t("setupDepartmentParentPlaceholder")}
+                      value={department.parentCode ?? ""}
+                      onChange={(value) =>
+                        setOrganizationForm((previous) => ({
+                          ...previous,
+                          departments: previous.departments.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, parentCode: value } : item
+                          )
+                        }))
+                      }
+                    />
+                    <InputNumber
+                      data-testid={`app-setup-department-sort-${index}`}
+                      value={department.sortOrder}
+                      onChange={(value) => {
+                        const numericValue =
+                          typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
+                        setOrganizationForm((previous) => ({
+                          ...previous,
+                          departments: previous.departments.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, sortOrder: numericValue } : item
+                          )
+                        }));
+                      }}
+                    />
+                  </ConfigRow>
+                ))}
+              </div>
+            </SectionCard>
 
-            <div className="atlas-org-section">
-              <div className="atlas-org-section__header">
-                <div>
-                  <div className="atlas-section-title">{t("setupPositionSectionTitle")}</div>
-                  <div className="atlas-field-hint">{t("setupPositionSectionDesc")}</div>
-                </div>
-                <button
-                  type="button"
-                  className="atlas-button atlas-button--secondary"
+            <SectionCard
+              title={t("setupPositionSectionTitle")}
+              subtitle={t("setupPositionSectionDesc")}
+              actions={
+                <Button
+                  type="tertiary"
+                  theme="light"
                   data-testid="app-setup-add-position"
                   onClick={() =>
                     setOrganizationForm((previous) => ({
@@ -855,209 +823,300 @@ export function AppSetupPage() {
                   }
                 >
                   {t("setupAddPosition")}
-                </button>
-              </div>
-
-              {organizationForm.positions.map((position, index) => (
-                <div key={`position-${index}`} className="atlas-config-row">
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-position-name-${index}`}
-                    placeholder={t("setupPositionNamePlaceholder")}
-                    value={position.name}
-                    onChange={(event) =>
+                </Button>
+              }
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {organizationForm.positions.map((position, index) => (
+                  <ConfigRow
+                    key={`position-${index}`}
+                    canRemove={organizationForm.positions.length > 1}
+                    onRemove={() =>
                       setOrganizationForm((previous) => ({
                         ...previous,
-                        positions: previous.positions.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, name: event.target.value } : item
-                        )
+                        positions: previous.positions.filter((_, itemIndex) => itemIndex !== index)
                       }))
                     }
-                  />
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-position-code-${index}`}
-                    placeholder={t("setupPositionCodePlaceholder")}
-                    value={position.code}
-                    onChange={(event) =>
-                      setOrganizationForm((previous) => ({
-                        ...previous,
-                        positions: previous.positions.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, code: event.target.value } : item
-                        )
-                      }))
-                    }
-                  />
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-position-description-${index}`}
-                    placeholder={t("setupPositionDescriptionPlaceholder")}
-                    value={position.description ?? ""}
-                    onChange={(event) =>
-                      setOrganizationForm((previous) => ({
-                        ...previous,
-                        positions: previous.positions.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, description: event.target.value } : item
-                        )
-                      }))
-                    }
-                  />
-                  <input
-                    className="atlas-input"
-                    data-testid={`app-setup-position-sort-${index}`}
-                    inputMode="numeric"
-                    type="number"
-                    value={position.sortOrder}
-                    onChange={(event) =>
-                      setOrganizationForm((previous) => ({
-                        ...previous,
-                        positions: previous.positions.map((item, itemIndex) =>
-                          itemIndex === index
-                            ? {
-                                ...item,
-                                sortOrder: Number.parseInt(event.target.value || "0", 10) || 0
-                              }
-                            : item
-                        )
-                      }))
-                    }
-                  />
-                  {organizationForm.positions.length > 1 ? (
-                    <button
-                      type="button"
-                      className="atlas-button atlas-button--danger"
-                      data-testid={`app-setup-remove-position-${index}`}
-                      onClick={() =>
+                    removeTestId={`app-setup-remove-position-${index}`}
+                  >
+                    <Input
+                      data-testid={`app-setup-position-name-${index}`}
+                      placeholder={t("setupPositionNamePlaceholder")}
+                      value={position.name}
+                      onChange={(value) =>
                         setOrganizationForm((previous) => ({
                           ...previous,
-                          positions: previous.positions.filter((_, itemIndex) => itemIndex !== index)
+                          positions: previous.positions.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, name: value } : item
+                          )
                         }))
                       }
-                    >
-                      {t("setupRemoveRow")}
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+                    />
+                    <Input
+                      data-testid={`app-setup-position-code-${index}`}
+                      placeholder={t("setupPositionCodePlaceholder")}
+                      value={position.code}
+                      onChange={(value) =>
+                        setOrganizationForm((previous) => ({
+                          ...previous,
+                          positions: previous.positions.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, code: value } : item
+                          )
+                        }))
+                      }
+                    />
+                    <Input
+                      data-testid={`app-setup-position-description-${index}`}
+                      placeholder={t("setupPositionDescriptionPlaceholder")}
+                      value={position.description ?? ""}
+                      onChange={(value) =>
+                        setOrganizationForm((previous) => ({
+                          ...previous,
+                          positions: previous.positions.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, description: value } : item
+                          )
+                        }))
+                      }
+                    />
+                    <InputNumber
+                      data-testid={`app-setup-position-sort-${index}`}
+                      value={position.sortOrder}
+                      onChange={(value) => {
+                        const numericValue =
+                          typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
+                        setOrganizationForm((previous) => ({
+                          ...previous,
+                          positions: previous.positions.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, sortOrder: numericValue } : item
+                          )
+                        }));
+                      }}
+                    />
+                  </ConfigRow>
+                ))}
+              </div>
+            </SectionCard>
 
-            <div className="atlas-setup-actions">
-              <button
-                type="button"
-                className="atlas-button atlas-button--secondary"
+            <StepActions>
+              <Button
+                type="tertiary"
+                theme="light"
                 data-testid="app-setup-back-to-roles"
                 onClick={() => setCurrentStep(2)}
               >
                 {t("setupPrev")}
-              </button>
-              <button
-                type="button"
-                className="atlas-button atlas-button--primary"
+              </Button>
+              <Button
+                type="primary"
+                theme="solid"
                 data-testid="app-setup-initialize"
                 disabled={!organizationFormValid || initializing}
+                loading={initializing}
                 onClick={() => void handleInitialize()}
               >
                 {initializing ? t("setupInitializing") : t("setupStartInitialization")}
-              </button>
-            </div>
-          </section>
+              </Button>
+            </StepActions>
+          </div>
         ) : null}
 
         {currentStep === 4 && completed ? (
-          <section className="atlas-result-card atlas-result-card--success" data-testid="app-setup-success">
-            <div className="atlas-result-card__icon">✓</div>
-            <h2 className="atlas-result-card__title">{t("setupAppSetupComplete")}</h2>
-            <p className="atlas-result-card__subtitle">{t("setupAppSetupCompleteDesc")}</p>
-
-            {initReport ? (
-              <div className="atlas-setup-report">
-                <SetupReportRow
-                  label={t("setupPlatformStatus")}
-                  testId="app-setup-report-platform-status"
-                  value={initReport.platformStatus}
-                />
-                <SetupReportRow
-                  label={t("setupAppStatus")}
-                  testId="app-setup-report-app-status"
-                  value={initReport.appStatus}
-                />
-                <SetupReportRow
-                  label={t("setupAppSetupCompleted")}
-                  testId="app-setup-report-app-completed"
-                  value={formatBooleanFlag(initReport.appSetupCompleted)}
-                />
-                <SetupReportRow
-                  label={t("setupDbConnected")}
-                  testId="app-setup-report-db-connected"
-                  value={formatBooleanFlag(initReport.databaseConnected)}
-                />
-                <SetupReportRow
-                  label={t("setupCoreTablesVerified")}
-                  testId="app-setup-report-core-tables"
-                  value={formatBooleanFlag(initReport.coreTablesVerified)}
-                />
-                <SetupReportRow
-                  label={t("setupReportRoles")}
-                  testId="app-setup-report-roles-created"
-                  value={initReport.rolesCreated}
-                />
-                <SetupReportRow
-                  label={t("setupReportDepartments")}
-                  testId="app-setup-report-departments-created"
-                  value={initReport.departmentsCreated}
-                />
-                <SetupReportRow
-                  label={t("setupReportPositions")}
-                  testId="app-setup-report-positions-created"
-                  value={initReport.positionsCreated}
-                />
-                <SetupReportRow
-                  label={t("setupReportAdmin")}
-                  testId="app-setup-report-admin-bound"
-                  value={formatBooleanFlag(initReport.adminBound)}
-                />
-              </div>
-            ) : null}
-
-            <div className="atlas-warning-banner">
-              <strong>{t("setupRestartRequired")}</strong>
-              <p>{t("setupRestartRequiredDesc")}</p>
+          <div data-testid="app-setup-success">
+            <ResultCard
+              status="success"
+              title={t("setupAppSetupComplete")}
+              description={t("setupAppSetupCompleteDesc")}
+              extra={
+                initReport ? (
+                  <div style={{ marginTop: 8 }}>
+                    <Descriptions
+                      data={[
+                        {
+                          key: t("setupPlatformStatus"),
+                          value: (
+                            <span data-testid="app-setup-report-platform-status">
+                              {initReport.platformStatus}
+                            </span>
+                          )
+                        },
+                        {
+                          key: t("setupAppStatus"),
+                          value: <span data-testid="app-setup-report-app-status">{initReport.appStatus}</span>
+                        },
+                        {
+                          key: t("setupAppSetupCompleted"),
+                          value: (
+                            <span data-testid="app-setup-report-app-completed">
+                              {formatBooleanFlag(initReport.appSetupCompleted)}
+                            </span>
+                          )
+                        },
+                        {
+                          key: t("setupDbConnected"),
+                          value: (
+                            <span data-testid="app-setup-report-db-connected">
+                              {formatBooleanFlag(initReport.databaseConnected)}
+                            </span>
+                          )
+                        },
+                        {
+                          key: t("setupCoreTablesVerified"),
+                          value: (
+                            <span data-testid="app-setup-report-core-tables">
+                              {formatBooleanFlag(initReport.coreTablesVerified)}
+                            </span>
+                          )
+                        },
+                        {
+                          key: t("setupReportRoles"),
+                          value: (
+                            <span data-testid="app-setup-report-roles-created">
+                              {initReport.rolesCreated}
+                            </span>
+                          )
+                        },
+                        {
+                          key: t("setupReportDepartments"),
+                          value: (
+                            <span data-testid="app-setup-report-departments-created">
+                              {initReport.departmentsCreated}
+                            </span>
+                          )
+                        },
+                        {
+                          key: t("setupReportPositions"),
+                          value: (
+                            <span data-testid="app-setup-report-positions-created">
+                              {initReport.positionsCreated}
+                            </span>
+                          )
+                        },
+                        {
+                          key: t("setupReportAdmin"),
+                          value: (
+                            <span data-testid="app-setup-report-admin-bound">
+                              {formatBooleanFlag(initReport.adminBound)}
+                            </span>
+                          )
+                        }
+                      ]}
+                    />
+                  </div>
+                ) : null
+              }
+              actions={
+                <Button
+                  type="primary"
+                  theme="solid"
+                  size="large"
+                  data-testid="app-setup-enter-workspace"
+                  onClick={enterWorkspace}
+                >
+                  {t("setupGoToLogin")}
+                </Button>
+              }
+            />
+            <div style={{ marginTop: 16 }}>
+              <InfoBanner
+                variant="warning"
+                title={t("setupRestartRequired")}
+                description={t("setupRestartRequiredDesc")}
+              />
             </div>
-
-            <button
-              type="button"
-              className="atlas-button atlas-button--primary atlas-button--large"
-              data-testid="app-setup-enter-workspace"
-              onClick={enterWorkspace}
-            >
-              {t("setupGoToLogin")}
-            </button>
-          </section>
+          </div>
         ) : null}
 
         {currentStep === 4 && setupError ? (
-          <section className="atlas-result-card atlas-result-card--error" data-testid="app-setup-failed">
-            <div className="atlas-result-card__icon">×</div>
-            <h2 className="atlas-result-card__title">{t("setupAppSetupFailed")}</h2>
-            <p className="atlas-result-card__subtitle">{setupError}</p>
-            <button
-              type="button"
-              className="atlas-button atlas-button--primary"
-              onClick={() => {
-                setSetupError(null);
-                setCompleted(false);
-                setCurrentStep(0);
-              }}
-            >
-              {t("platformNotReadyRetry")}
-            </button>
-          </section>
+          <div data-testid="app-setup-failed">
+            <ResultCard
+              status="error"
+              title={t("setupAppSetupFailed")}
+              description={setupError}
+              actions={
+                <Button
+                  type="primary"
+                  theme="solid"
+                  onClick={() => {
+                    setSetupError(null);
+                    setCompleted(false);
+                    setCurrentStep(0);
+                  }}
+                >
+                  {t("platformNotReadyRetry")}
+                </Button>
+              }
+            />
+          </div>
         ) : null}
 
-        <div className="atlas-setup-locale-note" aria-hidden="true">
+        <div aria-hidden="true" style={{ display: "none" }}>
           {locale}
         </div>
-      </div>
+      </FormCard>
+    </PageShell>
+  );
+}
+
+interface FieldLabelProps {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}
+
+function FieldLabel({ label, children }: FieldLabelProps) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <Text strong>{label}</Text>
+      {children}
+    </label>
+  );
+}
+
+interface StepActionsProps {
+  children: React.ReactNode;
+}
+
+function StepActions({ children }: StepActionsProps) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 8,
+        gap: 12
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+interface ConfigRowProps {
+  canRemove: boolean;
+  onRemove: () => void;
+  removeTestId: string;
+  children: React.ReactNode;
+}
+
+function ConfigRow({ canRemove, onRemove, removeTestId, children }: ConfigRowProps) {
+  const { t } = useAppI18n();
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr 100px auto",
+        gap: 8,
+        alignItems: "center"
+      }}
+    >
+      {children}
+      {canRemove ? (
+        <Button type="danger" theme="borderless" data-testid={removeTestId} onClick={onRemove}>
+          {t("setupRemoveRow")}
+        </Button>
+      ) : (
+        <span />
+      )}
     </div>
   );
 }

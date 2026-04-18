@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Avatar, Button, Empty, Spin, Typography } from "@douyinfe/semi-ui";
+import { Avatar, Button, Card, Empty, List, Typography } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import { workspaceHomePath } from "@atlas/app-shell-shared";
@@ -7,6 +7,9 @@ import { useAppI18n } from "../i18n";
 import { useAuth } from "../auth-context";
 import { getWorkspaces, type WorkspaceSummaryDto } from "../../services/api-org-workspaces";
 import { rememberLastWorkspaceId } from "../layouts/workspace-shell";
+import { PageShell } from "../_shared";
+
+const { Title, Text } = Typography;
 
 /**
  * 工作空间选择页：用于多空间用户登录后或没有 last visited 的状态。
@@ -56,41 +59,73 @@ export function SelectWorkspacePage() {
   }, [navigate]);
 
   if (auth.loading || loading) {
-    return (
-      <div className="atlas-loading-page"><Spin size="large" /></div>
-    );
+    return <PageShell loading loadingTip={t("loading")} />;
   }
 
   return (
-    <div className="coze-select-workspace" data-testid="coze-select-workspace-page">
-      <Typography.Title heading={3}>{t("cozeShellWorkspaceSwitcherTitle")}</Typography.Title>
-      <Typography.Text type="tertiary">{t("cozeShellWorkspaceSwitcherCurrent")}</Typography.Text>
+    <PageShell centered maxWidth={640} testId="coze-select-workspace-page">
+      <Card bodyStyle={{ padding: 24 }}>
+        <Title heading={3}>{t("cozeShellWorkspaceSwitcherTitle")}</Title>
+        <Text type="tertiary">{t("cozeShellWorkspaceSwitcherCurrent")}</Text>
 
-      {workspaces.length === 0 ? (
-        <Empty description={t("cozeShellWorkspaceSwitcherEmpty")} style={{ marginTop: 32 }} />
-      ) : (
-        <div className="coze-select-workspace__list">
-          {workspaces.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              className="coze-select-workspace__item"
-              onClick={() => {
-                rememberLastWorkspaceId(item.id);
-                navigate(workspaceHomePath(item.id));
-              }}
-              data-testid={`coze-select-workspace-${item.id}`}
-            >
-              <Avatar size="default" color="light-blue">{(item.name || item.appKey).slice(0, 1).toUpperCase()}</Avatar>
-              <div className="coze-select-workspace__item-meta">
-                <strong>{item.name || item.appKey}</strong>
-                <span>{item.appKey}</span>
-              </div>
-              <Button theme="borderless" type="primary">{t("homeEnter")}</Button>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+        {workspaces.length === 0 ? (
+          <div style={{ marginTop: 32 }}>
+            <Empty description={t("cozeShellWorkspaceSwitcherEmpty")} />
+          </div>
+        ) : (
+          <List
+            style={{ marginTop: 16 }}
+            dataSource={workspaces}
+            renderItem={item => (
+              <List.Item
+                main={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      rememberLastWorkspaceId(item.id);
+                      navigate(workspaceHomePath(item.id));
+                    }}
+                    data-testid={`coze-select-workspace-${item.id}`}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "8px 4px",
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      textAlign: "left"
+                    }}
+                  >
+                    <Avatar size="default" color="light-blue">
+                      {(item.name || item.appKey).slice(0, 1).toUpperCase()}
+                    </Avatar>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                      <strong>{item.name || item.appKey}</strong>
+                      <Text type="tertiary" style={{ fontSize: 12 }}>
+                        {item.appKey}
+                      </Text>
+                    </div>
+                  </button>
+                }
+                extra={
+                  <Button
+                    theme="borderless"
+                    type="primary"
+                    onClick={() => {
+                      rememberLastWorkspaceId(item.id);
+                      navigate(workspaceHomePath(item.id));
+                    }}
+                  >
+                    {t("homeEnter")}
+                  </Button>
+                }
+              />
+            )}
+          />
+        )}
+      </Card>
+    </PageShell>
   );
 }

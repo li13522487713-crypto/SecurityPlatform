@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Button, Spin } from "@douyinfe/semi-ui";
+import { Button } from "@douyinfe/semi-ui";
 import { IconChevronLeft } from "@douyinfe/semi-icons";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import {
@@ -14,13 +14,10 @@ import { PermissionProvider } from "../permission-context";
 import { WorkspaceProvider, useWorkspaceContext } from "../workspace-context";
 import { useAppI18n } from "../i18n";
 import { readLastWorkspaceId } from "./workspace-shell";
+import { PageShell } from "../_shared";
 
 function LoadingPage() {
-  return (
-    <div className="atlas-loading-page">
-      <Spin size="large" />
-    </div>
-  );
+  return <PageShell loading />;
 }
 
 /**

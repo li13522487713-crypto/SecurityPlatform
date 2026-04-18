@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Spin } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import { selectWorkspacePath, signPath, workspaceHomePath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
@@ -8,6 +7,7 @@ import { useBootstrap } from "../bootstrap-context";
 import { useAuth } from "../auth-context";
 import { getWorkspaces } from "../../services/api-org-workspaces";
 import { rememberLastWorkspaceId, readLastWorkspaceId } from "../layouts/workspace-shell";
+import { PageShell } from "../_shared";
 
 /**
  * `/` 入口：纯重定向网关。
@@ -82,12 +82,7 @@ export function HomePage() {
   }, [auth.isAuthenticated, auth.loading, bootstrap.appReady, bootstrap.loading, bootstrap.platformReady]);
 
   if (resolving) {
-    return (
-      <div className="atlas-loading-page">
-        <Spin size="large" />
-        <span style={{ marginLeft: 8 }}>{t("loading")}</span>
-      </div>
-    );
+    return <PageShell loading loadingTip={t("loading")} />;
   }
 
   if (target) {

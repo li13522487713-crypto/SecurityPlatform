@@ -1,12 +1,13 @@
-import { useDeferredValue, useMemo } from "react";
-import { Button, Empty, Input, Modal, Skeleton, Tag, Toast, Typography } from "@douyinfe/semi-ui";
-import { useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
+import { Button, Card, Empty, Input, Modal, Skeleton, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import type {
   WorkspaceCreateRequest,
   WorkspaceSummaryDto,
   WorkspaceUpdateRequest
 } from "../../services/api-org-workspaces";
 import { useAppI18n } from "../i18n";
+
+const { Title, Text } = Typography;
 
 interface OrganizationWorkspacesPageProps {
   loading: boolean;
@@ -74,108 +75,147 @@ export function OrganizationWorkspacesPage({
   };
 
   return (
-    <div className="atlas-workspaces-page" data-testid="workspace-list-page">
-      <section className="atlas-workspaces-hero">
-        <div className="atlas-workspaces-hero__copy">
-          <span className="atlas-workspaces-hero__kicker">{t("workspaceListKicker")}</span>
-          <Typography.Title heading={2} style={{ margin: 0 }}>
-            {t("workspaceListTitle")}
-          </Typography.Title>
-          <Typography.Text type="tertiary">
-            {t("workspaceListSubtitle")}
-          </Typography.Text>
-        </div>
+    <div data-testid="workspace-list-page" style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
+      <Card bodyStyle={{ padding: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap"
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Text type="tertiary" style={{ textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 12 }}>
+              {t("workspaceListKicker")}
+            </Text>
+            <Title heading={2} style={{ margin: 0 }}>
+              {t("workspaceListTitle")}
+            </Title>
+            <Text type="tertiary">{t("workspaceListSubtitle")}</Text>
+          </div>
 
-        <div className="atlas-workspaces-hero__actions">
-          <Input
-            value={keyword}
-            onChange={onKeywordChange}
-            showClear
-            placeholder={t("workspaceListSearchPlaceholder")}
-            data-testid="workspace-list-search"
-          />
-          {canManage ? (
-            <Button type="primary" theme="solid" loading={saving} onClick={() => setCreateVisible(true)}>
-              {t("workspaceListCreate")}
-            </Button>
-          ) : null}
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <Input
+              value={keyword}
+              onChange={onKeywordChange}
+              showClear
+              placeholder={t("workspaceListSearchPlaceholder")}
+              data-testid="workspace-list-search"
+              style={{ width: 240 }}
+            />
+            {canManage ? (
+              <Button type="primary" theme="solid" loading={saving} onClick={() => setCreateVisible(true)}>
+                {t("workspaceListCreate")}
+              </Button>
+            ) : null}
+          </div>
         </div>
-      </section>
+      </Card>
 
       {loading ? (
-        <div className="atlas-workspaces-grid">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 16
+          }}
+        >
           {Array.from({ length: 3 }).map((_, index) => (
-            <article key={index} className="atlas-workspace-card atlas-workspace-card--loading">
+            <Card key={index} bodyStyle={{ padding: 24 }}>
               <Skeleton placeholder={<Skeleton.Title style={{ width: "56%" }} />} loading active />
               <Skeleton placeholder={<Skeleton.Paragraph rows={3} />} loading active />
-            </article>
+            </Card>
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="atlas-workspaces-empty">
+        <Card bodyStyle={{ padding: 48 }}>
           <Empty description={t("workspaceListEmpty")} />
-        </div>
+        </Card>
       ) : (
-        <div className="atlas-workspaces-grid">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 16
+          }}
+        >
           {filteredItems.map(item => (
-            <article key={item.id} className="atlas-workspace-card">
-              <div className="atlas-workspace-card__head">
-                <div>
-                  <Tag color="blue">{t("workspaceListWorkspaceTag")}</Tag>
-                  <Typography.Title heading={5} style={{ margin: "10px 0 0" }}>
-                    {item.name}
-                  </Typography.Title>
+            <Card key={item.id} bodyStyle={{ padding: 20 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Tag color="blue">{t("workspaceListWorkspaceTag")}</Tag>
+                    <Title heading={5} style={{ margin: "10px 0 0" }}>
+                      {item.name}
+                    </Title>
+                  </div>
+                  <Tag color="light-blue">{item.roleCode}</Tag>
                 </div>
-                <Tag color="light-blue">{item.roleCode}</Tag>
-              </div>
 
-              <Typography.Text type="tertiary" className="atlas-workspace-card__description">
-                {item.description || t("workspaceListDescriptionFallback")}
-              </Typography.Text>
+                <Text type="tertiary">{item.description || t("workspaceListDescriptionFallback")}</Text>
 
-              <div className="atlas-workspace-card__meta">
-                <span>{t("workspaceListAppCount")}: {item.appCount}</span>
-                <span>{t("workspaceListAgentCount")}: {item.agentCount}</span>
-                <span>{t("workspaceListWorkflowCount")}: {item.workflowCount}</span>
-              </div>
-
-              <div className="atlas-workspace-card__footer">
-                <div className="atlas-workspace-card__caption">
-                  <strong>{item.appKey}</strong>
-                  <span>{item.lastVisitedAt ? t("workspaceListVisited") : t("workspaceListCreated")}</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "var(--semi-color-text-2)" }}>
+                  <span>
+                    {t("workspaceListAppCount")}: {item.appCount}
+                  </span>
+                  <span>
+                    {t("workspaceListAgentCount")}: {item.agentCount}
+                  </span>
+                  <span>
+                    {t("workspaceListWorkflowCount")}: {item.workflowCount}
+                  </span>
                 </div>
-                <div className="atlas-workspace-card__actions">
-                  {canManage ? (
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingTop: 12,
+                    borderTop: "1px solid var(--semi-color-border)"
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <strong>{item.appKey}</strong>
+                    <Text type="tertiary" style={{ fontSize: 12 }}>
+                      {item.lastVisitedAt ? t("workspaceListVisited") : t("workspaceListCreated")}
+                    </Text>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {canManage ? (
+                      <Button
+                        theme="light"
+                        onClick={() => openEditDialog(item)}
+                        disabled={saving || deletingWorkspaceId === item.id}
+                      >
+                        {t("workspaceListEdit")}
+                      </Button>
+                    ) : null}
+                    {canManage ? (
+                      <Button
+                        type="danger"
+                        theme="borderless"
+                        loading={deletingWorkspaceId === item.id}
+                        disabled={saving}
+                        onClick={() => setArchiveTarget(item)}
+                      >
+                        {t("workspaceListArchive")}
+                      </Button>
+                    ) : null}
                     <Button
-                      theme="light"
-                      onClick={() => openEditDialog(item)}
-                      disabled={saving || deletingWorkspaceId === item.id}
+                      type="primary"
+                      theme="solid"
+                      onClick={() => onOpenWorkspace(item.id)}
+                      data-testid={`workspace-open-${item.id}`}
                     >
-                      {t("workspaceListEdit")}
+                      {t("workspaceListOpen")}
                     </Button>
-                  ) : null}
-                  {canManage ? (
-                    <Button
-                      type="danger"
-                      theme="borderless"
-                      loading={deletingWorkspaceId === item.id}
-                      disabled={saving}
-                      onClick={() => setArchiveTarget(item)}
-                    >
-                      {t("workspaceListArchive")}
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="primary"
-                    theme="solid"
-                    onClick={() => onOpenWorkspace(item.id)}
-                    data-testid={`workspace-open-${item.id}`}
-                  >
-                    {t("workspaceListOpen")}
-                  </Button>
+                  </div>
                 </div>
               </div>
-            </article>
+            </Card>
           ))}
         </div>
       )}
@@ -193,19 +233,29 @@ export function OrganizationWorkspacesPage({
             description: createDescription.trim() || undefined,
             icon: createIcon.trim() || undefined,
             appInstanceId: createAppInstanceId.trim()
-          }).then(() => {
-            Toast.success(t("workspaceListCreatedSuccess"));
-            setCreateVisible(false);
-            resetCreateDialog();
-          }).catch(() => undefined);
+          })
+            .then(() => {
+              Toast.success(t("workspaceListCreatedSuccess"));
+              setCreateVisible(false);
+              resetCreateDialog();
+            })
+            .catch(() => undefined);
         }}
         okButtonProps={{ disabled: !createName.trim() || !createAppInstanceId.trim(), loading: saving }}
       >
-        <div className="atlas-develop-dialog">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Input value={createName} onChange={setCreateName} placeholder={t("workspaceListNamePlaceholder")} />
-          <Input value={createDescription} onChange={setCreateDescription} placeholder={t("workspaceListDescriptionPlaceholder")} />
+          <Input
+            value={createDescription}
+            onChange={setCreateDescription}
+            placeholder={t("workspaceListDescriptionPlaceholder")}
+          />
           <Input value={createIcon} onChange={setCreateIcon} placeholder={t("workspaceListIconPlaceholder")} />
-          <Input value={createAppInstanceId} onChange={setCreateAppInstanceId} placeholder={t("workspaceListAppInstancePlaceholder")} />
+          <Input
+            value={createAppInstanceId}
+            onChange={setCreateAppInstanceId}
+            placeholder={t("workspaceListAppInstancePlaceholder")}
+          />
         </div>
       </Modal>
 
@@ -227,19 +277,25 @@ export function OrganizationWorkspacesPage({
             name: editName.trim(),
             description: editDescription.trim() || undefined,
             icon: editIcon.trim() || undefined
-          }).then(() => {
-            Toast.success(t("workspaceListUpdatedSuccess"));
-            setEditTarget(null);
-            setEditName("");
-            setEditDescription("");
-            setEditIcon("");
-          }).catch(() => undefined);
+          })
+            .then(() => {
+              Toast.success(t("workspaceListUpdatedSuccess"));
+              setEditTarget(null);
+              setEditName("");
+              setEditDescription("");
+              setEditIcon("");
+            })
+            .catch(() => undefined);
         }}
         okButtonProps={{ disabled: !editName.trim(), loading: saving }}
       >
-        <div className="atlas-develop-dialog">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Input value={editName} onChange={setEditName} placeholder={t("workspaceListNamePlaceholder")} />
-          <Input value={editDescription} onChange={setEditDescription} placeholder={t("workspaceListDescriptionPlaceholder")} />
+          <Input
+            value={editDescription}
+            onChange={setEditDescription}
+            placeholder={t("workspaceListDescriptionPlaceholder")}
+          />
           <Input value={editIcon} onChange={setEditIcon} placeholder={t("workspaceListIconPlaceholder")} />
         </div>
       </Modal>
@@ -253,10 +309,12 @@ export function OrganizationWorkspacesPage({
             return;
           }
 
-          void onDeleteWorkspace(archiveTarget.id).then(() => {
-            Toast.success(t("workspaceListArchivedSuccess"));
-            setArchiveTarget(null);
-          }).catch(() => undefined);
+          void onDeleteWorkspace(archiveTarget.id)
+            .then(() => {
+              Toast.success(t("workspaceListArchivedSuccess"));
+              setArchiveTarget(null);
+            })
+            .catch(() => undefined);
         }}
         okButtonProps={{
           type: "danger",
@@ -264,9 +322,9 @@ export function OrganizationWorkspacesPage({
           loading: archiveTarget ? deletingWorkspaceId === archiveTarget.id : false
         }}
       >
-        <Typography.Text>
+        <Text>
           {t("workspaceListArchiveConfirmContent").replace("{workspace}", archiveTarget?.name ?? "")}
-        </Typography.Text>
+        </Text>
       </Modal>
     </div>
   );

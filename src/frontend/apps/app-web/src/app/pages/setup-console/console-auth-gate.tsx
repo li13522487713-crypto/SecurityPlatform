@@ -1,7 +1,11 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { Button, Divider, Input, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../i18n";
 import { authenticateSetupConsole } from "../../../services/mock";
+import { FormCard, InfoBanner, PageShell } from "../../_shared";
 import { writeConsoleToken } from "./console-token-storage";
+
+const { Text } = Typography;
 
 interface ConsoleAuthGateProps {
   children: ReactNode;
@@ -37,9 +41,11 @@ export function ConsoleAuthGate({ children, authenticated, onAuthenticated }: Co
     return <>{children}</>;
   }
 
-  const updateField = (field: keyof AuthFormState) => (event: ChangeEvent<HTMLInputElement>) => {
-    setForm((previous) => ({ ...previous, [field]: event.target.value }));
-  };
+  const updateField =
+    (field: keyof AuthFormState) => (valueOrEvent: string | ChangeEvent<HTMLInputElement>) => {
+      const nextValue = typeof valueOrEvent === "string" ? valueOrEvent : valueOrEvent.target.value;
+      setForm((previous) => ({ ...previous, [field]: nextValue }));
+    };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,16 +76,15 @@ export function ConsoleAuthGate({ children, authenticated, onAuthenticated }: Co
   };
 
   return (
-    <div className="atlas-setup-page" data-testid="setup-console-auth-gate">
-      <div className="atlas-setup-card">
-        <h1 className="atlas-setup-card__title">{t("setupConsoleAuthTitle")}</h1>
-        <p className="atlas-setup-card__subtitle">{t("setupConsoleAuthSubtitle")}</p>
-
-        <form className="atlas-setup-panel" onSubmit={(event) => void handleSubmit(event)}>
-          <label className="atlas-form-field atlas-form-field--full">
-            <span className="atlas-form-field__label">{t("setupConsoleAuthRecoveryKeyLabel")}</span>
-            <input
-              className="atlas-input"
+    <PageShell centered maxWidth={520} testId="setup-console-auth-gate">
+      <FormCard title={t("setupConsoleAuthTitle")} subtitle={t("setupConsoleAuthSubtitle")}>
+        <form
+          style={{ display: "flex", flexDirection: "column", gap: 16 }}
+          onSubmit={(event) => void handleSubmit(event)}
+        >
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Text strong>{t("setupConsoleAuthRecoveryKeyLabel")}</Text>
+            <Input
               data-testid="setup-console-auth-recovery-key"
               placeholder={t("setupConsoleAuthRecoveryKeyPlaceholder")}
               value={form.recoveryKey}
@@ -87,14 +92,11 @@ export function ConsoleAuthGate({ children, authenticated, onAuthenticated }: Co
             />
           </label>
 
-          <div className="atlas-info-banner atlas-info-banner--compact" aria-hidden="true">
-            {t("setupConsoleAuthOrSeparator")}
-          </div>
+          <Divider margin="4px">{t("setupConsoleAuthOrSeparator")}</Divider>
 
-          <label className="atlas-form-field atlas-form-field--full">
-            <span className="atlas-form-field__label">{t("setupConsoleAuthBootstrapUsernameLabel")}</span>
-            <input
-              className="atlas-input"
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Text strong>{t("setupConsoleAuthBootstrapUsernameLabel")}</Text>
+            <Input
               data-testid="setup-console-auth-bootstrap-username"
               autoComplete="username"
               value={form.bootstrapAdminUsername}
@@ -102,12 +104,11 @@ export function ConsoleAuthGate({ children, authenticated, onAuthenticated }: Co
             />
           </label>
 
-          <label className="atlas-form-field atlas-form-field--full">
-            <span className="atlas-form-field__label">{t("setupConsoleAuthBootstrapPasswordLabel")}</span>
-            <input
-              className="atlas-input"
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Text strong>{t("setupConsoleAuthBootstrapPasswordLabel")}</Text>
+            <Input
+              mode="password"
               data-testid="setup-console-auth-bootstrap-password"
-              type="password"
               autoComplete="current-password"
               value={form.bootstrapAdminPassword}
               onChange={updateField("bootstrapAdminPassword")}
@@ -115,24 +116,27 @@ export function ConsoleAuthGate({ children, authenticated, onAuthenticated }: Co
           </label>
 
           {errorMessage ? (
-            <div className="atlas-pill is-error" data-testid="setup-console-auth-error">
-              {errorMessage}
-            </div>
+            <InfoBanner
+              variant="danger"
+              compact
+              description={errorMessage}
+              testId="setup-console-auth-error"
+            />
           ) : null}
 
-          <div className="atlas-setup-actions">
-            <span />
-            <button
-              type="submit"
-              className="atlas-button atlas-button--primary"
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button
+              type="primary"
+              theme="solid"
+              htmlType="submit"
               data-testid="setup-console-auth-submit"
-              disabled={submitting}
+              loading={submitting}
             >
               {submitting ? t("setupConsoleAuthSubmitting") : t("setupConsoleAuthSubmit")}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </FormCard>
+    </PageShell>
   );
 }

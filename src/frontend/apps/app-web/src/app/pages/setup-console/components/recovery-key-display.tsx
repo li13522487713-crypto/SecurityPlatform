@@ -1,5 +1,9 @@
 import { useState } from "react";
+import { Button, Checkbox, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../../i18n";
+import { InfoBanner } from "../../../_shared";
+
+const { Text } = Typography;
 
 interface RecoveryKeyDisplayProps {
   recoveryKey: string;
@@ -50,54 +54,59 @@ export function RecoveryKeyDisplay({ recoveryKey, onAcknowledge }: RecoveryKeyDi
   };
 
   return (
-    <div className="atlas-warning-banner" data-testid="setup-console-recovery-key-display">
-      <strong>{t("setupConsoleSystemRecoveryKeyHint")}</strong>
-      <div
-        style={{
-          marginTop: 12,
-          padding: 12,
-          borderRadius: 8,
-          background: "#1f1f1f",
-          color: "#fafafa",
-          fontFamily: "monospace",
-          fontSize: 18,
-          letterSpacing: "0.08em",
-          textAlign: "center",
-          userSelect: "all"
-        }}
-        data-testid="setup-console-recovery-key-value"
-      >
-        {recoveryKey}
-      </div>
+    <div style={{ marginBottom: 12 }} data-testid="setup-console-recovery-key-display">
+      <InfoBanner
+        variant="warning"
+        title={t("setupConsoleSystemRecoveryKeyHint")}
+        description={
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                background: "var(--semi-color-text-0)",
+                color: "var(--semi-color-bg-0)",
+                fontFamily: "monospace",
+                fontSize: 18,
+                letterSpacing: "0.08em",
+                textAlign: "center",
+                userSelect: "all"
+              }}
+              data-testid="setup-console-recovery-key-value"
+            >
+              {recoveryKey}
+            </div>
 
-      <div className="atlas-setup-actions" style={{ marginTop: 12, justifyContent: "flex-start", gap: 8 }}>
-        <button
-          type="button"
-          className="atlas-button atlas-button--secondary"
-          data-testid="setup-console-recovery-key-copy"
-          onClick={() => void handleCopy()}
-        >
-          {copied ? t("setupConsoleSystemRecoveryKeyCopied") : t("setupConsoleSystemRecoveryKeyCopy")}
-        </button>
-        <label className="atlas-form-field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={acknowledged}
-            data-testid="setup-console-recovery-key-acknowledge"
-            onChange={(event) => setAcknowledged(event.target.checked)}
-          />
-          <span>{t("setupConsoleSystemRecoveryKeyHint")}</span>
-        </label>
-        <button
-          type="button"
-          className="atlas-button atlas-button--primary"
-          data-testid="setup-console-recovery-key-confirm"
-          disabled={!acknowledged}
-          onClick={onAcknowledge}
-        >
-          {t("setupConsoleAuthSubmit")}
-        </button>
-      </div>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+              <Button
+                type="tertiary"
+                theme="light"
+                data-testid="setup-console-recovery-key-copy"
+                onClick={() => void handleCopy()}
+              >
+                {copied ? t("setupConsoleSystemRecoveryKeyCopied") : t("setupConsoleSystemRecoveryKeyCopy")}
+              </Button>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <Checkbox
+                  checked={acknowledged}
+                  data-testid="setup-console-recovery-key-acknowledge"
+                  onChange={(event) => setAcknowledged(Boolean(event.target.checked))}
+                />
+                <Text>{t("setupConsoleSystemRecoveryKeyHint")}</Text>
+              </label>
+              <Button
+                type="primary"
+                theme="solid"
+                data-testid="setup-console-recovery-key-confirm"
+                disabled={!acknowledged}
+                onClick={onAcknowledge}
+              >
+                {t("setupConsoleAuthSubmit")}
+              </Button>
+            </div>
+          </div>
+        }
+      />
     </div>
   );
 }

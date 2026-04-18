@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Spin } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import type { CozeNavSection } from "@atlas/coze-shell-react";
 import { CozeShell } from "@atlas/coze-shell-react";
@@ -24,6 +23,7 @@ import { PermissionProvider } from "../permission-context";
 import { MENU_GROUPS } from "../menu-config";
 import { WorkspaceSwitcher } from "../components/workspace-switcher";
 import { GlobalCreateModal } from "../components/global-create-modal";
+import { PageShell } from "../_shared";
 import type { AppMessageKey } from "../messages";
 
 const LAST_WORKSPACE_KEY = "atlas_last_workspace_id";
@@ -33,11 +33,7 @@ function navGlyph(label: string) {
 }
 
 function LoadingPage() {
-  return (
-    <div className="atlas-loading-page">
-      <Spin size="large" />
-    </div>
-  );
+  return <PageShell loading />;
 }
 
 export function rememberLastWorkspaceId(workspaceId: string): void {

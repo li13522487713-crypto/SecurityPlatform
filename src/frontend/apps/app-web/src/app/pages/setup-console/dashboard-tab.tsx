@@ -1,4 +1,6 @@
 import { useCallback, useState } from "react";
+import { Button, Collapse, Table, Typography } from "@douyinfe/semi-ui";
+import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useAppI18n } from "../../i18n";
 import { getSetupConsoleCatalogEntities } from "../../../services/mock";
 import type {
@@ -7,9 +9,7 @@ import type {
   WorkspaceSetupStateDto,
   DataMigrationJobDto
 } from "../../../services/api-setup-console";
-import type {
-  AppMessageKey
-} from "../../messages";
+import type { AppMessageKey } from "../../messages";
 import {
   isMigrationDone,
   isSystemBusy,
@@ -19,6 +19,14 @@ import {
   type SystemSetupState,
   type WorkspaceSetupState
 } from "../../setup-console-state-machine";
+import {
+  InfoBanner,
+  SectionCard,
+  StateBadge,
+  type StateBadgeVariant
+} from "../../_shared";
+
+const { Text } = Typography;
 
 interface DashboardTabProps {
   overview: SetupConsoleOverviewDto | null;
@@ -69,25 +77,24 @@ export function DashboardTab({ overview, loading, refreshing, onRefresh, onJumpT
 
   if (loading || !overview) {
     return (
-      <section className="atlas-setup-panel" data-testid="setup-console-dashboard-loading">
-        <p className="atlas-field-hint">{t("loading")}</p>
-      </section>
+      <SectionCard testId="setup-console-dashboard-loading">
+        <Text type="tertiary">{t("loading")}</Text>
+      </SectionCard>
     );
   }
 
   return (
     <div data-testid="setup-console-dashboard">
-      <div className="atlas-setup-actions" style={{ marginBottom: 16 }}>
-        <span />
-        <button
-          type="button"
-          className="atlas-button atlas-button--secondary"
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+        <Button
+          type="tertiary"
+          theme="light"
           data-testid="setup-console-dashboard-refresh"
-          disabled={refreshing}
+          loading={refreshing}
           onClick={() => void onRefresh()}
         >
           {refreshing ? t("setupConsoleRefreshing") : t("setupConsoleRefresh")}
-        </button>
+        </Button>
       </div>
 
       <SystemCard system={overview.system} onJumpToTab={onJumpToTab} />
@@ -96,6 +103,19 @@ export function DashboardTab({ overview, loading, refreshing, onRefresh, onJumpT
       <CatalogCard catalog={overview.catalogSummary} />
     </div>
   );
+}
+
+function systemStateVariant(state: SystemSetupState): StateBadgeVariant {
+  if (isSystemInitDone(state)) {
+    return "success";
+  }
+  if (isSystemBusy(state)) {
+    return "info";
+  }
+  if (shouldShowResumeBanner(state)) {
+    return "danger";
+  }
+  return "neutral";
 }
 
 function SystemCard({
@@ -108,57 +128,62 @@ function SystemCard({
   const { t } = useAppI18n();
   const stateLabel = t(SYSTEM_STATE_LABEL_KEY[system.state]);
   const showResume = shouldShowResumeBanner(system.state);
-  const done = isSystemInitDone(system.state);
-  const busy = isSystemBusy(system.state);
 
   return (
-    <section className="atlas-setup-panel" data-testid="setup-console-system-card">
-      <div className="atlas-org-section__header">
-        <div>
-          <div className="atlas-section-title">{t("setupConsoleSystemSectionTitle")}</div>
-          <div className="atlas-field-hint">{t("setupConsoleSystemLastUpdatedLabel")}: {system.lastUpdatedAt}</div>
-        </div>
-        <div>
-          <span
-            className={`atlas-pill ${done ? "is-success" : busy ? "is-info" : showResume ? "is-error" : ""}`.trim()}
-            data-testid="setup-console-system-state-badge"
+    <div data-testid="setup-console-system-card">
+      <SectionCard
+        title={t("setupConsoleSystemSectionTitle")}
+        subtitle={`${t("setupConsoleSystemLastUpdatedLabel")}: ${system.lastUpdatedAt}`}
+        actions={
+          <StateBadge
+            variant={systemStateVariant(system.state)}
+            testId="setup-console-system-state-badge"
           >
             {stateLabel}
-          </span>
+          </StateBadge>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <Text type="tertiary">
+            {t("setupConsoleSystemVersionLabel")}: {system.version}
+          </Text>
+          <Text type="tertiary">
+            {t("setupConsoleSystemRecoveryConfiguredLabel")}:{" "}
+            <span data-testid="setup-console-system-recovery-status">
+              {system.recoveryKeyConfigured ? t("setupConsoleBooleanTrue") : t("setupConsoleBooleanFalse")}
+            </span>
+          </Text>
+          {system.failureMessage ? (
+            <Text type="tertiary" data-testid="setup-console-system-failure-message">
+              {t("setupConsoleSystemFailureMessageLabel")}: {system.failureMessage}
+            </Text>
+          ) : null}
         </div>
-      </div>
-      <div className="atlas-form-grid">
-        <p className="atlas-field-hint">{t("setupConsoleSystemVersionLabel")}: {system.version}</p>
-        <p className="atlas-field-hint">
-          {t("setupConsoleSystemRecoveryConfiguredLabel")}:{" "}
-          <span data-testid="setup-console-system-recovery-status">
-            {system.recoveryKeyConfigured ? t("setupConsoleBooleanTrue") : t("setupConsoleBooleanFalse")}
-          </span>
-        </p>
-        {system.failureMessage ? (
-          <p className="atlas-field-hint" data-testid="setup-console-system-failure-message">
-            {t("setupConsoleSystemFailureMessageLabel")}: {system.failureMessage}
-          </p>
+
+        {showResume ? (
+          <div style={{ marginTop: 12 }}>
+            <InfoBanner
+              variant="warning"
+              compact
+              title={t("setupConsoleSystemResumeBannerTitle")}
+              description={t("setupConsoleSystemResumeBannerDesc")}
+              testId="setup-console-system-resume-banner"
+            />
+          </div>
         ) : null}
-      </div>
-      {showResume ? (
-        <div className="atlas-warning-banner" data-testid="setup-console-system-resume-banner">
-          <strong>{t("setupConsoleSystemResumeBannerTitle")}</strong>
-          <p>{t("setupConsoleSystemResumeBannerDesc")}</p>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <Button
+            type="primary"
+            theme="solid"
+            data-testid="setup-console-system-jump"
+            onClick={() => onJumpToTab("system-init")}
+          >
+            {t("setupConsoleTabSystemInit")}
+          </Button>
         </div>
-      ) : null}
-      <div className="atlas-setup-actions">
-        <span />
-        <button
-          type="button"
-          className="atlas-button atlas-button--primary"
-          data-testid="setup-console-system-jump"
-          onClick={() => onJumpToTab("system-init")}
-        >
-          {t("setupConsoleTabSystemInit")}
-        </button>
-      </div>
-    </section>
+      </SectionCard>
+    </div>
   );
 }
 
@@ -171,50 +196,58 @@ function WorkspaceCard({
 }) {
   const { t } = useAppI18n();
 
+  const columns: ColumnProps<WorkspaceSetupStateDto>[] = [
+    { title: t("setupConsoleWorkspaceColumnId"), dataIndex: "workspaceId" },
+    { title: t("setupConsoleWorkspaceColumnName"), dataIndex: "workspaceName" },
+    {
+      title: t("setupConsoleWorkspaceColumnState"),
+      dataIndex: "state",
+      render: (_value, record) => (
+        <StateBadge variant="info">{t(WORKSPACE_STATE_LABEL_KEY[record.state])}</StateBadge>
+      )
+    },
+    { title: t("setupConsoleWorkspaceColumnVersion"), dataIndex: "seedBundleVersion" },
+    { title: t("setupConsoleWorkspaceColumnLastUpdated"), dataIndex: "lastUpdatedAt" }
+  ];
+
   return (
-    <section className="atlas-setup-panel" data-testid="setup-console-workspace-card">
-      <div className="atlas-org-section__header">
-        <div>
-          <div className="atlas-section-title">{t("setupConsoleWorkspaceSectionTitle")}</div>
-        </div>
-        <button
-          type="button"
-          className="atlas-button atlas-button--secondary"
-          data-testid="setup-console-workspace-jump"
-          onClick={() => onJumpToTab("workspace-init")}
-        >
-          {t("setupConsoleTabWorkspaceInit")}
-        </button>
-      </div>
-      {workspaces.length === 0 ? (
-        <p className="atlas-field-hint">{t("setupConsoleWorkspaceEmpty")}</p>
-      ) : (
-        <table className="atlas-table" data-testid="setup-console-workspace-table">
-          <thead>
-            <tr>
-              <th>{t("setupConsoleWorkspaceColumnId")}</th>
-              <th>{t("setupConsoleWorkspaceColumnName")}</th>
-              <th>{t("setupConsoleWorkspaceColumnState")}</th>
-              <th>{t("setupConsoleWorkspaceColumnVersion")}</th>
-              <th>{t("setupConsoleWorkspaceColumnLastUpdated")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {workspaces.map((workspace) => (
-              <tr key={workspace.workspaceId} data-testid={`setup-console-workspace-row-${workspace.workspaceId}`}>
-                <td>{workspace.workspaceId}</td>
-                <td>{workspace.workspaceName}</td>
-                <td>
-                  <span className="atlas-pill">{t(WORKSPACE_STATE_LABEL_KEY[workspace.state])}</span>
-                </td>
-                <td>{workspace.seedBundleVersion}</td>
-                <td>{workspace.lastUpdatedAt}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
+    <div data-testid="setup-console-workspace-card">
+      <SectionCard
+        title={t("setupConsoleWorkspaceSectionTitle")}
+        actions={
+          <Button
+            type="tertiary"
+            theme="light"
+            data-testid="setup-console-workspace-jump"
+            onClick={() => onJumpToTab("workspace-init")}
+          >
+            {t("setupConsoleTabWorkspaceInit")}
+          </Button>
+        }
+      >
+        {workspaces.length === 0 ? (
+          <Text type="tertiary">{t("setupConsoleWorkspaceEmpty")}</Text>
+        ) : (
+          <Table
+            data-testid="setup-console-workspace-table"
+            columns={columns}
+            dataSource={workspaces.map((workspace) => ({
+              ...workspace,
+              key: workspace.workspaceId
+            }))}
+            pagination={false}
+            size="small"
+            onRow={(record) =>
+              record
+                ? {
+                    "data-testid": `setup-console-workspace-row-${record.workspaceId}`
+                  }
+                : {}
+            }
+          />
+        )}
+      </SectionCard>
+    </div>
   );
 }
 
@@ -228,123 +261,127 @@ function MigrationCard({
   const { t } = useAppI18n();
 
   return (
-    <section className="atlas-setup-panel" data-testid="setup-console-migration-card">
-      <div className="atlas-org-section__header">
-        <div>
-          <div className="atlas-section-title">{t("setupConsoleMigrationSectionTitle")}</div>
-        </div>
-        <button
-          type="button"
-          className="atlas-button atlas-button--secondary"
-          data-testid="setup-console-migration-jump"
-          onClick={() => onJumpToTab("migration")}
-        >
-          {t("setupConsoleTabMigration")}
-        </button>
-      </div>
-      {migration ? (
-        <div data-testid="setup-console-migration-active">
-          <p className="atlas-field-hint">
-            {t("setupConsoleMigrationColumnId")}: <code>{migration.id}</code>
-          </p>
-          <p className="atlas-field-hint">
-            {t("setupConsoleMigrationColumnState")}:{" "}
-            <span
-              className={`atlas-pill ${isMigrationDone(migration.state) ? "is-success" : "is-info"}`.trim()}
-              data-testid="setup-console-migration-state-badge"
-            >
-              {t(MIGRATION_STATE_LABEL_KEY[migration.state])}
-            </span>
-          </p>
-          <p className="atlas-field-hint">
-            {t("setupConsoleMigrationColumnProgress")}: {migration.progressPercent}%
-          </p>
-        </div>
-      ) : (
-        <p className="atlas-field-hint">{t("setupConsoleMigrationEmpty")}</p>
-      )}
-    </section>
+    <div data-testid="setup-console-migration-card">
+      <SectionCard
+        title={t("setupConsoleMigrationSectionTitle")}
+        actions={
+          <Button
+            type="tertiary"
+            theme="light"
+            data-testid="setup-console-migration-jump"
+            onClick={() => onJumpToTab("migration")}
+          >
+            {t("setupConsoleTabMigration")}
+          </Button>
+        }
+      >
+        {migration ? (
+          <div data-testid="setup-console-migration-active" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Text type="tertiary">
+              {t("setupConsoleMigrationColumnId")}: <code>{migration.id}</code>
+            </Text>
+            <Text type="tertiary">
+              {t("setupConsoleMigrationColumnState")}:{" "}
+              <StateBadge
+                variant={isMigrationDone(migration.state) ? "success" : "info"}
+                testId="setup-console-migration-state-badge"
+              >
+                {t(MIGRATION_STATE_LABEL_KEY[migration.state])}
+              </StateBadge>
+            </Text>
+            <Text type="tertiary">
+              {t("setupConsoleMigrationColumnProgress")}: {migration.progressPercent}%
+            </Text>
+          </div>
+        ) : (
+          <Text type="tertiary">{t("setupConsoleMigrationEmpty")}</Text>
+        )}
+      </SectionCard>
+    </div>
   );
 }
 
 function CatalogCard({ catalog }: { catalog: SetupConsoleOverviewDto["catalogSummary"] }) {
   const { t } = useAppI18n();
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [activeKeys, setActiveKeys] = useState<string[]>([]);
   const [details, setDetails] = useState<Record<string, readonly string[]>>({});
   const [loading, setLoading] = useState<string | null>(null);
 
-  const toggle = useCallback(
-    async (categoryId: string) => {
-      if (expanded === categoryId) {
-        setExpanded(null);
+  const handleChange = useCallback(
+    async (keys: string | string[]) => {
+      const next = Array.isArray(keys) ? keys : keys ? [keys] : [];
+      setActiveKeys(next);
+      const newlyOpened = next.find((key) => !details[key]);
+      if (!newlyOpened) {
         return;
       }
-      setExpanded(categoryId);
-      if (details[categoryId]) {
-        return;
-      }
-      setLoading(categoryId);
+      setLoading(newlyOpened);
       try {
-        const response = await getSetupConsoleCatalogEntities(categoryId);
+        const response = await getSetupConsoleCatalogEntities(newlyOpened);
         if (response.success && response.data) {
-          setDetails((previous) => ({ ...previous, [categoryId]: response.data ?? [] }));
+          setDetails((previous) => ({ ...previous, [newlyOpened]: response.data ?? [] }));
         }
       } finally {
         setLoading(null);
       }
     },
-    [details, expanded]
+    [details]
   );
 
   return (
-    <section className="atlas-setup-panel" data-testid="setup-console-catalog-card">
-      <div className="atlas-section-title">{t("setupConsoleCatalogSectionTitle")}</div>
-      <p className="atlas-field-hint">
-        {t("setupConsoleCatalogTotalLabel")}: {catalog.totalEntities} ({catalog.totalCategories}{" "}
-        {t("setupConsoleCatalogCategoryUnit")})
-      </p>
-      <ul>
-        {catalog.categories.map((category) => {
-          const isOpen = expanded === category.category;
-          const list = details[category.category];
-          return (
-            <li key={category.category} data-testid={`setup-console-catalog-row-${category.category}`}>
-              <button
-                type="button"
-                className="atlas-button atlas-button--text"
-                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit" }}
-                onClick={() => void toggle(category.category)}
-                data-testid={`setup-console-catalog-toggle-${category.category}`}
+    <div data-testid="setup-console-catalog-card">
+      <SectionCard title={t("setupConsoleCatalogSectionTitle")}>
+        <Text type="tertiary" style={{ display: "block", marginBottom: 12 }}>
+          {t("setupConsoleCatalogTotalLabel")}: {catalog.totalEntities} ({catalog.totalCategories}{" "}
+          {t("setupConsoleCatalogCategoryUnit")})
+        </Text>
+        <Collapse activeKey={activeKeys} onChange={(keys) => void handleChange(keys)}>
+          {catalog.categories.map((category) => {
+            const list = details[category.category];
+            const isLoading = loading === category.category;
+            return (
+              <Collapse.Panel
+                key={category.category}
+                itemKey={category.category}
+                header={
+                  <span data-testid={`setup-console-catalog-row-${category.category}`}>
+                    <span data-testid={`setup-console-catalog-toggle-${category.category}`}>
+                      {t(category.displayKey as AppMessageKey)} — {category.entityCount}
+                      {category.hasSeed ? ` (${t("setupConsoleBooleanTrue")})` : ""}
+                    </span>
+                  </span>
+                }
               >
-                {isOpen ? "▼ " : "▶ "}
-                {t(category.displayKey as AppMessageKey)} — {category.entityCount}
-                {category.hasSeed ? ` (${t("setupConsoleBooleanTrue")})` : ""}
-              </button>
-              {isOpen ? (
-                loading === category.category ? (
-                  <p className="atlas-field-hint" style={{ marginLeft: 16 }}>
-                    {t("loading")}
-                  </p>
+                {isLoading ? (
+                  <Text type="tertiary">{t("loading")}</Text>
                 ) : (
-                  <ul style={{ marginLeft: 16 }} data-testid={`setup-console-catalog-details-${category.category}`}>
+                  <ul
+                    style={{ paddingLeft: 16, margin: 0 }}
+                    data-testid={`setup-console-catalog-details-${category.category}`}
+                  >
                     {(list ?? []).map((entityName) => (
                       <li key={entityName}>
                         <code>{entityName}</code>
                       </li>
                     ))}
                   </ul>
-                )
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-      {catalog.missingCriticalTables.length > 0 ? (
-        <div className="atlas-warning-banner" data-testid="setup-console-catalog-missing">
-          <strong>{t("setupConsoleCatalogMissingLabel")}</strong>
-          <p>{catalog.missingCriticalTables.join(", ")}</p>
-        </div>
-      ) : null}
-    </section>
+                )}
+              </Collapse.Panel>
+            );
+          })}
+        </Collapse>
+        {catalog.missingCriticalTables.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <InfoBanner
+              variant="warning"
+              compact
+              title={t("setupConsoleCatalogMissingLabel")}
+              description={catalog.missingCriticalTables.join(", ")}
+              testId="setup-console-catalog-missing"
+            />
+          </div>
+        ) : null}
+      </SectionCard>
+    </div>
   );
 }

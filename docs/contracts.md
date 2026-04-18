@@ -2022,3 +2022,24 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 | M6 | AGENTS.md / docs/contracts.md 加包级 i18n 契约；i18n:check + lint + build 全过 | 完成 |
 
 详情见 `src/frontend/scripts/i18n-baseline.json` 中 `_pendingUserFacingFiles` 清单。
+
+## app-web 公共 Semi 壳契约（`apps/app-web/src/app/_shared/`）
+
+为统一 app-web 内"登录 → 应用初始化 → 控制台 → 工作空间"全链路的视觉与交互，把以下 7 个轻量 Semi 壳沉淀到 `src/frontend/apps/app-web/src/app/_shared/`，所有 `pages` / `components` / `layouts` 必须复用，**禁止再引入 `atlas-button` / `atlas-input` / `atlas-pill` / `atlas-tab` / `atlas-form-field` / `atlas-result-card` / `atlas-setup-panel` / `atlas-setup-card` / `atlas-loading-page` / `atlas-status-card` 等自绘 className**。
+
+| 导出 | 文件 | 用途 | 关键 props |
+|---|---|---|---|
+| `PageShell` | [`semi-page-shell.tsx`](src/frontend/apps/app-web/src/app/_shared/semi-page-shell.tsx) | 页面外壳 / 加载态容器，替 `atlas-loading-page` `atlas-centered-page` | `loading` `loadingTip` `centered` `maxWidth` `testId` |
+| `FormCard` | [`semi-form-card.tsx`](src/frontend/apps/app-web/src/app/_shared/semi-form-card.tsx) | 单卡片表单/向导主容器，替 `atlas-login-card` `atlas-setup-card` `atlas-hero-card` | `title` `subtitle` `headerExtra` `actions` `bodyPadding` |
+| `SectionCard` | [`semi-section-card.tsx`](src/frontend/apps/app-web/src/app/_shared/semi-section-card.tsx) | 页面内分区块卡片，替 `atlas-setup-panel` `atlas-org-section` | `title` `subtitle` `actions` `marginBottom` |
+| `StateBadge` | [`semi-state-badge.tsx`](src/frontend/apps/app-web/src/app/_shared/semi-state-badge.tsx) | 状态徽标（success / info / warning / danger / neutral），替 `atlas-pill is-*` | `variant` `testId` |
+| `StepsBar` | [`semi-steps-bar.tsx`](src/frontend/apps/app-web/src/app/_shared/semi-steps-bar.tsx) | 步骤条，替 `atlas-setup-steps` | `steps` `current` `status` `size` |
+| `ResultCard` | [`semi-result-card.tsx`](src/frontend/apps/app-web/src/app/_shared/semi-result-card.tsx) | 结果卡片（success / warning / error / info），替 `atlas-result-card` `atlas-not-ready-result` | `status` `title` `description` `actions` `extra` |
+| `InfoBanner` | [`semi-info-banner.tsx`](src/frontend/apps/app-web/src/app/_shared/semi-info-banner.tsx) | 信息条幅（基于 Semi `Banner`），替 `atlas-info-banner` `atlas-warning-banner` | `variant` `title` `description` `compact` `closable` |
+
+约束：
+
+- 所有壳组件透传 `data-testid`，不得改动既有 e2e 选择器；
+- 壳组件内部不得再嵌套 `atlas-*` className；
+- `app.css` 仅保留 `:root` 全局变量、`html/body/#app` reset、`body` 渐变背景、`.app-nav-glyph` 与 `.coze-*` 命名空间；新增 `atlas-*` 选择器视为破坏性变更；
+- 单测在 [`semi-*.spec.tsx`](src/frontend/apps/app-web/src/app/_shared/) 内 mock `@douyinfe/semi-ui` 后断言行为，避免在 jsdom 中触发 lottie-web 副作用 import。

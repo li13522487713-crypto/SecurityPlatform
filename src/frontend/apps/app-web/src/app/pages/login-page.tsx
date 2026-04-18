@@ -1,55 +1,90 @@
 import { clearAuthStorage, getTenantId } from "@atlas/shared-react-core/utils";
 import { useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Button, Input, Typography } from "@douyinfe/semi-ui";
+import { IconBriefStroked, IconLock, IconUser } from "@douyinfe/semi-icons";
 import { orgWorkspacesPath } from "../app-paths";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
 import { getLoginCaptcha } from "../../services/api-auth";
+import { FormCard, InfoBanner, PageShell } from "../_shared";
+
+const { Title, Text } = Typography;
 
 const HARDCODED_DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 const HARDCODED_DEFAULT_USERNAME = "admin";
 const HARDCODED_DEFAULT_PASSWORD = "P@ssw0rd!";
 
+const HERO_BACKGROUND =
+  "linear-gradient(135deg, #1554ff 0%, #2d7bff 50%, #38bdf8 100%)";
+
+/**
+ * 登录页响应式样式：宽屏渲染左侧 hero + 右侧表单的双栏布局；
+ * 窄屏（<= 960px）只保留右侧表单，hero 整体隐藏。
+ * 用 inline `<style>` 注入避免向 app.css 新增遗留类，便于 M7 一次性清理 atlas-*。
+ */
+const responsiveStyles = `
+.app-login-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 100vh; }
+.app-login-aside { display: none; }
+@media (min-width: 961px) {
+  .app-login-aside { display: flex; }
+}
+@media (max-width: 960px) {
+  .app-login-grid { grid-template-columns: minmax(0, 1fr); }
+}
+`;
+
 function LocaleSwitchButton() {
   const { locale, setLocale, t } = useAppI18n();
 
   return (
-    <button
-      type="button"
-      className="atlas-locale-switch"
+    <Button
+      theme="borderless"
+      type="tertiary"
       onClick={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
     >
       {locale === "zh-CN" ? t("switchToEnglish") : t("switchToChinese")}
-    </button>
+    </Button>
   );
 }
 
-function LogoMark({ compact = false }: { compact?: boolean }) {
+function LogoMark({ tone }: { tone: "light" | "dark" }) {
+  const isLight = tone === "light";
+  const fillOuter = isLight ? "rgba(255,255,255,0.15)" : "rgba(22,119,255,0.10)";
+  const strokeOuter = isLight ? "rgba(255,255,255,0.6)" : "var(--semi-color-primary)";
+  const fillInner = isLight ? "rgba(255,255,255,0.25)" : "rgba(22,119,255,0.15)";
+  const strokeInner = isLight ? "#fff" : "var(--semi-color-primary)";
+  const dotFill = isLight ? "#fff" : "var(--semi-color-primary)";
+
   return (
-    <div className={`atlas-login-logo-mark ${compact ? "is-compact" : ""}`.trim()} aria-hidden="true">
+    <span
+      aria-hidden="true"
+      style={{ width: 32, height: 32, display: "inline-flex", alignItems: "center" }}
+    >
       <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path
           d="M16 2L28 9v14l-12 7L4 23V9l12-7z"
-          fill={compact ? "rgba(22,119,255,0.1)" : "rgba(255,255,255,0.15)"}
-          stroke={compact ? "var(--atlas-login-primary)" : "rgba(255,255,255,0.6)"}
+          fill={fillOuter}
+          stroke={strokeOuter}
           strokeWidth="1.5"
         />
         <path
           d="M16 8l7 4v8l-7 4-7-4v-8l7-4z"
-          fill={compact ? "rgba(22,119,255,0.15)" : "rgba(255,255,255,0.25)"}
-          stroke={compact ? "var(--atlas-login-primary)" : "#fff"}
+          fill={fillInner}
+          stroke={strokeInner}
           strokeWidth="1.5"
         />
-        <circle cx="16" cy="16" r="3" fill={compact ? "var(--atlas-login-primary)" : "#fff"} />
+        <circle cx="16" cy="16" r="3" fill={dotFill} />
       </svg>
-    </div>
+    </span>
   );
 }
 
 function FeatureGlyph({ kind }: { kind: "shield" | "apps" | "team" }) {
+  const baseStyle = { width: 22, height: 22, color: "currentColor" } as const;
   if (kind === "shield") {
     return (
-      <svg viewBox="0 0 24 24" className="atlas-login-feature__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" style={baseStyle} aria-hidden="true">
         <path d="M12 2l7 3v6c0 5-3.2 8.8-7 11-3.8-2.2-7-6-7-11V5l7-3z" fill="currentColor" opacity="0.92" />
       </svg>
     );
@@ -57,7 +92,7 @@ function FeatureGlyph({ kind }: { kind: "shield" | "apps" | "team" }) {
 
   if (kind === "apps") {
     return (
-      <svg viewBox="0 0 24 24" className="atlas-login-feature__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" style={baseStyle} aria-hidden="true">
         <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
         <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.72" />
         <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.72" />
@@ -67,7 +102,7 @@ function FeatureGlyph({ kind }: { kind: "shield" | "apps" | "team" }) {
   }
 
   return (
-    <svg viewBox="0 0 24 24" className="atlas-login-feature__icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" style={baseStyle} aria-hidden="true">
       <circle cx="9" cy="8" r="3" fill="currentColor" />
       <circle cx="16.5" cy="9.5" r="2.5" fill="currentColor" opacity="0.72" />
       <path d="M4 19c0-2.8 2.7-5 6-5s6 2.2 6 5H4z" fill="currentColor" />
@@ -76,36 +111,15 @@ function FeatureGlyph({ kind }: { kind: "shield" | "apps" | "team" }) {
   );
 }
 
-function PrefixGlyph({ kind }: { kind: "bank" | "user" | "lock" }) {
-  if (kind === "bank") {
-    return (
-      <svg viewBox="0 0 20 20" className="atlas-login-input__icon" aria-hidden="true">
-        <path d="M2 7l8-4 8 4v2H2V7zm2 4h2v5H4v-5zm5 0h2v5H9v-5zm5 0h2v5h-2v-5zM2 17h16v1H2v-1z" fill="currentColor" />
-      </svg>
-    );
-  }
-
-  if (kind === "user") {
-    return (
-      <svg viewBox="0 0 20 20" className="atlas-login-input__icon" aria-hidden="true">
-        <circle cx="10" cy="6" r="3.2" fill="currentColor" />
-        <path d="M3 17c.8-3.1 3.4-5 7-5s6.2 1.9 7 5H3z" fill="currentColor" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 20 20" className="atlas-login-input__icon" aria-hidden="true">
-      <rect x="4" y="9" width="12" height="8" rx="2" fill="currentColor" />
-      <path d="M6.5 9V7.5a3.5 3.5 0 017 0V9h-1.6V7.7a1.9 1.9 0 10-3.8 0V9H6.5z" fill="currentColor" opacity="0.72" />
-    </svg>
-  );
-}
-
 function normalizeLoginError(
   error: unknown,
   t: (
-    key: "appLoginAccountLocked" | "appLoginPasswordExpired" | "appLoginInvalidTenantId" | "appLoginCaptchaNeeded" | "loginFailed"
+    key:
+      | "appLoginAccountLocked"
+      | "appLoginPasswordExpired"
+      | "appLoginInvalidTenantId"
+      | "appLoginCaptchaNeeded"
+      | "loginFailed"
   ) => string
 ): string {
   if (!(error instanceof Error)) {
@@ -190,219 +204,291 @@ export function LoginPage() {
 
   const shouldRequireCaptcha = captchaKey.length > 0;
 
-  return (
-    <div className="atlas-login-page" data-testid="app-login-page">
-      <div className="atlas-login-split">
-        <aside className="atlas-login-hero">
-          <div className="atlas-login-hero__bg">
-            <span className="atlas-login-hero__shape atlas-login-hero__shape--one" />
-            <span className="atlas-login-hero__shape atlas-login-hero__shape--two" />
-            <span className="atlas-login-hero__shape atlas-login-hero__shape--three" />
-          </div>
+  const handleSubmit = async () => {
+    try {
+      setErrorMessage("");
+      clearAuthStorage();
+      if (shouldRequireCaptcha && !captchaCode.trim()) {
+        setErrorMessage(t("appLoginCaptchaRequired"));
+        return;
+      }
 
-          <div className="atlas-login-hero__content">
-            <div className="atlas-login-brand">
-              <LogoMark />
+      await auth.login(
+        appKey || "",
+        tenantId.trim(),
+        username.trim(),
+        password,
+        undefined,
+        captchaKey || undefined,
+        captchaCode.trim() || undefined
+      );
+      const target =
+        typeof redirectTarget === "string" && redirectTarget.startsWith("/")
+          ? redirectTarget
+          : workspaceTarget;
+      navigate(target, { replace: true });
+    } catch (error) {
+      setErrorMessage(normalizeLoginError(error, t));
+      const typedError = error as Error & { code?: string };
+      const message = typedError.message || "";
+      if (
+        typedError.code === "LoginFailedTooManyTimes" ||
+        typedError.code === "CaptchaExpired" ||
+        message.includes("LoginFailedTooManyTimes") ||
+        message.includes("CaptchaExpired")
+      ) {
+        setCaptchaCode("");
+        await fetchCaptcha();
+      }
+    }
+  };
+
+  return (
+    <PageShell testId="app-login-page">
+      <style>{responsiveStyles}</style>
+      <div className="app-login-grid">
+        <aside
+          className="app-login-aside"
+          style={{
+            position: "relative",
+            padding: 48,
+            color: "#fff",
+            background: HERO_BACKGROUND,
+            overflow: "hidden",
+            flexDirection: "column"
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              top: -120,
+              left: -80,
+              width: 320,
+              height: 320,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.12)"
+            }}
+          />
+          <span
+            style={{
+              position: "absolute",
+              bottom: -120,
+              right: -100,
+              width: 360,
+              height: 360,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.08)"
+            }}
+          />
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, gap: 32 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, fontWeight: 700, fontSize: 18 }}>
+              <LogoMark tone="light" />
               <span>{t("appLoginBrandTitle")}</span>
             </div>
-
-            <div className="atlas-login-slogan">
-              <h2>{t("appLoginHeroTitle")}</h2>
-              <p>{t("appLoginHeroSubtitle")}</p>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 16 }}>
+              <Title heading={2} style={{ color: "#fff", margin: 0 }}>
+                {t("appLoginHeroTitle")}
+              </Title>
+              <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 16 }}>
+                {t("appLoginHeroSubtitle")}
+              </Text>
             </div>
-
-            <div className="atlas-login-features">
-              <div className="atlas-login-feature">
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <FeatureGlyph kind="shield" />
-                <span>{t("appLoginHeroPoint1")}</span>
+                <Text style={{ color: "#fff" }}>{t("appLoginHeroPoint1")}</Text>
               </div>
-              <div className="atlas-login-feature">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <FeatureGlyph kind="apps" />
-                <span>{t("appLoginHeroPoint2")}</span>
+                <Text style={{ color: "#fff" }}>{t("appLoginHeroPoint2")}</Text>
               </div>
-              <div className="atlas-login-feature">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <FeatureGlyph kind="team" />
-                <span>{t("appLoginHeroPoint3")}</span>
+                <Text style={{ color: "#fff" }}>{t("appLoginHeroPoint3")}</Text>
               </div>
             </div>
           </div>
         </aside>
 
-        <main className="atlas-login-main">
-          <div className="atlas-login-main__locale">
+        <main
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: "48px 24px",
+            position: "relative"
+          }}
+        >
+          <div style={{ position: "absolute", top: 24, right: 24 }}>
             <LocaleSwitchButton />
           </div>
 
-          <div className="atlas-login-card-shell">
-            <div className="atlas-login-mobile-brand">
-              <LogoMark compact />
+          <div style={{ width: "100%", maxWidth: 420 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 24,
+                fontWeight: 700,
+                color: "var(--semi-color-text-0)"
+              }}
+            >
+              <LogoMark tone="dark" />
               <span>{t("appLoginBrandTitle")}</span>
             </div>
 
-            <h1 className="atlas-login-card__title">{t("appLoginTitle")}</h1>
-            <div className="atlas-login-card__badge">
-              <FeatureGlyph kind="apps" />
-              <span>{appKey || t("workspaceListWorkspaceTag")}</span>
-            </div>
-
-            {defaultTenantId ? (
-              <div className="atlas-login-dev-hint">
-                <strong>{t("appLoginDefaultCredentialHint")}</strong>
-                <div className="atlas-login-dev-hint__items">
-                  <span>
-                    Tenant: <code>{defaultTenantId}</code>
-                  </span>
-                  {defaultUsername ? (
-                    <span>
-                      User: <code>{defaultUsername}</code>
-                    </span>
-                  ) : null}
-                  <span>
-                    Password: <code>P@ssw0rd!</code>
-                  </span>
-                </div>
-              </div>
-            ) : null}
-
-            {errorMessage ? (
-              <div className="atlas-login-error login-error" data-testid="app-login-error">
-                {errorMessage}
-              </div>
-            ) : null}
-
-            <form
-              className="atlas-login-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void (async () => {
-                  try {
-                    setErrorMessage("");
-                    clearAuthStorage();
-                    if (shouldRequireCaptcha && !captchaCode.trim()) {
-                      setErrorMessage(t("appLoginCaptchaRequired"));
-                      return;
-                    }
-
-                    await auth.login(
-                      appKey || "",
-                      tenantId.trim(),
-                      username.trim(),
-                      password,
-                      undefined,
-                      captchaKey || undefined,
-                      captchaCode.trim() || undefined
-                    );
-                    const target =
-                      typeof redirectTarget === "string" && redirectTarget.startsWith("/")
-                        ? redirectTarget
-                        : workspaceTarget;
-                    navigate(target, { replace: true });
-                  } catch (error) {
-                    setErrorMessage(normalizeLoginError(error, t));
-                    const typedError = error as Error & { code?: string };
-                    const message = typedError.message || "";
-                    if (
-                      typedError.code === "LoginFailedTooManyTimes" ||
-                      typedError.code === "CaptchaExpired" ||
-                      message.includes("LoginFailedTooManyTimes") ||
-                      message.includes("CaptchaExpired")
-                    ) {
-                      setCaptchaCode("");
-                      await fetchCaptcha();
-                    }
-                  }
-                })();
-              }}
+            <FormCard
+              title={t("appLoginTitle")}
+              subtitle={
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <FeatureGlyph kind="apps" />
+                  <span>{appKey || t("workspaceListWorkspaceTag")}</span>
+                </span>
+              }
             >
-              <label className="atlas-login-field">
-                <span className="atlas-login-field__label">{t("tenantId")}</span>
-                <span className="atlas-login-field__control">
-                  <PrefixGlyph kind="bank" />
-                  <input
-                    className="atlas-input atlas-login-input"
+              {defaultTenantId ? (
+                <div style={{ marginBottom: 12 }}>
+                  <InfoBanner
+                    variant="info"
+                    compact
+                    description={
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <strong>{t("appLoginDefaultCredentialHint")}</strong>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12 }}>
+                          <span>
+                            Tenant: <code>{defaultTenantId}</code>
+                          </span>
+                          {defaultUsername ? (
+                            <span>
+                              User: <code>{defaultUsername}</code>
+                            </span>
+                          ) : null}
+                          <span>
+                            Password: <code>P@ssw0rd!</code>
+                          </span>
+                        </div>
+                      </div>
+                    }
+                  />
+                </div>
+              ) : null}
+
+              {errorMessage ? (
+                <div style={{ marginBottom: 12 }}>
+                  <InfoBanner variant="danger" description={errorMessage} testId="app-login-error" />
+                </div>
+              ) : null}
+
+              <form
+                style={{ display: "flex", flexDirection: "column", gap: 16 }}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleSubmit();
+                }}
+              >
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Text strong>{t("tenantId")}</Text>
+                  <Input
                     data-testid="app-login-tenant"
+                    prefix={<IconBriefStroked />}
                     placeholder={t("appLoginTenantIdPlaceholder")}
                     value={tenantId}
-                    onChange={(event) => setTenantId(event.target.value)}
+                    onChange={(value) => setTenantId(value)}
+                    size="large"
                   />
-                </span>
-              </label>
+                </label>
 
-              <label className="atlas-login-field">
-                <span className="atlas-login-field__label">{t("username")}</span>
-                <span className="atlas-login-field__control">
-                  <PrefixGlyph kind="user" />
-                  <input
-                    className="atlas-input atlas-login-input"
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Text strong>{t("username")}</Text>
+                  <Input
                     data-testid="app-login-username"
+                    prefix={<IconUser />}
                     placeholder={t("appLoginUsernamePlaceholder")}
                     value={username}
-                    onChange={(event) => setUsername(event.target.value)}
+                    onChange={(value) => setUsername(value)}
+                    size="large"
                   />
-                </span>
-              </label>
+                </label>
 
-              <label className="atlas-login-field">
-                <span className="atlas-login-field__label">{t("password")}</span>
-                <span className="atlas-login-field__control">
-                  <PrefixGlyph kind="lock" />
-                  <input
-                    className="atlas-input atlas-login-input"
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Text strong>{t("password")}</Text>
+                  <Input
                     data-testid="app-login-password"
+                    prefix={<IconLock />}
                     placeholder={t("appLoginPasswordPlaceholder")}
                     type="password"
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
+                    onChange={(value) => setPassword(value)}
+                    size="large"
                   />
-                </span>
-              </label>
+                </label>
 
-              {shouldRequireCaptcha ? (
-                <label className="atlas-login-field">
-                  <span className="atlas-login-field__label">{t("appLoginCaptchaPlaceholder")}</span>
-                  <span className="atlas-login-field__control">
-                    <input
-                      className="atlas-input atlas-login-input"
+                {shouldRequireCaptcha ? (
+                  <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <Text strong>{t("appLoginCaptchaPlaceholder")}</Text>
+                    <Input
                       data-testid="app-login-captcha"
                       placeholder={t("appLoginCaptchaPlaceholder")}
                       value={captchaCode}
-                      onChange={(event) => setCaptchaCode(event.target.value)}
+                      onChange={(value) => setCaptchaCode(value)}
+                      size="large"
                     />
-                  </span>
-                  <div className="atlas-login-dev-hint__items" style={{ marginTop: "8px", alignItems: "center" }}>
-                    {captchaImage ? (
-                      <img
-                        src={captchaImage}
-                        alt={t("appLoginCaptchaPlaceholder")}
-                        style={{ height: "40px", borderRadius: "6px", border: "1px solid rgba(0,0,0,0.08)" }}
-                      />
-                    ) : null}
-                    <button
-                      type="button"
-                      className="atlas-button atlas-button--ghost"
-                      onClick={() => { void fetchCaptcha(); }}
-                      disabled={loadingCaptcha}
-                    >
-                      {loadingCaptcha ? t("loading") : t("appLoginCaptchaRefresh")}
-                    </button>
-                  </div>
-                </label>
-              ) : null}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+                      {captchaImage ? (
+                        <img
+                          src={captchaImage}
+                          alt={t("appLoginCaptchaPlaceholder")}
+                          style={{
+                            height: 40,
+                            borderRadius: 6,
+                            border: "1px solid var(--semi-color-border)"
+                          }}
+                        />
+                      ) : null}
+                      <Button
+                        theme="borderless"
+                        type="tertiary"
+                        onClick={() => {
+                          void fetchCaptcha();
+                        }}
+                        loading={loadingCaptcha}
+                      >
+                        {loadingCaptcha ? t("loading") : t("appLoginCaptchaRefresh")}
+                      </Button>
+                    </div>
+                  </label>
+                ) : null}
 
-              <button
-                data-testid="app-login-submit"
-                type="submit"
-                className="atlas-button atlas-button--primary atlas-button--block atlas-login-submit"
-                disabled={auth.loading}
-              >
-                {auth.loading ? t("loading") : t("login")}
-              </button>
-            </form>
+                <Button
+                  data-testid="app-login-submit"
+                  type="primary"
+                  theme="solid"
+                  htmlType="submit"
+                  block
+                  size="large"
+                  loading={auth.loading}
+                  style={{ marginTop: 8 }}
+                >
+                  {auth.loading ? t("loading") : t("login")}
+                </Button>
+              </form>
+            </FormCard>
 
-            <div className="atlas-login-footer">{t("appLoginFooter")}</div>
+            <div
+              style={{
+                marginTop: 16,
+                textAlign: "center",
+                color: "var(--semi-color-text-2)",
+                fontSize: 12
+              }}
+            >
+              {t("appLoginFooter")}
+            </div>
           </div>
         </main>
       </div>
-    </div>
+    </PageShell>
   );
 }
