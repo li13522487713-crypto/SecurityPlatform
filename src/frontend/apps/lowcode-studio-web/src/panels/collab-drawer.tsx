@@ -3,6 +3,7 @@ import { SideSheet, Typography, Banner, Tag, Space, Button, List } from '@douyin
 import * as signalR from '@microsoft/signalr';
 import * as Y from 'yjs';
 import { YjsSignalRProvider, CollabAwareness, CollabLockManager, type AwarenessUserState } from '@atlas/lowcode-collab-yjs';
+import { t } from '../i18n';
 
 /**
  * 协同编辑抽屉（M16 C16-1）。
@@ -91,7 +92,7 @@ export const CollabDrawer: React.FC<{ appId: string; userId: string; visible: bo
           <List.Item>
             <Space>
               <Tag color="blue" size="small">{p.clientId}</Tag>
-              <Typography.Text>{p.userId ?? '匿名'}</Typography.Text>
+              <Typography.Text>{p.userId ?? t('lowcode_studio.common.anonymous')}</Typography.Text>
             </Space>
           </List.Item>
         )}

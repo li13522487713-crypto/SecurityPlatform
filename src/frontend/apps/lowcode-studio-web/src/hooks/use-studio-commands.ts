@@ -3,6 +3,7 @@ import { Toast } from '@douyinfe/semi-ui';
 import type { AppSchema, ComponentSchema } from '@atlas/lowcode-schema';
 import { lowcodeApi } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
+import { t } from '../i18n';
 
 interface CommandsOptions {
   appId: string;
@@ -48,7 +49,7 @@ export function useStudioCommands(opts: CommandsOptions): void {
           let removed = false;
           for (const page of app.pages ?? []) {
             if (page.root.id === selectedComponentId) {
-              Toast.warning('禁止删除页面根节点');
+              Toast.warning(t('lowcode_studio.common.cantDeleteRoot'));
               return;
             }
             if (deleteById(page.root, selectedComponentId)) {
@@ -57,11 +58,11 @@ export function useStudioCommands(opts: CommandsOptions): void {
             }
           }
           if (!removed) {
-            Toast.warning('未找到选中节点');
+            Toast.warning(t('lowcode_studio.common.nodeNotFound'));
             return;
           }
           await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
-          Toast.success('已删除');
+          Toast.success(t('lowcode_studio.common.deleted'));
           setSelectedComponentId(null);
         } catch (err) {
           Toast.error((err as Error).message);
@@ -74,7 +75,7 @@ export function useStudioCommands(opts: CommandsOptions): void {
         e.preventDefault();
         try {
           const label = `quick-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}`;
-          const r = await lowcodeApi.apps.snapshot(appId, label, '快捷键 Mod+S 触发');
+          const r = await lowcodeApi.apps.snapshot(appId, label, 'Mod+S quick snapshot');
           Toast.success(`已保存版本（${r.versionId}）`);
         } catch (err) {
           Toast.error((err as Error).message);
