@@ -1,0 +1,32 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1234567890
+@versionId = 100
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 运行时归档当前生效版本
+POST {{baseUrl}}/api/runtime/versions/archive
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "appId": "{{appId}}" }
+
+### 运行时回滚到指定版本（影响所有运行实例）
+POST {{baseUrl}}/api/runtime/versions/{{versionId}}:rollback
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "appId": "{{appId}}" }

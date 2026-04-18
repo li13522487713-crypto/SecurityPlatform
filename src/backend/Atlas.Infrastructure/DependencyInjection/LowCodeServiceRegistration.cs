@@ -66,6 +66,12 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IRuntimeTraceService, RuntimeTraceService>();
         services.AddScoped<IDispatchExecutor, DispatchExecutor>();
 
+        // M14 版本管理 / 资源引用治理 / FAQ
+        services.AddScoped<IAppFaqRepository, AppFaqRepository>();
+        services.AddScoped<IAppVersioningService, AppVersioningService>();
+        services.AddScoped<IResourceReferenceGuardService, ResourceReferenceGuardService>();
+        services.AddScoped<IAppFaqService, AppFaqService>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {
