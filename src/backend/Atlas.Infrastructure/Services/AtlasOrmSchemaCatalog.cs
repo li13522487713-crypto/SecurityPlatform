@@ -239,6 +239,8 @@ public static class AtlasOrmSchemaCatalog
         typeof(OrganizationMember),
         // 治理 M-G06-C1 (S11): 成员邀请
         typeof(MemberInvitation),
+        // 治理 M-G06-C3 (S12): 资源所有权移交
+        typeof(ResourceOwnershipTransfer),
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）
