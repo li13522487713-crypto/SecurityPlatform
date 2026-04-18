@@ -10,9 +10,7 @@
     <Project Path="src/backend/Atlas.Application.Audit/Atlas.Application.Audit.csproj" />
     <Project Path="src/backend/Atlas.Application.BatchProcess/Atlas.Application.BatchProcess.csproj" />
     <Project Path="src/backend/Atlas.Application.LogicFlow/Atlas.Application.LogicFlow.csproj" />
-    <Project Path="src/backend/Atlas.Application.LowCode/Atlas.Application.LowCode.csproj">
-      <Build Solution="Debug|*" Project="false" />
-    </Project>
+    <Project Path="src/backend/Atlas.Application.LowCode/Atlas.Application.LowCode.csproj" />
     <Project Path="src/backend/Atlas.Application.Workflow/Atlas.Application.Workflow.csproj" />
     <Project Path="src/backend/Atlas.Application/Atlas.Application.csproj" />
     <Project Path="src/backend/Atlas.Core/Atlas.Core.csproj" />
@@ -23,9 +21,7 @@
     <Project Path="src/backend/Atlas.Domain.Audit/Atlas.Domain.Audit.csproj" />
     <Project Path="src/backend/Atlas.Domain.BatchProcess/Atlas.Domain.BatchProcess.csproj" />
     <Project Path="src/backend/Atlas.Domain.LogicFlow/Atlas.Domain.LogicFlow.csproj" />
-    <Project Path="src/backend/Atlas.Domain.LowCode/Atlas.Domain.LowCode.csproj">
-      <Build Solution="Debug|*" Project="false" />
-    </Project>
+    <Project Path="src/backend/Atlas.Domain.LowCode/Atlas.Domain.LowCode.csproj" />
     <Project Path="src/backend/Atlas.Domain.Workflow/Atlas.Domain.Workflow.csproj" />
     <Project Path="src/backend/Atlas.Domain/Atlas.Domain.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure.BatchProcess/Atlas.Infrastructure.BatchProcess.csproj" />

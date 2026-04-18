@@ -37,4 +37,15 @@ public interface IRuntimeWebviewDomainService
     Task<WebviewDomainInfoDto> AddAsync(TenantId tenantId, long currentUserId, AddWebviewDomainRequest request, CancellationToken cancellationToken);
     Task<WebviewDomainInfoDto> VerifyAsync(TenantId tenantId, long currentUserId, long id, CancellationToken cancellationToken);
     Task RemoveAsync(TenantId tenantId, long currentUserId, long id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 服务端外链白名单校验（P0-5 修复 PLAN §M12 C12-5 + §1.3.6 等保 2.0）。
+    ///
+    /// 用于 dispatch 处理 open_external_link 动作时的服务端二次校验：
+    ///  - 仅当目标 URL 的 host 命中已 verified 的 LowCodeWebviewDomain 时返回 true；
+    ///  - 子域名匹配规则：精确匹配 OR 上级域名匹配（example.com 允许 a.example.com / b.c.example.com）；
+    ///  - URL 不合法 / 非 http(s) / host 为空 → 直接返回 false；
+    ///  - 此前仅前端 HttpWebviewPolicyAdapter 校验，可被绕过；服务端必须独立守门。
+    /// </summary>
+    Task<bool> IsAllowedAsync(TenantId tenantId, string url, CancellationToken cancellationToken);
 }

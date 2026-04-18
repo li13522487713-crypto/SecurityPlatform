@@ -19,7 +19,15 @@
  *  6) 内容参数 (contentParams)
  */
 
-import type { ComponentMeta, ContentParamKind, EventName, RendererType, ValueType } from '@atlas/lowcode-schema';
+import type {
+  ComponentMeta,
+  ContentParamKind,
+  EventName,
+  PropertyPanelField,
+  PropertyPanelSchema,
+  RendererType,
+  ValueType
+} from '@atlas/lowcode-schema';
 
 const WEB_ONLY: ReadonlyArray<RendererType> = ['web'];
 
@@ -34,6 +42,65 @@ interface ComponentBuildOptions {
   childArity?: 'none' | 'one' | 'many';
   childAllowTypes?: string[];
   supportedValueType?: Record<string, ValueType>;
+  /** 自定义属性面板（覆盖默认）。*/
+  propertyPanels?: PropertyPanelSchema[];
+  /** 默认属性面板"基础"分组的字段渲染器映射；未指定时按 prop 名启发式匹配。*/
+  defaultRenderers?: Record<string, string>;
+}
+
+/**
+ * 启发式判定 prop 字段的默认 renderer 类型（M05 P1-2 propertyPanels 元数据驱动渲染前置）。
+ * - value/text/content/title/label 等 → input
+ * - count/size/min/max/step/percent 等 → number
+ * - visible/disabled/required/readonly/multiple/autoplay/controls/loading 等 → switch
+ * - color → color
+ * - options/items/data/dataSource → value-source（接 workflow output / variable）
+ * - 其余 → input
+ */
+function defaultRendererFor(prop: string): string {
+  const p = prop.toLowerCase();
+  if (/(visible|disabled|required|readonly|multiple|autoplay|controls|loading|pinned|archived)/.test(p)) return 'switch';
+  if (/(count|size|min|max|step|percent|columns|gap|duration|current|pagesize|total|temperature)/.test(p)) return 'number';
+  if (p === 'color' || p.endsWith('color')) return 'color';
+  if (/(options|items|data|datasource|suggestions|cardconfig|initialvalues)/.test(p)) return 'value-source';
+  if (/(content|template|prompt|message|description)/.test(p)) return 'monaco-expr';
+  return 'input';
+}
+
+function buildDefaultPropertyPanels(opts: ComponentBuildOptions): PropertyPanelSchema[] {
+  const panels: PropertyPanelSchema[] = [];
+  const baseFields: PropertyPanelField[] = (opts.bindableProps ?? []).map((prop) => ({
+    key: prop,
+    label: prop,
+    renderer: opts.defaultRenderers?.[prop] ?? defaultRendererFor(prop),
+    valueType: opts.supportedValueType?.[prop]
+  }));
+  if (baseFields.length > 0) {
+    panels.push({ group: 'basic', label: '基础属性', fields: baseFields });
+  }
+  if (opts.supportedEvents && opts.supportedEvents.length > 0) {
+    panels.push({
+      group: 'events',
+      label: '事件',
+      fields: opts.supportedEvents.map((evt) => ({
+        key: evt,
+        label: evt,
+        renderer: 'event-config'
+      }))
+    });
+  }
+  if (opts.contentParams && opts.contentParams.length > 0) {
+    panels.push({
+      group: 'content',
+      label: '内容参数',
+      fields: opts.contentParams.map((kind) => ({
+        key: `contentParam:${kind}`,
+        label: `内容参数(${kind})`,
+        renderer: `content-param:${kind}`
+      }))
+    });
+  }
+  return panels;
 }
 
 function build(opts: ComponentBuildOptions): ComponentMeta {
@@ -48,6 +115,7 @@ function build(opts: ComponentBuildOptions): ComponentMeta {
     contentParams: opts.contentParams,
     supportedEvents: opts.supportedEvents ?? [],
     childPolicy: { arity: opts.childArity ?? 'none', allowTypes: opts.childAllowTypes },
+    propertyPanels: opts.propertyPanels ?? buildDefaultPropertyPanels(opts),
     supportedValueType: opts.supportedValueType
   };
 }

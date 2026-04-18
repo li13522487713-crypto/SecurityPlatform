@@ -537,13 +537,23 @@ public sealed class DagExecutor
         var executor = _registry.GetExecutor(node.Type);
         if (executor is null)
         {
+            // Comment 节点是纯画布注释，无运行时语义，明确跳过。
             if (node.Type == WorkflowNodeType.Comment)
             {
                 return NodeRunResult.SuccessResult(nodeKey, node.Type, EmptyOutputs);
             }
 
-            _logger.LogWarning("未找到节点类型 {NodeType} 的执行器，跳过节点 {NodeKey}", node.Type, nodeKey);
-            return NodeRunResult.SuccessResult(nodeKey, node.Type, EmptyOutputs);
+            // P0-3 修复（PLAN §P0-3 + 跨里程碑硬约束）：
+            // 此前对未注册执行器的节点返回 SuccessResult 空输出，导致已声明的 NodeType 在画布上"静默吞业务"——
+            // 比 NotImplementedException 更危险（用户看不到节点没跑）。
+            // 现修正为返回 FailedResult + 明确错误码 NODE_EXECUTOR_NOT_REGISTERED，让 DagExecutor 走标准失败链路：
+            //  - 通过 PersistBlockedByFailureAsync 把下游也标记 blocked
+            //  - 错误信息暴露给前端 / trace / 日志
+            // 这样上线时若忘了注册执行器，会立即在执行期暴露而非沉默。
+            var msg = $"NODE_EXECUTOR_NOT_REGISTERED: 未注册节点类型 {node.Type} 的执行器（节点 {nodeKey}）。" +
+                      $"请在 NodeExecutorRegistry._executorTypes 注册对应 INodeExecutor 实现。";
+            _logger.LogError("{Message}", msg);
+            return NodeRunResult.FailedResult(nodeKey, node.Type, msg, InterruptType.None);
         }
 
         var inputMaterialization = NodeInputMaterializer.Materialize(node, inputVariables);

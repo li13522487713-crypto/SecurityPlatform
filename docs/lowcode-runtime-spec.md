@@ -8,12 +8,15 @@
 
 完整 AppSchema / PageSchema / ComponentSchema / BindingSchema / EventSchema / ActionSchema / ContentParamSchema / VariableSchema / LifecycleSchema 由 `@atlas/lowcode-schema` 与 zod 校验器维护；后端 DraftSchemaJson 字段用 `text` 列存储原文，写入前 `JsonDocument.Parse` 二次校验。
 
-## §2 表达式语法、7 作用域、隔离规则（M02）
+## §2 表达式语法、7 作用域、隔离规则（M02 + P5-1 修正）
 
 - jsonata 全语法 + Jinja-like `{{ expr }} / {% if %} / {% for %} / {% break %} / {% continue %}`
 - filter 链：`{{ x | upper | default('-') }}`；内置 8 个 filter，可 `registerFilter` 扩展
-- 7 作用域：page / app / system（可读写）+ component / event / workflow.outputs / chatflow.outputs（只读）
-- 写动作 `set_variable.scopeRoot` 仅允许 `page`/`app`，违规走双层校验抛 ScopeViolationError
+- 7 作用域读写矩阵（与 `@atlas/lowcode-schema/shared/enums.ts` `SCOPE_ROOTS` 严格对齐）：
+  - **可读写**：`page` / `app`
+  - **只读**：`system` / `component` / `event` / `workflow.outputs` / `chatflow.outputs`
+- 写动作 `set_variable.scopeRoot` 仅允许 `page`/`app`，违规走双层校验抛 `ScopeViolationError`
+- system 作用域为只读：`system.tenantId / system.userId / system.locale / system.theme / system.timezone` 等由前端 RuntimeContext 注入，业务侧不允许 `set_variable` 写入
 
 ## §3 动作链与状态补丁、超时熔断降级（M03）
 

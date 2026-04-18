@@ -69,6 +69,24 @@ public sealed class RuntimeSessionService : IRuntimeSessionService
         await _repo.UpdateAsync(s, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.session.archive", "success", $"sess:{sessionId}:archived:{request.Archived}", null, null), cancellationToken);
     }
+
+    public async Task<RuntimeSessionInfo> SwitchAsync(TenantId tenantId, long currentUserId, string sessionId, CancellationToken cancellationToken)
+    {
+        // 校验存在
+        var s = await _repo.FindBySessionIdAsync(tenantId, sessionId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"会话不存在：{sessionId}");
+        // 跨用户禁止切入：仅会话所有者可切换；防止同租户用户访问他人会话
+        if (s.UserId != currentUserId)
+        {
+            await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.session.switch", "failed", $"sess:{sessionId}:reason:forbidden", null, null), cancellationToken);
+            throw new BusinessException(ErrorCodes.Forbidden, $"无权访问该会话：{sessionId}");
+        }
+        // archived 会话允许切入但不自动恢复 active；前端显示 "(已归档)" 即可
+        s.Touch();
+        await _repo.UpdateAsync(s, cancellationToken);
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.session.switch", "success", $"sess:{sessionId}:status:{s.Status}", null, null), cancellationToken);
+        return new RuntimeSessionInfo(s.SessionId, s.Title, s.Pinned, s.Status == "archived", s.UpdatedAt);
+    }
 }
 
 /// <summary>
@@ -153,21 +171,23 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
 
         if (!bridged)
         {
-            // 回退：mock pipeline（与 M11 初版一致），便于无 LLM 时仍可演示。
+            // P1-5 修复（PLAN §M11 P1-5）：
+            // 此前非 long chatflowId 走 mock pipeline（tool_call/按字符 message/伪 final），
+            // 让"未配置真实 chatflow"看上去仍然能跑，掩盖了配置缺失。
+            // 现修正为返回明确 error chunk + final 收尾，前端可显示"未找到 chatflow"提示。
             seq++;
-            yield return Sse(new { kind = "tool_call", toolName = "compose", args = new { input = request.Input }, seq });
-            var tokens = SplitTokens(request.Input);
-            foreach (var token in tokens)
+            yield return Sse(new
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await Task.Delay(30, cancellationToken);
-                seq++;
-                yield return Sse(new { kind = "message", content = token, markdown = true, seq });
-            }
+                kind = "error",
+                message = $"CHATFLOW_NOT_FOUND: chatflowId='{request.ChatflowId}' 不是有效的 DAG 工作流 ID（不再使用 mock）。请绑定已发布的 chatflow。",
+                recoverable = false,
+                seq
+            });
             seq++;
-            var outputs = new { final = string.Concat(tokens), inputEcho = request.Input };
-            yield return Sse(new { kind = "final", outputs, seq });
+            yield return Sse(new { kind = "final", outputs = new { error = "CHATFLOW_NOT_FOUND" }, seq });
             hadFinal = true;
+            await _messageLog.RecordAsync(tenantId, "chatflow", "error", sessionId, request.ChatflowId, null, null,
+                JsonSerializer.Serialize(new { code = "CHATFLOW_NOT_FOUND", chatflowId = request.ChatflowId }), cancellationToken);
         }
 
         if (!hadFinal)

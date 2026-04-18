@@ -20,7 +20,13 @@
   - Coze registry / form-meta / node-test 行为
   - Atlas adapter 与模型目录映射行为
 
-## 全节点覆盖矩阵（40+）
+## 全节点覆盖矩阵（49+，P5-2 修正：含 P0-2/P0-3 新增 20 节点）
+
+> P0-2 + P0-3 修复后：M12 触发器 3 节点（TriggerUpsert/Read/Delete）+ M20 17 个新节点（Variable / ImageGenerate / Imageflow / ImageReference / ImageCanvas / SceneVariable / SceneChat / LtmUpstream / MemoryRead/Write/Delete / ImageGeneration / Canvas / ImagePlugin / VideoGeneration / VideoToAudio / VideoFrameExtraction）全部已注册执行器。校验语义同基础类节点（Schema 校验 / 端口校验 / 业务规则校验三层）；详见 `docs/coze-node-mapping.md` §1。
+>
+> 媒体节点（ImageGeneration / VideoGeneration 等）增加 1 项业务规则：当租户未配置 `IChatClientFactory` 时执行期返回 `MODEL_PROVIDER_NOT_CONFIGURED`，编辑期保留校验通过（避免在租户配置前阻断画布保存）。
+
+
 
 | 节点类型 | Schema 校验 | 端口校验 | 业务规则校验 |
 |---|---|---|---|

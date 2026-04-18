@@ -31,17 +31,34 @@ async function maybeRun(action: ActionSchema, ctx: ActionContext): Promise<Actio
     const cond = await evalExpression(action.when, ctx.state as JsonValue);
     if (!cond) return null;
   }
+  // P4-4：为本次执行注入 applySideEffectPatches 钩子，供 callWorkflowHandler 在 throw 前
+  // 把 loading off / errorTargets 状态等"必须立即可见"的副作用 patches 写入链 patches 容器。
+  const sideEffectPatches: RuntimeStatePatch[] = [];
+  const ctxWithHook: ActionContext = {
+    ...ctx,
+    applySideEffectPatches: (patches) => {
+      for (const p of patches) sideEffectPatches.push(p);
+    }
+  };
   try {
-    return await executeSingle(action, ctx);
+    const result = await executeSingle(action, ctxWithHook);
+    // 成功路径：handler 自己已经拼好 patches，applySideEffectPatches 不会被调用
+    return result;
   } catch (err) {
     if (action.onError && action.onError.length > 0) {
-      // 失败 → 进入 onError 子链；子链结果合并；子链失败再向上抛
+      // 失败 → 进入 onError 子链；子链结果合并；side-effect patches 优先回写
       const sub = await executeChain(action.onError, ctx);
       return {
-        patches: sub.patches,
+        patches: [...sideEffectPatches, ...sub.patches],
         outputs: sub.outputs,
         messages: sub.messages
       };
+    }
+    // 没有 onError：把 side-effect patches 当作"失败但必须可见"的部分结果 throw 给外层
+    if (sideEffectPatches.length > 0) {
+      const enriched = err instanceof Error ? err : new Error(String(err));
+      (enriched as Error & { sideEffectPatches?: RuntimeStatePatch[] }).sideEffectPatches = sideEffectPatches;
+      throw enriched;
     }
     throw err;
   }
@@ -92,6 +109,11 @@ export async function executeChain(actions: ReadonlyArray<ActionSchema>, ctx: Ac
         }
       } catch (err) {
         const reason = err instanceof Error ? err : new Error(String(err));
+        // P4-4：如果错误带有 sideEffectPatches，把它们也合并进 patches（即使 onError 没接住）
+        const enriched = err as Error & { sideEffectPatches?: RuntimeStatePatch[] };
+        if (enriched.sideEffectPatches && enriched.sideEffectPatches.length > 0) {
+          patches.push(...enriched.sideEffectPatches);
+        }
         errors.push({ actionId: a.id, kind: a.kind, message: reason.message });
       }
     }

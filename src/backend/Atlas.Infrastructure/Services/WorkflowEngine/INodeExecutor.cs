@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Threading.Channels;
+using Atlas.Application.LowCode.Abstractions;
 using Atlas.Core.Expressions;
 using Atlas.Infrastructure.LogicFlow.Expressions;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,6 +54,18 @@ public sealed class NodeExecutionContext
     public long ExecutionId { get; }
     public IReadOnlyList<long> WorkflowCallStack { get; }
     public Channel<SseEvent>? EventChannel { get; }
+
+    /// <summary>
+    /// 节点级状态访问器（P3-8 修复 PLAN §M20 S20-7）。
+    ///
+    /// 此前 INodeStateStore 已实现，但 NodeExecutionContext 缺 State 属性，且无 Executor 真实使用 → 文档与类型分裂。
+    /// 现修正为：通过 ServiceProvider 解析 INodeStateStore，按"懒求值 + 4 作用域"暴露给 Executor；
+    /// 各有状态节点（SceneVariable / SceneChat / TriggerUpsert / Memory* 等）按需在 ExecuteAsync 中使用：
+    ///   await ctx.State.WriteAsync("session", sessionId, ctx.Node.Key, json, ct);
+    /// 不持有 INodeStateStore 实例时（如纯单测无 DI），State 调用会抛 BusinessException。
+    /// </summary>
+    public INodeStateAccessor State => _stateAccessor ??= new NodeStateAccessor(ServiceProvider, TenantId);
+    private INodeStateAccessor? _stateAccessor;
 
     /// <summary>
     /// 向 SSE 事件通道写入一条事件（如果通道可用）。
@@ -223,3 +236,73 @@ public sealed record NodeTypeMetadata(
     string Name,
     string Category,
     string Description);
+
+/// <summary>
+/// 节点级状态访问器（P3-8）：在 NodeExecutionContext 内对 INodeStateStore 做最小封装，固定租户上下文。
+/// 4 作用域（与 docs/lowcode-orchestration-spec.md §3 对齐）：
+///  - session：会话级（key=sessionId）
+///  - conversation：对话级（key=conversationId）
+///  - trigger：触发器级（key=triggerId）
+///  - app：应用级（key=appId）
+/// nodeKey 默认取自 NodeExecutionContext.Node.Key，避免不同节点污染同 key。
+/// </summary>
+public interface INodeStateAccessor
+{
+    Task<string?> ReadAsync(string scope, string scopeKey, CancellationToken cancellationToken);
+    Task<string?> ReadAsync(string scope, string scopeKey, string nodeKey, CancellationToken cancellationToken);
+    Task WriteAsync(string scope, string scopeKey, string stateJson, CancellationToken cancellationToken);
+    Task WriteAsync(string scope, string scopeKey, string nodeKey, string stateJson, CancellationToken cancellationToken);
+    Task DeleteAsync(string scope, string scopeKey, CancellationToken cancellationToken);
+    Task DeleteAsync(string scope, string scopeKey, string nodeKey, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// INodeStateAccessor 默认实现：通过 IServiceProvider 解析 INodeStateStore；
+/// 当 ServiceProvider 中不含 INodeStateStore 时（如单测构造的最小注入），调用方法会抛 InvalidOperationException。
+/// </summary>
+internal sealed class NodeStateAccessor : INodeStateAccessor
+{
+    private readonly IServiceProvider _provider;
+    private readonly TenantId _tenantId;
+
+    public NodeStateAccessor(IServiceProvider provider, TenantId tenantId)
+    {
+        _provider = provider;
+        _tenantId = tenantId;
+    }
+
+    private INodeStateStore Resolve()
+    {
+        var s = _provider.GetService<INodeStateStore>();
+        if (s is null)
+        {
+            throw new InvalidOperationException(
+                "INodeStateStore 未在 DI 注册；请确认 LowCodeServiceRegistration.AddLowCodeInfrastructure 已调用。");
+        }
+        return s;
+    }
+
+    public Task<string?> ReadAsync(string scope, string scopeKey, CancellationToken cancellationToken)
+        => ReadAsync(scope, scopeKey, NodeKeyFallback, cancellationToken);
+
+    public Task<string?> ReadAsync(string scope, string scopeKey, string nodeKey, CancellationToken cancellationToken)
+        => Resolve().ReadAsync(_tenantId, scope, scopeKey, nodeKey, cancellationToken);
+
+    public Task WriteAsync(string scope, string scopeKey, string stateJson, CancellationToken cancellationToken)
+        => WriteAsync(scope, scopeKey, NodeKeyFallback, stateJson, cancellationToken);
+
+    public Task WriteAsync(string scope, string scopeKey, string nodeKey, string stateJson, CancellationToken cancellationToken)
+        => Resolve().WriteAsync(_tenantId, scope, scopeKey, nodeKey, stateJson, cancellationToken);
+
+    public Task DeleteAsync(string scope, string scopeKey, CancellationToken cancellationToken)
+        => DeleteAsync(scope, scopeKey, NodeKeyFallback, cancellationToken);
+
+    public Task DeleteAsync(string scope, string scopeKey, string nodeKey, CancellationToken cancellationToken)
+        => Resolve().DeleteAsync(_tenantId, scope, scopeKey, nodeKey, cancellationToken);
+
+    /// <summary>
+    /// nodeKey 兜底：当调用方没有提供 nodeKey 时（短调用），用 "default" 作为默认。
+    /// 如果该 Executor 需要按 NodeSchema.Key 隔离，应显式传入。
+    /// </summary>
+    private const string NodeKeyFallback = "default";
+}
