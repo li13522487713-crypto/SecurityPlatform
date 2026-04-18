@@ -469,6 +469,7 @@ app.MapGet("/", () => Results.Ok(new
 app.MapControllers();
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
 app.MapHub<Atlas.AppHost.Hubs.LowCodePreviewHub>("/hubs/lowcode-preview");
+app.MapHub<Atlas.AppHost.Hubs.LowCodeCollabHub>("/hubs/lowcode-collab");
 
 var startupLogo = """
     ___  _______ _        ___   _____

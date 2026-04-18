@@ -1,5 +1,7 @@
-// @atlas/lowcode-collab-yjs — 由 M00 预创建的空骨架。
-// 真实导出由对应里程碑（见 PLAN.md）逐步填充。
-// 当前导出此占位常量以避免 ts isolatedModules 报"空模块"错误。
+export * from './doc';
+export * from './awareness';
+export * from './lock';
+export * from './history';
+export * from './signalr-provider';
 
-export const __ATLAS_LOWCODE_PACKAGE__ = "@atlas/lowcode-collab-yjs";
+export const __ATLAS_LOWCODE_PACKAGE__ = '@atlas/lowcode-collab-yjs' as const;

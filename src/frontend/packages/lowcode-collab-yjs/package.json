@@ -2,16 +2,26 @@
   "name": "@atlas/lowcode-collab-yjs",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码协同编辑（Yjs + 自定义 SignalR provider，M16）。",
+  "description": "Atlas 低代码协同编辑（M16）—— Yjs CRDT + 自定义 SignalR provider + 多人光标 + 组件锁 + 离线 + 历史回放。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./signalr-provider": "./src/signalr-provider/index.ts"
   },
   "scripts": {
-    "lint": "echo '@atlas/lowcode-collab-yjs: no lint configured yet'",
+    "lint": "echo '@atlas/lowcode-collab-yjs: lint via root pipeline'",
     "build": "echo '@atlas/lowcode-collab-yjs: source-only package, no build step'",
-    "test": "echo '@atlas/lowcode-collab-yjs: no tests yet'"
+    "test": "vitest --run --passWithNoTests"
+  },
+  "dependencies": {
+    "@atlas/lowcode-editor-canvas": "workspace:*",
+    "@atlas/lowcode-schema": "workspace:*",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.30"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
   }
 }
