@@ -8,6 +8,7 @@ import { t } from '../i18n';
 import { VersionDrawer } from './version-drawer';
 import { PublishDrawer } from './publish-drawer';
 import { DebugDrawer } from './debug-drawer';
+import { FaqDrawer } from './faq-drawer';
 
 export interface TopToolbarProps {
   appId: string;
@@ -22,6 +23,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
   const [publishOpen, setPublishOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
 
   /** 保存版本快照（M14 S14-1 用户主动版本，与 M16 协同的系统快照区分）。*/
   const snapshotMut = useMutation({
@@ -72,6 +74,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
       <VersionDrawer appId={appId} visible={versionOpen} onClose={() => setVersionOpen(false)} />
       <PublishDrawer appId={appId} visible={publishOpen} onClose={() => setPublishOpen(false)} />
       <DebugDrawer appId={appId} visible={debugOpen} onClose={() => setDebugOpen(false)} />
+      <FaqDrawer visible={faqOpen} onClose={() => setFaqOpen(false)} />
     </Space>
   );
 };

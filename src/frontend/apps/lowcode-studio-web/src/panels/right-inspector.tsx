@@ -119,7 +119,7 @@ const PropertyView: React.FC<{ node: ComponentSchema; meta: ComponentMetaWire | 
 
 const EventsView: React.FC<{ node: ComponentSchema; meta: ComponentMetaWire | null }> = ({ node, meta }) => {
   const events = node.events ?? [];
-  const usedNames = new Set(events.map((e) => e.name));
+  const usedNames = new Set<string>(events.map((e) => String(e.name)));
   const unusedEvents = meta ? meta.supportedEvents.filter((e) => !usedNames.has(e)) : [];
 
   if (events.length === 0 && unusedEvents.length === 0) return <Empty title="该组件未绑定事件" />;
