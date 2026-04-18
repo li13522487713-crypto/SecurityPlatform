@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { SideSheet, Form, Button, List, Tag, Typography, Spin, Empty, Space, Modal } from '@douyinfe/semi-ui';
-import { DebugClient, summarizePhases, buildSpanTree, type TraceDto, type TraceSpanDto, type PhaseStats } from '@atlas/lowcode-debug-client';
+import { SideSheet, Form, Button, List, Tag, Typography, Spin, Empty, Space, Modal, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { DebugClient, summarizePhases, buildSpanTree, type TraceDto, type TraceSpanDto, type PhaseStats, type MessageLogEntryDto } from '@atlas/lowcode-debug-client';
 
 /**
  * 调试台抽屉（M13 C13-1）：6 维 trace 检索 + span 时间线视图 + 性能阶段汇总。
@@ -40,45 +40,103 @@ export const DebugDrawer: React.FC<{ appId: string; visible: boolean; onClose: (
     }
   };
 
-  return (
-    <SideSheet title="调试台 / 6 维 trace 检索" visible={visible} onCancel={onClose} placement="right" size="large">
-      <Form labelPosition="top" onSubmit={(vals) => search(vals as Record<string, string | undefined>)}>
-        <Form.Input field="traceId" label="Trace ID" placeholder="精确匹配单条" />
-        <Form.Input field="page" label="页面" />
-        <Form.Input field="component" label="组件" />
-        <Form.Input field="from" label="开始时间 (ISO)" placeholder="2026-04-01T00:00:00Z" />
-        <Form.Input field="to" label="结束时间 (ISO)" />
-        <Form.Input field="errorType" label="错误类型" />
-        <Form.Input field="userId" label="用户 ID" />
-        <Form.Slot>
-          <Button htmlType="submit" type="primary" loading={loading}>检索</Button>
-        </Form.Slot>
-      </Form>
+  const [logs, setLogs] = useState<MessageLogEntryDto[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
-      <Typography.Title heading={6} style={{ marginTop: 16 }}>结果（{traces.length}）</Typography.Title>
-      {loading ? <Spin /> : (
-        <List
-          dataSource={traces}
-          emptyContent={<Empty title="无 trace（请先在画布触发事件）" />}
-          renderItem={(t) => (
-            <List.Item
-              style={{ cursor: 'pointer' }}
-              onClick={() => openTraceDetail(t.traceId)}
-              extra={
-                <Space>
-                  <Tag color={t.status === 'success' ? 'green' : t.status === 'failed' ? 'red' : 'blue'}>{t.status}</Tag>
-                  {t.errorKind && <Tag color="red" size="small">{t.errorKind}</Tag>}
-                </Space>
-              }
-            >
-              <Typography.Text code style={{ fontSize: 12 }}>{t.traceId}</Typography.Text>
-              <Typography.Paragraph type="tertiary" style={{ margin: 0, fontSize: 11 }}>
-                {new Date(t.startedAt).toLocaleString()} {t.endedAt ? `→ ${new Date(t.endedAt).toLocaleString()}` : ''}
-              </Typography.Paragraph>
-            </List.Item>
+  const searchLogs = async (vals: Record<string, string | undefined>) => {
+    setLogsLoading(true);
+    try {
+      const list = await client.queryMessageLog({ ...vals, pageSize: 100 });
+      setLogs(Array.isArray(list) ? list : []);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  return (
+    <SideSheet title="调试台 / 6 维 trace + 消息日志" visible={visible} onCancel={onClose} placement="right" size="large">
+      <Tabs type="line" defaultActiveKey="traces">
+        <TabPane tab="Trace 6 维检索" itemKey="traces">
+          <Form labelPosition="top" onSubmit={(vals) => search(vals as Record<string, string | undefined>)}>
+            <Form.Input field="traceId" label="Trace ID" placeholder="精确匹配单条" />
+            <Form.Input field="page" label="页面" />
+            <Form.Input field="component" label="组件" />
+            <Form.Input field="from" label="开始时间 (ISO)" placeholder="2026-04-01T00:00:00Z" />
+            <Form.Input field="to" label="结束时间 (ISO)" />
+            <Form.Input field="errorType" label="错误类型" />
+            <Form.Input field="userId" label="用户 ID" />
+            <Form.Slot>
+              <Button htmlType="submit" type="primary" loading={loading}>检索</Button>
+            </Form.Slot>
+          </Form>
+
+          <Typography.Title heading={6} style={{ marginTop: 16 }}>结果（{traces.length}）</Typography.Title>
+          {loading ? <Spin /> : (
+            <List
+              dataSource={traces}
+              emptyContent={<Empty title="无 trace（请先在画布触发事件）" />}
+              renderItem={(t) => (
+                <List.Item
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => openTraceDetail(t.traceId)}
+                  extra={
+                    <Space>
+                      <Tag color={t.status === 'success' ? 'green' : t.status === 'failed' ? 'red' : 'blue'}>{t.status}</Tag>
+                      {t.errorKind && <Tag color="red" size="small">{t.errorKind}</Tag>}
+                    </Space>
+                  }
+                >
+                  <Typography.Text code style={{ fontSize: 12 }}>{t.traceId}</Typography.Text>
+                  <Typography.Paragraph type="tertiary" style={{ margin: 0, fontSize: 11 }}>
+                    {new Date(t.startedAt).toLocaleString()} {t.endedAt ? `→ ${new Date(t.endedAt).toLocaleString()}` : ''}
+                  </Typography.Paragraph>
+                </List.Item>
+              )}
+            />
           )}
-        />
-      )}
+        </TabPane>
+
+        <TabPane tab="消息日志" itemKey="logs">
+          <Form labelPosition="top" onSubmit={(vals) => searchLogs(vals as Record<string, string | undefined>)}>
+            <Form.Input field="sessionId" label="Session ID" />
+            <Form.Input field="workflowId" label="Workflow ID" />
+            <Form.Input field="agentId" label="Agent ID" />
+            <Form.Input field="from" label="开始时间 (ISO)" />
+            <Form.Input field="to" label="结束时间 (ISO)" />
+            <Form.Slot>
+              <Button htmlType="submit" type="primary" loading={logsLoading}>检索</Button>
+            </Form.Slot>
+          </Form>
+
+          <Typography.Title heading={6} style={{ marginTop: 16 }}>结果（{logs.length}）</Typography.Title>
+          {logsLoading ? <Spin /> : (
+            <List
+              dataSource={logs}
+              emptyContent={<Empty title="无消息日志（先触发 chatflow / workflow / dispatch 事件）" />}
+              renderItem={(e) => (
+                <List.Item extra={
+                  <Space>
+                    <Tag color="grey" size="small">{e.source}</Tag>
+                    <Tag size="small">{e.kind}</Tag>
+                  </Space>
+                }>
+                  <div style={{ width: '100%' }}>
+                    <Typography.Text code style={{ fontSize: 11 }}>{e.entryId}</Typography.Text>
+                    <Typography.Paragraph type="tertiary" style={{ margin: 0, fontSize: 11 }}>
+                      {new Date(e.occurredAt).toLocaleString()} · session={e.sessionId ?? '-'} · workflow={e.workflowId ?? '-'} · trace={e.traceId ?? '-'}
+                    </Typography.Paragraph>
+                    {e.payload !== undefined && e.payload !== null ? (
+                      <pre style={{ fontSize: 11, background: '#f7f7f9', padding: 4, borderRadius: 3, margin: 4, maxHeight: 80, overflow: 'auto' }}>
+                        {JSON.stringify(e.payload, null, 2).slice(0, 600)}
+                      </pre>
+                    ) : null}
+                  </div>
+                </List.Item>
+              )}
+            />
+          )}
+        </TabPane>
+      </Tabs>
 
       <Modal title={`Trace 时间线 ${openTrace?.traceId ?? ''}`} visible={!!openTrace} onCancel={() => setOpenTrace(null)} footer={null} width={720}>
         {openLoading ? <Spin /> : openTrace ? <SpanTimeline trace={openTrace} /> : <Empty title="加载失败" />}
