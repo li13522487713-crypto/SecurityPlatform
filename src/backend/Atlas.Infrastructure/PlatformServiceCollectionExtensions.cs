@@ -122,6 +122,10 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Infrastructure.Repositories.OrganizationRepository>();
         services.AddScoped<Atlas.Application.Identity.Abstractions.IOrganizationService,
             Atlas.Infrastructure.Services.OrganizationService>();
+        // 治理 M-G05-C4..C5 (S10): 组织成员 + 跨组织迁移
+        services.AddScoped<Atlas.Infrastructure.Repositories.OrganizationMemberRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IOrganizationMemberService,
+            Atlas.Infrastructure.Services.OrganizationMemberService>();
 
         // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
         services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
