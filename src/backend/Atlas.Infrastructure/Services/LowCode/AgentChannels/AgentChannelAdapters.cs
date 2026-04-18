@@ -4,6 +4,7 @@ using Atlas.Application.LowCode.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.Services.LowCode.AgentChannels;
 
@@ -127,19 +128,26 @@ internal sealed class DoubaoChannelAdapter : AgentChannelAdapterBase
 internal sealed class InMemoryAgentRuntimeRegistry : IAgentRuntimeRegistry
 {
     private readonly ConcurrentDictionary<string, (TenantId Tenant, AgentRuntimeEntityDescriptor Descriptor)> _store = new();
-    private readonly IAuditWriter _auditWriter;
-    private readonly IIdGeneratorAccessor _idGen;
+    // 注意：IAuditWriter 是 Scoped，本类是 Singleton，因此通过 IServiceScopeFactory 按需创建 scope 解析，
+    // 避免触发 DI ValidateScopes 报错，同时保持进程内字典 _store 全局共享。
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public InMemoryAgentRuntimeRegistry(IAuditWriter auditWriter, IIdGeneratorAccessor idGen)
+    public InMemoryAgentRuntimeRegistry(IServiceScopeFactory scopeFactory)
     {
-        _auditWriter = auditWriter;
-        _idGen = idGen;
+        _scopeFactory = scopeFactory;
+    }
+
+    private async Task WriteAuditAsync(AuditRecord record, CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var auditWriter = scope.ServiceProvider.GetRequiredService<IAuditWriter>();
+        await auditWriter.WriteAsync(record, cancellationToken);
     }
 
     public async Task<string> RegisterAsync(TenantId tenantId, long currentUserId, AgentRuntimeEntityDescriptor descriptor, CancellationToken cancellationToken)
     {
         _store[descriptor.RuntimeEntityId] = (tenantId, descriptor);
-        await _auditWriter.WriteAsync(new AuditRecord(
+        await WriteAuditAsync(new AuditRecord(
             tenantId, currentUserId.ToString(),
             "lowcode.agent.runtime-entity.register", "success",
             $"channel:{descriptor.Channel}:agent:{descriptor.AgentId}:entity:{descriptor.RuntimeEntityId}", null, null), cancellationToken);
@@ -166,7 +174,7 @@ internal sealed class InMemoryAgentRuntimeRegistry : IAgentRuntimeRegistry
     {
         if (_store.TryRemove(runtimeEntityId, out _))
         {
-            await _auditWriter.WriteAsync(new AuditRecord(
+            await WriteAuditAsync(new AuditRecord(
                 tenantId, currentUserId.ToString(),
                 "lowcode.agent.runtime-entity.unregister", "success",
                 $"entity:{runtimeEntityId}", null, null), cancellationToken);
