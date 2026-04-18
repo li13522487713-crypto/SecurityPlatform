@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Empty, Spin, Typography, Tag, List, Banner, Space } from '@douyinfe/semi-ui';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Empty, Spin, Typography, Tag, List, Banner, Space, Switch, Toast } from '@douyinfe/semi-ui';
 import type { AppSchema, ComponentSchema } from '@atlas/lowcode-schema';
 import { lowcodeApi, type ComponentMetaWire } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
@@ -18,6 +18,7 @@ import { t } from '../i18n';
  */
 export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style' | 'events' }> = ({ appId, kind }) => {
   const { selectedComponentId } = useStudioSelection();
+  const qc = useQueryClient();
   const draftQuery = useQuery({
     queryKey: ['lowcode-draft', appId],
     queryFn: () => lowcodeApi.apps.getDraft(appId)
@@ -25,6 +26,34 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
   const registryQuery = useQuery({
     queryKey: ['lowcode-components', 'web'],
     queryFn: () => lowcodeApi.components.registry('web')
+  });
+
+  /**
+   * 把当前选中节点的部分字段（visible / locked）应用回 schema 并 autosave 触发 HMR。
+   * 走 GET draft → 改 → POST autosave 的最小可逆方式（不改 ComponentSchema 其它字段）。
+   */
+  const patchMut = useMutation({
+    mutationFn: async (patch: { visible?: boolean; locked?: boolean }) => {
+      if (!selectedComponentId || !draftQuery.data) throw new Error('未选中或未加载草稿');
+      const app = JSON.parse(draftQuery.data.schemaJson) as AppSchema;
+      let touched = false;
+      for (const page of app.pages ?? []) {
+        if (mutateById(page.root, selectedComponentId, (n) => {
+          if (patch.visible !== undefined) n.visible = patch.visible;
+          if (patch.locked !== undefined) n.locked = patch.locked;
+        })) {
+          touched = true;
+          break;
+        }
+      }
+      if (!touched) throw new Error('节点未在任意页面命中');
+      await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
+    },
+    onSuccess: async () => {
+      Toast.success('已应用并触发 HMR 推送');
+      await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
   });
 
   const node = useMemo(() => {
@@ -57,12 +86,50 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
         <Tag size="small">{node.id.slice(0, 12)}…</Tag>
         {meta && <Tag size="small" color="blue">{meta.category}</Tag>}
       </Space>
-      {kind === 'property' && <PropertyView node={node} meta={meta} filter="all" />}
+      {kind === 'property' && (
+        <>
+          <Space style={{ marginBottom: 8 }}>
+            <Typography.Text type="tertiary" style={{ fontSize: 12 }}>显示</Typography.Text>
+            <Switch
+              size="small"
+              checked={node.visible !== false}
+              loading={patchMut.isPending}
+              onChange={(v) => patchMut.mutate({ visible: v })}
+            />
+            <Typography.Text type="tertiary" style={{ fontSize: 12, marginLeft: 8 }}>锁定</Typography.Text>
+            <Switch
+              size="small"
+              checked={node.locked === true}
+              loading={patchMut.isPending}
+              onChange={(v) => patchMut.mutate({ locked: v })}
+            />
+          </Space>
+          <PropertyView node={node} meta={meta} filter="all" />
+        </>
+      )}
       {kind === 'style' && <PropertyView node={node} meta={meta} filter="style" />}
       {kind === 'events' && <EventsView node={node} meta={meta} />}
     </div>
   );
 };
+
+/** 在 ComponentSchema 树中按 id 找到节点并执行 mutation（in-place 修改）。返回是否命中。*/
+function mutateById(node: ComponentSchema, id: string, fn: (n: ComponentSchema) => void): boolean {
+  if (node.id === id) {
+    fn(node);
+    return true;
+  }
+  for (const c of node.children ?? []) {
+    if (mutateById(c, id, fn)) return true;
+  }
+  for (const list of Object.values(node.slots ?? {})) {
+    for (const c of list) {
+      if (mutateById(c, id, fn)) return true;
+    }
+  }
+  return false;
+}
+
 
 const STYLE_KEYS = new Set(['className', 'class', 'style', 'theme', 'size', 'color', 'width', 'height', 'padding', 'margin', 'background']);
 
