@@ -419,6 +419,51 @@ export function adminPath(appKey: string, leaf: AdminLeaf): string {
   return `${appRootPath(appKey)}/admin/${leaf}`;
 }
 
+// ── 低代码 Studio 路由（M07 C07-11） ──
+// 与 apps/lowcode-studio-web 内部路由约定一致：/apps/lowcode/:appId/studio。
+// 这里提供 helper 与列表清单，避免散落在各 app；新路由必须经此处注册以满足 PLAN.md §1.3 元数据驱动约束。
+
+export const LOWCODE_APP_KEY = "lowcode";
+
+export function lowcodeAppListPath(): string {
+  return `${appRootPath(LOWCODE_APP_KEY)}`;
+}
+
+export function lowcodeAppStudioPath(appId: string): string {
+  return `${appRootPath(LOWCODE_APP_KEY)}/${encodeSegment(appId)}/studio`;
+}
+
+export function lowcodeAppPreviewPath(appId: string, query?: Record<string, string | null | undefined>): string {
+  return withQuery(`${appRootPath(LOWCODE_APP_KEY)}/${encodeSegment(appId)}/preview`, query);
+}
+
+export function lowcodeAppPublishPath(appId: string): string {
+  return `${appRootPath(LOWCODE_APP_KEY)}/${encodeSegment(appId)}/publish`;
+}
+
+export function lowcodeAppVersionsPath(appId: string): string {
+  return `${appRootPath(LOWCODE_APP_KEY)}/${encodeSegment(appId)}/versions`;
+}
+
+export function lowcodeFaqPath(query?: Record<string, string | null | undefined>): string {
+  return withQuery(`${appRootPath(LOWCODE_APP_KEY)}/faq`, query);
+}
+
+export function lowcodeTemplatesPath(query?: Record<string, string | null | undefined>): string {
+  return withQuery(`${appRootPath(LOWCODE_APP_KEY)}/templates`, query);
+}
+
+/** 低代码完整路由清单（供 router 配置 / 文档 / E2E 引用）。*/
+export const LOWCODE_ROUTES = {
+  appList: lowcodeAppListPath,
+  studio: lowcodeAppStudioPath,
+  preview: lowcodeAppPreviewPath,
+  publish: lowcodeAppPublishPath,
+  versions: lowcodeAppVersionsPath,
+  faq: lowcodeFaqPath,
+  templates: lowcodeTemplatesPath
+} as const;
+
 export function inferPrimaryArea(pathname: string): AppPrimaryArea {
   if (pathname.includes("/explore/") || pathname.includes("/search/")) {
     return "explore";

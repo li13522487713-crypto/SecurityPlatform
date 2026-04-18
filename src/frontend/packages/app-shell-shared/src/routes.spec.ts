@@ -48,3 +48,45 @@ describe("organization workspace routes", () => {
     expect(orgWorkspaceAppWorkflowPath("tenant-1", "100", "200", "400")).toBe("/org/tenant-1/workspaces/100/apps/200/workflows/400");
   });
 });
+
+import {
+  LOWCODE_APP_KEY,
+  LOWCODE_ROUTES,
+  lowcodeAppListPath,
+  lowcodeAppPreviewPath,
+  lowcodeAppPublishPath,
+  lowcodeAppStudioPath,
+  lowcodeAppVersionsPath,
+  lowcodeFaqPath,
+  lowcodeTemplatesPath
+} from "./routes";
+
+describe("lowcode routes (M07 C07-11)", () => {
+  it("uses lowcode app key", () => {
+    expect(LOWCODE_APP_KEY).toBe("lowcode");
+    expect(lowcodeAppListPath()).toBe("/apps/lowcode");
+  });
+
+  it("builds studio / preview / publish / versions paths", () => {
+    expect(lowcodeAppStudioPath("100")).toBe("/apps/lowcode/100/studio");
+    expect(lowcodeAppPreviewPath("100")).toBe("/apps/lowcode/100/preview");
+    expect(lowcodeAppPreviewPath("100", { v: "1" })).toBe("/apps/lowcode/100/preview?v=1");
+    expect(lowcodeAppPublishPath("100")).toBe("/apps/lowcode/100/publish");
+    expect(lowcodeAppVersionsPath("100")).toBe("/apps/lowcode/100/versions");
+  });
+
+  it("supports faq + templates with query", () => {
+    expect(lowcodeFaqPath()).toBe("/apps/lowcode/faq");
+    expect(lowcodeFaqPath({ q: "foo" })).toBe("/apps/lowcode/faq?q=foo");
+    expect(lowcodeTemplatesPath({ kind: "page" })).toBe("/apps/lowcode/templates?kind=page");
+  });
+
+  it("LOWCODE_ROUTES catalog provides all helpers", () => {
+    expect(LOWCODE_ROUTES.studio("9")).toBe("/apps/lowcode/9/studio");
+    expect(LOWCODE_ROUTES.preview("9")).toBe("/apps/lowcode/9/preview");
+    expect(LOWCODE_ROUTES.publish("9")).toBe("/apps/lowcode/9/publish");
+    expect(LOWCODE_ROUTES.versions("9")).toBe("/apps/lowcode/9/versions");
+    expect(LOWCODE_ROUTES.faq()).toBe("/apps/lowcode/faq");
+    expect(LOWCODE_ROUTES.templates()).toBe("/apps/lowcode/templates");
+  });
+});
