@@ -54,9 +54,21 @@ public sealed class RuntimeTraceService : IRuntimeTraceService
 
     public async Task<string> StartTraceAsync(TenantId tenantId, long currentUserId, string appId, string? pageId, string? componentId, string? eventName, CancellationToken cancellationToken)
     {
-        var traceId = Activity.Current?.TraceId.ToString() ?? $"trc_{_idGen.NextId():x16}";
+        // 与 OTel Activity 统一 traceId：若上层已有 Activity 则继承，否则启动一个 root activity。
+        var activity = LowCodeOtelInstrumentation.ActivitySource.StartActivity("lowcode.dispatch.start", ActivityKind.Server);
+        if (activity is not null)
+        {
+            activity.SetTag("tenant.id", tenantId.Value.ToString());
+            activity.SetTag("lowcode.app_id", appId);
+            if (pageId is not null) activity.SetTag("lowcode.page_id", pageId);
+            if (componentId is not null) activity.SetTag("lowcode.component_id", componentId);
+            if (eventName is not null) activity.SetTag("lowcode.event", eventName);
+        }
+        var traceId = activity?.TraceId.ToString() ?? Activity.Current?.TraceId.ToString() ?? $"trc_{_idGen.NextId():x16}";
         var entity = new RuntimeTrace(tenantId, _idGen.NextId(), traceId, appId, pageId, componentId, eventName, currentUserId);
         await _repo.InsertTraceAsync(entity, cancellationToken);
+        // activity 由调用方自行 Dispose（dispatch 结束时由 FinishTraceAsync 完成）；此处只记录起点。
+        activity?.Dispose();
         return traceId;
     }
 
@@ -67,6 +79,23 @@ public sealed class RuntimeTraceService : IRuntimeTraceService
         if (success) entity.MarkSuccess();
         else entity.MarkFailed(errorKind ?? "unknown");
         await _repo.UpdateTraceAsync(entity, cancellationToken);
+
+        // OTel 指标：dispatch 延迟 + 错误计数
+        if (entity.EndedAt.HasValue)
+        {
+            var latencyMs = (entity.EndedAt.Value - entity.StartedAt).TotalMilliseconds;
+            LowCodeOtelInstrumentation.DispatchLatencyMs.Record(latencyMs,
+                new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
+                new KeyValuePair<string, object?>("lowcode.app_id", entity.AppId),
+                new KeyValuePair<string, object?>("status", entity.Status));
+        }
+        if (!success)
+        {
+            LowCodeOtelInstrumentation.ErrorCount.Add(1,
+                new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
+                new KeyValuePair<string, object?>("source", "dispatch"),
+                new KeyValuePair<string, object?>("error.kind", errorKind ?? "unknown"));
+        }
     }
 
     public async Task<string> AddSpanAsync(TenantId tenantId, string traceId, string? parentSpanId, string name, string? attributesJson, bool ok, string? errorMessage, CancellationToken cancellationToken)
@@ -77,6 +106,32 @@ public sealed class RuntimeTraceService : IRuntimeTraceService
         var span = new RuntimeSpan(tenantId, _idGen.NextId(), spanId, parentSpanId, traceId, name);
         span.Finish(ok, maskedAttrs, maskedErr);
         await _repo.InsertSpansBatchAsync(new[] { span }, cancellationToken);
+
+        // OTel Activity（短生命周期），便于 OTel exporter 看到 span 拓扑（即使持久化在 SQLite）。
+        using var activity = LowCodeOtelInstrumentation.ActivitySource.StartActivity(name, ActivityKind.Internal);
+        activity?.SetTag("lowcode.trace_id", traceId);
+        activity?.SetTag("lowcode.span_id", spanId);
+        if (parentSpanId is not null) activity?.SetTag("lowcode.parent_span_id", parentSpanId);
+        activity?.SetTag("lowcode.status", ok ? "ok" : "error");
+        if (!ok)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, errorMessage ?? "error");
+            LowCodeOtelInstrumentation.ErrorCount.Add(1,
+                new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
+                new KeyValuePair<string, object?>("source", "span"),
+                new KeyValuePair<string, object?>("span.name", name));
+        }
+
+        // 若是 workflow span，单独记录 workflow latency（按 attributesJson 含 status 标签做最佳努力解析）。
+        if (name.StartsWith("action.call_workflow", StringComparison.OrdinalIgnoreCase) || name.StartsWith("workflow.invoke", StringComparison.OrdinalIgnoreCase))
+        {
+            // span 内不暴露具体 workflowId，使用 attributesJson 中含 kind 字段时填入；否则不打 tag。
+            LowCodeOtelInstrumentation.WorkflowLatencyMs.Record(
+                Math.Max(0, (DateTimeOffset.UtcNow - span.StartedAt).TotalMilliseconds),
+                new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
+                new KeyValuePair<string, object?>("status", ok ? "success" : "failed"));
+        }
+
         return spanId;
     }
 

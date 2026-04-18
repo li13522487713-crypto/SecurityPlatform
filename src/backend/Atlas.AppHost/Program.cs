@@ -365,7 +365,9 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(tracing =>
     {
         tracing.AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation();
+            .AddHttpClientInstrumentation()
+            // M13 收尾：注册低代码 ActivitySource，dispatch / span 全部纳入 OTel 链路
+            .AddSource(Atlas.Infrastructure.Services.LowCode.LowCodeOtelInstrumentation.ActivitySourceName);
         var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
@@ -381,7 +383,9 @@ builder.Services.AddOpenTelemetry()
     {
         metrics.AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
-            .AddRuntimeInstrumentation();
+            .AddRuntimeInstrumentation()
+            // M13 收尾：注册低代码 Meter（dispatch_latency / workflow_latency / error_count / circuit_state / chatflow.stream_chunk）
+            .AddMeter(Atlas.Infrastructure.Services.LowCode.LowCodeOtelInstrumentation.MeterName);
         var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
