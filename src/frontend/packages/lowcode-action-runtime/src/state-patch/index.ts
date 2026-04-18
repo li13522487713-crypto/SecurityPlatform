@@ -13,44 +13,91 @@ import { produce, type Draft } from 'immer';
 import type { JsonObject, JsonValue, RuntimeStatePatch } from '@atlas/lowcode-schema';
 
 /**
+ * 路径段：对象键（string）或数组索引（number）。
+ *
+ * 支持两种语法：
+ *  - 纯 dot-path：a.b.c
+ *  - 含数组索引：a.list[0].title 或 a.list.0.title
+ * 数字段如果出现在数组中按索引使用，否则视为字符串键。
+ */
+type PathSegment = { kind: 'key'; value: string } | { kind: 'index'; value: number };
+
+/**
  * 应用单个补丁到草稿状态。
- * 路径形式：a.b.c[0].d；本模块 M03 阶段仅支持纯 dot-path（M05 属性面板编辑保证）。
+ * 路径形式支持 a.b.c、a.list[0].title、a.list.0.title 三种写法。
  */
 export function applyPatch(draft: Draft<JsonObject>, patch: RuntimeStatePatch): void {
-  const segments = parsePath(patch.path);
+  const segments = parseSegments(patch.path);
   if (segments.length === 0) return;
 
-  // 走到倒数第二段，沿途自动建对象。
   // immer 的 Draft 类型递归收敛较慢，这里以 unknown 桥接更稳；
   // 业务上保证 path 已经经过 scope-guard 校验。
   let cur: unknown = draft;
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i];
-    const next = (cur as Record<string, unknown>)[seg];
-    if (next === undefined || next === null || typeof next !== 'object') {
-      (cur as Record<string, unknown>)[seg] = {};
-    }
-    cur = (cur as Record<string, unknown>)[seg];
+    const nextSeg = segments[i + 1];
+    const childDefault: unknown[] | Record<string, unknown> = nextSeg.kind === 'index' ? [] : {};
+    cur = ensureChild(cur, seg, childDefault);
   }
   const last = segments[segments.length - 1];
 
   switch (patch.op) {
     case 'set':
-      (cur as Record<string, unknown>)[last] = patch.value as unknown;
+      writeAt(cur, last, patch.value as unknown);
       break;
     case 'merge': {
-      const existing = (cur as Record<string, unknown>)[last];
-      if (existing && typeof existing === 'object' && !Array.isArray(existing) && patch.value && typeof patch.value === 'object' && !Array.isArray(patch.value)) {
-        (cur as Record<string, unknown>)[last] = { ...(existing as object), ...(patch.value as object) };
+      const existing = readAt(cur, last);
+      if (
+        existing && typeof existing === 'object' && !Array.isArray(existing)
+        && patch.value && typeof patch.value === 'object' && !Array.isArray(patch.value)
+      ) {
+        writeAt(cur, last, { ...(existing as object), ...(patch.value as object) });
       } else {
-        (cur as Record<string, unknown>)[last] = patch.value as unknown;
+        writeAt(cur, last, patch.value as unknown);
       }
       break;
     }
     case 'unset':
-      delete (cur as Record<string, unknown>)[last];
+      deleteAt(cur, last);
       break;
   }
+}
+
+function ensureChild(parent: unknown, seg: PathSegment, childDefault: unknown): unknown {
+  const existing = readAt(parent, seg);
+  if (existing === undefined || existing === null || typeof existing !== 'object') {
+    writeAt(parent, seg, childDefault);
+    return childDefault;
+  }
+  return existing;
+}
+
+function readAt(parent: unknown, seg: PathSegment): unknown {
+  if (seg.kind === 'index') {
+    if (!Array.isArray(parent)) return undefined;
+    return (parent as unknown[])[seg.value];
+  }
+  return (parent as Record<string, unknown>)[seg.value];
+}
+
+function writeAt(parent: unknown, seg: PathSegment, value: unknown): void {
+  if (seg.kind === 'index') {
+    if (Array.isArray(parent)) {
+      (parent as unknown[])[seg.value] = value;
+    }
+    return;
+  }
+  (parent as Record<string, unknown>)[seg.value] = value;
+}
+
+function deleteAt(parent: unknown, seg: PathSegment): void {
+  if (seg.kind === 'index') {
+    if (Array.isArray(parent)) {
+      (parent as unknown[]).splice(seg.value, 1);
+    }
+    return;
+  }
+  delete (parent as Record<string, unknown>)[seg.value];
 }
 
 /** 一组补丁的事务式提交：成功合并；失败回滚（保持原状态）。*/
@@ -64,18 +111,52 @@ export function commitPatches(state: JsonObject, patches: ReadonlyArray<RuntimeS
   return { next, applied: patches.length };
 }
 
-/** 安全 dot-path 解析；不支持 [index] 语法（M03 阶段已知约束）。*/
+/**
+ * 安全 dot-path 解析（仅返回纯 string 段）。保留以兼容历史调用方；
+ * 新代码应使用 parseSegments，可还原数组索引段。
+ */
 export function parsePath(path: string): string[] {
-  return path.split('.').filter((s) => s.length > 0);
+  return parseSegments(path).map((s) => String(s.value));
+}
+
+/**
+ * 路径解析：把 `a.list[0].title` / `a.list.0.title` / `a.b.c` 全部解析为
+ * { kind: 'key' | 'index'; value }[]。
+ *
+ * 规则：
+ *  - `[N]` 中的 N 必须为非负整数 → 视为 index 段
+ *  - 拆点后段如果是纯非负整数字符串 → 同样视为 index 段（兼容 jsonata 写法）
+ *  - 其它段为 key 段
+ */
+export function parseSegments(path: string): PathSegment[] {
+  if (!path) return [];
+  // 把 [N] 替换为 .N，统一走点切分
+  const normalized = path.replace(/\[(\d+)\]/g, '.$1');
+  const out: PathSegment[] = [];
+  for (const raw of normalized.split('.')) {
+    if (raw.length === 0) continue;
+    if (/^\d+$/.test(raw)) {
+      out.push({ kind: 'index', value: Number(raw) });
+    } else {
+      out.push({ kind: 'key', value: raw });
+    }
+  }
+  return out;
 }
 
 /** 仅供测试。*/
 export function readPath(state: JsonObject, path: string): JsonValue | undefined {
-  const segs = parsePath(path);
+  const segs = parseSegments(path);
   let cur: unknown = state;
   for (const s of segs) {
-    if (cur === undefined || cur === null || typeof cur !== 'object') return undefined;
-    cur = (cur as Record<string, unknown>)[s];
+    if (cur === undefined || cur === null) return undefined;
+    if (s.kind === 'index') {
+      if (!Array.isArray(cur)) return undefined;
+      cur = (cur as unknown[])[s.value];
+    } else {
+      if (typeof cur !== 'object') return undefined;
+      cur = (cur as Record<string, unknown>)[s.value];
+    }
   }
   return cur as JsonValue | undefined;
 }

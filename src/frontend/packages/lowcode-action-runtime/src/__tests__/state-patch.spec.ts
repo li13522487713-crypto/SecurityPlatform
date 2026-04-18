@@ -38,4 +38,35 @@ describe('state-patch', () => {
     expect(parsePath('a.b.c')).toEqual(['a', 'b', 'c']);
     expect(parsePath('')).toEqual([]);
   });
+
+  it('支持 [index] 数组路径 set', () => {
+    const init = { page: { list: [{ title: 'a' }, { title: 'b' }] } };
+    const r = commitPatches(init as never, [{ scope: 'page', path: 'page.list[1].title', op: 'set', value: 'B' }]);
+    expect(readPath(r.next, 'page.list[1].title')).toBe('B');
+    expect(readPath(r.next, 'page.list[0].title')).toBe('a');
+  });
+
+  it('支持 page.list.0.title 数字段语法', () => {
+    const init = { page: { list: [{ title: 'a' }, { title: 'b' }] } };
+    const r = commitPatches(init as never, [{ scope: 'page', path: 'page.list.0.title', op: 'set', value: 'A' }]);
+    expect(readPath(r.next, 'page.list[0].title')).toBe('A');
+  });
+
+  it('在数组上 unset 等价于 splice', () => {
+    const init = { page: { list: ['a', 'b', 'c'] } };
+    const r = commitPatches(init as never, [{ scope: 'page', path: 'page.list[1]', op: 'unset' }]);
+    expect(readPath(r.next, 'page.list')).toEqual(['a', 'c']);
+  });
+
+  it('数组 merge：非对象时退化为 set', () => {
+    const init = { page: { tags: ['x', 'y'] } };
+    const r = commitPatches(init as never, [{ scope: 'page', path: 'page.tags[0]', op: 'merge', value: 'X' }]);
+    expect(readPath(r.next, 'page.tags[0]')).toBe('X');
+  });
+
+  it('数组中间路径自动建对象', () => {
+    const init = { page: { list: [] as Array<{ deep?: { ok?: boolean } }> } };
+    const r = commitPatches(init as never, [{ scope: 'page', path: 'page.list[0].deep.ok', op: 'set', value: true }]);
+    expect(readPath(r.next, 'page.list[0].deep.ok')).toBe(true);
+  });
 });
