@@ -92,6 +92,9 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IWorkflowCompositionService, WorkflowCompositionService>();
         services.AddSingleton<IWorkflowQuotaService, WorkflowQuotaService>();
 
+        // M07 S07-3：应用资源聚合
+        services.AddScoped<IAppResourceCatalogService, AppResourceCatalogService>();
+
         // M20 节点状态 + 双哲学
         services.AddScoped<INodeStateStore, NodeStateStore>();
         services.AddSingleton<IDualOrchestrationEngine, DualOrchestrationEngine>();
