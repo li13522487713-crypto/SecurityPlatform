@@ -46,12 +46,45 @@ Content-Type: application/json
   "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"}]"
 }
 
-### 提交导入任务
+### 提交导入任务（CSV 上传）
 POST {{baseUrl}}/api/v1/ai-databases/{{databaseId}}/imports
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+X-App-Channel: web-console
 Content-Type: application/json
 
 {
   "fileId": {{fileId}}
 }
+
+### 同步批量插入（D5）；受 AiDatabaseQuota.MaxBulkInsertRows 限制（默认 1000）
+POST {{baseUrl}}/api/v1/ai-databases/{{databaseId}}/records/bulk
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Channel: web-console
+Content-Type: application/json
+
+{
+  "rows": [
+    "{\"orderId\":\"NO-2001\",\"customerName\":\"李四\",\"amount\":99.5}",
+    "{\"orderId\":\"NO-2002\",\"customerName\":\"王五\",\"amount\":120.0}"
+  ]
+}
+
+### 异步批量插入（D5）；返回 taskId，进度通过 imports/latest 查询
+POST {{baseUrl}}/api/v1/ai-databases/{{databaseId}}/records/bulk-async
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Channel: bot-channel-001
+Content-Type: application/json
+
+{
+  "rows": [
+    "{\"orderId\":\"NO-3001\",\"customerName\":\"赵六\",\"amount\":300.0}"
+  ]
+}
+
+### 查询最新导入/批量进度
+GET {{baseUrl}}/api/v1/ai-databases/{{databaseId}}/imports/latest
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

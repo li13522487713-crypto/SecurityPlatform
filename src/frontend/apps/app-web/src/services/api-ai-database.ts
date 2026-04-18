@@ -40,6 +40,14 @@ export interface AiDatabaseRecordUpsertRequest {
   dataJson: string;
 }
 
+/**
+ * D5：导入任务来源枚举。File=CSV 上传；Inline=异步批量插入（前端直接 POST 行 JSON 数组）。
+ */
+export const enum AiDatabaseImportSource {
+  File = 0,
+  Inline = 1
+}
+
 export interface AiDatabaseImportProgress {
   taskId: number;
   databaseId: number;
@@ -50,6 +58,49 @@ export interface AiDatabaseImportProgress {
   errorMessage?: string;
   createdAt: string;
   updatedAt?: string;
+  /** D5：导入任务来源；旧任务默认 File。 */
+  source?: AiDatabaseImportSource;
+}
+
+/** D5：批量同步插入请求 / 结果。 */
+export interface AiDatabaseRecordBulkCreateRequest {
+  /** 每项是单条记录的 dataJson（JSON 对象字符串）。 */
+  rows: string[];
+}
+
+export interface AiDatabaseRecordBulkRowResult {
+  index: number;
+  success: boolean;
+  id?: string;
+  errorMessage?: string;
+}
+
+export interface AiDatabaseRecordBulkCreateResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  rows: AiDatabaseRecordBulkRowResult[];
+}
+
+export interface AiDatabaseBulkJobAccepted {
+  taskId: number;
+  rowCount: number;
+}
+
+/**
+ * D2：行可见性策略。SingleUser 按 OwnerUserId 过滤；MultiUser 不过滤。
+ */
+export const enum AiDatabaseQueryMode {
+  MultiUser = 0,
+  SingleUser = 1
+}
+
+/**
+ * D2：渠道隔离策略。Channel 按 ChannelId 过滤；Open 不过滤。
+ */
+export const enum AiDatabaseChannelScope {
+  Open = 0,
+  Channel = 1
 }
 
 export async function getAiDatabasesPaged(request: PagedRequest, keyword?: string): Promise<PagedResult<AiDatabaseListItem>> {
@@ -165,6 +216,51 @@ export async function deleteAiDatabaseRecord(id: number, recordId: number): Prom
   if (!response.success) {
     throw new Error(response.message || "删除数据库记录失败");
   }
+}
+
+/**
+ * D5：同步批量插入记录。受 AiDatabaseQuota.MaxBulkInsertRows 限制（默认 1000）。
+ * 返回每行的成功 / 失败明细。
+ */
+export async function createAiDatabaseRecordsBulk(
+  id: number,
+  request: AiDatabaseRecordBulkCreateRequest
+): Promise<AiDatabaseRecordBulkCreateResult> {
+  const response = await requestApi<ApiResponse<AiDatabaseRecordBulkCreateResult>>(
+    `/ai-databases/${id}/records/bulk`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success || !response.data) {
+    throw new Error(response.message || "批量插入数据库记录失败");
+  }
+
+  return response.data;
+}
+
+/**
+ * D5：异步批量插入记录。返回 taskId，进度通过 getAiDatabaseImportProgress 查询。
+ */
+export async function submitAiDatabaseBulkInsertJob(
+  id: number,
+  request: AiDatabaseRecordBulkCreateRequest
+): Promise<AiDatabaseBulkJobAccepted> {
+  const response = await requestApi<ApiResponse<AiDatabaseBulkJobAccepted>>(
+    `/ai-databases/${id}/records/bulk-async`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success || !response.data) {
+    throw new Error(response.message || "提交批量异步任务失败");
+  }
+
+  return response.data;
 }
 
 export async function submitAiDatabaseImport(id: number, file: File): Promise<number> {

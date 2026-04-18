@@ -126,6 +126,7 @@ public sealed class VectorRetrieverService : IRetriever
         var documents = await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, cancellationToken);
         var documentNameMap = documents.ToDictionary(item => item.Id, item => item.FileName);
         var documentCreatedAtMap = documents.ToDictionary(item => item.Id, item => (DateTime?)item.CreatedAt);
+        var documentTagsMap = documents.ToDictionary(item => item.Id, item => item.TagsJson);
 
         var merged = new List<RagSearchResult>(vectorHits.Count);
         foreach (var (knowledgeBaseId, hit) in vectorHits)
@@ -142,6 +143,7 @@ public sealed class VectorRetrieverService : IRetriever
 
             documentNameMap.TryGetValue(chunk.DocumentId, out var documentName);
             documentCreatedAtMap.TryGetValue(chunk.DocumentId, out var documentCreatedAt);
+            documentTagsMap.TryGetValue(chunk.DocumentId, out var tagsJson);
             merged.Add(
                 new RagSearchResult(
                     knowledgeBaseId,
@@ -150,7 +152,11 @@ public sealed class VectorRetrieverService : IRetriever
                     string.IsNullOrWhiteSpace(hit.Content) ? chunk.Content : hit.Content,
                     hit.Score,
                     documentName,
-                    documentCreatedAt));
+                    documentCreatedAt,
+                    chunk.StartOffset,
+                    chunk.EndOffset,
+                    tagsJson,
+                    DocumentNamespace: null));
         }
 
         return merged;

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.System.Abstractions;
@@ -21,6 +22,7 @@ public sealed class DocumentService : IDocumentService
     private readonly IFileStorageService _fileStorageService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly KnowledgeQuotaPolicy _knowledgeQuotaPolicy;
 
     public DocumentService(
         KnowledgeBaseRepository knowledgeBaseRepository,
@@ -30,7 +32,8 @@ public sealed class DocumentService : IDocumentService
         IVectorStore vectorStore,
         IFileStorageService fileStorageService,
         IIdGeneratorAccessor idGeneratorAccessor,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        KnowledgeQuotaPolicy knowledgeQuotaPolicy)
     {
         _knowledgeBaseRepository = knowledgeBaseRepository;
         _documentRepository = documentRepository;
@@ -40,6 +43,7 @@ public sealed class DocumentService : IDocumentService
         _fileStorageService = fileStorageService;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
+        _knowledgeQuotaPolicy = knowledgeQuotaPolicy;
     }
 
     public async Task<long> CreateAsync(
@@ -53,6 +57,12 @@ public sealed class DocumentService : IDocumentService
         var file = await _fileStorageService.GetInfoAsync(tenantId, request.FileId, cancellationToken)
             ?? throw new BusinessException("文件不存在。", ErrorCodes.NotFound);
 
+        await _knowledgeQuotaPolicy.EnsureCanAddDocumentAsync(tenantId, knowledgeBaseId, cancellationToken);
+        _knowledgeQuotaPolicy.EnsureFileSize(file.SizeBytes);
+
+        ValidateFileMatchesKnowledgeBaseType(kb.Type, file.ContentType);
+        ValidateOptionalTagsAndImageMetadata(kb.Type, request.TagsJson, request.ImageMetadataJson);
+
         var entity = new KnowledgeDocument(
             tenantId,
             knowledgeBaseId,
@@ -60,7 +70,9 @@ public sealed class DocumentService : IDocumentService
             file.OriginalName,
             file.ContentType,
             file.SizeBytes,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            request.TagsJson,
+            request.ImageMetadataJson);
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _documentRepository.AddAsync(entity, cancellationToken);
@@ -168,7 +180,7 @@ public sealed class DocumentService : IDocumentService
                 tenantId,
                 knowledgeBaseId,
                 documentId,
-                new ChunkingOptions(request.ChunkSize, request.Overlap, request.Strategy),
+                new ChunkingOptions(request.ChunkSize, request.Overlap, request.Strategy, request.ParseStrategy),
                 ct);
         });
     }
@@ -185,5 +197,88 @@ public sealed class DocumentService : IDocumentService
             entity.ErrorMessage,
             entity.ChunkCount,
             entity.CreatedAt,
-            entity.ProcessedAt);
+            entity.ProcessedAt,
+            entity.TagsJson,
+            entity.ImageMetadataJson);
+
+    private static void ValidateFileMatchesKnowledgeBaseType(KnowledgeBaseType type, string? contentType)
+    {
+        switch (type)
+        {
+            case KnowledgeBaseType.Image:
+                if (string.IsNullOrWhiteSpace(contentType) ||
+                    !contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new BusinessException("图片知识库仅支持上传 image/* 类型文件。", ErrorCodes.ValidationError);
+                }
+
+                break;
+            case KnowledgeBaseType.Table:
+                if (!string.IsNullOrWhiteSpace(contentType))
+                {
+                    var ct = contentType;
+                    var textLike = ct.Contains("text/", StringComparison.OrdinalIgnoreCase) ||
+                                   ct.Contains("csv", StringComparison.OrdinalIgnoreCase) ||
+                                   ct.Contains("tsv", StringComparison.OrdinalIgnoreCase) ||
+                                   ct.Contains("json", StringComparison.OrdinalIgnoreCase) ||
+                                   ct.Contains("spreadsheet", StringComparison.OrdinalIgnoreCase);
+                    if (!textLike)
+                    {
+                        throw new BusinessException("表格知识库请上传文本或 CSV/TSV 等可解析为行的文件。", ErrorCodes.ValidationError);
+                    }
+                }
+
+                break;
+            case KnowledgeBaseType.Text:
+            default:
+                break;
+        }
+    }
+
+    private static void ValidateOptionalTagsAndImageMetadata(
+        KnowledgeBaseType knowledgeBaseType,
+        string? tagsJson,
+        string? imageMetadataJson)
+    {
+        if (!string.IsNullOrWhiteSpace(tagsJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(tagsJson);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                {
+                    throw new BusinessException("TagsJson 必须是 JSON 数组（字符串列表）。", ErrorCodes.ValidationError);
+                }
+            }
+            catch (JsonException)
+            {
+                throw new BusinessException("TagsJson 不是合法的 JSON。", ErrorCodes.ValidationError);
+            }
+        }
+
+        var metaTrimmed = imageMetadataJson?.Trim();
+        var hasMeta = !string.IsNullOrEmpty(metaTrimmed) && metaTrimmed != "{}";
+        if (knowledgeBaseType != KnowledgeBaseType.Image && hasMeta)
+        {
+            throw new BusinessException("ImageMetadataJson 仅适用于图片类型知识库。", ErrorCodes.ValidationError);
+        }
+
+        if (!hasMeta)
+        {
+            return;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(imageMetadataJson!);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new BusinessException("ImageMetadataJson 必须是 JSON 对象。", ErrorCodes.ValidationError);
+            }
+        }
+        catch (JsonException)
+        {
+            throw new BusinessException("ImageMetadataJson 不是合法的 JSON。", ErrorCodes.ValidationError);
+        }
+    }
 }

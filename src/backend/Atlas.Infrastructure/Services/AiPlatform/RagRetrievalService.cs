@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Tenancy;
@@ -35,12 +36,16 @@ public sealed class RagRetrievalService : IRagRetrievalService
         IReadOnlyList<long> knowledgeBaseIds,
         string query,
         int topK = 5,
+        RagRetrievalFilter? filter = null,
         CancellationToken ct = default)
     {
         if (knowledgeBaseIds.Count == 0 || string.IsNullOrWhiteSpace(query) || topK <= 0)
         {
             return [];
         }
+
+        var offset = filter?.Offset ?? 0;
+        var fetchK = Math.Clamp(topK + offset + 15, 1, 200);
 
         var normalizedQuery = query.Trim();
         var decision = await _ragExperimentService.ResolveDecisionAsync(tenantId, normalizedQuery, ct);
@@ -52,9 +57,16 @@ public sealed class RagRetrievalService : IRagRetrievalService
             tenantId,
             knowledgeBaseIds,
             normalizedQuery,
-            topK,
+            fetchK,
             ct);
         mainWatch.Stop();
+
+        mainResults = ApplyRetrievalFilter(mainResults, filter);
+        mainResults = mainResults
+            .OrderByDescending(item => item.Score)
+            .Skip(offset)
+            .Take(topK)
+            .ToArray();
 
         var mainRunId = await _ragExperimentService.RecordRunAsync(
             tenantId,
@@ -80,7 +92,7 @@ public sealed class RagRetrievalService : IRagRetrievalService
                     tenantId,
                     knowledgeBaseIds,
                     normalizedQuery,
-                    topK,
+                    fetchK,
                     ct);
                 shadowWatch.Stop();
 
@@ -111,6 +123,74 @@ public sealed class RagRetrievalService : IRagRetrievalService
         }
 
         return mainResults;
+    }
+
+    private static IReadOnlyList<RagSearchResult> ApplyRetrievalFilter(
+        IReadOnlyList<RagSearchResult> results,
+        RagRetrievalFilter? filter)
+    {
+        if (filter is null)
+        {
+            return results;
+        }
+
+        IEnumerable<RagSearchResult> q = results;
+        if (filter.MinScore is { } min)
+        {
+            q = q.Where(item => item.Score >= min);
+        }
+
+        if (filter.Tags is { Count: > 0 } tags)
+        {
+            q = q.Where(item => DocumentMatchesTags(item.TagsJson, tags));
+        }
+
+        // Metadata / owner filters reserved for extended indexing (K3+).
+        _ = filter.MetadataFilter;
+        _ = filter.OwnerFilter;
+
+        return q.ToArray();
+    }
+
+    private static bool DocumentMatchesTags(string? tagsJson, IReadOnlyList<string> requiredTags)
+    {
+        if (requiredTags.Count == 0)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(tagsJson) || tagsJson == "[]")
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(tagsJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
+
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                if (el.ValueKind == JsonValueKind.String)
+                {
+                    var s = el.GetString();
+                    if (!string.IsNullOrWhiteSpace(s))
+                    {
+                        set.Add(s.Trim());
+                    }
+                }
+            }
+
+            return requiredTags.All(t => !string.IsNullOrWhiteSpace(t) && set.Contains(t.Trim()));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private IRetriever ResolveRetriever(RagRetrieverStrategy strategy)

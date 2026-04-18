@@ -21,6 +21,8 @@ public static class AiDesignServiceRegistration
     public static IServiceCollection AddAiPlatformDesignInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AgentFrameworkOptions>(configuration.GetSection("AgentFramework"));
+        services.Configure<KnowledgeBaseQuotaOptions>(configuration.GetSection("KnowledgeBaseQuota"));
+        services.Configure<AiDatabaseQuotaOptions>(configuration.GetSection("AiDatabaseQuota"));
 
         services.AddScoped<ModelConfigRepository>();
         services.AddScoped<AgentRepository>();
@@ -44,6 +46,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<AiAppRepository>();
         services.AddScoped<AiAppPublishRecordRepository>();
         services.AddScoped<AiAppConversationTemplateRepository>();
+        services.AddScoped<AiAppResourceBindingRepository>();
         services.AddScoped<AgentPublicationRepository>();
         services.AddScoped<EvaluationDatasetRepository>();
         services.AddScoped<EvaluationCaseRepository>();
@@ -77,7 +80,10 @@ public static class AiDesignServiceRegistration
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<ITeamAgentService, TeamAgentService>();
         services.AddScoped<ITeamAgentPublicationService, TeamAgentPublicationService>();
+        services.AddScoped<KnowledgeQuotaPolicy>();
+        services.AddScoped<AiDatabaseQuotaPolicy>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
+        services.AddScoped<IAiAppResourceBindingService, AiAppResourceBindingService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
         services.AddScoped<IAiVariableService, AiVariableService>();
         services.AddScoped<IAiPluginService, AiPluginService>();

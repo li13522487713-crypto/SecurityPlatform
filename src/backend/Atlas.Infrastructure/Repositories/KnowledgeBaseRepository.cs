@@ -35,6 +35,13 @@ public sealed class KnowledgeBaseRepository : RepositoryBase<KnowledgeBase>
         return (items, total);
     }
 
+    public async Task<int> CountByTenantAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<KnowledgeBase>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .CountAsync(cancellationToken);
+    }
+
     public async Task<bool> ExistsByNameAsync(
         TenantId tenantId,
         string name,

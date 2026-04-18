@@ -12,6 +12,28 @@ public sealed class AiAppResourceBinding : TenantEntity
         ConfigJson = "{}";
     }
 
+    public AiAppResourceBinding(
+        TenantId tenantId,
+        long appId,
+        string resourceType,
+        long resourceId,
+        string? role,
+        int displayOrder,
+        string? configJson,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        AppId = appId;
+        ResourceType = string.IsNullOrWhiteSpace(resourceType) ? string.Empty : resourceType.Trim().ToLowerInvariant();
+        ResourceId = resourceId;
+        Role = string.IsNullOrWhiteSpace(role) ? string.Empty : role.Trim();
+        DisplayOrder = displayOrder;
+        ConfigJson = string.IsNullOrWhiteSpace(configJson) ? "{}" : configJson;
+        CreatedAt = DateTime.UtcNow;
+        UpdatedAt = CreatedAt;
+    }
+
     public long AppId { get; private set; }
     public string ResourceType { get; private set; }
     public long ResourceId { get; private set; }
@@ -20,6 +42,26 @@ public sealed class AiAppResourceBinding : TenantEntity
     public string ConfigJson { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+
+    public void Update(string? role, int? displayOrder, string? configJson)
+    {
+        if (role is not null)
+        {
+            Role = role.Trim();
+        }
+
+        if (displayOrder.HasValue)
+        {
+            DisplayOrder = displayOrder.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(configJson))
+        {
+            ConfigJson = configJson;
+        }
+
+        UpdatedAt = DateTime.UtcNow;
+    }
 }
 
 public sealed class AiAppConversationTemplate : TenantEntity

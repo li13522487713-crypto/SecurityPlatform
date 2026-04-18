@@ -34,9 +34,14 @@ public sealed record KnowledgeDocumentDto(
     string? ErrorMessage,
     int ChunkCount,
     DateTime CreatedAt,
-    DateTime? ProcessedAt);
+    DateTime? ProcessedAt,
+    string TagsJson,
+    string ImageMetadataJson);
 
-public sealed record DocumentCreateRequest(long FileId);
+public sealed record DocumentCreateRequest(
+    long FileId,
+    string? TagsJson = null,
+    string? ImageMetadataJson = null);
 
 public sealed record DocumentProgressDto(
     long Id,
@@ -54,7 +59,9 @@ public sealed record DocumentChunkDto(
     int StartOffset,
     int EndOffset,
     bool HasEmbedding,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    int? RowIndex,
+    string? ColumnHeadersJson);
 
 public sealed record ChunkCreateRequest(
     long DocumentId,
@@ -71,11 +78,26 @@ public sealed record ChunkUpdateRequest(
 public sealed record DocumentResegmentRequest(
     int ChunkSize = 500,
     int Overlap = 50,
-    ChunkingStrategy Strategy = ChunkingStrategy.Fixed);
+    ChunkingStrategy Strategy = ChunkingStrategy.Fixed,
+    DocumentParseStrategy ParseStrategy = DocumentParseStrategy.Quick);
 
 public sealed record KnowledgeRetrievalTestRequest(
     string Query,
-    int TopK = 5);
+    int TopK = 5,
+    IReadOnlyList<long>? KnowledgeBaseIds = null,
+    IReadOnlyList<string>? Tags = null,
+    float? MinScore = null,
+    int Offset = 0,
+    string? OwnerFilter = null,
+    IReadOnlyDictionary<string, string>? MetadataFilter = null);
+
+/// <summary>检索后过滤与分页（向量/BM25 命中后再应用）。</summary>
+public sealed record RagRetrievalFilter(
+    IReadOnlyList<string>? Tags = null,
+    float? MinScore = null,
+    int Offset = 0,
+    string? OwnerFilter = null,
+    IReadOnlyDictionary<string, string>? MetadataFilter = null);
 
 public sealed record RagSearchResult(
     long KnowledgeBaseId,
@@ -84,4 +106,8 @@ public sealed record RagSearchResult(
     string Content,
     float Score,
     string? DocumentName,
-    DateTime? DocumentCreatedAt = null);
+    DateTime? DocumentCreatedAt = null,
+    int StartOffset = 0,
+    int EndOffset = 0,
+    string? TagsJson = null,
+    string? DocumentNamespace = null);

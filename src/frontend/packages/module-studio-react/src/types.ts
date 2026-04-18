@@ -468,6 +468,32 @@ export interface StudioDatabaseImportProgress {
   errorMessage?: string;
   createdAt: string;
   updatedAt?: string;
+  /** D5：导入任务来源；0=File（CSV）、1=Inline（异步批量）。 */
+  source?: number;
+}
+
+/** D5：批量同步插入请求；rows[] 每项是单条记录的 dataJson。 */
+export interface StudioDatabaseRecordBulkCreateRequest {
+  rows: string[];
+}
+
+export interface StudioDatabaseRecordBulkRowResult {
+  index: number;
+  success: boolean;
+  id?: string;
+  errorMessage?: string;
+}
+
+export interface StudioDatabaseRecordBulkCreateResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  rows: StudioDatabaseRecordBulkRowResult[];
+}
+
+export interface StudioDatabaseBulkJobAccepted {
+  taskId: number;
+  rowCount: number;
 }
 
 export interface StudioPluginApiSummary {
@@ -622,6 +648,10 @@ export interface StudioModuleApi {
   submitDatabaseImport: (id: number, file: File) => Promise<number>;
   getDatabaseImportProgress: (id: number) => Promise<StudioDatabaseImportProgress | null>;
   downloadDatabaseTemplate: (id: number) => Promise<void>;
+  /** D5：同步批量插入；受 MaxBulkInsertRows 限制（默认 1000）。可选——上层未实现时回退到逐条 createDatabaseRecord。 */
+  bulkCreateDatabaseRecords?: (id: number, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseRecordBulkCreateResult>;
+  /** D5：异步批量插入。可选——上层未实现时不暴露入口。 */
+  submitDatabaseBulkInsertJob?: (id: number, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseBulkJobAccepted>;
   listBotVariables: (botId: string) => Promise<Array<{ id: number; key: string; scopeId?: number }>>;
   bindAgentWorkflow: (agentId: string, workflowId?: string) => Promise<WorkflowBinding>;
   runWorkflowTask: (

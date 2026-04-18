@@ -126,6 +126,7 @@ public sealed class LightweightKnowledgeGraphProvider : IKnowledgeGraphProvider
         var documents = await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, cancellationToken);
         var documentNameMap = documents.ToDictionary(item => item.Id, item => item.FileName);
         var documentCreatedAtMap = documents.ToDictionary(item => item.Id, item => (DateTime?)item.CreatedAt);
+        var documentTagsMap = documents.ToDictionary(item => item.Id, item => item.TagsJson);
 
         return selectedChunkIds
             .Where(selectedChunkMap.ContainsKey)
@@ -133,7 +134,8 @@ public sealed class LightweightKnowledgeGraphProvider : IKnowledgeGraphProvider
                 selectedChunkMap[chunkId],
                 scoreMap[chunkId],
                 documentNameMap,
-                documentCreatedAtMap))
+                documentCreatedAtMap,
+                documentTagsMap))
             .ToArray();
     }
 
@@ -141,10 +143,12 @@ public sealed class LightweightKnowledgeGraphProvider : IKnowledgeGraphProvider
         DocumentChunk chunk,
         float score,
         IReadOnlyDictionary<long, string> documentNameMap,
-        IReadOnlyDictionary<long, DateTime?> documentCreatedAtMap)
+        IReadOnlyDictionary<long, DateTime?> documentCreatedAtMap,
+        IReadOnlyDictionary<long, string> documentTagsMap)
     {
         documentNameMap.TryGetValue(chunk.DocumentId, out var documentName);
         documentCreatedAtMap.TryGetValue(chunk.DocumentId, out var documentCreatedAt);
+        documentTagsMap.TryGetValue(chunk.DocumentId, out var tagsJson);
         return new RagSearchResult(
             chunk.KnowledgeBaseId,
             chunk.DocumentId,
@@ -152,7 +156,11 @@ public sealed class LightweightKnowledgeGraphProvider : IKnowledgeGraphProvider
             chunk.Content,
             score,
             documentName,
-            documentCreatedAt);
+            documentCreatedAt,
+            chunk.StartOffset,
+            chunk.EndOffset,
+            tagsJson,
+            DocumentNamespace: null);
     }
 
     private static float ComputeOverlap(

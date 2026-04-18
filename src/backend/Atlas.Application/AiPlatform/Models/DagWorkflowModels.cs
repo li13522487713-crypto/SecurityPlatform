@@ -151,7 +151,8 @@ public sealed record DagWorkflowNodeTypeDto(
     string Description,
     IReadOnlyList<WorkflowNodePortMetadata>? Ports = null,
     string? ConfigSchemaJson = null,
-    WorkflowNodeUiMetadata? UiMeta = null);
+    WorkflowNodeUiMetadata? UiMeta = null,
+    string? FormMetaJson = null);
 
 public sealed record DagWorkflowNodeTemplateDto(
     string Key,

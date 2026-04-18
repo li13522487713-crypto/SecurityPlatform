@@ -178,5 +178,7 @@ public sealed class ChunkService : IChunkService
             entity.StartOffset,
             entity.EndOffset,
             entity.HasEmbedding,
-            entity.CreatedAt);
+            entity.CreatedAt,
+            entity.RowIndex,
+            entity.ColumnHeadersJson);
 }

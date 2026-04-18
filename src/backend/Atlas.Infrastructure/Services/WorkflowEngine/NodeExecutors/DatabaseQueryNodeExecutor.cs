@@ -29,10 +29,20 @@ public sealed class DatabaseQueryNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "DatabaseQuery 缺少 databaseInfoId/databaseId。");
         }
 
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "AiDatabase.Query",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?> { ["db.id"] = databaseId });
+
         var limit = Math.Clamp(context.GetConfigInt32("limit", 100), 1, 5000);
         var queryFields = AiDatabaseNodeHelper.ResolveFields(context.Node.Config, "queryFields");
         var clauses = AiDatabaseNodeHelper.ResolveClauses(context.Node.Config);
-        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken);
+        // D2：策略过滤（SingleUser/Channel 模式自动按当前 UserId/ChannelId 隔离）。
+        var policy = await AiDatabaseNodeHelper.ResolvePolicyAsync(_db, context, databaseId, cancellationToken);
+        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken, policy);
 
         var result = new List<JsonElement>();
         foreach (var record in records)
@@ -50,8 +60,12 @@ public sealed class DatabaseQueryNodeExecutor : INodeExecutor
             }
         }
 
-        outputs[outputKey] = JsonSerializer.SerializeToElement(result);
-        outputs["record_count"] = JsonSerializer.SerializeToElement(result.Count);
+        // X2：默认对查询结果应用敏感字段脱敏；可通过 config.maskSensitive=false 关闭。
+        var maskSensitive = context.GetConfigBoolean("maskSensitive", true);
+        var emitted = maskSensitive ? AiNodeObservability.MaskAll(result) : result;
+        outputs[outputKey] = JsonSerializer.SerializeToElement(emitted);
+        outputs["record_count"] = JsonSerializer.SerializeToElement(emitted.Count);
+        activity?.SetTag("db.records_returned", emitted.Count);
         return new NodeExecutionResult(true, outputs);
     }
 }
