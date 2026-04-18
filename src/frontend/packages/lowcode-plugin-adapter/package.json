@@ -2,16 +2,15 @@
   "name": "@atlas/lowcode-plugin-adapter",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码 Plugin 适配器（M18）。",
+  "description": "Atlas 低代码 Plugin 适配器（M18）—— 设计态市场/创建/授权/计量 + 运行时 invoke。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
+  "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "lint": "echo '@atlas/lowcode-plugin-adapter: no lint configured yet'",
+    "lint": "echo '@atlas/lowcode-plugin-adapter: lint via root pipeline'",
     "build": "echo '@atlas/lowcode-plugin-adapter: source-only package, no build step'",
-    "test": "echo '@atlas/lowcode-plugin-adapter: no tests yet'"
-  }
+    "test": "vitest --run --passWithNoTests"
+  },
+  "devDependencies": { "vitest": "^4.1.4" }
 }

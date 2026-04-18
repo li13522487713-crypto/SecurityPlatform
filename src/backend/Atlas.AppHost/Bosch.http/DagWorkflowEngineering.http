@@ -1,0 +1,93 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@workflowId = 1234567890
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{ "username": "{{username}}", "password": "{{password}}" }
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### AI 生成（auto）
+POST {{baseUrl}}/api/v2/workflows/generate
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "mode": "auto", "prompt": "查询用户最近 7 天订单并发送邮件总结" }
+
+### AI 生成（assisted，半自动）
+POST {{baseUrl}}/api/v2/workflows/generate
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "mode": "assisted", "prompt": "数据库查询用户列表；调用 LLM 生成摘要；HTTP 推送到 Webhook" }
+
+### 批量执行（CSV）
+POST {{baseUrl}}/api/v2/workflows/{{workflowId}}/batch
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "{{workflowId}}",
+  "sourceKind": "csv",
+  "csvText": "name,age\nalice,28\nbob,32",
+  "onFailure": "continue"
+}
+
+### 批量执行（JSON 数组）
+POST {{baseUrl}}/api/v2/workflows/{{workflowId}}/batch
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "{{workflowId}}",
+  "sourceKind": "json",
+  "jsonRows": [{ "city": "Beijing" }, { "city": "Shanghai" }]
+}
+
+### 批量执行（数据库查询）
+POST {{baseUrl}}/api/v2/workflows/{{workflowId}}/batch
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "{{workflowId}}",
+  "sourceKind": "database",
+  "databaseQueryId": "db-q-001"
+}
+
+### 封装子工作流
+POST {{baseUrl}}/api/v2/workflows/{{workflowId}}/compose
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "{{workflowId}}",
+  "selectedNodeKeys": ["llm-1", "format-1"],
+  "subflowName": "summary-block"
+}
+
+### 解散子工作流
+POST {{baseUrl}}/api/v2/workflows/{{workflowId}}/decompose
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{ "workflowId": "{{workflowId}}", "subWorkflowNodeKey": "subflow-1" }
+
+### 查询配额
+GET {{baseUrl}}/api/v2/workflows/quota
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

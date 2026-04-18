@@ -84,6 +84,12 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IPromptTemplateService, PromptTemplateService>();
         services.AddScoped<ILowCodePluginService, LowCodePluginService>();
 
+        // M19 工作流父级工程能力
+        services.AddScoped<IWorkflowGenerationService, WorkflowGenerationService>();
+        services.AddScoped<IWorkflowBatchService, WorkflowBatchService>();
+        services.AddScoped<IWorkflowCompositionService, WorkflowCompositionService>();
+        services.AddSingleton<IWorkflowQuotaService, WorkflowQuotaService>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {
