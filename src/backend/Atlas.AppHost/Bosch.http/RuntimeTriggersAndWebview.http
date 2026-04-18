@@ -68,6 +68,11 @@ Content-Type: application/json
 
 { "anyPayload": "由外部系统提交，触发器内部按 workflowId 异步提交执行" }
 
+### 发布事件名 → 触发所有匹配的 kind=event 触发器
+POST {{baseUrl}}/api/runtime/triggers/events/order.created:raise
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### Webview 域名管理
 GET {{baseUrl}}/api/runtime/webview-domains
 Authorization: Bearer {{accessToken}}

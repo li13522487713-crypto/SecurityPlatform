@@ -88,9 +88,22 @@ public sealed class RuntimeTriggersController : ControllerBase
         var secret = await _service.RotateWebhookSecretAsync(tenantId, user.UserId, id, cancellationToken);
         return Ok(ApiResponse<RotateWebhookSecretResponse>.Ok(new RotateWebhookSecretResponse(secret), HttpContext.TraceIdentifier));
     }
+
+    /// <summary>
+    /// 发布事件总线消息：触发所有 kind=event AND EventName=eventName AND Enabled=true 触发器。
+    /// 返回实际被触发的触发器数量。
+    /// </summary>
+    [HttpPost("events/{eventName}:raise")]
+    public async Task<ActionResult<ApiResponse<RaiseEventResponse>>> RaiseEvent(string eventName, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var fired = await _service.RaiseEventAsync(tenantId, eventName, cancellationToken);
+        return Ok(ApiResponse<RaiseEventResponse>.Ok(new RaiseEventResponse(eventName, fired), HttpContext.TraceIdentifier));
+    }
 }
 
 public sealed record RotateWebhookSecretResponse(string Secret);
+public sealed record RaiseEventResponse(string EventName, int FiredCount);
 
 /// <summary>
 /// Webhook 外部回调入口（无需登录态，按 X-Tenant-Id + triggerId + X-Atlas-Webhook-Secret 校验）。

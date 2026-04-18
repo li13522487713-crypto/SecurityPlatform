@@ -138,6 +138,22 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
         await FireAsync(tenantId, triggerId, cancellationToken);
     }
 
+    public async Task<int> RaiseEventAsync(TenantId tenantId, string eventName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(eventName))
+            throw new BusinessException(ErrorCodes.ValidationError, "eventName 不可为空");
+        var all = await _repo.ListAsync(tenantId, cancellationToken);
+        var matched = all.Where(t => t.Enabled
+                                  && string.Equals(t.Kind, "event", StringComparison.OrdinalIgnoreCase)
+                                  && string.Equals(t.EventName, eventName, StringComparison.Ordinal)).ToList();
+        foreach (var t in matched)
+        {
+            await FireAsync(tenantId, t.TriggerId, cancellationToken);
+        }
+        _logger.LogInformation("RaiseEvent: tenant={Tenant} event={Event} fired={Count}", tenantId.Value, eventName, matched.Count);
+        return matched.Count;
+    }
+
     /// <summary>常量时间字符串比较，避免 webhook secret 时序攻击。</summary>
     private static bool ConstantTimeEquals(string a, string b)
     {
