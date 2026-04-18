@@ -82,7 +82,7 @@ export class DebugClient {
   constructor(private readonly opts: DebugClientOptions) {}
 
   queryTraces(q: TraceQuery): Promise<TraceDto[]> {
-    const url = `/api/runtime/traces${buildQueryString(q)}`;
+    const url = `/api/runtime/traces${buildQueryString(q as unknown as Record<string, unknown>)}`;
     return this.fetchJson<TraceDto[]>(url);
   }
 
@@ -91,7 +91,7 @@ export class DebugClient {
   }
 
   queryMessageLog(q: MessageLogQuery): Promise<MessageLogEntryDto[]> {
-    return this.fetchJson<MessageLogEntryDto[]>(`/api/runtime/message-log${buildQueryString(q)}`);
+    return this.fetchJson<MessageLogEntryDto[]>(`/api/runtime/message-log${buildQueryString(q as unknown as Record<string, unknown>)}`);
   }
 
   private async fetchJson<T>(path: string): Promise<T> {

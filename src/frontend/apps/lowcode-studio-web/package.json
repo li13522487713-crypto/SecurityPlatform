@@ -16,6 +16,7 @@
     "@atlas/lowcode-action-runtime": "workspace:*",
     "@atlas/lowcode-component-registry": "workspace:*",
     "@atlas/lowcode-components-web": "workspace:*",
+    "@atlas/lowcode-debug-client": "workspace:*",
     "@atlas/lowcode-editor-canvas": "workspace:*",
     "@atlas/lowcode-editor-inspector": "workspace:*",
     "@atlas/lowcode-editor-outline": "workspace:*",

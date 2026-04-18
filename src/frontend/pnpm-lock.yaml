@@ -294,6 +294,9 @@ importers:
       '@atlas/lowcode-components-web':
         specifier: workspace:*
         version: link:../../packages/lowcode-components-web
+      '@atlas/lowcode-debug-client':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-debug-client
       '@atlas/lowcode-editor-canvas':
         specifier: workspace:*
         version: link:../../packages/lowcode-editor-canvas
