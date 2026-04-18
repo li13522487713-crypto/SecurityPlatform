@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag } from '@douyinfe/semi-ui';
 import { listShortcuts } from '@atlas/lowcode-editor-canvas';
 import { lowcodeApi } from '../services/api-core';
+import { useStudioSelection } from '../stores/selection-store';
 import { t } from '../i18n';
 
 /**
@@ -17,6 +18,7 @@ import { t } from '../i18n';
  */
 export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   const [keyword, setKeyword] = useState('');
+  const { currentPageCode, setCurrentPageCode } = useStudioSelection();
 
   // Tab 1：组件
   const componentsQuery = useQuery({
@@ -104,12 +106,19 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
           <List
             size="small"
             dataSource={pagesQuery.data ?? []}
-            renderItem={(p) => (
-              <List.Item extra={<Tag size="small">{p.layout}</Tag>}>
-                <Typography.Text>{p.displayName}</Typography.Text>
-                <Typography.Text type="tertiary" style={{ marginLeft: 8, fontSize: 12 }}>{p.path}</Typography.Text>
-              </List.Item>
-            )}
+            renderItem={(p) => {
+              const active = p.code === currentPageCode;
+              return (
+                <List.Item
+                  style={{ cursor: 'pointer', background: active ? '#e6f4ff' : undefined }}
+                  onClick={() => setCurrentPageCode(p.code)}
+                  extra={<Tag size="small">{p.layout}</Tag>}
+                >
+                  <Typography.Text strong={active}>{p.displayName}</Typography.Text>
+                  <Typography.Text type="tertiary" style={{ marginLeft: 8, fontSize: 12 }}>{p.path}</Typography.Text>
+                </List.Item>
+              );
+            }}
             emptyContent={<Empty title="暂无页面" />}
           />
         )}
