@@ -1,7 +1,10 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Audit.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +19,8 @@ public sealed class AiDatabasesController : ControllerBase
 {
     private readonly IAiDatabaseService _service;
     private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAuditWriter _auditWriter;
     private readonly IValidator<AiDatabaseCreateRequest> _createValidator;
     private readonly IValidator<AiDatabaseUpdateRequest> _updateValidator;
     private readonly IValidator<AiDatabaseRecordCreateRequest> _recordCreateValidator;
@@ -26,6 +31,8 @@ public sealed class AiDatabasesController : ControllerBase
     public AiDatabasesController(
         IAiDatabaseService service,
         ITenantProvider tenantProvider,
+        ICurrentUserAccessor currentUserAccessor,
+        IAuditWriter auditWriter,
         IValidator<AiDatabaseCreateRequest> createValidator,
         IValidator<AiDatabaseUpdateRequest> updateValidator,
         IValidator<AiDatabaseRecordCreateRequest> recordCreateValidator,
@@ -35,12 +42,23 @@ public sealed class AiDatabasesController : ControllerBase
     {
         _service = service;
         _tenantProvider = tenantProvider;
+        _currentUserAccessor = currentUserAccessor;
+        _auditWriter = auditWriter;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _recordCreateValidator = recordCreateValidator;
         _recordUpdateValidator = recordUpdateValidator;
         _schemaValidator = schemaValidator;
         _importValidator = importValidator;
+    }
+
+    private async Task WriteDatabaseAuditAsync(string action, string target, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var user = _currentUserAccessor.GetCurrentUserOrThrow();
+        await _auditWriter.WriteAsync(
+            new AuditRecord(tenantId, user.UserId.ToString(), action, "success", target, null, null),
+            cancellationToken);
     }
 
     [HttpGet]
@@ -78,6 +96,7 @@ public sealed class AiDatabasesController : ControllerBase
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var id = await _service.CreateAsync(tenantId, request, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.create", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -91,6 +110,7 @@ public sealed class AiDatabasesController : ControllerBase
         _updateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         await _service.UpdateAsync(tenantId, id, request, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.update", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -100,6 +120,7 @@ public sealed class AiDatabasesController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         await _service.DeleteAsync(tenantId, id, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.delete", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -151,6 +172,7 @@ public sealed class AiDatabasesController : ControllerBase
         _recordCreateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var recordId = await _service.CreateRecordAsync(tenantId, id, request, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database_record.create", $"db:{id}/record:{recordId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -165,6 +187,7 @@ public sealed class AiDatabasesController : ControllerBase
         _recordUpdateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         await _service.UpdateRecordAsync(tenantId, id, recordId, request, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database_record.update", $"db:{id}/record:{recordId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -177,6 +200,7 @@ public sealed class AiDatabasesController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         await _service.DeleteRecordAsync(tenantId, id, recordId, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database_record.delete", $"db:{id}/record:{recordId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
     }
 

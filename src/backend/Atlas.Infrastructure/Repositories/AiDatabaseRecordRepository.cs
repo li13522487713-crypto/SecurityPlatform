@@ -16,10 +16,13 @@ public sealed class AiDatabaseRecordRepository : RepositoryBase<AiDatabaseRecord
         long databaseId,
         int pageIndex,
         int pageSize,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        string? channelId = null)
     {
         var query = Db.Queryable<AiDatabaseRecord>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId);
+        query = ApplyMetadataFilters(query, ownerUserId, channelId);
 
         var total = await query.CountAsync(cancellationToken);
         var items = await query
@@ -29,25 +32,54 @@ public sealed class AiDatabaseRecordRepository : RepositoryBase<AiDatabaseRecord
         return (items, total);
     }
 
-    public async Task<int> CountByDatabaseAsync(TenantId tenantId, long databaseId, CancellationToken cancellationToken)
+    public async Task<int> CountByDatabaseAsync(
+        TenantId tenantId,
+        long databaseId,
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        string? channelId = null)
     {
-        return await Db.Queryable<AiDatabaseRecord>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId)
-            .CountAsync(cancellationToken);
+        var query = Db.Queryable<AiDatabaseRecord>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId);
+        query = ApplyMetadataFilters(query, ownerUserId, channelId);
+        return await query.CountAsync(cancellationToken);
     }
 
     public async Task<AiDatabaseRecord?> FindByDatabaseAndIdAsync(
         TenantId tenantId,
         long databaseId,
         long recordId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        string? channelId = null)
     {
-        return await Db.Queryable<AiDatabaseRecord>()
+        var query = Db.Queryable<AiDatabaseRecord>()
             .Where(x =>
                 x.TenantIdValue == tenantId.Value &&
                 x.DatabaseId == databaseId &&
-                x.Id == recordId)
-            .FirstAsync(cancellationToken);
+                x.Id == recordId);
+        query = ApplyMetadataFilters(query, ownerUserId, channelId);
+        return await query.FirstAsync(cancellationToken);
+    }
+
+    /// <summary>D1：旧记录默认 NULL 视为 MultiUser 兼容（不强制 owner/channel 过滤）。
+    /// 调用方传入非空时，匹配等值或保留 NULL（兼容旧数据）。</summary>
+    private static ISugarQueryable<AiDatabaseRecord> ApplyMetadataFilters(
+        ISugarQueryable<AiDatabaseRecord> query,
+        long? ownerUserId,
+        string? channelId)
+    {
+        if (ownerUserId.HasValue)
+        {
+            var ownerVal = ownerUserId.Value;
+            query = query.Where(x => x.OwnerUserId == null || x.OwnerUserId == ownerVal);
+        }
+        if (!string.IsNullOrWhiteSpace(channelId))
+        {
+            var channelVal = channelId.Trim();
+            query = query.Where(x => x.ChannelId == null || x.ChannelId == channelVal);
+        }
+        return query;
     }
 
     public Task DeleteByDatabaseAsync(TenantId tenantId, long databaseId, CancellationToken cancellationToken)

@@ -73,6 +73,12 @@ type CopyTree = {
   retrievalQueryPlaceholder: string;
   runTest: string;
   noTestResult: string;
+  hitOffsetLabel: string;
+  hitTagsLabel: string;
+  rowIndexLabel: string;
+  columnHeadersLabel: string;
+  imagePreviewLabel: string;
+  tablePreviewLabel: string;
   uploadTitle: string;
   uploadSubtitle: string;
   uploadSelectFile: string;
@@ -191,6 +197,12 @@ const zhCN: CopyTree = {
   retrievalQueryPlaceholder: "输入测试问题，例如：平台有哪些安全能力？",
   runTest: "开始测试",
   noTestResult: "暂时还没有检索结果。",
+  hitOffsetLabel: "命中位置",
+  hitTagsLabel: "命中标签",
+  rowIndexLabel: "行号",
+  columnHeadersLabel: "列头",
+  imagePreviewLabel: "图片预览",
+  tablePreviewLabel: "表格预览",
   uploadTitle: "导入知识文档",
   uploadSubtitle: "按照 Coze 式四段流程维护知识导入。",
   uploadSelectFile: "选择文件",
@@ -332,6 +344,12 @@ const enUS: CopyTree = {
   retrievalQueryPlaceholder: "Type a test query, e.g. What security capabilities does the platform provide?",
   runTest: "Run Test",
   noTestResult: "No retrieval result yet.",
+  hitOffsetLabel: "Match Range",
+  hitTagsLabel: "Tags",
+  rowIndexLabel: "Row #",
+  columnHeadersLabel: "Headers",
+  imagePreviewLabel: "Image Preview",
+  tablePreviewLabel: "Table Preview",
   uploadTitle: "Import Knowledge Files",
   uploadSubtitle: "Maintain knowledge ingestion with a four-step Coze-like flow.",
   uploadSelectFile: "Choose Files",

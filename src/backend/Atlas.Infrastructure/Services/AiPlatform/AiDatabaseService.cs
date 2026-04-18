@@ -20,6 +20,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
     private readonly AiDatabaseRepository _databaseRepository;
     private readonly AiDatabaseRecordRepository _recordRepository;
     private readonly AiDatabaseImportTaskRepository _importTaskRepository;
+    private readonly AiAppResourceBindingRepository _appResourceBindingRepository;
+    private readonly AiDatabaseQuotaPolicy _quotaPolicy;
     private readonly IFileStorageService _fileStorageService;
     private readonly IBackgroundWorkQueue _backgroundWorkQueue;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
@@ -30,6 +32,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
         AiDatabaseRepository databaseRepository,
         AiDatabaseRecordRepository recordRepository,
         AiDatabaseImportTaskRepository importTaskRepository,
+        AiAppResourceBindingRepository appResourceBindingRepository,
+        AiDatabaseQuotaPolicy quotaPolicy,
         IFileStorageService fileStorageService,
         IBackgroundWorkQueue backgroundWorkQueue,
         IIdGeneratorAccessor idGeneratorAccessor,
@@ -39,6 +43,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
         _databaseRepository = databaseRepository;
         _recordRepository = recordRepository;
         _importTaskRepository = importTaskRepository;
+        _appResourceBindingRepository = appResourceBindingRepository;
+        _quotaPolicy = quotaPolicy;
         _fileStorageService = fileStorageService;
         _backgroundWorkQueue = backgroundWorkQueue;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -86,6 +92,9 @@ public sealed class AiDatabaseService : IAiDatabaseService
             throw new BusinessException("数据库 Schema 不合法。", ErrorCodes.ValidationError);
         }
 
+        await _quotaPolicy.EnsureCanCreateDatabaseAsync(tenantId, cancellationToken);
+        _quotaPolicy.EnsureFieldCount(AiDatabaseValueCoercer.ParseColumns(request.TableSchema).Count);
+
         var entity = new AiDatabase(
             tenantId,
             normalizedName,
@@ -114,6 +123,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
             throw new BusinessException("数据库 Schema 不合法。", ErrorCodes.ValidationError);
         }
 
+        _quotaPolicy.EnsureFieldCount(AiDatabaseValueCoercer.ParseColumns(request.TableSchema).Count);
+
         entity.Update(normalizedName, request.Description?.Trim(), request.BotId, request.TableSchema, workspaceId: request.WorkspaceId);
         await _databaseRepository.UpdateAsync(entity, cancellationToken);
     }
@@ -122,6 +133,16 @@ public sealed class AiDatabaseService : IAiDatabaseService
     {
         var entity = await _databaseRepository.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("数据库不存在。", ErrorCodes.NotFound);
+
+        // X1：阻止删除已被任意 App 绑定的数据库。
+        var bindingCount = await _appResourceBindingRepository.CountByResourceAsync(
+            tenantId, "database", entity.Id, cancellationToken);
+        if (bindingCount > 0)
+        {
+            throw new BusinessException(
+                $"数据库已被 {bindingCount} 个应用绑定，请先解绑后再删除。",
+                ErrorCodes.ValidationError);
+        }
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
@@ -176,8 +197,10 @@ public sealed class AiDatabaseService : IAiDatabaseService
     {
         var entity = await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
         EnsureJsonObject(request.DataJson);
+        var coercedJson = AiDatabaseValueCoercer.Coerce(entity.TableSchema, request.DataJson);
+        await _quotaPolicy.EnsureCanAddRowAsync(tenantId, databaseId, incoming: 1, cancellationToken);
 
-        var record = new AiDatabaseRecord(tenantId, databaseId, request.DataJson, _idGeneratorAccessor.NextId());
+        var record = new AiDatabaseRecord(tenantId, databaseId, coercedJson, _idGeneratorAccessor.NextId());
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _recordRepository.AddAsync(record, cancellationToken);
@@ -195,12 +218,13 @@ public sealed class AiDatabaseService : IAiDatabaseService
         AiDatabaseRecordUpdateRequest request,
         CancellationToken cancellationToken)
     {
-        await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
+        var entity = await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
         EnsureJsonObject(request.DataJson);
+        var coercedJson = AiDatabaseValueCoercer.Coerce(entity.TableSchema, request.DataJson);
 
         var record = await _recordRepository.FindByDatabaseAndIdAsync(tenantId, databaseId, recordId, cancellationToken)
             ?? throw new BusinessException("数据库记录不存在。", ErrorCodes.NotFound);
-        record.UpdateData(request.DataJson);
+        record.UpdateData(coercedJson);
         await _recordRepository.UpdateAsync(record, cancellationToken);
     }
 

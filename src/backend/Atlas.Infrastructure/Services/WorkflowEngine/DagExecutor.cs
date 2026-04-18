@@ -62,7 +62,9 @@ public sealed class DagExecutor
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken,
         IReadOnlyList<long>? workflowCallStack = null,
-        IReadOnlySet<string>? preCompletedNodeKeys = null)
+        IReadOnlySet<string>? preCompletedNodeKeys = null,
+        long? userId = null,
+        string? channelId = null)
     {
         _logger.LogInformation(
             "DagExecutor run start: ExecutionId={ExecutionId} NodeCount={NodeCount} ConnectionCount={ConnectionCount}",
@@ -136,7 +138,9 @@ public sealed class DagExecutor
                         connectionsBySource,
                         levelInput,
                         eventChannel,
-                        cancellationToken))
+                        cancellationToken,
+                        userId,
+                        channelId))
                     .ToArray();
 
                 // RT-12: 将每个并行任务包装为安全捕获模式，防止单个 OperationCanceledException 导致整层丢失结果。
@@ -516,7 +520,9 @@ public sealed class DagExecutor
         IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
         Dictionary<string, JsonElement> inputVariables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null)
     {
         if (!nodeMap.TryGetValue(nodeKey, out var node))
         {
@@ -583,7 +589,9 @@ public sealed class DagExecutor
             workflowId,
             executionId,
             workflowCallStack,
-            eventChannel);
+            eventChannel,
+            userId,
+            channelId);
         var nodeTimeout = ResolveNodeTimeout(node);
         var resolvedNodeTimeout = nodeTimeout ?? TimeSpan.Zero;
         using var timeoutCts = nodeTimeout is null

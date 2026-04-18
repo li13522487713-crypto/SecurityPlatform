@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Infrastructure.Services.AiPlatform;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -25,11 +26,35 @@ internal static class AiDatabaseNodeHelper
         ISqlSugarClient db,
         TenantId tenantId,
         long databaseId,
+        CancellationToken cancellationToken,
+        AiDatabaseAccessPolicy? policy = null)
+    {
+        var query = db.Queryable<AiDatabaseRecord>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId);
+        if (policy is { OwnerUserId: { } ownerVal })
+        {
+            query = query.Where(x => x.OwnerUserId == null || x.OwnerUserId == ownerVal);
+        }
+        if (policy is { ChannelId: { } channelVal } && !string.IsNullOrWhiteSpace(channelVal))
+        {
+            query = query.Where(x => x.ChannelId == null || x.ChannelId == channelVal);
+        }
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    /// <summary>D2：从执行上下文 + DB 读取构建访问策略。</summary>
+    public static async Task<AiDatabaseAccessPolicy> ResolvePolicyAsync(
+        ISqlSugarClient db,
+        NodeExecutionContext context,
+        long databaseId,
         CancellationToken cancellationToken)
     {
-        return await db.Queryable<AiDatabaseRecord>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId)
-            .ToListAsync(cancellationToken);
+        var entity = await db.Queryable<AiDatabase>()
+            .Where(x => x.TenantIdValue == context.TenantId.Value && x.Id == databaseId)
+            .FirstAsync(cancellationToken);
+        return entity is null
+            ? AiDatabaseAccessPolicy.Open
+            : AiDatabaseAccessPolicy.For(entity, context.UserId, context.ChannelId);
     }
 
     public static List<DbClause> ResolveClauses(IReadOnlyDictionary<string, JsonElement> config)

@@ -15,6 +15,7 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
     private readonly KnowledgeDocumentRepository _knowledgeDocumentRepository;
     private readonly DocumentChunkRepository _documentChunkRepository;
     private readonly AgentKnowledgeLinkRepository _agentKnowledgeLinkRepository;
+    private readonly AiAppResourceBindingRepository _appResourceBindingRepository;
     private readonly IVectorStore _vectorStore;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
@@ -25,6 +26,7 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
         KnowledgeDocumentRepository knowledgeDocumentRepository,
         DocumentChunkRepository documentChunkRepository,
         AgentKnowledgeLinkRepository agentKnowledgeLinkRepository,
+        AiAppResourceBindingRepository appResourceBindingRepository,
         IVectorStore vectorStore,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
@@ -34,6 +36,7 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
         _knowledgeDocumentRepository = knowledgeDocumentRepository;
         _documentChunkRepository = documentChunkRepository;
         _agentKnowledgeLinkRepository = agentKnowledgeLinkRepository;
+        _appResourceBindingRepository = appResourceBindingRepository;
         _vectorStore = vectorStore;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
@@ -115,6 +118,15 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
     {
         var entity = await _knowledgeBaseRepository.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("知识库不存在。", ErrorCodes.NotFound);
+
+        var bindingCount = await _appResourceBindingRepository.CountByResourceAsync(
+            tenantId, "knowledge", entity.Id, cancellationToken);
+        if (bindingCount > 0)
+        {
+            throw new BusinessException(
+                $"知识库已被 {bindingCount} 个应用绑定，请先解绑后再删除。",
+                ErrorCodes.ValidationError);
+        }
 
         var chunks = await _documentChunkRepository.GetByKnowledgeBaseAsync(tenantId, entity.Id, top: 0, cancellationToken);
         var chunkIds = chunks.Select(x => x.Id.ToString()).ToList();
