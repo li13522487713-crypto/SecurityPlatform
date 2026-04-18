@@ -7,6 +7,43 @@
 - `@atlas/workflow-core-react`、`@atlas/workflow-editor-react`、`@atlas/module-workflow-react` 已删除，不再作为宿主桥接边界。
 - 前端与后端协议对齐统一走兼容层：`/api/workflow_api/*`、`/api/playground_api/*`、`/api/op_workflow/*`、`/api/bot/*`、`/api/space/*`、`/api/draftbot/*`、`/v1/workflow/*`、`/v1/workflows/*`。
 
+## Assistant 域命名映射
+
+> 本节固定 Coze 中国版「智能体（Assistant）」与本仓库代码实体的映射关系，避免 `Agent` / `Assistant` / `TeamAgent` / `Bot` 在跨层文档与对外 API 中混用。详细背景见 [`docs/coze/assistant-domain-mapping.md`](coze/assistant-domain-mapping.md) 与 [`docs/plan-coze-platform-governance.md`](plan-coze-platform-governance.md)。
+
+### 命名约定
+
+| 产品语义（Coze） | 仓库聚合根 / 控制器 | 路由前缀 | 备注 |
+| --- | --- | --- | --- |
+| 智能体（Assistant，单体） | `Atlas.Domain.AiPlatform.Entities.Agent` | `api/v1/agents`、`api/v1/ai-assistants` | `ai-assistants` 为 `agents` 的 REST 别名，保持产品语义对外可读 |
+| 多智能体团队（Multi-Agent / Team） | `Atlas.Domain.AiPlatform.Entities.TeamAgent` | `api/v1/team-agents` | 多智能体编排聚合，不与单体 `Agent` 共享路由 |
+| 机器人（Bot，Coze 兼容） | 仅出现在 `CozeWorkflowCompatControllerBase` 等兼容层 | `/api/draftbot/*`、`/api/bot/*` | 不在 Atlas 域模型中再造同名实体 |
+| 智能体技能装配 | `AgentPluginBinding` / `AgentKnowledgeLink` / `AgentWorkflowBinding`(`Skill` 角色) / `AgentDatabaseBinding` / `AgentVariableBinding` / `AgentPromptBinding` / `AgentConversationProfile` | 同 agents 子路由 | 触发器 / 卡片暂未升级为一等绑定，由 M-G10 跟踪 |
+| 发布物（嵌入态） | `AgentPublication`（含 `EmbedToken`） | `api/v1/ai-assistants/{id}/publications` 等 | 与「工作空间渠道发布」（M-G02）解耦 |
+
+### 关系示意
+
+```
+Tenant
+ └── Workspace
+      ├── Agent  ──┬── AgentPluginBinding
+      │            ├── AgentKnowledgeLink
+      │            ├── AgentWorkflowBinding (role = Skill)
+      │            ├── AgentDatabaseBinding
+      │            ├── AgentVariableBinding
+      │            ├── AgentPromptBinding
+      │            ├── AgentConversationProfile
+      │            └── AgentPublication (embed / version)
+      └── TeamAgent ── 多智能体编排（独立线，不与 Agent 路由复用）
+```
+
+### 强约束
+
+- 新增对外 REST 路由必须二选一：`agents` 或 `ai-assistants`，**禁止再引入 `bots` / `assistants` 等新别名**。
+- 跨层文档（PRD、API 规范、产品 changelog）行文统一使用「智能体（Assistant）」；代码注释允许混用 `Agent` 以与类型名一致。
+- 产品页面显示文案统一走 i18n（`assistantDomainTitle / assistantDomainSubtitle / assistantTeamTitle / assistantSkillsBlock` 等），禁止硬编码「Bot」。
+- 触发器、卡片在升级为一等绑定（M-G10）前，仍保留在 Workflow / Coze 兼容层，不允许在 `Agent*Binding` 命名空间下重复建表。
+
 ## Organization / Workspace Portal
 
 ### 路由与工作模式
