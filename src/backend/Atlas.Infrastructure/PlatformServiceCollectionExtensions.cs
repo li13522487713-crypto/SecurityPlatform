@@ -110,6 +110,10 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Authorization.IResourceWriteGate,
             Atlas.Infrastructure.Services.Authorization.ResourceWriteGate>();
 
+        // 治理 M-G03-C7 (S7): 通用资源协作者服务
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IResourceCollaboratorService,
+            Atlas.Infrastructure.Services.AiPlatform.ResourceCollaboratorService>();
+
         // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
         services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuApiClient,
