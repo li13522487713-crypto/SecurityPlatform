@@ -1,6 +1,7 @@
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Entities.Channels;
+using Atlas.Domain.AiPlatform.Entities.Knowledge;
 using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
@@ -92,6 +93,32 @@ public static class AtlasOrmSchemaCatalog
         typeof(KnowledgeSlice),
         typeof(KnowledgeReview),
         typeof(KnowledgeImportTask),
+        // v5 §32-44 知识库专题扩展实体
+        typeof(KnowledgeBaseMetaEntity),
+        typeof(KnowledgeDocumentMetaEntity),
+        typeof(KnowledgeJob),
+        typeof(KnowledgeBindingEntity),
+        typeof(KnowledgePermissionEntity),
+        typeof(KnowledgeVersionEntity),
+        typeof(KnowledgeRetrievalLogEntity),
+        typeof(KnowledgeProviderConfigEntity),
+        typeof(KnowledgeTableColumnEntity),
+        typeof(KnowledgeTableRowEntity),
+        typeof(KnowledgeImageItemEntity),
+        typeof(KnowledgeImageAnnotationEntity),
+        // v5 §32-44 知识库专题扩展实体（命名空间 Atlas.Domain.AiPlatform.Entities.Knowledge）
+        typeof(KnowledgeVersionEntity),
+        typeof(KnowledgeJob),
+        typeof(KnowledgeBindingEntity),
+        typeof(KnowledgePermissionEntity),
+        typeof(KnowledgeRetrievalLogEntity),
+        typeof(KnowledgeProviderConfigEntity),
+        typeof(KnowledgeTableColumnEntity),
+        typeof(KnowledgeTableRowEntity),
+        typeof(KnowledgeImageItemEntity),
+        typeof(KnowledgeImageAnnotationEntity),
+        typeof(KnowledgeBaseMetaEntity),
+        typeof(KnowledgeDocumentMetaEntity),
         typeof(AiWorkflowDefinition),
         typeof(AiDatabase),
         typeof(AiDatabaseRecord),

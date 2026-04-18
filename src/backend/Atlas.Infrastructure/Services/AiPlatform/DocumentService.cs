@@ -17,33 +17,33 @@ public sealed class DocumentService : IDocumentService
     private readonly KnowledgeBaseRepository _knowledgeBaseRepository;
     private readonly KnowledgeDocumentRepository _documentRepository;
     private readonly DocumentChunkRepository _chunkRepository;
-    private readonly IBackgroundWorkQueue _backgroundWorkQueue;
     private readonly IVectorStore _vectorStore;
     private readonly IFileStorageService _fileStorageService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
     private readonly KnowledgeQuotaPolicy _knowledgeQuotaPolicy;
+    private readonly KnowledgeJobService _knowledgeJobService;
 
     public DocumentService(
         KnowledgeBaseRepository knowledgeBaseRepository,
         KnowledgeDocumentRepository documentRepository,
         DocumentChunkRepository chunkRepository,
-        IBackgroundWorkQueue backgroundWorkQueue,
         IVectorStore vectorStore,
         IFileStorageService fileStorageService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
-        KnowledgeQuotaPolicy knowledgeQuotaPolicy)
+        KnowledgeQuotaPolicy knowledgeQuotaPolicy,
+        KnowledgeJobService knowledgeJobService)
     {
         _knowledgeBaseRepository = knowledgeBaseRepository;
         _documentRepository = documentRepository;
         _chunkRepository = chunkRepository;
-        _backgroundWorkQueue = backgroundWorkQueue;
         _vectorStore = vectorStore;
         _fileStorageService = fileStorageService;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
         _knowledgeQuotaPolicy = knowledgeQuotaPolicy;
+        _knowledgeJobService = knowledgeJobService;
     }
 
     public async Task<long> CreateAsync(
@@ -81,11 +81,14 @@ public sealed class DocumentService : IDocumentService
             await _knowledgeBaseRepository.UpdateAsync(kb, cancellationToken);
         }, cancellationToken);
 
-        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
-        {
-            var processor = sp.GetRequiredService<DocumentProcessingService>();
-            await processor.ProcessAsync(tenantId, knowledgeBaseId, entity.Id, new ChunkingOptions(), ct);
-        });
+        // v5 §35：把"上传 → 解析 → 切片 → 索引"封装成 KnowledgeJob 持久化记录，
+        // 由 KnowledgeJobService 负责状态机推进；DocumentService 只负责创建文档元信息。
+        await _knowledgeJobService.EnqueueParseAsync(
+            tenantId,
+            knowledgeBaseId,
+            entity.Id,
+            request.ParsingStrategy,
+            cancellationToken);
 
         return entity.Id;
     }
@@ -156,7 +159,23 @@ public sealed class DocumentService : IDocumentService
         var doc = await _documentRepository.FindByKnowledgeBaseAndIdAsync(tenantId, knowledgeBaseId, documentId, cancellationToken)
             ?? throw new BusinessException("文档不存在。", ErrorCodes.NotFound);
 
-        return new DocumentProgressDto(doc.Id, doc.Status, doc.ChunkCount, doc.ErrorMessage, doc.ProcessedAt);
+        // v5 §35：从 DocumentProcessingStatus 映射到完整生命周期状态机。
+        var lifecycle = doc.Status switch
+        {
+            DocumentProcessingStatus.Pending => KnowledgeDocumentLifecycleStatus.Uploaded,
+            DocumentProcessingStatus.Processing => KnowledgeDocumentLifecycleStatus.Parsing,
+            DocumentProcessingStatus.Completed => KnowledgeDocumentLifecycleStatus.Ready,
+            DocumentProcessingStatus.Failed => KnowledgeDocumentLifecycleStatus.Failed,
+            _ => KnowledgeDocumentLifecycleStatus.Uploaded
+        };
+
+        return new DocumentProgressDto(
+            doc.Id,
+            doc.Status,
+            doc.ChunkCount,
+            doc.ErrorMessage,
+            doc.ProcessedAt,
+            LifecycleStatus: lifecycle);
     }
 
     public async Task ResegmentAsync(
@@ -173,16 +192,18 @@ public sealed class DocumentService : IDocumentService
         doc.MarkProcessing();
         await _documentRepository.UpdateAsync(doc, cancellationToken);
 
-        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
-        {
-            var processor = sp.GetRequiredService<DocumentProcessingService>();
-            await processor.ProcessAsync(
-                tenantId,
-                knowledgeBaseId,
-                documentId,
-                new ChunkingOptions(request.ChunkSize, request.Overlap, request.Strategy, request.ParseStrategy),
-                ct);
-        });
+        // v5 §35：重跑解析也走 KnowledgeJobService，让前端任务面板能看到任务记录。
+        // 兼容旧请求：若调用方未提供 ParsingStrategy，则按 ParseStrategy 标量字段构造一个最小策略。
+        var parsing = request.ParsingStrategy ?? new ParsingStrategy(
+            ParsingType: request.ParseStrategy == DocumentParseStrategy.Precise
+                ? ParsingType.Precise
+                : ParsingType.Quick);
+        await _knowledgeJobService.EnqueueParseAsync(
+            tenantId,
+            knowledgeBaseId,
+            documentId,
+            parsing,
+            cancellationToken);
     }
 
     private static KnowledgeDocumentDto Map(KnowledgeDocument entity)

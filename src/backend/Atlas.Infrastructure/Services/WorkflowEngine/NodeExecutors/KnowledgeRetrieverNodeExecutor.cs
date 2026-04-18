@@ -57,6 +57,51 @@ public sealed class KnowledgeRetrieverNodeExecutor : INodeExecutor
             Offset: 0,
             OwnerFilter: ResolveOwnerFilter(context.Node.Config),
             MetadataFilter: null);
+
+        // v5 §38：如果 config 提供了 retrievalProfile / callerContext / debug，则走升级版协议；
+        // 否则保留旧 SearchAsync 行为，确保既有画布零侵入。
+        var retrievalProfile = TryParseRetrievalProfile(context.Node.Config);
+        var debug = context.GetConfigBoolean("debug", false);
+        var maskSensitive = context.GetConfigBoolean("maskSensitive", true);
+
+        if (retrievalProfile is not null || debug)
+        {
+            var callerContext = BuildCallerContext(context);
+            var request = new RetrievalRequest(
+                Query: query,
+                KnowledgeBaseIds: knowledgeIds,
+                TopK: topK,
+                CallerContext: callerContext,
+                Debug: debug,
+                MinScore: filter.MinScore,
+                Filters: null,
+                RetrievalProfile: retrievalProfile);
+            var response = await _ragRetrievalService.SearchWithProfileAsync(
+                context.TenantId,
+                request,
+                cancellationToken);
+
+            var rerankedJson = JsonSerializer.SerializeToElement(response.Log.Reranked);
+            outputs["documents"] = maskSensitive ? AiNodeObservability.Mask(rerankedJson) : rerankedJson;
+            outputs["candidates"] = JsonSerializer.SerializeToElement(response.Log.Candidates);
+            outputs["retrieved_count"] = JsonSerializer.SerializeToElement(response.Log.Reranked.Count);
+            outputs["query"] = VariableResolver.CreateStringElement(query);
+            outputs["rewritten_query"] = VariableResolver.CreateStringElement(response.Log.RewrittenQuery ?? query);
+            outputs["final_context"] = VariableResolver.CreateStringElement(response.Log.FinalContext);
+            outputs["trace_id"] = VariableResolver.CreateStringElement(response.Log.TraceId);
+            activity?.SetTag("kb.retrieved_count", response.Log.Reranked.Count);
+            activity?.SetTag("kb.trace_id", response.Log.TraceId);
+            await AiNodeObservability.WriteAuditAsync(
+                context.ServiceProvider,
+                context.TenantId,
+                context.UserId,
+                "knowledge_node.retrieve",
+                "success",
+                $"kb:[{string.Join(',', knowledgeIds)}]/hits:{response.Log.Reranked.Count}/trace:{response.Log.TraceId}/node:{context.Node.Key}",
+                cancellationToken);
+            return new NodeExecutionResult(true, outputs);
+        }
+
         var results = await _ragRetrievalService.SearchAsync(
             context.TenantId,
             knowledgeIds,
@@ -67,8 +112,6 @@ public sealed class KnowledgeRetrieverNodeExecutor : INodeExecutor
 
         var filtered = results.OrderByDescending(x => x.Score).ToList();
         var documentsJson = JsonSerializer.SerializeToElement(filtered);
-        // X2：默认对检索文档应用脱敏；可通过 config.maskSensitive=false 关闭。
-        var maskSensitive = context.GetConfigBoolean("maskSensitive", true);
         outputs["documents"] = maskSensitive ? AiNodeObservability.Mask(documentsJson) : documentsJson;
         outputs["retrieved_count"] = JsonSerializer.SerializeToElement(filtered.Count);
         outputs["query"] = VariableResolver.CreateStringElement(query);
@@ -146,5 +189,41 @@ public sealed class KnowledgeRetrieverNodeExecutor : INodeExecutor
 
         var text = VariableResolver.ToDisplayText(raw).Trim();
         return text.Length == 0 ? null : text;
+    }
+
+    private static RetrievalProfile? TryParseRetrievalProfile(IReadOnlyDictionary<string, JsonElement> config)
+    {
+        if (!VariableResolver.TryGetConfigValue(config, "retrievalProfile", out var raw))
+        {
+            return null;
+        }
+        if (raw.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<RetrievalProfile>(raw.GetRawText(), new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static RetrievalCallerContext BuildCallerContext(NodeExecutionContext context)
+    {
+        return new RetrievalCallerContext(
+            CallerType: KnowledgeRetrievalCallerType.Workflow,
+            CallerId: context.Node.Key,
+            CallerName: context.Node.Key,
+            ConversationId: context.ChannelId,
+            WorkflowTraceId: context.Node.Key,
+            TenantId: context.TenantId.Value.ToString(),
+            UserId: context.UserId.ToString());
     }
 }

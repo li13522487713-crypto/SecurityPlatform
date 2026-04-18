@@ -248,7 +248,24 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("minScore", 0.2),
                 ("tags", Array.Empty<object>()),
                 ("ownerFilter", string.Empty),
-                ("maskSensitive", true)),
+                ("maskSensitive", true),
+                // v5 §38：携带 RetrievalProfile / debug 时走升级版协议
+                ("retrievalProfile", new Dictionary<string, object?>
+                {
+                    ["topK"] = 5,
+                    ["minScore"] = 0.2,
+                    ["enableRerank"] = false,
+                    ["enableHybrid"] = true,
+                    ["enableQueryRewrite"] = false,
+                    ["weights"] = new Dictionary<string, object?>
+                    {
+                        ["vector"] = 0.6,
+                        ["bm25"] = 0.4,
+                        ["table"] = 0.0,
+                        ["image"] = 0.0
+                    }
+                }),
+                ("debug", false)),
             WorkflowNodeType.KnowledgeIndexer => CreateConfig(
                 ("knowledgeId", 0),
                 ("fileId", 0),
@@ -257,7 +274,15 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("fileSizeBytes", 0),
                 ("chunkSize", 500),
                 ("overlap", 50),
-                ("parseStrategy", "quick")),
+                ("parseStrategy", "quick"),
+                // v5 §35：完整 ParsingStrategy 对象，与前端 ParsingStrategyForm 同型
+                ("parsingStrategy", new Dictionary<string, object?>
+                {
+                    ["parsingType"] = 0,
+                    ["extractImage"] = false,
+                    ["extractTable"] = false,
+                    ["imageOcr"] = false
+                })),
             WorkflowNodeType.KnowledgeDeleter => CreateConfig(
                 ("knowledgeId", 0),
                 ("documentId", 0)),
@@ -479,7 +504,10 @@ internal static class BuiltInWorkflowNodeDeclarations
                         ["type"] = "string",
                         ["hint"] = "可选；非空时仅检索 owner=该值 的切片"
                     },
-                    new() { ["key"] = "maskSensitive", ["label"] = "结果脱敏", ["type"] = "boolean", ["default"] = true }
+                    new() { ["key"] = "maskSensitive", ["label"] = "结果脱敏", ["type"] = "boolean", ["default"] = true },
+                    // v5 §38：完整 RetrievalProfile + debug 透明度
+                    new() { ["key"] = "retrievalProfile", ["label"] = "检索策略", ["type"] = "retrieval_profile", ["hint"] = "TopK / 重排 / 混合检索权重 / 查询改写" },
+                    new() { ["key"] = "debug", ["label"] = "返回完整 RetrievalLog", ["type"] = "boolean", ["default"] = false, ["hint"] = "true 时输出 trace_id / final_context / candidates" }
                 },
                 FormMetaJsonOptions),
             WorkflowNodeType.KnowledgeIndexer => JsonSerializer.Serialize(
@@ -494,7 +522,7 @@ internal static class BuiltInWorkflowNodeDeclarations
                     new()
                     {
                         ["key"] = "parseStrategy",
-                        ["label"] = "解析策略",
+                        ["label"] = "解析策略（旧版兼容）",
                         ["type"] = "select",
                         ["options"] = new object[]
                         {
@@ -502,7 +530,9 @@ internal static class BuiltInWorkflowNodeDeclarations
                             new Dictionary<string, object?> { ["value"] = "precise", ["label"] = "精确" }
                         },
                         ["default"] = "quick"
-                    }
+                    },
+                    // v5 §35：完整 ParsingStrategy 对象，覆盖 quick/precise/extract_image/extract_table/image_ocr/sheet_id/header_line/data_start_line
+                    new() { ["key"] = "parsingStrategy", ["label"] = "解析策略（v5）", ["type"] = "parsing_strategy", ["hint"] = "完整解析策略对象，与前端 ParsingStrategyForm 同型" }
                 },
                 FormMetaJsonOptions),
             WorkflowNodeType.KnowledgeDeleter => JsonSerializer.Serialize(
@@ -662,7 +692,10 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["minScore"] = "number",
                 ["tags"] = "array",
                 ["ownerFilter"] = "string",
-                ["maskSensitive"] = "boolean"
+                ["maskSensitive"] = "boolean",
+                // v5 §38
+                ["retrievalProfile"] = "object",
+                ["debug"] = "boolean"
             }),
             WorkflowNodeType.KnowledgeIndexer => BuildObjectSchema(["knowledgeId", "fileId"], new Dictionary<string, string>
             {
@@ -673,7 +706,9 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["fileSizeBytes"] = "number",
                 ["chunkSize"] = "number",
                 ["overlap"] = "number",
-                ["parseStrategy"] = "string"
+                ["parseStrategy"] = "string",
+                // v5 §35
+                ["parsingStrategy"] = "object"
             }),
             WorkflowNodeType.KnowledgeDeleter => BuildObjectSchema(["knowledgeId"], new Dictionary<string, string>
             {

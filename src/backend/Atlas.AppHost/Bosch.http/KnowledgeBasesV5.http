@@ -1,0 +1,128 @@
+### 知识库专题（v5 §32-44）扩展接口烟测（AppHost 镜像版本）
+### 与 KnowledgeBases.http 共享 baseUrl/tenant/login；端口为 5002。
+
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+@kbId = 1
+
+### 列出当前 KB 的所有任务
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs?pageIndex=1&pageSize=20
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 跨 KB 列出全部任务
+GET {{baseUrl}}/api/v1/knowledge-bases/jobs?pageIndex=1&pageSize=50
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 重跑解析
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/parse
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "documentId": 1,
+  "parsingStrategy": { "parsingType": 1, "extractTable": true }
+}
+
+### 全量重建索引
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/rebuild-index
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{}
+
+### 列出绑定
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/bindings?pageIndex=1&pageSize=50
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 新增绑定
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/bindings
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "callerType": 2,
+  "callerId": "wf_security_audit",
+  "callerName": "安全审计工作流"
+}
+
+### 列出权限
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/permissions?pageIndex=1&pageSize=50
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 列出版本
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/versions?pageIndex=1&pageSize=50
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 创建版本快照
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/versions
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "label": "v1.0.0",
+  "note": "AppHost 烟测"
+}
+
+### 统一检索
+POST {{baseUrl}}/api/v1/knowledge-bases/retrieval
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "query": "巡检",
+  "knowledgeBaseIds": [1],
+  "topK": 5,
+  "callerContext": { "callerType": 2, "callerId": "wf_test", "tenantId": "00000000-0000-0000-0000-000000000001", "userId": "admin" },
+  "debug": true
+}
+
+### 检索日志列表
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/retrieval-logs?pageIndex=1&pageSize=20
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 表格列定义
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/table-columns
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 表格行视图
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/table-rows?pageIndex=1&pageSize=50
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 图片项目
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/image-items?pageIndex=1&pageSize=20
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### Provider 配置
+GET {{baseUrl}}/api/v1/knowledge-bases/provider-configs
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}

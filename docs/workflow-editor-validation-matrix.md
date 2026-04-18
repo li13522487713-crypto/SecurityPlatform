@@ -49,8 +49,8 @@
 | AssignVariable | 是 | 是 | 是 |
 | VariableAssignerWithinLoop | 是 | 是 | 是 |
 | VariableAggregator | 是 | 是 | 是 |
-| KnowledgeRetriever | 是 | 是 | 是 |
-| KnowledgeIndexer | 是 | 是 | 是 |
+| KnowledgeRetriever | 是 | 是 | 是（v5 §38：retrievalProfile / debug / trace_id / final_context / candidates 输出，CallerContext 统一注入） |
+| KnowledgeIndexer | 是 | 是 | 是（v5 §35：parsingStrategy 类型化对象覆盖 quick/precise + extract_image/table + image_ocr + sheet_id/header_line/data_start_line） |
 | KnowledgeDeleter | 是 | 是 | 是 |
 | Ltm | 是 | 是 | 是 |
 | DatabaseQuery | 是 | 是 | 是 |

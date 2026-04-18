@@ -1,4 +1,5 @@
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Abstractions.Knowledge;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
@@ -57,6 +58,31 @@ public static class AiCoreServiceRegistration
         services.AddScoped<IChunkService, ChunkService>();
         services.AddSingleton<IDocumentParseStrategy, DocumentParseStrategyService>();
         services.AddScoped<DocumentProcessingService>();
+
+        // v5 §32-44 知识库专题仓储
+        services.AddScoped<KnowledgeBaseMetaRepository>();
+        services.AddScoped<KnowledgeDocumentMetaRepository>();
+        services.AddScoped<KnowledgeBaseVersionRepository>();
+        services.AddScoped<KnowledgeJobRepository>();
+        services.AddScoped<KnowledgeBaseBindingRepository>();
+        services.AddScoped<KnowledgeBasePermissionRepository>();
+        services.AddScoped<KnowledgeRetrievalLogRepository>();
+        services.AddScoped<KnowledgeProviderConfigRepository>();
+        services.AddScoped<KnowledgeTableColumnRepository>();
+        services.AddScoped<KnowledgeTableRowRepository>();
+        services.AddScoped<KnowledgeImageItemRepository>();
+        services.AddScoped<KnowledgeImageAnnotationRepository>();
+
+        // v5 §32-44 知识库专题应用服务（M9 任务系统 + M10 检索日志 + M11 治理服务全集）
+        services.AddScoped<KnowledgeJobService>();
+        services.AddScoped<IKnowledgeJobService>(sp => sp.GetRequiredService<KnowledgeJobService>());
+        services.AddScoped<IRetrievalLogService, RetrievalLogService>();
+        services.AddScoped<IKnowledgeBindingService, KnowledgeBindingService>();
+        services.AddScoped<IKnowledgePermissionService, KnowledgePermissionService>();
+        services.AddScoped<IKnowledgeVersionService, KnowledgeVersionService>();
+        services.AddScoped<IKnowledgeProviderConfigService, KnowledgeProviderConfigService>();
+        services.AddScoped<IKnowledgeTableViewService, KnowledgeTableViewService>();
+        services.AddScoped<IKnowledgeImageItemService, KnowledgeImageItemService>();
 
         services.AddSingleton<TxtDocumentParser>();
         services.AddSingleton<PdfDocumentParser>();

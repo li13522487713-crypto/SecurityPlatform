@@ -81,3 +81,83 @@ public sealed class KnowledgeRetrievalTestRequestValidator : AbstractValidator<K
         RuleFor(x => x.OwnerFilter).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.OwnerFilter));
     }
 }
+
+/* -------------------------------------------------------------------------- */
+/*                v5 §32-44 新增请求类型 FluentValidation                       */
+/* -------------------------------------------------------------------------- */
+
+public sealed class RetrievalRequestValidator : AbstractValidator<RetrievalRequest>
+{
+    public RetrievalRequestValidator()
+    {
+        RuleFor(x => x.Query).NotEmpty().MaximumLength(2000);
+        RuleFor(x => x.TopK).GreaterThanOrEqualTo(1).LessThanOrEqualTo(50);
+        RuleFor(x => x.MinScore).InclusiveBetween(0f, 1f).When(x => x.MinScore.HasValue);
+        RuleFor(x => x.KnowledgeBaseIds).NotNull();
+        RuleFor(x => x.KnowledgeBaseIds.Count).LessThanOrEqualTo(32).When(x => x.KnowledgeBaseIds is not null);
+        RuleFor(x => x.CallerContext).NotNull();
+        When(x => x.RetrievalProfile is not null, () =>
+        {
+            RuleFor(x => x.RetrievalProfile!.TopK).GreaterThanOrEqualTo(1).LessThanOrEqualTo(50);
+            RuleFor(x => x.RetrievalProfile!.MinScore).InclusiveBetween(0f, 1f);
+        });
+    }
+}
+
+public sealed class KnowledgeJobsListRequestValidator : AbstractValidator<KnowledgeJobsListRequest>
+{
+    public KnowledgeJobsListRequestValidator()
+    {
+        RuleFor(x => x.PageIndex).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 200);
+    }
+}
+
+public sealed class KnowledgeBindingCreateRequestValidator : AbstractValidator<KnowledgeBindingCreateRequest>
+{
+    public KnowledgeBindingCreateRequestValidator()
+    {
+        RuleFor(x => x.CallerType).IsInEnum();
+        RuleFor(x => x.CallerId).NotEmpty().MaximumLength(128);
+        RuleFor(x => x.CallerName).NotEmpty().MaximumLength(256);
+    }
+}
+
+public sealed class KnowledgePermissionGrantRequestValidator : AbstractValidator<KnowledgePermissionGrantRequest>
+{
+    public KnowledgePermissionGrantRequestValidator()
+    {
+        RuleFor(x => x.Scope).IsInEnum();
+        RuleFor(x => x.SubjectType).IsInEnum();
+        RuleFor(x => x.SubjectId).NotEmpty().MaximumLength(128);
+        RuleFor(x => x.SubjectName).NotEmpty().MaximumLength(256);
+        RuleFor(x => x.ScopeId).NotEmpty().MaximumLength(128);
+        RuleFor(x => x.Actions).NotEmpty();
+        RuleForEach(x => x.Actions).IsInEnum();
+    }
+}
+
+public sealed class KnowledgeVersionCreateRequestValidator : AbstractValidator<KnowledgeVersionCreateRequest>
+{
+    public KnowledgeVersionCreateRequestValidator()
+    {
+        RuleFor(x => x.Label).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Note).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.Note));
+    }
+}
+
+public sealed class RerunParseRequestValidator : AbstractValidator<RerunParseRequest>
+{
+    public RerunParseRequestValidator()
+    {
+        RuleFor(x => x.DocumentId).GreaterThan(0);
+    }
+}
+
+public sealed class RebuildIndexRequestValidator : AbstractValidator<RebuildIndexRequest>
+{
+    public RebuildIndexRequestValidator()
+    {
+        RuleFor(x => x.DocumentId).GreaterThan(0).When(x => x.DocumentId.HasValue);
+    }
+}

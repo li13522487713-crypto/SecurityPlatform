@@ -20,6 +20,7 @@ import { IconPlus, IconSafe, IconSearch } from "@douyinfe/semi-icons";
 import type {
   AiLibraryItem,
   KnowledgeBaseCreateRequest,
+  KnowledgeBaseKind,
   KnowledgeBaseType,
   LibraryPageProps,
   ResourceType
@@ -33,6 +34,7 @@ import {
   normalizeResourcePath,
   resolveKnowledgeStatus
 } from "../utils";
+import { KnowledgeBaseCreateWizard } from "./knowledge-base-create-wizard";
 
 interface CreateFormState extends KnowledgeBaseCreateRequest {}
 
@@ -146,6 +148,9 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
   const [databaseForm, setDatabaseForm] = useState<DatabaseCreateFormState>(DEFAULT_DATABASE_FORM);
   const [draggingColumnId, setDraggingColumnId] = useState<string>("");
   const [pluginPreviewStage, setPluginPreviewStage] = useState<"edit" | "preview">("edit");
+  // 知识库专题（v5 §32-44）：替代旧 Modal，开启类型化创建向导
+  const [wizardVisible, setWizardVisible] = useState(false);
+  const [wizardInitialKind, setWizardInitialKind] = useState<KnowledgeBaseKind | undefined>(undefined);
   const deferredSearch = useDeferredValue(search.trim());
   const pageSize = 20;
 
@@ -665,10 +670,28 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           render={(
             <Dropdown.Menu>
               <Dropdown.Item icon={<IconPlus />} onClick={() => {
-                setCreateKind("knowledge-base");
-                setCreateVisible(true);
+                setWizardInitialKind(undefined);
+                setWizardVisible(true);
               }}>
                 {copy.createKnowledge}
+              </Dropdown.Item>
+              <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                setWizardInitialKind("text");
+                setWizardVisible(true);
+              }}>
+                {copy.wizardKindText}
+              </Dropdown.Item>
+              <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                setWizardInitialKind("table");
+                setWizardVisible(true);
+              }}>
+                {copy.wizardKindTable}
+              </Dropdown.Item>
+              <Dropdown.Item icon={<IconPlus />} onClick={() => {
+                setWizardInitialKind("image");
+                setWizardVisible(true);
+              }}>
+                {copy.wizardKindImage}
               </Dropdown.Item>
               {api.createPlugin ? (
                 <Dropdown.Item icon={<IconPlus />} onClick={() => {
@@ -1173,6 +1196,22 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
           ) : null}
         </Space>
       </Modal>
+
+      <KnowledgeBaseCreateWizard
+        api={api}
+        locale={locale}
+        visible={wizardVisible}
+        initialKind={wizardInitialKind}
+        onCancel={() => {
+          setWizardVisible(false);
+          setWizardInitialKind(undefined);
+        }}
+        onCreated={(id) => {
+          setWizardVisible(false);
+          setWizardInitialKind(undefined);
+          onNavigate(`/apps/${encodeURIComponent(appKey)}/studio/knowledge-bases/${id}`);
+        }}
+      />
     </div>
   );
 }

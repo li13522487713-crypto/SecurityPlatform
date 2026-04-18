@@ -6,6 +6,11 @@ import { Spin } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import type { CozeNavSection } from "@atlas/coze-shell-react";
 import type { LibraryKnowledgeApi } from "@atlas/library-module-react";
+import {
+  createMockLibraryApi,
+  KnowledgeJobsCenterPage,
+  KnowledgeProviderConfigPage
+} from "@atlas/library-module-react";
 import type {
   AdminModuleApi
 } from "@atlas/module-admin-react";
@@ -121,21 +126,49 @@ import {
   moveLibraryItem
 } from "../services/api-ai-workspace";
 import {
+  cancelKnowledgeJob,
   createChunk,
   createKnowledgeBase,
+  createKnowledgeBinding,
   createKnowledgeDocumentByFile,
+  createKnowledgeVersionSnapshot,
   deleteChunk,
   deleteKnowledgeBase,
   deleteKnowledgeDocument,
+  diffKnowledgeVersions,
   getDocumentChunksPaged,
   getDocumentProgress,
   getKnowledgeBaseById,
   getKnowledgeBasesPaged,
   getKnowledgeDocumentsPaged,
+  getKnowledgeJob,
+  getKnowledgeRetrievalLog,
+  grantKnowledgePermission,
+  listAllKnowledgeBindings,
+  listAllKnowledgeJobs,
+  listKnowledgeBindings,
+  listKnowledgeImageItems,
+  listKnowledgeJobs,
+  listKnowledgePermissions,
+  listKnowledgeProviderConfigs,
+  listKnowledgeRetrievalLogs,
+  listKnowledgeTableColumns,
+  listKnowledgeTableRows,
+  listKnowledgeVersions,
+  rebuildKnowledgeIndex,
+  releaseKnowledgeVersion,
+  removeKnowledgeBinding,
+  rerunParseJob,
   resegmentDocument,
+  retryKnowledgeJob,
+  revokeKnowledgePermission,
+  rollbackKnowledgeVersion,
+  runKnowledgeRetrieval,
   testKnowledgeRetrieval,
   updateChunk,
-  updateKnowledgeBase
+  updateKnowledgeBase,
+  updateKnowledgeChunkingProfile,
+  updateKnowledgeRetrievalProfile
 } from "../services/api-knowledge";
 import { HomePage } from "./pages/home-page";
 import { LoginPage } from "./pages/login-page";
@@ -408,7 +441,19 @@ const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider
 const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
 
-const libraryApi: LibraryKnowledgeApi = {
+function readLibraryMockFlag(): boolean {
+  try {
+    const env = (import.meta as ImportMeta & {
+      env?: Record<string, string | undefined>;
+    }).env;
+    const raw = env?.VITE_LIBRARY_MOCK ?? env?.["VITE_LIBRARY_MOCK"];
+    return typeof raw === "string" && raw.trim().toLowerCase() === "true";
+  } catch {
+    return false;
+  }
+}
+
+const realLibraryApi: LibraryKnowledgeApi = {
   listLibrary: (request, resourceType) => {
     const normalizedType =
       resourceType === "workflow" ||
@@ -435,6 +480,35 @@ const libraryApi: LibraryKnowledgeApi = {
   updateChunk,
   deleteChunk,
   runRetrievalTest: testKnowledgeRetrieval,
+  // v5 §32-44 扩展能力（在前端 mock 切到真实 API 时自动启用）
+  listJobs: listKnowledgeJobs,
+  listJobsAcrossKnowledgeBases: listAllKnowledgeJobs,
+  getJob: getKnowledgeJob,
+  rerunParseJob,
+  rebuildIndex: rebuildKnowledgeIndex,
+  retryDeadLetter: retryKnowledgeJob,
+  cancelJob: cancelKnowledgeJob,
+  listBindings: listKnowledgeBindings,
+  createBinding: createKnowledgeBinding,
+  removeBinding: removeKnowledgeBinding,
+  listAllBindings: listAllKnowledgeBindings,
+  listPermissions: listKnowledgePermissions,
+  grantPermission: grantKnowledgePermission,
+  revokePermission: revokeKnowledgePermission,
+  listVersions: listKnowledgeVersions,
+  createVersionSnapshot: createKnowledgeVersionSnapshot,
+  releaseVersion: releaseKnowledgeVersion,
+  rollbackToVersion: rollbackKnowledgeVersion,
+  diffVersions: diffKnowledgeVersions,
+  listProviderConfigs: listKnowledgeProviderConfigs,
+  listTableColumns: listKnowledgeTableColumns,
+  listTableRows: (kbId, docId, request) => listKnowledgeTableRows(kbId, docId, request),
+  listImageItems: (kbId, docId, request) => listKnowledgeImageItems(kbId, docId, request),
+  updateChunkingProfile: updateKnowledgeChunkingProfile,
+  updateRetrievalProfile: updateKnowledgeRetrievalProfile,
+  listRetrievalLogs: listKnowledgeRetrievalLogs,
+  getRetrievalLog: getKnowledgeRetrievalLog,
+  runRetrieval: runKnowledgeRetrieval,
   getApplicationDetail: async (appId) => {
     const detail = await getAiAppById(String(appId));
     return {
@@ -445,6 +519,14 @@ const libraryApi: LibraryKnowledgeApi = {
   downloadDatabaseTemplate: downloadAiDatabaseTemplate,
   publishPlugin: publishAiPlugin
 };
+
+// 知识库专题（v5 §32-44）阶段：当 VITE_LIBRARY_MOCK=true 时切到前端 mock 适配器，
+// 让资源中心 / 上传与解析 / 切片与索引 / 检索与注入 / 治理与开放接口五个系统面
+// 在后端尚未补齐前，已经能完整跑通 UI、状态机与异步任务。
+// 后端按契约补齐后，将开关关闭即可恢复真实链路（见 docs/plan-knowledge-platform-v5.md）。
+const libraryApi: LibraryKnowledgeApi = readLibraryMockFlag()
+  ? createMockLibraryApi({ tickIntervalMs: 800, withFailures: true })
+  : realLibraryApi;
 
 function navGlyph(label: string) {
   return <span className="app-nav-glyph" aria-hidden="true">{label}</span>;
@@ -2589,6 +2671,7 @@ function WorkspaceLibraryRoute() {
 
 function WorkspaceKnowledgeDetailRoute() {
   const { id = "" } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
   const workspace = useWorkspaceContext();
@@ -2597,7 +2680,55 @@ function WorkspaceKnowledgeDetailRoute() {
     createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
     updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(workspace.id) })
   }), [workspace.id]);
-  return <KnowledgeDetailPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} onNavigate={navigate} />;
+  const tabParam = searchParams.get("tab");
+  const allowedTabs = ["overview", "documents", "slices", "retrieval", "bindings", "jobs", "permissions", "versions"] as const;
+  type AllowedTab = (typeof allowedTabs)[number];
+  const initialTab: AllowedTab = (tabParam && (allowedTabs as readonly string[]).includes(tabParam) ? tabParam : "overview") as AllowedTab;
+  return (
+    <KnowledgeDetailPage
+      api={workspaceLibraryApi}
+      locale={locale}
+      appKey={workspace.appKey}
+      spaceId={workspace.id}
+      knowledgeBaseId={Number(id)}
+      initialTab={initialTab}
+      onTabChange={tab => {
+        const next = new URLSearchParams(searchParams);
+        next.set("tab", tab);
+        setSearchParams(next, { replace: true });
+      }}
+      onNavigate={navigate}
+    />
+  );
+}
+
+function WorkspaceKnowledgeJobsCenterRoute() {
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  return (
+    <KnowledgeJobsCenterPage
+      api={libraryApi}
+      locale={locale}
+      appKey={workspace.appKey}
+      spaceId={workspace.id}
+      onNavigate={navigate}
+    />
+  );
+}
+
+function WorkspaceKnowledgeProviderCenterRoute() {
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  return (
+    <KnowledgeProviderConfigPage
+      api={libraryApi}
+      locale={locale}
+      appKey={workspace.appKey}
+      onNavigate={navigate}
+    />
+  );
 }
 
 function WorkspaceKnowledgeUploadRoute() {
@@ -3244,6 +3375,24 @@ export const appRoutes = [
         element: (
           <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
             <WorkspaceLibraryRoute />
+          </ProtectedPage>
+        ),
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "library/jobs",
+        element: (
+          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
+            <WorkspaceKnowledgeJobsCenterRoute />
+          </ProtectedPage>
+        ),
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        path: "library/providers",
+        element: (
+          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
+            <WorkspaceKnowledgeProviderCenterRoute />
           </ProtectedPage>
         ),
         handle: WORKSPACE_LIBRARY_ROUTE_HANDLE

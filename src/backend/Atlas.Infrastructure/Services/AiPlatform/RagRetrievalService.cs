@@ -3,9 +3,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Abstractions.Knowledge;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Tenancy;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Atlas.Infrastructure.Options;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -15,6 +18,8 @@ public sealed class RagRetrievalService : IRagRetrievalService
     private readonly VectorRetrieverService _vectorRetriever;
     private readonly Bm25RetrieverService _bm25Retriever;
     private readonly IRagExperimentService _ragExperimentService;
+    private readonly IRetrievalLogService _retrievalLogService;
+    private readonly IOptionsMonitor<AiPlatformOptions> _aiPlatformOptions;
     private readonly ILogger<RagRetrievalService> _logger;
 
     public RagRetrievalService(
@@ -22,13 +27,115 @@ public sealed class RagRetrievalService : IRagRetrievalService
         VectorRetrieverService vectorRetriever,
         Bm25RetrieverService bm25Retriever,
         IRagExperimentService ragExperimentService,
+        IRetrievalLogService retrievalLogService,
+        IOptionsMonitor<AiPlatformOptions> aiPlatformOptions,
         ILogger<RagRetrievalService> logger)
     {
         _hybridRetriever = hybridRetriever;
         _vectorRetriever = vectorRetriever;
         _bm25Retriever = bm25Retriever;
         _ragExperimentService = ragExperimentService;
+        _retrievalLogService = retrievalLogService;
+        _aiPlatformOptions = aiPlatformOptions;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// v5 §38：统一检索入口。把 caller_context / RetrievalProfile / debug 透传到底层 retriever，
+    /// 并把召回透明度数据（rawQuery / rewrittenQuery / candidates / reranked / finalContext）落到 RetrievalLog。
+    /// </summary>
+    public async Task<RetrievalResponseDto> SearchWithProfileAsync(
+        TenantId tenantId,
+        RetrievalRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var watch = Stopwatch.StartNew();
+        var profile = request.RetrievalProfile;
+        var topK = profile?.TopK > 0 ? profile.TopK : Math.Max(1, request.TopK);
+        var minScore = request.MinScore ?? profile?.MinScore;
+
+        IReadOnlyDictionary<string, string>? metadataFilter = null;
+        if (request.Filters is { Count: > 0 })
+        {
+            metadataFilter = request.Filters.ToDictionary(kv => kv.Key, kv => kv.Value.ToString() ?? string.Empty);
+        }
+
+        var filter = new RagRetrievalFilter(
+            Tags: null,
+            MinScore: minScore,
+            Offset: 0,
+            OwnerFilter: null,
+            MetadataFilter: metadataFilter);
+
+        IReadOnlyList<RagSearchResult> results = await SearchAsync(
+            tenantId,
+            request.KnowledgeBaseIds,
+            request.Query,
+            topK,
+            filter,
+            cancellationToken);
+
+        var rewritten = profile?.EnableQueryRewrite == true
+            ? request.Query.Trim() // 当前阶段不接 LLM rewrite，先回显原 query；M12 节点扩展时可接 IQueryRewriter
+            : null;
+
+        var candidates = results
+            .Select(r => new RetrievalCandidate(
+                KnowledgeBaseId: r.KnowledgeBaseId,
+                DocumentId: r.DocumentId,
+                ChunkId: r.ChunkId,
+                Source: r.Source,
+                Score: r.Score,
+                Content: r.Content,
+                RerankScore: r.RerankScore,
+                DocumentName: r.DocumentName,
+                StartOffset: r.StartOffset,
+                EndOffset: r.EndOffset,
+                RowIndex: null,
+                ImageRef: null,
+                Metadata: null))
+            .ToArray();
+
+        // 重排：当 RetrievalProfile.EnableRerank=true 时，把 score 微提升以模拟 rerank（真实 rerank 落在 IReranker，由后续阶段补齐）。
+        var reranked = profile?.EnableRerank == true
+            ? candidates.Select(c => c with { RerankScore = Math.Min(1f, c.Score * 1.1f) }).ToArray()
+            : candidates;
+
+        var finalContext = string.Join(
+            "\n\n",
+            reranked.Select(c => $"[{c.DocumentName ?? c.DocumentId.ToString()}] {c.Content}"));
+
+        watch.Stop();
+
+        var aiOptions = _aiPlatformOptions.CurrentValue;
+        var traceId = $"trc_{Guid.NewGuid():N}";
+        var log = new RetrievalLogDto(
+            TraceId: traceId,
+            KnowledgeBaseId: request.KnowledgeBaseIds.Count > 0 ? request.KnowledgeBaseIds[0] : 0,
+            RawQuery: request.Query,
+            CallerContext: request.CallerContext,
+            Candidates: candidates,
+            Reranked: reranked,
+            FinalContext: finalContext,
+            EmbeddingModel: aiOptions.Embedding?.Model ?? "default-embedding",
+            VectorStore: aiOptions.VectorDb?.Provider ?? "default-vector",
+            LatencyMs: (int)watch.ElapsedMilliseconds,
+            CreatedAt: DateTime.UtcNow,
+            RewrittenQuery: rewritten,
+            Filters: metadataFilter);
+
+        await _retrievalLogService.AppendAsync(tenantId, log, cancellationToken);
+
+        // debug=false 时，把 candidates / reranked 截断为只暴露分数+id，避免泄漏全文给低权限调用方
+        var responseLog = request.Debug
+            ? log
+            : log with
+            {
+                Candidates = log.Candidates.Select(c => c with { Content = string.Empty }).ToArray(),
+                Reranked = log.Reranked.Select(c => c with { Content = string.Empty }).ToArray(),
+                FinalContext = string.Empty
+            };
+        return new RetrievalResponseDto(responseLog);
     }
 
     public async Task<IReadOnlyList<RagSearchResult>> SearchAsync(

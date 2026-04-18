@@ -71,7 +71,11 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
 
         var chunkSize = Math.Clamp(context.GetConfigInt32("chunkSize", 500), 50, 5000);
         var overlap = Math.Clamp(context.GetConfigInt32("overlap", 50), 0, 1000);
-        var parseStrategy = string.Equals(context.GetConfigString("parseStrategy", "quick"), "precise", StringComparison.OrdinalIgnoreCase)
+        // v5 §35：优先使用配置中的 ParsingStrategy 对象（与前端 ParsingStrategyForm 同型）；
+        // 兼容旧 parseStrategy 标量字段。
+        var parsingStrategy = TryParseParsingStrategy(context.Node.Config);
+        var parseStrategy = parsingStrategy?.ParsingType == ParsingType.Precise
+            || string.Equals(context.GetConfigString("parseStrategy", "quick"), "precise", StringComparison.OrdinalIgnoreCase)
             ? DocumentParseStrategy.Precise
             : DocumentParseStrategy.Quick;
         await _documentProcessingService.ProcessAsync(
@@ -84,6 +88,10 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
         outputs["document_id"] = JsonSerializer.SerializeToElement(document.Id);
         outputs["knowledge_id"] = JsonSerializer.SerializeToElement(knowledgeId);
         outputs["status"] = VariableResolver.CreateStringElement("indexed");
+        if (parsingStrategy is not null)
+        {
+            outputs["parsing_strategy"] = JsonSerializer.SerializeToElement(parsingStrategy);
+        }
         await AiNodeObservability.WriteAuditAsync(
             context.ServiceProvider,
             context.TenantId,
@@ -93,5 +101,29 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
             $"kb:{knowledgeId}/doc:{document.Id}/file:{fileId}/node:{context.Node.Key}",
             cancellationToken);
         return new NodeExecutionResult(true, outputs);
+    }
+
+    private static ParsingStrategy? TryParseParsingStrategy(IReadOnlyDictionary<string, JsonElement> config)
+    {
+        if (!VariableResolver.TryGetConfigValue(config, "parsingStrategy", out var raw))
+        {
+            return null;
+        }
+        if (raw.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<ParsingStrategy>(raw.GetRawText(), new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 }
