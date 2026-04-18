@@ -1,20 +1,24 @@
+using System.Diagnostics;
 using Atlas.WorkflowCore.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.WorkflowCore.Services;
 
 /// <summary>
-/// 工作流追踪 - OpenTelemetry 集成（简化版本）
+/// 工作流追踪 - System.Diagnostics.Activity 集成。
 /// </summary>
 /// <remarks>
-/// 此类为 OpenTelemetry 集成预留，当前为简化实现。
-/// 要启用完整追踪，需要添加 OpenTelemetry NuGet 包：
-/// - OpenTelemetry
-/// - OpenTelemetry.Api
-/// - OpenTelemetry.Instrumentation.AspNetCore
+/// 已在 OBS-145（v1.5）启用 Activity.SetTag：
+/// - 无需引入 OpenTelemetry NuGet 包；System.Diagnostics 是 BCL
+/// - Activity.Current 为 null 时 SetTag 安全跳过；上层 OTel pipeline（AppHost / PlatformHost
+///   AddSource("lowcode.runtime") 之外的 source）若需采集，需在 pipeline 中 AddSource("Atlas.WorkflowCore")。
 /// </remarks>
 public static class WorkflowTracing
 {
+    /// <summary>WorkflowCore 自身 ActivitySource 名（上游 OTel pipeline 可 AddSource 接入）。</summary>
+    public const string ActivitySourceName = "Atlas.WorkflowCore";
+
+    private static readonly ActivitySource Source = new(ActivitySourceName, "1.5.0");
     private static ILogger? _logger;
 
     /// <summary>
@@ -31,7 +35,7 @@ public static class WorkflowTracing
     public static void StartHost()
     {
         _logger?.LogDebug("[Tracing] WorkflowHost started");
-        // 当前能力边界：仅输出结构化日志，不创建 Activity；完整 OpenTelemetry 接入见任务 OBS-145（版本：v1.5）。
+        Source.StartActivity("WorkflowHost.Start", ActivityKind.Internal)?.Dispose();
     }
 
     /// <summary>
@@ -40,11 +44,12 @@ public static class WorkflowTracing
     public static void Enrich(WorkflowInstance workflow)
     {
         _logger?.LogDebug("[Tracing] Workflow {WorkflowId} enriched", workflow.Id);
-        // 当前能力边界：Span Tag 尚未启用，避免在无 Activity 上写入无效元数据；任务：OBS-145，版本：v1.5。
-        // Activity.Current?.SetTag("workflow.id", workflow.Id);
-        // Activity.Current?.SetTag("workflow.definition", workflow.WorkflowDefinitionId);
-        // Activity.Current?.SetTag("workflow.version", workflow.Version);
-        // Activity.Current?.SetTag("workflow.status", workflow.Status);
+        var a = Activity.Current;
+        if (a is null) return;
+        a.SetTag("workflow.id", workflow.Id);
+        a.SetTag("workflow.definition", workflow.WorkflowDefinitionId);
+        a.SetTag("workflow.version", workflow.Version);
+        a.SetTag("workflow.status", workflow.Status);
     }
 
     /// <summary>
@@ -53,10 +58,11 @@ public static class WorkflowTracing
     public static void Enrich(WorkflowStep step)
     {
         _logger?.LogDebug("[Tracing] Step {StepName} enriched", step.Name);
-        // 当前能力边界：Span Tag 尚未启用，避免在无 Activity 上写入无效元数据；任务：OBS-145，版本：v1.5。
-        // Activity.Current?.SetTag("step.id", step.Id);
-        // Activity.Current?.SetTag("step.name", step.Name);
-        // Activity.Current?.SetTag("step.type", step.BodyType.Name);
+        var a = Activity.Current;
+        if (a is null) return;
+        a.SetTag("step.id", step.Id);
+        a.SetTag("step.name", step.Name);
+        a.SetTag("step.type", step.BodyType.Name);
     }
 
     /// <summary>
@@ -65,9 +71,10 @@ public static class WorkflowTracing
     public static void Enrich(ExecutionResult result)
     {
         _logger?.LogDebug("[Tracing] ExecutionResult enriched - Proceed: {Proceed}", result.Proceed);
-        // 当前能力边界：Span Tag 尚未启用，避免在无 Activity 上写入无效元数据；任务：OBS-145，版本：v1.5。
-        // Activity.Current?.SetTag("result.proceed", result.Proceed);
-        // Activity.Current?.SetTag("result.outcome", result.OutcomeValue);
+        var a = Activity.Current;
+        if (a is null) return;
+        a.SetTag("result.proceed", result.Proceed);
+        a.SetTag("result.outcome", result.OutcomeValue);
     }
 
     /// <summary>
@@ -77,8 +84,9 @@ public static class WorkflowTracing
     {
         _logger?.LogDebug("[Tracing] WorkflowExecutorResult enriched - Errors: {ErrorCount}, Subscriptions: {SubscriptionCount}", 
             result.Errors.Count, result.Subscriptions.Count);
-        // 当前能力边界：Span Tag 尚未启用，避免在无 Activity 上写入无效元数据；任务：OBS-145，版本：v1.5。
-        // Activity.Current?.SetTag("result.errors.count", result.Errors.Count);
-        // Activity.Current?.SetTag("result.subscriptions.count", result.Subscriptions.Count);
+        var a = Activity.Current;
+        if (a is null) return;
+        a.SetTag("result.errors.count", result.Errors.Count);
+        a.SetTag("result.subscriptions.count", result.Subscriptions.Count);
     }
 }

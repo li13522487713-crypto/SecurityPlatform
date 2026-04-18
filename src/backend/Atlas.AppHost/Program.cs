@@ -369,7 +369,9 @@ builder.Services.AddOpenTelemetry()
         tracing.AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             // M13 收尾：注册低代码 ActivitySource，dispatch / span 全部纳入 OTel 链路
-            .AddSource(Atlas.Infrastructure.Services.LowCode.LowCodeOtelInstrumentation.ActivitySourceName);
+            .AddSource(Atlas.Infrastructure.Services.LowCode.LowCodeOtelInstrumentation.ActivitySourceName)
+            // OBS-145：WorkflowCore Activity（StartHost / Enrich workflow/step/result）纳入 OTel
+            .AddSource(Atlas.WorkflowCore.Services.WorkflowTracing.ActivitySourceName);
         var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
