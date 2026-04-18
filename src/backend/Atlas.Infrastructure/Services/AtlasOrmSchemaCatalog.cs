@@ -243,6 +243,9 @@ public static class AtlasOrmSchemaCatalog
         typeof(ResourceOwnershipTransfer),
         // 治理 M-G07-C2 (S13): 租户级身份提供方
         typeof(TenantIdentityProvider),
+        // 治理 M-G08-C1 + C2 (S15): 网络策略 + 数据驻留策略
+        typeof(TenantNetworkPolicy),
+        typeof(TenantDataResidencyPolicy),
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）
