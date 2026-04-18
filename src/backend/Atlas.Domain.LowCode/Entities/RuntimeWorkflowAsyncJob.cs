@@ -56,6 +56,15 @@ public sealed class RuntimeWorkflowAsyncJob : TenantEntity
     public DateTimeOffset SubmittedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
 
+    /// <summary>可选 webhook 回调 URL（M19 S19-3）；终态时由后台作业调用。</summary>
+    [SugarColumn(Length = 1024, IsNullable = true)]
+    public string? WebhookUrl { get; private set; }
+
+    public void SetWebhook(string? webhookUrl)
+    {
+        WebhookUrl = string.IsNullOrWhiteSpace(webhookUrl) ? null : webhookUrl;
+    }
+
     public void MarkRunning() { Status = "running"; }
 
     public void MarkSucceeded(string resultJson)

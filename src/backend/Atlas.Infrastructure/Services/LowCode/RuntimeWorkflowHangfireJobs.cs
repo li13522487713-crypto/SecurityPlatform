@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text.Json;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.LowCode.Abstractions;
@@ -22,6 +23,8 @@ namespace Atlas.Infrastructure.Services.LowCode;
 /// </summary>
 public sealed class RuntimeWorkflowBackgroundJob
 {
+    private static readonly HttpClient WebhookHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<RuntimeWorkflowBackgroundJob> _logger;
 
@@ -29,6 +32,23 @@ public sealed class RuntimeWorkflowBackgroundJob
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// 终态 webhook 回调（M19 S19-3）。失败不阻塞作业本身，仅记录日志。
+    /// </summary>
+    private async Task TryPostWebhookAsync(string? webhookUrl, string jobId, string status, object? resultPayload)
+    {
+        if (string.IsNullOrWhiteSpace(webhookUrl)) return;
+        try
+        {
+            using var resp = await WebhookHttp.PostAsJsonAsync(webhookUrl, new { jobId, status, result = resultPayload, at = DateTimeOffset.UtcNow });
+            _logger.LogInformation("workflow async webhook posted: jobId={JobId} status={Status} httpCode={Code}", jobId, status, (int)resp.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "workflow async webhook 投递失败: jobId={JobId} url={Url}", jobId, webhookUrl);
+        }
     }
 
     /// <summary>异步任务执行（接管 RuntimeWorkflowExecutor.SubmitAsyncAsync 内部 Task.Run）。</summary>
@@ -60,6 +80,7 @@ public sealed class RuntimeWorkflowBackgroundJob
             entity.MarkSucceeded(JsonSerializer.Serialize(result));
             await jobRepo.UpdateAsync(entity, CancellationToken.None);
             await auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.workflow.async.complete", "success", $"job:{jobId}", null, null), CancellationToken.None);
+            await TryPostWebhookAsync(entity.WebhookUrl, jobId, "success", result);
         }
         catch (Exception ex)
         {
@@ -67,6 +88,7 @@ public sealed class RuntimeWorkflowBackgroundJob
             await jobRepo.UpdateAsync(entity, CancellationToken.None);
             await auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.workflow.async.complete", "failed", $"job:{jobId}:err:{ex.Message}", null, null), CancellationToken.None);
             _logger.LogError(ex, "async workflow job failed: {JobId}", jobId);
+            await TryPostWebhookAsync(entity.WebhookUrl, jobId, "failed", new { errorMessage = ex.Message });
         }
     }
 
@@ -115,12 +137,14 @@ public sealed class RuntimeWorkflowBackgroundJob
             entity.MarkSucceeded(JsonSerializer.Serialize(result));
             await jobRepo.UpdateAsync(entity, CancellationToken.None);
             await auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.workflow.batch.complete", "success", $"job:{jobId}:total:{total}:ok:{succeeded}:fail:{failed}", null, null), CancellationToken.None);
+            await TryPostWebhookAsync(entity.WebhookUrl, jobId, "success", result);
         }
         catch (Exception ex)
         {
             entity.MarkFailed(ex.Message);
             await jobRepo.UpdateAsync(entity, CancellationToken.None);
             _logger.LogError(ex, "batch workflow job failed: {JobId}", jobId);
+            await TryPostWebhookAsync(entity.WebhookUrl, jobId, "failed", new { errorMessage = ex.Message });
         }
     }
 }
