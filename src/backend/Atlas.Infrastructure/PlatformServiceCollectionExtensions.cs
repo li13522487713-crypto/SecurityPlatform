@@ -139,6 +139,11 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Identity.Abstractions.IOffboardService,
             Atlas.Infrastructure.Services.OffboardService>();
 
+        // 治理 M-G07-C2 (S13): 租户级身份提供方
+        services.AddScoped<Atlas.Infrastructure.Repositories.TenantIdentityProviderRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.ITenantIdentityProviderService,
+            Atlas.Infrastructure.Services.TenantIdentityProviderService>();
+
         // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
         services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuApiClient,
