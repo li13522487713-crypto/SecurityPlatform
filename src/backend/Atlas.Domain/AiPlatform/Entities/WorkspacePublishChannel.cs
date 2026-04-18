@@ -84,6 +84,14 @@ public sealed class WorkspacePublishChannel : TenantEntity
 
     public DateTime CreatedAt { get; private set; }
 
+    /// <summary>
+    /// connector 凭据 / 配置 JSON（M-G02-C3 起）。
+    /// 实现方约定：值用 <c>LowCodeCredentialProtector.Encrypt</c> 包装（前缀 <c>lcp:</c>）；
+    /// 若为空表示尚未发布或已撤销。本字段不会出现在 DTO 中。
+    /// </summary>
+    [SugarColumn(ColumnDataType = "TEXT", IsNullable = true)]
+    public string? SecretJson { get; private set; }
+
     public void Update(string? name, string? description, string? status, string? supportedTargetsJson)
     {
         if (!string.IsNullOrWhiteSpace(name))
@@ -108,6 +116,13 @@ public sealed class WorkspacePublishChannel : TenantEntity
     {
         AuthStatus = "authorized";
         Status = "active";
+        LastSyncAt = DateTime.UtcNow;
+    }
+
+    /// <summary>connector 写入凭据；调用方负责加密。</summary>
+    public void SetSecretJson(string? encryptedSecretJson)
+    {
+        SecretJson = string.IsNullOrEmpty(encryptedSecretJson) ? null : encryptedSecretJson;
         LastSyncAt = DateTime.UtcNow;
     }
 }

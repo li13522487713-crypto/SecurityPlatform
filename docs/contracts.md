@@ -1103,6 +1103,53 @@ DTO：
 回滚时新记录的 `rolledBackFromReleaseId` 指向源记录；源记录本身仍保持原状态不变（因为新记录会以新的 ReleaseNo 落库并接管 active）。
 所有发布与回滚均写审计：`CHANNEL_RELEASE_PUBLISH` / `CHANNEL_RELEASE_ROLLBACK`，`target` 字段记录 `channel:{id}/release:{id}` 与 connector 反馈摘要。
 
+### 治理 M-G02-C3 / C4：Web SDK 与 Open API 公共入口
+
+> 渠道 connector 在发布时会真实下发凭据：`web-sdk` 旋转 HMAC secret 并返回 snippet；
+> `open-api` 颁发租户 bearer token 并提供 endpoint catalog；secret/token 经 `LowCodeCredentialProtector` 加密落库。
+
+**发布返回 `publicMetadataJson` 内容（解析后）：**
+
+- `web-sdk`：`{ endpoint, snippet, originAllowlist[], secret, secretMasked, embedTokenLifetimeSeconds }`
+- `open-api`：`{ endpoint, tenantToken, tokenMasked, endpoints[], rateLimitPerMinute }`
+
+> `secret` / `tenantToken` 是明文，仅在本次发布响应中返回一次；后续只能旋转，不能再次明文获取。
+
+**Web SDK 公共入口（无 JWT，自带 HMAC + Origin 双重校验）：**
+
+`POST /api/v1/runtime/channels/web-sdk/{channelId}/messages`
+
+请求头：
+
+| Header | 说明 |
+| --- | --- |
+| `X-Tenant-Id` | 租户 GUID（必填） |
+| `X-Channel-Signature` | hex(HMAC-SHA256(secret, `{timestamp}\n{nonce}\n{body}`))，必填 |
+| `X-Channel-Timestamp` | unix 秒；默认允许 ±300 秒漂移 |
+| `X-Channel-Nonce` | 每次请求唯一；调用方维护去重 |
+| `X-Channel-External-User` | 可选，外部访客 id（透传到对话上下文） |
+| `Origin` | 与 `originAllowlist` 比较；`*` 表示任意来源 |
+
+请求体：`{ message: string, conversationId?: number, enableRag?: bool }`
+返回：`ApiResponse<{ conversationId: string, messageId: string, content: string, sources?: string }>`
+失败：`401` + `ApiResponse<null>`，`Code` 字段含 `WebSdkSignatureMismatch` / `WebSdkOriginRejected` / `WebSdkChannelNotPublished` 等。
+
+**Open API 公共入口（Bearer + per-channel 限流）：**
+
+`POST /api/v1/runtime/channels/open-api/{channelId}/chat`
+
+请求头：
+
+| Header | 说明 |
+| --- | --- |
+| `X-Tenant-Id` | 租户 GUID（必填） |
+| `Authorization` | `Bearer {tenantToken}`，必填 |
+
+请求体：`{ message: string, conversationId?: number, enableRag?: bool }`
+返回：与 Web SDK 一致；失败码包含 `OpenApiTokenMismatch` / `OpenApiRateLimited` / `OpenApiChannelNotPublished` 等。
+
+> 注：在 PlatformHost 内 `ApiVersionRewriteMiddleware` 会把 `/api/runtime/...` 重写为 `/api/v1/runtime/...`，外部调用两种写法等价。
+
 ### 安全与权限（M2）
 
 - 视图操作 `Permission:ai-workspace:view`，写入操作 `Permission:ai-workspace:update`。

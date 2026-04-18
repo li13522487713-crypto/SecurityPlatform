@@ -15,7 +15,13 @@ public static class WorkspaceChannelServiceRegistration
 {
     public static IServiceCollection AddWorkspaceChannelInfrastructure(this IServiceCollection services)
     {
-        services.TryAddSingleton<IWorkspaceChannelConnectorRegistry, WorkspaceChannelConnectorRegistry>();
+        // registry 与 connectors 同为 Scoped，避免「Singleton 捕获 Scoped」的告警；
+        // 真正需要跨请求共享的状态（如 OpenAPI rate-limiter）走类内 static 字典。
+        services.TryAddScoped<IWorkspaceChannelConnectorRegistry, WorkspaceChannelConnectorRegistry>();
+
+        // 治理 M-G02-C3 / C4：Web SDK + Open API connector 内置实现。
+        services.AddScoped<IWorkspaceChannelConnector, WebSdkChannelConnector>();
+        services.AddScoped<IWorkspaceChannelConnector, OpenApiChannelConnector>();
         return services;
     }
 }

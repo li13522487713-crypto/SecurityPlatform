@@ -99,3 +99,31 @@ Content-Type: application/json
   "targetReleaseId": "{{releaseId}}",
   "releaseNote": "rollback to v1"
 }
+
+### 治理 M-G02-C3：Web SDK 公共入口（HMAC + Origin）
+# X-Channel-Signature = hex(HMAC-SHA256(secret, timestamp + "\n" + nonce + "\n" + body))
+# secret 来自 publish 返回的 publicMetadataJson.secret（仅一次返回，需安全保存）
+POST {{baseUrl}}/api/v1/runtime/channels/web-sdk/{{channelId}}/messages
+X-Tenant-Id: {{tenantId}}
+X-Channel-Timestamp: 1735000000
+X-Channel-Nonce: nonce-001
+X-Channel-Signature: REPLACE_WITH_COMPUTED_HMAC_HEX
+X-Channel-External-User: visitor-abc
+Origin: https://example.com
+Content-Type: application/json
+
+{
+  "message": "你好",
+  "conversationId": null
+}
+
+### 治理 M-G02-C4：Open API 公共入口（Bearer + per-channel rate limit）
+POST {{baseUrl}}/api/v1/runtime/channels/open-api/{{channelId}}/chat
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer REPLACE_WITH_TENANT_TOKEN
+Content-Type: application/json
+
+{
+  "message": "查询库存",
+  "conversationId": null
+}
