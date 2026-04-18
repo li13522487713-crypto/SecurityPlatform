@@ -270,6 +270,27 @@ public sealed class DispatchExecutor : IDispatchExecutor
                     }
                     break;
                 }
+                case "call_chatflow":
+                {
+                    // chatflow 必须经 SSE 长连接（前端走 EventSource），dispatch 仅产出指令性 outputs
+                    // 让前端按 outputs.call_chatflow.{chatflowId, sessionId, streamTarget, inputMapping} 自行打开 SSE。
+                    if (action.Payload is JsonElement p)
+                    {
+                        var chatflowId = p.TryGetProperty("chatflowId", out var cf) ? cf.GetString() ?? string.Empty : string.Empty;
+                        if (string.IsNullOrEmpty(chatflowId))
+                        {
+                            errors.Add(new DispatchErrorDto("validation", "call_chatflow 缺少 chatflowId", null));
+                        }
+                        else
+                        {
+                            outputs["call_chatflow"] = p;
+                            // chatflow 入口审计：避免与 RuntimeChatflowService 内部审计重复，仅记录指令委托
+                            await _messageLog.RecordAsync(tenantId, "dispatch", "call_chatflow_dispatched", null, null, null, traceId,
+                                JsonSerializer.Serialize(new { chatflowId }), cancellationToken);
+                        }
+                    }
+                    break;
+                }
                 default:
                     // 未知 kind：交给前端处理（往 outputs 落字面 payload）
                     if (action.Payload is JsonElement other) outputs[$"unknown_{action.Kind}"] = other;
