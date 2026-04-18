@@ -20,13 +20,20 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
     private readonly ILowCodeTriggerRepository _repo;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
+    private readonly IRuntimeWorkflowExecutor _workflowExecutor;
     private readonly ILogger<RuntimeTriggerService> _logger;
 
-    public RuntimeTriggerService(ILowCodeTriggerRepository repo, IIdGeneratorAccessor idGen, IAuditWriter auditWriter, ILogger<RuntimeTriggerService> logger)
+    public RuntimeTriggerService(
+        ILowCodeTriggerRepository repo,
+        IIdGeneratorAccessor idGen,
+        IAuditWriter auditWriter,
+        IRuntimeWorkflowExecutor workflowExecutor,
+        ILogger<RuntimeTriggerService> logger)
     {
         _repo = repo;
         _idGen = idGen;
         _auditWriter = auditWriter;
+        _workflowExecutor = workflowExecutor;
         _logger = logger;
     }
 
@@ -95,7 +102,32 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
         t.RecordFire();
         await _repo.UpdateAsync(t, cancellationToken);
         _logger.LogInformation("LowCodeTrigger fired: tenant={Tenant} trigger={Trigger} workflow={Wf} chatflow={Cf}", tenantId.Value, triggerId, t.WorkflowId, t.ChatflowId);
-        // M19 接入 Hangfire 调度链路时，FireAsync 内将通过 IRuntimeWorkflowExecutor 真实调用 workflow / chatflow。
+
+        // 真实调用：触发器若绑定 workflowId，按异步任务提交（不阻塞 cron 调度），
+        // 由 Hangfire 持久化执行；chatflowId 由前端会话域驱动，不在 trigger 里同步触发。
+        if (!string.IsNullOrWhiteSpace(t.WorkflowId))
+        {
+            try
+            {
+                var req = new RuntimeWorkflowInvokeRequest(
+                    WorkflowId: t.WorkflowId,
+                    Inputs: null,
+                    AppId: null,
+                    PageId: null,
+                    VersionId: null,
+                    ComponentId: null,
+                    Resilience: null);
+                var jobId = await _workflowExecutor.SubmitAsyncAsync(tenantId, t.CreatedByUserId, req, cancellationToken);
+                _logger.LogInformation("LowCodeTrigger workflow submitted async: trigger={Trigger} job={Job}", triggerId, jobId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "LowCodeTrigger workflow submit failed: trigger={Trigger}", triggerId);
+                await _auditWriter.WriteAsync(new AuditRecord(tenantId, t.CreatedByUserId.ToString(), "lowcode.runtime.trigger.fire", "failed", $"trg:{triggerId}:wf:{t.WorkflowId}:{ex.GetType().Name}", null, null), cancellationToken);
+                return;
+            }
+        }
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, t.CreatedByUserId.ToString(), "lowcode.runtime.trigger.fire", "success", $"trg:{triggerId}:wf:{t.WorkflowId ?? "-"}:cf:{t.ChatflowId ?? "-"}", null, null), cancellationToken);
     }
 
     private static TriggerInfoDto ToDto(LowCodeTrigger t) => new(
