@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Empty, Spin, Typography, Tag, List, Banner, Space, Switch, Toast } from '@douyinfe/semi-ui';
+import { Empty, Spin, Typography, Tag, List, Banner, Space, Switch, Toast, Button, Modal } from '@douyinfe/semi-ui';
 import type { AppSchema, ComponentSchema } from '@atlas/lowcode-schema';
 import { lowcodeApi, type ComponentMetaWire } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
@@ -17,7 +17,7 @@ import { t } from '../i18n';
  * 提供"元数据驱动只读视图"，确保 PLAN.md §M07 C07-3 三 Tab 形态完整可见。
  */
 export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style' | 'events' }> = ({ appId, kind }) => {
-  const { selectedComponentId } = useStudioSelection();
+  const { selectedComponentId, setSelectedComponentId } = useStudioSelection();
   const qc = useQueryClient();
   const draftQuery = useQuery({
     queryKey: ['lowcode-draft', appId],
@@ -56,6 +56,32 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
     onError: (e: Error) => Toast.error(e.message)
   });
 
+  /** 从 schema 中删除当前选中节点（不允许删除根）。*/
+  const deleteMut = useMutation({
+    mutationFn: async () => {
+      if (!selectedComponentId || !draftQuery.data) throw new Error('未选中或未加载草稿');
+      const app = JSON.parse(draftQuery.data.schemaJson) as AppSchema;
+      let removed = false;
+      for (const page of app.pages ?? []) {
+        if (page.root.id === selectedComponentId) {
+          throw new Error('禁止删除页面根节点');
+        }
+        if (deleteById(page.root, selectedComponentId)) {
+          removed = true;
+          break;
+        }
+      }
+      if (!removed) throw new Error('节点未在任意页面命中');
+      await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
+    },
+    onSuccess: async () => {
+      Toast.success('已删除');
+      setSelectedComponentId(null);
+      await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
+
   const node = useMemo(() => {
     if (!selectedComponentId || !draftQuery.data) return null;
     try {
@@ -81,10 +107,26 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
 
   return (
     <div style={{ padding: 12 }}>
-      <Space style={{ marginBottom: 12 }}>
-        <Typography.Text strong>{node.type}</Typography.Text>
-        <Tag size="small">{node.id.slice(0, 12)}…</Tag>
-        {meta && <Tag size="small" color="blue">{meta.category}</Tag>}
+      <Space style={{ marginBottom: 12, width: '100%', justifyContent: 'space-between' }}>
+        <Space>
+          <Typography.Text strong>{node.type}</Typography.Text>
+          <Tag size="small">{node.id.slice(0, 12)}…</Tag>
+          {meta && <Tag size="small" color="blue">{meta.category}</Tag>}
+        </Space>
+        <Button
+          size="small"
+          type="danger"
+          loading={deleteMut.isPending}
+          onClick={() => Modal.confirm({
+            title: '删除组件',
+            content: `将从画布永久删除 ${node.type} 节点（${node.id.slice(0, 12)}…）及其所有子节点。`,
+            okText: '删除',
+            cancelText: '取消',
+            onOk: () => deleteMut.mutate()
+          })}
+        >
+          删除
+        </Button>
       </Space>
       {kind === 'property' && (
         <>
@@ -112,6 +154,33 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
     </div>
   );
 };
+
+/** 从子节点列表中递归删除目标节点。返回是否成功删除。*/
+function deleteById(node: ComponentSchema, id: string): boolean {
+  if (node.children) {
+    const idx = node.children.findIndex((c) => c.id === id);
+    if (idx >= 0) {
+      node.children.splice(idx, 1);
+      return true;
+    }
+    for (const c of node.children) {
+      if (deleteById(c, id)) return true;
+    }
+  }
+  if (node.slots) {
+    for (const list of Object.values(node.slots)) {
+      const idx = list.findIndex((c) => c.id === id);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+        return true;
+      }
+      for (const c of list) {
+        if (deleteById(c, id)) return true;
+      }
+    }
+  }
+  return false;
+}
 
 /** 在 ComponentSchema 树中按 id 找到节点并执行 mutation（in-place 修改）。返回是否命中。*/
 function mutateById(node: ComponentSchema, id: string, fn: (n: ComponentSchema) => void): boolean {
