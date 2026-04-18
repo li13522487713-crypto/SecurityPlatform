@@ -4,6 +4,7 @@ import { Empty, Spin, Tag, Typography, Banner, Toast } from '@douyinfe/semi-ui';
 import type { AppSchema, ComponentSchema } from '@atlas/lowcode-schema';
 import { lowcodeApi } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
+import { t } from '../i18n';
 
 /**
  * 设计期画布（M07 C07-2 / C07-8 / C07-9）。
@@ -32,7 +33,7 @@ export const CanvasViewport: React.FC<{ appId: string }> = ({ appId }) => {
    */
   const dropMut = useMutation({
     mutationFn: async (vals: { parentId: string; type: string }) => {
-      if (!draftQuery.data) throw new Error('草稿未加载');
+      if (!draftQuery.data) throw new Error(t('lowcode_studio.common.draftNotLoaded'));
       const app = JSON.parse(draftQuery.data.schemaJson) as AppSchema;
       let touched = false;
       for (const page of app.pages ?? []) {
@@ -49,7 +50,7 @@ export const CanvasViewport: React.FC<{ appId: string }> = ({ appId }) => {
       await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
     },
     onSuccess: async () => {
-      Toast.success('已添加组件');
+      Toast.success(t('lowcode_studio.common.added'));
       await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
     },
     onError: (e: Error) => Toast.error(e.message)

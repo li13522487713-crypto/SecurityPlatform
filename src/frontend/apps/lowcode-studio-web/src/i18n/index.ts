@@ -83,7 +83,24 @@ export const STUDIO_MESSAGES = {
     'lowcode_studio.common.versionLabel': '版本标签',
     'lowcode_studio.common.applied': '已应用并触发 HMR 推送',
     'lowcode_studio.common.deleted': '已删除',
-    'lowcode_studio.common.applyTemplateConfirm': '应用模板将覆盖当前草稿（建议先保存版本，不可撤销）'
+    'lowcode_studio.common.applyTemplateConfirm': '应用模板将覆盖当前草稿（建议先保存版本，不可撤销）',
+    'lowcode_studio.common.created': '已创建',
+    'lowcode_studio.common.rollback': '回滚',
+    'lowcode_studio.common.rollbackSuccess': '回滚成功',
+    'lowcode_studio.common.revoke': '撤回',
+    'lowcode_studio.common.revoked': '已撤回',
+    'lowcode_studio.common.added': '已添加',
+    'lowcode_studio.common.anonymous': '匿名',
+    'lowcode_studio.common.draftNotLoaded': '草稿未加载或未选中',
+    'lowcode_studio.common.nodeNotFound': '节点未在任意页面命中',
+    'lowcode_studio.common.cantDeleteRoot': '禁止删除页面根节点',
+    'lowcode_studio.common.noStyleProps': '无样式属性',
+    'lowcode_studio.common.noBusinessProps': '无业务属性',
+    'lowcode_studio.common.selectForCompare': '选择对比',
+    'lowcode_studio.common.unselect': '取消选择',
+    'lowcode_studio.common.fromVersionDrawer': '从版本管理抽屉触发',
+    'lowcode_studio.publish.miniWx': '微信小程序 (mini-wx)',
+    'lowcode_studio.publish.miniDouyin': '抖音小程序 (mini-douyin)'
   },
   'en-US': {
     'lowcode_studio.app.title': 'Atlas Lowcode Studio',
@@ -159,7 +176,24 @@ export const STUDIO_MESSAGES = {
     'lowcode_studio.common.versionLabel': 'Version label',
     'lowcode_studio.common.applied': 'Applied and HMR pushed',
     'lowcode_studio.common.deleted': 'Deleted',
-    'lowcode_studio.common.applyTemplateConfirm': 'Applying template will overwrite the current draft (snapshot first; not undoable)'
+    'lowcode_studio.common.applyTemplateConfirm': 'Applying template will overwrite the current draft (snapshot first; not undoable)',
+    'lowcode_studio.common.created': 'Created',
+    'lowcode_studio.common.rollback': 'Rollback',
+    'lowcode_studio.common.rollbackSuccess': 'Rolled back',
+    'lowcode_studio.common.revoke': 'Revoke',
+    'lowcode_studio.common.revoked': 'Revoked',
+    'lowcode_studio.common.added': 'Added',
+    'lowcode_studio.common.anonymous': 'Anonymous',
+    'lowcode_studio.common.draftNotLoaded': 'Draft not loaded or no selection',
+    'lowcode_studio.common.nodeNotFound': 'Node not found in any page',
+    'lowcode_studio.common.cantDeleteRoot': 'Cannot delete page root node',
+    'lowcode_studio.common.noStyleProps': 'No style properties',
+    'lowcode_studio.common.noBusinessProps': 'No business properties',
+    'lowcode_studio.common.selectForCompare': 'Select to compare',
+    'lowcode_studio.common.unselect': 'Unselect',
+    'lowcode_studio.common.fromVersionDrawer': 'Triggered from version drawer',
+    'lowcode_studio.publish.miniWx': 'WeChat Mini-program (mini-wx)',
+    'lowcode_studio.publish.miniDouyin': 'Douyin Mini-program (mini-douyin)'
   }
 } as const satisfies Record<Locale, Record<string, string>>;
 

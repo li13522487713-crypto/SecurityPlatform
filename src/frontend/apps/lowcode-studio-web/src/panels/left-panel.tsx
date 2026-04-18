@@ -27,7 +27,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
     mutationFn: (vals: { code: string; displayName: string; path: string; targetType?: string; layout?: string }) =>
       lowcodeApi.pages.create(appId, vals),
     onSuccess: () => {
-      Toast.success('页面已创建');
+      Toast.success(t('lowcode_studio.common.created'));
       setPageOpen(false);
       qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
     },
@@ -37,7 +37,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   const deletePageMut = useMutation({
     mutationFn: (pageId: string) => lowcodeApi.pages.delete(appId, pageId),
     onSuccess: () => {
-      Toast.success('页面已删除');
+      Toast.success(t('lowcode_studio.common.deleted'));
       qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
       qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
     },
@@ -47,7 +47,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   const deleteVarMut = useMutation({
     mutationFn: (variableId: string) => lowcodeApi.variables.delete(appId, variableId),
     onSuccess: () => {
-      Toast.success('变量已删除');
+      Toast.success(t('lowcode_studio.common.deleted'));
       qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
     },
     onError: (e: Error) => Toast.error(e.message)
@@ -69,7 +69,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
         description: vals.description
       } as unknown as AppVariable),
     onSuccess: () => {
-      Toast.success('变量已创建');
+      Toast.success(t('lowcode_studio.common.created'));
       setVarOpen(false);
       qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
     },
