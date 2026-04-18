@@ -34,8 +34,9 @@ public sealed class AppDefinitionCreateRequestValidator : AbstractValidator<AppD
         {
             if (!allowed.Contains(p)) return false;
         }
-        // 至少包含 web（M01 阶段强约束，M15 起允许更灵活的多端组合）
-        return Array.Exists(parts, p => string.Equals(p, "web", StringComparison.OrdinalIgnoreCase));
+        // M15 多端：允许 web / mini_program / hybrid 任意组合（含纯小程序应用）。
+        // 仅保留'至少 1 项合法'语义；不强制必须含 web。
+        return true;
     }
 }
 
