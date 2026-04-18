@@ -72,6 +72,9 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IResourceReferenceGuardService, ResourceReferenceGuardService>();
         services.AddScoped<IAppFaqService, AppFaqService>();
 
+        // M15 渲染器能力差异化
+        services.AddSingleton<ILowCodeRendererCapabilityService, LowCodeRendererCapabilityService>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {

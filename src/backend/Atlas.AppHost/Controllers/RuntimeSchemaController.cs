@@ -3,6 +3,7 @@ using Atlas.Application.LowCode.Models;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Infrastructure.Services.LowCode;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,11 +22,21 @@ public sealed class RuntimeSchemaController : ControllerBase
 {
     private readonly IAppDefinitionQueryService _query;
     private readonly ITenantProvider _tenantProvider;
+    private readonly ILowCodeRendererCapabilityService _capability;
 
-    public RuntimeSchemaController(IAppDefinitionQueryService query, ITenantProvider tenantProvider)
+    public RuntimeSchemaController(IAppDefinitionQueryService query, ITenantProvider tenantProvider, ILowCodeRendererCapabilityService capability)
     {
         _query = query;
         _tenantProvider = tenantProvider;
+        _capability = capability;
+    }
+
+    /// <summary>查询渲染器能力差异化（M15 S15-2）。</summary>
+    [HttpGet("/api/runtime/renderers/{renderer}/capability")]
+    [AllowAnonymous]
+    public ActionResult<ApiResponse<RendererCapabilityDto>> GetRendererCapability(string renderer)
+    {
+        return Ok(ApiResponse<RendererCapabilityDto>.Ok(_capability.GetCapability(renderer), HttpContext.TraceIdentifier));
     }
 
     /// <summary>获取应用当前生效 Schema 快照（含 pages / variables / contentParams）。</summary>
@@ -38,9 +49,13 @@ public sealed class RuntimeSchemaController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var snapshot = await _query.GetSchemaSnapshotAsync(tenantId, appId, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{appId}");
-        // renderer 参数用于按渲染器返回组件能力差异说明（M15 完整接入 LowCodeRendererCapabilityService）。
-        // M08 阶段不做差异化裁剪，直接返回完整 schema。
-        _ = renderer;
+        // M15 已接入：把渲染器能力差异化通过 X-Atlas-Lowcode-Capability 响应头暴露给前端 RuntimeRenderer 使用。
+        if (!string.IsNullOrWhiteSpace(renderer))
+        {
+            var cap = _capability.GetCapability(renderer);
+            Response.Headers["X-Atlas-Lowcode-Renderer"] = renderer;
+            Response.Headers["X-Atlas-Lowcode-Unsupported"] = string.Join(",", cap.UnsupportedComponentTypes);
+        }
         return Ok(ApiResponse<AppSchemaSnapshotDto>.Ok(snapshot, HttpContext.TraceIdentifier));
     }
 
