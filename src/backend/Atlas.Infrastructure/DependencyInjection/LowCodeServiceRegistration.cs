@@ -83,6 +83,8 @@ public static class LowCodeServiceRegistration
         services.AddScoped<ILowCodePluginRepository, LowCodePluginRepository>();
         services.AddScoped<IPromptTemplateService, PromptTemplateService>();
         services.AddScoped<ILowCodePluginService, LowCodePluginService>();
+        // M18 收尾：插件凭据 AES 加密保护（替换 base64 占位）
+        services.AddSingleton<LowCodeCredentialProtector>();
 
         // M19 工作流父级工程能力
         services.AddScoped<IWorkflowGenerationService, WorkflowGenerationService>();

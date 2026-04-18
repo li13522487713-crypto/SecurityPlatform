@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.LowCode.Abstractions;
@@ -78,12 +77,14 @@ public sealed class LowCodePluginService : ILowCodePluginService
     private readonly ILowCodePluginRepository _repo;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
+    private readonly LowCodeCredentialProtector _credentialProtector;
 
-    public LowCodePluginService(ILowCodePluginRepository repo, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public LowCodePluginService(ILowCodePluginRepository repo, IIdGeneratorAccessor idGen, IAuditWriter auditWriter, LowCodeCredentialProtector credentialProtector)
     {
         _repo = repo;
         _idGen = idGen;
         _auditWriter = auditWriter;
+        _credentialProtector = credentialProtector;
     }
 
     public async Task<long> UpsertDefAsync(TenantId tenantId, long currentUserId, PluginUpsertRequest request, CancellationToken cancellationToken)
@@ -138,10 +139,13 @@ public sealed class LowCodePluginService : ILowCodePluginService
     {
         if (!AllowedAuthKinds.Contains(request.AuthKind))
             throw new BusinessException(ErrorCodes.ValidationError, $"authKind 仅允许 api_key/oauth/basic/none：{request.AuthKind}");
-        var encrypted = string.IsNullOrEmpty(request.Credential) ? null : Convert.ToBase64String(Encoding.UTF8.GetBytes(request.Credential!));
+        // M18 收尾：base64 占位 → AES-CBC 强加密 + 'lcp:' 前缀幂等；写入数据库的字段始终带前缀。
+        var encrypted = string.IsNullOrEmpty(request.Credential) ? null : _credentialProtector.Encrypt(request.Credential!);
         var entity = new LowCodePluginAuthorization(tenantId, _idGen.NextId(), pluginId, request.AuthKind, encrypted, currentUserId);
         await _repo.InsertAuthAsync(entity, cancellationToken);
-        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.plugin.authorize", "success", $"plugin:{pluginId}:kind:{request.AuthKind}", null, null), cancellationToken);
+        // 审计中绝不写明文 / 密文：仅写 mask 摘要。
+        var mask = string.IsNullOrEmpty(request.Credential) ? "(empty)" : LowCodeCredentialProtector.Mask(request.Credential);
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.plugin.authorize", "success", $"plugin:{pluginId}:kind:{request.AuthKind}:cred:{mask}", null, null), cancellationToken);
         return entity.Id;
     }
 
