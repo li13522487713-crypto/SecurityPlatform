@@ -12,15 +12,18 @@ public sealed class ResourceWriteGate : IResourceWriteGate
     private readonly IResourceAccessGuard _guard;
     private readonly IPermissionDecisionService _pdp;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IResourceWorkspaceLookup _workspaceLookup;
 
     public ResourceWriteGate(
         IResourceAccessGuard guard,
         IPermissionDecisionService pdp,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IResourceWorkspaceLookup workspaceLookup)
     {
         _guard = guard;
         _pdp = pdp;
         _currentUserAccessor = currentUserAccessor;
+        _workspaceLookup = workspaceLookup;
     }
 
     public Task GuardAsync(
@@ -38,6 +41,22 @@ public sealed class ResourceWriteGate : IResourceWriteGate
         var isPlatformAdmin = current is null || current.IsPlatformAdmin;
         var query = new ResourceAccessQuery(tenantId, userId, isPlatformAdmin, workspaceId, resourceType, resourceId, action);
         return _guard.RequireAsync(query, cancellationToken);
+    }
+
+    public async Task GuardByResourceAsync(
+        TenantId tenantId,
+        string resourceType,
+        long resourceId,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        var workspaceId = await _workspaceLookup.ResolveWorkspaceIdAsync(tenantId, resourceType, resourceId, cancellationToken);
+        if (workspaceId is not > 0)
+        {
+            // 资源不存在或老数据无 workspaceId → fallback 放行，保持向后兼容；让后续 service 自身抛 NotFound
+            return;
+        }
+        await GuardAsync(tenantId, workspaceId.Value, resourceType, resourceId, action, cancellationToken);
     }
 
     public Task InvalidateAsync(

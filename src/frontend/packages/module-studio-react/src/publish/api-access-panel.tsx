@@ -1,5 +1,5 @@
-import { Card, Typography } from "@douyinfe/semi-ui";
-import type { StudioLocale } from "../types";
+import { Card, Tag, Typography } from "@douyinfe/semi-ui";
+import type { OpenApiPublicMeta, StudioLocale } from "../types";
 
 export interface ApiAccessPanelProps {
   locale: StudioLocale;
@@ -9,6 +9,12 @@ export interface ApiAccessPanelProps {
   resourcePath?: string;
   /** 示例 Bearer Token（脱敏展示） */
   sampleBearerToken?: string;
+  /**
+   * 治理 R1-F2：当前 Open API 渠道 active release 的 publicMetadataJson 解析结果。
+   * 提供时渲染真实 endpoint / tokenMasked / 调用示例 / rate limit；
+   * 未提供时保留旧静态模板（向后兼容）。
+   */
+  openApiPublicMeta?: OpenApiPublicMeta;
   testId?: string;
 }
 
@@ -17,14 +23,21 @@ export function ApiAccessPanel({
   apiBase = `${typeof window !== "undefined" ? window.location.origin : ""}/api/v1`,
   resourcePath = "studio/publish-center/example",
   sampleBearerToken = "<your_access_token>",
+  openApiPublicMeta,
   testId = "studio-publish-api-access-panel"
 }: ApiAccessPanelProps) {
+  const effectiveEndpoint = openApiPublicMeta?.endpoint
+    ? openApiPublicMeta.endpoint
+    : `${apiBase.replace(/\/$/, "")}/${resourcePath.replace(/^\//, "")}`;
+  const effectiveToken = openApiPublicMeta?.tokenMasked || sampleBearerToken;
+
   const curl = [
-    `curl -sS -X GET \\`,
-    `  "${apiBase.replace(/\/$/, "")}/${resourcePath.replace(/^\//, "")}" \\`,
-    `  -H "Authorization: Bearer ${sampleBearerToken}" \\`,
+    `curl -sS -X POST \\`,
+    `  "${effectiveEndpoint}" \\`,
+    `  -H "Authorization: Bearer ${effectiveToken}" \\`,
     `  -H "X-Tenant-Id: <tenant_guid>" \\`,
-    `  -H "Accept: application/json"`
+    `  -H "Content-Type: application/json" \\`,
+    `  -d '{"agentId":"<published_agent_id>","message":"hello"}'`
   ].join("\n");
 
   const title = locale === "en-US" ? "HTTP / API access" : "HTTP / API 接入";
@@ -36,8 +49,44 @@ export function ApiAccessPanel({
   return (
     <Card data-testid={testId} title={title} bordered>
       <Typography.Paragraph type="tertiary">{hint}</Typography.Paragraph>
-      <Typography.Title heading={6}>{locale === "en-US" ? "cURL" : "cURL 示例"}</Typography.Title>
-      <pre className="module-studio__message-content" style={{ marginTop: 8 }}>
+
+      {openApiPublicMeta ? (
+        <>
+          <Typography.Title heading={6}>
+            {locale === "en-US" ? "Active endpoint" : "当前发布端点"}
+          </Typography.Title>
+          <Typography.Paragraph>
+            <Typography.Text copyable>{effectiveEndpoint}</Typography.Text>
+          </Typography.Paragraph>
+          <Typography.Paragraph>
+            {locale === "en-US" ? "Token (masked): " : "令牌（脱敏）："}
+            <Typography.Text>{openApiPublicMeta.tokenMasked || "—"}</Typography.Text>
+          </Typography.Paragraph>
+          <Typography.Paragraph>
+            {locale === "en-US" ? "Rate limit: " : "速率限制："}
+            <Tag color="blue">{openApiPublicMeta.rateLimitPerMinute}/min</Tag>
+          </Typography.Paragraph>
+          {openApiPublicMeta.endpoints.length > 0 ? (
+            <>
+              <Typography.Title heading={6} style={{ marginTop: 12 }}>
+                {locale === "en-US" ? "Available endpoints" : "可用端点"}
+              </Typography.Title>
+              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                {openApiPublicMeta.endpoints.map((ep) => (
+                  <li key={ep}>
+                    <Typography.Text code>{ep}</Typography.Text>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </>
+      ) : null}
+
+      <Typography.Title heading={6} style={{ marginTop: openApiPublicMeta ? 24 : 0 }}>
+        {locale === "en-US" ? "cURL" : "cURL 示例"}
+      </Typography.Title>
+      <pre className="module-studio__message-content" style={{ marginTop: 8 }} data-testid={`${testId}-curl`}>
         {curl}
       </pre>
       <Typography.Title heading={6} style={{ marginTop: 16 }}>

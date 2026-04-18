@@ -1,6 +1,7 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Authorization;
 using Atlas.Application.System.Abstractions;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Core.Identity;
@@ -18,6 +19,8 @@ namespace Atlas.PlatformHost.Controllers;
 [Route("api/v1/knowledge-bases")]
 public sealed class KnowledgeBasesController : ControllerBase
 {
+    private const string ResourceType = "knowledge";
+
     private readonly IKnowledgeBaseService _knowledgeBaseService;
     private readonly IDocumentService _documentService;
     private readonly IChunkService _chunkService;
@@ -25,6 +28,7 @@ public sealed class KnowledgeBasesController : ControllerBase
     private readonly IFileStorageService _fileStorageService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IResourceWriteGate _writeGate;
     private readonly IValidator<KnowledgeBaseCreateRequest> _kbCreateValidator;
     private readonly IValidator<KnowledgeBaseUpdateRequest> _kbUpdateValidator;
     private readonly IValidator<DocumentCreateRequest> _documentCreateValidator;
@@ -42,6 +46,7 @@ public sealed class KnowledgeBasesController : ControllerBase
         IFileStorageService fileStorageService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
+        IResourceWriteGate writeGate,
         IAuditWriter auditWriter,
         IValidator<KnowledgeBaseCreateRequest> kbCreateValidator,
         IValidator<KnowledgeBaseUpdateRequest> kbUpdateValidator,
@@ -58,6 +63,7 @@ public sealed class KnowledgeBasesController : ControllerBase
         _fileStorageService = fileStorageService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _writeGate = writeGate;
         _kbCreateValidator = kbCreateValidator;
         _kbUpdateValidator = kbUpdateValidator;
         _documentCreateValidator = documentCreateValidator;
@@ -130,7 +136,9 @@ public sealed class KnowledgeBasesController : ControllerBase
     {
         _kbUpdateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
         await _knowledgeBaseService.UpdateAsync(tenantId, id, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         await WriteKnowledgeAuditAsync("knowledge_base.update", $"kb:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -140,7 +148,9 @@ public sealed class KnowledgeBasesController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "delete", cancellationToken);
         await _knowledgeBaseService.DeleteAsync(tenantId, id, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         await WriteKnowledgeAuditAsync("knowledge_base.delete", $"kb:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }

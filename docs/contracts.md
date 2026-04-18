@@ -1676,3 +1676,35 @@ ORM 优先实现要点（M6）：
 - **作用域变量隔离**：page / app / system 三作用域禁止跨作用域 setVariable；component / event / workflow.outputs / chatflow.outputs 四作用域禁止写入。M02 表达式引擎 + M03 action-runtime 双层校验。
 - **元数据驱动禁硬编码**：组件实现禁止 fetch / import workflow client / 硬写业务逻辑；ComponentMeta 注册期校验（M06）。
 - **写接口安全基线**：沿用现行无 `Idempotency-Key` / `X-CSRF-TOKEN` 机制；所有写接口必须经 `IAuditWriter` 审计。
+
+## 治理 R1 fill-the-gaps 契约补遗
+
+### Member Invitation set-password 流程（R1-B1）
+
+| 路由 | 方法 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| `/api/v1/member-invitations/accept` | POST | 匿名 | 改为返回 `{ invitation, userId, setPasswordToken }`：当请求中 `userId` 为空且邀请邮箱无对应账号时，自动创建 `UserAccount(IsActive=false, status=pending-activation)` 并发放一次性 `setPasswordToken`（24h TTL）。已存在用户或显式提供 `userId` 时，仅幂等加入组织，`setPasswordToken=null`。 |
+| `/api/v1/member-invitations/set-password` | POST | 匿名 | 用 `accept` 返回的 `setPasswordToken` 完成密码设置：校验未过期 + 密码策略 → `UserAccount.UpdatePassword` + `TransitionStatus("active")` + `Activate()`，并把邀请 token 一次性失效（`MarkPasswordSet`）。Token 过期或重复使用返回 `NOT_FOUND`/`VALIDATION_ERROR`。 |
+
+请求/响应模型：
+- `MemberInvitationAcceptResponse(Invitation, UserId, SetPasswordToken?)`
+- `MemberInvitationSetPasswordRequest(Token, NewPassword)`（NewPassword 必须满足 `Security:PasswordPolicy:*`）
+
+### Audit `scope` 参数（R1-B2）
+
+| 路由 | 方法 | 新增参数 | 说明 |
+| --- | --- | --- | --- |
+| `/api/v1/audit` | GET | `?scope=mine\|all` | `mine`（缺省）按 `IResourceVisibilityResolver.FilterVisibleAsync` 过滤当前用户不可见的 `(ResourceType, ResourceId)` 行；`all` 仅当当前用户为 platform admin / system admin / platform-admin 时生效，非 admin 自动降级为 `mine`。 |
+| `/api/v1/audit/by-resource` | GET | `?scope=mine\|all` | 同上。 |
+| `/api/v1/audit/export/csv` | GET | `?scope=mine\|all` | 同上。 |
+
+行为说明：
+- 旧记录（`ResourceType` 或 `ResourceId` 为空）保留行为兼容、不参与资源级过滤。
+- 分页 `total` 字段在过滤后会按本页扣减，避免 UI 看到"看不到的总数"。
+- Runtime 消息日志 `RuntimeMessageLogService.QueryAsync` 同样按 `(workflow, agent)` 资源可见性过滤；platform / system admin 自动 bypass（R1-B3）。
+
+### Resource Write Gate by Resource Type（R1-B4）
+
+`IResourceWriteGate` 新增 `GuardByResourceAsync(tenantId, resourceType, resourceId, action, ct)`：通过 `IResourceWorkspaceLookup` 自动解析 (resourceType, resourceId) 所属 `WorkspaceId` 后调用 `GuardAsync`；`workspaceId` 解析失败（旧数据 / 资源不存在）则短路放行，保持向后兼容。
+
+接入控制器：`DagWorkflowController` / `AiAppsController` / `KnowledgeBasesController` / `AiDatabasesController`（PlatformHost + AppHost 各一份，共 8 个文件）的 Update / Delete / Publish / Run 等写动作前置 `GuardByResourceAsync(...)`，写后 `InvalidateAsync(...)` 清 PDP 资源 tag。资源类型常量：`workflow` / `app` / `knowledge` / `database`。

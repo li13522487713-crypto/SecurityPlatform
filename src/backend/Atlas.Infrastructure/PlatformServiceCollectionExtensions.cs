@@ -109,6 +109,9 @@ public static class PlatformServiceCollectionExtensions
         // 治理 M-G03-C3..C5 (S6): 写动作便捷网关
         services.AddScoped<Atlas.Application.Authorization.IResourceWriteGate,
             Atlas.Infrastructure.Services.Authorization.ResourceWriteGate>();
+        // 治理 R1-B4: 资源 workspaceId 自动解析（使 GuardByResourceAsync 能用）
+        services.AddScoped<Atlas.Application.Authorization.IResourceWorkspaceLookup,
+            Atlas.Infrastructure.Services.Authorization.ResourceWorkspaceLookup>();
 
         // 治理 M-G03-C7 (S7): 通用资源协作者服务
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IResourceCollaboratorService,

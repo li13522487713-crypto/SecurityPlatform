@@ -375,6 +375,22 @@ flowchart LR
 5. **SMTP / 飞书 / 微信凭据**：所有外部凭据走 `LowCodeCredentialProtector`，secrets 不入仓。
 6. **回退**：每个里程碑合并后保留 tag `governance-mgxx-pre-merge`；如线上回归可 `git revert <merge-sha>`。
 
+### 6.1 P2 批次库解耦约定（R1 fill-the-gaps 起承接）
+
+R1 把"前端组件已写但没挂"+"后端读路径没真正切换"（B1–B4 / F1–F4）落地完毕。后续 P2 批次（SAML 运行时 / DynamicOIDC / IP allow-deny middleware / DataResidency endpoint resolver / MailKit SMTP）**统一收敛到新 Class Library `Atlas.Identity.SsoExtensions`**：
+
+- **范围**（按 P2 进入顺序）：
+  1. `Atlas.Identity.SsoExtensions.Saml`：SAML2 SP/IdP 完整流（替换 `SamlSpController` 占位 + 引入 `ITfoxtec.Identity.Saml2.MvcCore`）。
+  2. `Atlas.Identity.SsoExtensions.Oidc`：`DynamicOidcSchemeProvider`（按 `TenantIdentityProvider` 动态注册 OIDC scheme）。
+  3. `Atlas.Identity.SsoExtensions.Network`：`IpAllowDenyMiddleware`（消费 `TenantNetworkPolicy.Allowlist/Denylist`，支持 audit / enforce 模式）。
+  4. `Atlas.Identity.SsoExtensions.Residency`：`DataResidencyEndpointResolver`（按 `TenantDataResidencyPolicy.AllowedRegions` 路由后端服务调用）。
+  5. `Atlas.Identity.SsoExtensions.Mail`：MailKit SMTP 实现替换 `SmtpInvitationEmailSender` 占位。
+- **依赖边界**：`Atlas.Identity.SsoExtensions` 仅依赖 `Atlas.Application` + `Atlas.Core` + `Atlas.Domain.Identity`；**禁止** 反向引用 `Atlas.Infrastructure`，也不让 `Atlas.Infrastructure` 顶层堆运行时插件（避免 DI 循环 + 镜像膨胀）。
+- **DI 注入入口**：在 `Atlas.PlatformHost.Program.cs` 由 `services.AddIdentitySsoExtensions(configuration)` 单点开关；未启用时不影响现有登录流程（OIDC / SAML 走 stub / 501）。
+- **回退**：库可单独 `<PackageReference Remove="..." />` 临时关闭，保持治理快照可回退；`SamlSpController` 占位行为保留作 fallback。
+
+本批（R1）**不创建** `Atlas.Identity.SsoExtensions`；仅作约定备案。R2 起按上述顺序按需逐个落地。
+
 ## 7. 进度追踪
 
 | Session | 里程碑 | 包含 case 数 | 状态 |

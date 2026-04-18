@@ -26,6 +26,18 @@ public interface IResourceWriteGate
         string action,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 治理 R1-B4：通过 <see cref="IResourceWorkspaceLookup"/> 自动解析 (resourceType, resourceId) 所属
+    /// workspaceId 后调用 <see cref="GuardAsync"/>；workspaceId 解析不到（旧数据 / 资源不存在）时短路放行，
+    /// 保持向后兼容并避免破坏现有 controller 流程。
+    /// </summary>
+    Task GuardByResourceAsync(
+        TenantId tenantId,
+        string resourceType,
+        long resourceId,
+        string action,
+        CancellationToken cancellationToken);
+
     /// <summary>写动作成功后失效该资源 PDP 缓存（按资源 tag）。</summary>
     Task InvalidateAsync(
         TenantId tenantId,

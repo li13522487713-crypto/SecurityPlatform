@@ -65,8 +65,27 @@ public sealed class MemberInvitationsController : ControllerBase
 
     [HttpPost("accept")]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<object>>> Accept(
+    public async Task<ActionResult<ApiResponse<MemberInvitationAcceptResponse>>> Accept(
         [FromBody] MemberInvitationAcceptRequest request,
+        [FromHeader(Name = "X-Tenant-Id")] string? tenantHeader,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tenantHeader) || !Guid.TryParse(tenantHeader, out var tenantGuid))
+        {
+            return BadRequest(ApiResponse<MemberInvitationAcceptResponse>.Fail(ErrorCodes.ValidationError, "TenantHeaderRequired", HttpContext.TraceIdentifier));
+        }
+        var tenantId = new TenantId(tenantGuid);
+        var resp = await _service.AcceptAsync(tenantId, request, cancellationToken);
+        return Ok(ApiResponse<MemberInvitationAcceptResponse>.Ok(resp, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 治理 R1-B1：使用 set-password 一次性 token 设置密码并激活账号；匿名访问。
+    /// </summary>
+    [HttpPost("set-password")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<object>>> SetPassword(
+        [FromBody] MemberInvitationSetPasswordRequest request,
         [FromHeader(Name = "X-Tenant-Id")] string? tenantHeader,
         CancellationToken cancellationToken)
     {
@@ -75,7 +94,7 @@ public sealed class MemberInvitationsController : ControllerBase
             return BadRequest(ApiResponse<object>.Fail(ErrorCodes.ValidationError, "TenantHeaderRequired", HttpContext.TraceIdentifier));
         }
         var tenantId = new TenantId(tenantGuid);
-        await _service.AcceptAsync(tenantId, request, cancellationToken);
+        await _service.SetPasswordAsync(tenantId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier));
     }
 }

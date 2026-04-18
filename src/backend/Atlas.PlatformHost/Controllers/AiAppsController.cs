@@ -1,5 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Authorization;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -17,9 +18,12 @@ namespace Atlas.PlatformHost.Controllers;
 [Authorize]
 public sealed class AiAppsController : ControllerBase
 {
+    private const string ResourceType = "app";
+
     private readonly IAiAppService _service;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IResourceWriteGate _writeGate;
     private readonly IValidator<AiAppCreateRequest> _createValidator;
     private readonly IValidator<AiAppUpdateRequest> _updateValidator;
     private readonly IValidator<AiAppPublishRequest> _publishValidator;
@@ -29,6 +33,7 @@ public sealed class AiAppsController : ControllerBase
         IAiAppService service,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
+        IResourceWriteGate writeGate,
         IValidator<AiAppCreateRequest> createValidator,
         IValidator<AiAppUpdateRequest> updateValidator,
         IValidator<AiAppPublishRequest> publishValidator,
@@ -37,6 +42,7 @@ public sealed class AiAppsController : ControllerBase
         _service = service;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _writeGate = writeGate;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _publishValidator = publishValidator;
@@ -90,7 +96,9 @@ public sealed class AiAppsController : ControllerBase
     {
         _updateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
         await _service.UpdateAsync(tenantId, id, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -99,7 +107,9 @@ public sealed class AiAppsController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "delete", cancellationToken);
         await _service.DeleteAsync(tenantId, id, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -113,7 +123,9 @@ public sealed class AiAppsController : ControllerBase
         _publishValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "publish", cancellationToken);
         await _service.PublishAsync(tenantId, id, currentUser.UserId, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 

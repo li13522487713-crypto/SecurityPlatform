@@ -1,0 +1,70 @@
+@baseUrl = http://localhost:5001
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 治理 R1-B1：列出邀请
+GET {{baseUrl}}/api/v1/member-invitations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 治理 R1-B1：创建邀请
+# @name createInvitation
+POST {{baseUrl}}/api/v1/member-invitations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "email": "newcomer@example.com",
+  "organizationId": "1",
+  "roleCode": "member",
+  "expiresInDays": 7
+}
+
+###
+@invitationToken = {{createInvitation.response.body.$.data.token}}
+
+### 治理 R1-B1：撤销邀请
+POST {{baseUrl}}/api/v1/member-invitations/{{createInvitation.response.body.$.data.id}}/revoke
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 治理 R1-B1：接受邀请（匿名）；
+###   - userId 为空且邮箱无对应账号 → 自动创建 pending-activation 用户并返回 setPasswordToken
+###   - 已存在用户或显式 userId → 仅加入组织，setPasswordToken=null
+# @name acceptInvitation
+POST {{baseUrl}}/api/v1/member-invitations/accept
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "token": "{{invitationToken}}",
+  "userId": null
+}
+
+###
+@setPasswordToken = {{acceptInvitation.response.body.$.data.setPasswordToken}}
+
+### 治理 R1-B1：使用一次性 token 设置密码并激活账号（匿名）；token 24h 过期且消费即失效
+POST {{baseUrl}}/api/v1/member-invitations/set-password
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "token": "{{setPasswordToken}}",
+  "newPassword": "Aa1!Strong#PassChange"
+}

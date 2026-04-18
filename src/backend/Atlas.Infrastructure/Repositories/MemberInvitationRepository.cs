@@ -31,4 +31,14 @@ public sealed class MemberInvitationRepository : RepositoryBase<MemberInvitation
             .Where(x => x.TenantIdValue == tenantValue && x.Token == normalized)
             .FirstAsync(cancellationToken);
     }
+
+    /// <summary>治理 R1-B1：通过 set-password 一次性 token 查询邀请。</summary>
+    public async Task<MemberInvitation?> FindBySetPasswordTokenAsync(TenantId tenantId, string setPasswordToken, CancellationToken cancellationToken)
+    {
+        var tenantValue = tenantId.Value;
+        var normalized = setPasswordToken.Trim();
+        return await Db.Queryable<MemberInvitation>()
+            .Where(x => x.TenantIdValue == tenantValue && x.SetPasswordToken == normalized)
+            .FirstAsync(cancellationToken);
+    }
 }

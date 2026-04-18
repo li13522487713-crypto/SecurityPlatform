@@ -40,10 +40,12 @@ public sealed class AuditController : ControllerBase
         [FromQuery] PagedRequest request,
         [FromQuery] string? action,
         [FromQuery] string? result,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] string? scope = null)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var queryResult = await _auditQueryService.QueryAuditsAsync(request, tenantId, action, result, cancellationToken);
+        var queryResult = await _auditQueryService.QueryAuditsAsync(
+            request, tenantId, action, result, cancellationToken, NormalizeScope(scope));
         var payload = ApiResponse<PagedResult<AuditListItem>>.Ok(queryResult, HttpContext.TraceIdentifier);
         return Ok(payload);
     }
@@ -57,11 +59,12 @@ public sealed class AuditController : ControllerBase
         [FromQuery] string? resourceId,
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] string? scope = null)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var queryResult = await _auditQueryService.QueryAuditsByResourceAsync(
-            request, tenantId, actorId, action, resourceId, from, to, cancellationToken);
+            request, tenantId, actorId, action, resourceId, from, to, cancellationToken, NormalizeScope(scope));
         return Ok(ApiResponse<PagedResult<AuditListItem>>.Ok(queryResult, HttpContext.TraceIdentifier));
     }
 
@@ -73,11 +76,12 @@ public sealed class AuditController : ControllerBase
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
         [FromQuery] int maxRows = 10000,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [FromQuery] string? scope = null)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var items = await _auditQueryService.ExportAuditsCsvAsync(
-            tenantId, action, result, from, to, maxRows, cancellationToken);
+            tenantId, action, result, from, to, maxRows, cancellationToken, NormalizeScope(scope));
 
         var csv = BuildCsv(items);
         var fileName = $"audit-export-{DateTime.UtcNow:yyyyMMddHHmmss}.csv";
@@ -112,6 +116,29 @@ public sealed class AuditController : ControllerBase
             return $"\"{field.Replace("\"", "\"\"")}\"";
         }
         return field;
+    }
+
+    /// <summary>
+    /// 治理 R1-B2：scope 安全网关。
+    /// scope=all 仅当当前用户拥有 platform admin 角色或 system admin / platform-admin 角色显式授予时才允许；
+    /// 否则忽略并降级为 mine（保留 admin 视图后台一致性）。
+    /// </summary>
+    private string? NormalizeScope(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return null;
+        }
+        var normalized = scope.Trim().ToLowerInvariant();
+        if (normalized != "all")
+        {
+            return normalized;
+        }
+        var user = _currentUserAccessor.GetCurrentUser();
+        var isAdmin = user?.IsPlatformAdmin == true
+            || (user?.Roles?.Any(r => string.Equals(r, "system-admin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(r, "platform-admin", StringComparison.OrdinalIgnoreCase)) ?? false);
+        return isAdmin ? "all" : "mine";
     }
 
     [HttpPost("client-errors")]
