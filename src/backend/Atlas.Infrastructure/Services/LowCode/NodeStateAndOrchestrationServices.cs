@@ -62,16 +62,44 @@ public sealed class NodeStateStore : INodeStateStore
     }
 }
 
+/// <summary>
+/// 双哲学编排引擎（M20 S20-6）：explicit / agentic 两种模式。
+/// - explicit：保留完整 canvas，运行时按 DAG 顺序执行；前端隐藏 LLM 自决面板
+/// - agentic：要求 tools 池非空且至少含 1 个 LLM 工具，否则拒绝；前端隐藏多数中间节点，仅暴露 LLM + Tool 池
+/// </summary>
 public sealed class DualOrchestrationEngine : IDualOrchestrationEngine
 {
     public OrchestrationPlan Plan(string canvasJson, string mode, IReadOnlyList<OrchestrationTool>? tools)
     {
         var m = string.Equals(mode, "agentic", StringComparison.OrdinalIgnoreCase) ? "agentic" : "explicit";
+        var warnings = new List<string>();
+
+        if (m == "agentic")
+        {
+            if (tools is null || tools.Count == 0)
+            {
+                warnings.Add("agentic 模式 tools 池为空：模型无可调用工具，将退化为纯对话");
+            }
+            else
+            {
+                var hasLlm = tools.Any(t => t.Type.Contains("Llm", StringComparison.OrdinalIgnoreCase));
+                if (!hasLlm)
+                {
+                    warnings.Add("agentic 模式 tools 池缺少 LLM 工具：无法触发模型自决调度");
+                }
+            }
+        }
+
+        // 校验 canvas JSON 合法（避免下游 DagExecutor 拿到非法 JSON 报错）
+        try { using var _ = JsonDocument.Parse(canvasJson); }
+        catch (JsonException ex) { warnings.Add($"canvasJson 解析失败：{ex.Message}"); }
+
         var meta = JsonSerializer.Serialize(new
         {
             mode = m,
             toolsCount = tools?.Count ?? 0,
-            generatedAt = DateTimeOffset.UtcNow
+            generatedAt = DateTimeOffset.UtcNow,
+            warnings
         });
         return new OrchestrationPlan(m, canvasJson, tools, meta);
     }

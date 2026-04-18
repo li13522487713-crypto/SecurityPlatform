@@ -198,7 +198,8 @@ export const lowcodeApi = {
   variables: {
     list: (appId: string, scope?: string) => request<AppVariable[]>('GET', `/apps/${appId}/variables${scope ? `?scope=${scope}` : ''}`),
     create: (appId: string, body: AppVariable & { isReadOnly?: boolean; isPersisted?: boolean }) =>
-      request<{ id: string }>('POST', `/apps/${appId}/variables`, body as never)
+      request<{ id: string }>('POST', `/apps/${appId}/variables`, body as never),
+    delete: (appId: string, variableId: string) => request<unknown>('DELETE', `/apps/${appId}/variables/${variableId}`)
   },
   resources: {
     search: (appId: string, params: { types?: string; keyword?: string; pageIndex?: number; pageSize?: number } = {}) => {

@@ -3,10 +3,12 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { SideSheet, Button, List, Tag, Typography, Spin, Toast, Space, Empty, Checkbox, CheckboxGroup } from '@douyinfe/semi-ui';
 import { lowcodeApi, type PublishArtifact } from '../services/api-core';
 
+import { t } from '../i18n';
+
 const RENDERER_OPTIONS = [
   { label: 'web', value: 'web' },
-  { label: '微信小程序 (mini-wx)', value: 'mini-wx' },
-  { label: '抖音小程序 (mini-douyin)', value: 'mini-douyin' },
+  { label: t('lowcode_studio.publish.miniWx'), value: 'mini-wx' },
+  { label: t('lowcode_studio.publish.miniDouyin'), value: 'mini-douyin' },
   { label: 'h5', value: 'h5' }
 ];
 
@@ -42,7 +44,7 @@ export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose:
   const rollbackMut = useMutation({
     mutationFn: (artifactId: string) => lowcodeApi.publish.rollback(appId, artifactId),
     onSuccess: () => {
-      Toast.success('已撤回');
+      Toast.success(t('lowcode_studio.common.revoked'));
       artifactsQuery.refetch();
     },
     onError: (e: Error) => Toast.error(e.message)

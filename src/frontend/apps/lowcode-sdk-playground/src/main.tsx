@@ -45,7 +45,7 @@ const App: React.FC = () => {
           try {
             const r = await npmInstance?.dispatch({
               eventName: 'demo.click',
-              actions: [{ kind: 'set_variable', payload: { targetPath: 'page.fromDispatch', scopeRoot: 'page', value: { sourceType: 'static', value: '已通过 dispatch 设置', valueType: 'string' } } }]
+              actions: [{ kind: 'set_variable', payload: { targetPath: 'page.fromDispatch', scopeRoot: 'page', value: { sourceType: 'static', value: 'set via dispatch', valueType: 'string' } } }]
             });
             // eslint-disable-next-line no-console
             console.log('dispatch result', r);

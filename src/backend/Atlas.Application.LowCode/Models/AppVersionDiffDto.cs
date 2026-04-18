@@ -1,7 +1,7 @@
 namespace Atlas.Application.LowCode.Models;
 
 /// <summary>
-/// 版本 diff 视图（M14 S14-1）。M14 阶段产出 schema 字面 JSON diff 行；UI 渲染红绿对比由 lowcode-versioning-client 处理。
+/// 版本 diff 视图（M14 S14-1）。后端产出 schema 字面 JSON diff 行；UI 红绿对比 + 按 path 顶段分组由 lowcode-versioning-client 处理。
 /// </summary>
 public sealed record AppVersionDiffDto(
     string FromVersionId,

@@ -27,9 +27,28 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
     mutationFn: (vals: { code: string; displayName: string; path: string; targetType?: string; layout?: string }) =>
       lowcodeApi.pages.create(appId, vals),
     onSuccess: () => {
-      Toast.success('页面已创建');
+      Toast.success(t('lowcode_studio.common.created'));
       setPageOpen(false);
       qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
+
+  const deletePageMut = useMutation({
+    mutationFn: (pageId: string) => lowcodeApi.pages.delete(appId, pageId),
+    onSuccess: () => {
+      Toast.success(t('lowcode_studio.common.deleted'));
+      qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
+      qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
+
+  const deleteVarMut = useMutation({
+    mutationFn: (variableId: string) => lowcodeApi.variables.delete(appId, variableId),
+    onSuccess: () => {
+      Toast.success(t('lowcode_studio.common.deleted'));
+      qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
     },
     onError: (e: Error) => Toast.error(e.message)
   });
@@ -50,7 +69,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
         description: vals.description
       } as unknown as AppVariable),
     onSuccess: () => {
-      Toast.success('变量已创建');
+      Toast.success(t('lowcode_studio.common.created'));
       setVarOpen(false);
       qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
     },
@@ -65,16 +84,16 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
     },
     onSuccess: async (r) => {
       Modal.confirm({
-        title: '应用模板将覆盖当前草稿',
-        content: `模板已下载（${r.templateJson.length} 字节）。确认后将写入应用草稿（不可撤销，建议先保存版本）。`,
-        okText: '覆盖草稿',
-        cancelText: '取消',
+        title: t('lowcode_studio.common.applyTemplateConfirm'),
+        content: `${r.templateJson.length} 字节 · ${t('lowcode_studio.common.unrecoverable')}`,
+        okText: t('lowcode_studio.common.confirm'),
+        cancelText: t('lowcode_studio.common.cancel'),
         onOk: async () => {
           try {
             await lowcodeApi.apps.replaceDraft(appId, r.templateJson);
             await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
             await qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
-            Toast.success('模板应用成功');
+            Toast.success(t('lowcode_studio.common.applied'));
           } catch (e) {
             Toast.error((e as Error).message);
           }
@@ -185,7 +204,26 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
                 <List.Item
                   style={{ cursor: 'pointer', background: active ? '#e6f4ff' : undefined }}
                   onClick={() => setCurrentPageCode(p.code)}
-                  extra={<Tag size="small">{p.layout}</Tag>}
+                  extra={
+                    <Space>
+                      <Tag size="small">{p.layout}</Tag>
+                      <Button
+                        size="small"
+                        type="danger"
+                        loading={deletePageMut.isPending}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          Modal.confirm({
+                            title: t('lowcode_studio.pages.delete'),
+                            content: `${p.displayName} (${p.code}) · ${t('lowcode_studio.common.unrecoverable')}`,
+                            okText: t('lowcode_studio.pages.delete'),
+                            cancelText: t('lowcode_studio.common.cancel'),
+                            onOk: () => deletePageMut.mutate(p.id)
+                          });
+                        }}
+                      >删除</Button>
+                    </Space>
+                  }
                 >
                   <Typography.Text strong={active}>{p.displayName}</Typography.Text>
                   <Typography.Text type="tertiary" style={{ marginLeft: 8, fontSize: 12 }}>{p.path}</Typography.Text>
@@ -204,7 +242,23 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
             size="small"
             dataSource={variablesQuery.data ?? []}
             renderItem={(v) => (
-              <List.Item extra={<Tag size="small">{v.scope}</Tag>}>
+              <List.Item extra={
+                <Space>
+                  <Tag size="small">{v.scope}</Tag>
+                  <Button
+                    size="small"
+                    type="danger"
+                    loading={deleteVarMut.isPending}
+                    onClick={() => Modal.confirm({
+                      title: `${t('lowcode_studio.common.delete')} · ${v.displayName}`,
+                      content: `${v.code} · ${t('lowcode_studio.common.unrecoverable')}`,
+                      okText: t('lowcode_studio.common.delete'),
+                      cancelText: t('lowcode_studio.common.cancel'),
+                      onOk: () => deleteVarMut.mutate(v.id)
+                    })}
+                  >{t('lowcode_studio.common.delete')}</Button>
+                </Space>
+              }>
                 <Typography.Text>{v.displayName}</Typography.Text>
                 <Typography.Text type="tertiary" style={{ marginLeft: 8, fontSize: 12 }}>{v.code} · {v.valueType}</Typography.Text>
               </List.Item>

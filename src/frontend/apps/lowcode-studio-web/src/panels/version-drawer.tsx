@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { SideSheet, List, Typography, Spin, Empty, Button, Modal, Toast, Space, Tag } from '@douyinfe/semi-ui';
 import { groupDiffsByGroup } from '@atlas/lowcode-versioning-client';
 import { lowcodeApi } from '../services/api-core';
+import { t } from '../i18n';
 
 /**
  * 版本管理抽屉（M14）。点击行项可：
@@ -26,8 +27,8 @@ export const VersionDrawer: React.FC<{ appId: string; visible: boolean; onClose:
   });
 
   const rollbackMut = useMutation({
-    mutationFn: (versionId: string) => lowcodeApi.versions.rollback(appId, versionId, '从版本管理抽屉触发'),
-    onSuccess: () => Toast.success('回滚成功'),
+    mutationFn: (versionId: string) => lowcodeApi.versions.rollback(appId, versionId, t('lowcode_studio.common.fromVersionDrawer')),
+    onSuccess: () => Toast.success(t('lowcode_studio.common.rollbackSuccess')),
     onError: (e: Error) => Toast.error(e.message)
   });
 
@@ -58,7 +59,7 @@ export const VersionDrawer: React.FC<{ appId: string; visible: boolean; onClose:
               extra={
                 <Space>
                   <Button size="small" type={diffSelection.includes(v.id) ? 'primary' : 'tertiary'} onClick={() => toggleSelect(v.id)}>
-                    {diffSelection.includes(v.id) ? '取消选择' : '选择对比'}
+                    {diffSelection.includes(v.id) ? t('lowcode_studio.common.unselect') : t('lowcode_studio.common.selectForCompare')}
                   </Button>
                   <Button size="small" onClick={() => rollbackMut.mutate(v.id)} loading={rollbackMut.isPending}>回滚</Button>
                   {v.isSystemSnapshot && <Tag size="small" color="grey">系统</Tag>}

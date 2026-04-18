@@ -34,7 +34,7 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
    */
   const patchMut = useMutation({
     mutationFn: async (patch: { visible?: boolean; locked?: boolean }) => {
-      if (!selectedComponentId || !draftQuery.data) throw new Error('未选中或未加载草稿');
+      if (!selectedComponentId || !draftQuery.data) throw new Error(t('lowcode_studio.common.draftNotLoaded'));
       const app = JSON.parse(draftQuery.data.schemaJson) as AppSchema;
       let touched = false;
       for (const page of app.pages ?? []) {
@@ -46,11 +46,11 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
           break;
         }
       }
-      if (!touched) throw new Error('节点未在任意页面命中');
+      if (!touched) throw new Error(t('lowcode_studio.common.nodeNotFound'));
       await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
     },
     onSuccess: async () => {
-      Toast.success('已应用并触发 HMR 推送');
+      Toast.success(t('lowcode_studio.common.applied'));
       await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
     },
     onError: (e: Error) => Toast.error(e.message)
@@ -59,23 +59,23 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
   /** 从 schema 中删除当前选中节点（不允许删除根）。*/
   const deleteMut = useMutation({
     mutationFn: async () => {
-      if (!selectedComponentId || !draftQuery.data) throw new Error('未选中或未加载草稿');
+      if (!selectedComponentId || !draftQuery.data) throw new Error(t('lowcode_studio.common.draftNotLoaded'));
       const app = JSON.parse(draftQuery.data.schemaJson) as AppSchema;
       let removed = false;
       for (const page of app.pages ?? []) {
         if (page.root.id === selectedComponentId) {
-          throw new Error('禁止删除页面根节点');
+          throw new Error(t('lowcode_studio.common.cantDeleteRoot'));
         }
         if (deleteById(page.root, selectedComponentId)) {
           removed = true;
           break;
         }
       }
-      if (!removed) throw new Error('节点未在任意页面命中');
+      if (!removed) throw new Error(t('lowcode_studio.common.nodeNotFound'));
       await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
     },
     onSuccess: async () => {
-      Toast.success('已删除');
+      Toast.success(t('lowcode_studio.common.deleted'));
       setSelectedComponentId(null);
       await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
     },
@@ -118,27 +118,27 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
           type="danger"
           loading={deleteMut.isPending}
           onClick={() => Modal.confirm({
-            title: '删除组件',
-            content: `将从画布永久删除 ${node.type} 节点（${node.id.slice(0, 12)}…）及其所有子节点。`,
-            okText: '删除',
-            cancelText: '取消',
+            title: t('lowcode_studio.common.delete'),
+            content: `${t('lowcode_studio.common.unrecoverable')}：${node.type} (${node.id.slice(0, 12)}…)`,
+            okText: t('lowcode_studio.common.delete'),
+            cancelText: t('lowcode_studio.common.cancel'),
             onOk: () => deleteMut.mutate()
           })}
         >
-          删除
+          {t('lowcode_studio.common.delete')}
         </Button>
       </Space>
       {kind === 'property' && (
         <>
           <Space style={{ marginBottom: 8 }}>
-            <Typography.Text type="tertiary" style={{ fontSize: 12 }}>显示</Typography.Text>
+            <Typography.Text type="tertiary" style={{ fontSize: 12 }}>{t('lowcode_studio.common.show')}</Typography.Text>
             <Switch
               size="small"
               checked={node.visible !== false}
               loading={patchMut.isPending}
               onChange={(v) => patchMut.mutate({ visible: v })}
             />
-            <Typography.Text type="tertiary" style={{ fontSize: 12, marginLeft: 8 }}>锁定</Typography.Text>
+            <Typography.Text type="tertiary" style={{ fontSize: 12, marginLeft: 8 }}>{t('lowcode_studio.common.lock')}</Typography.Text>
             <Switch
               size="small"
               checked={node.locked === true}
@@ -211,7 +211,7 @@ const PropertyView: React.FC<{ node: ComponentSchema; meta: ComponentMetaWire | 
     : [];
 
   if (entries.length === 0 && unusedBindable.length === 0) {
-    return <Empty title={filter === 'style' ? '无样式属性' : '无业务属性'} />;
+    return <Empty title={filter === 'style' ? t('lowcode_studio.common.noStyleProps') : t('lowcode_studio.common.noBusinessProps')} />;
   }
 
   return (
