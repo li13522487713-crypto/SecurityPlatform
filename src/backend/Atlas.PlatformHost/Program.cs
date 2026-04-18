@@ -204,6 +204,11 @@ builder.Services.AddHttpClient("app-runtime-proxy", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 builder.Services.AddSignalR();
+// 低代码 Preview HMR：PlatformHost 触发 schemaDiff 推送，预览客户端订阅
+builder.Services.AddSingleton<Atlas.Presentation.Shared.Hubs.ILowCodePreviewBroadcaster, Atlas.Presentation.Shared.Hubs.LowCodePreviewBroadcaster>();
+// adapter：把 SignalR Broadcaster 接到 Application.LowCode 的 ILowCodePreviewSignal 抽象，
+// 让 Infrastructure 层的 AppDefinitionCommandService 在 ReplaceDraft / AutoSave 后真实推送
+builder.Services.AddSingleton<Atlas.Application.LowCode.Abstractions.ILowCodePreviewSignal, Atlas.Presentation.Shared.Hubs.LowCodePreviewSignalAdapter>();
 
 // ─── HTTP Logging ───
 builder.Services.AddHttpLogging(options =>
@@ -703,6 +708,7 @@ if (runHangfireServer)
         Cron.Daily(3, 0));
 }
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
+app.MapHub<Atlas.Presentation.Shared.Hubs.LowCodePreviewHub>("/hubs/lowcode-preview");
 app.MapReverseProxy();
 app.MapGet("/", () => Results.Ok(new
 {

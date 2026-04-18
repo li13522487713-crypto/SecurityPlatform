@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Atlas.Application.Audit\Atlas.Application.Audit.csproj" />
     <ProjectReference Include="..\Atlas.Application.Workflow\Atlas.Application.Workflow.csproj" />
     <ProjectReference Include="..\Atlas.Application.LogicFlow\Atlas.Application.LogicFlow.csproj" />
+    <ProjectReference Include="..\Atlas.Application.LowCode\Atlas.Application.LowCode.csproj" />
     <ProjectReference Include="..\Atlas.Infrastructure\Atlas.Infrastructure.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />

@@ -214,7 +214,8 @@ builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
     .AddAtlasInfrastructureAppRuntime(builder.Configuration);
 
 // 低代码 Preview Hub 推送服务（M08 S08-3）
-builder.Services.AddSingleton<Atlas.AppHost.Hubs.ILowCodePreviewBroadcaster, Atlas.AppHost.Hubs.LowCodePreviewBroadcaster>();
+builder.Services.AddSingleton<Atlas.Presentation.Shared.Hubs.ILowCodePreviewBroadcaster, Atlas.Presentation.Shared.Hubs.LowCodePreviewBroadcaster>();
+builder.Services.AddSingleton<Atlas.Application.LowCode.Abstractions.ILowCodePreviewSignal, Atlas.Presentation.Shared.Hubs.LowCodePreviewSignalAdapter>();
 
 // 低代码资产 GC 调度（M10 S10-3，每日 02:00）
 builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeAssetGcSchedulerHostedService>();
@@ -478,7 +479,7 @@ app.MapGet("/", () => Results.Ok(new
 }));
 app.MapControllers();
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
-app.MapHub<Atlas.AppHost.Hubs.LowCodePreviewHub>("/hubs/lowcode-preview");
+app.MapHub<Atlas.Presentation.Shared.Hubs.LowCodePreviewHub>("/hubs/lowcode-preview");
 app.MapHub<Atlas.AppHost.Hubs.LowCodeCollabHub>("/hubs/lowcode-collab");
 
 var startupLogo = """

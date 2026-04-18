@@ -22,6 +22,7 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IMapper _mapper;
     private readonly IResourceReferenceIndex _referenceIndex;
+    private readonly ILowCodePreviewSignal _previewSignal;
 
     public AppDefinitionCommandService(
         IAppDefinitionRepository appRepo,
@@ -29,7 +30,8 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         IAuditWriter auditWriter,
         IIdGeneratorAccessor idGen,
         IMapper mapper,
-        IResourceReferenceIndex referenceIndex)
+        IResourceReferenceIndex referenceIndex,
+        ILowCodePreviewSignal previewSignal)
     {
         _appRepo = appRepo;
         _versionRepo = versionRepo;
@@ -37,6 +39,7 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         _idGen = idGen;
         _mapper = mapper;
         _referenceIndex = referenceIndex;
+        _previewSignal = previewSignal;
     }
 
     public async Task<long> CreateAsync(TenantId tenantId, long currentUserId, AppDefinitionCreateRequest request, CancellationToken cancellationToken)
@@ -100,6 +103,8 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         await _appRepo.UpdateAsync(app, cancellationToken);
         await _referenceIndex.ReindexFromSchemaJsonAsync(tenantId, id, request.SchemaJson, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.draft.replace", "success", $"app:{id}", null, null), cancellationToken);
+        // M08 S08-3：触发 preview HMR 推送 schemaDiff（前端按收到信号重拉 draft）
+        await _previewSignal.PushSchemaDiffAsync(tenantId, id.ToString(), new { kind = "replace", at = DateTimeOffset.UtcNow }, cancellationToken);
     }
 
     public async Task AutoSaveDraftAsync(TenantId tenantId, long currentUserId, long id, AppDraftAutoSaveRequest request, CancellationToken cancellationToken)
@@ -113,6 +118,8 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         await _referenceIndex.ReindexFromSchemaJsonAsync(tenantId, id, request.SchemaJson, cancellationToken);
         // autosave 只写一条简化审计（短时间内可能高频，不做完整 payload 记录）
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.draft.autosave", "success", $"app:{id}", null, null), cancellationToken);
+        // M08 S08-3：触发 preview HMR 推送 schemaDiff
+        await _previewSignal.PushSchemaDiffAsync(tenantId, id.ToString(), new { kind = "autosave", at = DateTimeOffset.UtcNow }, cancellationToken);
     }
 
     public async Task<long> CreateVersionSnapshotAsync(TenantId tenantId, long currentUserId, long id, AppVersionSnapshotRequest request, CancellationToken cancellationToken)

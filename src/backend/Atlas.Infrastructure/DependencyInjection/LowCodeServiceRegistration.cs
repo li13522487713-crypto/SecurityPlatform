@@ -8,6 +8,7 @@ using Atlas.Infrastructure.Services.LowCode;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Atlas.Infrastructure.DependencyInjection;
 
@@ -99,6 +100,10 @@ public static class LowCodeServiceRegistration
 
         // Webview 域名验证 HttpClient（M12 → M17）
         services.AddHttpClient("lowcode-webview-verify");
+
+        // M08 S08-3 Preview HMR 推送：默认 NoOp（无 hub 时安全跳过）；
+        // PlatformHost / AppHost 在启动时通过 services.Replace 注入真实 SignalR 实现。
+        services.TryAddSingleton<ILowCodePreviewSignal, NoOpLowCodePreviewSignal>();
 
         // Hangfire 桥接：cron 触发器实际执行类（由 RuntimeTriggerService AddOrUpdate 注册）
         services.AddTransient<LowCodeTriggerCronJob>();
