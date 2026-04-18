@@ -44,6 +44,15 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
     onError: (e: Error) => Toast.error(e.message)
   });
 
+  const deleteVarMut = useMutation({
+    mutationFn: (variableId: string) => lowcodeApi.variables.delete(appId, variableId),
+    onSuccess: () => {
+      Toast.success('变量已删除');
+      qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
+
   const createVarMut = useMutation({
     mutationFn: (vals: { code: string; displayName: string; scope: string; valueType: string; defaultValueJson?: string; description?: string }) =>
       lowcodeApi.variables.create(appId, {
@@ -233,7 +242,23 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
             size="small"
             dataSource={variablesQuery.data ?? []}
             renderItem={(v) => (
-              <List.Item extra={<Tag size="small">{v.scope}</Tag>}>
+              <List.Item extra={
+                <Space>
+                  <Tag size="small">{v.scope}</Tag>
+                  <Button
+                    size="small"
+                    type="danger"
+                    loading={deleteVarMut.isPending}
+                    onClick={() => Modal.confirm({
+                      title: '删除变量',
+                      content: `将永久删除 ${v.displayName}（${v.code}）。引用此变量的 binding 将失效。`,
+                      okText: '删除',
+                      cancelText: '取消',
+                      onOk: () => deleteVarMut.mutate(v.id)
+                    })}
+                  >删除</Button>
+                </Space>
+              }>
                 <Typography.Text>{v.displayName}</Typography.Text>
                 <Typography.Text type="tertiary" style={{ marginLeft: 8, fontSize: 12 }}>{v.code} · {v.valueType}</Typography.Text>
               </List.Item>
