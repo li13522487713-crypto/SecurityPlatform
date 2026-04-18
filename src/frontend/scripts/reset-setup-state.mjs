@@ -61,6 +61,11 @@ function stopRelevantProcesses() {
     }
     if (killed.size > 0) {
       console.log(`[reset-setup-state] stopped ${killed.size} listener process(es): ${[...killed].join(", ")}`);
+      // 给端口 TIME_WAIT 一点时间释放，避免下一轮 run-app-e2e 立即 spawn 时端口冲突
+      const waitUntil = Date.now() + 3000;
+      while (Date.now() < waitUntil) {
+        // 同步阻塞 wait
+      }
     }
     return;
   }
