@@ -72,6 +72,20 @@ public sealed class Workspace : TenantEntity
     [SugarColumn(IsNullable = true)]
     public DateTime? LastVisitedAt { get; private set; }
 
+    /// <summary>
+    /// 治理 M-G05-C2（S9）：所属组织。当前 nullable，S10 阶段做完数据回填后转 non-null。
+    /// </summary>
+    [SugarColumn(IsNullable = true)]
+    public long? OrganizationId { get; private set; }
+
+    public void AssignOrganization(long organizationId)
+    {
+        if (organizationId > 0)
+        {
+            OrganizationId = organizationId;
+        }
+    }
+
     public void Update(string name, string? description, string? icon, long updatedBy)
     {
         Name = name.Trim();
