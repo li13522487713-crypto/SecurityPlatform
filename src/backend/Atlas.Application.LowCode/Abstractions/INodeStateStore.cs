@@ -29,7 +29,11 @@ public interface IDualOrchestrationEngine
     OrchestrationPlan Plan(string canvasJson, string mode, IReadOnlyList<OrchestrationTool>? tools);
 }
 
-public sealed record OrchestrationTool(string Name, string Description);
+public sealed record OrchestrationTool(
+    string Name,
+    string Description,
+    /// <summary>工具类型（与 DagWorkflow 节点 Type 对齐：Llm / Plugin / KnowledgeRetriever / DatabaseQuery / HttpRequester / TextProcessor 等）。</summary>
+    string Type = "Plugin");
 
 public sealed record OrchestrationPlan(
     string Mode,
