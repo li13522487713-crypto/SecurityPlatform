@@ -37,9 +37,26 @@ const App: React.FC = () => {
 
       <h3>1) npm import</h3>
       <div ref={npmRef} />
-      <button onClick={() => { npmInstance?.update([{ scope: 'page', path: 'page.count', op: 'set', value: count + 1 }]); setCount(count + 1); }}>
-        update count = {count + 1}
-      </button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button onClick={() => { npmInstance?.update([{ scope: 'page', path: 'page.count', op: 'set', value: count + 1 }]); setCount(count + 1); }}>
+          update count = {count + 1}
+        </button>
+        <button onClick={async () => {
+          try {
+            const r = await npmInstance?.dispatch({
+              eventName: 'demo.click',
+              actions: [{ kind: 'set_variable', payload: { targetPath: 'page.fromDispatch', scopeRoot: 'page', value: { sourceType: 'static', value: '已通过 dispatch 设置', valueType: 'string' } } }]
+            });
+            // eslint-disable-next-line no-console
+            console.log('dispatch result', r);
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error('dispatch failed', e);
+          }
+        }}>
+          调用 dispatch（M13 唯一桥梁）
+        </button>
+      </div>
 
       <h3 style={{ marginTop: 24 }}>2) &lt;script&gt; 嵌入</h3>
       <pre style={{ background: '#f5f5f5', padding: 12 }}>{`
