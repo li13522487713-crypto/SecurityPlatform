@@ -674,6 +674,24 @@ export interface StudioModuleApi {
   updateAppBuilderConfig: (appId: string, config: AppBuilderConfig) => Promise<void>;
   runAppPreview: (appId: string, inputs: Record<string, unknown>) => Promise<{ outputs: Record<string, unknown>; trace?: WorkbenchTrace }>;
   listPromptTemplates: (params?: { keyword?: string }) => Promise<PagedResult<PromptTemplateItem>>;
+
+  /**
+   * 治理 R1-F1：列举工作空间的发布渠道。可选；未实现时 PublishCenterPage「发布渠道」 Tab 隐藏。
+   */
+  listWorkspacePublishChannels?: (workspaceId: string) => Promise<PublishChannelListItem[]>;
+
+  /**
+   * 治理 R1-F1：获取渠道当前 active release（含 publicMetadataJson）。
+   */
+  getWorkspaceChannelActiveRelease?: (
+    workspaceId: string,
+    channelId: string
+  ) => Promise<PublishChannelActiveRelease | null>;
+
+  /**
+   * 治理 R1-F1：通用 HTTP 调用（已带 Bearer + X-Tenant-Id 拼装），透传给 FeishuPublishTab / WechatMpPublishTab.fetcher。
+   */
+  httpJson?: <T = unknown>(input: { url: string; method: string; body?: unknown }) => Promise<T>;
 }
 
 export interface StudioPageProps {
@@ -716,6 +734,55 @@ export interface PublishCenterItem {
   status: "draft" | "published" | "outdated";
   apiEndpoint?: string;
   embedToken?: string;
+}
+
+/**
+ * 治理 R1-F1：发布渠道列表项（来自 /api/v1/workspaces/{ws}/publish-channels）。
+ * type 与后端 WorkspaceChannelType 对齐：web-sdk / open-api / feishu / wechat-mp / wechat / lark / custom。
+ */
+export interface PublishChannelListItem {
+  id: string;
+  workspaceId: string;
+  type: string;
+  name: string;
+  status: string;
+  authStatus?: string;
+  lastSyncAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 治理 R1-F1：渠道当前 active release（来自 /releases?status=active）。
+ * publicMetadataJson 由各 connector 在 publish 时写回（snippet / endpoint / tokenMasked / webhookUrl 等）。
+ */
+export interface PublishChannelActiveRelease {
+  id: string;
+  channelId: string;
+  releaseNo: number;
+  status: string;
+  publicMetadataJson?: string;
+  releasedAt: string;
+}
+
+/**
+ * 治理 R1-F2：Web SDK channel publicMetadataJson 反序列化结构。
+ */
+export interface WebSdkPublicMeta {
+  snippet: string;
+  endpoint: string;
+  secretMasked: string;
+  originAllowlist: string[];
+}
+
+/**
+ * 治理 R1-F2：Open API channel publicMetadataJson 反序列化结构。
+ */
+export interface OpenApiPublicMeta {
+  endpoint: string;
+  tokenMasked: string;
+  endpoints: string[];
+  rateLimitPerMinute: number;
 }
 
 export interface AppInputComponent {

@@ -8,6 +8,7 @@ using Atlas.Application.LowCode.Models;
 using Atlas.Application.LowCode.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
@@ -352,11 +353,19 @@ public sealed class RuntimeMessageLogService : IRuntimeMessageLogService
 {
     private readonly ILowCodeMessageLogRepository _repo;
     private readonly IIdGeneratorAccessor _idGen;
+    private readonly IResourceVisibilityResolver _visibilityResolver;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
-    public RuntimeMessageLogService(ILowCodeMessageLogRepository repo, IIdGeneratorAccessor idGen)
+    public RuntimeMessageLogService(
+        ILowCodeMessageLogRepository repo,
+        IIdGeneratorAccessor idGen,
+        IResourceVisibilityResolver visibilityResolver,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _repo = repo;
         _idGen = idGen;
+        _visibilityResolver = visibilityResolver;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<IReadOnlyList<RuntimeMessageLogEntryDto>> QueryAsync(TenantId tenantId, RuntimeMessageLogQuery query, CancellationToken cancellationToken)
@@ -364,7 +373,10 @@ public sealed class RuntimeMessageLogService : IRuntimeMessageLogService
         var pageIndex = query.PageIndex ?? 1;
         var pageSize = query.PageSize ?? 100;
         var list = await _repo.QueryAsync(tenantId, query.SessionId, query.WorkflowId, query.AgentId, query.From, query.To, pageIndex, pageSize, cancellationToken);
-        return list.Select(e => new RuntimeMessageLogEntryDto(
+
+        // 治理 R1-B3：按 (workflow, agent) 资源可见性过滤。
+        var filtered = await ApplyVisibilityFilterAsync(list, tenantId, cancellationToken);
+        return filtered.Select(e => new RuntimeMessageLogEntryDto(
             e.EntryId,
             e.Source,
             e.Kind,
@@ -382,5 +394,80 @@ public sealed class RuntimeMessageLogService : IRuntimeMessageLogService
         var entryId = $"mle_{_idGen.NextId()}";
         var entry = new LowCodeMessageLogEntry(tenantId, _idGen.NextId(), entryId, source, kind, sessionId, workflowId, agentId, traceId, payloadJson);
         await _repo.InsertAsync(entry, cancellationToken);
+    }
+
+    /// <summary>
+    /// 治理 R1-B3：按 (workflow, agent) 资源可见性收口运行时消息日志。
+    /// platform admin / system admin 自动 bypass；其他用户调 IResourceVisibilityResolver 过滤。
+    /// 既无 workflowId 又无 agentId 的条目（纯调度日志）保留行为兼容。
+    /// </summary>
+    private async Task<List<LowCodeMessageLogEntry>> ApplyVisibilityFilterAsync(
+        IReadOnlyList<LowCodeMessageLogEntry> entries,
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (entries.Count == 0)
+        {
+            return new List<LowCodeMessageLogEntry>(0);
+        }
+
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        var isAdmin = currentUser?.IsPlatformAdmin == true
+            || (currentUser?.Roles?.Any(r => string.Equals(r, "system-admin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(r, "platform-admin", StringComparison.OrdinalIgnoreCase)) ?? false);
+
+        if (isAdmin)
+        {
+            return entries.ToList();
+        }
+
+        var candidates = new HashSet<(string ResourceType, string ResourceId)>();
+        foreach (var e in entries)
+        {
+            if (!string.IsNullOrWhiteSpace(e.WorkflowId))
+            {
+                candidates.Add(("workflow", e.WorkflowId!));
+            }
+            if (!string.IsNullOrWhiteSpace(e.AgentId))
+            {
+                candidates.Add(("agent", e.AgentId!));
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            return entries.ToList();
+        }
+
+        var visibleSet = await _visibilityResolver.FilterVisibleAsync(
+            tenantId,
+            currentUser?.UserId ?? 0,
+            isAdmin,
+            candidates,
+            cancellationToken);
+        var visibleHashSet = visibleSet
+            .Select(t => $"{t.ResourceType}|{t.ResourceId}")
+            .ToHashSet(StringComparer.Ordinal);
+
+        return entries
+            .Where(e =>
+            {
+                var hasWorkflow = !string.IsNullOrWhiteSpace(e.WorkflowId);
+                var hasAgent = !string.IsNullOrWhiteSpace(e.AgentId);
+                if (!hasWorkflow && !hasAgent)
+                {
+                    return true;
+                }
+                if (hasWorkflow && visibleHashSet.Contains($"workflow|{e.WorkflowId}"))
+                {
+                    return true;
+                }
+                if (hasAgent && visibleHashSet.Contains($"agent|{e.AgentId}"))
+                {
+                    return true;
+                }
+                return false;
+            })
+            .ToList();
     }
 }

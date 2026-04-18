@@ -222,6 +222,11 @@ import {
 } from "../services/api-org-management";
 import { getStudioWorkspaceOverview } from "../services/studio-workspace-overview";
 import {
+  getWorkspaceChannelActiveRelease,
+  listWorkspacePublishChannels,
+  publishChannelsHttpJson
+} from "../services/api-publish-channels";
+import {
   deleteAiApp,
   getAiAppBuilderConfig,
   getAiAppById,
@@ -1247,7 +1252,12 @@ export function createStudioApi(appKey: string): StudioModuleApi {
     listPromptTemplates: async () => {
       // Mock implementation
       return { items: [], total: 0, pageIndex: 1, pageSize: 20 };
-    }
+    },
+    // 治理 R1-F1：发布渠道接入 — 真实 REST 适配
+    listWorkspacePublishChannels: (workspaceId: string) => listWorkspacePublishChannels(workspaceId),
+    getWorkspaceChannelActiveRelease: (workspaceId: string, channelId: string) =>
+      getWorkspaceChannelActiveRelease(workspaceId, channelId),
+    httpJson: publishChannelsHttpJson
   };
 }
 
@@ -1394,6 +1404,8 @@ function StudioPublishCenterRoute() {
       api={studioApi}
       locale={locale}
       apiBase={typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "/api/v1"}
+      // 治理 R1-F1：把当前 workspace.id 透传给 PublishCenterPage 启用「发布渠道」 Tab
+      workspaceId={workspace.id}
       onOpenAgent={id => navigate(orgWorkspaceAgentDetailPath(orgId, workspace.id, id))}
       onOpenApp={id => navigate(orgWorkspaceAppDetailPath(orgId, workspace.id, id))}
       onOpenWorkflow={id => navigate(buildWorkspaceWorkbenchPath(orgId, workspace.id, "workflow", id))}

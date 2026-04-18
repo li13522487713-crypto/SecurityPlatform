@@ -1,6 +1,7 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Authorization;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -19,10 +20,13 @@ namespace Atlas.PlatformHost.Controllers;
 [Authorize]
 public sealed class AiDatabasesController : ControllerBase
 {
+    private const string ResourceType = "database";
+
     private readonly IAiDatabaseService _service;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAuditWriter _auditWriter;
+    private readonly IResourceWriteGate _writeGate;
     private readonly IValidator<AiDatabaseCreateRequest> _createValidator;
     private readonly IValidator<AiDatabaseUpdateRequest> _updateValidator;
     private readonly IValidator<AiDatabaseRecordCreateRequest> _recordCreateValidator;
@@ -36,6 +40,7 @@ public sealed class AiDatabasesController : ControllerBase
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IAuditWriter auditWriter,
+        IResourceWriteGate writeGate,
         IValidator<AiDatabaseCreateRequest> createValidator,
         IValidator<AiDatabaseUpdateRequest> updateValidator,
         IValidator<AiDatabaseRecordCreateRequest> recordCreateValidator,
@@ -48,6 +53,7 @@ public sealed class AiDatabasesController : ControllerBase
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _auditWriter = auditWriter;
+        _writeGate = writeGate;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _recordCreateValidator = recordCreateValidator;
@@ -125,7 +131,9 @@ public sealed class AiDatabasesController : ControllerBase
     {
         _updateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
         await _service.UpdateAsync(tenantId, id, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         await WriteDatabaseAuditAsync("ai_database.update", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -135,7 +143,9 @@ public sealed class AiDatabasesController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "delete", cancellationToken);
         await _service.DeleteAsync(tenantId, id, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         await WriteDatabaseAuditAsync("ai_database.delete", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }

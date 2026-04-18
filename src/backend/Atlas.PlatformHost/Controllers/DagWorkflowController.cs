@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Authorization;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -20,12 +21,15 @@ namespace Atlas.PlatformHost.Controllers;
 [Route("api/v2/workflows")]
 public sealed class DagWorkflowController : ControllerBase
 {
+    private const string ResourceType = "workflow";
+
     private readonly IDagWorkflowCommandService _commandService;
     private readonly IDagWorkflowQueryService _queryService;
     private readonly IDagWorkflowExecutionService _executionService;
     private readonly ICanvasValidator _canvasValidator;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IResourceWriteGate _writeGate;
     private readonly IValidator<DagWorkflowCreateRequest> _createValidator;
     private readonly IValidator<DagWorkflowSaveDraftRequest> _saveDraftValidator;
     private readonly IValidator<DagWorkflowUpdateMetaRequest> _updateMetaValidator;
@@ -41,6 +45,7 @@ public sealed class DagWorkflowController : ControllerBase
         ICanvasValidator canvasValidator,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
+        IResourceWriteGate writeGate,
         IValidator<DagWorkflowCreateRequest> createValidator,
         IValidator<DagWorkflowSaveDraftRequest> saveDraftValidator,
         IValidator<DagWorkflowUpdateMetaRequest> updateMetaValidator,
@@ -55,6 +60,7 @@ public sealed class DagWorkflowController : ControllerBase
         _canvasValidator = canvasValidator;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _writeGate = writeGate;
         _createValidator = createValidator;
         _saveDraftValidator = saveDraftValidator;
         _updateMetaValidator = updateMetaValidator;
@@ -85,7 +91,9 @@ public sealed class DagWorkflowController : ControllerBase
     {
         _saveDraftValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
         await _commandService.SaveDraftAsync(tenantId, id, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -96,7 +104,9 @@ public sealed class DagWorkflowController : ControllerBase
     {
         _updateMetaValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
         await _commandService.UpdateMetaAsync(tenantId, id, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -108,7 +118,9 @@ public sealed class DagWorkflowController : ControllerBase
         _publishValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "publish", cancellationToken);
         await _commandService.PublishAsync(tenantId, id, userId, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -117,7 +129,9 @@ public sealed class DagWorkflowController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "delete", cancellationToken);
         await _commandService.DeleteAsync(tenantId, id, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -127,6 +141,7 @@ public sealed class DagWorkflowController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "view", cancellationToken);
         var copiedId = await _commandService.CopyAsync(tenantId, userId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = copiedId.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -219,7 +234,9 @@ public sealed class DagWorkflowController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
         var result = await _commandService.RollbackToVersionAsync(tenantId, id, versionId, userId, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
         return Ok(ApiResponse<WorkflowVersionRollbackResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -252,6 +269,7 @@ public sealed class DagWorkflowController : ControllerBase
         _runValidator.ValidateAndThrow(safeRequest);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "execute", cancellationToken);
         var result = await _executionService.SyncRunAsync(tenantId, id, userId, safeRequest, cancellationToken);
         return Ok(ApiResponse<DagWorkflowRunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
@@ -270,6 +288,7 @@ public sealed class DagWorkflowController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "execute", cancellationToken);
 
         await foreach (var evt in _executionService.StreamRunAsync(tenantId, id, userId, safeRequest, cancellationToken))
         {

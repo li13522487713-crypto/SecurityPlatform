@@ -10,3 +10,7 @@ export { FeishuPublishTab } from "./feishu-publish-tab";
 export type { FeishuPublishTabProps } from "./feishu-publish-tab";
 export { WechatMpPublishTab } from "./wechat-mp-publish-tab";
 export type { WechatMpPublishTabProps } from "./wechat-mp-publish-tab";
+export { ChannelsListPanel } from "./channels-list-panel";
+export type { ChannelsListPanelProps } from "./channels-list-panel";
+export { ChannelDetailRouter } from "./channel-detail-router";
+export type { ChannelDetailRouterProps } from "./channel-detail-router";

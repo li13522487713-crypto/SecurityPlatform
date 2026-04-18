@@ -25,7 +25,8 @@ public sealed class ResourceWriteGateTests
         var guard = new RecordingGuard();
         var pdp = new RecordingPdp();
         var current = new NullCurrentUserAccessor();
-        var gate = new ResourceWriteGate(guard, pdp, current);
+        var lookup = new RecordingWorkspaceLookup();
+        var gate = new ResourceWriteGate(guard, pdp, current, lookup);
 
         await gate.GuardAsync(Tenant, 100, "agent", 1, "edit", CancellationToken.None);
 
@@ -45,7 +46,8 @@ public sealed class ResourceWriteGateTests
             TenantId: Tenant,
             Roles: Array.Empty<string>(),
             IsPlatformAdmin: false));
-        var gate = new ResourceWriteGate(guard, pdp, current);
+        var lookup = new RecordingWorkspaceLookup();
+        var gate = new ResourceWriteGate(guard, pdp, current, lookup);
 
         await gate.GuardAsync(Tenant, 100, "agent", 1, "edit", CancellationToken.None);
 
@@ -60,7 +62,8 @@ public sealed class ResourceWriteGateTests
         var guard = new RecordingGuard { ShouldThrow = true };
         var pdp = new RecordingPdp();
         var current = new FixedCurrentUserAccessor(new CurrentUserInfo(7, "u", "u", Tenant, Array.Empty<string>()));
-        var gate = new ResourceWriteGate(guard, pdp, current);
+        var lookup = new RecordingWorkspaceLookup();
+        var gate = new ResourceWriteGate(guard, pdp, current, lookup);
 
         await Assert.ThrowsAsync<BusinessException>(() =>
             gate.GuardAsync(Tenant, 100, "agent", 1, "delete", CancellationToken.None));
@@ -72,13 +75,45 @@ public sealed class ResourceWriteGateTests
         var guard = new RecordingGuard();
         var pdp = new RecordingPdp();
         var current = new NullCurrentUserAccessor();
-        var gate = new ResourceWriteGate(guard, pdp, current);
+        var lookup = new RecordingWorkspaceLookup();
+        var gate = new ResourceWriteGate(guard, pdp, current, lookup);
 
         await gate.InvalidateAsync(Tenant, "agent", 9001, CancellationToken.None);
 
         Assert.Single(pdp.InvalidateCalls);
         Assert.Equal("agent", pdp.InvalidateCalls[0].ResourceType);
         Assert.Equal(9001L, pdp.InvalidateCalls[0].ResourceId);
+    }
+
+    [Fact]
+    public async Task GuardByResourceAsync_ShouldShortCircuit_WhenWorkspaceMissing()
+    {
+        var guard = new RecordingGuard();
+        var pdp = new RecordingPdp();
+        var current = new FixedCurrentUserAccessor(new CurrentUserInfo(7, "u", "u", Tenant, Array.Empty<string>()));
+        var lookup = new RecordingWorkspaceLookup(); // 默认返回 null
+        var gate = new ResourceWriteGate(guard, pdp, current, lookup);
+
+        await gate.GuardByResourceAsync(Tenant, "workflow", 9001, "edit", CancellationToken.None);
+
+        // 资源没有 workspaceId → 不调 guard
+        Assert.Empty(guard.Calls);
+    }
+
+    [Fact]
+    public async Task GuardByResourceAsync_ShouldDelegateToGuard_WhenWorkspaceResolved()
+    {
+        var guard = new RecordingGuard();
+        var pdp = new RecordingPdp();
+        var current = new FixedCurrentUserAccessor(new CurrentUserInfo(7, "u", "u", Tenant, Array.Empty<string>()));
+        var lookup = new RecordingWorkspaceLookup { ResolvedWorkspaceId = 200200 };
+        var gate = new ResourceWriteGate(guard, pdp, current, lookup);
+
+        await gate.GuardByResourceAsync(Tenant, "workflow", 9001, "edit", CancellationToken.None);
+
+        Assert.Single(guard.Calls);
+        Assert.Equal(200200L, guard.Calls[0].WorkspaceId);
+        Assert.Equal("workflow", guard.Calls[0].ResourceType);
     }
 
     private sealed class RecordingGuard : IResourceAccessGuard
@@ -132,5 +167,17 @@ public sealed class ResourceWriteGateTests
         public FixedCurrentUserAccessor(CurrentUserInfo user) => _user = user;
         public CurrentUserInfo? GetCurrentUser() => _user;
         public CurrentUserInfo GetCurrentUserOrThrow() => _user;
+    }
+
+    private sealed class RecordingWorkspaceLookup : IResourceWorkspaceLookup
+    {
+        public long? ResolvedWorkspaceId { get; set; }
+        public List<(string Type, long Id)> Calls { get; } = new();
+
+        public Task<long?> ResolveWorkspaceIdAsync(TenantId tenantId, string resourceType, long resourceId, CancellationToken cancellationToken)
+        {
+            Calls.Add((resourceType, resourceId));
+            return Task.FromResult(ResolvedWorkspaceId);
+        }
     }
 }
