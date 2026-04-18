@@ -48,8 +48,10 @@ test.describe.serial("@smoke App Navigation", () => {
       { itemKey: "reports", pageTestId: "app-reports-page" },
       { itemKey: "dashboards", pageTestId: "app-dashboards-page" },
       { itemKey: "visualization", pageTestId: "app-visualization-page" },
-      { itemKey: "workflows", pageTestId: "app-workflows-page" },
-      { itemKey: "chatflows", pageTestId: "app-chatflows-page" }
+      // workflows / chatflows 路由在没有具体 id 时落到 WorkspaceStudioRoute(focus=workflow|chatflow)，
+      // 实际渲染 DevelopPage（testId=app-develop-page）。
+      { itemKey: "workflows", pageTestId: "app-develop-page" },
+      { itemKey: "chatflows", pageTestId: "app-develop-page" }
     ];
 
     for (const navigationCase of navigationCases) {
@@ -82,8 +84,9 @@ test.describe.serial("@smoke App Navigation", () => {
     await navigateBySidebar(page, "dashboard", { pageTestId: "app-dashboard-page" });
     await expect(page.getByTestId("app-shell-header-title")).toHaveText("主控台");
 
+    // 当前 IA 中"管理"分组的 header 文案为 i18n key shellHeaderManagementTitle = "团队治理"。
     await navigateBySidebar(page, "manage", { pageTestId: "app-organization-overview-page" });
-    await expect(page.getByTestId("app-shell-header-title")).toHaveText("管理");
+    await expect(page.getByTestId("app-shell-header-title")).toHaveText("团队治理");
 
     await navigateBySidebar(page, "settings", { pageTestId: "workspace-settings-page" });
     await expect(page.getByTestId("app-shell-header-title")).toHaveText("设置");
