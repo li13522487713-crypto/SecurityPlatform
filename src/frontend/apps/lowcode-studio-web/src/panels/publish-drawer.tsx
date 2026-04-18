@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { SideSheet, Button, List, Tag, Typography, Spin, Toast, Space, Empty } from '@douyinfe/semi-ui';
+import { SideSheet, Button, List, Tag, Typography, Spin, Toast, Space, Empty, Checkbox, CheckboxGroup } from '@douyinfe/semi-ui';
 import { lowcodeApi, type PublishArtifact } from '../services/api-core';
+
+const RENDERER_OPTIONS = [
+  { label: 'web', value: 'web' },
+  { label: '微信小程序 (mini-wx)', value: 'mini-wx' },
+  { label: '抖音小程序 (mini-douyin)', value: 'mini-douyin' },
+  { label: 'h5', value: 'h5' }
+];
 
 /**
  * 发布抽屉（M17 C17-4 / C17-5 / C17-6 / C17-7）。
  * 三类产物：hosted / embedded-sdk / preview。
+ * 渲染器矩阵：用户选择目标渲染器子集，传入 rendererMatrixJson；preview 默认仅 web。
  */
 export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose: () => void }> = ({ appId, visible, onClose }) => {
+  const [renderers, setRenderers] = useState<string[]>(['web']);
+
   const artifactsQuery = useQuery({
     queryKey: ['lowcode-artifacts', appId],
     queryFn: () => lowcodeApi.publish.list(appId),
@@ -15,7 +25,13 @@ export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose:
   });
 
   const publishMut = useMutation({
-    mutationFn: (kind: 'hosted' | 'embedded-sdk' | 'preview') => lowcodeApi.publish.publish(appId, kind),
+    mutationFn: (kind: 'hosted' | 'embedded-sdk' | 'preview') => {
+      // preview 仅 web；hosted / embedded-sdk 按用户选择的 renderers 子集
+      const matrix = kind === 'preview'
+        ? { web: true }
+        : Object.fromEntries((renderers.length > 0 ? renderers : ['web']).map((r) => [r, true]));
+      return lowcodeApi.publish.publish(appId, kind, { rendererMatrixJson: JSON.stringify(matrix) });
+    },
     onSuccess: (a: PublishArtifact) => {
       Toast.success(`发布成功（${a.kind}）`);
       artifactsQuery.refetch();
@@ -34,6 +50,16 @@ export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose:
 
   return (
     <SideSheet title="发布管理" visible={visible} onCancel={onClose} placement="right" size="large">
+      <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>
+        渲染器矩阵（hosted / embedded-sdk 生效；preview 固定 web）
+      </Typography.Text>
+      <CheckboxGroup
+        value={renderers}
+        onChange={(v) => setRenderers(v as string[])}
+        style={{ marginBottom: 12 }}
+      >
+        {RENDERER_OPTIONS.map((o) => <Checkbox key={o.value} value={o.value}>{o.label}</Checkbox>)}
+      </CheckboxGroup>
       <Space style={{ marginBottom: 16 }}>
         <Button type="primary" loading={publishMut.isPending} onClick={() => publishMut.mutate('hosted')}>发布 Hosted App</Button>
         <Button loading={publishMut.isPending} onClick={() => publishMut.mutate('embedded-sdk')}>发布 Embedded SDK</Button>
