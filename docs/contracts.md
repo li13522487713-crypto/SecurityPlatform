@@ -1150,6 +1150,38 @@ DTO：
 
 > 注：在 PlatformHost 内 `ApiVersionRewriteMiddleware` 会把 `/api/runtime/...` 重写为 `/api/v1/runtime/...`，外部调用两种写法等价。
 
+### 治理 M-G02-C5..C8：飞书渠道全链路
+
+> 飞书 connector 走独立凭据表 `FeishuChannelCredential`：管理员先 upsert 凭据（AppId/AppSecret/VerificationToken/EncryptKey），再发 release 触发 connector 真实接通（验证 token 拉取一次，写入 `RefreshCount` + 过期时间）；webhook 端点收到 `url_verification` 直接回 challenge，业务事件按 verification token 校验并按 `msg_id` 去重后派发到 Agent 对话，回包通过 `IFeishuApiClient.SendImMessageAsync` 走飞书 IM 客服消息。
+
+**凭据管理 API（管理员）：**
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/feishu-credential` → `ApiResponse<FeishuChannelCredentialDto?>`
+- `PUT /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/feishu-credential` body `FeishuChannelCredentialUpsertRequest` → `ApiResponse<FeishuChannelCredentialDto>`
+- `DELETE /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/feishu-credential` → `ApiResponse<{ success }>`
+
+DTO：
+
+- `FeishuChannelCredentialDto { id, channelId, workspaceId, appId, appIdMasked, verificationToken, hasEncryptKey, tenantAccessTokenExpiresAt?, refreshCount, createdAt, updatedAt }`
+- `FeishuChannelCredentialUpsertRequest { appId (1..64), appSecret (1..128), verificationToken (1..64), encryptKey? (max 128) }`
+
+> AppSecret / EncryptKey 经 `LowCodeCredentialProtector.Encrypt` 加密落库；DTO 不返回密文，`appIdMasked` 给前端做轻度脱敏。
+
+**Webhook 公共端点（飞书事件订阅）：**
+
+`POST /api/v1/runtime/channels/feishu/{channelId}/webhook`
+
+- `X-Tenant-Id` 必填（部署侧通常由网关或反代按租户填充）。
+- `type=url_verification`：connector 直接回 `{ challenge }`（飞书要求同步回包）。
+- 业务事件：必须携带 `header.token == VerificationToken`；当前支持 `header.event_type=im.message.receive_v1`，
+  按 `event.message.message_id` 维护 5 分钟内存去重；命中后调用 `IAgentChatService.ChatAsync` 并通过 `IFeishuApiClient.SendImMessageAsync` 异步回包。
+
+**Release 行为：**
+
+- 发布到 `feishu` 类型渠道时，connector 先校验凭据存在；缺失返回 `failed` + `FeishuCredentialMissing`。
+- 验证 token 拉取一次（拉取失败则记 `failed` + 飞书错误码与描述）。
+- 成功后 `publicMetadataJson` 包含 `webhookUrl / appId / appIdMasked / agentId / instructions`。
+
 ### 安全与权限（M2）
 
 - 视图操作 `Permission:ai-workspace:view`，写入操作 `Permission:ai-workspace:update`。

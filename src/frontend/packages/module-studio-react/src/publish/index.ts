@@ -6,3 +6,5 @@ export { ChatSdkPanel } from "./chat-sdk-panel";
 export type { ChatSdkPanelProps } from "./chat-sdk-panel";
 export { TokenManagement } from "./token-management";
 export type { TokenManagementProps } from "./token-management";
+export { FeishuPublishTab } from "./feishu-publish-tab";
+export type { FeishuPublishTabProps } from "./feishu-publish-tab";

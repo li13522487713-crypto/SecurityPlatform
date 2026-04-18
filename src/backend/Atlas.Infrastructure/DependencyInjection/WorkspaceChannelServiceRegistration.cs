@@ -22,6 +22,8 @@ public static class WorkspaceChannelServiceRegistration
         // 治理 M-G02-C3 / C4：Web SDK + Open API connector 内置实现。
         services.AddScoped<IWorkspaceChannelConnector, WebSdkChannelConnector>();
         services.AddScoped<IWorkspaceChannelConnector, OpenApiChannelConnector>();
+        // 治理 M-G02-C7 (S3)：飞书 connector
+        services.AddScoped<IWorkspaceChannelConnector, Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuChannelConnector>();
         return services;
     }
 }

@@ -127,3 +127,53 @@ Content-Type: application/json
   "message": "查询库存",
   "conversationId": null
 }
+
+### 治理 M-G02-C8：飞书凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/feishu-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "appId": "cli_xxxx",
+  "appSecret": "xxxxxxxx",
+  "verificationToken": "vtoken-from-feishu",
+  "encryptKey": null
+}
+
+### 飞书凭据查询（脱敏返回）
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/feishu-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 飞书 webhook（事件订阅）— url_verification 由 connector 内部 short-circuit
+POST {{baseUrl}}/api/v1/runtime/channels/feishu/{{channelId}}/webhook
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "type": "url_verification",
+  "challenge": "abc-challenge"
+}
+
+### 飞书 webhook：业务事件（im.message.receive_v1）
+POST {{baseUrl}}/api/v1/runtime/channels/feishu/{{channelId}}/webhook
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "header": {
+    "event_type": "im.message.receive_v1",
+    "token": "vtoken-from-feishu"
+  },
+  "event": {
+    "sender": {
+      "sender_type": "user",
+      "sender_id": { "open_id": "ou_caller" }
+    },
+    "message": {
+      "message_id": "om_unique_msg_1",
+      "content": "{\"text\":\"你好，请帮我查询订单\"}"
+    }
+  }
+}
