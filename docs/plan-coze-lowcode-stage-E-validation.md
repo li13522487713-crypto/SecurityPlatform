@@ -23,7 +23,7 @@
 
 ## 关键决策
 - **M18 插件域**：与现有工作流 N10 节点共享 PluginRegistry；Studio 调试通道 `/api/runtime/plugins/{id}:invoke` 自动计量 + 审计；M19 配额联动。
-- **M19 AI 生成**：auto 模式产 Entry→Llm→Exit 三节点 canvas；assisted 模式按关键字推断节点骨架；真实 LLM 接入由 ModelRegistry 在后续模型对接里替换，接口已稳定。
+- **M19 AI 生成**：已接入真实 LLM（IChatClientFactory.CreateAsync + IChatClient.GetResponseAsync，30s 超时）；auto 模式输出 { version, nodes[], edges[] } 完整 DAG；assisted 模式输出节点骨架；LLM 不可用 / 解析失败 / 超时 → 关键字模板 fallback（status='success-fallback'）。
 - **M19 批量执行**：3 输入源（CSV/JSON/数据库）统一委托 `IRuntimeWorkflowExecutor.InvokeBatchAsync`；onFailure=continue/abort。
 - **M20 节点 49**：上游对齐 8 个 + Atlas 私有图像/视频 6 个 + Memory 拆分 3 个 = 17 新节点。
 - **M20 双哲学**：`IDualOrchestrationEngine.Plan` 切换 explicit / agentic；agentic 模式注入 tools 池 + metadataJson；与前端 `lowcode-workflow-adapter/orchestration` 完全对齐。

@@ -22,11 +22,12 @@ namespace Atlas.Infrastructure.Services.LowCode;
 /// <summary>
 /// AI 生成工作流（M19 S19-1）。
 ///
-/// M19 阶段：在不引入 LLM 真实调用的前提下，提供"模板生成器"：
-///  - auto：基于 prompt 关键字 + base canvas 模板生成最简 Entry → Llm → Exit 三节点 canvas；
-///  - assisted：把 prompt 切词为节点骨架候选，由前端 Studio 进一步装配。
+/// 真实 LLM 路径：IChatClientFactory.CreateAsync → IChatClient.GetResponseAsync（30s 超时），按
+/// system + user 两段 Prompt 让模型产出严格 JSON：
+///  - auto：返回 { version, nodes[], edges[] } 完整 DAG canvas
+///  - assisted：返回 [{ nodeKey, type, label, configHint }] 节点骨架，前端 Studio 二次装配
 ///
-/// 真实 LLM 接入由现有 ModelRegistry 在后续模型对接里替换；接口与 DTO 已稳定。
+/// 失败兜底：LLM 不可用 / 解析失败 / 超时 → 关键字模板 fallback（status='success-fallback'）。
 /// </summary>
 public sealed class WorkflowGenerationService : IWorkflowGenerationService
 {
