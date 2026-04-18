@@ -10,6 +10,23 @@ public sealed class KnowledgeBaseCreateRequestValidator : AbstractValidator<Know
         RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
         RuleFor(x => x.Description).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.Description));
         RuleFor(x => x.WorkspaceId).GreaterThan(0).When(x => x.WorkspaceId.HasValue);
+        // v5 §32-44 / 计划 G1：扩展字段校验
+        RuleFor(x => x.Kind!.Value).IsInEnum().When(x => x.Kind.HasValue);
+        RuleFor(x => x.Provider!.Value).IsInEnum().When(x => x.Provider.HasValue);
+        RuleFor(x => x.ProviderConfigId).MaximumLength(128).When(x => !string.IsNullOrWhiteSpace(x.ProviderConfigId));
+        RuleFor(x => x.Tags!.Count).LessThanOrEqualTo(32).When(x => x.Tags is not null);
+        When(x => x.ChunkingProfile is not null, () =>
+        {
+            RuleFor(x => x.ChunkingProfile!.Mode).IsInEnum();
+            RuleFor(x => x.ChunkingProfile!.Size).InclusiveBetween(50, 4000);
+            RuleFor(x => x.ChunkingProfile!.Overlap).InclusiveBetween(0, 1000);
+            RuleFor(x => x.ChunkingProfile!.Overlap).LessThan(x => x.ChunkingProfile!.Size);
+        });
+        When(x => x.RetrievalProfile is not null, () =>
+        {
+            RuleFor(x => x.RetrievalProfile!.TopK).InclusiveBetween(1, 50);
+            RuleFor(x => x.RetrievalProfile!.MinScore).InclusiveBetween(0f, 1f);
+        });
     }
 }
 
@@ -20,6 +37,22 @@ public sealed class KnowledgeBaseUpdateRequestValidator : AbstractValidator<Know
         RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
         RuleFor(x => x.Description).MaximumLength(2000).When(x => !string.IsNullOrWhiteSpace(x.Description));
         RuleFor(x => x.WorkspaceId).GreaterThan(0).When(x => x.WorkspaceId.HasValue);
+        RuleFor(x => x.Kind!.Value).IsInEnum().When(x => x.Kind.HasValue);
+        RuleFor(x => x.Provider!.Value).IsInEnum().When(x => x.Provider.HasValue);
+        RuleFor(x => x.ProviderConfigId).MaximumLength(128).When(x => !string.IsNullOrWhiteSpace(x.ProviderConfigId));
+        RuleFor(x => x.Tags!.Count).LessThanOrEqualTo(32).When(x => x.Tags is not null);
+        When(x => x.ChunkingProfile is not null, () =>
+        {
+            RuleFor(x => x.ChunkingProfile!.Mode).IsInEnum();
+            RuleFor(x => x.ChunkingProfile!.Size).InclusiveBetween(50, 4000);
+            RuleFor(x => x.ChunkingProfile!.Overlap).InclusiveBetween(0, 1000);
+            RuleFor(x => x.ChunkingProfile!.Overlap).LessThan(x => x.ChunkingProfile!.Size);
+        });
+        When(x => x.RetrievalProfile is not null, () =>
+        {
+            RuleFor(x => x.RetrievalProfile!.TopK).InclusiveBetween(1, 50);
+            RuleFor(x => x.RetrievalProfile!.MinScore).InclusiveBetween(0f, 1f);
+        });
     }
 }
 
@@ -30,6 +63,16 @@ public sealed class DocumentCreateRequestValidator : AbstractValidator<DocumentC
         RuleFor(x => x.FileId).GreaterThan(0);
         RuleFor(x => x.TagsJson).MaximumLength(16_000).When(x => !string.IsNullOrWhiteSpace(x.TagsJson));
         RuleFor(x => x.ImageMetadataJson).MaximumLength(32_000).When(x => !string.IsNullOrWhiteSpace(x.ImageMetadataJson));
+        // v5 §35：携带的 ParsingStrategy 字段约束
+        When(x => x.ParsingStrategy is not null, () =>
+        {
+            RuleFor(x => x.ParsingStrategy!.ParsingType).IsInEnum();
+            RuleFor(x => x.ParsingStrategy!.HeaderLine).GreaterThanOrEqualTo(0).When(x => x.ParsingStrategy!.HeaderLine.HasValue);
+            RuleFor(x => x.ParsingStrategy!.DataStartLine).GreaterThanOrEqualTo(0).When(x => x.ParsingStrategy!.DataStartLine.HasValue);
+            RuleFor(x => x.ParsingStrategy!.RowsCount).GreaterThan(0).When(x => x.ParsingStrategy!.RowsCount.HasValue);
+            RuleFor(x => x.ParsingStrategy!.SheetId).MaximumLength(128).When(x => !string.IsNullOrWhiteSpace(x.ParsingStrategy!.SheetId));
+            RuleFor(x => x.ParsingStrategy!.FilterPages).MaximumLength(512).When(x => !string.IsNullOrWhiteSpace(x.ParsingStrategy!.FilterPages));
+        });
     }
 }
 
@@ -159,5 +202,73 @@ public sealed class RebuildIndexRequestValidator : AbstractValidator<RebuildInde
     public RebuildIndexRequestValidator()
     {
         RuleFor(x => x.DocumentId).GreaterThan(0).When(x => x.DocumentId.HasValue);
+        RuleFor(x => x.Mode).IsInEnum();
+    }
+}
+
+public sealed class ParseJobReplayRequestValidator : AbstractValidator<ParseJobReplayRequest>
+{
+    public ParseJobReplayRequestValidator()
+    {
+        When(x => x.ParsingStrategy is not null, () =>
+        {
+            RuleFor(x => x.ParsingStrategy!.ParsingType).IsInEnum();
+            RuleFor(x => x.ParsingStrategy!.SheetId).MaximumLength(128).When(x => !string.IsNullOrWhiteSpace(x.ParsingStrategy!.SheetId));
+        });
+    }
+}
+
+public sealed class IndexJobRebuildRequestValidator : AbstractValidator<IndexJobRebuildRequest>
+{
+    public IndexJobRebuildRequestValidator()
+    {
+        RuleFor(x => x.Mode).IsInEnum();
+        When(x => x.ChunkingProfile is not null, () =>
+        {
+            RuleFor(x => x.ChunkingProfile!.Mode).IsInEnum();
+            RuleFor(x => x.ChunkingProfile!.Size).InclusiveBetween(50, 4000);
+            RuleFor(x => x.ChunkingProfile!.Overlap).InclusiveBetween(0, 1000);
+            RuleFor(x => x.ChunkingProfile!.Overlap).LessThan(x => x.ChunkingProfile!.Size);
+        });
+    }
+}
+
+public sealed class DeadLetterRetryRequestValidator : AbstractValidator<DeadLetterRetryRequest>
+{
+    public DeadLetterRetryRequestValidator()
+    {
+        When(x => x.JobIds is not null, () =>
+        {
+            RuleFor(x => x.JobIds!.Count).LessThanOrEqualTo(200);
+            RuleForEach(x => x.JobIds!).GreaterThan(0);
+        });
+        When(x => x.Type.HasValue, () =>
+        {
+            RuleFor(x => x.Type!.Value).IsInEnum();
+        });
+    }
+}
+
+public sealed class KnowledgePermissionUpdateRequestValidator : AbstractValidator<KnowledgePermissionUpdateRequest>
+{
+    public KnowledgePermissionUpdateRequestValidator()
+    {
+        RuleFor(x => x.Actions).NotEmpty();
+        RuleForEach(x => x.Actions).IsInEnum();
+    }
+}
+
+public sealed class KnowledgeProviderConfigUpsertRequestValidator : AbstractValidator<KnowledgeProviderConfigUpsertRequest>
+{
+    public KnowledgeProviderConfigUpsertRequestValidator()
+    {
+        RuleFor(x => x.Role).IsInEnum();
+        RuleFor(x => x.ProviderName).NotEmpty().MaximumLength(128);
+        RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(256);
+        RuleFor(x => x.Status).IsInEnum();
+        RuleFor(x => x.Endpoint).MaximumLength(512).When(x => !string.IsNullOrWhiteSpace(x.Endpoint));
+        RuleFor(x => x.Region).MaximumLength(128).When(x => !string.IsNullOrWhiteSpace(x.Region));
+        RuleFor(x => x.BucketOrIndex).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.BucketOrIndex));
+        RuleFor(x => x.MetadataJson).MaximumLength(16_000).When(x => !string.IsNullOrWhiteSpace(x.MetadataJson));
     }
 }

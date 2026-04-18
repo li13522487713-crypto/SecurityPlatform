@@ -12,7 +12,7 @@ public sealed record KnowledgeBaseDto(
     DateTime CreatedAt,
     // ↓ v5 §32-44 扩展字段（向后兼容：旧调用方按位置构造时仍合法）
     KnowledgeBaseKind? Kind = null,
-    KnowledgeBaseProviderKind? ProviderKind = null,
+    KnowledgeBaseProvider? Provider = null,
     string? ProviderConfigId = null,
     KnowledgeDocumentLifecycleStatus? LifecycleStatus = null,
     ChunkingProfile? ChunkingProfile = null,
@@ -33,7 +33,7 @@ public sealed record KnowledgeBaseCreateRequest(
     long? WorkspaceId = null,
     // v5 扩展
     KnowledgeBaseKind? Kind = null,
-    KnowledgeBaseProviderKind? ProviderKind = null,
+    KnowledgeBaseProvider? Provider = null,
     string? ProviderConfigId = null,
     ChunkingProfile? ChunkingProfile = null,
     RetrievalProfile? RetrievalProfile = null,
@@ -46,7 +46,7 @@ public sealed record KnowledgeBaseUpdateRequest(
     long? WorkspaceId = null,
     // v5 扩展
     KnowledgeBaseKind? Kind = null,
-    KnowledgeBaseProviderKind? ProviderKind = null,
+    KnowledgeBaseProvider? Provider = null,
     string? ProviderConfigId = null,
     ChunkingProfile? ChunkingProfile = null,
     RetrievalProfile? RetrievalProfile = null,

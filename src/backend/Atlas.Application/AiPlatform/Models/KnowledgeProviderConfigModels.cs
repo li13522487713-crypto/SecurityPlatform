@@ -28,3 +28,18 @@ public sealed record KnowledgeProviderConfigDto(
     string? Region = null,
     string? BucketOrIndex = null,
     string? MetadataJson = null);
+
+/// <summary>
+/// Provider 配置写入请求（v5 §39 / 计划 G1+G5）。
+/// admin 用：通过 PUT /provider-configs/{role} 更新或创建该 role 的默认 provider。
+/// </summary>
+public sealed record KnowledgeProviderConfigUpsertRequest(
+    KnowledgeProviderRole Role,
+    string ProviderName,
+    string DisplayName,
+    KnowledgeProviderStatus Status = KnowledgeProviderStatus.Active,
+    bool IsDefault = true,
+    string? Endpoint = null,
+    string? Region = null,
+    string? BucketOrIndex = null,
+    string? MetadataJson = null);

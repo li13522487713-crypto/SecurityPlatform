@@ -51,6 +51,20 @@ public sealed class KnowledgeBindingService : IKnowledgeBindingService
         return new PagedResult<KnowledgeBindingDto>(items.Select(Map).ToList(), total, pageIndex, pageSize);
     }
 
+    public async Task<KnowledgeBindingDto?> GetByIdAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        long bindingId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await _bindingRepository.FindByIdAsync(tenantId, bindingId, cancellationToken);
+        if (entity is null || entity.KnowledgeBaseId != knowledgeBaseId)
+        {
+            return null;
+        }
+        return Map(entity);
+    }
+
     public async Task<long> CreateAsync(
         TenantId tenantId,
         long knowledgeBaseId,
@@ -167,6 +181,25 @@ public sealed class KnowledgePermissionService : IKnowledgePermissionService
             grantedByUserId);
         await _permissionRepository.AddAsync(entity, cancellationToken);
         return entity.Id;
+    }
+
+    public async Task UpdateAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        long permissionId,
+        KnowledgePermissionUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        await EnsureKnowledgeBaseAsync(tenantId, knowledgeBaseId, cancellationToken);
+        var entity = await _permissionRepository.FindByIdAsync(tenantId, permissionId, cancellationToken)
+            ?? throw new BusinessException("权限记录不存在。", ErrorCodes.NotFound);
+        if (entity.KnowledgeBaseId.HasValue && entity.KnowledgeBaseId.Value != knowledgeBaseId)
+        {
+            throw new BusinessException("权限记录不属于该知识库。", ErrorCodes.Forbidden);
+        }
+
+        entity.UpdateActions(JsonSerializer.Serialize(request.Actions));
+        await _permissionRepository.UpdateAsync(entity, cancellationToken);
     }
 
     public async Task RevokeAsync(
@@ -383,14 +416,19 @@ public sealed class KnowledgeVersionService : IKnowledgeVersionService
         };
 }
 
-/// <summary>Provider 配置中心（v5 §39 / §42）。当前阶段只读：通过 appsettings + DB 行兼容</summary>
+/// <summary>Provider 配置中心（v5 §39 / §42 / 计划 G1+G5）。
+/// 列表只读 + admin upsert（按 role 维护默认 provider）。</summary>
 public sealed class KnowledgeProviderConfigService : IKnowledgeProviderConfigService
 {
     private readonly KnowledgeProviderConfigRepository _repository;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
-    public KnowledgeProviderConfigService(KnowledgeProviderConfigRepository repository)
+    public KnowledgeProviderConfigService(
+        KnowledgeProviderConfigRepository repository,
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _repository = repository;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task<IReadOnlyList<KnowledgeProviderConfigDto>> ListAsync(
@@ -399,6 +437,54 @@ public sealed class KnowledgeProviderConfigService : IKnowledgeProviderConfigSer
     {
         var entities = await _repository.ListAsync(tenantId, cancellationToken);
         return entities.Select(Map).ToList();
+    }
+
+    public async Task<KnowledgeProviderConfigDto> UpsertAsync(
+        TenantId tenantId,
+        KnowledgeProviderConfigUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        var roleString = request.Role.ToString().ToLowerInvariant();
+        var statusString = request.Status.ToString().ToLowerInvariant();
+
+        // 若标记为默认，先清除该 role 当前默认标志，确保只有一个默认 provider
+        if (request.IsDefault)
+        {
+            await _repository.ClearDefaultByRoleAsync(tenantId, roleString, cancellationToken);
+        }
+
+        var existing = await _repository.FindDefaultByRoleAsync(tenantId, roleString, cancellationToken);
+        if (existing is not null && request.IsDefault)
+        {
+            existing.Upsert(
+                request.ProviderName,
+                request.DisplayName,
+                statusString,
+                request.IsDefault,
+                request.Endpoint,
+                request.Region,
+                request.BucketOrIndex,
+                request.MetadataJson);
+            await _repository.UpdateAsync(existing, cancellationToken);
+            return Map(existing);
+        }
+
+        var configId = $"{roleString}-{request.ProviderName.ToLowerInvariant()}";
+        var entity = new KnowledgeProviderConfigEntity(
+            tenantId,
+            _idGeneratorAccessor.NextId(),
+            configId,
+            roleString,
+            request.ProviderName,
+            request.DisplayName,
+            request.IsDefault,
+            statusString,
+            request.Endpoint,
+            request.Region,
+            request.BucketOrIndex,
+            request.MetadataJson);
+        await _repository.AddAsync(entity, cancellationToken);
+        return Map(entity);
     }
 
     private static KnowledgeProviderConfigDto Map(KnowledgeProviderConfigEntity entity)

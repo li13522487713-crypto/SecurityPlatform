@@ -177,6 +177,33 @@ public sealed class KnowledgeProviderConfigRepository : RepositoryBase<Knowledge
             .OrderBy(x => x.Role)
             .OrderBy(x => x.IsDefault, OrderByType.Desc)
             .ToListAsync(cancellationToken);
+
+    /// <summary>v5 §39 / 计划 G1：按 role 查找默认 provider，PUT upsert 路径专用。</summary>
+    public async Task<KnowledgeProviderConfigEntity?> FindDefaultByRoleAsync(
+        TenantId tenantId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<KnowledgeProviderConfigEntity>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Role == role && x.IsDefault)
+            .FirstAsync(cancellationToken);
+    }
+
+    /// <summary>清除某 role 已有的 IsDefault 标志，保证只有一个默认 provider。</summary>
+    public async Task ClearDefaultByRoleAsync(
+        TenantId tenantId,
+        string role,
+        CancellationToken cancellationToken)
+    {
+        var existing = await Db.Queryable<KnowledgeProviderConfigEntity>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Role == role && x.IsDefault)
+            .ToListAsync(cancellationToken);
+        foreach (var entity in existing)
+        {
+            entity.SetIsDefault(false);
+            await UpdateAsync(entity, cancellationToken);
+        }
+    }
 }
 
 public sealed class KnowledgeTableColumnRepository : RepositoryBase<KnowledgeTableColumnEntity>

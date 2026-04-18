@@ -11,8 +11,10 @@ public enum KnowledgeBaseKind
     Image = 2
 }
 
-/// <summary>知识库底层 RAG / 向量提供方。</summary>
-public enum KnowledgeBaseProviderKind
+/// <summary>
+/// 知识库底层 RAG / 向量提供方（v5 §32-44 计划字面命名）。
+/// </summary>
+public enum KnowledgeBaseProvider
 {
     Builtin = 0,
     Qdrant = 1,
@@ -20,20 +22,14 @@ public enum KnowledgeBaseProviderKind
 }
 
 /// <summary>
-/// 文档完整生命周期状态机（v5 §35）。
-/// 取代旧的 <see cref="DocumentProcessingStatus"/>（仍然保留以兼容旧 API）。
+/// 兼容别名：旧代码使用 <c>KnowledgeBaseProviderKind</c>；新代码请使用 <see cref="KnowledgeBaseProvider"/>。
 /// </summary>
-public enum KnowledgeDocumentLifecycleStatus
+[Obsolete("Renamed to KnowledgeBaseProvider; will be removed in next major version.")]
+public enum KnowledgeBaseProviderKind
 {
-    Draft = 0,
-    Uploading = 1,
-    Uploaded = 2,
-    Parsing = 3,
-    Chunking = 4,
-    Indexing = 5,
-    Ready = 6,
-    Failed = 7,
-    Archived = 8
+    Builtin = 0,
+    Qdrant = 1,
+    External = 2
 }
 
 /// <summary>解析模式：Quick=轻量文本；Precise=精准（含图表 OCR）。</summary>

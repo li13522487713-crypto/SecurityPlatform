@@ -47,3 +47,7 @@ public sealed record KnowledgePermissionGrantRequest(
     IReadOnlyList<KnowledgePermissionAction> Actions,
     long? KnowledgeBaseId = null,
     long? DocumentId = null);
+
+/// <summary>更新已存在的权限记录的 actions（v5 §39 / 计划 G1+G5）。</summary>
+public sealed record KnowledgePermissionUpdateRequest(
+    IReadOnlyList<KnowledgePermissionAction> Actions);

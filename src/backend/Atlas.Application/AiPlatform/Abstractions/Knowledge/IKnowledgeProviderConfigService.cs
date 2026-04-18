@@ -12,4 +12,10 @@ public interface IKnowledgeProviderConfigService
     Task<IReadOnlyList<KnowledgeProviderConfigDto>> ListAsync(
         TenantId tenantId,
         CancellationToken cancellationToken);
+
+    /// <summary>v5 §39 / 计划 G1+G5：管理员通过 PUT /provider-configs/{role} 写入或更新该 role 的默认 provider。</summary>
+    Task<KnowledgeProviderConfigDto> UpsertAsync(
+        TenantId tenantId,
+        KnowledgeProviderConfigUpsertRequest request,
+        CancellationToken cancellationToken);
 }

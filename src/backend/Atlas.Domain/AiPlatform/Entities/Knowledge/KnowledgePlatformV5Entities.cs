@@ -421,6 +421,35 @@ public sealed class KnowledgeProviderConfigEntity : TenantEntity
         Status = status;
         UpdatedAt = DateTime.UtcNow;
     }
+
+    /// <summary>v5 §39 / 计划 G1：upsert 路径调整 IsDefault。</summary>
+    public void SetIsDefault(bool isDefault)
+    {
+        IsDefault = isDefault;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>v5 §39 / 计划 G1：upsert 路径覆盖业务字段（保留 ConfigId / Role 不变）。</summary>
+    public void Upsert(
+        string providerName,
+        string displayName,
+        string status,
+        bool isDefault,
+        string? endpoint,
+        string? region,
+        string? bucketOrIndex,
+        string? metadataJson)
+    {
+        ProviderName = string.IsNullOrWhiteSpace(providerName) ? ProviderName : providerName;
+        DisplayName = string.IsNullOrWhiteSpace(displayName) ? DisplayName : displayName;
+        Status = string.IsNullOrWhiteSpace(status) ? Status : status;
+        IsDefault = isDefault;
+        Endpoint = endpoint;
+        Region = region;
+        BucketOrIndex = bucketOrIndex;
+        MetadataJson = metadataJson;
+        UpdatedAt = DateTime.UtcNow;
+    }
 }
 
 /// <summary>

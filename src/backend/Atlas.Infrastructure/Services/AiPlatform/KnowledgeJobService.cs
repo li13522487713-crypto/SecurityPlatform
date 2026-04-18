@@ -250,6 +250,49 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
         });
     }
 
+    public async Task<int> RetryDeadLetterBatchAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        DeadLetterRetryRequest request,
+        CancellationToken cancellationToken)
+    {
+        await EnsureKnowledgeBaseAsync(tenantId, knowledgeBaseId, cancellationToken);
+
+        // 当 JobIds 提供时，逐条重投；否则按 KB + 可选 type 拉取全部 DeadLetter 任务
+        IReadOnlyList<long> targetIds;
+        if (request.JobIds is not null && request.JobIds.Count > 0)
+        {
+            targetIds = request.JobIds;
+        }
+        else
+        {
+            var (items, _) = await _jobRepository.GetPagedAsync(
+                tenantId,
+                knowledgeBaseId,
+                JobStatusDeadLetter,
+                request.Type.HasValue ? TypeToString(request.Type.Value) : null,
+                pageIndex: 1,
+                pageSize: 200,
+                cancellationToken);
+            targetIds = items.Select(x => x.Id).ToList();
+        }
+
+        var success = 0;
+        foreach (var jobId in targetIds)
+        {
+            try
+            {
+                await RetryDeadLetterAsync(tenantId, knowledgeBaseId, jobId, cancellationToken);
+                success += 1;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Knowledge job {JobId} batch retry failed", jobId);
+            }
+        }
+        return success;
+    }
+
     public async Task CancelAsync(
         TenantId tenantId,
         long knowledgeBaseId,

@@ -23,6 +23,13 @@ public interface IKnowledgeBindingService
         int pageSize,
         CancellationToken cancellationToken);
 
+    /// <summary>v5 §39 / 计划 G1：单条绑定详情；前端"绑定关系图谱"详情侧栏使用。</summary>
+    Task<KnowledgeBindingDto?> GetByIdAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        long bindingId,
+        CancellationToken cancellationToken);
+
     Task<long> CreateAsync(
         TenantId tenantId,
         long knowledgeBaseId,

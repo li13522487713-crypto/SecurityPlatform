@@ -23,6 +23,14 @@ public interface IKnowledgePermissionService
         string grantedByUserId,
         CancellationToken cancellationToken);
 
+    /// <summary>更新已存在的权限记录的 actions（v5 §39 / 计划 G1+G5）。</summary>
+    Task UpdateAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        long permissionId,
+        KnowledgePermissionUpdateRequest request,
+        CancellationToken cancellationToken);
+
     Task RevokeAsync(
         TenantId tenantId,
         long knowledgeBaseId,
