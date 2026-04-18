@@ -5,28 +5,85 @@ using SqlSugar;
 namespace Atlas.Infrastructure.Repositories;
 
 /// <summary>
-/// v5 §32-44 知识库专题新增的仓储集合。
+/// v5 §32-44 知识库专题新增的仓储集合（计划 G2）。
 /// 所有仓储继承 <see cref="RepositoryBase{TEntity}"/>，并为前端任务面板 / 检索日志面板 / 治理 Tab
 /// 追加批量查询便捷方法，避免每个 service 重复写 LINQ。
 /// </summary>
-public sealed class KnowledgeBaseVersionRepository : RepositoryBase<KnowledgeVersionEntity>
+public sealed class KnowledgeBaseVersionRepository : RepositoryBase<KnowledgeDocumentVersion>
 {
     public KnowledgeBaseVersionRepository(ISqlSugarClient db) : base(db) { }
 
-    public async Task<(List<KnowledgeVersionEntity> Items, long Total)> GetPagedAsync(
+    public async Task<(List<KnowledgeDocumentVersion> Items, long Total)> GetPagedAsync(
         TenantId tenantId,
         long knowledgeBaseId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var query = Db.Queryable<KnowledgeVersionEntity>()
+        var query = Db.Queryable<KnowledgeDocumentVersion>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.KnowledgeBaseId == knowledgeBaseId);
         var total = await query.CountAsync(cancellationToken);
         var items = await query.OrderBy(x => x.Id, OrderByType.Desc)
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
         return (items, total);
     }
+}
+
+/// <summary>
+/// v5 §35 / 计划 G2 / G3：解析任务仓储。
+/// 与 <see cref="KnowledgeJobRepository"/> 平行；新代码通过 <c>IKnowledgeParseJobService</c> 统一写入。
+/// </summary>
+public sealed class KnowledgeParseJobRepository : RepositoryBase<KnowledgeParseJob>
+{
+    public KnowledgeParseJobRepository(ISqlSugarClient db) : base(db) { }
+
+    public Task<List<KnowledgeParseJob>> ListByDocumentAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        long documentId,
+        CancellationToken cancellationToken)
+        => Db.Queryable<KnowledgeParseJob>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.KnowledgeBaseId == knowledgeBaseId
+                && x.DocumentId == documentId)
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToListAsync(cancellationToken);
+}
+
+/// <summary>v5 §35 / 计划 G2 / G3：索引任务仓储。</summary>
+public sealed class KnowledgeIndexJobRepository : RepositoryBase<KnowledgeIndexJob>
+{
+    public KnowledgeIndexJobRepository(ISqlSugarClient db) : base(db) { }
+
+    public Task<List<KnowledgeIndexJob>> ListByDocumentAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        long documentId,
+        CancellationToken cancellationToken)
+        => Db.Queryable<KnowledgeIndexJob>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.KnowledgeBaseId == knowledgeBaseId
+                && x.DocumentId == documentId)
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToListAsync(cancellationToken);
+}
+
+/// <summary>v5 §37 / 计划 G2：表格 KB 父表。</summary>
+public sealed class KnowledgeTableRepository : RepositoryBase<KnowledgeTable>
+{
+    public KnowledgeTableRepository(ISqlSugarClient db) : base(db) { }
+
+    public Task<List<KnowledgeTable>> ListByDocumentAsync(
+        TenantId tenantId,
+        long knowledgeBaseId,
+        long documentId,
+        CancellationToken cancellationToken)
+        => Db.Queryable<KnowledgeTable>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.KnowledgeBaseId == knowledgeBaseId
+                && x.DocumentId == documentId)
+            .OrderBy(x => x.Id)
+            .ToListAsync(cancellationToken);
 }
 
 public sealed class KnowledgeJobRepository : RepositoryBase<KnowledgeJob>

@@ -1,50 +1,82 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import type { ConnectorApi } from '../api';
 import type { ExternalIdentityBindingListItem, IdentityBindingStatus } from '../types';
+import { IdentityBindingConflictCenter } from './IdentityBindingConflictCenter';
 
 export interface ConnectorBindingsPageProps {
   api: ConnectorApi;
   providerId: number;
+  labels?: Partial<Record<
+    | 'title'
+    | 'statusFilter'
+    | 'all'
+    | 'columnLocalUser'
+    | 'columnExternalUser'
+    | 'columnStatus'
+    | 'columnStrategy'
+    | 'columnLastLogin'
+    | 'totalSuffix',
+    string
+  >>;
 }
 
-export function ConnectorBindingsPage({ api, providerId }: ConnectorBindingsPageProps) {
+const defaultLabels = {
+  title: '身份绑定',
+  statusFilter: '状态筛选',
+  all: '全部',
+  columnLocalUser: '本地用户',
+  columnExternalUser: '外部 user id',
+  columnStatus: '状态',
+  columnStrategy: '匹配策略',
+  columnLastLogin: '最后登录',
+  totalSuffix: '条',
+};
+
+export function ConnectorBindingsPage({ api, providerId, labels }: ConnectorBindingsPageProps) {
+  const text = { ...defaultLabels, ...labels };
   const [items, setItems] = useState<ExternalIdentityBindingListItem[]>([]);
+  const [conflicts, setConflicts] = useState<ExternalIdentityBindingListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<IdentityBindingStatus | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const reload = async () => {
     setLoading(true);
     setError(null);
-    api
-      .listBindings(providerId, statusFilter)
-      .then((paged) => {
-        if (!active) return;
-        setItems(paged.items);
-        setTotal(paged.total);
-      })
-      .catch((err: unknown) => {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    try {
+      const [paged, conflictsPage] = await Promise.all([
+        api.listBindings(providerId, statusFilter),
+        api.listBindings(providerId, 'Conflict', 1, 100),
+      ]);
+      setItems(paged.items);
+      setTotal(paged.total);
+      setConflicts(conflictsPage.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void reload();
   }, [api, providerId, statusFilter]);
+
+  const conflictCount = useMemo(() => conflicts.length, [conflicts]);
 
   return (
     <section data-testid="connector-bindings-page">
-      <h3>身份绑定（{total}）</h3>
+      <h3>{text.title}（{total}{text.totalSuffix}{conflictCount > 0 ? `，其中 ${conflictCount} 条冲突待处理` : ''}）</h3>
       <div style={{ marginBottom: 8 }}>
         <label>
-          状态筛选：
-          <select value={statusFilter ?? ''} onChange={(e) => setStatusFilter((e.target.value || undefined) as IdentityBindingStatus | undefined)}>
-            <option value="">全部</option>
+          {text.statusFilter}：
+          <select
+            value={statusFilter ?? ''}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => setStatusFilter((e.target.value || undefined) as IdentityBindingStatus | undefined)}
+          >
+            <option value="">{text.all}</option>
             <option value="Active">Active</option>
             <option value="PendingConfirm">PendingConfirm</option>
             <option value="Conflict">Conflict</option>
@@ -52,25 +84,27 @@ export function ConnectorBindingsPage({ api, providerId }: ConnectorBindingsPage
           </select>
         </label>
       </div>
+
       {loading && <p>Loading...</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
+
       {!loading && items.length > 0 && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr>
-              <th align="left">本地用户</th>
-              <th align="left">外部 user id</th>
-              <th align="left">状态</th>
-              <th align="left">匹配策略</th>
-              <th align="left">最后登录</th>
+            <tr style={{ borderBottom: '1px solid #ddd' }}>
+              <th align="left">{text.columnLocalUser}</th>
+              <th align="left">{text.columnExternalUser}</th>
+              <th align="left">{text.columnStatus}</th>
+              <th align="left">{text.columnStrategy}</th>
+              <th align="left">{text.columnLastLogin}</th>
             </tr>
           </thead>
           <tbody>
             {items.map((b) => (
-              <tr key={b.id}>
+              <tr key={b.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td>{b.localUserId}</td>
                 <td>{b.externalUserId}</td>
-                <td>{b.status}</td>
+                <td style={{ color: b.status === 'Conflict' ? '#c00' : undefined }}>{b.status}</td>
                 <td>{b.matchStrategy}</td>
                 <td>{b.lastLoginAt ? new Date(b.lastLoginAt).toLocaleString() : '-'}</td>
               </tr>
@@ -78,6 +112,13 @@ export function ConnectorBindingsPage({ api, providerId }: ConnectorBindingsPage
           </tbody>
         </table>
       )}
+
+      <IdentityBindingConflictCenter
+        api={api}
+        providerId={providerId}
+        conflicts={conflicts}
+        onResolved={() => void reload()}
+      />
     </section>
   );
 }

@@ -1,14 +1,19 @@
 import type {
   BindingConflictResolutionRequest,
+  ConnectorMessagingSendRequest,
   ExternalApprovalTemplateMappingRequest,
   ExternalApprovalTemplateMappingResponse,
   ExternalApprovalTemplateResponse,
+  ExternalDirectorySyncDiffItem,
+  ExternalDirectorySyncIncrementalRequest,
   ExternalDirectorySyncJobResponse,
   ExternalIdentityBindingListItem,
   ExternalIdentityProviderCreateRequest,
   ExternalIdentityProviderListItem,
   ExternalIdentityProviderResponse,
   ExternalIdentityProviderUpdateRequest,
+  ExternalMessageCard,
+  ExternalMessageDispatchSummary,
   IdentityBindingStatus,
   ManualBindingRequest,
   OAuthCallbackResult,
@@ -91,11 +96,17 @@ export function createConnectorApi(http: ConnectorHttpClient) {
     runFullSync(providerId: number) {
       return http.post<ExternalDirectorySyncJobResponse>(`${PROVIDERS}/${providerId}/directory/sync/full`);
     },
+    applyIncrementalSync(providerId: number, payload: ExternalDirectorySyncIncrementalRequest) {
+      return http.post<ExternalDirectorySyncJobResponse>(`${PROVIDERS}/${providerId}/directory/sync/incremental`, payload);
+    },
     listSyncJobs(providerId: number, take = 20) {
       return http.get<ExternalDirectorySyncJobResponse[]>(`${PROVIDERS}/${providerId}/directory/sync/jobs`, { take });
     },
+    getSyncJob(providerId: number, jobId: number) {
+      return http.get<ExternalDirectorySyncJobResponse>(`${PROVIDERS}/${providerId}/directory/sync/jobs/${jobId}`);
+    },
     listSyncDiffs(providerId: number, jobId: number, pageIndex = 1, pageSize = 50) {
-      return http.get<{ items: unknown[]; total: number }>(`${PROVIDERS}/${providerId}/directory/sync/jobs/${jobId}/diffs`, { pageIndex, pageSize });
+      return http.get<{ items: ExternalDirectorySyncDiffItem[]; total: number }>(`${PROVIDERS}/${providerId}/directory/sync/jobs/${jobId}/diffs`, { pageIndex, pageSize });
     },
     listApprovalTemplates(providerId: number) {
       return http.get<ExternalApprovalTemplateResponse[]>(`${PROVIDERS}/${providerId}/approvals/templates`);
@@ -106,8 +117,20 @@ export function createConnectorApi(http: ConnectorHttpClient) {
     listApprovalTemplateMappings(providerId: number) {
       return http.get<ExternalApprovalTemplateMappingResponse[]>(`${PROVIDERS}/${providerId}/approvals/template-mappings`);
     },
+    getApprovalTemplateMapping(providerId: number, flowDefinitionId: number) {
+      return http.get<ExternalApprovalTemplateMappingResponse>(`${PROVIDERS}/${providerId}/approvals/template-mappings/${flowDefinitionId}`);
+    },
     upsertApprovalTemplateMapping(providerId: number, flowDefinitionId: number, payload: ExternalApprovalTemplateMappingRequest) {
       return http.put<ExternalApprovalTemplateMappingResponse>(`${PROVIDERS}/${providerId}/approvals/template-mappings/${flowDefinitionId}`, payload);
+    },
+    deleteApprovalTemplateMapping(providerId: number, mappingId: number) {
+      return http.delete<void>(`${PROVIDERS}/${providerId}/approvals/template-mappings/${mappingId}`);
+    },
+    sendMessage(providerId: number, payload: ConnectorMessagingSendRequest) {
+      return http.post<ExternalMessageDispatchSummary>(`${PROVIDERS}/${providerId}/messages:send`, payload);
+    },
+    updateMessageCard(providerId: number, dispatchId: number, card: ExternalMessageCard) {
+      return http.post<ExternalMessageDispatchSummary>(`${PROVIDERS}/${providerId}/messages/${dispatchId}:update-card`, { card });
     },
   };
 }

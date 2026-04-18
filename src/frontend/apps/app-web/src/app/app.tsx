@@ -8,6 +8,7 @@ import type { CozeNavSection } from "@atlas/coze-shell-react";
 import type { LibraryKnowledgeApi } from "@atlas/library-module-react";
 import {
   createMockLibraryApi,
+  KnowledgeBaseCreateWizard,
   KnowledgeJobsCenterPage,
   KnowledgeProviderConfigPage
 } from "@atlas/library-module-react";
@@ -2702,6 +2703,38 @@ function WorkspaceKnowledgeDetailRoute() {
   );
 }
 
+/**
+ * v5 §32 / 计划 G8：独立 KB 创建路由 `knowledge-bases/new?kind=text|table|image`。
+ * 通过 query 预选 KB 类型，渲染 `KnowledgeBaseCreateWizard` 完整向导，提交后跳转到详情页。
+ */
+function WorkspaceKnowledgeCreateRoute() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { locale } = useAppI18n();
+  const workspace = useWorkspaceContext();
+  const kindParam = searchParams.get("kind");
+  const allowedKinds = ["text", "table", "image"] as const;
+  type AllowedKind = (typeof allowedKinds)[number];
+  const initialKind: AllowedKind = (kindParam && (allowedKinds as readonly string[]).includes(kindParam) ? kindParam : "text") as AllowedKind;
+  const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
+    ...libraryApi,
+    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
+    updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(workspace.id) })
+  }), [workspace.id]);
+  return (
+    <KnowledgeBaseCreateWizard
+      api={workspaceLibraryApi}
+      locale={locale}
+      visible={true}
+      initialKind={initialKind}
+      onCreated={kbId =>
+        navigate(`/apps/${encodeURIComponent(workspace.appKey)}/studio/knowledge-bases/${kbId}?tab=overview`)
+      }
+      onCancel={() => navigate(`/apps/${encodeURIComponent(workspace.appKey)}/studio/library`)}
+    />
+  );
+}
+
 function WorkspaceKnowledgeJobsCenterRoute() {
   const navigate = useNavigate();
   const { locale } = useAppI18n();
@@ -3462,6 +3495,16 @@ export const appRoutes = [
         element: (
           <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
             <WorkspaceKnowledgeDetailRoute />
+          </ProtectedPage>
+        ),
+        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
+      },
+      {
+        // v5 §32 / 计划 G8：独立创建路由，支持 ?kind=text|table|image 预选 KB 类型
+        path: "knowledge-bases/new",
+        element: (
+          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}>
+            <WorkspaceKnowledgeCreateRoute />
           </ProtectedPage>
         ),
         handle: WORKSPACE_LIBRARY_ROUTE_HANDLE

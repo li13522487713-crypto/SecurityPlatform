@@ -26,6 +26,7 @@ import { Section } from '@/form';
 import { DatasetSelectField } from '../common/componets/dataset-select-field';
 import { DatasetParamsField } from '../common/componets/dataset-params-field';
 import { DatasetSettingField } from './components/dataset-setting-field';
+import { AtlasV5SettingsField } from './components/atlas-v5-settings';
 
 const Render = () => (
   <NodeConfigForm>
@@ -53,6 +54,10 @@ const Render = () => (
         <DatasetSelectField name="inputs.datasetParameters.datasetParam" />
       </div>
       <DatasetSettingField name="inputs.datasetParameters.datasetSetting" />
+    </Section>
+    {/* v5 §38 / 计划 G7：Atlas v5 RetrievalProfile / filters / callerContextOverride / debug */}
+    <Section title="Atlas v5 高级检索设置" tooltip="完整 v5 检索协议字段（覆盖默认 RetrievalProfile）">
+      <AtlasV5SettingsField name="inputs.datasetParameters.atlasV5" />
     </Section>
     <OutputsField
       title={I18n.t('workflow_detail_node_output')}

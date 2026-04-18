@@ -159,3 +159,57 @@ export interface ExternalApprovalTemplateMappingResponse extends ExternalApprova
   createdAt: string;
   updatedAt: string;
 }
+
+// === N5/N7 Messaging + Sync diff ===
+
+export interface ExternalMessageRecipient {
+  userIds?: string[];
+  departmentIds?: string[];
+  toAll?: boolean;
+}
+
+export interface ExternalMessageCard {
+  title: string;
+  subtitle?: string;
+  content?: string;
+  tone?: 'info' | 'success' | 'warning' | 'danger';
+  fields?: Array<{ key: string; value: string }>;
+  jumpUrl?: string;
+  cardVersion?: number;
+  actions?: Array<{ key: string; text: string; url?: string }>;
+}
+
+export interface ConnectorMessagingSendRequest {
+  businessKey?: string;
+  recipient: ExternalMessageRecipient;
+  text?: string;
+  card?: ExternalMessageCard;
+}
+
+export interface ExternalMessageDispatchSummary {
+  dispatchId: number;
+  status: 'sent' | 'updated' | 'failed' | string;
+  messageId?: string;
+  responseCode?: string;
+  cardVersion?: number;
+  providerType?: string;
+  errorMessage?: string;
+}
+
+export interface ExternalDirectorySyncDiffItem {
+  id: number;
+  jobId: number;
+  providerId: number;
+  diffType: 'DepartmentCreated' | 'DepartmentUpdated' | 'DepartmentDeleted' | 'UserCreated' | 'UserUpdated' | 'UserDeleted' | 'RelationChanged' | 'Failed' | string;
+  entityId: string;
+  summary?: string;
+  errorMessage?: string;
+  occurredAt: string;
+}
+
+export interface ExternalDirectorySyncIncrementalRequest {
+  providerType: string;
+  providerTenantId?: string;
+  kind: 'UserCreated' | 'UserUpdated' | 'UserDeleted' | 'DepartmentCreated' | 'DepartmentUpdated' | 'DepartmentDeleted' | string;
+  entityId: string;
+}

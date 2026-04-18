@@ -22,4 +22,7 @@ public enum ApprovalNotificationChannel
 
     /// <summary>飞书消息（v4 报告 27-31 章 External Connector 接入）</summary>
     Feishu = 6,
+
+    /// <summary>钉钉工作通知（v4 报告 27-31 章 External Connector 接入）</summary>
+    DingTalk = 7,
 }

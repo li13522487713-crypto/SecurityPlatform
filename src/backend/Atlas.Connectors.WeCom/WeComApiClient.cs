@@ -188,10 +188,13 @@ internal static class WeComErrorMapper
     {
         0 => "ok",
         40029 => ConnectorErrorCodes.OAuthCodeInvalid,
-        50001 => ConnectorErrorCodes.TrustedDomainMismatch,
-        60011 => ConnectorErrorCodes.VisibilityScopeDenied,
-        42001 or 40014 => ConnectorErrorCodes.TokenExpired,
-        301002 or 301025 or 301026 => ConnectorErrorCodes.ApprovalSubmitFailed,
+        50001 or 50002 or 50003 => ConnectorErrorCodes.TrustedDomainMismatch,
+        // 企微「应用可见范围不足」族：60011/60020/60101/60102/60103/60123/60124 等，统一降级。
+        60011 or 60020 or 60101 or 60102 or 60103 or 60104 or 60111 or 60121 or 60122 or 60123 or 60124
+            => ConnectorErrorCodes.VisibilityScopeDenied,
+        42001 or 40014 or 41001 => ConnectorErrorCodes.TokenExpired,
+        40013 => ConnectorErrorCodes.TokenInvalid,
+        301002 or 301025 or 301026 or 301027 => ConnectorErrorCodes.ApprovalSubmitFailed,
         _ => ConnectorErrorCodes.Unknown,
     };
 }

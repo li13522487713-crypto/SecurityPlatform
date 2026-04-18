@@ -38,7 +38,7 @@ export interface KnowledgeJobsCenterPageProps {
  * 全局任务中心：跨知识库统一查看 parse / index / rebuild / GC 任务，
  * 支持死信重投与基于 traceId 的调用链追踪入口。
  */
-export function KnowledgeJobsCenterPage({ api, locale, appKey, onNavigate }: KnowledgeJobsCenterPageProps) {
+export function KnowledgeJobsCenterPage({ api, locale, appKey, spaceId, onNavigate }: KnowledgeJobsCenterPageProps) {
   const copy = getLibraryCopy(locale);
   const [items, setItems] = useState<KnowledgeJob[]>([]);
   const [kbMap, setKbMap] = useState<Map<number, KnowledgeBaseDto>>(new Map());
@@ -54,12 +54,16 @@ export function KnowledgeJobsCenterPage({ api, locale, appKey, onNavigate }: Kno
     }
     setLoading(true);
     try {
+      // v5 §39 / 计划 G8：把 spaceId 注入跨 KB 任务列表查询；
+      // 当 spaceId 提供时，后端 IKnowledgeJobService.ListAcrossKnowledgeBasesAsync 按 SpaceId 过滤。
+      const spaceIdNumeric = spaceId && spaceId !== "default" ? Number(spaceId) : undefined;
       const [jobsRes, kbRes] = await Promise.all([
         api.listJobsAcrossKnowledgeBases({
           pageIndex: 1,
           pageSize: 200,
           status: statusFilter === "all" ? undefined : statusFilter,
-          type: typeFilter === "all" ? undefined : typeFilter
+          type: typeFilter === "all" ? undefined : typeFilter,
+          spaceId: Number.isFinite(spaceIdNumeric) ? spaceIdNumeric : undefined
         }),
         api.listKnowledgeBases({ pageIndex: 1, pageSize: 200 })
       ]);
@@ -77,7 +81,7 @@ export function KnowledgeJobsCenterPage({ api, locale, appKey, onNavigate }: Kno
   useEffect(() => {
     void refresh();
     return undefined;
-  }, [statusFilter, typeFilter]);
+  }, [statusFilter, typeFilter, spaceId]);
 
   const typeLabel = useMemo<Record<KnowledgeJobType, string>>(() => ({
     parse: copy.jobTypeParse,

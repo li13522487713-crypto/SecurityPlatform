@@ -5,8 +5,8 @@ import {
   Checkbox,
   Empty,
   Input,
-  Modal,
   Select,
+  SideSheet,
   Space,
   Table,
   Tag,
@@ -45,6 +45,25 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
   const [subjectId, setSubjectId] = useState("");
   const [subjectName, setSubjectName] = useState("");
   const [actions, setActions] = useState<KnowledgePermissionAction[]>(["view", "retrieve"]);
+  // v5 §39 / 计划 G8：scope=document 时需要指定 documentId
+  const [documentId, setDocumentId] = useState<string>("");
+  const [documents, setDocuments] = useState<Array<{ id: number; fileName: string }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDocs() {
+      try {
+        const response = await api.listDocuments(knowledge.id, 1, 100);
+        if (!cancelled) {
+          setDocuments(response.items.map(d => ({ id: d.id, fileName: d.fileName })));
+        }
+      } catch {
+        if (!cancelled) setDocuments([]);
+      }
+    }
+    void loadDocs();
+    return () => { cancelled = true; };
+  }, [api, knowledge.id]);
 
   async function refresh() {
     if (!api.listPermissions) return;
@@ -146,11 +165,23 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
       Toast.warning(copy.permissionsSubject);
       return;
     }
+    if (scope === "document" && !documentId) {
+      Toast.warning("请选择 documentId");
+      return;
+    }
     try {
+      const docId = scope === "document" ? Number(documentId) : undefined;
       await api.grantPermission(knowledge.id, {
         scope,
-        scopeId: scope === "kb" ? String(knowledge.id) : scope === "space" ? (knowledge.workspaceId ?? "ws-default") : "project-default",
+        scopeId: scope === "kb"
+          ? String(knowledge.id)
+          : scope === "space"
+            ? (knowledge.workspaceId ?? "ws-default")
+            : scope === "document"
+              ? String(docId ?? knowledge.id)
+              : "project-default",
         knowledgeBaseId: knowledge.id,
+        documentId: docId,
         subjectType,
         subjectId: subjectId.trim(),
         subjectName: subjectName.trim(),
@@ -159,6 +190,7 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
       setCreateVisible(false);
       setSubjectId("");
       setSubjectName("");
+      setDocumentId("");
       await refresh();
     } catch (error) {
       Toast.error((error as Error).message);
@@ -188,13 +220,18 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
         )}
       </div>
 
-      <Modal
+      {/* v5 §39 / 计划 G8：Modal 改为 SideSheet 风格，支持 document scope 选择 documentId */}
+      <SideSheet
         title={copy.permissionsAddTitle}
         visible={createVisible}
-        onOk={handleCreate}
         onCancel={() => setCreateVisible(false)}
-        okText={copy.create}
-        cancelText={copy.cancel}
+        width={520}
+        footer={
+          <Space>
+            <Button onClick={() => setCreateVisible(false)}>{copy.cancel}</Button>
+            <Button type="primary" onClick={handleCreate}>{copy.create}</Button>
+          </Space>
+        }
       >
         <Space vertical align="start" style={{ width: "100%" }}>
           <Banner type="info" description={copy.permissionsSubtitle} />
@@ -210,6 +247,18 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
               { label: copy.permissionsScopeDocument, value: "document" }
             ]}
           />
+          {scope === "document" ? (
+            <>
+              <Typography.Text strong>Document</Typography.Text>
+              <Select
+                value={documentId}
+                style={{ width: "100%" }}
+                onChange={value => setDocumentId(value as string)}
+                optionList={documents.map(d => ({ label: `#${d.id} ${d.fileName}`, value: String(d.id) }))}
+                placeholder="选择目标文档"
+              />
+            </>
+          ) : null}
           <Typography.Text strong>{copy.permissionsSubject}</Typography.Text>
           <Select
             value={subjectType}
@@ -233,7 +282,7 @@ export function PermissionsTab({ api, locale, knowledge }: PermissionsTabProps) 
             onChange={(values: unknown) => setActions((values as KnowledgePermissionAction[]) ?? [])}
           />
         </Space>
-      </Modal>
+      </SideSheet>
     </div>
   );
 }

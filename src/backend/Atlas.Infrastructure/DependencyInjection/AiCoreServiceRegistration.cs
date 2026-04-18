@@ -59,23 +59,30 @@ public static class AiCoreServiceRegistration
         services.AddSingleton<IDocumentParseStrategy, DocumentParseStrategyService>();
         services.AddScoped<DocumentProcessingService>();
 
-        // v5 §32-44 知识库专题仓储
+        // v5 §32-44 / 计划 G2：知识库专题仓储（含 ParseJob/IndexJob/Table 拆分）
         services.AddScoped<KnowledgeBaseMetaRepository>();
         services.AddScoped<KnowledgeDocumentMetaRepository>();
         services.AddScoped<KnowledgeBaseVersionRepository>();
         services.AddScoped<KnowledgeJobRepository>();
+        services.AddScoped<KnowledgeParseJobRepository>();
+        services.AddScoped<KnowledgeIndexJobRepository>();
         services.AddScoped<KnowledgeBaseBindingRepository>();
         services.AddScoped<KnowledgeBasePermissionRepository>();
         services.AddScoped<KnowledgeRetrievalLogRepository>();
         services.AddScoped<KnowledgeProviderConfigRepository>();
+        services.AddScoped<KnowledgeTableRepository>();
         services.AddScoped<KnowledgeTableColumnRepository>();
         services.AddScoped<KnowledgeTableRowRepository>();
         services.AddScoped<KnowledgeImageItemRepository>();
         services.AddScoped<KnowledgeImageAnnotationRepository>();
 
-        // v5 §32-44 知识库专题应用服务（M9 任务系统 + M10 检索日志 + M11 治理服务全集）
+        // v5 §32-44 / 计划 G3：知识库专题应用服务（任务系统拆分为 Parse/Index 双链 + Hangfire runner）
         services.AddScoped<KnowledgeJobService>();
         services.AddScoped<IKnowledgeJobService>(sp => sp.GetRequiredService<KnowledgeJobService>());
+        services.AddScoped<IKnowledgeParseJobService, KnowledgeParseJobService>();
+        services.AddScoped<IKnowledgeIndexJobService, KnowledgeIndexJobService>();
+        services.AddScoped<KnowledgeParseJobRunner>();
+        services.AddScoped<KnowledgeIndexJobRunner>();
         services.AddScoped<IRetrievalLogService, RetrievalLogService>();
         services.AddScoped<IKnowledgeBindingService, KnowledgeBindingService>();
         services.AddScoped<IKnowledgePermissionService, KnowledgePermissionService>();

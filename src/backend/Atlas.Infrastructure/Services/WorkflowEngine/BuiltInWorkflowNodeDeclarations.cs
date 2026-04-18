@@ -249,7 +249,7 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("tags", Array.Empty<object>()),
                 ("ownerFilter", string.Empty),
                 ("maskSensitive", true),
-                // v5 §38：携带 RetrievalProfile / debug 时走升级版协议
+                // v5 §38 / 计划 G6：完整 RetrievalProfile（含 weights / hybrid / rewrite）
                 ("retrievalProfile", new Dictionary<string, object?>
                 {
                     ["topK"] = 5,
@@ -265,6 +265,13 @@ internal static class BuiltInWorkflowNodeDeclarations
                         ["image"] = 0.0
                     }
                 }),
+                // v5 §38 / 计划 G6：filters key-value，节点 config 接受 object 或 array
+                ("filters", new Dictionary<string, object?>()),
+                // v5 §38 / 计划 G6：CallerContext 覆盖（用户字段优先于默认）
+                ("callerContextOverride", new Dictionary<string, object?>
+                {
+                    ["callerType"] = 2 // Workflow
+                }),
                 ("debug", false)),
             WorkflowNodeType.KnowledgeIndexer => CreateConfig(
                 ("knowledgeId", 0),
@@ -275,14 +282,25 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("chunkSize", 500),
                 ("overlap", 50),
                 ("parseStrategy", "quick"),
-                // v5 §35：完整 ParsingStrategy 对象，与前端 ParsingStrategyForm 同型
+                // v5 §35 / 计划 G6：完整 ParsingStrategy
                 ("parsingStrategy", new Dictionary<string, object?>
                 {
                     ["parsingType"] = 0,
                     ["extractImage"] = false,
                     ["extractTable"] = false,
                     ["imageOcr"] = false
-                })),
+                }),
+                // v5 §35 / 计划 G6：完整 ChunkingProfile（mode/size/overlap/separators/indexColumns）
+                ("chunkingProfile", new Dictionary<string, object?>
+                {
+                    ["mode"] = 0,
+                    ["size"] = 512,
+                    ["overlap"] = 64,
+                    ["separators"] = Array.Empty<object>(),
+                    ["indexColumns"] = Array.Empty<object>()
+                }),
+                // v5 §35 / 计划 G6：append / overwrite
+                ("mode", "append")),
             WorkflowNodeType.KnowledgeDeleter => CreateConfig(
                 ("knowledgeId", 0),
                 ("documentId", 0)),
@@ -505,9 +523,11 @@ internal static class BuiltInWorkflowNodeDeclarations
                         ["hint"] = "可选；非空时仅检索 owner=该值 的切片"
                     },
                     new() { ["key"] = "maskSensitive", ["label"] = "结果脱敏", ["type"] = "boolean", ["default"] = true },
-                    // v5 §38：完整 RetrievalProfile + debug 透明度
+                    // v5 §38 / 计划 G6：完整 RetrievalProfile + filters + callerContextOverride + debug
                     new() { ["key"] = "retrievalProfile", ["label"] = "检索策略", ["type"] = "retrieval_profile", ["hint"] = "TopK / 重排 / 混合检索权重 / 查询改写" },
-                    new() { ["key"] = "debug", ["label"] = "返回完整 RetrievalLog", ["type"] = "boolean", ["default"] = false, ["hint"] = "true 时输出 trace_id / final_context / candidates" }
+                    new() { ["key"] = "filters", ["label"] = "Metadata 过滤", ["type"] = "key_value_map", ["hint"] = "key/value；支持 tag / namespace / documentName 等" },
+                    new() { ["key"] = "callerContextOverride", ["label"] = "调用方上下文覆盖", ["type"] = "caller_context", ["hint"] = "用户字段优先于默认（callerType/userId/preset 等）" },
+                    new() { ["key"] = "debug", ["label"] = "返回完整 RetrievalLog", ["type"] = "boolean", ["default"] = false, ["hint"] = "true 时输出 traceId / finalContext / candidates / metadata" }
                 },
                 FormMetaJsonOptions),
             WorkflowNodeType.KnowledgeIndexer => JsonSerializer.Serialize(
@@ -531,8 +551,21 @@ internal static class BuiltInWorkflowNodeDeclarations
                         },
                         ["default"] = "quick"
                     },
-                    // v5 §35：完整 ParsingStrategy 对象，覆盖 quick/precise/extract_image/extract_table/image_ocr/sheet_id/header_line/data_start_line
-                    new() { ["key"] = "parsingStrategy", ["label"] = "解析策略（v5）", ["type"] = "parsing_strategy", ["hint"] = "完整解析策略对象，与前端 ParsingStrategyForm 同型" }
+                    // v5 §35 / 计划 G6：完整 ParsingStrategy + ChunkingProfile + mode
+                    new() { ["key"] = "parsingStrategy", ["label"] = "解析策略（v5）", ["type"] = "parsing_strategy", ["hint"] = "完整解析策略对象，与前端 ParsingStrategyForm 同型" },
+                    new() { ["key"] = "chunkingProfile", ["label"] = "切片策略（v5）", ["type"] = "chunking_profile", ["hint"] = "mode/size/overlap/separators/indexColumns" },
+                    new()
+                    {
+                        ["key"] = "mode",
+                        ["label"] = "写入模式",
+                        ["type"] = "select",
+                        ["options"] = new object[]
+                        {
+                            new Dictionary<string, object?> { ["value"] = "append", ["label"] = "追加（保留旧 chunks）" },
+                            new Dictionary<string, object?> { ["value"] = "overwrite", ["label"] = "覆盖（先 GC 旧 chunks）" }
+                        },
+                        ["default"] = "append"
+                    }
                 },
                 FormMetaJsonOptions),
             WorkflowNodeType.KnowledgeDeleter => JsonSerializer.Serialize(
@@ -693,8 +726,10 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["tags"] = "array",
                 ["ownerFilter"] = "string",
                 ["maskSensitive"] = "boolean",
-                // v5 §38
+                // v5 §38 / 计划 G6：完整 RetrievalProfile + filters + callerContextOverride + debug
                 ["retrievalProfile"] = "object",
+                ["filters"] = "object",
+                ["callerContextOverride"] = "object",
                 ["debug"] = "boolean"
             }),
             WorkflowNodeType.KnowledgeIndexer => BuildObjectSchema(["knowledgeId", "fileId"], new Dictionary<string, string>
@@ -707,8 +742,10 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["chunkSize"] = "number",
                 ["overlap"] = "number",
                 ["parseStrategy"] = "string",
-                // v5 §35
-                ["parsingStrategy"] = "object"
+                // v5 §35 / 计划 G6：完整 ParsingStrategy + ChunkingProfile + mode
+                ["parsingStrategy"] = "object",
+                ["chunkingProfile"] = "object",
+                ["mode"] = "string"
             }),
             WorkflowNodeType.KnowledgeDeleter => BuildObjectSchema(["knowledgeId"], new Dictionary<string, string>
             {

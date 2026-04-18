@@ -116,6 +116,34 @@ public sealed class WeComApprovalProvider : IExternalApprovalProvider
         };
     }
 
+    public async Task<ExternalApprovalInstanceIdPage> ListRecentInstanceIdsAsync(ConnectorContext context, ExternalApprovalInstanceIdQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        // 企微 getapprovalinfo：POST body = { starttime, endtime, new_cursor?, size?, filters?:[{key:"template_id",value:"xxx"}] }
+        var body = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["starttime"] = query.StartTime.ToUnixTimeSeconds(),
+            ["endtime"] = query.EndTime.ToUnixTimeSeconds(),
+            ["size"] = Math.Clamp(query.Size, 1, 100),
+        };
+        if (!string.IsNullOrEmpty(query.Cursor))
+        {
+            body["new_cursor"] = query.Cursor;
+        }
+        if (!string.IsNullOrEmpty(query.TemplateId))
+        {
+            body["filters"] = new[] { new { key = "template_id", value = query.TemplateId } };
+        }
+
+        var resp = await _api.SendAuthorizedPostJsonAsync<object, WeComApprovalInfoResponse>(context, "/cgi-bin/oa/getapprovalinfo", body, null, cancellationToken).ConfigureAwait(false);
+        return new ExternalApprovalInstanceIdPage
+        {
+            InstanceIds = resp.SpNoList ?? Array.Empty<string>(),
+            NextCursor = string.IsNullOrEmpty(resp.NextCursor) ? null : resp.NextCursor,
+        };
+    }
+
     public Task<bool> SyncThirdPartyInstanceAsync(ConnectorContext context, ExternalThirdPartyInstancePatch patch, CancellationToken cancellationToken)
     {
         // 企微未提供原生三方审批同步接口；模式 B 场景下应通过应用消息卡片 + update_template_card 同步状态变化。

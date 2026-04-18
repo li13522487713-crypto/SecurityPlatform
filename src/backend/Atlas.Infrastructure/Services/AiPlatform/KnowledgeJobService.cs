@@ -14,19 +14,20 @@ using Microsoft.Extensions.Logging;
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 /// <summary>
-/// 知识库任务系统（v5 §35/§37/§42）：
-/// - 把"上传/解析/索引/重建/GC"独立成 KnowledgeJob 实体并持久化状态机
-/// - 使用 <see cref="IBackgroundWorkQueue"/> 在后台 DI scope 中执行实际工作（保留现有平台基础设施）
-/// - 提供 retry / cancel / dead-letter 接口，对前端任务中心 UI 直接对应
-///
-/// 与 Hangfire 的关系：现阶段平台使用进程内 IBackgroundWorkQueue（已与 Hangfire 共存）。
-/// 未来若把 IBackgroundWorkQueue 实现切换为 Hangfire client，所有 KnowledgeJob 状态机仍然有效。
+/// 知识库任务系统聚合查询门面（v5 §35/§37/§42 / 计划 G3）：
+/// - 持久化与跨 KB 查询用 <see cref="KnowledgeJobRepository"/>（兼容旧表）。
+/// - 解析 / 索引的入队改为委托给 <see cref="IKnowledgeParseJobService"/> /
+///   <see cref="IKnowledgeIndexJobService"/>，由它们写入新表并下发 Hangfire BackgroundJob。
+/// - 重建 / 死信重投仍由本类编排，但具体执行通过专用 service。
+/// - 提供 retry / cancel / dead-letter 接口，对前端任务中心 UI 直接对应。
 /// </summary>
 public sealed class KnowledgeJobService : IKnowledgeJobService
 {
     private readonly KnowledgeJobRepository _jobRepository;
     private readonly KnowledgeBaseRepository _knowledgeBaseRepository;
     private readonly KnowledgeDocumentRepository _documentRepository;
+    private readonly IKnowledgeParseJobService _parseJobService;
+    private readonly IKnowledgeIndexJobService _indexJobService;
     private readonly IBackgroundWorkQueue _backgroundWorkQueue;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ILogger<KnowledgeJobService> _logger;
@@ -35,6 +36,8 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
         KnowledgeJobRepository jobRepository,
         KnowledgeBaseRepository knowledgeBaseRepository,
         KnowledgeDocumentRepository documentRepository,
+        IKnowledgeParseJobService parseJobService,
+        IKnowledgeIndexJobService indexJobService,
         IBackgroundWorkQueue backgroundWorkQueue,
         IIdGeneratorAccessor idGeneratorAccessor,
         ILogger<KnowledgeJobService> logger)
@@ -42,6 +45,8 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
         _jobRepository = jobRepository;
         _knowledgeBaseRepository = knowledgeBaseRepository;
         _documentRepository = documentRepository;
+        _parseJobService = parseJobService;
+        _indexJobService = indexJobService;
         _backgroundWorkQueue = backgroundWorkQueue;
         _idGeneratorAccessor = idGeneratorAccessor;
         _logger = logger;
@@ -112,16 +117,8 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
         doc.MarkProcessing();
         await _documentRepository.UpdateAsync(doc, cancellationToken);
 
-        var job = await EnqueueJobAsync(
-            tenantId,
-            knowledgeBaseId,
-            JobTypeParse,
-            request.DocumentId,
-            BuildPayload(request.ParsingStrategy),
-            cancellationToken);
-
-        EnqueueProcessingWork(tenantId, knowledgeBaseId, request.DocumentId, request.ParsingStrategy, job.Id);
-        return job.Id;
+        // v5 §35 / 计划 G3：委托给专用 ParseJobService（写新表 + Hangfire 调度）
+        return await _parseJobService.EnqueueParseAsync(tenantId, knowledgeBaseId, request.DocumentId, request.ParsingStrategy, cancellationToken);
     }
 
     public async Task<long> RebuildIndexAsync(
@@ -134,26 +131,27 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
 
         if (request.DocumentId.HasValue)
         {
-            // 单文档重建：等价于重跑解析 + 索引
-            var rerun = new RerunParseRequest(request.DocumentId.Value);
-            return await RerunParseAsync(tenantId, knowledgeBaseId, rerun, cancellationToken);
+            // v5 §35 / 计划 G3：单文档重建走 IKnowledgeIndexJobService（Hangfire + overwrite/append 模式）
+            return await _indexJobService.EnqueueIndexAsync(
+                tenantId, knowledgeBaseId, request.DocumentId.Value,
+                chunkingProfile: null, request.Mode, cancellationToken);
         }
 
-        var job = await EnqueueJobAsync(
+        // 全量重建：先建一个聚合 rebuild job，再迭代当前 KB 文档串行触发 IndexJob
+        var rebuildJob = await EnqueueJobAsync(
             tenantId,
             knowledgeBaseId,
             JobTypeRebuild,
             documentId: null,
-            payloadJson: "{}",
+            payloadJson: System.Text.Json.JsonSerializer.Serialize(new { mode = request.Mode.ToString().ToLowerInvariant() }, JsonOptions),
             cancellationToken);
 
-        // 全量重建：迭代所有文档，串行触发 reprocess
         _backgroundWorkQueue.Enqueue(async (sp, ct) =>
         {
             var jobRepo = sp.GetRequiredService<KnowledgeJobRepository>();
             var docRepo = sp.GetRequiredService<KnowledgeDocumentRepository>();
-            var processor = sp.GetRequiredService<DocumentProcessingService>();
-            var entity = await jobRepo.FindByIdAsync(tenantId, job.Id, ct);
+            var indexService = sp.GetRequiredService<IKnowledgeIndexJobService>();
+            var entity = await jobRepo.FindByIdAsync(tenantId, rebuildJob.Id, ct);
             if (entity is null) return;
 
             try
@@ -167,7 +165,7 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
                 for (var index = 0; index < docs.Count; index += 1)
                 {
                     var doc = docs[index];
-                    await processor.ProcessAsync(tenantId, knowledgeBaseId, doc.Id, new ChunkingOptions(), ct);
+                    await indexService.EnqueueIndexAsync(tenantId, knowledgeBaseId, doc.Id, chunkingProfile: null, request.Mode, ct);
                     var percent = Math.Clamp((int)((index + 1) * 100.0 / total), 5, 95);
                     entity.Update(JobStatusRunning, percent);
                     await jobRepo.UpdateAsync(entity, ct);
@@ -178,14 +176,15 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Knowledge rebuild job {JobId} failed", job.Id);
+                _logger.LogError(ex, "Knowledge rebuild job {JobId} failed", rebuildJob.Id);
+                entity.IncrementAttempts();
                 var deadLetter = entity.Attempts >= entity.MaxAttempts;
                 entity.Finish(deadLetter ? JobStatusDeadLetter : JobStatusFailed, entity.Progress, ex.Message, DateTime.UtcNow);
                 await jobRepo.UpdateAsync(entity, ct);
             }
         });
 
-        return job.Id;
+        return rebuildJob.Id;
     }
 
     public async Task RetryDeadLetterAsync(
@@ -209,14 +208,17 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
         job.Update(JobStatusRetrying, progress: 10);
         await _jobRepository.UpdateAsync(job, cancellationToken);
 
-        // 根据 job 类型重新调度
-        if (job.Type == JobTypeParse || job.Type == JobTypeIndex)
+        // v5 §35 / 计划 G3：按 type 重新调度到 Hangfire 链路
+        if (job.Type == JobTypeParse && job.DocumentId.HasValue)
         {
-            if (job.DocumentId.HasValue)
-            {
-                var parsing = TryDeserializeParsing(job.PayloadJson);
-                EnqueueProcessingWork(tenantId, knowledgeBaseId, job.DocumentId.Value, parsing, job.Id);
-            }
+            var parsing = TryDeserializeParsing(job.PayloadJson);
+            await _parseJobService.EnqueueParseAsync(tenantId, knowledgeBaseId, job.DocumentId.Value, parsing, cancellationToken);
+            return;
+        }
+
+        if (job.Type == JobTypeIndex && job.DocumentId.HasValue)
+        {
+            await _indexJobService.EnqueueIndexAsync(tenantId, knowledgeBaseId, job.DocumentId.Value, chunkingProfile: null, KnowledgeIndexMode.Append, cancellationToken);
             return;
         }
 
@@ -226,7 +228,7 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
             return;
         }
 
-        // 兜底：GC 等其它类型直接走极简后台队列重新触发
+        // 兜底：GC 等其它类型直接走极简后台队列重新触发（保持 IBackgroundWorkQueue 兼容）
         _backgroundWorkQueue.Enqueue(async (sp, ct) =>
         {
             var repo = sp.GetRequiredService<KnowledgeJobRepository>();
@@ -243,6 +245,7 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
             }
             catch (Exception ex)
             {
+                entity.IncrementAttempts();
                 var deadLetter = entity.Attempts >= entity.MaxAttempts;
                 entity.Finish(deadLetter ? JobStatusDeadLetter : JobStatusFailed, entity.Progress, ex.Message, DateTime.UtcNow);
                 await repo.UpdateAsync(entity, ct);
@@ -316,31 +319,12 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
         await _jobRepository.UpdateAsync(job, cancellationToken);
     }
 
-    /* -------------------- 平台内部 enqueue helpers -------------------- */
+    /* -------------------- 内部 helpers -------------------- */
 
     /// <summary>
-    /// 把"解析+索引"作为单个 Parse 任务持久化（mock/前端把 Indexing 看成 Parse 后续阶段）。
-    /// 由 <see cref="DocumentService.CreateAsync"/> 与重跑路径调用。
+    /// 仅在 RebuildIndex 全量路径用作"聚合 rebuild job"占位写入；
+    /// 解析 / 索引的 enqueue 已委托给 IKnowledgeParseJobService / IKnowledgeIndexJobService。
     /// </summary>
-    public async Task<KnowledgeJob> EnqueueParseAsync(
-        TenantId tenantId,
-        long knowledgeBaseId,
-        long documentId,
-        ParsingStrategy? parsingStrategy,
-        CancellationToken cancellationToken)
-    {
-        var job = await EnqueueJobAsync(
-            tenantId,
-            knowledgeBaseId,
-            JobTypeParse,
-            documentId,
-            BuildPayload(parsingStrategy),
-            cancellationToken);
-
-        EnqueueProcessingWork(tenantId, knowledgeBaseId, documentId, parsingStrategy, job.Id);
-        return job;
-    }
-
     private async Task<KnowledgeJob> EnqueueJobAsync(
         TenantId tenantId,
         long knowledgeBaseId,
@@ -358,42 +342,6 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
             payloadJson);
         await _jobRepository.AddAsync(entity, cancellationToken);
         return entity;
-    }
-
-    private void EnqueueProcessingWork(
-        TenantId tenantId,
-        long knowledgeBaseId,
-        long documentId,
-        ParsingStrategy? parsingStrategy,
-        long jobId)
-    {
-        var options = MapToChunkingOptions(parsingStrategy);
-        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
-        {
-            var jobRepo = sp.GetRequiredService<KnowledgeJobRepository>();
-            var processor = sp.GetRequiredService<DocumentProcessingService>();
-            var job = await jobRepo.FindByIdAsync(tenantId, jobId, ct);
-            if (job is null) return;
-
-            try
-            {
-                job.Start(DateTime.UtcNow, hangfireJobId: null);
-                job.Update(JobStatusRunning, progress: 25);
-                await jobRepo.UpdateAsync(job, ct);
-
-                await processor.ProcessAsync(tenantId, knowledgeBaseId, documentId, options, ct);
-
-                job.Finish(JobStatusSucceeded, 100, errorMessage: null, DateTime.UtcNow);
-                await jobRepo.UpdateAsync(job, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Knowledge job {JobId} failed", jobId);
-                var deadLetter = job.Attempts >= job.MaxAttempts;
-                job.Finish(deadLetter ? JobStatusDeadLetter : JobStatusFailed, job.Progress, ex.Message, DateTime.UtcNow);
-                await jobRepo.UpdateAsync(job, ct);
-            }
-        });
     }
 
     private async Task EnsureKnowledgeBaseAsync(
@@ -442,12 +390,6 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
             logs);
     }
 
-    private static string BuildPayload(ParsingStrategy? parsingStrategy)
-    {
-        if (parsingStrategy is null) return "{}";
-        return JsonSerializer.Serialize(parsingStrategy, JsonOptions);
-    }
-
     private static ParsingStrategy? TryDeserializeParsing(string? json)
     {
         if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}") return null;
@@ -459,24 +401,6 @@ public sealed class KnowledgeJobService : IKnowledgeJobService
         {
             return null;
         }
-    }
-
-    private static ChunkingOptions MapToChunkingOptions(ParsingStrategy? strategy)
-    {
-        if (strategy is null)
-        {
-            return new ChunkingOptions();
-        }
-
-        var parseStrategy = strategy.ParsingType == ParsingType.Precise
-            ? DocumentParseStrategy.Precise
-            : DocumentParseStrategy.Quick;
-
-        return new ChunkingOptions(
-            ChunkSize: 500,
-            Overlap: 50,
-            Strategy: ChunkingStrategy.Fixed,
-            ParseStrategy: parseStrategy);
     }
 
     /* -------------------- 字符串常量与映射 -------------------- */

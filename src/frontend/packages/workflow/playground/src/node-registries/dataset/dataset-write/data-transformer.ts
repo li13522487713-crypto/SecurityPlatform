@@ -183,5 +183,22 @@ export function transformOnSubmit(
     },
   });
 
+  // v5 §35 / 计划 G7：把 atlasV5 设置序列化到 datasetParam，便于后端 KnowledgeIndexerNodeExecutor 透传
+  // tslint:disable-next-line: no-any
+  const writeAtlasV5 = (datasetWriteParameters as any)?.atlasV5;
+  if (writeAtlasV5 && (writeAtlasV5.parsingStrategy || writeAtlasV5.chunkingProfile || writeAtlasV5.mode)) {
+    (actualData.inputs as { datasetParam?: unknown[] }).datasetParam ??= [];
+    (actualData.inputs as { datasetParam: unknown[] }).datasetParam.push({
+      name: 'atlasV5Write',
+      input: {
+        type: 'string',
+        value: {
+          type: 'literal',
+          content: JSON.stringify(writeAtlasV5),
+        },
+      },
+    });
+  }
+
   return actualData as DatasetNodeActualData;
 }

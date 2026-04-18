@@ -65,8 +65,9 @@ public sealed class FeishuApiClient
     }
 
     /// <summary>
-    /// 通过 OAuth code 换取 user_access_token；不缓存（用户级 token 由调用方按需刷新）。
-    /// internal 暴露给同程序集 Provider 使用。
+    /// 通过 OAuth code 换取 user_access_token。
+    /// 注意：Feishu authen/v2/oauth/token 不回传 open_id；调用方应在拿到 access_token 后走 user_info 解析身份，
+    /// 再通过 <see cref="CacheUserAccessTokenAsync"/> 把 (externalUserId → token) 写进缓存。
     /// </summary>
     internal async Task<FeishuUserAccessTokenData> ExchangeUserAccessTokenAsync(
         ConnectorContext context,
@@ -75,48 +76,116 @@ public sealed class FeishuApiClient
         CancellationToken cancellationToken)
     {
         var runtime = await _runtimeResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
-        var url = $"{_options.ApiBaseUrl}/open-apis/authen/v2/oauth/token";
-        var body = new
+        var body = new FeishuUserTokenExchangeBody
         {
-            grant_type = "authorization_code",
-            client_id = runtime.AppId,
-            client_secret = runtime.AppSecret,
-            code,
-            redirect_uri = redirectUri,
+            GrantType = "authorization_code",
+            ClientId = runtime.AppId,
+            ClientSecret = runtime.AppSecret,
+            Code = code,
+            RedirectUri = redirectUri,
         };
-
-        var client = CreateClient();
-        using var resp = await client.PostAsJsonAsync(url, body, cancellationToken).ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
-        var payload = await resp.Content.ReadFromJsonAsync<FeishuUserAccessTokenResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
-
-        if (payload is null || payload.Code != 0 || payload.Data is null || string.IsNullOrEmpty(payload.Data.AccessToken))
-        {
-            throw new ConnectorException(
-                ConnectorErrorCodes.OAuthCodeInvalid,
-                $"Feishu user_access_token exchange failed: code={payload?.Code}, msg={payload?.Msg}",
-                FeishuConnectorMarker.ProviderType,
-                payload?.Code,
-                payload?.Msg);
-        }
-
-        return payload.Data;
+        return await PostUserTokenEndpointAsync(body, ConnectorErrorCodes.OAuthCodeInvalid, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// 用 refresh_token 刷新 user_access_token。
+    /// 用 refresh_token 刷新 user_access_token。调用方负责在刷新后重新写缓存。
     /// </summary>
     internal async Task<FeishuUserAccessTokenData> RefreshUserAccessTokenAsync(ConnectorContext context, string refreshToken, CancellationToken cancellationToken)
     {
         var runtime = await _runtimeResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
-        var url = $"{_options.ApiBaseUrl}/open-apis/authen/v2/oauth/token";
-        var body = new
+        var body = new FeishuUserTokenExchangeBody
         {
-            grant_type = "refresh_token",
-            client_id = runtime.AppId,
-            client_secret = runtime.AppSecret,
-            refresh_token = refreshToken,
+            GrantType = "refresh_token",
+            ClientId = runtime.AppId,
+            ClientSecret = runtime.AppSecret,
+            RefreshToken = refreshToken,
         };
+        return await PostUserTokenEndpointAsync(body, ConnectorErrorCodes.TokenExpired, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 写入 user_access_token 缓存。key=(tenantId, providerInstanceId, externalUserId)。
+    /// access_token TTL = expires_in - UserTokenSafetyMarginSeconds；总缓存条目 TTL = refresh_token 剩余时间。
+    /// 同一程序集内使用（Internal：不暴露 FeishuUserAccessTokenData 内部模型）。
+    /// </summary>
+    internal async Task CacheUserAccessTokenAsync(ConnectorContext context, string externalUserId, FeishuUserAccessTokenData data, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        if (string.IsNullOrWhiteSpace(externalUserId) || string.IsNullOrEmpty(data.AccessToken))
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var accessTtlSeconds = Math.Max(60, data.ExpiresIn - _options.UserTokenSafetyMarginSeconds);
+        var refreshExpiresAtUtc = data.RefreshExpiresIn > 0 ? now.AddSeconds(data.RefreshExpiresIn) : now.AddDays(30);
+        var cached = new FeishuCachedUserToken(
+            data.AccessToken!,
+            data.RefreshToken,
+            now.AddSeconds(accessTtlSeconds),
+            refreshExpiresAtUtc,
+            externalUserId);
+
+        var cacheKey = BuildUserTokenCacheKey(context.TenantId, context.ProviderInstanceId, externalUserId);
+        var entryTtl = refreshExpiresAtUtc - now;
+        if (entryTtl <= TimeSpan.Zero)
+        {
+            entryTtl = TimeSpan.FromSeconds(accessTtlSeconds);
+        }
+        await _tokenCache.SetAsync(cacheKey, cached, entryTtl, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 读取缓存的 user_access_token；若 access_token 处于安全窗内直接返回，
+    /// 到期但 refresh_token 仍有效时自动刷新并回写缓存；若两者都失效返回 null 让调用方走 OAuth 重走。
+    /// </summary>
+    public async Task<string?> GetCachedUserAccessTokenAsync(ConnectorContext context, string externalUserId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(externalUserId))
+        {
+            return null;
+        }
+
+        var cacheKey = BuildUserTokenCacheKey(context.TenantId, context.ProviderInstanceId, externalUserId);
+        var cached = await _tokenCache.GetAsync<FeishuCachedUserToken>(cacheKey, cancellationToken).ConfigureAwait(false);
+        if (cached is null)
+        {
+            return null;
+        }
+
+        if (cached.RefreshExpiresAtUtc <= DateTimeOffset.UtcNow)
+        {
+            await _tokenCache.RemoveAsync(cacheKey, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+
+        if (cached.ExpiresAtUtc > DateTimeOffset.UtcNow.AddSeconds(_options.UserTokenSafetyMarginSeconds))
+        {
+            return cached.AccessToken;
+        }
+
+        if (string.IsNullOrEmpty(cached.RefreshToken))
+        {
+            return cached.AccessToken; // 无 refresh_token，仍返回旧 token 让调用方自行决定 401 重试。
+        }
+
+        try
+        {
+            var refreshed = await RefreshUserAccessTokenAsync(context, cached.RefreshToken, cancellationToken).ConfigureAwait(false);
+            await CacheUserAccessTokenAsync(context, externalUserId, refreshed, cancellationToken).ConfigureAwait(false);
+            return refreshed.AccessToken;
+        }
+        catch (ConnectorException ex)
+        {
+            _logger.LogInformation(ex, "Feishu user_access_token refresh failed for tenant {TenantId}/instance {ProviderInstanceId}; dropping cache.", context.TenantId, context.ProviderInstanceId);
+            await _tokenCache.RemoveAsync(cacheKey, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+    }
+
+    private async Task<FeishuUserAccessTokenData> PostUserTokenEndpointAsync(FeishuUserTokenExchangeBody body, string failureCode, CancellationToken cancellationToken)
+    {
+        var url = $"{_options.ApiBaseUrl}/open-apis/authen/v2/oauth/token";
 
         var client = CreateClient();
         using var resp = await client.PostAsJsonAsync(url, body, cancellationToken).ConfigureAwait(false);
@@ -126,13 +195,12 @@ public sealed class FeishuApiClient
         if (payload is null || payload.Code != 0 || payload.Data is null || string.IsNullOrEmpty(payload.Data.AccessToken))
         {
             throw new ConnectorException(
-                ConnectorErrorCodes.TokenExpired,
-                $"Feishu refresh_token failed: code={payload?.Code}, msg={payload?.Msg}",
+                failureCode,
+                $"Feishu user_access_token endpoint failed: code={payload?.Code}, msg={payload?.Msg}",
                 FeishuConnectorMarker.ProviderType,
                 payload?.Code,
                 payload?.Msg);
         }
-
         return payload.Data;
     }
 
@@ -305,9 +373,50 @@ public sealed class FeishuApiClient
 
     private static string BuildTenantTokenCacheKey(Guid tenantId, long providerInstanceId)
         => $"connector:feishu:{tenantId:D}:{providerInstanceId}:tenant_access_token";
+
+    private static string BuildUserTokenCacheKey(Guid tenantId, long providerInstanceId, string externalUserId)
+        => $"connector:feishu:{tenantId:D}:{providerInstanceId}:user_access_token:{externalUserId}";
 }
 
 internal sealed record FeishuCachedToken(string AccessToken, DateTimeOffset ExpiresAtUtc);
+
+/// <summary>
+/// 飞书 user_access_token 缓存载体。同时带 refresh_token 与 refresh_token 过期时间，
+/// 让 <see cref="FeishuApiClient.GetCachedUserAccessTokenAsync"/> 可以自动刷新、失败时清缓存。
+/// </summary>
+internal sealed record FeishuCachedUserToken(
+    string AccessToken,
+    string? RefreshToken,
+    DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset RefreshExpiresAtUtc,
+    string ExternalUserId);
+
+/// <summary>
+/// 飞书 authen/v2/oauth/token 请求体。authorization_code / refresh_token 两种 grant_type 共用。
+/// </summary>
+internal sealed class FeishuUserTokenExchangeBody
+{
+    [System.Text.Json.Serialization.JsonPropertyName("grant_type")]
+    public required string GrantType { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("client_id")]
+    public required string ClientId { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("client_secret")]
+    public required string ClientSecret { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("code")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Code { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("redirect_uri")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? RedirectUri { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("refresh_token")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? RefreshToken { get; init; }
+}
 
 internal static class FeishuErrorMapper
 {

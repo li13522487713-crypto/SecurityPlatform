@@ -20,6 +20,7 @@ public sealed class ConnectorCallbackInboxService : IConnectorCallbackInboxServi
     private readonly IExternalIdentityProviderRepository _providerRepository;
     private readonly IExternalCallbackEventRepository _eventRepository;
     private readonly IExternalDirectorySyncService _directorySyncService;
+    private readonly IExternalApprovalInstanceLinkRepository _instanceLinkRepository;
     private readonly ISecretProtector _secretProtector;
     private readonly IReplayGuard _replayGuard;
     private readonly ITenantProvider _tenantProvider;
@@ -32,6 +33,7 @@ public sealed class ConnectorCallbackInboxService : IConnectorCallbackInboxServi
         IExternalIdentityProviderRepository providerRepository,
         IExternalCallbackEventRepository eventRepository,
         IExternalDirectorySyncService directorySyncService,
+        IExternalApprovalInstanceLinkRepository instanceLinkRepository,
         ISecretProtector secretProtector,
         IReplayGuard replayGuard,
         ITenantProvider tenantProvider,
@@ -43,6 +45,7 @@ public sealed class ConnectorCallbackInboxService : IConnectorCallbackInboxServi
         _providerRepository = providerRepository;
         _eventRepository = eventRepository;
         _directorySyncService = directorySyncService;
+        _instanceLinkRepository = instanceLinkRepository;
         _secretProtector = secretProtector;
         _replayGuard = replayGuard;
         _tenantProvider = tenantProvider;
@@ -131,11 +134,143 @@ public sealed class ConnectorCallbackInboxService : IConnectorCallbackInboxServi
             case "contact.department.deleted_v3":
                 await DispatchDirectoryEventAsync(providerId, envelope, cancellationToken).ConfigureAwait(false);
                 break;
-            // 审批事件 (approval status / approval_instance) 会由 ApprovalCallbackHandler 处理；此处只落库。
+
+            // 审批状态变更：把外部系统的 sp_no/instance_code → 本地 ApprovalProcessInstance.LocalInstanceId 状态推进。
+            case "sys_approval_change": // 企微 OA 审批
+            case "approval_instance":   // 飞书三方审批 + 飞书审批中心
+            case "approval_task":       // 飞书审批任务级
+            case "bpms_instance_change": // 钉钉新版工作流
+            case "bpms_task_change":     // 钉钉任务节点
+                await DispatchApprovalEventAsync(providerId, envelope, cancellationToken).ConfigureAwait(false);
+                break;
+
             default:
                 _logger.LogInformation("Connector webhook topic '{Topic}' has no inline handler; remained verified for downstream processing.", envelope.Topic);
                 break;
         }
+    }
+
+    private async Task DispatchApprovalEventAsync(long providerId, ConnectorWebhookEnvelope envelope, CancellationToken cancellationToken)
+    {
+        var (externalInstanceId, status) = ExtractApprovalEventCore(envelope);
+        if (string.IsNullOrEmpty(externalInstanceId))
+        {
+            _logger.LogWarning("Approval event missing externalInstanceId; topic={Topic}.", envelope.Topic);
+            return;
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var link = await _instanceLinkRepository.GetByExternalAsync(tenantId, providerId, externalInstanceId, cancellationToken).ConfigureAwait(false);
+        if (link is null)
+        {
+            _logger.LogInformation("Approval event for externalInstanceId={ExternalInstanceId} has no local link; saving as verified for later replay.", externalInstanceId);
+            return;
+        }
+
+        link.RecordExternalStatus(status ?? "Unknown", _timeProvider.GetUtcNow());
+        await _instanceLinkRepository.UpdateAsync(link, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation("Approval event applied: link={LinkId} → status={Status}.", link.Id, status);
+    }
+
+    private static (string ExternalInstanceId, string? Status) ExtractApprovalEventCore(ConnectorWebhookEnvelope envelope)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(envelope.PayloadJson);
+            var root = doc.RootElement;
+
+            // 企微：xml 转 JSON 后 ApprovalInfo.SpNo / SpStatus
+            if (root.TryGetProperty("ApprovalInfo", out var ap))
+            {
+                var spNo = ap.TryGetProperty("SpNo", out var sn) ? sn.GetString() : null;
+                var spStatus = ap.TryGetProperty("SpStatus", out var ss) ? ss.GetString() : null;
+                if (!string.IsNullOrEmpty(spNo))
+                {
+                    return (spNo, spStatus);
+                }
+            }
+            // 飞书：event.instance_code / event.status
+            if (root.TryGetProperty("event", out var ev))
+            {
+                var ic = ev.TryGetProperty("instance_code", out var ic2) ? ic2.GetString() : null;
+                var st = ev.TryGetProperty("status", out var st2) ? st2.GetString() : null;
+                if (!string.IsNullOrEmpty(ic))
+                {
+                    return (ic, st);
+                }
+            }
+            // 钉钉：processInstanceId / result
+            if (root.TryGetProperty("processInstanceId", out var pid))
+            {
+                var status = root.TryGetProperty("result", out var rs) ? rs.GetString() : null;
+                return (pid.GetString() ?? string.Empty, status);
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        return (string.Empty, null);
+    }
+
+    public async Task<int> ProcessPendingRetriesAsync(int batchSize, CancellationToken cancellationToken)
+    {
+        if (batchSize <= 0)
+        {
+            return 0;
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var pending = await _eventRepository.ListPendingRetryAsync(tenantId, batchSize, cancellationToken).ConfigureAwait(false);
+        if (pending.Count == 0)
+        {
+            return 0;
+        }
+
+        var processed = 0;
+        foreach (var entity in pending)
+        {
+            // NextRetryAt 还没到的跳过；仓储应已过滤但兜底再判一次。
+            if (entity.NextRetryAt is { } next && next > _timeProvider.GetUtcNow())
+            {
+                continue;
+            }
+
+            var envelope = ReconstructEnvelope(entity);
+            try
+            {
+                await ApplyEventAsync(entity.ProviderId, envelope, cancellationToken).ConfigureAwait(false);
+                entity.MarkProcessed(_timeProvider.GetUtcNow());
+                await _eventRepository.UpdateAsync(entity, cancellationToken).ConfigureAwait(false);
+                processed++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Connector inbox retry failed: event={EventId}, retryCount={RetryCount}.", entity.Id, entity.RetryCount);
+                entity.MarkFailed(ex.Message, retryDelaySeconds: ComputeBackoffSeconds(entity.RetryCount), _timeProvider.GetUtcNow(), maxRetry: 5);
+                await _eventRepository.UpdateAsync(entity, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        return processed;
+    }
+
+    private ConnectorWebhookEnvelope ReconstructEnvelope(ExternalCallbackEvent entity)
+    {
+        var payload = _secretProtector.Decrypt(entity.RawPayloadEncrypted) ?? "{}";
+        return new ConnectorWebhookEnvelope
+        {
+            ProviderType = string.Empty,
+            Topic = entity.Topic,
+            PayloadJson = payload,
+            IdempotencyKey = entity.IdempotencyKey,
+            ReceivedAt = entity.ReceivedAt,
+        };
+    }
+
+    private static int ComputeBackoffSeconds(int retryCount)
+    {
+        // 60s, 120s, 240s, 480s, 960s。指数退避配合 maxRetry=5。
+        var seconds = 60 * Math.Pow(2, Math.Min(retryCount, 4));
+        return (int)Math.Min(seconds, 3600);
     }
 
     private async Task DispatchDirectoryEventAsync(long providerId, ConnectorWebhookEnvelope envelope, CancellationToken cancellationToken)
@@ -229,6 +364,8 @@ public sealed class ConnectorCallbackInboxService : IConnectorCallbackInboxServi
                 {
                     clone["x-wecom-encoding-aes-key"] = aes.GetString() ?? string.Empty;
                 }
+                // 解密后强制校验 corpId 必须等于配置的 corp，否则 WeComCallbackVerifier 抛 WebhookDecryptFailed。
+                clone["x-wecom-corpid"] = provider.ProviderTenantId ?? string.Empty;
             }
             else if (string.Equals(providerType, "feishu", StringComparison.OrdinalIgnoreCase))
             {
@@ -240,6 +377,19 @@ public sealed class ConnectorCallbackInboxService : IConnectorCallbackInboxServi
                 {
                     clone["x-feishu-verification-token"] = vt.GetString() ?? string.Empty;
                 }
+            }
+            else if (string.Equals(providerType, "dingtalk", StringComparison.OrdinalIgnoreCase))
+            {
+                if (doc.RootElement.TryGetProperty("callbackToken", out var tk) && tk.ValueKind == JsonValueKind.String)
+                {
+                    clone["x-dingtalk-token"] = tk.GetString() ?? string.Empty;
+                }
+                if (doc.RootElement.TryGetProperty("callbackAesKey", out var aes) && aes.ValueKind == JsonValueKind.String)
+                {
+                    clone["x-dingtalk-aes-key"] = aes.GetString() ?? string.Empty;
+                }
+                // 钉钉 corpId 也按 ProviderTenantId 注入。
+                clone["x-dingtalk-corpid"] = provider.ProviderTenantId ?? string.Empty;
             }
         }
         catch (JsonException) { }

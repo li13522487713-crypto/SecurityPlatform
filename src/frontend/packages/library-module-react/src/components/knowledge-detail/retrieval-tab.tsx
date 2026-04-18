@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Banner,
   Button,
+  Collapse,
   Empty,
   Input,
   Progress,
   Select,
-  SideSheet,
   Space,
   Switch,
   Tag,
@@ -18,13 +18,14 @@ import {
   type KnowledgeBaseDto,
   type LibraryKnowledgeApi,
   type RetrievalCallerContext,
+  type RetrievalCallerPreset,
   type RetrievalCandidate,
   type RetrievalLog,
   type RetrievalProfile,
   type SupportedLocale
 } from "../../types";
 import { getLibraryCopy } from "../../copy";
-import { formatDateTime } from "../../utils";
+import { RetrievalLogsPanel } from "./retrieval-logs-panel";
 
 export interface RetrievalTabProps {
   api: LibraryKnowledgeApi;
@@ -40,37 +41,49 @@ const CALLER_OPTIONS: Array<{ value: RetrievalCallerContext["callerType"] }> = [
   { value: "chatflow" }
 ];
 
+const PRESET_OPTIONS: Array<{ value: RetrievalCallerPreset; label: string }> = [
+  { value: 0, label: "Assistant" },
+  { value: 1, label: "WorkflowDebug" },
+  { value: 2, label: "ExternalApi" },
+  { value: 3, label: "System" }
+];
+
+interface FilterRow {
+  key: string;
+  value: string;
+}
+
+const filtersToRows = (filters?: Record<string, string>): FilterRow[] => {
+  if (!filters) return [];
+  return Object.entries(filters).map(([k, v]) => ({ key: k, value: v }));
+};
+
+const rowsToFilters = (rows: FilterRow[]): Record<string, string> | undefined => {
+  const filtered = rows.filter(r => r.key.trim().length > 0);
+  if (filtered.length === 0) return undefined;
+  return filtered.reduce<Record<string, string>>((acc, r) => {
+    acc[r.key.trim()] = r.value;
+    return acc;
+  }, {});
+};
+
 export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
   const copy = getLibraryCopy(locale);
   const [query, setQuery] = useState("");
   const [callerType, setCallerType] = useState<RetrievalCallerContext["callerType"]>("studio");
+  const [preset, setPreset] = useState<RetrievalCallerPreset>(0);
   const [debug, setDebug] = useState<boolean>(true);
   const [profileOverride, setProfileOverride] = useState<RetrievalProfile>(
     knowledge.retrievalProfile ?? DEFAULT_RETRIEVAL_PROFILE
   );
+  const [filterRows, setFilterRows] = useState<FilterRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [activeLog, setActiveLog] = useState<RetrievalLog | null>(null);
-  const [logs, setLogs] = useState<RetrievalLog[]>([]);
-  const [logSheetVisible, setLogSheetVisible] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     setProfileOverride(knowledge.retrievalProfile ?? DEFAULT_RETRIEVAL_PROFILE);
   }, [knowledge.retrievalProfile]);
-
-  async function refreshLogs() {
-    if (!api.listRetrievalLogs) return;
-    try {
-      const response = await api.listRetrievalLogs(knowledge.id, { pageIndex: 1, pageSize: 20 });
-      setLogs(response.items);
-    } catch (error) {
-      Toast.error((error as Error).message);
-    }
-  }
-
-  useEffect(() => {
-    void refreshLogs();
-    return undefined;
-  }, [knowledge.id]);
 
   async function handleRun() {
     if (!query.trim()) {
@@ -88,8 +101,10 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
         callerId: callerType === "studio" ? "studio-debug" : `caller_${callerType}_${Date.now()}`,
         callerName: copy.retrievalCallerStudio,
         tenantId: "00000000-0000-0000-0000-000000000001",
-        userId: "admin"
+        userId: "admin",
+        preset
       };
+      const filters = rowsToFilters(filterRows);
       const response = await api.runRetrieval({
         query: query.trim(),
         knowledgeBaseIds: [knowledge.id],
@@ -97,10 +112,11 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
         minScore: profileOverride.minScore,
         retrievalProfile: profileOverride,
         callerContext,
-        debug
+        debug,
+        filters
       });
       setActiveLog(response.log);
-      await refreshLogs();
+      setRefreshKey(k => k + 1); // 通知 RetrievalLogsPanel 刷新
     } catch (error) {
       Toast.error((error as Error).message);
     } finally {
@@ -116,6 +132,16 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
     ));
   }, [activeLog, copy]);
 
+  function setFilterRow(idx: number, patch: Partial<FilterRow>): void {
+    setFilterRows(prev => prev.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+  }
+  function addFilterRow(): void {
+    setFilterRows(prev => [...prev, { key: "", value: "" }]);
+  }
+  function removeFilterRow(idx: number): void {
+    setFilterRows(prev => prev.filter((_, i) => i !== idx));
+  }
+
   return (
     <div className="atlas-knowledge-grid">
       <div className="atlas-retrieval-card semi-card semi-card-bordered semi-card-shadow">
@@ -129,12 +155,21 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
                 <Typography.Text type="tertiary" size="small">{copy.retrievalCallerType}</Typography.Text>
                 <Select
                   value={callerType}
-                  style={{ width: 160 }}
+                  style={{ width: 140 }}
                   onChange={value => setCallerType(value as RetrievalCallerContext["callerType"])}
                   optionList={CALLER_OPTIONS.map(option => ({
                     label: callerLabel(option.value, copy),
                     value: option.value
                   }))}
+                />
+              </div>
+              <div>
+                <Typography.Text type="tertiary" size="small">callerContext.preset</Typography.Text>
+                <Select
+                  value={preset}
+                  style={{ width: 160 }}
+                  onChange={value => setPreset(value as RetrievalCallerPreset)}
+                  optionList={PRESET_OPTIONS}
                 />
               </div>
               <div>
@@ -165,6 +200,30 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
                 <Switch checked={debug} onChange={setDebug} />
               </div>
             </Space>
+
+            {/* v5 §38 / 计划 G8：MetadataFilter key-value 编辑器 */}
+            <Typography.Text strong>Filters (Metadata)</Typography.Text>
+            <Space vertical align="start" style={{ width: "100%" }}>
+              {filterRows.map((row, idx) => (
+                <Space key={idx}>
+                  <Input
+                    placeholder="key (tag/namespace/...)"
+                    value={row.key}
+                    onChange={value => setFilterRow(idx, { key: value })}
+                    style={{ width: 160 }}
+                  />
+                  <Input
+                    placeholder="value"
+                    value={row.value}
+                    onChange={value => setFilterRow(idx, { value })}
+                    style={{ width: 240 }}
+                  />
+                  <Button type="danger" theme="borderless" onClick={() => removeFilterRow(idx)}>移除</Button>
+                </Space>
+              ))}
+              <Button onClick={addFilterRow}>+ 添加 filter</Button>
+            </Space>
+
             <Button type="primary" loading={busy} onClick={handleRun}>{copy.runTest}</Button>
           </Space>
 
@@ -186,10 +245,15 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
               <div className="atlas-test-result-list">
                 {candidatesContent}
               </div>
-              <Typography.Text strong style={{ display: "block", marginTop: 12 }}>{copy.retrievalFinalContext}</Typography.Text>
-              <Typography.Paragraph type="secondary" style={{ whiteSpace: "pre-wrap" }}>
-                {activeLog.finalContext || "-"}
-              </Typography.Paragraph>
+
+              {/* v5 §38 / 计划 G8：finalContext 用 Collapse 折叠 */}
+              <Collapse style={{ marginTop: 12 }}>
+                <Collapse.Panel header={copy.retrievalFinalContext} itemKey="final-context">
+                  <Typography.Paragraph type="secondary" style={{ whiteSpace: "pre-wrap" }}>
+                    {activeLog.finalContext || "-"}
+                  </Typography.Paragraph>
+                </Collapse.Panel>
+              </Collapse>
             </div>
           ) : (
             <Empty description={copy.noTestResult} />
@@ -197,71 +261,13 @@ export function RetrievalTab({ api, locale, knowledge }: RetrievalTabProps) {
         </div>
       </div>
 
-      <div className="atlas-table-card semi-card semi-card-bordered semi-card-shadow">
-        <div className="semi-card-body">
-          <Typography.Title heading={5}>{copy.retrievalLogsTitle}</Typography.Title>
-          {logs.length === 0 ? (
-            <Empty description={copy.retrievalLogsEmpty} />
-          ) : (
-            <Space vertical align="start" style={{ width: "100%" }}>
-              {logs.map(log => (
-                <div
-                  key={log.traceId}
-                  className="atlas-test-result semi-card semi-card-bordered"
-                  onClick={() => {
-                    setActiveLog(log);
-                    setLogSheetVisible(true);
-                  }}
-                  style={{ cursor: "pointer", width: "100%" }}
-                >
-                  <div className="semi-card-body">
-                    <Space vertical align="start" style={{ width: "100%" }}>
-                      <Space spacing={6}>
-                        <Tag color="cyan">{log.callerContext.callerType}</Tag>
-                        <Typography.Text strong>{log.rawQuery}</Typography.Text>
-                      </Space>
-                      <Typography.Text type="tertiary" size="small">
-                        traceId={log.traceId} · hits={log.reranked.length} · {formatDateTime(log.createdAt)}
-                      </Typography.Text>
-                    </Space>
-                  </div>
-                </div>
-              ))}
-            </Space>
-          )}
-        </div>
-      </div>
-
-      <SideSheet
-        title={`Trace ${activeLog?.traceId ?? ""}`}
-        visible={logSheetVisible && !!activeLog}
-        width={520}
-        onCancel={() => setLogSheetVisible(false)}
-      >
-        {activeLog ? (
-          <Space vertical align="start" style={{ width: "100%" }}>
-            <Banner type="info" description={`${formatDateTime(activeLog.createdAt)} · ${activeLog.embeddingModel} · ${activeLog.vectorStore}`} />
-            <Typography.Text strong>{copy.retrievalRawQuery}</Typography.Text>
-            <Typography.Paragraph>{activeLog.rawQuery}</Typography.Paragraph>
-            {activeLog.rewrittenQuery ? (
-              <>
-                <Typography.Text strong>{copy.retrievalRewrittenQuery}</Typography.Text>
-                <Typography.Paragraph>{activeLog.rewrittenQuery}</Typography.Paragraph>
-              </>
-            ) : null}
-            <Typography.Text strong>{copy.retrievalCandidates}</Typography.Text>
-            {activeLog.candidates.map(c => (
-              <Typography.Paragraph key={`c-${c.chunkId}`}>
-                [{c.source}] doc#{c.documentId} chunk#{c.chunkId} score={c.score.toFixed(3)} — {c.content.slice(0, 80)}
-              </Typography.Paragraph>
-            ))}
-            <Typography.Text strong>{copy.retrievalFinalContext}</Typography.Text>
-            <Typography.Paragraph type="secondary" style={{ whiteSpace: "pre-wrap" }}>
-              {activeLog.finalContext}
-            </Typography.Paragraph>
-          </Space>
-        ) : null}
-      </SideSheet>
+      <RetrievalLogsPanel
+        api={api}
+        locale={locale}
+        knowledge={knowledge}
+        refreshKey={refreshKey}
+        onPick={setActiveLog}
+      />
     </div>
   );
 }
@@ -293,6 +299,7 @@ function CandidateCard({
   const finalScore = item.rerankScore ?? item.score;
   const pct = Math.max(0, Math.min(100, Math.round((finalScore / maxScore) * 100)));
   const sourceLabel = sourceLabelFrom(item.source, copy);
+  const hasMetadata = item.metadata && Object.keys(item.metadata).length > 0;
   return (
     <div className="atlas-test-result semi-card semi-card-bordered">
       <div className="semi-card-body">
@@ -312,6 +319,20 @@ function CandidateCard({
             showInfo={false}
             stroke={pct >= 66 ? "#22c55e" : pct >= 33 ? "#f59e0b" : "#94a3b8"}
           />
+          {/* v5 §38 / 计划 G8：metadata 展开 */}
+          {hasMetadata ? (
+            <Collapse>
+              <Collapse.Panel header="metadata" itemKey={`meta-${item.chunkId}`}>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12 }}>
+                  {Object.entries(item.metadata!).map(([k, v]) => (
+                    <li key={k}>
+                      <strong>{k}</strong>: {v}
+                    </li>
+                  ))}
+                </ul>
+              </Collapse.Panel>
+            </Collapse>
+          ) : null}
         </Space>
       </div>
     </div>

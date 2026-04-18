@@ -2,7 +2,7 @@
   "category": {
     "id": "external_collaboration",
     "name": { "zh-CN": "外部协同", "en-US": "External Collaboration" },
-    "description": { "zh-CN": "v4 报告 27-31 章新增的企微 / 飞书连接器节点族", "en-US": "WeCom / Feishu connector nodes (v4 report 27-31)" }
+    "description": { "zh-CN": "v4 报告 27-31 章 + N6 钉钉/飞书三方扩展的连接器节点族", "en-US": "WeCom / Feishu / DingTalk connector nodes (v4 report 27-31 + N6)" }
   },
   "nodes": [
     {
@@ -32,12 +32,25 @@
       "name": { "zh-CN": "发送飞书消息", "en-US": "Send Feishu Message" }
     },
     {
+      "type": "dingtalk_send_message",
+      "name": { "zh-CN": "发送钉钉工作通知", "en-US": "Send DingTalk Work Notice" }
+    },
+    {
       "type": "wecom_create_approval",
       "name": { "zh-CN": "创建企微审批", "en-US": "Create WeCom Approval" }
     },
     {
       "type": "feishu_create_approval",
       "name": { "zh-CN": "创建飞书审批", "en-US": "Create Feishu Approval" }
+    },
+    {
+      "type": "dingtalk_create_approval",
+      "name": { "zh-CN": "创建钉钉审批", "en-US": "Create DingTalk Approval" }
+    },
+    {
+      "type": "feishu_sync_third_party_approval",
+      "name": { "zh-CN": "同步飞书三方审批", "en-US": "Sync Feishu Third-Party Approval" },
+      "summary": { "zh-CN": "把本地状态推到飞书审批中心（external_instances+check）", "en-US": "Push local state to Feishu approval center via external_instances+check" }
     },
     {
       "type": "external_query_approval_status",

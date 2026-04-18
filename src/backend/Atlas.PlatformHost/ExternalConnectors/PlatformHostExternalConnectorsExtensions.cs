@@ -16,7 +16,7 @@ public static class PlatformHostExternalConnectorsExtensions
     /// <summary>
     /// 在 PlatformHost.Program.cs 中调用一次：完成 ExternalConnectors 在 Web 主机层的全部装配
     /// （桥接 ISecretProtector / ILocalUserDirectory / IConnectorJwtIssuer，
-    /// 注入 Application/Infrastructure 服务，注册 WeCom + Feishu provider，
+    /// 注入 Application/Infrastructure 服务，注册 WeCom + Feishu + DingTalk provider，
     /// 注入 FluentValidation 校验器与 AutoMapper Profile）。
     /// </summary>
     public static IServiceCollection AddPlatformExternalConnectors(this IServiceCollection services)
@@ -26,6 +26,7 @@ public static class PlatformHostExternalConnectorsExtensions
         services.AddExternalConnectorsCore();
         services.AddWeComConnector();
         services.AddFeishuConnector();
+        services.AddDingTalkConnector();
         services.AddConnectorPluginNodes();
 
         services.TryAddScoped<ISecretProtector, ConnectorSecretProtectorBridge>();

@@ -107,7 +107,13 @@ function lifecycleFromJobStatus(job: KnowledgeJob | undefined): KnowledgeDocumen
       return "Uploaded";
     case "Running":
     case "Retrying":
-      return job.type === "parse" ? "Parsing" : job.type === "index" ? "Indexing" : "Chunking";
+      return job.type === "parse"
+        ? "Parsing"
+        : job.type === "chunking"
+          ? "Chunking"
+          : job.type === "index"
+            ? "Indexing"
+            : "Chunking";
     case "Succeeded":
       return "Ready";
     case "Failed":
@@ -120,6 +126,47 @@ function lifecycleFromJobStatus(job: KnowledgeJob | undefined): KnowledgeDocumen
   }
 }
 
+/**
+ * v5 §35 / 计划 G8：mock 在 parse 完成时为新上传文档生成 3-6 个 chunk，
+ * 让 SlicesTab 对新上传 KB 也能看到预览（不再永远 0 chunk）。
+ */
+function generateMockChunksForDocument(
+  store: MockStore,
+  knowledgeBaseId: number,
+  documentId: number,
+  kind: "text" | "table" | "image"
+): void {
+  const existing = Array.from(store.state.chunks.values()).filter(c => c.documentId === documentId);
+  if (existing.length > 0) return; // 已经有切片，避免重复生成
+  const count = 3 + Math.floor(Math.random() * 4); // 3..6
+  const now = NOW();
+  for (let i = 0; i < count; i += 1) {
+    const id = store.nextChunkId();
+    const baseContent = kind === "text"
+      ? `[mock] 文档 ${documentId} 的第 ${i + 1} 段内容（自动生成，方便 SlicesTab 预览）`
+      : kind === "table"
+        ? `row#${i + 1}: ${JSON.stringify({ name: `行${i + 1}`, value: i * 10 })}`
+        : `[image-item ${i + 1}] caption=mock_caption_${i + 1}`;
+    store.state.chunks.set(id, {
+      id,
+      knowledgeBaseId,
+      documentId,
+      chunkIndex: i,
+      content: baseContent,
+      startOffset: i * 200,
+      endOffset: i * 200 + baseContent.length,
+      hasEmbedding: true,
+      createdAt: now,
+      rowIndex: kind === "table" ? i + 1 : undefined,
+      columnHeadersJson: kind === "table" ? JSON.stringify(["name", "value"]) : undefined
+    });
+  }
+  const doc = store.state.documents.get(documentId);
+  if (doc) {
+    doc.chunkCount = count;
+  }
+}
+
 export function createMockLibraryApi(seed?: MockSeed): MockLibraryApi {
   const store = new MockStore();
   const scheduler = new JobScheduler(store, seed?.tickIntervalMs ?? 800);
@@ -129,8 +176,14 @@ export function createMockLibraryApi(seed?: MockSeed): MockLibraryApi {
     scheduler.advanceUntilStable();
   }
 
+  /**
+   * v5 §35 / 计划 G8：三段任务链 parse → chunking → index。
+   * 解析完成后由 scheduler.subscribe 钩子 enqueue 下一阶段，
+   * 同时在 parse 完成时按 KB kind 生成 3-6 个 mock chunk，让新上传文档也能在 SlicesTab 看到预览。
+   */
   function dispatchPair(knowledgeBaseId: number, documentId: number): {
     parseJobId: number;
+    chunkingJobId: number;
     indexJobId: number;
   } {
     const now = NOW();
@@ -148,6 +201,21 @@ export function createMockLibraryApi(seed?: MockSeed): MockLibraryApi {
     };
     scheduler.enqueue(parseJob);
 
+    const chunkingJob: KnowledgeJob = {
+      id: store.nextJobId(),
+      knowledgeBaseId,
+      documentId,
+      type: "chunking",
+      status: "Queued",
+      progress: 0,
+      attempts: 0,
+      maxAttempts: 3,
+      enqueuedAt: now,
+      logs: [{ ts: now, level: "info", message: "Chunking job enqueued (waits for parse)" }]
+    };
+    // 先入队，但 scheduler 推进时按 chunking_after_parse 顺序执行；通过 subscribe 钩子触发
+    store.state.jobs.set(chunkingJob.id, chunkingJob);
+
     const indexJob: KnowledgeJob = {
       id: store.nextJobId(),
       knowledgeBaseId,
@@ -158,9 +226,9 @@ export function createMockLibraryApi(seed?: MockSeed): MockLibraryApi {
       attempts: 0,
       maxAttempts: 3,
       enqueuedAt: now,
-      logs: [{ ts: now, level: "info", message: "Index job enqueued" }]
+      logs: [{ ts: now, level: "info", message: "Index job enqueued (waits for chunking)" }]
     };
-    scheduler.enqueue(indexJob);
+    store.state.jobs.set(indexJob.id, indexJob);
 
     const doc = store.state.documents.get(documentId);
     if (doc) {
@@ -170,10 +238,11 @@ export function createMockLibraryApi(seed?: MockSeed): MockLibraryApi {
       doc.status = 1;
     }
 
-    return { parseJobId: parseJob.id, indexJobId: indexJob.id };
+    return { parseJobId: parseJob.id, chunkingJobId: chunkingJob.id, indexJobId: indexJob.id };
   }
 
-  // 当任意任务变更时，自动同步对应文档的 lifecycleStatus + status 数字
+  // v5 §35 / 计划 G8：解析完成 → 入队切片任务 + 生成 3-6 个 mock chunk
+  // 切片完成 → 入队索引任务
   scheduler.subscribe(job => {
     const doc = job.documentId ? store.state.documents.get(job.documentId) : undefined;
     if (!doc) return;
@@ -182,6 +251,28 @@ export function createMockLibraryApi(seed?: MockSeed): MockLibraryApi {
     doc.status = lifecycle === "Ready" ? 2 : lifecycle === "Failed" ? 3 : 1;
     if (job.status === "Succeeded" && job.type === "index") {
       doc.processedAt = NOW();
+    }
+
+    // 链路推进：parse 成功 → 找到对应 chunking job 启动；chunking 成功 → 启动 index
+    if (job.status === "Succeeded" && (job.type === "parse" || job.type === "chunking")) {
+      const followType: "chunking" | "index" = job.type === "parse" ? "chunking" : "index";
+      const queued = Array.from(store.state.jobs.values()).find(
+        next =>
+          next.documentId === job.documentId &&
+          next.knowledgeBaseId === job.knowledgeBaseId &&
+          next.type === followType &&
+          next.status === "Queued"
+      );
+      if (queued) {
+        scheduler.enqueue(queued);
+      }
+      // parse 完成时为新文档生成 3-6 个 mock chunk，便于 SlicesTab 预览
+      if (job.type === "parse" && job.documentId) {
+        const kb = store.state.knowledgeBases.get(job.knowledgeBaseId);
+        if (kb) {
+          generateMockChunksForDocument(store, job.knowledgeBaseId, job.documentId, kb.kind ?? "text");
+        }
+      }
     }
   });
 
@@ -880,26 +971,44 @@ export function createMockLibraryApi(seed?: MockSeed): MockLibraryApi {
       if (!from || !to) {
         throw new Error("Version not found");
       }
-      const docDelta = to.documentCount - from.documentCount;
-      const chunkDelta = to.chunkCount - from.chunkCount;
-      return {
-        fromVersionId,
-        toVersionId,
-        entries: [
-          {
-            kind: "document",
-            changeType: docDelta >= 0 ? "added" : "removed",
-            ref: `${from.label} → ${to.label}`,
-            summary: `documents ${docDelta >= 0 ? "+" : ""}${docDelta}`
-          },
-          {
-            kind: "chunk",
-            changeType: chunkDelta >= 0 ? "added" : "removed",
-            ref: `${from.label} → ${to.label}`,
-            summary: `chunks ${chunkDelta >= 0 ? "+" : ""}${chunkDelta}`
-          }
-        ]
-      };
+      // v5 §40 / 计划 G8：真 deepDiff（字段级），不再仅返回合成 delta
+      const entries: KnowledgeVersionDiff["entries"] = [];
+      const fields: Array<keyof typeof from> = [
+        "label",
+        "note",
+        "snapshotRef",
+        "documentCount",
+        "chunkCount",
+        "createdBy",
+        "status"
+      ];
+      for (const field of fields) {
+        const fromValue = from[field];
+        const toValue = to[field];
+        const equal = JSON.stringify(fromValue) === JSON.stringify(toValue);
+        if (equal) continue;
+        entries.push({
+          kind: field as string,
+          changeType:
+            fromValue === undefined || fromValue === null
+              ? "added"
+              : toValue === undefined || toValue === null
+                ? "removed"
+                : "modified",
+          ref: `${from.label} → ${to.label}`,
+          summary: `${field as string}: ${JSON.stringify(fromValue)} → ${JSON.stringify(toValue)}`
+        });
+      }
+      // 兼容老语义：若没有任何字段差异，仍输出 document/chunk delta 摘要
+      if (entries.length === 0) {
+        entries.push({
+          kind: "summary",
+          changeType: "modified",
+          ref: `${from.label} → ${to.label}`,
+          summary: "no field differences detected"
+        });
+      }
+      return { fromVersionId, toVersionId, entries };
     },
 
     async listProviderConfigs(): Promise<KnowledgeProviderConfig[]> {

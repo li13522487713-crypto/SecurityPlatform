@@ -110,3 +110,17 @@ public sealed class FeishuApprovalNotificationSender : ExternalMessagingApproval
 
     protected override ConnectorProviderType TargetProviderType => ConnectorProviderType.Feishu;
 }
+
+public sealed class DingTalkApprovalNotificationSender : ExternalMessagingApprovalNotificationSenderBase
+{
+    public DingTalkApprovalNotificationSender(
+        IConnectorRegistry registry,
+        IExternalIdentityProviderRepository providerRepository,
+        IExternalIdentityBindingRepository bindingRepository,
+        ILogger<DingTalkApprovalNotificationSender> logger)
+        : base(registry, providerRepository, bindingRepository, logger) { }
+
+    public override ApprovalNotificationChannel SupportedChannel => ApprovalNotificationChannel.DingTalk;
+
+    protected override ConnectorProviderType TargetProviderType => ConnectorProviderType.DingTalk;
+}

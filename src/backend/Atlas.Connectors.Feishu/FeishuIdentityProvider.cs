@@ -66,6 +66,10 @@ public sealed class FeishuIdentityProvider : IExternalIdentityProvider
         var external = info.UserId ?? info.OpenId ?? info.UnionId
             ?? throw new ConnectorException(ConnectorErrorCodes.IdentityNotFound, "Feishu authen returned neither user_id nor open_id.", ProviderType);
 
+        // 命中身份后立即写 user_access_token 缓存，后续 provider 调用可通过
+        // FeishuApiClient.GetCachedUserAccessTokenAsync(context, externalUserId) 复用，省掉重复 OAuth。
+        await _api.CacheUserAccessTokenAsync(context, external, token, cancellationToken).ConfigureAwait(false);
+
         return new ExternalUserProfile
         {
             ProviderType = ProviderType,

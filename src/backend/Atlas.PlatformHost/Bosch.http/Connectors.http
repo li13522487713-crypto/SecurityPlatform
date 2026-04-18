@@ -286,3 +286,134 @@ Content-Type: application/json
 {
   "encrypt": "REPLACE_BASE64_ENCRYPTED_BODY"
 }
+
+### 6.4 钉钉 bpms_instance_change 审批状态回调
+POST {{hostBase}}/api/v1/connectors/providers/3/callbacks/bpms_instance_change?signature=REPLACE_SHA1_HEX&timestamp=1734567890&nonce=REPLACE_NONCE
+Content-Type: application/json
+
+{
+  "encrypt": "REPLACE_BASE64_ENCRYPTED_BODY"
+}
+
+###############################################################################
+# 7. Messaging 派发（N5）
+###############################################################################
+
+### 7.1 发文本消息（写 ExternalMessageDispatch 表）
+# @name sendText
+POST {{hostBase}}/api/v1/connectors/providers/1/messages:send
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "businessKey": "approval-instance-12345",
+  "recipient": {
+    "userIds": ["zhangsan", "lisi"],
+    "departmentIds": [],
+    "toAll": false
+  },
+  "text": "您有一条待审批：年假申请 3 天"
+}
+
+### 7.2 发模板卡片（企微 template_card / 飞书 interactive / 钉钉 action_card）
+# @name sendCard
+POST {{hostBase}}/api/v1/connectors/providers/1/messages:send
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "businessKey": "approval-instance-12345",
+  "recipient": {
+    "userIds": ["zhangsan"],
+    "toAll": false
+  },
+  "card": {
+    "title": "年假申请待审批",
+    "subtitle": "申请人：张三",
+    "content": "请假天数：3 天\n开始时间：2026-04-20",
+    "tone": "info",
+    "fields": [
+      { "key": "申请人", "value": "张三" },
+      { "key": "天数", "value": "3" }
+    ],
+    "jumpUrl": "https://platform.example.com/approval/12345",
+    "cardVersion": 1
+  }
+}
+
+### 7.3 卡片更新（用 7.2 返回的 dispatchId；企微会复用 ResponseCode）
+POST {{hostBase}}/api/v1/connectors/providers/1/messages/{{sendCard.response.body.dispatchId}}:update-card
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "card": {
+    "title": "年假申请已通过",
+    "subtitle": "审批人：王经理",
+    "content": "通过时间：2026-04-19 10:30",
+    "tone": "success",
+    "jumpUrl": "https://platform.example.com/approval/12345",
+    "cardVersion": 2
+  }
+}
+
+###############################################################################
+# 8. DingTalk 钉钉专项样例（N3）
+###############################################################################
+
+### 8.1 创建钉钉 provider 实例
+POST {{hostBase}}/api/v1/connectors/providers
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "providerType": "DingTalk",
+  "code": "dingtalk-default",
+  "displayName": "集团钉钉",
+  "providerTenantId": "ding123corpId",
+  "appId": "dingxxxAppKey",
+  "agentId": "1234567890",
+  "secretJson": "{\"appSecret\":\"<plain_app_secret>\",\"callbackToken\":\"<token>\",\"callbackAesKey\":\"<aes_key>\"}",
+  "trustedDomains": "platform.example.com",
+  "callbackBaseUrl": "https://platform.example.com/api/v1/connectors/providers/3/callbacks",
+  "syncCron": "0 */30 * * * ?",
+  "enabled": true
+}
+
+### 8.2 钉钉 OAuth 起跳（state 由后端签发）
+POST {{hostBase}}/api/v1/connectors/oauth/start
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "providerId": 3,
+  "redirectUri": "https://platform.example.com/auth/dingtalk/callback",
+  "postLoginRedirect": "/org/0/workspaces/0/home"
+}
+
+### 8.3 钉钉发工作通知（v1 /topapi/message/corpconversation/asyncsend_v2）
+POST {{hostBase}}/api/v1/connectors/providers/3/messages:send
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "businessKey": "approval-instance-12345",
+  "recipient": {
+    "userIds": ["dingZhangsanUserId"],
+    "toAll": false
+  },
+  "card": {
+    "title": "年假申请待审批",
+    "subtitle": "申请人：张三",
+    "content": "请假天数：3 天",
+    "fields": [{ "key": "天数", "value": "3" }],
+    "jumpUrl": "https://platform.example.com/approval/12345",
+    "cardVersion": 1
+  }
+}

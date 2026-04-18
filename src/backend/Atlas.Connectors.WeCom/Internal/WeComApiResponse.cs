@@ -184,3 +184,16 @@ internal sealed class WeComDepartmentMemberDetailResponse : WeComApiResponse
     [JsonPropertyName("userlist")]
     public WeComUserDetailResponse[]? UserList { get; set; }
 }
+
+/// <summary>
+/// /cgi-bin/oa/getapprovalinfo 响应：只返回 sp_no 数组 + 分页 next_cursor。
+/// 对应官方「批量获取审批单号」端点，配合 getapprovaldetail 做轻量状态轮询。
+/// </summary>
+internal sealed class WeComApprovalInfoResponse : WeComApiResponse
+{
+    [JsonPropertyName("sp_no_list")]
+    public string[]? SpNoList { get; set; }
+
+    [JsonPropertyName("next_cursor")]
+    public string? NextCursor { get; set; }
+}

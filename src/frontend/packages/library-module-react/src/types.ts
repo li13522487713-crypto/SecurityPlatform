@@ -29,7 +29,11 @@ export type KnowledgeDocumentLifecycleStatus =
   | "Failed"
   | "Archived";
 
-export type KnowledgeJobType = "parse" | "index" | "rebuild" | "gc";
+/**
+ * v5 §35 / 计划 G8：完整任务类型枚举。
+ * `chunking` 为 parse → chunking → index 三段链中的中间阶段，与后端 KnowledgeJobType.Chunking 对齐。
+ */
+export type KnowledgeJobType = "parse" | "chunking" | "index" | "rebuild" | "gc";
 
 export type KnowledgeJobStatus =
   | "Queued"
@@ -201,6 +205,12 @@ export interface KnowledgeProviderConfig {
 
 /* ---------------------- 检索透明度（v5 §38）-------------------------- */
 
+/**
+ * v5 §38 / 计划 G7：调用方场景预设。前端 retrieval-tab 的 callerContext.preset 选择器映射到此字段。
+ * 后端 RetrievalCallerPreset 枚举（Assistant=0, WorkflowDebug=1, ExternalApi=2, System=3）。
+ */
+export type RetrievalCallerPreset = 0 | 1 | 2 | 3;
+
 export interface RetrievalCallerContext {
   callerType: KnowledgeRetrievalCallerType;
   callerId?: string;
@@ -214,6 +224,8 @@ export interface RetrievalCallerContext {
   componentId?: string;
   tenantId?: string;
   userId?: string;
+  /** v5 §38 / 计划 G7：调用方场景预设；映射到后端 RetrievalCallerPreset 枚举 */
+  preset?: RetrievalCallerPreset;
 }
 
 export interface RetrievalCandidate {
@@ -468,6 +480,8 @@ export interface KnowledgeRetrievalTestItem {
 export interface KnowledgeJobsListRequest extends PagedRequest {
   status?: KnowledgeJobStatus;
   type?: KnowledgeJobType;
+  /** v5 §39 / 计划 G8：跨 KB 列表按 spaceId 过滤；为 undefined 时不过滤 */
+  spaceId?: number;
 }
 
 export interface KnowledgeBindingCreateRequest {

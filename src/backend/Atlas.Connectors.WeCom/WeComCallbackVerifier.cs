@@ -4,19 +4,20 @@ using System.Xml;
 using Atlas.Connectors.Core;
 using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Core.Security;
+using Atlas.Connectors.WeCom.Internal;
 
 namespace Atlas.Connectors.WeCom;
 
 /// <summary>
-/// 企业微信回调验签 + AES-CBC 解密。流程：
+/// 企业微信回调验签 + AES-CBC 解密。官方 WXBizMsgCrypt 算法：
 /// 1. 校验 SHA1(token, timestamp, nonce, encryptedBody) == msg_signature；
-/// 2. 用 EncodingAESKey 解密 encryptedBody；
-/// 3. 解密结果前 16 字节为随机串、接着 4 字节网络序消息长度、再接 N 字节 XML、再接 corpId。
-/// 4. 把 XML 转 JSON 透传给 handler 处理。
+/// 2. EncodingAESKey + "=" 后 base64 decode → 32 字节 AES key（前 16 字节为 IV）；
+/// 3. 解密 + PKCS#7 去填充 + 跳过前 16 字节随机串 + 读 4 字节网络序消息长度 + N 字节 UTF-8 XML + 尾部 corpId；
+/// 4. 强制校验尾部 corpId 与 RuntimeOptions 一致（原实现缺失，已补齐）；
+/// 5. XML 转 JSON（通过 <see cref="WeComXmlJsonConverter"/>，已替换 rawXml 占位）。
 ///
-/// 实现仅依赖 WeComApiClient.ResolveRuntimeOptionsAsync（取出 token + EncodingAESKey + corpId）。
-/// 注意：这里我们让调用方在 Verify 之前先把 RuntimeOptions 解析好并放进 Headers["wecom_runtime"]，
-/// 简化对 ConnectorContext 的反向依赖。
+/// Token / EncodingAESKey / CorpId 通过 Headers["x-wecom-token"] / ["x-wecom-encoding-aes-key"] / ["x-wecom-corpid"] 由
+/// <c>ConnectorCallbacksController</c> 在解析到 ProviderRuntimeOptions 后写入，避免 Core 反向依赖 Infrastructure。
 /// </summary>
 public sealed class WeComCallbackVerifier : IConnectorEventVerifier
 {
@@ -34,9 +35,13 @@ public sealed class WeComCallbackVerifier : IConnectorEventVerifier
 
         var token = GetCaseInsensitive(headers, "x-wecom-token");
         var aesKey = GetCaseInsensitive(headers, "x-wecom-encoding-aes-key");
-        if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(aesKey))
+        var expectedCorpId = GetCaseInsensitive(headers, "x-wecom-corpid");
+        if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(aesKey) || string.IsNullOrEmpty(expectedCorpId))
         {
-            throw new ConnectorException(ConnectorErrorCodes.WebhookDecryptFailed, "WeCom callback verifier requires x-wecom-token and x-wecom-encoding-aes-key headers (set by ConnectorCallbacksController).", ProviderType);
+            throw new ConnectorException(
+                ConnectorErrorCodes.WebhookDecryptFailed,
+                "WeCom callback verifier requires x-wecom-token / x-wecom-encoding-aes-key / x-wecom-corpid headers (set by ConnectorCallbacksController).",
+                ProviderType);
         }
 
         var bodyText = Encoding.UTF8.GetString(body);
@@ -47,13 +52,22 @@ public sealed class WeComCallbackVerifier : IConnectorEventVerifier
             throw new ConnectorException(ConnectorErrorCodes.WebhookSignatureInvalid, "WeCom callback signature mismatch.", ProviderType);
         }
 
-        var (plainXml, _) = DecryptAesCbc(encryptedXml, aesKey);
+        var (plainXml, decryptedCorpId) = DecryptAesCbc(encryptedXml, aesKey);
+        if (!string.Equals(decryptedCorpId, expectedCorpId, StringComparison.Ordinal))
+        {
+            // WXBizMsgCrypt 规范强制校验：解密后尾部 corpId 必须等于当前配置的 corp，否则为伪造回调。
+            throw new ConnectorException(
+                ConnectorErrorCodes.WebhookDecryptFailed,
+                $"WeCom callback decrypted corpId '{decryptedCorpId}' does not match configured corp '{expectedCorpId}'.",
+                ProviderType);
+        }
+
         var topic = ExtractTopicFromXml(plainXml);
         return new ConnectorWebhookEnvelope
         {
             ProviderType = ProviderType,
             Topic = topic,
-            PayloadJson = XmlToJson(plainXml),
+            PayloadJson = WeComXmlJsonConverter.ToJson(plainXml),
             IdempotencyKey = ExtractIdempotencyKey(plainXml, timestamp, nonce),
         };
     }
@@ -72,7 +86,6 @@ public sealed class WeComCallbackVerifier : IConnectorEventVerifier
 
     private static string ExtractEncryptedXml(string bodyText)
     {
-        // <xml><Encrypt><![CDATA[...]]></Encrypt></xml>
         var doc = new XmlDocument();
         doc.LoadXml(bodyText);
         var node = doc.SelectSingleNode("/xml/Encrypt");
@@ -81,7 +94,6 @@ public sealed class WeComCallbackVerifier : IConnectorEventVerifier
 
     private static (string Plain, string CorpId) DecryptAesCbc(string encryptedBase64, string encodingAesKey)
     {
-        // EncodingAESKey 是 43 位 base64 字符，补 "=" 后 base64 decode 得到 32 字节 AES key（=IV 前 16 字节）。
         var keyBytes = Convert.FromBase64String(encodingAesKey + "=");
         if (keyBytes.Length != 32)
         {
@@ -98,15 +110,19 @@ public sealed class WeComCallbackVerifier : IConnectorEventVerifier
         var cipher = Convert.FromBase64String(encryptedBase64);
         using var decryptor = aes.CreateDecryptor();
         var decrypted = decryptor.TransformFinalBlock(cipher, 0, cipher.Length);
-        // 移除 PKCS#7 风格 padding（企微补码自定）
         var pad = decrypted[^1];
-        if (pad < 1 || pad > 32) pad = 0;
+        if (pad < 1 || pad > 32)
+        {
+            pad = 0;
+        }
         var unpaddedLength = decrypted.Length - pad;
 
-        // 前 16 字节随机串
         var content = decrypted.AsSpan(16, unpaddedLength - 16);
-        // 接 4 字节 length（网络序）
         var msgLen = (content[0] << 24) | (content[1] << 16) | (content[2] << 8) | content[3];
+        if (msgLen < 0 || 4 + msgLen > content.Length)
+        {
+            throw new ConnectorException(ConnectorErrorCodes.WebhookDecryptFailed, "WeCom callback length prefix is invalid.", WeComConnectorMarker.ProviderType);
+        }
         var xmlBytes = content.Slice(4, msgLen);
         var corpIdBytes = content.Slice(4 + msgLen);
         var xml = Encoding.UTF8.GetString(xmlBytes);
@@ -130,13 +146,6 @@ public sealed class WeComCallbackVerifier : IConnectorEventVerifier
         }
     }
 
-    private static string XmlToJson(string xml)
-    {
-        // 简化版：直接返回 JSON 字符串包装 xml 原文，由上层 handler 用具体 XML 解析。
-        // 真实生产可换 LINQ-to-XML → JsonObject 转换。
-        return System.Text.Json.JsonSerializer.Serialize(new { rawXml = xml });
-    }
-
     private static string ExtractIdempotencyKey(string xml, string timestamp, string nonce)
     {
         try
@@ -151,7 +160,9 @@ public sealed class WeComCallbackVerifier : IConnectorEventVerifier
                 return string.Concat(spNo, ":", status, ":", timestamp);
             }
         }
-        catch (XmlException) { }
+        catch (XmlException)
+        {
+        }
         return string.Concat(timestamp, ":", nonce);
     }
 }

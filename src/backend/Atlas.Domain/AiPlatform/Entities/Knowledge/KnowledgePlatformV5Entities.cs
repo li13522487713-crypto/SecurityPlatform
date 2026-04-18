@@ -1,12 +1,116 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities.Knowledge;
 
+/* ====================================================================== */
+/* v5 §40 / 计划 G2：KnowledgeDocumentVersion                              */
+/* ====================================================================== */
+
 /// <summary>
-/// 知识库版本快照（v5 §40）。snapshot_ref 指向已固化的 Schema 元信息文件 / 行；
-/// 回退仅恢复 Schema，已上传文件保留。
+/// 知识库版本快照（v5 §40 / 计划 G2 重命名）。
+/// snapshot_ref 指向已固化的 Schema 元信息文件 / 行；回退仅恢复 Schema，已上传文件保留。
+/// 旧名 <see cref="KnowledgeVersionEntity"/> 仍以别名形式保留，已标记 <see cref="ObsoleteAttribute"/>。
 /// </summary>
+[SugarTable("knowledge_document_version")]
+public sealed class KnowledgeDocumentVersion : TenantEntity
+{
+    public KnowledgeDocumentVersion()
+        : base(TenantId.Empty)
+    {
+        Label = string.Empty;
+        SnapshotRef = string.Empty;
+        CreatedBy = string.Empty;
+        Status = "draft";
+        CreatedAt = DateTime.UtcNow;
+    }
+
+    public KnowledgeDocumentVersion(
+        TenantId tenantId,
+        long id,
+        long knowledgeBaseId,
+        string label,
+        string? note,
+        string snapshotRef,
+        int documentCount,
+        int chunkCount,
+        string createdBy,
+        string status = "draft")
+        : base(tenantId)
+    {
+        Id = id;
+        KnowledgeBaseId = knowledgeBaseId;
+        Label = label;
+        Note = note;
+        SnapshotRef = snapshotRef;
+        DocumentCount = documentCount;
+        ChunkCount = chunkCount;
+        CreatedBy = createdBy;
+        Status = string.IsNullOrWhiteSpace(status) ? "draft" : status;
+        CreatedAt = DateTime.UtcNow;
+    }
+
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
+    public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "label", Length = 64)]
+    public string Label { get; private set; }
+
+    [SugarColumn(ColumnName = "note", IsNullable = true, Length = 2000)]
+    public string? Note { get; private set; }
+
+    [SugarColumn(ColumnName = "snapshot_ref", Length = 256)]
+    public string SnapshotRef { get; private set; }
+
+    [SugarColumn(ColumnName = "document_count")]
+    public int DocumentCount { get; private set; }
+
+    [SugarColumn(ColumnName = "chunk_count")]
+    public int ChunkCount { get; private set; }
+
+    [SugarColumn(ColumnName = "created_by", Length = 128)]
+    public string CreatedBy { get; private set; }
+
+    [SugarColumn(ColumnName = "created_at")]
+    public DateTime CreatedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "released_at", IsNullable = true)]
+    public DateTime? ReleasedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "status", Length = 32)]
+    public string Status { get; private set; }
+
+    public void Release(DateTime now)
+    {
+        Status = "released";
+        ReleasedAt = now;
+    }
+
+    public void Archive()
+    {
+        Status = "archived";
+    }
+
+    /// <summary>v5 §40 / 计划 G3：rollback 后写一条新的"回退到 X 版本"记录。</summary>
+    public void MarkRolledBack(DateTime now, string targetSnapshotRef)
+    {
+        Status = "released";
+        ReleasedAt = now;
+        // 把 SnapshotRef 指向被回退到的目标快照，方便审计追溯
+        SnapshotRef = targetSnapshotRef;
+    }
+}
+
+/// <summary>
+/// 兼容别名：旧 <c>KnowledgeVersionEntity</c>。新代码请使用 <see cref="KnowledgeDocumentVersion"/>。
+/// 同样的 SugarTable，CodeFirst 不会再创建额外表；老调用方依然能 inject 旧仓储。
+/// </summary>
+[Obsolete("Renamed to KnowledgeDocumentVersion; will be removed in next major version.")]
+[SugarTable("knowledge_document_version")]
 public sealed class KnowledgeVersionEntity : TenantEntity
 {
     public KnowledgeVersionEntity()
@@ -44,15 +148,37 @@ public sealed class KnowledgeVersionEntity : TenantEntity
         CreatedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "label", Length = 64)]
     public string Label { get; private set; }
+
+    [SugarColumn(ColumnName = "note", IsNullable = true, Length = 2000)]
     public string? Note { get; private set; }
+
+    [SugarColumn(ColumnName = "snapshot_ref", Length = 256)]
     public string SnapshotRef { get; private set; }
+
+    [SugarColumn(ColumnName = "document_count")]
     public int DocumentCount { get; private set; }
+
+    [SugarColumn(ColumnName = "chunk_count")]
     public int ChunkCount { get; private set; }
+
+    [SugarColumn(ColumnName = "created_by", Length = 128)]
     public string CreatedBy { get; private set; }
+
+    [SugarColumn(ColumnName = "created_at")]
     public DateTime CreatedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "released_at", IsNullable = true)]
     public DateTime? ReleasedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "status", Length = 32)]
     public string Status { get; private set; }
 
     public void Release(DateTime now)
@@ -67,11 +193,16 @@ public sealed class KnowledgeVersionEntity : TenantEntity
     }
 }
 
+/* ====================================================================== */
+/* v5 §35 / 计划 G2：KnowledgeJob 拆分 (Parse / Index / Rebuild / Gc)      */
+/* ====================================================================== */
+
 /// <summary>
-/// 知识库异步任务实体（v5 §35/§37）。
-/// 兼容解析、索引、重建、回收四类任务，PayloadJson 存放各自任务参数（如 ParsingStrategy）。
-/// Status / Type 持久化为字符串，避免迁移现有 KnowledgeJobService 的 string 常量映射。
+/// 知识库任务实体（v5 §35/§37 / 计划 G2）。
+/// 兼容解析、索引、重建、回收四类任务；保留为查询/聚合视图，新代码写入应使用
+/// <see cref="KnowledgeParseJob"/> / <see cref="KnowledgeIndexJob"/> 等专用子表。
 /// </summary>
+[SugarTable("knowledge_job")]
 public sealed class KnowledgeJob : TenantEntity
 {
     public const string DefaultType = "parse";
@@ -108,23 +239,49 @@ public sealed class KnowledgeJob : TenantEntity
         LogsJson = "[]";
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id", IsNullable = true)]
     public long? DocumentId { get; private set; }
-    /// <summary>parse / index / rebuild / gc</summary>
+
+    [SugarColumn(ColumnName = "type", Length = 32)]
     public string Type { get; private set; }
-    /// <summary>Queued / Running / Succeeded / Failed / Retrying / DeadLetter / Canceled</summary>
+
+    [SugarColumn(ColumnName = "status", Length = 32)]
     public string Status { get; private set; }
+
+    [SugarColumn(ColumnName = "progress")]
     public int Progress { get; private set; }
+
+    [SugarColumn(ColumnName = "attempts")]
     public int Attempts { get; private set; }
+
+    [SugarColumn(ColumnName = "max_attempts")]
     public int MaxAttempts { get; private set; }
+
+    [SugarColumn(ColumnName = "error_message", IsNullable = true, Length = 4000)]
     public string? ErrorMessage { get; private set; }
+
+    [SugarColumn(ColumnName = "enqueued_at")]
     public DateTime EnqueuedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "started_at", IsNullable = true)]
     public DateTime? StartedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "finished_at", IsNullable = true)]
     public DateTime? FinishedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "payload_json", IsNullable = true, ColumnDataType = "text")]
     public string? PayloadJson { get; private set; }
-    /// <summary>JSON array of <c>{ ts, level, message }</c> 日志条目。</summary>
+
+    [SugarColumn(ColumnName = "logs_json", ColumnDataType = "text")]
     public string LogsJson { get; private set; }
-    /// <summary>Hangfire backgroundJob.Id（如果通过 Hangfire 调度）。</summary>
+
+    [SugarColumn(ColumnName = "hangfire_job_id", IsNullable = true, Length = 128)]
     public string? HangfireJobId { get; private set; }
 
     public void Start(DateTime now, string? hangfireJobId)
@@ -170,9 +327,231 @@ public sealed class KnowledgeJob : TenantEntity
 }
 
 /// <summary>
-/// 知识库绑定关系（Agent / App / Workflow / Chatflow → KB）。
-/// 删除 KB 之前必须列出所有绑定，依赖检查见 v5 §39。
+/// 解析任务专用表（v5 §35 / 计划 G2）。
+/// 与 <see cref="KnowledgeJob"/> 相同字段集，但表名独立，便于 Hangfire 重试与运维查询。
+/// 新代码应通过 <c>IKnowledgeParseJobService</c> 写入此表。
 /// </summary>
+[SugarTable("knowledge_parse_job")]
+public sealed class KnowledgeParseJob : TenantEntity
+{
+    public KnowledgeParseJob()
+        : base(TenantId.Empty)
+    {
+        Status = "Queued";
+        LogsJson = "[]";
+        EnqueuedAt = DateTime.UtcNow;
+    }
+
+    public KnowledgeParseJob(
+        TenantId tenantId,
+        long id,
+        long knowledgeBaseId,
+        long documentId,
+        string? parsingStrategyJson)
+        : base(tenantId)
+    {
+        Id = id;
+        KnowledgeBaseId = knowledgeBaseId;
+        DocumentId = documentId;
+        ParsingStrategyJson = string.IsNullOrWhiteSpace(parsingStrategyJson) ? "{}" : parsingStrategyJson;
+        Status = "Queued";
+        Progress = 0;
+        Attempts = 0;
+        MaxAttempts = 3;
+        EnqueuedAt = DateTime.UtcNow;
+        LogsJson = "[]";
+    }
+
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
+    public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id")]
+    public long DocumentId { get; private set; }
+
+    [SugarColumn(ColumnName = "parsing_strategy_json", ColumnDataType = "text")]
+    public string ParsingStrategyJson { get; private set; } = "{}";
+
+    [SugarColumn(ColumnName = "status", Length = 32)]
+    public string Status { get; private set; }
+
+    [SugarColumn(ColumnName = "progress")]
+    public int Progress { get; private set; }
+
+    [SugarColumn(ColumnName = "attempts")]
+    public int Attempts { get; private set; }
+
+    [SugarColumn(ColumnName = "max_attempts")]
+    public int MaxAttempts { get; private set; }
+
+    [SugarColumn(ColumnName = "error_message", IsNullable = true, Length = 4000)]
+    public string? ErrorMessage { get; private set; }
+
+    [SugarColumn(ColumnName = "enqueued_at")]
+    public DateTime EnqueuedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "started_at", IsNullable = true)]
+    public DateTime? StartedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "finished_at", IsNullable = true)]
+    public DateTime? FinishedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "logs_json", ColumnDataType = "text")]
+    public string LogsJson { get; private set; }
+
+    [SugarColumn(ColumnName = "hangfire_job_id", IsNullable = true, Length = 128)]
+    public string? HangfireJobId { get; private set; }
+
+    public void Start(DateTime now, string? hangfireJobId)
+    {
+        if (Status == "Canceled") return;
+        Status = "Running";
+        Progress = Math.Max(Progress, 1);
+        StartedAt ??= now;
+        Attempts = Math.Max(Attempts, 1);
+        HangfireJobId = hangfireJobId;
+    }
+
+    public void Update(string status, int progress, string? errorMessage = null)
+    {
+        Status = status;
+        Progress = Math.Clamp(progress, 0, 100);
+        if (errorMessage is not null) ErrorMessage = errorMessage;
+    }
+
+    public void Finish(string status, int progress, string? errorMessage, DateTime now)
+    {
+        Status = status;
+        Progress = Math.Clamp(progress, 0, 100);
+        ErrorMessage = errorMessage;
+        FinishedAt = now;
+    }
+
+    public void IncrementAttempts() => Attempts += 1;
+}
+
+/// <summary>
+/// 索引任务专用表（v5 §35 / 计划 G2）。
+/// 与 <see cref="KnowledgeParseJob"/> 同结构，只是承载 ChunkingProfile + Mode（append / overwrite）。
+/// </summary>
+[SugarTable("knowledge_index_job")]
+public sealed class KnowledgeIndexJob : TenantEntity
+{
+    public KnowledgeIndexJob()
+        : base(TenantId.Empty)
+    {
+        Status = "Queued";
+        LogsJson = "[]";
+        EnqueuedAt = DateTime.UtcNow;
+        Mode = "append";
+    }
+
+    public KnowledgeIndexJob(
+        TenantId tenantId,
+        long id,
+        long knowledgeBaseId,
+        long documentId,
+        string? chunkingProfileJson,
+        string mode)
+        : base(tenantId)
+    {
+        Id = id;
+        KnowledgeBaseId = knowledgeBaseId;
+        DocumentId = documentId;
+        ChunkingProfileJson = string.IsNullOrWhiteSpace(chunkingProfileJson) ? "{}" : chunkingProfileJson;
+        Mode = string.IsNullOrWhiteSpace(mode) ? "append" : mode;
+        Status = "Queued";
+        Progress = 0;
+        Attempts = 0;
+        MaxAttempts = 3;
+        EnqueuedAt = DateTime.UtcNow;
+        LogsJson = "[]";
+    }
+
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
+    public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id")]
+    public long DocumentId { get; private set; }
+
+    [SugarColumn(ColumnName = "chunking_profile_json", ColumnDataType = "text")]
+    public string ChunkingProfileJson { get; private set; } = "{}";
+
+    /// <summary>append / overwrite</summary>
+    [SugarColumn(ColumnName = "mode", Length = 16)]
+    public string Mode { get; private set; }
+
+    [SugarColumn(ColumnName = "status", Length = 32)]
+    public string Status { get; private set; }
+
+    [SugarColumn(ColumnName = "progress")]
+    public int Progress { get; private set; }
+
+    [SugarColumn(ColumnName = "attempts")]
+    public int Attempts { get; private set; }
+
+    [SugarColumn(ColumnName = "max_attempts")]
+    public int MaxAttempts { get; private set; }
+
+    [SugarColumn(ColumnName = "error_message", IsNullable = true, Length = 4000)]
+    public string? ErrorMessage { get; private set; }
+
+    [SugarColumn(ColumnName = "enqueued_at")]
+    public DateTime EnqueuedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "started_at", IsNullable = true)]
+    public DateTime? StartedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "finished_at", IsNullable = true)]
+    public DateTime? FinishedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "logs_json", ColumnDataType = "text")]
+    public string LogsJson { get; private set; }
+
+    [SugarColumn(ColumnName = "hangfire_job_id", IsNullable = true, Length = 128)]
+    public string? HangfireJobId { get; private set; }
+
+    public void Start(DateTime now, string? hangfireJobId)
+    {
+        if (Status == "Canceled") return;
+        Status = "Running";
+        Progress = Math.Max(Progress, 1);
+        StartedAt ??= now;
+        Attempts = Math.Max(Attempts, 1);
+        HangfireJobId = hangfireJobId;
+    }
+
+    public void Update(string status, int progress, string? errorMessage = null)
+    {
+        Status = status;
+        Progress = Math.Clamp(progress, 0, 100);
+        if (errorMessage is not null) ErrorMessage = errorMessage;
+    }
+
+    public void Finish(string status, int progress, string? errorMessage, DateTime now)
+    {
+        Status = status;
+        Progress = Math.Clamp(progress, 0, 100);
+        ErrorMessage = errorMessage;
+        FinishedAt = now;
+    }
+
+    public void IncrementAttempts() => Attempts += 1;
+}
+
+/* ====================================================================== */
+/* v5 §39 / 计划 G2：KnowledgeBinding / Permission                        */
+/* ====================================================================== */
+
+/// <summary>
+/// 知识库绑定关系（Agent / App / Workflow / Chatflow → KB）。
+/// </summary>
+[SugarTable("knowledge_binding")]
 public sealed class KnowledgeBindingEntity : TenantEntity
 {
     public KnowledgeBindingEntity()
@@ -205,13 +584,28 @@ public sealed class KnowledgeBindingEntity : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
-    /// <summary>agent / app / workflow / chatflow</summary>
+
+    [SugarColumn(ColumnName = "caller_type", Length = 32)]
     public string CallerType { get; private set; }
+
+    [SugarColumn(ColumnName = "caller_id", Length = 128)]
     public string CallerId { get; private set; }
+
+    [SugarColumn(ColumnName = "caller_name", Length = 256)]
     public string CallerName { get; private set; }
+
+    [SugarColumn(ColumnName = "retrieval_profile_override_json", IsNullable = true, ColumnDataType = "text")]
     public string? RetrievalProfileOverrideJson { get; private set; }
+
+    [SugarColumn(ColumnName = "created_at")]
     public DateTime CreatedAt { get; private set; }
+
+    [SugarColumn(ColumnName = "updated_at")]
     public DateTime UpdatedAt { get; private set; }
 
     public void Update(string callerName, string? retrievalProfileOverrideJson)
@@ -224,8 +618,8 @@ public sealed class KnowledgeBindingEntity : TenantEntity
 
 /// <summary>
 /// 知识库权限（v5 §39 四层模型）。
-/// scope: space / project / kb / document；ActionsJson: ["view","retrieve",...]
 /// </summary>
+[SugarTable("knowledge_permission")]
 public sealed class KnowledgePermissionEntity : TenantEntity
 {
     public KnowledgePermissionEntity()
@@ -268,16 +662,37 @@ public sealed class KnowledgePermissionEntity : TenantEntity
         GrantedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "scope", Length = 32)]
     public string Scope { get; private set; }
+
+    [SugarColumn(ColumnName = "scope_id", Length = 128)]
     public string ScopeId { get; private set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id", IsNullable = true)]
     public long? KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id", IsNullable = true)]
     public long? DocumentId { get; private set; }
+
+    [SugarColumn(ColumnName = "subject_type", Length = 16)]
     public string SubjectType { get; private set; }
+
+    [SugarColumn(ColumnName = "subject_id", Length = 128)]
     public string SubjectId { get; private set; }
+
+    [SugarColumn(ColumnName = "subject_name", Length = 256)]
     public string SubjectName { get; private set; }
-    /// <summary>JSON array of action strings (view/edit/delete/publish/manage/retrieve).</summary>
+
+    [SugarColumn(ColumnName = "actions_json", ColumnDataType = "text")]
     public string ActionsJson { get; private set; }
+
+    [SugarColumn(ColumnName = "granted_by", Length = 128)]
     public string GrantedBy { get; private set; }
+
+    [SugarColumn(ColumnName = "granted_at")]
     public DateTime GrantedAt { get; private set; }
 
     public void UpdateActions(string actionsJson)
@@ -286,10 +701,11 @@ public sealed class KnowledgePermissionEntity : TenantEntity
     }
 }
 
-/// <summary>
-/// 检索调用日志（v5 §38 召回透明度）。
-/// 一次检索调用 = 一条 RetrievalLog；前端调试面板按 traceId 查询。
-/// </summary>
+/* ====================================================================== */
+/* v5 §38 / 计划 G2：KnowledgeRetrievalLog                                 */
+/* ====================================================================== */
+
+[SugarTable("knowledge_retrieval_log")]
 public sealed class KnowledgeRetrievalLogEntity : TenantEntity
 {
     public KnowledgeRetrievalLogEntity()
@@ -339,27 +755,54 @@ public sealed class KnowledgeRetrievalLogEntity : TenantEntity
         CreatedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "trace_id", Length = 64)]
     public string TraceId { get; private set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "raw_query", Length = 4000)]
     public string RawQuery { get; private set; }
+
+    [SugarColumn(ColumnName = "rewritten_query", IsNullable = true, Length = 4000)]
     public string? RewrittenQuery { get; private set; }
+
+    [SugarColumn(ColumnName = "filters_json", IsNullable = true, ColumnDataType = "text")]
     public string? FiltersJson { get; private set; }
+
+    [SugarColumn(ColumnName = "caller_context_json", ColumnDataType = "text")]
     public string CallerContextJson { get; private set; }
-    /// <summary>JSON array of RetrievalCandidate.</summary>
+
+    [SugarColumn(ColumnName = "candidates_json", ColumnDataType = "text")]
     public string CandidatesJson { get; private set; }
-    /// <summary>JSON array of RetrievalCandidate with rerank scores.</summary>
+
+    [SugarColumn(ColumnName = "reranked_json", ColumnDataType = "text")]
     public string RerankedJson { get; private set; }
+
+    [SugarColumn(ColumnName = "final_context", ColumnDataType = "text")]
     public string FinalContext { get; private set; }
+
+    [SugarColumn(ColumnName = "embedding_model", Length = 128)]
     public string EmbeddingModel { get; private set; }
+
+    [SugarColumn(ColumnName = "vector_store", Length = 64)]
     public string VectorStore { get; private set; }
+
+    [SugarColumn(ColumnName = "latency_ms")]
     public int LatencyMs { get; private set; }
+
+    [SugarColumn(ColumnName = "created_at")]
     public DateTime CreatedAt { get; private set; }
 }
 
-/// <summary>
-/// Provider 配置（v5 §39 Provider 抽象）。
-/// id 是字符串（如 "vector-qdrant-default"），便于跨租户共享同一份默认配置。
-/// </summary>
+/* ====================================================================== */
+/* v5 §39 / 计划 G2：Provider 配置                                          */
+/* ====================================================================== */
+
+[SugarTable("knowledge_provider_config")]
 public sealed class KnowledgeProviderConfigEntity : TenantEntity
 {
     public KnowledgeProviderConfigEntity()
@@ -402,18 +845,41 @@ public sealed class KnowledgeProviderConfigEntity : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "config_id", Length = 128)]
     public string ConfigId { get; private set; }
+
     /// <summary>upload / storage / vector / embedding / generation</summary>
+    [SugarColumn(ColumnName = "role", Length = 16)]
     public string Role { get; private set; }
+
+    [SugarColumn(ColumnName = "provider_name", Length = 128)]
     public string ProviderName { get; private set; }
+
+    [SugarColumn(ColumnName = "display_name", Length = 256)]
     public string DisplayName { get; private set; }
+
+    [SugarColumn(ColumnName = "is_default")]
     public bool IsDefault { get; private set; }
-    /// <summary>active / degraded / inactive</summary>
+
+    [SugarColumn(ColumnName = "status", Length = 16)]
     public string Status { get; private set; }
+
+    [SugarColumn(ColumnName = "endpoint", IsNullable = true, Length = 512)]
     public string? Endpoint { get; private set; }
+
+    [SugarColumn(ColumnName = "region", IsNullable = true, Length = 128)]
     public string? Region { get; private set; }
+
+    [SugarColumn(ColumnName = "bucket_or_index", IsNullable = true, Length = 256)]
     public string? BucketOrIndex { get; private set; }
+
+    [SugarColumn(ColumnName = "metadata_json", IsNullable = true, ColumnDataType = "text")]
     public string? MetadataJson { get; private set; }
+
+    [SugarColumn(ColumnName = "updated_at")]
     public DateTime UpdatedAt { get; private set; }
 
     public void UpdateStatus(string status)
@@ -422,14 +888,12 @@ public sealed class KnowledgeProviderConfigEntity : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
-    /// <summary>v5 §39 / 计划 G1：upsert 路径调整 IsDefault。</summary>
     public void SetIsDefault(bool isDefault)
     {
         IsDefault = isDefault;
         UpdatedAt = DateTime.UtcNow;
     }
 
-    /// <summary>v5 §39 / 计划 G1：upsert 路径覆盖业务字段（保留 ConfigId / Role 不变）。</summary>
     public void Upsert(
         string providerName,
         string displayName,
@@ -452,10 +916,78 @@ public sealed class KnowledgeProviderConfigEntity : TenantEntity
     }
 }
 
+/* ====================================================================== */
+/* v5 §37 / 计划 G2：表格 KB 三表（KnowledgeTable + Column + Row）           */
+/* ====================================================================== */
+
 /// <summary>
-/// 表格知识库的列定义（v5 §37）。
-/// 与 DocumentChunk 协同：表格行切片在 ColumnHeadersJson 内冗余列名，但权威定义在此表。
+/// 表格知识库父表（v5 §37 / 计划 G2 新增）。
+/// 一份表格文档对应 1..N 个 KnowledgeTable（每个 sheet 一个），其下挂 Column + Row。
 /// </summary>
+[SugarTable("knowledge_table")]
+public sealed class KnowledgeTable : TenantEntity
+{
+    public KnowledgeTable()
+        : base(TenantId.Empty)
+    {
+        SheetId = string.Empty;
+        DisplayName = string.Empty;
+    }
+
+    public KnowledgeTable(
+        TenantId tenantId,
+        long id,
+        long knowledgeBaseId,
+        long documentId,
+        string sheetId,
+        string displayName,
+        int rowCount,
+        int columnCount)
+        : base(tenantId)
+    {
+        Id = id;
+        KnowledgeBaseId = knowledgeBaseId;
+        DocumentId = documentId;
+        SheetId = string.IsNullOrWhiteSpace(sheetId) ? "default" : sheetId;
+        DisplayName = string.IsNullOrWhiteSpace(displayName) ? sheetId : displayName;
+        RowCount = rowCount;
+        ColumnCount = columnCount;
+        CreatedAt = DateTime.UtcNow;
+    }
+
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
+    public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id")]
+    public long DocumentId { get; private set; }
+
+    /// <summary>多 sheet 文档的 sheet 标识；单 sheet 时取 "default"。</summary>
+    [SugarColumn(ColumnName = "sheet_id", Length = 128)]
+    public string SheetId { get; private set; }
+
+    [SugarColumn(ColumnName = "display_name", Length = 256)]
+    public string DisplayName { get; private set; }
+
+    [SugarColumn(ColumnName = "row_count")]
+    public int RowCount { get; private set; }
+
+    [SugarColumn(ColumnName = "column_count")]
+    public int ColumnCount { get; private set; }
+
+    [SugarColumn(ColumnName = "created_at")]
+    public DateTime CreatedAt { get; private set; }
+
+    public void UpdateCounts(int rowCount, int columnCount)
+    {
+        RowCount = rowCount;
+        ColumnCount = columnCount;
+    }
+}
+
+[SugarTable("knowledge_table_column")]
 public sealed class KnowledgeTableColumnEntity : TenantEntity
 {
     public KnowledgeTableColumnEntity()
@@ -473,28 +1005,48 @@ public sealed class KnowledgeTableColumnEntity : TenantEntity
         int ordinal,
         string name,
         bool isIndexColumn,
-        string dataType)
+        string dataType,
+        long? tableId = null)
         : base(tenantId)
     {
         Id = id;
         KnowledgeBaseId = knowledgeBaseId;
         DocumentId = documentId;
+        TableId = tableId;
         Ordinal = ordinal;
         Name = name;
         IsIndexColumn = isIndexColumn;
         DataType = string.IsNullOrWhiteSpace(dataType) ? "string" : dataType;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id")]
     public long DocumentId { get; private set; }
+
+    /// <summary>父表 KnowledgeTable.Id；旧数据可能为 null。</summary>
+    [SugarColumn(ColumnName = "table_id", IsNullable = true)]
+    public long? TableId { get; private set; }
+
+    [SugarColumn(ColumnName = "ordinal")]
     public int Ordinal { get; private set; }
+
+    [SugarColumn(ColumnName = "name", Length = 256)]
     public string Name { get; private set; }
+
+    [SugarColumn(ColumnName = "is_index_column")]
     public bool IsIndexColumn { get; private set; }
+
     /// <summary>string / number / boolean / date</summary>
+    [SugarColumn(ColumnName = "data_type", Length = 16)]
     public string DataType { get; private set; }
 }
 
-/// <summary>表格知识库的行（v5 §37）。CellsJson 是 <c>{"姓名":"李明",...}</c>。</summary>
+[SugarTable("knowledge_table_row")]
 public sealed class KnowledgeTableRowEntity : TenantEntity
 {
     public KnowledgeTableRowEntity()
@@ -510,25 +1062,46 @@ public sealed class KnowledgeTableRowEntity : TenantEntity
         long documentId,
         int rowIndex,
         string cellsJson,
-        long? chunkId)
+        long? chunkId,
+        long? tableId = null)
         : base(tenantId)
     {
         Id = id;
         KnowledgeBaseId = knowledgeBaseId;
         DocumentId = documentId;
+        TableId = tableId;
         RowIndex = rowIndex;
         CellsJson = string.IsNullOrWhiteSpace(cellsJson) ? "{}" : cellsJson;
         ChunkId = chunkId;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id")]
     public long DocumentId { get; private set; }
+
+    [SugarColumn(ColumnName = "table_id", IsNullable = true)]
+    public long? TableId { get; private set; }
+
+    [SugarColumn(ColumnName = "row_index")]
     public int RowIndex { get; private set; }
+
+    [SugarColumn(ColumnName = "cells_json", ColumnDataType = "text")]
     public string CellsJson { get; private set; }
+
+    [SugarColumn(ColumnName = "chunk_id", IsNullable = true)]
     public long? ChunkId { get; private set; }
 }
 
-/// <summary>图片知识库的图片项（v5 §37）。</summary>
+/* ====================================================================== */
+/* v5 §37 / 计划 G2：图片 KB 两表                                           */
+/* ====================================================================== */
+
+[SugarTable("knowledge_image_item")]
 public sealed class KnowledgeImageItemEntity : TenantEntity
 {
     public KnowledgeImageItemEntity()
@@ -559,16 +1132,32 @@ public sealed class KnowledgeImageItemEntity : TenantEntity
         ThumbnailUrl = thumbnailUrl;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "document_id")]
     public long DocumentId { get; private set; }
+
+    [SugarColumn(ColumnName = "file_name", Length = 256)]
     public string FileName { get; private set; }
+
+    [SugarColumn(ColumnName = "file_id", IsNullable = true)]
     public long? FileId { get; private set; }
+
+    [SugarColumn(ColumnName = "width", IsNullable = true)]
     public int? Width { get; private set; }
+
+    [SugarColumn(ColumnName = "height", IsNullable = true)]
     public int? Height { get; private set; }
+
+    [SugarColumn(ColumnName = "thumbnail_url", IsNullable = true, Length = 512)]
     public string? ThumbnailUrl { get; private set; }
 }
 
-/// <summary>图片标注（caption / ocr / tag / vlm），v5 §37。</summary>
+[SugarTable("knowledge_image_annotation")]
 public sealed class KnowledgeImageAnnotationEntity : TenantEntity
 {
     public KnowledgeImageAnnotationEntity()
@@ -594,18 +1183,28 @@ public sealed class KnowledgeImageAnnotationEntity : TenantEntity
         Confidence = confidence;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "image_item_id")]
     public long ImageItemId { get; private set; }
+
     /// <summary>caption / ocr / tag / vlm</summary>
+    [SugarColumn(ColumnName = "type", Length = 16)]
     public string Type { get; private set; }
+
+    [SugarColumn(ColumnName = "text", Length = 4000)]
     public string Text { get; private set; }
+
+    [SugarColumn(ColumnName = "confidence", IsNullable = true)]
     public float? Confidence { get; private set; }
 }
 
-/// <summary>
-/// 知识库元数据（v5 §32-44）：把 v5 报告新增的可选字段（kind / providerKind / chunkingProfile /
-/// retrievalProfile / lifecycleStatus / tags / versionLabel / ownerName）以 JSON 集中存放，
-/// 避免改动旧 <see cref="KnowledgeBase"/> 字段顺序与签名（保持向后兼容）。
-/// </summary>
+/* ====================================================================== */
+/* v5 §32-44 / 计划 G2：sidecar 元数据（kb / document）                     */
+/* ====================================================================== */
+
+[SugarTable("knowledge_base_meta")]
 public sealed class KnowledgeBaseMetaEntity : TenantEntity
 {
     public KnowledgeBaseMetaEntity()
@@ -635,7 +1234,6 @@ public sealed class KnowledgeBaseMetaEntity : TenantEntity
         string? ownerName)
         : base(tenantId)
     {
-        // Id 强制等于 KnowledgeBaseId，1:1 关系
         Id = knowledgeBaseId;
         KnowledgeBaseId = knowledgeBaseId;
         Kind = string.IsNullOrWhiteSpace(kind) ? "text" : kind;
@@ -650,18 +1248,42 @@ public sealed class KnowledgeBaseMetaEntity : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
     /// <summary>text / table / image</summary>
+    [SugarColumn(ColumnName = "kind", Length = 16)]
     public string Kind { get; private set; }
+
     /// <summary>builtin / qdrant / external</summary>
+    [SugarColumn(ColumnName = "provider_kind", Length = 16)]
     public string ProviderKind { get; private set; }
+
+    [SugarColumn(ColumnName = "provider_config_id", IsNullable = true, Length = 128)]
     public string? ProviderConfigId { get; private set; }
+
+    [SugarColumn(ColumnName = "tags_json", ColumnDataType = "text")]
     public string TagsJson { get; private set; }
+
+    [SugarColumn(ColumnName = "chunking_profile_json", ColumnDataType = "text")]
     public string ChunkingProfileJson { get; private set; }
+
+    [SugarColumn(ColumnName = "retrieval_profile_json", ColumnDataType = "text")]
     public string RetrievalProfileJson { get; private set; }
+
+    [SugarColumn(ColumnName = "lifecycle_status", Length = 32)]
     public string LifecycleStatus { get; private set; }
+
+    [SugarColumn(ColumnName = "version_label", Length = 64)]
     public string VersionLabel { get; private set; }
+
+    [SugarColumn(ColumnName = "owner_name", IsNullable = true, Length = 256)]
     public string? OwnerName { get; private set; }
+
+    [SugarColumn(ColumnName = "updated_at")]
     public DateTime UpdatedAt { get; private set; }
 
     public void Update(
@@ -688,10 +1310,7 @@ public sealed class KnowledgeBaseMetaEntity : TenantEntity
     }
 }
 
-/// <summary>
-/// 文档级 v5 元数据（lifecycleStatus / parsingStrategy / parseJobId / indexJobId / versionLabel）。
-/// 与 <see cref="KnowledgeBaseMetaEntity"/> 相同思路：1:1 sidecar，避免破坏旧 KnowledgeDocument 签名。
-/// </summary>
+[SugarTable("knowledge_document_meta")]
 public sealed class KnowledgeDocumentMetaEntity : TenantEntity
 {
     public KnowledgeDocumentMetaEntity()
@@ -727,14 +1346,34 @@ public sealed class KnowledgeDocumentMetaEntity : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    [SugarColumn(IsPrimaryKey = true, ColumnName = "id")]
+    public new long Id { get; set; }
+
+    [SugarColumn(ColumnName = "document_id")]
     public long DocumentId { get; private set; }
+
+    [SugarColumn(ColumnName = "knowledge_base_id")]
     public long KnowledgeBaseId { get; private set; }
+
+    [SugarColumn(ColumnName = "lifecycle_status", Length = 32)]
     public string LifecycleStatus { get; private set; }
+
+    [SugarColumn(ColumnName = "parsing_strategy_json", ColumnDataType = "text")]
     public string ParsingStrategyJson { get; private set; }
+
+    [SugarColumn(ColumnName = "parse_job_id", IsNullable = true)]
     public long? ParseJobId { get; private set; }
+
+    [SugarColumn(ColumnName = "index_job_id", IsNullable = true)]
     public long? IndexJobId { get; private set; }
+
+    [SugarColumn(ColumnName = "version_label", Length = 64)]
     public string VersionLabel { get; private set; }
+
+    [SugarColumn(ColumnName = "owner_user_id", IsNullable = true, Length = 128)]
     public string? OwnerUserId { get; private set; }
+
+    [SugarColumn(ColumnName = "updated_at")]
     public DateTime UpdatedAt { get; private set; }
 
     public void SetLifecycle(string lifecycleStatus)

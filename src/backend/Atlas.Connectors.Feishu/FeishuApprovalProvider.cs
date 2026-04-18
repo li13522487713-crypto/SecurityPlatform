@@ -111,10 +111,78 @@ public sealed class FeishuApprovalProvider : IExternalApprovalProvider
         };
     }
 
+    public async Task<ExternalApprovalInstanceIdPage> ListRecentInstanceIdsAsync(ConnectorContext context, ExternalApprovalInstanceIdQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        if (string.IsNullOrEmpty(query.TemplateId))
+        {
+            // 飞书 approval/v4/instances 按 approval_code 列 instance 列表，没有 approval_code 无法列；返回空。
+            return ExternalApprovalInstanceIdPage.Empty;
+        }
+
+        var pathBuilder = new System.Text.StringBuilder("/open-apis/approval/v4/instances?");
+        pathBuilder.Append("approval_code=").Append(Uri.EscapeDataString(query.TemplateId));
+        pathBuilder.Append("&start_time=").Append(query.StartTime.ToUnixTimeMilliseconds());
+        pathBuilder.Append("&end_time=").Append(query.EndTime.ToUnixTimeMilliseconds());
+        pathBuilder.Append("&page_size=").Append(Math.Clamp(query.Size, 10, 200));
+        if (!string.IsNullOrEmpty(query.Cursor))
+        {
+            pathBuilder.Append("&page_token=").Append(Uri.EscapeDataString(query.Cursor));
+        }
+
+        var resp = await _api.SendTenantGetAsync<FeishuListInstancesData>(context, pathBuilder.ToString(), cancellationToken).ConfigureAwait(false);
+        return new ExternalApprovalInstanceIdPage
+        {
+            InstanceIds = resp.Data?.InstanceCodeList ?? Array.Empty<string>(),
+            NextCursor = string.IsNullOrEmpty(resp.Data?.PageToken) ? null : resp.Data.PageToken,
+        };
+    }
+
     public async Task<bool> SyncThirdPartyInstanceAsync(ConnectorContext context, ExternalThirdPartyInstancePatch patch, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(patch);
-        // 飞书三方审批同步：approval/v4/external_instances/check 用于补全状态。这里仅做最小推送。
+        // 飞书三方审批同步 = external_instances 创建 + external_instances/check 幂等校验（模式 B/C）。
+        // 两步都做：create 负责 push，check 负责跨端对账，避免飞书侧掉数时本地还显示成功。
+        var created = await CreateExternalInstanceAsync(context, patch, cancellationToken).ConfigureAwait(false);
+        if (!created)
+        {
+            return false;
+        }
+
+        await CheckExternalInstanceAsync(context, patch, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private async Task<bool> CreateExternalInstanceAsync(ConnectorContext context, ExternalThirdPartyInstancePatch patch, CancellationToken cancellationToken)
+    {
+        // POST /open-apis/approval/v4/external_instances
+        // body 需要 approval_code / status / extra / user_id / form / links ... 这里只填必须字段，业务层通过 patch 扩展。
+        var body = new
+        {
+            approval_code = patch.TaskUpdates?.FirstOrDefault()?.TaskExternalId ?? patch.ExternalInstanceId,
+            status = MapStatusToFeishuExternal(patch.NewStatus),
+            extra = string.IsNullOrEmpty(patch.CommentText) ? "{}" : System.Text.Json.JsonSerializer.Serialize(new { comment = patch.CommentText }),
+            instance_id = patch.ExternalInstanceId,
+            user_id = patch.TaskUpdates?.FirstOrDefault()?.AssigneeExternalUserId,
+            start_time = patch.OccurredAt.ToUnixTimeMilliseconds(),
+            end_time = patch.NewStatus is ExternalApprovalStatus.Approved or ExternalApprovalStatus.Rejected or ExternalApprovalStatus.Canceled
+                ? patch.OccurredAt.ToUnixTimeMilliseconds()
+                : (long?)null,
+            update_time = patch.OccurredAt.ToUnixTimeMilliseconds(),
+        };
+        try
+        {
+            await _api.SendTenantPostAsync<object, object>(context, "/open-apis/approval/v4/external_instances", body, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (ConnectorException)
+        {
+            return false;
+        }
+    }
+
+    private async Task CheckExternalInstanceAsync(ConnectorContext context, ExternalThirdPartyInstancePatch patch, CancellationToken cancellationToken)
+    {
         var body = new
         {
             instances = new[]
@@ -136,11 +204,10 @@ public sealed class FeishuApprovalProvider : IExternalApprovalProvider
         try
         {
             await _api.SendTenantPostAsync<object, object>(context, "/open-apis/approval/v4/external_instances/check", body, cancellationToken).ConfigureAwait(false);
-            return true;
         }
         catch (ConnectorException)
         {
-            return false;
+            // check 失败不影响主同步结果；create 已成功说明飞书侧状态已更新。
         }
     }
 
@@ -251,4 +318,19 @@ internal sealed class FeishuInstanceDetailData
 
     [System.Text.Json.Serialization.JsonPropertyName("start_time")]
     public long StartTime { get; set; }
+}
+
+/// <summary>
+/// 飞书 approval/v4/instances（批量按时间窗口拉实例列表）响应数据。
+/// </summary>
+internal sealed class FeishuListInstancesData
+{
+    [System.Text.Json.Serialization.JsonPropertyName("instance_code_list")]
+    public string[]? InstanceCodeList { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("page_token")]
+    public string? PageToken { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("has_more")]
+    public bool HasMore { get; set; }
 }

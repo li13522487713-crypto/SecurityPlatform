@@ -49,8 +49,8 @@
 | AssignVariable | 是 | 是 | 是 |
 | VariableAssignerWithinLoop | 是 | 是 | 是 |
 | VariableAggregator | 是 | 是 | 是 |
-| KnowledgeRetriever | 是 | 是 | 是（v5 §38：retrievalProfile / debug / trace_id / final_context / candidates 输出，CallerContext 统一注入） |
-| KnowledgeIndexer | 是 | 是 | 是（v5 §35：parsingStrategy 类型化对象覆盖 quick/precise + extract_image/table + image_ocr + sheet_id/header_line/data_start_line） |
+| KnowledgeRetriever | 是 | 是 | 是（v5 §38 / 计划 G6：retrievalProfile（topK/minScore/enableRerank/rerankModel/enableHybrid/weights/enableQueryRewrite）+ filters（key-value map）+ callerContextOverride（合并默认 CallerContext，含 preset）+ debug；输出 traceId / finalContext / candidates / rewrittenQuery / latencyMs / embeddingModel / vectorStore（snake_case 别名保留一个版本） |
+| KnowledgeIndexer | 是 | 是 | 是（v5 §35 / 计划 G6：parsingStrategy（quick/precise + extractImage/Table + imageOcr + sheetId/headerLine/dataStartLine + filterPages + captionType）+ chunkingProfile（mode=fixed/semantic/table-row/image-item + size/overlap/separators/indexColumns）+ mode（append/overwrite，overwrite 模式先 GC 旧 chunks）；通过 IKnowledgeIndexJobService 走 Hangfire 调度 |
 | KnowledgeDeleter | 是 | 是 | 是 |
 | Ltm | 是 | 是 | 是 |
 | DatabaseQuery | 是 | 是 | 是 |
@@ -73,6 +73,27 @@
 | JsonSerialization | 是 | 是 | 是 |
 | JsonDeserialization | 是 | 是 | 是 |
 | Comment | 是 | 是 | 是 |
+
+## 外部协同 Connector 节点矩阵（v4 §27-31 + N6 钉钉/飞书三方扩展）
+
+> 节点目录：`Atlas.Sdk.ConnectorPlugins/Resources/NodeCatalog.json`，DI 注册：`AddConnectorPluginNodes()`。所有节点 `Category = "external_collaboration"`。
+> 校验语义：第 1 层 Schema 校验对外暴露字段（providerId / userIds / messageType / fieldsJson 等），第 2 层端口校验由统一 `IConnectorPluginNode.ExecuteAsync` 输入/输出 schema 提供，第 3 层业务规则由各 Provider 在执行期返回 `ConnectorErrorCodes.*`。
+
+| 节点 type | 节点能力 | Schema 校验 | 端口校验 | 业务规则校验 |
+|---|---|---|---|---|
+| external_identity_bind | 把外部用户身份绑定到本地 LocalUserId（4 档策略） | 是 | 是 | 是（直绑/手机号/邮箱 + ConnectorErrorCodes.IdentityNotFound/IdentityAmbiguous） |
+| external_directory_sync_trigger | 触发指定 provider 一次性全量同步 | 是 | 是 | 是（不可见范围降级 60011/60020） |
+| external_sync_department | 增量同步部门变更 | 是 | 是 | 是 |
+| external_sync_member | 增量同步成员变更 | 是 | 是 | 是 |
+| wecom_send_message | 发送企微消息（文本/template_card） | 是 | 是 | 是（响应写 ExternalMessageDispatch 表 + ResponseCode 链路） |
+| feishu_send_message | 发送飞书消息（文本/interactive） | 是 | 是 | 是 |
+| dingtalk_send_message | 发送钉钉工作通知（asyncsend_v2） | 是 | 是 | 是（需要 AgentId；缺失返回 MessagingFailed） |
+| wecom_create_approval | 创建企微审批实例 | 是 | 是 | 是（IntegrationMode != LocalLed 才推外部） |
+| feishu_create_approval | 创建飞书审批实例 | 是 | 是 | 是 |
+| dingtalk_create_approval | 创建钉钉工作流实例 | 是 | 是 | 是 |
+| feishu_sync_third_party_approval | 模式 B：把本地状态推到飞书审批中心（external_instances+check） | 是 | 是 | 是（飞书 90001-90099 → ApprovalSubmitFailed） |
+| external_query_approval_status | 跨 Provider 查询并对账外部审批状态 | 是 | 是 | 是（dingtalk processInstanceId / feishu instance_code / wecom sp_no 三套适配） |
+| external_process_callback | 把死信回调显式重投到 ConnectorCallbackInboxService | 是 | 是 | 是（仅 platformhost 内部用） |
 
 ## 连线规则矩阵
 

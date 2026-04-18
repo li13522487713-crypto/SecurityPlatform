@@ -218,9 +218,95 @@ GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/image-items?pageInde
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
+### -------------------- v5 §35 / 计划 G5：document 范围的 parse / index jobs --------------------
+
+### 列出某文档的全部 parse 任务
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/parse-jobs
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 重跑解析（document 范围；body 可选）
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/parse-jobs
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "parsingStrategy": {
+    "parsingType": 1,
+    "extractImage": true,
+    "extractTable": true,
+    "imageOcr": true
+  }
+}
+
+### 列出某文档的全部 index 任务
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/index-jobs
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 重建索引（document 范围；append / overwrite）
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/index-jobs/rebuild
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "chunkingProfile": {
+    "mode": 0,
+    "size": 512,
+    "overlap": 64
+  },
+  "mode": 1
+}
+
+### 死信批量重投（不传 jobIds 时按 KB 全量；可选 type 过滤）
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/dead-letter:retry
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "type": 0
+}
+
+### -------------------- 绑定 / 权限 / Provider 写入 --------------------
+
+### 绑定详情
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/bindings/1
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 权限更新（PUT actions）
+PUT {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/permissions/1
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "actions": [0, 5]
+}
+
 ### -------------------- provider-configs --------------------
 
 ### 获取五类 Provider 配置（upload / storage / vector / embedding / generation）
 GET {{baseUrl}}/api/v1/knowledge-bases/provider-configs
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
+
+### Upsert provider 配置（路径 role 必须与 body.role 一致）
+PUT {{baseUrl}}/api/v1/knowledge-bases/provider-configs/Vector
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "role": 2,
+  "providerName": "qdrant",
+  "displayName": "Qdrant Cluster (Default)",
+  "status": 0,
+  "isDefault": true,
+  "endpoint": "http://qdrant:6333",
+  "region": "cn-east-1",
+  "bucketOrIndex": "atlas_kb"
+}

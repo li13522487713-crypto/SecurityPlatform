@@ -310,7 +310,7 @@ public sealed class KnowledgeVersionService : IKnowledgeVersionService
             ?? throw new BusinessException("知识库不存在。", ErrorCodes.NotFound);
         var id = _idGeneratorAccessor.NextId();
         var snapshotRef = $"snapshot-{knowledgeBaseId}-{id}";
-        var entity = new KnowledgeVersionEntity(
+        var entity = new KnowledgeDocumentVersion(
             tenantId,
             id,
             knowledgeBaseId,
@@ -347,15 +347,38 @@ public sealed class KnowledgeVersionService : IKnowledgeVersionService
         long versionId,
         CancellationToken cancellationToken)
     {
-        var entity = await _versionRepository.FindByIdAsync(tenantId, versionId, cancellationToken)
+        var target = await _versionRepository.FindByIdAsync(tenantId, versionId, cancellationToken)
             ?? throw new BusinessException("版本不存在。", ErrorCodes.NotFound);
-        if (entity.KnowledgeBaseId != knowledgeBaseId)
+        if (target.KnowledgeBaseId != knowledgeBaseId)
         {
             throw new BusinessException("版本不属于该知识库。", ErrorCodes.Forbidden);
         }
-        // 当前阶段：rollback 仅记录"已回退到此版本"语义；实际 Schema 恢复在 KnowledgeBaseMetaEntity 上的扩展属于 P2 治理范围。
-        // 调用方可通过 listVersions 看到回退操作的 trace。
-        await Task.CompletedTask;
+
+        // v5 §40 / 计划 G3：rollback 实现：
+        // 1) 用一条新的 "released" 版本记录指向被回退到的 snapshotRef，让 listVersions 能看到 trace
+        // 2) 把 KB 当前 Document/Chunk 计数重置为目标版本快照的计数（不动文件存储，只改元信息）
+        var kb = await _knowledgeBaseRepository.FindByIdAsync(tenantId, knowledgeBaseId, cancellationToken)
+            ?? throw new BusinessException("知识库不存在。", ErrorCodes.NotFound);
+
+        var newId = _idGeneratorAccessor.NextId();
+        var rollbackEntry = new KnowledgeDocumentVersion(
+            tenantId,
+            newId,
+            knowledgeBaseId,
+            label: $"rollback-to-{target.Label}",
+            note: $"Rolled back to version {target.Label} ({target.SnapshotRef})",
+            snapshotRef: target.SnapshotRef,
+            documentCount: target.DocumentCount,
+            chunkCount: target.ChunkCount,
+            createdBy: "system",
+            status: "released");
+        rollbackEntry.MarkRolledBack(DateTime.UtcNow, target.SnapshotRef);
+        await _versionRepository.AddAsync(rollbackEntry, cancellationToken);
+
+        // 反向写入 KB 计数；保留实际数据不变（v5 §40 仅 Schema 恢复，不改物理 chunks）
+        kb.SetDocumentCount(target.DocumentCount);
+        kb.SetChunkCount(target.ChunkCount);
+        await _knowledgeBaseRepository.UpdateAsync(kb, cancellationToken);
     }
 
     public async Task<KnowledgeVersionDiffDto> DiffAsync(
@@ -393,7 +416,7 @@ public sealed class KnowledgeVersionService : IKnowledgeVersionService
         }
     }
 
-    private static KnowledgeVersionDto Map(KnowledgeVersionEntity entity)
+    private static KnowledgeVersionDto Map(KnowledgeDocumentVersion entity)
         => new(
             entity.Id,
             entity.KnowledgeBaseId,

@@ -3,6 +3,7 @@ import {
   Banner,
   Button,
   Empty,
+  Input,
   Modal,
   Select,
   Space,
@@ -218,10 +219,25 @@ function TableRowsView({
   loading: boolean;
   emptyText: string;
 }) {
-  if (rows.length === 0) {
-    return <div style={{ padding: 32 }}><Empty description={emptyText} /></div>;
-  }
   const sortedColumns = [...columns].sort((a, b) => a.ordinal - b.ordinal);
+  // v5 §37 / 计划 G8：按列过滤 — 选定列名 + 子串关键词
+  const [filterColumn, setFilterColumn] = useState<string | undefined>(undefined);
+  const [filterKeyword, setFilterKeyword] = useState<string>("");
+
+  const filteredRows = useMemo(() => {
+    if (!filterColumn || filterKeyword.trim().length === 0) return rows;
+    const needle = filterKeyword.trim().toLowerCase();
+    return rows.filter(row => {
+      try {
+        const cells = JSON.parse(row.cellsJson) as Record<string, string>;
+        const value = String(cells[filterColumn] ?? "").toLowerCase();
+        return value.includes(needle);
+      } catch {
+        return false;
+      }
+    });
+  }, [rows, filterColumn, filterKeyword]);
+
   const columnDefs: ColumnProps<KnowledgeTableRow>[] = [
     { title: "#", dataIndex: "rowIndex", width: 60 },
     ...sortedColumns.map(col => ({
@@ -243,7 +259,36 @@ function TableRowsView({
       }
     }))
   ];
-  return <Table rowKey="id" loading={loading} columns={columnDefs} dataSource={rows} pagination={false} />;
+
+  return (
+    <div>
+      <Space style={{ marginBottom: 8 }}>
+        <Select
+          placeholder="按列筛选"
+          style={{ width: 160 }}
+          value={filterColumn}
+          showClear
+          onChange={value => setFilterColumn(value as string | undefined)}
+          optionList={sortedColumns.map(col => ({ value: col.name, label: col.name }))}
+        />
+        <Input
+          placeholder="关键词"
+          value={filterKeyword}
+          onChange={value => setFilterKeyword(value)}
+          style={{ width: 240 }}
+          disabled={!filterColumn}
+        />
+        {(filterColumn || filterKeyword) && (
+          <Button onClick={() => { setFilterColumn(undefined); setFilterKeyword(""); }}>清除</Button>
+        )}
+      </Space>
+      {filteredRows.length === 0 ? (
+        <div style={{ padding: 32 }}><Empty description={emptyText} /></div>
+      ) : (
+        <Table rowKey="id" loading={loading} columns={columnDefs} dataSource={filteredRows} pagination={false} />
+      )}
+    </div>
+  );
 }
 
 function ImageItemsView({
@@ -255,47 +300,90 @@ function ImageItemsView({
   loading: boolean;
   copy: ReturnType<typeof getLibraryCopy>;
 }) {
-  if (items.length === 0) {
-    return <div style={{ padding: 32 }}><Empty description={copy.slicesEmpty} /></div>;
-  }
+  // v5 §37 / 计划 G8：按标注类别 + 文本关键词过滤
+  const [annotationType, setAnnotationType] = useState<"all" | "caption" | "ocr" | "tag" | "vlm">("all");
+  const [annotationKeyword, setAnnotationKeyword] = useState<string>("");
+
+  const filteredItems = useMemo(() => {
+    return items.filter(item => {
+      if (annotationType === "all" && annotationKeyword.trim().length === 0) return true;
+      const matchesType = annotationType === "all"
+        ? item.annotations.length > 0
+        : item.annotations.some(a => a.type === annotationType);
+      if (!matchesType) return false;
+      if (annotationKeyword.trim().length === 0) return true;
+      const needle = annotationKeyword.trim().toLowerCase();
+      return item.annotations.some(a => a.text.toLowerCase().includes(needle));
+    });
+  }, [items, annotationType, annotationKeyword]);
+
   return (
-    <div className="atlas-image-grid">
-      {items.map(item => (
-        <div key={item.id} className="atlas-image-card semi-card semi-card-bordered">
-          <div className="semi-card-body">
-            {item.thumbnailUrl ? (
-              <img
-                src={item.thumbnailUrl}
-                alt={item.fileName}
-                style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, background: "#f1f5f9" }}
-                loading="lazy"
-              />
-            ) : (
-              <div style={{ width: "100%", height: 120, borderRadius: 8, background: "#f1f5f9" }} />
-            )}
-            <Typography.Text strong style={{ display: "block", marginTop: 8 }}>{item.fileName}</Typography.Text>
-            <Typography.Text type="tertiary" size="small">
-              {item.width}×{item.height}
-            </Typography.Text>
-            <Space wrap spacing={4} style={{ marginTop: 8 }}>
-              {item.annotations.map(annotation => {
-                const labelMap = {
-                  caption: copy.imageItemAnnotationCaption,
-                  ocr: copy.imageItemAnnotationOcr,
-                  tag: copy.imageItemAnnotationTag,
-                  vlm: copy.imageItemAnnotationVlm
-                } as const;
-                return (
-                  <Tag key={annotation.id} color={annotation.type === "tag" ? "blue" : "violet"} size="small">
-                    {labelMap[annotation.type]}: {annotation.text}
-                  </Tag>
-                );
-              })}
-            </Space>
-            {loading ? <Typography.Text type="tertiary" size="small">loading…</Typography.Text> : null}
-          </div>
+    <div>
+      <Space style={{ marginBottom: 8 }}>
+        <Select
+          style={{ width: 160 }}
+          value={annotationType}
+          onChange={value => setAnnotationType(value as typeof annotationType)}
+          optionList={[
+            { value: "all", label: "全部标注" },
+            { value: "caption", label: copy.imageItemAnnotationCaption },
+            { value: "ocr", label: copy.imageItemAnnotationOcr },
+            { value: "tag", label: copy.imageItemAnnotationTag },
+            { value: "vlm", label: copy.imageItemAnnotationVlm }
+          ]}
+        />
+        <Input
+          placeholder="标注关键词"
+          value={annotationKeyword}
+          onChange={value => setAnnotationKeyword(value)}
+          style={{ width: 240 }}
+        />
+        {(annotationType !== "all" || annotationKeyword) && (
+          <Button onClick={() => { setAnnotationType("all"); setAnnotationKeyword(""); }}>清除</Button>
+        )}
+      </Space>
+      {filteredItems.length === 0 ? (
+        <div style={{ padding: 32 }}><Empty description={copy.slicesEmpty} /></div>
+      ) : (
+        <div className="atlas-image-grid">
+          {filteredItems.map(item => (
+            <div key={item.id} className="atlas-image-card semi-card semi-card-bordered">
+              <div className="semi-card-body">
+                {item.thumbnailUrl ? (
+                  <img
+                    src={item.thumbnailUrl}
+                    alt={item.fileName}
+                    style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, background: "#f1f5f9" }}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style={{ width: "100%", height: 120, borderRadius: 8, background: "#f1f5f9" }} />
+                )}
+                <Typography.Text strong style={{ display: "block", marginTop: 8 }}>{item.fileName}</Typography.Text>
+                <Typography.Text type="tertiary" size="small">
+                  {item.width}×{item.height}
+                </Typography.Text>
+                <Space wrap spacing={4} style={{ marginTop: 8 }}>
+                  {item.annotations.map(annotation => {
+                    const labelMap = {
+                      caption: copy.imageItemAnnotationCaption,
+                      ocr: copy.imageItemAnnotationOcr,
+                      tag: copy.imageItemAnnotationTag,
+                      vlm: copy.imageItemAnnotationVlm
+                    } as const;
+                    return (
+                      <Tag key={annotation.id} color={annotation.type === "tag" ? "blue" : "violet"} size="small">
+                        {labelMap[annotation.type]}: {annotation.text}
+                      </Tag>
+                    );
+                  })}
+                </Space>
+                {loading ? <Typography.Text type="tertiary" size="small">loading…</Typography.Text> : null}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

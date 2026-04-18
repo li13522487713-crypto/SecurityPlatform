@@ -44,7 +44,7 @@ describe("createMockLibraryApi", () => {
     expect(dto.retrievalProfile?.topK).toBeGreaterThan(0);
   });
 
-  it("uploadDocument enqueues parse + index jobs and reaches Ready after advanceUntilStable", async () => {
+  it("uploadDocument enqueues parse + chunking + index three-stage chain and materializes chunks", async () => {
     const api = createMockLibraryApi({ tickIntervalMs: 0 });
     const list = await api.listKnowledgeBases({ pageIndex: 1, pageSize: 5 });
     const textKb = list.items.find(item => item.kind === "text");
@@ -58,11 +58,24 @@ describe("createMockLibraryApi", () => {
     expect(before.lifecycleStatus).toBe("Uploaded");
     expect(typeof before.parseJobId).toBe("number");
 
+    // v5 §35 / 计划 G9：三段链 parse → chunking → index
     api.__scheduler.advanceUntilStable();
 
     const after = await api.getDocumentProgress(textKb!.id, docId);
     expect(after.lifecycleStatus).toBe("Ready");
     expect(after.status).toBe(2);
+
+    // 验证 parse 完成时为新文档生成 3-6 个 mock chunk
+    const chunks = await api.listChunks(textKb!.id, docId, { pageIndex: 1, pageSize: 50 });
+    expect(chunks.items.length).toBeGreaterThanOrEqual(3);
+    expect(chunks.items.length).toBeLessThanOrEqual(6);
+
+    // 验证三种类型的 job 都至少出现一次
+    const jobs = await api.listJobs!(textKb!.id, { pageIndex: 1, pageSize: 50 });
+    const types = new Set(jobs.items.filter(j => j.documentId === docId).map(j => j.type));
+    expect(types.has("parse")).toBe(true);
+    expect(types.has("chunking")).toBe(true);
+    expect(types.has("index")).toBe(true);
   });
 
   it("table KB has columns + rows", async () => {
@@ -150,7 +163,7 @@ describe("createMockLibraryApi", () => {
     expect(list2.items.some(p => p.id === id)).toBe(false);
   });
 
-  it("version snapshot/release/diff", async () => {
+  it("version snapshot/release/diff (deep diff)", async () => {
     const api = createMockLibraryApi();
     const list = await api.listKnowledgeBases({ pageIndex: 1, pageSize: 10 });
     const kb = list.items[0];
@@ -159,7 +172,9 @@ describe("createMockLibraryApi", () => {
     const newVersionId = await api.createVersionSnapshot!(kb.id, { label: "v-test", note: "unit test" });
     await api.releaseVersion!(kb.id, newVersionId);
     const diff = await api.diffVersions!(kb.id, baseline.id, newVersionId);
-    expect(diff.entries.length).toBe(2);
+    // v5 §40 / 计划 G8：真 deepDiff 按字段对比；至少有 label/snapshotRef/status 等差异
+    expect(diff.entries.length).toBeGreaterThanOrEqual(2);
+    expect(diff.entries.some(entry => entry.kind === "label")).toBe(true);
   });
 
   it("provider configs cover all five roles", async () => {

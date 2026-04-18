@@ -25,6 +25,22 @@ public sealed class BM25RetrievalService
         _options = options.Value;
     }
 
+    /// <summary>
+    /// v5 §38 / 计划 G4：profile-aware overload。
+    /// profile 中 TopK / MinScore 优先于参数 topK；其它字段（hybrid / rerank）由上层 RagRetrievalService 负责。
+    /// </summary>
+    public Task<IReadOnlyList<RagSearchResult>> SearchAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> knowledgeBaseIds,
+        string query,
+        int topK,
+        RetrievalProfile? profile,
+        CancellationToken cancellationToken)
+    {
+        var effectiveTopK = profile?.TopK > 0 ? profile.TopK : topK;
+        return SearchAsync(tenantId, knowledgeBaseIds, query, effectiveTopK, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RagSearchResult>> SearchAsync(
         TenantId tenantId,
         IReadOnlyList<long> knowledgeBaseIds,

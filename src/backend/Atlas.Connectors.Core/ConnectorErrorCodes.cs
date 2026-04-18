@@ -23,15 +23,19 @@ public static class ConnectorErrorCodes
 
     public const string TokenAcquireFailed = "CONNECTOR_TOKEN_ACQUIRE_FAILED";
     public const string TokenExpired = "CONNECTOR_TOKEN_EXPIRED";
+    public const string TokenInvalid = "CONNECTOR_TOKEN_INVALID";
 
     public const string IdentityNotFound = "CONNECTOR_IDENTITY_NOT_FOUND";
     public const string IdentityAmbiguous = "CONNECTOR_IDENTITY_AMBIGUOUS";
 
     public const string DirectorySyncFailed = "CONNECTOR_DIRECTORY_SYNC_FAILED";
     public const string ApprovalSubmitFailed = "CONNECTOR_APPROVAL_SUBMIT_FAILED";
+    public const string ApprovalInstanceNotFound = "CONNECTOR_APPROVAL_INSTANCE_NOT_FOUND";
     public const string ApprovalTemplateNotFound = "CONNECTOR_APPROVAL_TEMPLATE_NOT_FOUND";
     public const string ApprovalFieldMappingInvalid = "CONNECTOR_APPROVAL_FIELD_MAPPING_INVALID";
     public const string MessagingFailed = "CONNECTOR_MESSAGING_FAILED";
+
+    public const string CallbackEventProcessFailed = "CONNECTOR_CALLBACK_EVENT_PROCESS_FAILED";
 
     public const string Unknown = "CONNECTOR_UNKNOWN";
 }

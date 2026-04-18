@@ -21,6 +21,7 @@ import {
 } from "../types";
 import { getLibraryCopy } from "../copy";
 import { ParsingStrategyForm } from "./parsing-strategy-form";
+import { ParsingStrategyComparePanel } from "./parsing-strategy-compare-panel";
 import { KnowledgeStateBadge } from "./knowledge-state-badge";
 
 interface UploadTask {
@@ -394,6 +395,21 @@ export function KnowledgeUploadPage({
                 {copy.detailTabDocuments}
               </Button>
             </Space>
+
+            {/* v5 §35 / 计划 G8：策略对比面板（同 docId 跑两套 ParsingStrategy） */}
+            {tasks.find(t => t.documentId) && knowledge ? (
+              <div style={{ marginTop: 24 }}>
+                <Typography.Title heading={6} style={{ marginBottom: 8 }}>
+                  策略对比（A/B）
+                </Typography.Title>
+                <ParsingStrategyComparePanel
+                  api={api}
+                  locale={locale}
+                  knowledge={knowledge}
+                  documentId={tasks.find(t => t.documentId)!.documentId!}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

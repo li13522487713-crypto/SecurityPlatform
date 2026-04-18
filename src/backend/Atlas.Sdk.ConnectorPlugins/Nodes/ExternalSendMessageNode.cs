@@ -106,3 +106,12 @@ public sealed class FeishuSendMessageNode : ExternalSendMessageNodeBase
     public override string NodeType => "feishu_send_message";
     public override string DisplayName => "发送飞书消息";
 }
+
+public sealed class DingTalkSendMessageNode : ExternalSendMessageNodeBase
+{
+    public DingTalkSendMessageNode(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, ITenantProvider tenantProvider)
+        : base(registry, providerRepository, tenantProvider) { }
+    protected override ConnectorProviderType TargetProviderType => ConnectorProviderType.DingTalk;
+    public override string NodeType => "dingtalk_send_message";
+    public override string DisplayName => "发送钉钉工作通知";
+}

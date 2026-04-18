@@ -1,5 +1,5 @@
 ### 知识库专题（v5 §32-44）扩展接口烟测（AppHost 镜像版本）
-### 与 KnowledgeBases.http 共享 baseUrl/tenant/login；端口为 5002。
+### 与 PlatformHost 镜像，端口 5002；覆盖 jobs/bindings/permissions/versions/retrieval-logs/provider-configs/document-scope parse|index/PUT 全部 stanza。
 
 @baseUrl = http://localhost:5002
 @tenantId = 00000000-0000-0000-0000-000000000001
@@ -21,17 +21,24 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 @kbId = 1
 
+### -------------------- jobs --------------------
+
 ### 列出当前 KB 的所有任务
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs?pageIndex=1&pageSize=20
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 跨 KB 列出全部任务
-GET {{baseUrl}}/api/v1/knowledge-bases/jobs?pageIndex=1&pageSize=50
+### 跨 KB 列出全部任务（任务中心）
+GET {{baseUrl}}/api/v1/knowledge-bases/jobs?pageIndex=1&pageSize=50&status=DeadLetter
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 重跑解析
+### 获取任务详情
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/1
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 重跑解析（携带 ParsingStrategy）
 POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/parse
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
@@ -39,7 +46,12 @@ Authorization: Bearer {{accessToken}}
 
 {
   "documentId": 1,
-  "parsingStrategy": { "parsingType": 1, "extractTable": true }
+  "parsingStrategy": {
+    "parsingType": 1,
+    "extractImage": true,
+    "extractTable": true,
+    "imageOcr": true
+  }
 }
 
 ### 全量重建索引
@@ -50,34 +62,81 @@ Authorization: Bearer {{accessToken}}
 
 {}
 
-### 列出绑定
+### 死信重投
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/1:retry
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 取消任务
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/2:cancel
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### -------------------- bindings --------------------
+
+### 列出当前 KB 的绑定关系
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/bindings?pageIndex=1&pageSize=50
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 新增绑定
+### 跨 KB 列出全部绑定
+GET {{baseUrl}}/api/v1/knowledge-bases/bindings?pageIndex=1&pageSize=50
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 新增绑定（Agent / App / Workflow / Chatflow）
 POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/bindings
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
 {
-  "callerType": 2,
-  "callerId": "wf_security_audit",
-  "callerName": "安全审计工作流"
+  "callerType": 0,
+  "callerId": "agent_security_assistant",
+  "callerName": "安全助手 Agent"
 }
 
-### 列出权限
+### 解除绑定
+DELETE {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/bindings/1
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### -------------------- permissions --------------------
+
+### 列出权限（含 space/project 级继承）
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/permissions?pageIndex=1&pageSize=50
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 列出版本
+### 授权
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/permissions
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "scope": 2,
+  "scopeId": "1",
+  "knowledgeBaseId": 1,
+  "subjectType": 1,
+  "subjectId": "role_security_owner",
+  "subjectName": "安全负责人",
+  "actions": [0, 1, 3, 4, 5]
+}
+
+### 撤销
+DELETE {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/permissions/1
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### -------------------- versions --------------------
+
+### 列出版本快照
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/versions?pageIndex=1&pageSize=50
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 创建版本快照
+### 创建快照
 POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/versions
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
@@ -85,44 +144,169 @@ Authorization: Bearer {{accessToken}}
 
 {
   "label": "v1.0.0",
-  "note": "AppHost 烟测"
+  "note": "首次发布"
 }
 
-### 统一检索
+### 发布版本
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/versions/1:release
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 回退版本（仅审计标记）
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/versions/1:rollback
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 版本对比
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/versions/diff?from=1&to=2
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### -------------------- retrieval (v5 §38) --------------------
+
+### 统一检索（debug=true 返回完整 RetrievalLog）
 POST {{baseUrl}}/api/v1/knowledge-bases/retrieval
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
 {
-  "query": "巡检",
+  "query": "等保 加密 平台",
   "knowledgeBaseIds": [1],
   "topK": 5,
-  "callerContext": { "callerType": 2, "callerId": "wf_test", "tenantId": "00000000-0000-0000-0000-000000000001", "userId": "admin" },
-  "debug": true
+  "callerContext": {
+    "callerType": 0,
+    "callerId": "studio-debug",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "userId": "admin"
+  },
+  "debug": true,
+  "retrievalProfile": {
+    "topK": 5,
+    "minScore": 0,
+    "enableRerank": true,
+    "enableHybrid": true,
+    "weights": { "vector": 0.6, "bm25": 0.4, "table": 0, "image": 0 },
+    "enableQueryRewrite": true
+  }
 }
 
-### 检索日志列表
+### 列出某 KB 的检索日志
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/retrieval-logs?pageIndex=1&pageSize=20
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 表格列定义
+### 按 traceId 查询单条日志
+GET {{baseUrl}}/api/v1/knowledge-bases/retrieval-logs/trc_xxxxxxxx
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### -------------------- table / image views --------------------
+
+### 表格 KB：列定义
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/table-columns
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 表格行视图
+### 表格 KB：行视图
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/table-rows?pageIndex=1&pageSize=50
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### 图片项目
+### 图片 KB：图片项目（含 caption / ocr / tag 标注）
 GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/image-items?pageIndex=1&pageSize=20
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
 
-### Provider 配置
+### -------------------- v5 §35 / 计划 G5：document 范围的 parse / index jobs --------------------
+
+### 列出某文档的全部 parse 任务
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/parse-jobs
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 重跑解析（document 范围；body 可选）
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/parse-jobs
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "parsingStrategy": {
+    "parsingType": 1,
+    "extractImage": true,
+    "extractTable": true,
+    "imageOcr": true
+  }
+}
+
+### 列出某文档的全部 index 任务
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/index-jobs
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 重建索引（document 范围；append / overwrite）
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/documents/1/index-jobs/rebuild
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "chunkingProfile": {
+    "mode": 0,
+    "size": 512,
+    "overlap": 64
+  },
+  "mode": 1
+}
+
+### 死信批量重投（不传 jobIds 时按 KB 全量；可选 type 过滤）
+POST {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/jobs/dead-letter:retry
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "type": 0
+}
+
+### -------------------- 绑定 / 权限 / Provider 写入 --------------------
+
+### 绑定详情
+GET {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/bindings/1
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+### 权限更新（PUT actions）
+PUT {{baseUrl}}/api/v1/knowledge-bases/{{kbId}}/permissions/1
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "actions": [0, 5]
+}
+
+### -------------------- provider-configs --------------------
+
+### 获取五类 Provider 配置（upload / storage / vector / embedding / generation）
 GET {{baseUrl}}/api/v1/knowledge-bases/provider-configs
 X-Tenant-Id: {{tenantId}}
 Authorization: Bearer {{accessToken}}
+
+### Upsert provider 配置（路径 role 必须与 body.role 一致）
+PUT {{baseUrl}}/api/v1/knowledge-bases/provider-configs/Vector
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "role": 2,
+  "providerName": "qdrant",
+  "displayName": "Qdrant Cluster (Default)",
+  "status": 0,
+  "isDefault": true,
+  "endpoint": "http://qdrant:6333",
+  "region": "cn-east-1",
+  "bucketOrIndex": "atlas_kb"
+}

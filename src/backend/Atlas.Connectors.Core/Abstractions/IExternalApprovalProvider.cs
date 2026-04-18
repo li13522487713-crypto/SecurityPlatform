@@ -21,10 +21,45 @@ public interface IExternalApprovalProvider
     Task<ExternalApprovalInstanceRef?> GetInstanceAsync(ConnectorContext context, string externalInstanceId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// 批量按时间窗口拉取近期审批实例 ID（企微 getapprovalinfo / 飞书 approval/v4/instances?start_time...），
+    /// 用于"死信事件重放 + 对账校验"。不支持的 provider 直接返回空集合。
+    /// </summary>
+    Task<ExternalApprovalInstanceIdPage> ListRecentInstanceIdsAsync(
+        ConnectorContext context,
+        ExternalApprovalInstanceIdQuery query,
+        CancellationToken cancellationToken) => Task.FromResult(ExternalApprovalInstanceIdPage.Empty);
+
+    /// <summary>
     /// 三方审批同步（模式 B / C）。本平台流转事件实时同步任务/抄送/状态到外部审批中心。
     /// 不支持的 provider（如企微原生审批）返回 false。
     /// </summary>
     Task<bool> SyncThirdPartyInstanceAsync(ConnectorContext context, ExternalThirdPartyInstancePatch patch, CancellationToken cancellationToken);
+}
+
+public sealed record ExternalApprovalInstanceIdQuery
+{
+    public required DateTimeOffset StartTime { get; init; }
+
+    public required DateTimeOffset EndTime { get; init; }
+
+    public string? TemplateId { get; init; }
+
+    public string? Cursor { get; init; }
+
+    public int Size { get; init; } = 100;
+}
+
+public sealed record ExternalApprovalInstanceIdPage
+{
+    public static readonly ExternalApprovalInstanceIdPage Empty = new()
+    {
+        InstanceIds = Array.Empty<string>(),
+        NextCursor = null,
+    };
+
+    public required IReadOnlyList<string> InstanceIds { get; init; }
+
+    public string? NextCursor { get; init; }
 }
 
 /// <summary>

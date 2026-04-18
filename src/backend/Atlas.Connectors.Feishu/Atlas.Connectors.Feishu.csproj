@@ -14,7 +14,14 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.4" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.4" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.3" />
+    <!-- FeishuNetSdk: net8.0 单 TFM，.NET 10 下允许使用但可能触发 NU1701/MSB3277 警告 -->
+    <PackageReference Include="FeishuNetSdk" Version="4.1.6" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <!-- 允许 net8.0 的 FeishuNetSdk 被 net10.0 项目引用；官方 SDK 仍在跟进 net10 多目标，此抑制不影响运行时。 -->
+    <NoWarn>$(NoWarn);NU1701;MSB3277</NoWarn>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Atlas.Connectors.Core\Atlas.Connectors.Core.csproj" />

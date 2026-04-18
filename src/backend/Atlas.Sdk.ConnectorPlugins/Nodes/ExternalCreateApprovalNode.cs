@@ -98,3 +98,10 @@ public sealed class FeishuCreateApprovalNode : ExternalCreateApprovalNodeBase
     public override string NodeType => "feishu_create_approval";
     public override string DisplayName => "创建飞书审批";
 }
+
+public sealed class DingTalkCreateApprovalNode : ExternalCreateApprovalNodeBase
+{
+    public DingTalkCreateApprovalNode(IExternalApprovalDispatchService dispatch) : base(dispatch) { }
+    public override string NodeType => "dingtalk_create_approval";
+    public override string DisplayName => "创建钉钉审批";
+}

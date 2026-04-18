@@ -75,10 +75,13 @@ public sealed class ExternalApprovalDispatchService : IExternalApprovalDispatchS
         var approvalProvider = _registry.GetApproval(providerType);
         var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
 
+        // 把 mapping 的 ExternalTemplateId 强制注入 payload，避免 fanout handler 因不知道模板 ID 而传空。
+        var resolvedPayload = payload with { ExternalTemplateId = mapping.ExternalTemplateId };
+
         ExternalApprovalInstanceRef instance;
         try
         {
-            instance = await approvalProvider.SubmitApprovalAsync(ctx, payload, cancellationToken).ConfigureAwait(false);
+            instance = await approvalProvider.SubmitApprovalAsync(ctx, resolvedPayload, cancellationToken).ConfigureAwait(false);
         }
         catch (ConnectorException ex)
         {

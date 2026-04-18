@@ -169,6 +169,7 @@ pnpm run format                 # 格式化所有项目
 - 知识库新增 SqlSugar 实体 / 仓储必须挂入 `Atlas.Infrastructure.Services.AtlasOrmSchemaCatalog`，否则平台启动时不会建表。
 - ParsingStrategy / ChunkingProfile / RetrievalProfile / RetrievalCallerContext 是前后端共用契约：前端在 `library-module-react/src/types.ts`、后端在 `Atlas.Application/AiPlatform/Models/KnowledgeStrategyModels.cs` 与 `RetrievalLogModels.cs`，扩展字段必须双侧同步。
 - `KnowledgeRetriever` / `KnowledgeIndexer` DAG 节点扩展时必须同步更新 `BuiltInWorkflowNodeDeclarations`（默认 config + form-meta + 端口 schema）和 `docs/workflow-editor-validation-matrix.md`；新增字段必须既保留旧字段以兼容历史画布，又把新字段写到 form-meta 让节点面板能渲染。
+- **Hangfire 强约束（v5 §35 / 计划 G3）：** 所有知识库 parse / index 任务必须经过 `IKnowledgeParseJobService` / `IKnowledgeIndexJobService` 走 Hangfire `IBackgroundJobClient.Enqueue<TRunner>` 链路。禁止在新 KB 处理代码中直接调用 `IBackgroundWorkQueue.Enqueue` 入 KB 处理；非 KB 后台任务（清理 / 批处理 / 通知）继续可用 IBackgroundWorkQueue。Hangfire runner 必须带 `[AutomaticRetry(Attempts=3)]` 注解；失败时 runner 内部 `IncrementAttempts()` 后达 MaxAttempts 自动写 `DeadLetter`。
 - 完整里程碑、契约对照、验收命令清单与回滚指引见 `docs/plan-knowledge-platform-v5.md`，与 `docs/contracts.md` 共同构成本专题的契约权威。
 
 ## 提交与变更

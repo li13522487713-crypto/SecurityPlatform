@@ -2,6 +2,7 @@ using Atlas.Application.ExternalConnectors.Abstractions;
 using Atlas.Application.ExternalConnectors.Repositories;
 using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Core.DependencyInjection;
+using Atlas.Connectors.DingTalk;
 using Atlas.Connectors.Feishu;
 using Atlas.Connectors.WeCom;
 using Atlas.Infrastructure.ExternalConnectors.HostedServices;
@@ -38,6 +39,7 @@ public static class ExternalConnectorsServiceCollectionExtensions
         services.TryAddScoped<IExternalApprovalTemplateCacheRepository, ExternalApprovalTemplateCacheRepository>();
         services.TryAddScoped<IExternalApprovalTemplateMappingRepository, ExternalApprovalTemplateMappingRepository>();
         services.TryAddScoped<IExternalApprovalInstanceLinkRepository, ExternalApprovalInstanceLinkRepository>();
+        services.TryAddScoped<IExternalMessageDispatchRepository, ExternalMessageDispatchRepository>();
 
         services.TryAddScoped<IExternalIdentityProviderQueryService, ExternalIdentityProviderQueryService>();
         services.TryAddScoped<IExternalIdentityProviderCommandService, ExternalIdentityProviderCommandService>();
@@ -45,16 +47,23 @@ public static class ExternalConnectorsServiceCollectionExtensions
         services.TryAddScoped<IExternalDirectorySyncService, ExternalDirectorySyncService>();
         services.TryAddScoped<IExternalApprovalTemplateService, ExternalApprovalTemplateService>();
         services.TryAddScoped<IExternalApprovalDispatchService, ExternalApprovalDispatchService>();
+        services.TryAddScoped<IExternalMessagingService, ExternalMessagingService>();
         services.TryAddScoped<IExternalCallbackEventRepository, ExternalCallbackEventRepository>();
         services.TryAddScoped<IConnectorCallbackInboxService, ConnectorCallbackInboxService>();
         services.TryAddScoped<IConnectorOAuthFlowService, ConnectorOAuthFlowService>();
 
         services.AddSingleton<ExternalDirectoryRecurringSyncRunner>();
         services.AddHostedService<ExternalDirectoryFullSyncHostedService>();
+        services.AddHostedService<ExternalCallbackInboxRetryHostedService>();
 
-        // 注册审批通知 Sender：让现有 IApprovalNotificationSender 多渠道总线自动新增 WeCom / Feishu 两条路径。
+        // 注册审批通知 Sender：让现有 IApprovalNotificationSender 多渠道总线自动新增 WeCom / Feishu / DingTalk 三条路径。
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, WeComApprovalNotificationSender>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, FeishuApprovalNotificationSender>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, DingTalkApprovalNotificationSender>();
+
+        // 把外部协同 fan-out 接入现有 ApprovalEventPublisher 的 IApprovalEventHandler 多注册总线。
+        // 本地审批 Started/Completed/Rejected/Canceled/Task* 事件触发后，dispatch service 会按 IntegrationMode 决定是否推外部。
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalEventHandler, ExternalApprovalFanoutHandler>();
 
         return services;
     }
@@ -90,6 +99,24 @@ public static class ExternalConnectorsServiceCollectionExtensions
         services.AddSingleton<IExternalApprovalProvider, FeishuApprovalProvider>();
         services.AddSingleton<IExternalMessagingProvider, FeishuMessagingProvider>();
         services.AddSingleton<IConnectorEventVerifier, FeishuEventVerifier>();
+        return services;
+    }
+
+    /// <summary>
+    /// 注册钉钉 provider：4 大能力实现 + 命名 HttpClient + RuntimeOptionsResolver + AES 回调验证器。
+    /// 底层基于 AlibabaCloud.SDK.Dingtalk + 我们自己的 v1 老版/v1.0 新版 OpenAPI 适配层。
+    /// </summary>
+    public static IServiceCollection AddDingTalkConnector(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddHttpClient(DingTalkApiClient.HttpClientName);
+        services.TryAddSingleton<DingTalkApiClient>();
+        services.TryAddScoped<IConnectorRuntimeOptionsResolver<DingTalkRuntimeOptions>, DingTalkRuntimeOptionsResolver>();
+        services.AddSingleton<IExternalIdentityProvider, DingTalkIdentityProvider>();
+        services.AddSingleton<IExternalDirectoryProvider, DingTalkDirectoryProvider>();
+        services.AddSingleton<IExternalApprovalProvider, DingTalkApprovalProvider>();
+        services.AddSingleton<IExternalMessagingProvider, DingTalkMessagingProvider>();
+        services.AddSingleton<IConnectorEventVerifier, DingTalkCallbackVerifier>();
         return services;
     }
 }

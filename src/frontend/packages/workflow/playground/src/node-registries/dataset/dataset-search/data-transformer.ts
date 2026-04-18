@@ -18,6 +18,12 @@ import { nanoid } from 'nanoid';
 import { isNil, set } from 'lodash-es';
 import { BlockInput, ViewVariableType } from '@coze-workflow/base';
 
+/**
+ * v5 §38 / 计划 G7：Atlas v5 高级检索设置可选地存放在 datasetParam 的特殊条目里。
+ * 这些字段独立于 Coze 的 datasetSetting，避免破坏现有数据。
+ */
+const ATLAS_V5_PARAM_NAME = 'atlasV5';
+
 export function transformOnInit(value) {
   // New drag-in node initialization
   if (!value) {
@@ -30,6 +36,7 @@ export function transformOnInit(value) {
         datasetParameters: {
           datasetParam: [],
           datasetSetting: {},
+          atlasV5: {},
         },
       },
       outputs: [
@@ -87,6 +94,19 @@ export function transformOnInit(value) {
       ?.input.value.content as boolean,
   };
 
+  // v5 §38 / 计划 G7：从 datasetParam 还原 atlasV5（若存在）
+  const atlasEntry = datasetParam.find(item => item.name === ATLAS_V5_PARAM_NAME);
+  if (atlasEntry?.input?.value?.content) {
+    try {
+      const raw = atlasEntry.input.value.content;
+      formData.inputs.datasetParameters.atlasV5 = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch {
+      formData.inputs.datasetParameters.atlasV5 = {};
+    }
+  } else {
+    formData.inputs.datasetParameters.atlasV5 = {};
+  }
+
   return formData;
 }
 
@@ -94,7 +114,7 @@ export function transformOnSubmit(value) {
   const { nodeMeta, inputs, outputs } = value;
   const { inputParameters = { Query: { type: 'ref' } }, datasetParameters } =
     inputs ?? {};
-  const { datasetParam, datasetSetting } = datasetParameters ?? {};
+  const { datasetParam, datasetSetting, atlasV5 } = datasetParameters ?? {};
   const actualData = {
     nodeMeta,
     outputs,
@@ -175,6 +195,27 @@ export function transformOnSubmit(value) {
         value: {
           type: 'literal',
           content: datasetSetting?.strategy,
+        },
+      },
+    });
+  }
+
+  // v5 §38 / 计划 G7：把 atlasV5 设置序列化为 string，存为 datasetParam 的 atlasV5 条目。
+  // 后端 KnowledgeRetrieverNodeExecutor 会按 retrievalProfile / filters / callerContextOverride / debug 字段读取。
+  const hasAtlasV5 = atlasV5 && (
+    atlasV5.retrievalProfile ||
+    atlasV5.filters ||
+    atlasV5.callerContextOverride ||
+    !isNil(atlasV5.debug)
+  );
+  if (hasAtlasV5) {
+    actualData.inputs.datasetParam.push({
+      name: 'atlasV5',
+      input: {
+        type: 'string',
+        value: {
+          type: 'literal',
+          content: JSON.stringify(atlasV5),
         },
       },
     });

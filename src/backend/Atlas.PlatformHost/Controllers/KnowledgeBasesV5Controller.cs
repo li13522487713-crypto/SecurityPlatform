@@ -20,6 +20,8 @@ namespace Atlas.PlatformHost.Controllers;
 public sealed class KnowledgeBasesV5Controller : ControllerBase
 {
     private readonly IKnowledgeJobService _jobService;
+    private readonly IKnowledgeParseJobService _parseJobService;
+    private readonly IKnowledgeIndexJobService _indexJobService;
     private readonly IKnowledgeBindingService _bindingService;
     private readonly IKnowledgePermissionService _permissionService;
     private readonly IKnowledgeVersionService _versionService;
@@ -32,13 +34,20 @@ public sealed class KnowledgeBasesV5Controller : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<KnowledgeBindingCreateRequest> _bindingValidator;
     private readonly IValidator<KnowledgePermissionGrantRequest> _permissionValidator;
+    private readonly IValidator<KnowledgePermissionUpdateRequest> _permissionUpdateValidator;
     private readonly IValidator<KnowledgeVersionCreateRequest> _versionValidator;
     private readonly IValidator<RerunParseRequest> _rerunValidator;
     private readonly IValidator<RebuildIndexRequest> _rebuildValidator;
+    private readonly IValidator<ParseJobReplayRequest> _parseJobReplayValidator;
+    private readonly IValidator<IndexJobRebuildRequest> _indexJobRebuildValidator;
+    private readonly IValidator<DeadLetterRetryRequest> _deadLetterRetryValidator;
+    private readonly IValidator<KnowledgeProviderConfigUpsertRequest> _providerUpsertValidator;
     private readonly IValidator<RetrievalRequest> _retrievalRequestValidator;
 
     public KnowledgeBasesV5Controller(
         IKnowledgeJobService jobService,
+        IKnowledgeParseJobService parseJobService,
+        IKnowledgeIndexJobService indexJobService,
         IKnowledgeBindingService bindingService,
         IKnowledgePermissionService permissionService,
         IKnowledgeVersionService versionService,
@@ -51,12 +60,19 @@ public sealed class KnowledgeBasesV5Controller : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IValidator<KnowledgeBindingCreateRequest> bindingValidator,
         IValidator<KnowledgePermissionGrantRequest> permissionValidator,
+        IValidator<KnowledgePermissionUpdateRequest> permissionUpdateValidator,
         IValidator<KnowledgeVersionCreateRequest> versionValidator,
         IValidator<RerunParseRequest> rerunValidator,
         IValidator<RebuildIndexRequest> rebuildValidator,
+        IValidator<ParseJobReplayRequest> parseJobReplayValidator,
+        IValidator<IndexJobRebuildRequest> indexJobRebuildValidator,
+        IValidator<DeadLetterRetryRequest> deadLetterRetryValidator,
+        IValidator<KnowledgeProviderConfigUpsertRequest> providerUpsertValidator,
         IValidator<RetrievalRequest> retrievalRequestValidator)
     {
         _jobService = jobService;
+        _parseJobService = parseJobService;
+        _indexJobService = indexJobService;
         _bindingService = bindingService;
         _permissionService = permissionService;
         _versionService = versionService;
@@ -69,9 +85,14 @@ public sealed class KnowledgeBasesV5Controller : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _bindingValidator = bindingValidator;
         _permissionValidator = permissionValidator;
+        _permissionUpdateValidator = permissionUpdateValidator;
         _versionValidator = versionValidator;
         _rerunValidator = rerunValidator;
         _rebuildValidator = rebuildValidator;
+        _parseJobReplayValidator = parseJobReplayValidator;
+        _indexJobRebuildValidator = indexJobRebuildValidator;
+        _deadLetterRetryValidator = deadLetterRetryValidator;
+        _providerUpsertValidator = providerUpsertValidator;
         _retrievalRequestValidator = retrievalRequestValidator;
     }
 
@@ -167,6 +188,76 @@ public sealed class KnowledgeBasesV5Controller : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = jobId.ToString() }, HttpContext.TraceIdentifier));
     }
 
+    /* -------------------- v5 §35 / 计划 G5：document 范围的 parse / index jobs -------------------- */
+
+    [HttpGet("{id:long}/documents/{docId:long}/parse-jobs")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<ParseJobDto>>>> ListDocumentParseJobs(
+        long id,
+        long docId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _parseJobService.ListByDocumentAsync(tenantId, id, docId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<ParseJobDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/documents/{docId:long}/parse-jobs")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> ReplayDocumentParseJob(
+        long id,
+        long docId,
+        [FromBody] ParseJobReplayRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var effective = request ?? new ParseJobReplayRequest();
+        _parseJobReplayValidator.ValidateAndThrow(effective);
+        var tenantId = _tenantProvider.GetTenantId();
+        var jobId = await _parseJobService.ReplayAsync(tenantId, id, docId, effective, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = jobId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/documents/{docId:long}/index-jobs")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<IndexJobDto>>>> ListDocumentIndexJobs(
+        long id,
+        long docId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _indexJobService.ListByDocumentAsync(tenantId, id, docId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<IndexJobDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/documents/{docId:long}/index-jobs/rebuild")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> RebuildDocumentIndex(
+        long id,
+        long docId,
+        [FromBody] IndexJobRebuildRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var effective = request ?? new IndexJobRebuildRequest();
+        _indexJobRebuildValidator.ValidateAndThrow(effective);
+        var tenantId = _tenantProvider.GetTenantId();
+        var jobId = await _indexJobService.RebuildAsync(tenantId, id, docId, effective, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = jobId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/jobs/dead-letter:retry")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> RetryDeadLetterBatch(
+        long id,
+        [FromBody] DeadLetterRetryRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var effective = request ?? new DeadLetterRetryRequest();
+        _deadLetterRetryValidator.ValidateAndThrow(effective);
+        var tenantId = _tenantProvider.GetTenantId();
+        var count = await _jobService.RetryDeadLetterBatchAsync(tenantId, id, effective, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { RetriedCount = count }, HttpContext.TraceIdentifier));
+    }
+
     /* -------------------- bindings -------------------- */
 
     [HttpGet("{id:long}/bindings")]
@@ -203,6 +294,22 @@ public sealed class KnowledgeBasesV5Controller : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var bindingId = await _bindingService.CreateAsync(tenantId, id, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = bindingId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/bindings/{bindingId:long}")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseView)]
+    public async Task<ActionResult<ApiResponse<KnowledgeBindingDto>>> GetBinding(
+        long id,
+        long bindingId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var dto = await _bindingService.GetByIdAsync(tenantId, id, bindingId, cancellationToken);
+        if (dto is null)
+        {
+            return NotFound(ApiResponse<KnowledgeBindingDto>.Fail(ErrorCodes.NotFound, "Binding not found", HttpContext.TraceIdentifier));
+        }
+        return Ok(ApiResponse<KnowledgeBindingDto>.Ok(dto, HttpContext.TraceIdentifier));
     }
 
     [HttpDelete("{id:long}/bindings/{bindingId:long}")]
@@ -243,6 +350,20 @@ public sealed class KnowledgeBasesV5Controller : ControllerBase
         var user = _currentUserAccessor.GetCurrentUserOrThrow();
         var permId = await _permissionService.GrantAsync(tenantId, id, request, user.UserId.ToString(), cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = permId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/permissions/{permissionId:long}")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdatePermission(
+        long id,
+        long permissionId,
+        [FromBody] KnowledgePermissionUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        _permissionUpdateValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        await _permissionService.UpdateAsync(tenantId, id, permissionId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = permissionId.ToString() }, HttpContext.TraceIdentifier));
     }
 
     [HttpDelete("{id:long}/permissions/{permissionId:long}")]
@@ -413,5 +534,36 @@ public sealed class KnowledgeBasesV5Controller : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _providerConfigService.ListAsync(tenantId, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<KnowledgeProviderConfigDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// v5 §39 / 计划 G5：admin 通过 PUT /provider-configs/{role} 写入或更新该 role 的默认 provider。
+    /// 路径参数 role 必须与 body 的 role 一致；不一致返回 400。
+    /// </summary>
+    [HttpPut("provider-configs/{role}")]
+    [Authorize(Policy = PermissionPolicies.KnowledgeBaseUpdate)]
+    public async Task<ActionResult<ApiResponse<KnowledgeProviderConfigDto>>> UpsertProviderConfig(
+        string role,
+        [FromBody] KnowledgeProviderConfigUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse<KnowledgeProviderRole>(role, ignoreCase: true, out var parsedRole))
+        {
+            return BadRequest(ApiResponse<KnowledgeProviderConfigDto>.Fail(
+                ErrorCodes.ValidationError,
+                $"Unknown provider role '{role}'.",
+                HttpContext.TraceIdentifier));
+        }
+        if (parsedRole != request.Role)
+        {
+            return BadRequest(ApiResponse<KnowledgeProviderConfigDto>.Fail(
+                ErrorCodes.ValidationError,
+                "Path role and body role mismatch.",
+                HttpContext.TraceIdentifier));
+        }
+        _providerUpsertValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var dto = await _providerConfigService.UpsertAsync(tenantId, request, cancellationToken);
+        return Ok(ApiResponse<KnowledgeProviderConfigDto>.Ok(dto, HttpContext.TraceIdentifier));
     }
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Abstractions.Knowledge;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.System.Abstractions;
 using Atlas.Core.Abstractions;
@@ -22,7 +23,8 @@ public sealed class DocumentService : IDocumentService
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
     private readonly KnowledgeQuotaPolicy _knowledgeQuotaPolicy;
-    private readonly KnowledgeJobService _knowledgeJobService;
+    // v5 §35 / 计划 G3：由专用 ParseJobService 触发 Hangfire 链路
+    private readonly IKnowledgeParseJobService _parseJobService;
 
     public DocumentService(
         KnowledgeBaseRepository knowledgeBaseRepository,
@@ -33,7 +35,7 @@ public sealed class DocumentService : IDocumentService
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
         KnowledgeQuotaPolicy knowledgeQuotaPolicy,
-        KnowledgeJobService knowledgeJobService)
+        IKnowledgeParseJobService parseJobService)
     {
         _knowledgeBaseRepository = knowledgeBaseRepository;
         _documentRepository = documentRepository;
@@ -43,7 +45,7 @@ public sealed class DocumentService : IDocumentService
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
         _knowledgeQuotaPolicy = knowledgeQuotaPolicy;
-        _knowledgeJobService = knowledgeJobService;
+        _parseJobService = parseJobService;
     }
 
     public async Task<long> CreateAsync(
@@ -81,9 +83,9 @@ public sealed class DocumentService : IDocumentService
             await _knowledgeBaseRepository.UpdateAsync(kb, cancellationToken);
         }, cancellationToken);
 
-        // v5 §35：把"上传 → 解析 → 切片 → 索引"封装成 KnowledgeJob 持久化记录，
-        // 由 KnowledgeJobService 负责状态机推进；DocumentService 只负责创建文档元信息。
-        await _knowledgeJobService.EnqueueParseAsync(
+        // v5 §35 / 计划 G3：把"上传 → 解析 → 切片 → 索引"封装为 KnowledgeParseJob，
+        // 通过 IKnowledgeParseJobService 持久化记录并由 Hangfire BackgroundJob 调度执行。
+        await _parseJobService.EnqueueParseAsync(
             tenantId,
             knowledgeBaseId,
             entity.Id,
@@ -192,13 +194,13 @@ public sealed class DocumentService : IDocumentService
         doc.MarkProcessing();
         await _documentRepository.UpdateAsync(doc, cancellationToken);
 
-        // v5 §35：重跑解析也走 KnowledgeJobService，让前端任务面板能看到任务记录。
+        // v5 §35 / 计划 G3：重跑解析也走 IKnowledgeParseJobService → Hangfire 链路。
         // 兼容旧请求：若调用方未提供 ParsingStrategy，则按 ParseStrategy 标量字段构造一个最小策略。
         var parsing = request.ParsingStrategy ?? new ParsingStrategy(
             ParsingType: request.ParseStrategy == DocumentParseStrategy.Precise
                 ? ParsingType.Precise
                 : ParsingType.Quick);
-        await _knowledgeJobService.EnqueueParseAsync(
+        await _parseJobService.EnqueueParseAsync(
             tenantId,
             knowledgeBaseId,
             documentId,

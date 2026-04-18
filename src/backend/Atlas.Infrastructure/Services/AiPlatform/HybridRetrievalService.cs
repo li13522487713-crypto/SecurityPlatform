@@ -20,6 +20,19 @@ public sealed class HybridRetrievalService
         IReadOnlyList<RagSearchResult> vectorResults,
         IReadOnlyList<RagSearchResult> bm25Results,
         int topK)
+        => MergeAndRerankWithWeights(query, vectorResults, bm25Results, topK, vectorWeight: 1d, bm25Weight: 1d);
+
+    /// <summary>
+    /// v5 §38 / 计划 G4：加权 RRF 合并。<paramref name="vectorWeight"/> / <paramref name="bm25Weight"/>
+    /// 来自调用方 RetrievalProfile.Weights，1.0 表示等权（与传统 RRF 等价）。
+    /// </summary>
+    public IReadOnlyList<RagSearchResult> MergeAndRerankWithWeights(
+        string query,
+        IReadOnlyList<RagSearchResult> vectorResults,
+        IReadOnlyList<RagSearchResult> bm25Results,
+        int topK,
+        double vectorWeight,
+        double bm25Weight)
     {
         if (topK <= 0)
         {
@@ -31,8 +44,8 @@ public sealed class HybridRetrievalService
         var itemMap = new Dictionary<long, RagSearchResult>();
         var rrfK = Math.Max(1, _options.Retrieval.RrfK);
 
-        AccumulateRrf(vectorResults, scoreMap, itemMap, rrfK);
-        AccumulateRrf(bm25Results, scoreMap, itemMap, rrfK);
+        AccumulateRrf(vectorResults, scoreMap, itemMap, rrfK, vectorWeight);
+        AccumulateRrf(bm25Results, scoreMap, itemMap, rrfK, bm25Weight);
 
         if (_options.Retrieval.EnableRerank && queryTokens.Length > 0)
         {
@@ -63,13 +76,15 @@ public sealed class HybridRetrievalService
         IReadOnlyList<RagSearchResult> results,
         IDictionary<long, double> scoreMap,
         IDictionary<long, RagSearchResult> itemMap,
-        int rrfK)
+        int rrfK,
+        double weight = 1d)
     {
+        if (weight <= 0d) return;
         for (var i = 0; i < results.Count; i++)
         {
             var item = results[i];
             var rank = i + 1;
-            var increment = 1d / (rrfK + rank);
+            var increment = weight * (1d / (rrfK + rank));
 
             scoreMap[item.ChunkId] = scoreMap.TryGetValue(item.ChunkId, out var currentScore)
                 ? currentScore + increment

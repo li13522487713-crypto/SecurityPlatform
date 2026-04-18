@@ -3,19 +3,23 @@ import {
   Banner,
   Button,
   Empty,
+  Modal,
   Space,
   Tag,
   Toast,
   Typography
 } from "@douyinfe/semi-ui";
-import { IconDelete, IconPlus } from "@douyinfe/semi-icons";
-import type {
-  KnowledgeBaseDto,
-  LibraryKnowledgeApi,
-  SupportedLocale
+import { IconDelete, IconPlus, IconSetting } from "@douyinfe/semi-icons";
+import {
+  DEFAULT_RETRIEVAL_PROFILE,
+  type KnowledgeBaseDto,
+  type LibraryKnowledgeApi,
+  type RetrievalProfile,
+  type SupportedLocale
 } from "../types";
 import { getLibraryCopy } from "../copy";
 import { KnowledgeResourcePicker } from "./knowledge-resource-picker";
+import { RetrievalProfileFields } from "./knowledge-detail/retrieval-profile-editor";
 
 export interface AgentKnowledgeBindingPanelProps {
   api: LibraryKnowledgeApi;
@@ -27,9 +31,10 @@ export interface AgentKnowledgeBindingPanelProps {
 }
 
 /**
- * Agent / App / Chatflow 装配面板：
+ * Agent / App / Chatflow 装配面板（v5 §39 / 计划 G7 完整版）：
  * - 拉取当前 caller 已绑定的知识库（基于 listAllBindings 过滤）
- * - 支持选择新知识库（createBinding）
+ * - 嵌入 RetrievalProfileFields，允许配置"默认 retrievalProfile override"
+ * - 新增绑定时把该 override 透传到 createBinding，写入 retrievalProfileOverrideJson
  * - 支持解除绑定（removeBinding）
  *
  * 该组件适合内嵌到 module-studio-react 的 Agent 编辑页 / App 编辑页等装配点。
@@ -44,6 +49,8 @@ export function AgentKnowledgeBindingPanel({
   const copy = getLibraryCopy(locale);
   const [linkedKbs, setLinkedKbs] = useState<KnowledgeBaseDto[]>([]);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [profile, setProfile] = useState<RetrievalProfile>(DEFAULT_RETRIEVAL_PROFILE);
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
@@ -77,7 +84,13 @@ export function AgentKnowledgeBindingPanel({
     setBusy(true);
     try {
       for (const id of toAdd) {
-        await api.createBinding(id, { callerType, callerId, callerName });
+        // v5 §39 / 计划 G7：把当前 profile 作为 retrievalProfileOverride 写入 binding
+        await api.createBinding(id, {
+          callerType,
+          callerId,
+          callerName,
+          retrievalProfileOverride: profile
+        });
       }
       await refresh();
     } catch (error) {
@@ -126,9 +139,32 @@ export function AgentKnowledgeBindingPanel({
           ))
         )}
       </Space>
-      <Button type="primary" icon={<IconPlus />} loading={busy} onClick={() => setPickerVisible(true)}>
-        {copy.bindingsAddTitle}
-      </Button>
+      <Space>
+        <Button type="primary" icon={<IconPlus />} loading={busy} onClick={() => setPickerVisible(true)}>
+          {copy.bindingsAddTitle}
+        </Button>
+        <Button icon={<IconSetting />} onClick={() => setProfileModalVisible(true)}>
+          {copy.retrievalProfileTitle}
+        </Button>
+      </Space>
+
+      <Modal
+        title={copy.retrievalProfileTitle}
+        visible={profileModalVisible}
+        onOk={() => setProfileModalVisible(false)}
+        onCancel={() => setProfileModalVisible(false)}
+        okText="保存"
+        cancelText="关闭"
+        width={520}
+      >
+        <Banner
+          type="info"
+          description="此 RetrievalProfile 将作为新增绑定时的 retrievalProfileOverride 写入；后端检索时优先使用绑定上的 override。"
+          style={{ marginBottom: 12 }}
+        />
+        <RetrievalProfileFields locale={locale} value={profile} onChange={setProfile} />
+      </Modal>
+
       <KnowledgeResourcePicker
         api={api}
         locale={locale}

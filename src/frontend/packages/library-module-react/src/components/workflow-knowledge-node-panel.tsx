@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Banner,
   Button,
   Empty,
+  Input,
+  Select,
   Space,
   Switch,
   Tag,
@@ -14,11 +16,13 @@ import {
   DEFAULT_RETRIEVAL_PROFILE,
   type KnowledgeBaseDto,
   type LibraryKnowledgeApi,
+  type RetrievalCallerContext,
   type RetrievalProfile,
   type SupportedLocale
 } from "../types";
 import { getLibraryCopy } from "../copy";
 import { KnowledgeResourcePicker } from "./knowledge-resource-picker";
+import { RetrievalProfileFields } from "./knowledge-detail/retrieval-profile-editor";
 
 export interface WorkflowKnowledgeNodePanelProps {
   api: LibraryKnowledgeApi;
@@ -29,18 +33,58 @@ export interface WorkflowKnowledgeNodePanelProps {
   retrievalProfile?: RetrievalProfile;
   /** 是否启用节点级 debug 输出 */
   debug?: boolean;
+  /** v5 §38 / 计划 G7：MetadataFilter（key→value） */
+  filters?: Record<string, string>;
+  /** v5 §38 / 计划 G7：调用方上下文覆盖（合并默认 CallerContext） */
+  callerContextOverride?: RetrievalCallerContext;
   onChange: (next: {
     knowledgeBaseIds: number[];
     retrievalProfile: RetrievalProfile;
     debug: boolean;
+    filters?: Record<string, string>;
+    callerContextOverride?: RetrievalCallerContext;
   }) => void;
 }
 
+const PRESET_OPTIONS = [
+  { value: 0, label: "Assistant" },
+  { value: 1, label: "WorkflowDebug" },
+  { value: 2, label: "ExternalApi" },
+  { value: 3, label: "System" }
+];
+
+const CALLER_TYPE_OPTIONS = [
+  { value: "studio", label: "Studio" },
+  { value: "agent", label: "Agent" },
+  { value: "workflow", label: "Workflow" },
+  { value: "app", label: "App" },
+  { value: "chatflow", label: "Chatflow" }
+];
+
+interface FilterRow {
+  key: string;
+  value: string;
+}
+
+const filtersToRows = (filters?: Record<string, string>): FilterRow[] => {
+  if (!filters) return [];
+  return Object.entries(filters).map(([key, value]) => ({ key, value }));
+};
+
+const rowsToFilters = (rows: FilterRow[]): Record<string, string> | undefined => {
+  const filtered = rows.filter(row => row.key.trim().length > 0);
+  if (filtered.length === 0) return undefined;
+  return filtered.reduce<Record<string, string>>((acc, row) => {
+    acc[row.key.trim()] = row.value;
+    return acc;
+  }, {});
+};
+
 /**
- * 工作流知识检索节点配置面板：
+ * 工作流知识检索节点配置面板（v5 §38 / 计划 G7 完整版）：
  * - 复用 KnowledgeResourcePicker 选择目标知识库
- * - 内嵌精简版 RetrievalProfile（topK / rerank / queryRewrite / debug）
- * - 设计用于在 packages/workflow/playground 节点属性面板内复用，避免重复实现
+ * - 嵌入 RetrievalProfileFields（topK / minScore / rerank / rerankModel / hybrid / weights / queryRewrite）
+ * - 新增 filters key-value editor + callerContextOverride 表单
  */
 export function WorkflowKnowledgeNodePanel({
   api,
@@ -48,6 +92,8 @@ export function WorkflowKnowledgeNodePanel({
   knowledgeBaseIds,
   retrievalProfile,
   debug,
+  filters,
+  callerContextOverride,
   onChange
 }: WorkflowKnowledgeNodePanelProps) {
   const copy = getLibraryCopy(locale);
@@ -55,13 +101,42 @@ export function WorkflowKnowledgeNodePanel({
   const [pickedKbs, setPickedKbs] = useState<KnowledgeBaseDto[]>([]);
   const profile = retrievalProfile ?? DEFAULT_RETRIEVAL_PROFILE;
   const isDebug = debug ?? false;
+  const filterRows = useMemo(() => filtersToRows(filters), [filters]);
+  const overrideValue: Partial<RetrievalCallerContext> = callerContextOverride ?? {
+    callerType: "workflow",
+    preset: 1
+  };
 
-  function patchProfile(next: Partial<RetrievalProfile>): void {
+  const emit = (patch: Partial<{
+    knowledgeBaseIds: number[];
+    retrievalProfile: RetrievalProfile;
+    debug: boolean;
+    filters?: Record<string, string>;
+    callerContextOverride?: RetrievalCallerContext;
+  }>) => {
     onChange({
       knowledgeBaseIds,
-      retrievalProfile: { ...profile, ...next },
-      debug: isDebug
+      retrievalProfile: profile,
+      debug: isDebug,
+      filters,
+      callerContextOverride: callerContextOverride,
+      ...patch
     });
+  };
+
+  function setFilterRow(idx: number, patch: Partial<FilterRow>): void {
+    const next = filterRows.map((row, i) => (i === idx ? { ...row, ...patch } : row));
+    emit({ filters: rowsToFilters(next) });
+  }
+  function addFilterRow(): void {
+    emit({ filters: rowsToFilters([...filterRows, { key: "", value: "" }]) });
+  }
+  function removeFilterRow(idx: number): void {
+    emit({ filters: rowsToFilters(filterRows.filter((_, i) => i !== idx)) });
+  }
+  function patchOverride(patch: Partial<RetrievalCallerContext>): void {
+    const next = { ...overrideValue, ...patch } as RetrievalCallerContext;
+    emit({ callerContextOverride: next });
   }
 
   return (
@@ -79,11 +154,7 @@ export function WorkflowKnowledgeNodePanel({
                   key={id}
                   color="cyan"
                   closable
-                  onClose={() => onChange({
-                    knowledgeBaseIds: knowledgeBaseIds.filter(x => x !== id),
-                    retrievalProfile: profile,
-                    debug: isDebug
-                  })}
+                  onClose={() => emit({ knowledgeBaseIds: knowledgeBaseIds.filter(x => x !== id) })}
                 >
                   {dto?.name ?? `KB #${id}`}
                 </Tag>
@@ -97,31 +168,68 @@ export function WorkflowKnowledgeNodePanel({
       </Button>
 
       <Banner type="info" description={copy.retrievalProfileTitle} />
-      <Space spacing={8} wrap>
+      <RetrievalProfileFields
+        locale={locale}
+        value={profile}
+        onChange={next => emit({ retrievalProfile: next })}
+      />
+
+      <Typography.Text strong>Filters (Metadata)</Typography.Text>
+      <Space vertical align="start" style={{ width: "100%" }}>
+        {filterRows.map((row, idx) => (
+          <Space key={idx}>
+            <Input
+              placeholder="key"
+              value={row.key}
+              onChange={value => setFilterRow(idx, { key: value })}
+              style={{ width: 140 }}
+            />
+            <Input
+              placeholder="value"
+              value={row.value}
+              onChange={value => setFilterRow(idx, { value })}
+              style={{ width: 220 }}
+            />
+            <Button type="danger" theme="borderless" onClick={() => removeFilterRow(idx)}>移除</Button>
+          </Space>
+        ))}
+        <Button onClick={addFilterRow}>+ 添加 filter</Button>
+      </Space>
+
+      <Typography.Text strong>CallerContextOverride</Typography.Text>
+      <Space wrap>
         <div>
-          <Typography.Text type="tertiary" size="small">{copy.retrievalProfileTopK}</Typography.Text>
-          <input
-            type="number"
-            value={profile.topK}
-            min={1}
-            max={50}
-            style={{ width: 80 }}
-            onChange={event => patchProfile({ topK: Math.max(1, Number(event.target.value) || 1) })}
+          <Typography.Text type="tertiary" size="small">callerType</Typography.Text>
+          <Select
+            style={{ width: 140 }}
+            value={(overrideValue.callerType as string | undefined) ?? "workflow"}
+            optionList={CALLER_TYPE_OPTIONS}
+            onChange={value => patchOverride({ callerType: value as RetrievalCallerContext["callerType"] })}
           />
         </div>
         <div>
-          <Typography.Text type="tertiary" size="small">{copy.wizardEnableRerank}</Typography.Text>
-          <Switch checked={profile.enableRerank} onChange={value => patchProfile({ enableRerank: value })} />
+          <Typography.Text type="tertiary" size="small">preset</Typography.Text>
+          <Select
+            style={{ width: 160 }}
+            value={overrideValue.preset ?? 1}
+            optionList={PRESET_OPTIONS}
+            onChange={value => patchOverride({ preset: value as number })}
+          />
         </div>
         <div>
-          <Typography.Text type="tertiary" size="small">{copy.wizardEnableQueryRewrite}</Typography.Text>
-          <Switch checked={profile.enableQueryRewrite} onChange={value => patchProfile({ enableQueryRewrite: value })} />
+          <Typography.Text type="tertiary" size="small">callerId</Typography.Text>
+          <Input value={overrideValue.callerId ?? ""} onChange={value => patchOverride({ callerId: value })} style={{ width: 160 }} />
         </div>
         <div>
-          <Typography.Text type="tertiary" size="small">{copy.retrievalEnableDebug}</Typography.Text>
-          <Switch checked={isDebug} onChange={value => onChange({ knowledgeBaseIds, retrievalProfile: profile, debug: value })} />
+          <Typography.Text type="tertiary" size="small">userId</Typography.Text>
+          <Input value={overrideValue.userId ?? ""} onChange={value => patchOverride({ userId: value })} style={{ width: 160 }} />
         </div>
       </Space>
+
+      <div>
+        <Typography.Text type="tertiary" size="small">{copy.retrievalEnableDebug}</Typography.Text>
+        <Switch checked={isDebug} onChange={value => emit({ debug: value })} />
+      </div>
 
       <KnowledgeResourcePicker
         api={api}
@@ -131,7 +239,7 @@ export function WorkflowKnowledgeNodePanel({
         multiple
         onChange={(ids, items) => {
           setPickedKbs(items);
-          onChange({ knowledgeBaseIds: ids, retrievalProfile: profile, debug: isDebug });
+          emit({ knowledgeBaseIds: ids });
           setPickerVisible(false);
           if (ids.length > 0) {
             Toast.success(copy.resourcePickerSelect);
