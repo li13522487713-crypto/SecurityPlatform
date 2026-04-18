@@ -97,6 +97,9 @@ public static class LowCodeServiceRegistration
         // M16 收尾：协同离线快照 Hangfire 周期任务
         services.AddSingleton<LowCodeCollabSnapshotJob>();
 
+        // M19 收尾：批量 / 异步工作流后台作业
+        services.AddSingleton<RuntimeWorkflowBackgroundJob>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {

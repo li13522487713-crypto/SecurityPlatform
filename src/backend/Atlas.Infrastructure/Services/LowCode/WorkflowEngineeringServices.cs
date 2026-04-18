@@ -1,14 +1,14 @@
-using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.LowCode.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
+using Hangfire;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
@@ -93,13 +93,15 @@ public sealed class WorkflowBatchService : IWorkflowBatchService
 {
     private static readonly HashSet<string> AllowedKinds = new(StringComparer.OrdinalIgnoreCase) { "csv", "json", "database" };
 
-    private readonly IRuntimeWorkflowExecutor _executor;
+    private readonly IRuntimeWorkflowAsyncJobRepository _jobRepo;
+    private readonly IBackgroundJobClient _backgroundJobs;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
 
-    public WorkflowBatchService(IRuntimeWorkflowExecutor executor, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public WorkflowBatchService(IRuntimeWorkflowAsyncJobRepository jobRepo, IBackgroundJobClient backgroundJobs, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
     {
-        _executor = executor;
+        _jobRepo = jobRepo;
+        _backgroundJobs = backgroundJobs;
         _idGen = idGen;
         _auditWriter = auditWriter;
     }
@@ -117,11 +119,15 @@ public sealed class WorkflowBatchService : IWorkflowBatchService
             _ => Array.Empty<Dictionary<string, JsonElement>>()
         };
 
+        // M19 收尾：批量执行 Hangfire 持久化任务（替代同步循环）；客户端通过 GET /async-jobs/{jobId} 轮询进度。
+        var jobId = $"bwj_{_idGen.NextId()}";
         var batchReq = new RuntimeWorkflowBatchInvokeRequest(request.WorkflowId, rows, request.OnFailure ?? "continue", null, null);
-        var r = await _executor.InvokeBatchAsync(tenantId, currentUserId, batchReq, cancellationToken);
-
-        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.workflow.batch", "success", $"wf:{request.WorkflowId}:source:{request.SourceKind}:total:{r.Total}", null, null), cancellationToken);
-        return new BatchExecuteResult(r.JobId, r.Total, r.Succeeded, r.Failed);
+        var batchRequestJson = JsonSerializer.Serialize(batchReq);
+        var entity = new Atlas.Domain.LowCode.Entities.RuntimeWorkflowAsyncJob(tenantId, _idGen.NextId(), jobId, request.WorkflowId, batchRequestJson, currentUserId);
+        await _jobRepo.InsertAsync(entity, cancellationToken);
+        _backgroundJobs.Enqueue<RuntimeWorkflowBackgroundJob>(job => job.RunBatchJobAsync(tenantId.Value, currentUserId, jobId, batchRequestJson));
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.workflow.batch.submit", "success", $"wf:{request.WorkflowId}:source:{request.SourceKind}:total:{rows.Count}:job:{jobId}", null, null), cancellationToken);
+        return new BatchExecuteResult(jobId, rows.Count, 0, 0);
     }
 
     private static IReadOnlyList<Dictionary<string, JsonElement>> ParseCsv(string? csv)

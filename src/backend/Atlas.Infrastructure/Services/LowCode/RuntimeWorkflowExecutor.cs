@@ -12,6 +12,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
+using Hangfire;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services.LowCode;
@@ -39,6 +40,7 @@ public sealed class RuntimeWorkflowExecutor : IRuntimeWorkflowExecutor
     private readonly IRuntimeWorkflowAsyncJobRepository _jobRepo;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
+    private readonly IBackgroundJobClient _backgroundJobs;
     private readonly ILogger<RuntimeWorkflowExecutor> _logger;
 
     public RuntimeWorkflowExecutor(
@@ -46,12 +48,14 @@ public sealed class RuntimeWorkflowExecutor : IRuntimeWorkflowExecutor
         IRuntimeWorkflowAsyncJobRepository jobRepo,
         IIdGeneratorAccessor idGen,
         IAuditWriter auditWriter,
+        IBackgroundJobClient backgroundJobs,
         ILogger<RuntimeWorkflowExecutor> logger)
     {
         _engine = engine;
         _jobRepo = jobRepo;
         _idGen = idGen;
         _auditWriter = auditWriter;
+        _backgroundJobs = backgroundJobs;
         _logger = logger;
     }
 
@@ -110,23 +114,8 @@ public sealed class RuntimeWorkflowExecutor : IRuntimeWorkflowExecutor
         var entity = new RuntimeWorkflowAsyncJob(tenantId, _idGen.NextId(), jobId, request.WorkflowId, requestJson, currentUserId);
         await _jobRepo.InsertAsync(entity, cancellationToken);
 
-        // M09 简化：fire-and-forget 后台执行；M19 接入 Hangfire 持久化任务调度。
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                entity.MarkRunning();
-                await _jobRepo.UpdateAsync(entity, CancellationToken.None);
-                var result = await InvokeAsync(tenantId, currentUserId, request, CancellationToken.None);
-                entity.MarkSucceeded(JsonSerializer.Serialize(result));
-                await _jobRepo.UpdateAsync(entity, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                entity.MarkFailed(ex.Message);
-                await _jobRepo.UpdateAsync(entity, CancellationToken.None);
-            }
-        }, CancellationToken.None);
+        // M19 收尾：fire-and-forget → Hangfire 持久化后台作业；DisableConcurrentExecution 按 jobId 隔离。
+        _backgroundJobs.Enqueue<RuntimeWorkflowBackgroundJob>(job => job.RunAsyncJobAsync(tenantId.Value, currentUserId, jobId, requestJson));
 
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.workflow.async.submit", "success", $"wf:{request.WorkflowId}:job:{jobId}", null, null), cancellationToken);
         return jobId;
