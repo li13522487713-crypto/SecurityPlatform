@@ -36,4 +36,45 @@ describe('AtlasLowcode SDK', () => {
     installToWindow();
     expect((window as unknown as { AtlasLowcode?: unknown }).AtlasLowcode).toBeDefined();
   });
+
+  it('支持 merge 操作 + 嵌套对象', () => {
+    document.body.innerHTML = '<div id="host3"></div>';
+    const inst = mount({
+      container: '#host3',
+      appId: 'a',
+      tenantId: 't',
+      initialState: { page: { user: { name: 'a', age: 1 } }, app: {} }
+    });
+    inst.update([{ scope: 'page', path: 'page.user', op: 'merge', value: { age: 2, email: 'x@y' } }]);
+    expect(inst.getState().page.user).toEqual({ name: 'a', age: 2, email: 'x@y' });
+  });
+
+  it('支持 unset 操作', () => {
+    document.body.innerHTML = '<div id="host4"></div>';
+    const inst = mount({
+      container: '#host4',
+      appId: 'a',
+      tenantId: 't',
+      initialState: { page: { foo: 'x', bar: 'y' }, app: {} }
+    });
+    inst.update([{ scope: 'page', path: 'page.foo', op: 'unset' }]);
+    expect(inst.getState().page.foo).toBeUndefined();
+    expect(inst.getState().page.bar).toBe('y');
+  });
+
+  it('支持 [index] 数组路径与中间路径自动创建', () => {
+    document.body.innerHTML = '<div id="host5"></div>';
+    const inst = mount({
+      container: '#host5',
+      appId: 'a',
+      tenantId: 't',
+      initialState: { page: { items: [{ title: 'a' }, { title: 'b' }] }, app: {} }
+    });
+    inst.update([{ scope: 'page', path: 'page.items[0].title', op: 'set', value: 'A' }]);
+    expect((inst.getState().page.items as unknown as Array<{ title: string }>)[0]!.title).toBe('A');
+
+    // 中间路径自动建：原 page.deep 不存在
+    inst.update([{ scope: 'page', path: 'page.deep.list[0]', op: 'set', value: 'first' }]);
+    expect((inst.getState().page.deep as unknown as { list: string[] }).list[0]).toBe('first');
+  });
 });

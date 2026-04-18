@@ -164,23 +164,118 @@ function resolveContainer(c: HTMLElement | string): HTMLElement {
   return c;
 }
 
-function applyPatches(state: { page: Record<string, JsonValue>; app: Record<string, JsonValue>; component: Record<string, Record<string, JsonValue>> }, patches: ReadonlyArray<RuntimeStatePatch>) {
-  // SDK 内部简化：仅支持 set；merge / unset 由调用方在外层处理或在 lowcode-runtime-web 内做完整支持。
+type SdkState = {
+  page: Record<string, JsonValue>;
+  app: Record<string, JsonValue>;
+  component: Record<string, Record<string, JsonValue>>;
+};
+
+/**
+ * 应用 RuntimeStatePatch 数组到 SDK 状态。
+ *
+ * 完整支持 set / merge / unset，并支持 dot-path 与 [index] 数组路径
+ * （a.list[0].title 与 a.list.0.title 等价）。与 lowcode-action-runtime/state-patch
+ * 保持语义一致；SDK 不依赖 action-runtime 是为了控制 UMD bundle 体积。
+ */
+function applyPatches(state: SdkState, patches: ReadonlyArray<RuntimeStatePatch>): SdkState {
+  // 浅克隆顶层 + 三个作用域，避免外部引用看到中途中间态
+  const next: SdkState = {
+    page: { ...state.page },
+    app: { ...state.app },
+    component: { ...state.component }
+  };
   for (const p of patches) {
-    if (p.op !== 'set') continue;
-    const segs = p.path.split('.').filter(Boolean);
+    const segs = parseSegments(p.path);
     if (segs.length < 2) continue;
-    const scope = segs[0] as 'page' | 'app' | 'component';
+    const scopeSeg = segs[0]!;
+    if (scopeSeg.kind !== 'key') continue;
+    const scope = scopeSeg.value;
+    if (scope !== 'page' && scope !== 'app' && scope !== 'component') continue;
+
+    const remaining = segs.slice(1);
+    let root: Record<string, unknown>;
     if (scope === 'component') {
-      const id = segs[1];
-      const sub = segs.slice(2).join('.');
-      state.component[id] = { ...(state.component[id] ?? {}), [sub]: p.value as JsonValue };
-    } else if (scope === 'page' || scope === 'app') {
-      const key = segs.slice(1).join('.');
-      state[scope] = { ...state[scope], [key]: p.value as JsonValue };
+      // component 子树：第二段为组件 id
+      if (remaining.length < 1 || remaining[0]!.kind !== 'key') continue;
+      const compId = remaining[0]!.value;
+      next.component[compId] = { ...(next.component[compId] ?? {}) };
+      root = next.component[compId] as Record<string, unknown>;
+      walkAndApply(root, remaining.slice(1), p);
+    } else {
+      root = next[scope] as Record<string, unknown>;
+      walkAndApply(root, remaining, p);
     }
   }
-  return state;
+  return next;
+}
+
+type Seg = { kind: 'key'; value: string } | { kind: 'index'; value: number };
+
+function parseSegments(path: string): Seg[] {
+  if (!path) return [];
+  const normalized = path.replace(/\[(\d+)\]/g, '.$1');
+  const out: Seg[] = [];
+  for (const raw of normalized.split('.')) {
+    if (raw.length === 0) continue;
+    if (/^\d+$/.test(raw)) out.push({ kind: 'index', value: Number(raw) });
+    else out.push({ kind: 'key', value: raw });
+  }
+  return out;
+}
+
+function walkAndApply(root: unknown, segs: Seg[], p: RuntimeStatePatch): void {
+  if (segs.length === 0) return;
+  let cur: unknown = root;
+  for (let i = 0; i < segs.length - 1; i++) {
+    const seg = segs[i]!;
+    const nextSeg = segs[i + 1]!;
+    let child = readAt(cur, seg);
+    if (child === undefined || child === null || typeof child !== 'object') {
+      child = nextSeg.kind === 'index' ? [] : {};
+      writeAt(cur, seg, child);
+    }
+    cur = child;
+  }
+  const last = segs[segs.length - 1]!;
+  switch (p.op) {
+    case 'set':
+      writeAt(cur, last, p.value as unknown);
+      break;
+    case 'merge': {
+      const existing = readAt(cur, last);
+      if (
+        existing && typeof existing === 'object' && !Array.isArray(existing)
+        && p.value && typeof p.value === 'object' && !Array.isArray(p.value)
+      ) {
+        writeAt(cur, last, { ...(existing as object), ...(p.value as object) });
+      } else {
+        writeAt(cur, last, p.value as unknown);
+      }
+      break;
+    }
+    case 'unset':
+      deleteAt(cur, last);
+      break;
+  }
+}
+
+function readAt(parent: unknown, seg: Seg): unknown {
+  if (seg.kind === 'index') return Array.isArray(parent) ? (parent as unknown[])[seg.value] : undefined;
+  return (parent as Record<string, unknown>)[seg.value];
+}
+function writeAt(parent: unknown, seg: Seg, value: unknown): void {
+  if (seg.kind === 'index') {
+    if (Array.isArray(parent)) (parent as unknown[])[seg.value] = value;
+    return;
+  }
+  (parent as Record<string, unknown>)[seg.value] = value;
+}
+function deleteAt(parent: unknown, seg: Seg): void {
+  if (seg.kind === 'index') {
+    if (Array.isArray(parent)) (parent as unknown[]).splice(seg.value, 1);
+    return;
+  }
+  delete (parent as Record<string, unknown>)[seg.value];
 }
 
 /** 注入到 window：兼容 <script> 嵌入。*/
