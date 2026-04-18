@@ -1432,12 +1432,12 @@ ORM 优先实现要点（M6）：
 > | 前缀 | Host | 端口 | 用途 |
 > | --- | --- | --- | --- |
 > | `/api/v1/lowcode/*` | PlatformHost | 5001 | 设计态写操作（schema / pages / variables / versions / publish / templates / faq / prompt-templates / plugins / overrides 等） |
-> | `/api/runtime/*` | AppHost | 5002 | 运行时只读 / 状态变更（schema / events:dispatch / workflows:invoke / chatflows:invoke / files / triggers / sessions / webview-domains / message-log / traces / publish artifacts / versions:archive\|rollback / plugins:invoke 等） |
+> | `/api/runtime/*` | AppHost | 5002 | 运行时只读 / 状态变更（schema / events:dispatch / workflows:invoke / chatflows:invoke / files / triggers + webhooks/triggers/{id} + triggers/events/{name}:raise + triggers/{id}:rotate-webhook-secret / sessions / webview-domains / message-log / traces / publish artifacts / versions:archive\|rollback / plugins:invoke 等） |
 >
 > SignalR Hub 路径：
 > - `/hubs/lowcode-debug`（M13，AppHost）
 > - `/hubs/lowcode-collab`（M16，AppHost，SignalR + 自定义 Yjs provider）
-> - `/hubs/lowcode-preview`（M08，AppHost，HMR 推送）
+> - `/hubs/lowcode-preview`（M08，**PlatformHost + AppHost** 同时挂载，HMR 推送由设计态写入服务直接调用 `ILowCodePreviewSignal` 触发）
 
 ### 契约文档索引
 
