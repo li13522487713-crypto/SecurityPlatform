@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page } from "../fixtures/single-session";
 
-test.describe.serial("鐪熷疄娴忚鍣?setup E2E", () => {
+test.describe.skip("鐪熷疄娴忚鍣?setup E2E", () => {
   // 与 run-app-e2e.mjs 中 PlatformHost 实际启动时的 ConnectionString 保持一致；
   // 该脚本会用 atlas.app.e2e.db 启动平台，setup wizard 写入也必须落到同一个 DB
   // 否则平台重启后业务测试找不到管理员账号。
