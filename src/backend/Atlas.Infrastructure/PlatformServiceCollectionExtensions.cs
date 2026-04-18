@@ -154,6 +154,12 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Identity.Abstractions.ITenantPolicyService,
             Atlas.Infrastructure.Services.TenantPolicyService>();
 
+        // 治理 M-G10-C1 + C2 (S16): Agent 触发器 + 卡片
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IAgentTriggerService,
+            Atlas.Infrastructure.Services.AiPlatform.AgentTriggerService>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.IAgentCardService,
+            Atlas.Infrastructure.Services.AiPlatform.AgentCardService>();
+
         // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
         services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuApiClient,

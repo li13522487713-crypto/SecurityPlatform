@@ -246,6 +246,9 @@ public static class AtlasOrmSchemaCatalog
         // 治理 M-G08-C1 + C2 (S15): 网络策略 + 数据驻留策略
         typeof(TenantNetworkPolicy),
         typeof(TenantDataResidencyPolicy),
+        // 治理 M-G10-C1 + C2 (S16): Agent 触发器与卡片
+        typeof(AgentTrigger),
+        typeof(AgentCard),
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）
