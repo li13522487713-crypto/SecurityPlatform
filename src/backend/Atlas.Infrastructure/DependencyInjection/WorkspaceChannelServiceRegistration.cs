@@ -24,6 +24,8 @@ public static class WorkspaceChannelServiceRegistration
         services.AddScoped<IWorkspaceChannelConnector, OpenApiChannelConnector>();
         // 治理 M-G02-C7 (S3)：飞书 connector
         services.AddScoped<IWorkspaceChannelConnector, Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuChannelConnector>();
+        // 治理 M-G02-C11 (S4)：微信公众号 connector
+        services.AddScoped<IWorkspaceChannelConnector, Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpChannelConnector>();
         return services;
     }
 }

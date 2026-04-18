@@ -227,6 +227,8 @@ public static class AtlasOrmSchemaCatalog
         typeof(WorkspaceChannelRelease),
         // 治理 M-G02-C5 (S3): 飞书渠道凭据
         typeof(FeishuChannelCredential),
+        // 治理 M-G02-C9 (S4): 微信公众号渠道凭据
+        typeof(WechatMpChannelCredential),
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）

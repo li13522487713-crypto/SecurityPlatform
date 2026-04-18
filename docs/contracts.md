@@ -1182,6 +1182,39 @@ DTO：
 - 验证 token 拉取一次（拉取失败则记 `failed` + 飞书错误码与描述）。
 - 成功后 `publicMetadataJson` 包含 `webhookUrl / appId / appIdMasked / agentId / instructions`。
 
+### 治理 M-G02-C9..C11：微信公众号渠道全链路
+
+> WeChat MP（公众号）connector 行为模式与 Feishu 类似：独立 `WechatMpChannelCredential` 表 + 缓存 access_token + Webhook 验签 + 客服消息异步回包。
+> 类型字符串为 `wechat-mp`（与早期占位 `wechat` 区别），已加入 `WorkspacePublishChannelService` 的允许集合。
+
+**凭据管理 API：**
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-mp-credential` → `ApiResponse<WechatMpChannelCredentialDto?>`
+- `PUT /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-mp-credential` body `WechatMpChannelCredentialUpsertRequest` → `ApiResponse<WechatMpChannelCredentialDto>`
+- `DELETE /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-mp-credential` → `ApiResponse<{ success }>`
+
+DTO：
+
+- `WechatMpChannelCredentialDto { id, channelId, workspaceId, appId, appIdMasked, token, hasEncodingAesKey, accessTokenExpiresAt?, refreshCount, createdAt, updatedAt }`
+- `WechatMpChannelCredentialUpsertRequest { appId (1..64), appSecret (1..128), token (1..64), encodingAesKey? (max 128) }`
+
+**Webhook 公共端点：**
+
+`/api/v1/runtime/channels/wechat-mp/{channelId}/webhook`
+
+- `GET ?signature&timestamp&nonce&echostr`：通过签名校验后，以纯文本返回 `echostr`（微信要求）。
+- `POST ?signature&timestamp&nonce`，体为 XML（默认非加密模式）：
+  - 校验 SHA1 签名 = sort([token, timestamp, nonce]).join('') 的 lower-hex；
+  - `MsgId` 在 5 分钟内存窗口去重；
+  - `MsgType=text` 派发到 Agent 对话，回包通过 `IWechatMpApiClient.SendCustomerMessageAsync`（客服消息接口）。
+- 失败也返回 200（避免微信无意义重试），仅以 JSON `{ handled: false, response: ... }` 表达失败原因。
+
+**Release 行为：**
+
+- 发布前必须先 upsert 凭据；缺失返回 `failed` + `WechatMpCredentialMissing`。
+- 拉取 access_token 验证一次（失败记 `failed` + 微信 errcode/errmsg）。
+- 成功后 `publicMetadataJson` 包含 `webhookUrl / appId / appIdMasked / agentId / instructions`。
+
 ### 安全与权限（M2）
 
 - 视图操作 `Permission:ai-workspace:view`，写入操作 `Permission:ai-workspace:update`。

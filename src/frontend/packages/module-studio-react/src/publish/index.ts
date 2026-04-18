@@ -8,3 +8,5 @@ export { TokenManagement } from "./token-management";
 export type { TokenManagementProps } from "./token-management";
 export { FeishuPublishTab } from "./feishu-publish-tab";
 export type { FeishuPublishTabProps } from "./feishu-publish-tab";
+export { WechatMpPublishTab } from "./wechat-mp-publish-tab";
+export type { WechatMpPublishTabProps } from "./wechat-mp-publish-tab";

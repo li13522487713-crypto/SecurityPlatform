@@ -177,3 +177,40 @@ Content-Type: application/json
     }
   }
 }
+
+### 治理 M-G02-C9..C11：微信公众号凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-mp-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "appId": "wx_xxxx",
+  "appSecret": "xxxxxxxx",
+  "token": "wechat-token-from-platform",
+  "encodingAesKey": null
+}
+
+### 微信公众号凭据查询（脱敏返回）
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-mp-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 微信公众号 webhook：服务器地址校验（GET）
+# signature = sha1(sort([token, timestamp, nonce]).join(''))，全部小写 hex
+GET {{baseUrl}}/api/v1/runtime/channels/wechat-mp/{{channelId}}/webhook?signature=REPLACE&timestamp=1700000000&nonce=n-1&echostr=hello
+X-Tenant-Id: {{tenantId}}
+
+### 微信公众号 webhook：业务消息（POST，XML 体）
+POST {{baseUrl}}/api/v1/runtime/channels/wechat-mp/{{channelId}}/webhook?signature=REPLACE&timestamp=1700000001&nonce=n-2
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/xml
+
+<xml>
+  <ToUserName><![CDATA[gh_xxxx]]></ToUserName>
+  <FromUserName><![CDATA[oUser1234]]></FromUserName>
+  <CreateTime>1700000001</CreateTime>
+  <MsgType><![CDATA[text]]></MsgType>
+  <Content><![CDATA[查询订单]]></Content>
+  <MsgId>1234567890123456</MsgId>
+</xml>
