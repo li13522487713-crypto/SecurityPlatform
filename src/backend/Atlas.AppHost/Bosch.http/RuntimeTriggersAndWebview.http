@@ -51,6 +51,23 @@ DELETE {{baseUrl}}/api/runtime/triggers/{{triggerId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 重置 webhook 共享密钥（仅 kind=webhook 触发器；明文只在响应里返回 1 次）
+# @name rotateWebhookSecret
+POST {{baseUrl}}/api/runtime/triggers/{{triggerId}}:rotate-webhook-secret
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@webhookSecret = {{rotateWebhookSecret.response.body.$.data.secret}}
+
+### 外部回调入口（无需登录态；常量时间比对 X-Atlas-Webhook-Secret）
+POST {{baseUrl}}/api/runtime/webhooks/triggers/{{triggerId}}
+X-Tenant-Id: {{tenantId}}
+X-Atlas-Webhook-Secret: {{webhookSecret}}
+Content-Type: application/json
+
+{ "anyPayload": "由外部系统提交，触发器内部按 workflowId 异步提交执行" }
+
 ### Webview 域名管理
 GET {{baseUrl}}/api/runtime/webview-domains
 Authorization: Bearer {{accessToken}}

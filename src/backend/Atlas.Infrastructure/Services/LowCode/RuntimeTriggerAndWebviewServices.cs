@@ -108,6 +108,45 @@ public sealed class RuntimeTriggerService : IRuntimeTriggerService
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.trigger.resume", "success", $"trg:{triggerId}", null, null), cancellationToken);
     }
 
+    public async Task<string> RotateWebhookSecretAsync(TenantId tenantId, long currentUserId, string triggerId, CancellationToken cancellationToken)
+    {
+        var t = await _repo.FindByTriggerIdAsync(tenantId, triggerId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"触发器不存在：{triggerId}");
+        if (!string.Equals(t.Kind, "webhook", StringComparison.OrdinalIgnoreCase))
+            throw new BusinessException(ErrorCodes.ValidationError, $"仅 kind=webhook 触发器支持 rotate-secret：{triggerId}（当前 {t.Kind}）");
+
+        var secret = $"whs_{Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant()}";
+        t.SetWebhookSecret(secret);
+        await _repo.UpdateAsync(t, cancellationToken);
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.trigger.webhook.rotate", "success", $"trg:{triggerId}", null, null), cancellationToken);
+        return secret;
+    }
+
+    public async Task FireWebhookAsync(TenantId tenantId, string triggerId, string providedSecret, CancellationToken cancellationToken)
+    {
+        var t = await _repo.FindByTriggerIdAsync(tenantId, triggerId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"触发器不存在：{triggerId}");
+        if (!string.Equals(t.Kind, "webhook", StringComparison.OrdinalIgnoreCase))
+            throw new BusinessException(ErrorCodes.ValidationError, $"仅 kind=webhook 触发器支持 webhook 入口：{triggerId}（当前 {t.Kind}）");
+        if (!t.Enabled)
+            throw new BusinessException(ErrorCodes.ValidationError, $"触发器已禁用：{triggerId}");
+        if (string.IsNullOrEmpty(t.WebhookSecret) || !ConstantTimeEquals(t.WebhookSecret, providedSecret))
+        {
+            await _auditWriter.WriteAsync(new AuditRecord(tenantId, "0", "lowcode.runtime.trigger.webhook.fire", "failed", $"trg:{triggerId}:reason:secret-mismatch", null, null), cancellationToken);
+            throw new BusinessException("WEBHOOK_INVALID_SECRET", "webhook secret 校验失败");
+        }
+        await FireAsync(tenantId, triggerId, cancellationToken);
+    }
+
+    /// <summary>常量时间字符串比较，避免 webhook secret 时序攻击。</summary>
+    private static bool ConstantTimeEquals(string a, string b)
+    {
+        if (a.Length != b.Length) return false;
+        var diff = 0;
+        for (var i = 0; i < a.Length; i++) diff |= a[i] ^ b[i];
+        return diff == 0;
+    }
+
     /// <summary>
     /// 把 Trigger 同步注册（或移除）到 Hangfire RecurringJob：
     ///  - kind=cron 且 Enabled 且 Cron 非空 → AddOrUpdate

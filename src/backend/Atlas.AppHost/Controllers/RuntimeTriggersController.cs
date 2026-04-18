@@ -76,6 +76,48 @@ public sealed class RuntimeTriggersController : ControllerBase
         await _service.ResumeAsync(tenantId, user.UserId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
     }
+
+    /// <summary>
+    /// 重置 / 生成 webhook 共享密钥（仅 kind=webhook 触发器）。响应中明文返回 1 次，调用方需自行妥善保管。
+    /// </summary>
+    [HttpPost("{id}:rotate-webhook-secret")]
+    public async Task<ActionResult<ApiResponse<RotateWebhookSecretResponse>>> RotateWebhookSecret(string id, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var user = _currentUser.GetCurrentUserOrThrow();
+        var secret = await _service.RotateWebhookSecretAsync(tenantId, user.UserId, id, cancellationToken);
+        return Ok(ApiResponse<RotateWebhookSecretResponse>.Ok(new RotateWebhookSecretResponse(secret), HttpContext.TraceIdentifier));
+    }
+}
+
+public sealed record RotateWebhookSecretResponse(string Secret);
+
+/// <summary>
+/// Webhook 外部回调入口（无需登录态，按 X-Tenant-Id + triggerId + X-Atlas-Webhook-Secret 校验）。
+///
+/// 路径独立于 /api/runtime/triggers 主控制器，避免被全局 [Authorize] 拦截。
+/// </summary>
+[ApiController]
+[Route("api/runtime/webhooks/triggers")]
+[AllowAnonymous]
+public sealed class RuntimeTriggerWebhookController : ControllerBase
+{
+    private readonly IRuntimeTriggerService _service;
+    private readonly ITenantProvider _tenantProvider;
+
+    public RuntimeTriggerWebhookController(IRuntimeTriggerService service, ITenantProvider tenantProvider)
+    {
+        _service = service;
+        _tenantProvider = tenantProvider;
+    }
+
+    [HttpPost("{id}")]
+    public async Task<ActionResult<ApiResponse<object>>> Fire(string id, [FromHeader(Name = "X-Atlas-Webhook-Secret")] string? secret, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _service.FireWebhookAsync(tenantId, id, secret ?? string.Empty, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
+    }
 }
 
 [ApiController]

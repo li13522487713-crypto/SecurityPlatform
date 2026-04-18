@@ -85,6 +85,13 @@ public sealed class LowCodeTrigger : TenantEntity
     {
         LastFiredAt = DateTimeOffset.UtcNow;
     }
+
+    /// <summary>设置 webhook 共享密钥（用于校验外部回调请求）。</summary>
+    public void SetWebhookSecret(string? secret)
+    {
+        WebhookSecret = secret;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }
 
 /// <summary>
