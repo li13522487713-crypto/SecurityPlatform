@@ -6,6 +6,7 @@ import {
   Progress,
   Space,
   Tag,
+  TextArea,
   Toast,
   Typography
 } from "@douyinfe/semi-ui";
@@ -35,6 +36,8 @@ export function KnowledgeUploadPage({
   const [files, setFiles] = useState<File[]>([]);
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [tagsJson, setTagsJson] = useState("");
+  const [imageMetadataJson, setImageMetadataJson] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -94,11 +97,55 @@ export function KnowledgeUploadPage({
     Toast.error(`${fileName}: ${copy.uploadFailed}`);
   }
 
+  function buildUploadOptions():
+    | { ok: true; value?: { tagsJson?: string; imageMetadataJson?: string } }
+    | { ok: false } {
+    const tagsTrim = tagsJson.trim();
+    if (tagsTrim.length > 0) {
+      try {
+        const parsed: unknown = JSON.parse(tagsTrim);
+        if (!Array.isArray(parsed)) {
+          return { ok: false };
+        }
+      } catch {
+        return { ok: false };
+      }
+    }
+
+    const metaTrim = imageMetadataJson.trim();
+    if (initialType === "image" && metaTrim.length > 0) {
+      try {
+        const parsed: unknown = JSON.parse(metaTrim);
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+          return { ok: false };
+        }
+      } catch {
+        return { ok: false };
+      }
+    }
+
+    const opt: { tagsJson?: string; imageMetadataJson?: string } = {};
+    if (tagsTrim.length > 0) {
+      opt.tagsJson = tagsTrim;
+    }
+    if (initialType === "image" && metaTrim.length > 0) {
+      opt.imageMetadataJson = metaTrim;
+    }
+    return { ok: true, value: Object.keys(opt).length > 0 ? opt : undefined };
+  }
+
   async function handleSubmit() {
     if (files.length === 0) {
       Toast.warning(copy.uploadEmpty);
       return;
     }
+
+    const built = buildUploadOptions();
+    if (!built.ok) {
+      Toast.error(copy.uploadTagsInvalid);
+      return;
+    }
+    const uploadOptions = built.value;
 
     setSubmitting(true);
     setTasks(files.map((file: File) => ({
@@ -115,7 +162,7 @@ export function KnowledgeUploadPage({
             : task
         )));
 
-        const documentId = await api.uploadDocument(knowledgeBaseId, file);
+        const documentId = await api.uploadDocument(knowledgeBaseId, file, uploadOptions);
         setTasks(current => current.map((task: UploadTask) => (
           task.fileName === file.name
             ? { ...task, documentId, status: "processing", progress: 30 }
@@ -188,6 +235,28 @@ export function KnowledgeUploadPage({
             ) : (
               <Empty description={copy.uploadEmpty} />
             )}
+            <Typography.Text strong style={{ display: "block", marginTop: 12 }}>
+              {copy.uploadTagsLabel}
+            </Typography.Text>
+            <TextArea
+              value={tagsJson}
+              placeholder={copy.uploadTagsPlaceholder}
+              rows={2}
+              onChange={setTagsJson}
+            />
+            {initialType === "image" ? (
+              <>
+                <Typography.Text strong style={{ display: "block", marginTop: 12 }}>
+                  {copy.uploadImageMetaLabel}
+                </Typography.Text>
+                <TextArea
+                  value={imageMetadataJson}
+                  placeholder={copy.uploadImageMetaPlaceholder}
+                  rows={3}
+                  onChange={setImageMetadataJson}
+                />
+              </>
+            ) : null}
           </div>
         </div>
 

@@ -73,6 +73,12 @@ type CopyTree = {
   retrievalQueryPlaceholder: string;
   runTest: string;
   noTestResult: string;
+  hitOffsetLabel: string;
+  hitTagsLabel: string;
+  rowIndexLabel: string;
+  columnHeadersLabel: string;
+  imagePreviewLabel: string;
+  tablePreviewLabel: string;
   uploadTitle: string;
   uploadSubtitle: string;
   uploadSelectFile: string;
@@ -100,6 +106,14 @@ type CopyTree = {
   ready: string;
   failed: string;
   uploadProcessingHint: string;
+  uploadTagsLabel: string;
+  uploadTagsPlaceholder: string;
+  uploadImageMetaLabel: string;
+  uploadImageMetaPlaceholder: string;
+  uploadTagsInvalid: string;
+  createTextKbHint: string;
+  createTableKbHint: string;
+  createImageKbHint: string;
   typeLabels: Record<KnowledgeBaseType, string>;
   workflowModeLabels: {
     workflow: string;
@@ -183,6 +197,12 @@ const zhCN: CopyTree = {
   retrievalQueryPlaceholder: "输入测试问题，例如：平台有哪些安全能力？",
   runTest: "开始测试",
   noTestResult: "暂时还没有检索结果。",
+  hitOffsetLabel: "命中位置",
+  hitTagsLabel: "命中标签",
+  rowIndexLabel: "行号",
+  columnHeadersLabel: "列头",
+  imagePreviewLabel: "图片预览",
+  tablePreviewLabel: "表格预览",
   uploadTitle: "导入知识文档",
   uploadSubtitle: "按照 Coze 式四段流程维护知识导入。",
   uploadSelectFile: "选择文件",
@@ -210,6 +230,14 @@ const zhCN: CopyTree = {
   ready: "就绪",
   failed: "失败",
   uploadProcessingHint: "上传成功后会自动轮询处理状态，直到完成或失败。",
+  uploadTagsLabel: "文档标签（可选）",
+  uploadTagsPlaceholder: 'JSON 数组，例如 ["产品","FAQ"]',
+  uploadImageMetaLabel: "图片标注元数据（可选）",
+  uploadImageMetaPlaceholder: 'JSON 对象，例如 {"caption":"示意图","ocr":""}',
+  uploadTagsInvalid: "标签需为合法 JSON 数组。",
+  createTextKbHint: "适合长文档、手册等纯文本分段与向量检索。",
+  createTableKbHint: "上传 CSV/TSV 等文本表格，将按行建分片并保留列头。",
+  createImageKbHint: "仅支持 image/* 文件；可附带 JSON 标注元数据。",
   typeLabels: {
     0: "文本知识",
     1: "表格知识",
@@ -316,6 +344,12 @@ const enUS: CopyTree = {
   retrievalQueryPlaceholder: "Type a test query, e.g. What security capabilities does the platform provide?",
   runTest: "Run Test",
   noTestResult: "No retrieval result yet.",
+  hitOffsetLabel: "Match Range",
+  hitTagsLabel: "Tags",
+  rowIndexLabel: "Row #",
+  columnHeadersLabel: "Headers",
+  imagePreviewLabel: "Image Preview",
+  tablePreviewLabel: "Table Preview",
   uploadTitle: "Import Knowledge Files",
   uploadSubtitle: "Maintain knowledge ingestion with a four-step Coze-like flow.",
   uploadSelectFile: "Choose Files",
@@ -343,6 +377,14 @@ const enUS: CopyTree = {
   ready: "Ready",
   failed: "Failed",
   uploadProcessingHint: "After upload, processing status is polled automatically until completion or failure.",
+  uploadTagsLabel: "Document tags (optional)",
+  uploadTagsPlaceholder: 'JSON array, e.g. ["product","faq"]',
+  uploadImageMetaLabel: "Image metadata (optional)",
+  uploadImageMetaPlaceholder: 'JSON object, e.g. {"caption":"diagram","ocr":""}',
+  uploadTagsInvalid: "Tags must be a valid JSON array.",
+  createTextKbHint: "Best for manuals and long text with chunking + vector search.",
+  createTableKbHint: "Upload CSV/TSV-like files; each row becomes a chunk with headers.",
+  createImageKbHint: "Only image/* files; optional JSON annotation metadata.",
   typeLabels: {
     0: "Text Knowledge",
     1: "Table Knowledge",

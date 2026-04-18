@@ -115,6 +115,8 @@ public static class AiRuntimeServiceRegistration
         services.AddScoped<IDagWorkflowExecutionService, DagWorkflowExecutionService>();
         services.AddHttpClient("WorkflowEngine", client => client.Timeout = TimeSpan.FromSeconds(30));
 
+        services.AddWorkspaceChannelInfrastructure();
+
         return services;
     }
 }

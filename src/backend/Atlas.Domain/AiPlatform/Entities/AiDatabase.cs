@@ -12,6 +12,8 @@ public sealed class AiDatabase : TenantEntity
         Description = string.Empty;
         TableSchema = "[]";
         OwnerType = AiDatabaseOwnerType.Library;
+        QueryMode = AiDatabaseQueryMode.MultiUser;
+        ChannelScope = AiDatabaseChannelScope.Open;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -22,7 +24,9 @@ public sealed class AiDatabase : TenantEntity
         long? botId,
         string tableSchema,
         long id,
-        long? workspaceId = null)
+        long? workspaceId = null,
+        AiDatabaseQueryMode? queryMode = null,
+        AiDatabaseChannelScope? channelScope = null)
         : base(tenantId)
     {
         Id = id;
@@ -35,6 +39,8 @@ public sealed class AiDatabase : TenantEntity
         TableSchema = string.IsNullOrWhiteSpace(tableSchema) ? "[]" : tableSchema;
         SchemaVersion = 1;
         RecordCount = 0;
+        QueryMode = queryMode ?? AiDatabaseQueryMode.MultiUser;
+        ChannelScope = channelScope ?? AiDatabaseChannelScope.Open;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -49,8 +55,19 @@ public sealed class AiDatabase : TenantEntity
     public int SchemaVersion { get; private set; }
     public int PublishedVersion { get; private set; }
     public int RecordCount { get; private set; }
+    /// <summary>D2：行可见性策略。SingleUser=按 OwnerUserId 过滤；MultiUser=不过滤。</summary>
+    public AiDatabaseQueryMode QueryMode { get; private set; }
+    /// <summary>D2：渠道隔离策略。Channel=按 ChannelId 过滤；Open=不过滤。</summary>
+    public AiDatabaseChannelScope ChannelScope { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+
+    public void SetQueryMode(AiDatabaseQueryMode queryMode, AiDatabaseChannelScope channelScope)
+    {
+        QueryMode = queryMode;
+        ChannelScope = channelScope;
+        UpdatedAt = DateTime.UtcNow;
+    }
 
     public void Update(
         string name,
@@ -123,4 +140,20 @@ public enum AiDatabaseOwnerType
     Library = 0,
     Agent = 1,
     App = 2
+}
+
+public enum AiDatabaseQueryMode
+{
+    /// <summary>不限定 owner 过滤；老数据兼容默认。</summary>
+    MultiUser = 0,
+    /// <summary>读写仅限 OwnerUserId 等于当前用户或 NULL（旧数据）。</summary>
+    SingleUser = 1
+}
+
+public enum AiDatabaseChannelScope
+{
+    /// <summary>不限定 channel；默认。</summary>
+    Open = 0,
+    /// <summary>读写仅限 ChannelId 等于当前 channel 或 NULL。</summary>
+    Channel = 1
 }

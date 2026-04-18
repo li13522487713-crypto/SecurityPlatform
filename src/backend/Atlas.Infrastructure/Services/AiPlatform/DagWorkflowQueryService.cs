@@ -210,7 +210,8 @@ public sealed class DagWorkflowQueryService : IDagWorkflowQueryService
                     m.Description,
                     declaration?.Ports,
                     declaration?.ConfigSchemaJson,
-                    declaration?.UiMeta);
+                    declaration?.UiMeta,
+                    declaration?.FormMetaJson);
             })
             .ToList();
         return Task.FromResult<IReadOnlyList<DagWorkflowNodeTypeDto>>(types);

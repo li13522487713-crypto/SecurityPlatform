@@ -60,9 +60,19 @@ export async function getKnowledgeDocumentsPaged(knowledgeBaseId: number, reques
   return response.data;
 }
 
-export async function createKnowledgeDocumentByFile(knowledgeBaseId: number, file: File) {
+export async function createKnowledgeDocumentByFile(
+  knowledgeBaseId: number,
+  file: File,
+  options?: { tagsJson?: string; imageMetadataJson?: string }
+) {
   const form = new FormData();
   form.append("file", file);
+  if (options?.tagsJson) {
+    form.append("tagsJson", options.tagsJson);
+  }
+  if (options?.imageMetadataJson) {
+    form.append("imageMetadataJson", options.imageMetadataJson);
+  }
   const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>(
     `/knowledge-bases/${knowledgeBaseId}/documents`,
     {

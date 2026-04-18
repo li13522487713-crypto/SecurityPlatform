@@ -9,6 +9,8 @@ public sealed class KnowledgeDocument : TenantEntity
         : base(TenantId.Empty)
     {
         FileName = string.Empty;
+        TagsJson = "[]";
+        ImageMetadataJson = "{}";
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -19,7 +21,9 @@ public sealed class KnowledgeDocument : TenantEntity
         string fileName,
         string? contentType,
         long fileSizeBytes,
-        long id)
+        long id,
+        string? tagsJson = null,
+        string? imageMetadataJson = null)
         : base(tenantId)
     {
         Id = id;
@@ -30,6 +34,8 @@ public sealed class KnowledgeDocument : TenantEntity
         FileSizeBytes = fileSizeBytes;
         Status = DocumentProcessingStatus.Pending;
         ChunkCount = 0;
+        TagsJson = NormalizeTagsJson(tagsJson);
+        ImageMetadataJson = NormalizeImageMetadataJson(imageMetadataJson);
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -43,6 +49,12 @@ public sealed class KnowledgeDocument : TenantEntity
     public int ChunkCount { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? ProcessedAt { get; private set; }
+
+    /// <summary>JSON array of tag strings, e.g. <c>["a","b"]</c>.</summary>
+    public string TagsJson { get; private set; } = "[]";
+
+    /// <summary>JSON object for image annotations / OCR metadata (image knowledge bases).</summary>
+    public string ImageMetadataJson { get; private set; } = "{}";
 
     public void MarkProcessing()
     {
@@ -64,6 +76,34 @@ public sealed class KnowledgeDocument : TenantEntity
         Status = DocumentProcessingStatus.Failed;
         ErrorMessage = error;
         ProcessedAt = DateTime.UtcNow;
+    }
+
+    public void SetTagsAndImageMetadata(string? tagsJson, string? imageMetadataJson)
+    {
+        TagsJson = NormalizeTagsJson(tagsJson);
+        ImageMetadataJson = NormalizeImageMetadataJson(imageMetadataJson);
+    }
+
+    private static string NormalizeTagsJson(string? tagsJson)
+    {
+        if (string.IsNullOrWhiteSpace(tagsJson))
+        {
+            return "[]";
+        }
+
+        var t = tagsJson.Trim();
+        return t.Length == 0 ? "[]" : t;
+    }
+
+    private static string NormalizeImageMetadataJson(string? imageMetadataJson)
+    {
+        if (string.IsNullOrWhiteSpace(imageMetadataJson))
+        {
+            return "{}";
+        }
+
+        var t = imageMetadataJson.Trim();
+        return t.Length == 0 ? "{}" : t;
     }
 }
 

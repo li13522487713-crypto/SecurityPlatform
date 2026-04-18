@@ -277,7 +277,9 @@ import {
   submitAiDatabaseImport,
   updateAiDatabaseRecord,
   updateAiDatabase,
-  validateAiDatabaseSchema
+  validateAiDatabaseSchema,
+  createAiDatabaseRecordsBulk,
+  submitAiDatabaseBulkInsertJob
 } from "../services/api-ai-database";
 import {
   createAiVariable,
@@ -1104,6 +1106,9 @@ export function createStudioApi(appKey: string): StudioModuleApi {
     submitDatabaseImport: submitAiDatabaseImport,
     getDatabaseImportProgress: getAiDatabaseImportProgress,
     downloadDatabaseTemplate: downloadAiDatabaseTemplate,
+    // D5：批量插入入口（同步 + 异步）。
+    bulkCreateDatabaseRecords: createAiDatabaseRecordsBulk,
+    submitDatabaseBulkInsertJob: submitAiDatabaseBulkInsertJob,
     listBotVariables: async (currentBotId: string) => {
       const result = await getAiVariablesPaged(
         { pageIndex: 1, pageSize: 100 },

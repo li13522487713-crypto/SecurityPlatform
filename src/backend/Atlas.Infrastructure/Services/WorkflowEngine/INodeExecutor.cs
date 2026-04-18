@@ -34,7 +34,9 @@ public sealed class NodeExecutionContext
         long workflowId,
         long executionId,
         IReadOnlyList<long> workflowCallStack,
-        Channel<SseEvent>? eventChannel)
+        Channel<SseEvent>? eventChannel,
+        long? userId = null,
+        string? channelId = null)
     {
         Node = node;
         Variables = variables;
@@ -44,6 +46,8 @@ public sealed class NodeExecutionContext
         ExecutionId = executionId;
         WorkflowCallStack = workflowCallStack;
         EventChannel = eventChannel;
+        UserId = userId;
+        ChannelId = string.IsNullOrWhiteSpace(channelId) ? null : channelId.Trim();
     }
 
     public NodeSchema Node { get; }
@@ -54,6 +58,10 @@ public sealed class NodeExecutionContext
     public long ExecutionId { get; }
     public IReadOnlyList<long> WorkflowCallStack { get; }
     public Channel<SseEvent>? EventChannel { get; }
+    /// <summary>D2：执行触发用户 ID（可空——后台/系统流不一定有）。</summary>
+    public long? UserId { get; }
+    /// <summary>D2：执行渠道（agent/chatflow/app/api 等）。</summary>
+    public string? ChannelId { get; }
 
     /// <summary>
     /// 节点级状态访问器（P3-8 修复 PLAN §M20 S20-7）。

@@ -861,6 +861,19 @@ const zhCN = {
   setupConsoleLogColumnMessage: "消息",
   setupConsoleLogColumnOccurredAt: "时间",
   setupConsoleLogEmpty: "暂无日志记录。",
+
+  assistantDomainTitle: "智能体",
+  assistantDomainSubtitle: "智能体（Assistant）：人设、技能、调试与发布合一的产品壳",
+  assistantTeamTitle: "多智能体团队",
+  assistantTeamSubtitle: "多智能体协作编排（Multi-Agent）",
+  assistantSkillsBlock: "技能装配",
+  assistantSkillsBlockSubtitle: "插件、工作流、知识库、数据库、变量、长期记忆",
+  assistantPublishBlock: "发布与渠道",
+  assistantPublishBlockSubtitle: "Web SDK / Open API / 飞书 / 微信公众号",
+  assistantDebugBlock: "预览与调试",
+  assistantDebugBlockSubtitle: "对话调试 + 提示词生效 + 技能调用回放",
+  assistantCollaboratorBlock: "协作者",
+  assistantCollaboratorBlockSubtitle: "按资源粒度授予访问与协作权限",
 };
 
 const enUS: typeof zhCN = {
@@ -1724,6 +1737,19 @@ const enUS: typeof zhCN = {
   setupConsoleLogColumnMessage: "Message",
   setupConsoleLogColumnOccurredAt: "Time",
   setupConsoleLogEmpty: "No log records yet.",
+
+  assistantDomainTitle: "Assistants",
+  assistantDomainSubtitle: "Assistant: a unified shell for persona, skills, debugging and release",
+  assistantTeamTitle: "Multi-agent teams",
+  assistantTeamSubtitle: "Multi-Agent orchestration",
+  assistantSkillsBlock: "Skill bindings",
+  assistantSkillsBlockSubtitle: "Plugins, workflows, knowledge bases, databases, variables, long-term memory",
+  assistantPublishBlock: "Release & channels",
+  assistantPublishBlockSubtitle: "Web SDK / Open API / Feishu / WeChat MP",
+  assistantDebugBlock: "Preview & debug",
+  assistantDebugBlockSubtitle: "Conversation debug, prompt diff, skill-call replay",
+  assistantCollaboratorBlock: "Collaborators",
+  assistantCollaboratorBlockSubtitle: "Per-resource access and collaboration ACL",
 };
 export const APP_MESSAGES = {
   "zh-CN": zhCN,

@@ -28,6 +28,14 @@ public sealed class DatabaseUpdateNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "DatabaseUpdate 缺少 databaseInfoId/databaseId。");
         }
 
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "AiDatabase.Update",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?> { ["db.id"] = databaseId });
+
         if (!VariableResolver.TryGetConfigValue(context.Node.Config, "updateFields", out var updateFieldsRaw) ||
             updateFieldsRaw.ValueKind != JsonValueKind.Object)
         {
@@ -37,7 +45,8 @@ public sealed class DatabaseUpdateNodeExecutor : INodeExecutor
         var updateFields = updateFieldsRaw.EnumerateObject()
             .ToDictionary(x => x.Name, x => x.Value.Clone(), StringComparer.OrdinalIgnoreCase);
         var clauses = AiDatabaseNodeHelper.ResolveClauses(context.Node.Config);
-        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken);
+        var policy = await AiDatabaseNodeHelper.ResolvePolicyAsync(_db, context, databaseId, cancellationToken);
+        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken, policy);
         var touched = new List<AiDatabaseRecord>();
 
         foreach (var record in records)
@@ -61,6 +70,15 @@ public sealed class DatabaseUpdateNodeExecutor : INodeExecutor
         }
 
         outputs["affected_rows"] = JsonSerializer.SerializeToElement(touched.Count);
+        activity?.SetTag("db.affected_rows", touched.Count);
+        await AiNodeObservability.WriteAuditAsync(
+            context.ServiceProvider,
+            context.TenantId,
+            context.UserId,
+            "ai_database_node.update",
+            "success",
+            $"db:{databaseId}/rows:{touched.Count}/node:{context.Node.Key}",
+            cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }
 }

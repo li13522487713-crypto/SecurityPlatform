@@ -817,16 +817,21 @@ export function LibraryPage({ api, locale, appKey, spaceId, onNavigate }: Librar
             }}
           />
           {createKind === "knowledge-base" ? (
-            <Select
-              value={form.type}
-              style={{ width: "100%" }}
-              optionList={[
-                { label: copy.typeLabels[0], value: 0 },
-                { label: copy.typeLabels[1], value: 1 },
-                { label: copy.typeLabels[2], value: 2 }
-              ]}
-              onChange={value => setForm((current: CreateFormState) => ({ ...current, type: Number(value) as KnowledgeBaseType }))}
-            />
+            <>
+              <Select
+                value={form.type}
+                style={{ width: "100%" }}
+                optionList={[
+                  { label: copy.typeLabels[0], value: 0 },
+                  { label: copy.typeLabels[1], value: 1 },
+                  { label: copy.typeLabels[2], value: 2 }
+                ]}
+                onChange={value => setForm((current: CreateFormState) => ({ ...current, type: Number(value) as KnowledgeBaseType }))}
+              />
+              <Typography.Text type="tertiary">
+                {form.type === 1 ? copy.createTableKbHint : form.type === 2 ? copy.createImageKbHint : copy.createTextKbHint}
+              </Typography.Text>
+            </>
           ) : null}
           {createKind === "plugin" ? (
             <div className="atlas-library-create-stack">

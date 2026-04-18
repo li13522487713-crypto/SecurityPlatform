@@ -1,7 +1,10 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Audit.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -16,31 +19,60 @@ public sealed class AiDatabasesController : ControllerBase
 {
     private readonly IAiDatabaseService _service;
     private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAuditWriter _auditWriter;
     private readonly IValidator<AiDatabaseCreateRequest> _createValidator;
     private readonly IValidator<AiDatabaseUpdateRequest> _updateValidator;
     private readonly IValidator<AiDatabaseRecordCreateRequest> _recordCreateValidator;
     private readonly IValidator<AiDatabaseRecordUpdateRequest> _recordUpdateValidator;
+    private readonly IValidator<AiDatabaseRecordBulkCreateRequest> _recordBulkValidator;
     private readonly IValidator<AiDatabaseSchemaValidateRequest> _schemaValidator;
     private readonly IValidator<AiDatabaseImportRequest> _importValidator;
 
     public AiDatabasesController(
         IAiDatabaseService service,
         ITenantProvider tenantProvider,
+        ICurrentUserAccessor currentUserAccessor,
+        IAuditWriter auditWriter,
         IValidator<AiDatabaseCreateRequest> createValidator,
         IValidator<AiDatabaseUpdateRequest> updateValidator,
         IValidator<AiDatabaseRecordCreateRequest> recordCreateValidator,
         IValidator<AiDatabaseRecordUpdateRequest> recordUpdateValidator,
+        IValidator<AiDatabaseRecordBulkCreateRequest> recordBulkValidator,
         IValidator<AiDatabaseSchemaValidateRequest> schemaValidator,
         IValidator<AiDatabaseImportRequest> importValidator)
     {
         _service = service;
         _tenantProvider = tenantProvider;
+        _currentUserAccessor = currentUserAccessor;
+        _auditWriter = auditWriter;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _recordCreateValidator = recordCreateValidator;
         _recordUpdateValidator = recordUpdateValidator;
+        _recordBulkValidator = recordBulkValidator;
         _schemaValidator = schemaValidator;
         _importValidator = importValidator;
+    }
+
+    /// <summary>D9：从当前 HTTP 上下文解析行级 owner/channel；用作 SingleUser/Channel 模式的策略输入。</summary>
+    private (long? OwnerUserId, long? CreatorUserId, string? ChannelId) ResolveRowMetadata()
+    {
+        var user = _currentUserAccessor.GetCurrentUserOrThrow();
+        var userId = user.UserId;
+        var channelId = HttpContext.Request.Headers.TryGetValue("X-App-Channel", out var chVals)
+            ? chVals.ToString()
+            : null;
+        return (userId, userId, string.IsNullOrWhiteSpace(channelId) ? null : channelId);
+    }
+
+    private async Task WriteDatabaseAuditAsync(string action, string target, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var user = _currentUserAccessor.GetCurrentUserOrThrow();
+        await _auditWriter.WriteAsync(
+            new AuditRecord(tenantId, user.UserId.ToString(), action, "success", target, null, null),
+            cancellationToken);
     }
 
     [HttpGet]
@@ -78,6 +110,7 @@ public sealed class AiDatabasesController : ControllerBase
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var id = await _service.CreateAsync(tenantId, request, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.create", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -91,6 +124,7 @@ public sealed class AiDatabasesController : ControllerBase
         _updateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         await _service.UpdateAsync(tenantId, id, request, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.update", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -100,6 +134,7 @@ public sealed class AiDatabasesController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         await _service.DeleteAsync(tenantId, id, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.delete", $"db:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -150,8 +185,48 @@ public sealed class AiDatabasesController : ControllerBase
     {
         _recordCreateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var recordId = await _service.CreateRecordAsync(tenantId, id, request, cancellationToken);
+        var (ownerUserId, creatorUserId, channelId) = ResolveRowMetadata();
+        var recordId = await _service.CreateRecordAsync(tenantId, id, request, cancellationToken, ownerUserId, creatorUserId, channelId);
+        await WriteDatabaseAuditAsync("ai_database_record.create", $"db:{id}/record:{recordId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>D5：同步批量插入。受 <c>AiDatabaseQuota.MaxBulkInsertRows</c> 限制（默认 1000 行）。</summary>
+    [HttpPost("{id:long}/records/bulk")]
+    [Authorize(Policy = PermissionPolicies.AiDatabaseCreate)]
+    public async Task<ActionResult<ApiResponse<AiDatabaseRecordBulkCreateResult>>> CreateRecordsBulk(
+        long id,
+        [FromBody] AiDatabaseRecordBulkCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        _recordBulkValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var (ownerUserId, creatorUserId, channelId) = ResolveRowMetadata();
+        var result = await _service.CreateRecordsBulkAsync(tenantId, id, request, cancellationToken, ownerUserId, creatorUserId, channelId);
+        await WriteDatabaseAuditAsync(
+            "ai_database_record.bulk_create",
+            $"db:{id}/total:{result.Total}/ok:{result.Succeeded}/fail:{result.Failed}",
+            cancellationToken);
+        return Ok(ApiResponse<AiDatabaseRecordBulkCreateResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>D5：异步批量插入；返回 taskId，进度通过 <c>imports/latest</c> 查询。</summary>
+    [HttpPost("{id:long}/records/bulk-async")]
+    [Authorize(Policy = PermissionPolicies.AiDatabaseCreate)]
+    public async Task<ActionResult<ApiResponse<AiDatabaseBulkJobAccepted>>> SubmitBulkInsertJob(
+        long id,
+        [FromBody] AiDatabaseRecordBulkCreateRequest request,
+        CancellationToken cancellationToken)
+    {
+        _recordBulkValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var (ownerUserId, creatorUserId, channelId) = ResolveRowMetadata();
+        var accepted = await _service.SubmitBulkInsertJobAsync(tenantId, id, request, cancellationToken, ownerUserId, creatorUserId, channelId);
+        await WriteDatabaseAuditAsync(
+            "ai_database_record.bulk_async.submit",
+            $"db:{id}/task:{accepted.TaskId}/rows:{accepted.RowCount}",
+            cancellationToken);
+        return Accepted(ApiResponse<AiDatabaseBulkJobAccepted>.Ok(accepted, HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id:long}/records/{recordId:long}")]
@@ -165,6 +240,7 @@ public sealed class AiDatabasesController : ControllerBase
         _recordUpdateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         await _service.UpdateRecordAsync(tenantId, id, recordId, request, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database_record.update", $"db:{id}/record:{recordId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -177,6 +253,7 @@ public sealed class AiDatabasesController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         await _service.DeleteRecordAsync(tenantId, id, recordId, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database_record.delete", $"db:{id}/record:{recordId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -223,7 +300,9 @@ public sealed class AiDatabasesController : ControllerBase
     {
         _importValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var taskId = await _service.SubmitImportAsync(tenantId, id, request, cancellationToken);
+        var (ownerUserId, creatorUserId, channelId) = ResolveRowMetadata();
+        var taskId = await _service.SubmitImportAsync(tenantId, id, request, cancellationToken, ownerUserId, creatorUserId, channelId);
+        await WriteDatabaseAuditAsync("ai_database_record.import.submit", $"db:{id}/task:{taskId}/file:{request.FileId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { TaskId = taskId.ToString() }, HttpContext.TraceIdentifier));
     }
 

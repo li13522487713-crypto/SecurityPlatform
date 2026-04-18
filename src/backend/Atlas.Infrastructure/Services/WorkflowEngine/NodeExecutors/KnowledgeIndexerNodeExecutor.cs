@@ -44,6 +44,18 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "KnowledgeIndexer 当前仅支持 fileId 导入。");
         }
 
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "Knowledge.Index",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?>
+            {
+                ["kb.id"] = knowledgeId,
+                ["kb.file_id"] = fileId
+            });
+
         var fileName = context.GetConfigString("fileName", $"doc-{fileId}.txt");
         var contentType = context.GetConfigString("contentType", "text/plain");
         var fileSizeBytes = context.GetConfigInt64("fileSizeBytes", 0L);
@@ -57,18 +69,29 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
             _idGeneratorAccessor.NextId());
         await _knowledgeDocumentRepository.AddAsync(document, cancellationToken);
 
-        var chunkSize = Math.Clamp(context.GetConfigInt32("chunkSize", 500), 100, 5000);
+        var chunkSize = Math.Clamp(context.GetConfigInt32("chunkSize", 500), 50, 5000);
         var overlap = Math.Clamp(context.GetConfigInt32("overlap", 50), 0, 1000);
+        var parseStrategy = string.Equals(context.GetConfigString("parseStrategy", "quick"), "precise", StringComparison.OrdinalIgnoreCase)
+            ? DocumentParseStrategy.Precise
+            : DocumentParseStrategy.Quick;
         await _documentProcessingService.ProcessAsync(
             context.TenantId,
             knowledgeId,
             document.Id,
-            new ChunkingOptions(chunkSize, overlap, ChunkingStrategy.Fixed),
+            new ChunkingOptions(chunkSize, overlap, ChunkingStrategy.Fixed, parseStrategy),
             cancellationToken);
 
         outputs["document_id"] = JsonSerializer.SerializeToElement(document.Id);
         outputs["knowledge_id"] = JsonSerializer.SerializeToElement(knowledgeId);
         outputs["status"] = VariableResolver.CreateStringElement("indexed");
+        await AiNodeObservability.WriteAuditAsync(
+            context.ServiceProvider,
+            context.TenantId,
+            context.UserId,
+            "knowledge_node.index",
+            "success",
+            $"kb:{knowledgeId}/doc:{document.Id}/file:{fileId}/node:{context.Node.Key}",
+            cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }
 }

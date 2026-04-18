@@ -55,6 +55,7 @@ public static class AiCoreServiceRegistration
 
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
+        services.AddSingleton<IDocumentParseStrategy, DocumentParseStrategyService>();
         services.AddScoped<DocumentProcessingService>();
 
         services.AddSingleton<TxtDocumentParser>();

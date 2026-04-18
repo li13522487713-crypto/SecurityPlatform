@@ -20,6 +20,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
     private readonly AiDatabaseRepository _databaseRepository;
     private readonly AiDatabaseRecordRepository _recordRepository;
     private readonly AiDatabaseImportTaskRepository _importTaskRepository;
+    private readonly AiAppResourceBindingRepository _appResourceBindingRepository;
+    private readonly AiDatabaseQuotaPolicy _quotaPolicy;
     private readonly IFileStorageService _fileStorageService;
     private readonly IBackgroundWorkQueue _backgroundWorkQueue;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
@@ -30,6 +32,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
         AiDatabaseRepository databaseRepository,
         AiDatabaseRecordRepository recordRepository,
         AiDatabaseImportTaskRepository importTaskRepository,
+        AiAppResourceBindingRepository appResourceBindingRepository,
+        AiDatabaseQuotaPolicy quotaPolicy,
         IFileStorageService fileStorageService,
         IBackgroundWorkQueue backgroundWorkQueue,
         IIdGeneratorAccessor idGeneratorAccessor,
@@ -39,6 +43,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
         _databaseRepository = databaseRepository;
         _recordRepository = recordRepository;
         _importTaskRepository = importTaskRepository;
+        _appResourceBindingRepository = appResourceBindingRepository;
+        _quotaPolicy = quotaPolicy;
         _fileStorageService = fileStorageService;
         _backgroundWorkQueue = backgroundWorkQueue;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -86,6 +92,9 @@ public sealed class AiDatabaseService : IAiDatabaseService
             throw new BusinessException("数据库 Schema 不合法。", ErrorCodes.ValidationError);
         }
 
+        await _quotaPolicy.EnsureCanCreateDatabaseAsync(tenantId, cancellationToken);
+        _quotaPolicy.EnsureFieldCount(AiDatabaseValueCoercer.ParseColumns(request.TableSchema).Count);
+
         var entity = new AiDatabase(
             tenantId,
             normalizedName,
@@ -114,6 +123,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
             throw new BusinessException("数据库 Schema 不合法。", ErrorCodes.ValidationError);
         }
 
+        _quotaPolicy.EnsureFieldCount(AiDatabaseValueCoercer.ParseColumns(request.TableSchema).Count);
+
         entity.Update(normalizedName, request.Description?.Trim(), request.BotId, request.TableSchema, workspaceId: request.WorkspaceId);
         await _databaseRepository.UpdateAsync(entity, cancellationToken);
     }
@@ -122,6 +133,16 @@ public sealed class AiDatabaseService : IAiDatabaseService
     {
         var entity = await _databaseRepository.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("数据库不存在。", ErrorCodes.NotFound);
+
+        // X1：阻止删除已被任意 App 绑定的数据库。
+        var bindingCount = await _appResourceBindingRepository.CountByResourceAsync(
+            tenantId, "database", entity.Id, cancellationToken);
+        if (bindingCount > 0)
+        {
+            throw new BusinessException(
+                $"数据库已被 {bindingCount} 个应用绑定，请先解绑后再删除。",
+                ErrorCodes.ValidationError);
+        }
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
@@ -172,12 +193,24 @@ public sealed class AiDatabaseService : IAiDatabaseService
         TenantId tenantId,
         long databaseId,
         AiDatabaseRecordCreateRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        long? creatorUserId = null,
+        string? channelId = null)
     {
         var entity = await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
         EnsureJsonObject(request.DataJson);
+        var coercedJson = AiDatabaseValueCoercer.Coerce(entity.TableSchema, request.DataJson);
+        await _quotaPolicy.EnsureCanAddRowAsync(tenantId, databaseId, incoming: 1, cancellationToken);
 
-        var record = new AiDatabaseRecord(tenantId, databaseId, request.DataJson, _idGeneratorAccessor.NextId());
+        var record = new AiDatabaseRecord(
+            tenantId,
+            databaseId,
+            coercedJson,
+            _idGeneratorAccessor.NextId(),
+            ownerUserId,
+            creatorUserId,
+            channelId);
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _recordRepository.AddAsync(record, cancellationToken);
@@ -188,6 +221,125 @@ public sealed class AiDatabaseService : IAiDatabaseService
         return record.Id;
     }
 
+    public async Task<AiDatabaseRecordBulkCreateResult> CreateRecordsBulkAsync(
+        TenantId tenantId,
+        long databaseId,
+        AiDatabaseRecordBulkCreateRequest request,
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        long? creatorUserId = null,
+        string? channelId = null,
+        bool enforceSyncBulkRowLimit = true)
+    {
+        var entity = await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
+        var rows = request.Rows ?? [];
+        if (rows.Count == 0)
+        {
+            return new AiDatabaseRecordBulkCreateResult(0, 0, 0, Array.Empty<AiDatabaseRecordBulkRowResult>());
+        }
+
+        if (enforceSyncBulkRowLimit)
+        {
+            _quotaPolicy.EnsureBulkInsertSize(rows.Count);
+        }
+
+        await _quotaPolicy.EnsureCanAddRowAsync(tenantId, databaseId, incoming: rows.Count, cancellationToken);
+
+        var rowResults = new List<AiDatabaseRecordBulkRowResult>(rows.Count);
+        var validRecords = new List<AiDatabaseRecord>(rows.Count);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                EnsureJsonObject(rows[i]);
+                var coercedJson = AiDatabaseValueCoercer.Coerce(entity.TableSchema, rows[i]);
+                var record = new AiDatabaseRecord(
+                    tenantId,
+                    databaseId,
+                    coercedJson,
+                    _idGeneratorAccessor.NextId(),
+                    ownerUserId,
+                    creatorUserId,
+                    channelId);
+                validRecords.Add(record);
+                rowResults.Add(new AiDatabaseRecordBulkRowResult(i, true, record.Id.ToString(), null));
+            }
+            catch (BusinessException bex)
+            {
+                rowResults.Add(new AiDatabaseRecordBulkRowResult(i, false, null, bex.Message));
+            }
+            catch (Exception ex)
+            {
+                rowResults.Add(new AiDatabaseRecordBulkRowResult(
+                    i,
+                    false,
+                    null,
+                    AiDatabasePublicErrors.ForRow(ex, _logger, i, databaseId)));
+            }
+        }
+
+        if (validRecords.Count > 0)
+        {
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                await _recordRepository.AddRangeAsync(validRecords, cancellationToken);
+                var count = await _recordRepository.CountByDatabaseAsync(tenantId, databaseId, cancellationToken);
+                entity.SetRecordCount(count);
+                await _databaseRepository.UpdateAsync(entity, cancellationToken);
+            }, cancellationToken);
+        }
+
+        var succeeded = validRecords.Count;
+        var failed = rows.Count - succeeded;
+        return new AiDatabaseRecordBulkCreateResult(rows.Count, succeeded, failed, rowResults);
+    }
+
+    public async Task<AiDatabaseBulkJobAccepted> SubmitBulkInsertJobAsync(
+        TenantId tenantId,
+        long databaseId,
+        AiDatabaseRecordBulkCreateRequest request,
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        long? creatorUserId = null,
+        string? channelId = null)
+    {
+        await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
+        var rows = request.Rows ?? [];
+        if (rows.Count == 0)
+        {
+            throw new BusinessException("批量任务行数为空。", ErrorCodes.ValidationError);
+        }
+
+        // 异步任务允许超过同步上限，仅按 (软) 行数上限校验整体规模。
+        var maxAsync = Math.Max(_quotaPolicy.Options.MaxBulkInsertRows * 50, 50_000);
+        if (rows.Count > maxAsync)
+        {
+            throw new BusinessException(
+                $"批量异步任务行数超过上限（{maxAsync}）。",
+                ErrorCodes.ValidationError);
+        }
+
+        await _quotaPolicy.EnsureCanAddRowAsync(tenantId, databaseId, incoming: rows.Count, cancellationToken);
+
+        var payloadJson = JsonSerializer.Serialize(rows);
+        var task = new AiDatabaseImportTask(
+            tenantId,
+            databaseId,
+            fileId: 0L,
+            id: _idGeneratorAccessor.NextId(),
+            source: AiDatabaseImportSource.Inline,
+            payloadJson: payloadJson,
+            ownerUserId: ownerUserId,
+            creatorUserId: creatorUserId,
+            channelId: channelId);
+        await _importTaskRepository.AddAsync(task, cancellationToken);
+
+        _backgroundWorkQueue.Enqueue((sp, ct) =>
+            ProcessInlineBulkAsync(sp, tenantId, databaseId, task.Id, ownerUserId, creatorUserId, channelId, ct));
+        return new AiDatabaseBulkJobAccepted(task.Id, rows.Count);
+    }
+
     public async Task UpdateRecordAsync(
         TenantId tenantId,
         long databaseId,
@@ -195,12 +347,13 @@ public sealed class AiDatabaseService : IAiDatabaseService
         AiDatabaseRecordUpdateRequest request,
         CancellationToken cancellationToken)
     {
-        await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
+        var entity = await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
         EnsureJsonObject(request.DataJson);
+        var coercedJson = AiDatabaseValueCoercer.Coerce(entity.TableSchema, request.DataJson);
 
         var record = await _recordRepository.FindByDatabaseAndIdAsync(tenantId, databaseId, recordId, cancellationToken)
             ?? throw new BusinessException("数据库记录不存在。", ErrorCodes.NotFound);
-        record.UpdateData(request.DataJson);
+        record.UpdateData(coercedJson);
         await _recordRepository.UpdateAsync(record, cancellationToken);
     }
 
@@ -247,7 +400,10 @@ public sealed class AiDatabaseService : IAiDatabaseService
         TenantId tenantId,
         long databaseId,
         AiDatabaseImportRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        long? creatorUserId = null,
+        string? channelId = null)
     {
         await EnsureDatabaseExistsAsync(tenantId, databaseId, cancellationToken);
         var fileInfo = await _fileStorageService.GetInfoAsync(tenantId, request.FileId, cancellationToken);
@@ -260,7 +416,12 @@ public sealed class AiDatabaseService : IAiDatabaseService
             tenantId,
             databaseId,
             request.FileId,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            AiDatabaseImportSource.File,
+            payloadJson: null,
+            ownerUserId: ownerUserId,
+            creatorUserId: creatorUserId,
+            channelId: channelId);
         await _importTaskRepository.AddAsync(importTask, cancellationToken);
 
         _backgroundWorkQueue.Enqueue((sp, ct) => ProcessImportAsync(sp, tenantId, databaseId, importTask.Id, request.FileId, ct));
@@ -288,7 +449,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
             task.FailedRows,
             task.ErrorMessage,
             task.CreatedAt,
-            task.UpdatedAt);
+            task.UpdatedAt,
+            task.Source);
     }
 
     public async Task<AiDatabaseTemplate> GetTemplateAsync(
@@ -317,6 +479,89 @@ public sealed class AiDatabaseService : IAiDatabaseService
             ?? throw new BusinessException("数据库不存在。", ErrorCodes.NotFound);
     }
 
+    /// <summary>D5：处理内联 JSON 批量插入异步任务（行级 owner/channel 透传）。</summary>
+    private async Task ProcessInlineBulkAsync(
+        IServiceProvider serviceProvider,
+        TenantId tenantId,
+        long databaseId,
+        long taskId,
+        long? ownerUserId,
+        long? creatorUserId,
+        string? channelId,
+        CancellationToken cancellationToken)
+    {
+        var databaseRepository = serviceProvider.GetRequiredService<AiDatabaseRepository>();
+        var importTaskRepository = serviceProvider.GetRequiredService<AiDatabaseImportTaskRepository>();
+
+        var task = await importTaskRepository.FindByIdAsync(tenantId, taskId, cancellationToken);
+        if (task is null)
+        {
+            _logger.LogWarning("数据库批量任务不存在。taskId={TaskId}", taskId);
+            return;
+        }
+
+        var database = await databaseRepository.FindByIdAsync(tenantId, databaseId, cancellationToken);
+        if (database is null)
+        {
+            _logger.LogWarning("数据库不存在。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
+            task.MarkFailed(AiDatabasePublicErrors.ImportTargetMissing);
+            await importTaskRepository.UpdateAsync(task, cancellationToken);
+            return;
+        }
+
+        try
+        {
+            task.MarkRunning();
+            await importTaskRepository.UpdateAsync(task, cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(task.PayloadJson))
+            {
+                task.MarkFailed(AiDatabasePublicErrors.BulkPayloadInvalid);
+                await importTaskRepository.UpdateAsync(task, cancellationToken);
+                return;
+            }
+
+            List<string> rows;
+            try
+            {
+                rows = JsonSerializer.Deserialize<List<string>>(task.PayloadJson) ?? [];
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "数据库批量任务 payload 解析失败。taskId={TaskId}", taskId);
+                task.MarkFailed(AiDatabasePublicErrors.BulkPayloadInvalid);
+                await importTaskRepository.UpdateAsync(task, cancellationToken);
+                return;
+            }
+
+            if (rows.Count == 0)
+            {
+                task.MarkFailed(AiDatabasePublicErrors.InlineJobEmptyPayload);
+                await importTaskRepository.UpdateAsync(task, cancellationToken);
+                return;
+            }
+
+            var aiDatabaseService = serviceProvider.GetRequiredService<IAiDatabaseService>();
+            var result = await aiDatabaseService.CreateRecordsBulkAsync(
+                tenantId,
+                databaseId,
+                new AiDatabaseRecordBulkCreateRequest(rows),
+                cancellationToken,
+                ownerUserId,
+                creatorUserId,
+                channelId,
+                enforceSyncBulkRowLimit: false);
+
+            task.MarkCompleted(result.Total, result.Succeeded, result.Failed);
+            await importTaskRepository.UpdateAsync(task, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            task.MarkFailed(AiDatabasePublicErrors.ForJob(ex, _logger, databaseId, taskId));
+            await importTaskRepository.UpdateAsync(task, cancellationToken);
+        }
+    }
+
     private async Task ProcessImportAsync(
         IServiceProvider serviceProvider,
         TenantId tenantId,
@@ -332,11 +577,19 @@ public sealed class AiDatabaseService : IAiDatabaseService
         var idGeneratorAccessor = serviceProvider.GetRequiredService<IIdGeneratorAccessor>();
         var unitOfWork = serviceProvider.GetRequiredService<IUnitOfWork>();
 
-        var database = await databaseRepository.FindByIdAsync(tenantId, databaseId, cancellationToken);
         var task = await importTaskRepository.FindByIdAsync(tenantId, taskId, cancellationToken);
-        if (database is null || task is null)
+        if (task is null)
         {
-            _logger.LogWarning("数据库导入任务缺失。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
+            _logger.LogWarning("数据库导入任务不存在。taskId={TaskId}", taskId);
+            return;
+        }
+
+        var database = await databaseRepository.FindByIdAsync(tenantId, databaseId, cancellationToken);
+        if (database is null)
+        {
+            _logger.LogWarning("数据库不存在。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
+            task.MarkFailed(AiDatabasePublicErrors.ImportTargetMissing);
+            await importTaskRepository.UpdateAsync(task, cancellationToken);
             return;
         }
 
@@ -354,29 +607,49 @@ public sealed class AiDatabaseService : IAiDatabaseService
                 return;
             }
 
-            var records = rows
-                .Select(row => new AiDatabaseRecord(
-                    tenantId,
-                    databaseId,
-                    JsonSerializer.Serialize(row),
-                    idGeneratorAccessor.NextId()))
-                .ToArray();
+            var validRecords = new List<AiDatabaseRecord>(rows.Count);
+            var failed = 0;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    var rowJson = JsonSerializer.Serialize(rows[i]);
+                    EnsureJsonObject(rowJson);
+                    var coercedJson = AiDatabaseValueCoercer.Coerce(database.TableSchema, rowJson);
+                    validRecords.Add(new AiDatabaseRecord(
+                        tenantId,
+                        databaseId,
+                        coercedJson,
+                        idGeneratorAccessor.NextId(),
+                        task.OwnerUserId,
+                        task.CreatorUserId,
+                        task.ChannelId));
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    _logger.LogWarning(ex, "CSV 导入第 {Index} 行处理失败 db={DatabaseId} task={TaskId}", i, databaseId, taskId);
+                }
+            }
 
             await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
-                await recordRepository.AddRangeAsync(records, cancellationToken);
-                var count = await recordRepository.CountByDatabaseAsync(tenantId, databaseId, cancellationToken);
-                database.SetRecordCount(count);
-                await databaseRepository.UpdateAsync(database, cancellationToken);
+                if (validRecords.Count > 0)
+                {
+                    await recordRepository.AddRangeAsync(validRecords, cancellationToken);
+                    var count = await recordRepository.CountByDatabaseAsync(tenantId, databaseId, cancellationToken);
+                    database.SetRecordCount(count);
+                    await databaseRepository.UpdateAsync(database, cancellationToken);
+                }
             }, cancellationToken);
 
-            task.MarkCompleted(rows.Count, rows.Count, 0);
+            task.MarkCompleted(rows.Count, validRecords.Count, failed);
             await importTaskRepository.UpdateAsync(task, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "数据库导入任务失败。databaseId={DatabaseId}, taskId={TaskId}", databaseId, taskId);
-            task.MarkFailed(ex.Message);
+            task.MarkFailed(AiDatabasePublicErrors.ForImport(ex, _logger, databaseId, taskId));
             await importTaskRepository.UpdateAsync(task, cancellationToken);
         }
     }

@@ -43,6 +43,16 @@ public sealed class AiDatabaseRecordUpdateRequestValidator : AbstractValidator<A
     }
 }
 
+/// <summary>D5：批量插入请求校验。Rows 不能为空且单行 JSON 长度受限。</summary>
+public sealed class AiDatabaseRecordBulkCreateRequestValidator : AbstractValidator<AiDatabaseRecordBulkCreateRequest>
+{
+    public AiDatabaseRecordBulkCreateRequestValidator()
+    {
+        RuleFor(x => x.Rows).NotNull().NotEmpty().WithMessage("批量插入行数不能为空。");
+        RuleForEach(x => x.Rows).NotEmpty().MaximumLength(500000);
+    }
+}
+
 public sealed class AiDatabaseSchemaValidateRequestValidator : AbstractValidator<AiDatabaseSchemaValidateRequest>
 {
     public AiDatabaseSchemaValidateRequestValidator()

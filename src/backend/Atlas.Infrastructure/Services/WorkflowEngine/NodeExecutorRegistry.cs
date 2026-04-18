@@ -48,6 +48,7 @@ public sealed class NodeExecutorRegistry
             [WorkflowNodeType.DatabaseUpdate] = typeof(DatabaseUpdateNodeExecutor),
             [WorkflowNodeType.DatabaseDelete] = typeof(DatabaseDeleteNodeExecutor),
             [WorkflowNodeType.DatabaseCustomSql] = typeof(DatabaseCustomSqlNodeExecutor),
+            [WorkflowNodeType.DatabaseNl2Sql] = typeof(DatabaseNl2SqlNodeExecutor),
             [WorkflowNodeType.CreateConversation] = typeof(CreateConversationNodeExecutor),
             [WorkflowNodeType.ConversationList] = typeof(ConversationListNodeExecutor),
             [WorkflowNodeType.ConversationUpdate] = typeof(ConversationUpdateNodeExecutor),
