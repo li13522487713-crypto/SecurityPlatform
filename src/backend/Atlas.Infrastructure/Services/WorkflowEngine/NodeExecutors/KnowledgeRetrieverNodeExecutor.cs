@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -38,17 +39,21 @@ public sealed class KnowledgeRetrieverNodeExecutor : INodeExecutor
 
         var topK = Math.Clamp(context.GetConfigInt32("topK", 5), 1, 50);
         var minScore = ResolveMinScore(context.Node.Config);
+        var filter = new RagRetrievalFilter(
+            Tags: ResolveTags(context.Node.Config),
+            MinScore: minScore > 0 ? minScore : null,
+            Offset: 0,
+            OwnerFilter: ResolveOwnerFilter(context.Node.Config),
+            MetadataFilter: null);
         var results = await _ragRetrievalService.SearchAsync(
             context.TenantId,
             knowledgeIds,
             query,
             topK,
+            filter,
             cancellationToken);
 
-        var filtered = results
-            .Where(x => x.Score >= minScore)
-            .OrderByDescending(x => x.Score)
-            .ToList();
+        var filtered = results.OrderByDescending(x => x.Score).ToList();
 
         outputs["documents"] = JsonSerializer.SerializeToElement(filtered);
         outputs["retrieved_count"] = JsonSerializer.SerializeToElement(filtered.Count);
@@ -92,5 +97,31 @@ public sealed class KnowledgeRetrieverNodeExecutor : INodeExecutor
         return float.TryParse(VariableResolver.ToDisplayText(raw), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
             ? Math.Clamp(value, 0f, 1f)
             : 0f;
+    }
+
+    private static IReadOnlyList<string>? ResolveTags(IReadOnlyDictionary<string, JsonElement> config)
+    {
+        if (!VariableResolver.TryGetConfigValue(config, "tags", out var raw) || raw.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var list = raw.EnumerateArray()
+            .Select(VariableResolver.ToDisplayText)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s.Trim())
+            .ToArray();
+        return list.Length == 0 ? null : list;
+    }
+
+    private static string? ResolveOwnerFilter(IReadOnlyDictionary<string, JsonElement> config)
+    {
+        if (!VariableResolver.TryGetConfigValue(config, "ownerFilter", out var raw))
+        {
+            return null;
+        }
+
+        var text = VariableResolver.ToDisplayText(raw).Trim();
+        return text.Length == 0 ? null : text;
     }
 }

@@ -25,6 +25,7 @@ public sealed class KnowledgeSlice : TenantEntity
     {
         Content = string.Empty;
         EmbeddingStatus = string.Empty;
+        ColumnHeadersJson = "[]";
     }
 
     public long KnowledgeBaseId { get; private set; }
@@ -33,6 +34,13 @@ public sealed class KnowledgeSlice : TenantEntity
     public string Content { get; private set; }
     public int StartOffset { get; private set; }
     public int EndOffset { get; private set; }
+
+    /// <summary>1-based row index for table-type knowledge (aligned with DocumentChunk.RowIndex).</summary>
+    public int RowIndex { get; private set; }
+
+    /// <summary>JSON array of column header strings for table rows.</summary>
+    public string ColumnHeadersJson { get; private set; }
+
     public string EmbeddingStatus { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }

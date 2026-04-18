@@ -132,6 +132,11 @@ export function KnowledgeDetailPage({
           <Typography.Text type="tertiary" size="small">
             {record.errorMessage || formatDateTime(record.processedAt ?? record.createdAt)}
           </Typography.Text>
+          {record.tagsJson && record.tagsJson !== "[]" ? (
+            <Typography.Text type="tertiary" size="small" style={{ display: "block" }}>
+              tags: {record.tagsJson}
+            </Typography.Text>
+          ) : null}
         </div>
       )
     },

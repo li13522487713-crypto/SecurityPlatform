@@ -28,6 +28,8 @@ public sealed class DocumentCreateRequestValidator : AbstractValidator<DocumentC
     public DocumentCreateRequestValidator()
     {
         RuleFor(x => x.FileId).GreaterThan(0);
+        RuleFor(x => x.TagsJson).MaximumLength(16_000).When(x => !string.IsNullOrWhiteSpace(x.TagsJson));
+        RuleFor(x => x.ImageMetadataJson).MaximumLength(32_000).When(x => !string.IsNullOrWhiteSpace(x.ImageMetadataJson));
     }
 }
 
@@ -39,6 +41,7 @@ public sealed class DocumentResegmentRequestValidator : AbstractValidator<Docume
         RuleFor(x => x.Overlap).GreaterThanOrEqualTo(0).LessThan(1000);
         RuleFor(x => x.Overlap).LessThan(x => x.ChunkSize);
         RuleFor(x => x.Strategy).IsInEnum();
+        RuleFor(x => x.ParseStrategy).IsInEnum();
     }
 }
 
@@ -70,5 +73,11 @@ public sealed class KnowledgeRetrievalTestRequestValidator : AbstractValidator<K
     {
         RuleFor(x => x.Query).NotEmpty().MaximumLength(2000);
         RuleFor(x => x.TopK).GreaterThanOrEqualTo(1).LessThanOrEqualTo(20);
+        RuleFor(x => x.Offset).GreaterThanOrEqualTo(0).LessThanOrEqualTo(500);
+        RuleFor(x => x.MinScore).InclusiveBetween(0f, 1f).When(x => x.MinScore.HasValue);
+        RuleForEach(x => x.Tags!).MaximumLength(128).When(x => x.Tags is not null);
+        RuleFor(x => x.Tags!.Count).LessThanOrEqualTo(32).When(x => x.Tags is not null);
+        RuleFor(x => x.KnowledgeBaseIds!.Count).LessThanOrEqualTo(32).When(x => x.KnowledgeBaseIds is not null);
+        RuleFor(x => x.OwnerFilter).MaximumLength(256).When(x => !string.IsNullOrWhiteSpace(x.OwnerFilter));
     }
 }

@@ -100,6 +100,14 @@ type CopyTree = {
   ready: string;
   failed: string;
   uploadProcessingHint: string;
+  uploadTagsLabel: string;
+  uploadTagsPlaceholder: string;
+  uploadImageMetaLabel: string;
+  uploadImageMetaPlaceholder: string;
+  uploadTagsInvalid: string;
+  createTextKbHint: string;
+  createTableKbHint: string;
+  createImageKbHint: string;
   typeLabels: Record<KnowledgeBaseType, string>;
   workflowModeLabels: {
     workflow: string;
@@ -210,6 +218,14 @@ const zhCN: CopyTree = {
   ready: "就绪",
   failed: "失败",
   uploadProcessingHint: "上传成功后会自动轮询处理状态，直到完成或失败。",
+  uploadTagsLabel: "文档标签（可选）",
+  uploadTagsPlaceholder: 'JSON 数组，例如 ["产品","FAQ"]',
+  uploadImageMetaLabel: "图片标注元数据（可选）",
+  uploadImageMetaPlaceholder: 'JSON 对象，例如 {"caption":"示意图","ocr":""}',
+  uploadTagsInvalid: "标签需为合法 JSON 数组。",
+  createTextKbHint: "适合长文档、手册等纯文本分段与向量检索。",
+  createTableKbHint: "上传 CSV/TSV 等文本表格，将按行建分片并保留列头。",
+  createImageKbHint: "仅支持 image/* 文件；可附带 JSON 标注元数据。",
   typeLabels: {
     0: "文本知识",
     1: "表格知识",
@@ -343,6 +359,14 @@ const enUS: CopyTree = {
   ready: "Ready",
   failed: "Failed",
   uploadProcessingHint: "After upload, processing status is polled automatically until completion or failure.",
+  uploadTagsLabel: "Document tags (optional)",
+  uploadTagsPlaceholder: 'JSON array, e.g. ["product","faq"]',
+  uploadImageMetaLabel: "Image metadata (optional)",
+  uploadImageMetaPlaceholder: 'JSON object, e.g. {"caption":"diagram","ocr":""}',
+  uploadTagsInvalid: "Tags must be a valid JSON array.",
+  createTextKbHint: "Best for manuals and long text with chunking + vector search.",
+  createTableKbHint: "Upload CSV/TSV-like files; each row becomes a chunk with headers.",
+  createImageKbHint: "Only image/* files; optional JSON annotation metadata.",
   typeLabels: {
     0: "Text Knowledge",
     1: "Table Knowledge",

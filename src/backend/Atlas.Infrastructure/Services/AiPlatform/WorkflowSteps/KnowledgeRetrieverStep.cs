@@ -31,7 +31,7 @@ public sealed class KnowledgeRetrieverStep : StepBodyAsync
 
         var knowledgeBaseIds = ParseKnowledgeBaseIds(data);
         var tenantId = ResolveTenantId(data);
-        var result = await _ragRetrievalService.SearchAsync(tenantId, knowledgeBaseIds, query, TopK, context.CancellationToken);
+        var result = await _ragRetrievalService.SearchAsync(tenantId, knowledgeBaseIds, query, TopK, filter: null, context.CancellationToken);
         data[OutputKey] = result;
         return ExecutionResult.Next();
     }

@@ -10,5 +10,6 @@ public interface IRagRetrievalService
         IReadOnlyList<long> knowledgeBaseIds,
         string query,
         int topK = 5,
+        RagRetrievalFilter? filter = null,
         CancellationToken ct = default);
 }

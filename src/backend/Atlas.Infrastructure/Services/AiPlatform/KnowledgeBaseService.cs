@@ -18,6 +18,7 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
     private readonly IVectorStore _vectorStore;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly KnowledgeQuotaPolicy _knowledgeQuotaPolicy;
 
     public KnowledgeBaseService(
         KnowledgeBaseRepository knowledgeBaseRepository,
@@ -26,7 +27,8 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
         AgentKnowledgeLinkRepository agentKnowledgeLinkRepository,
         IVectorStore vectorStore,
         IIdGeneratorAccessor idGeneratorAccessor,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        KnowledgeQuotaPolicy knowledgeQuotaPolicy)
     {
         _knowledgeBaseRepository = knowledgeBaseRepository;
         _knowledgeDocumentRepository = knowledgeDocumentRepository;
@@ -35,6 +37,7 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
         _vectorStore = vectorStore;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
+        _knowledgeQuotaPolicy = knowledgeQuotaPolicy;
     }
 
     public async Task<PagedResult<KnowledgeBaseDto>> GetPagedAsync(
@@ -72,6 +75,8 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
         {
             throw new BusinessException("知识库名称已存在。", ErrorCodes.ValidationError);
         }
+
+        await _knowledgeQuotaPolicy.EnsureCanCreateKnowledgeBaseAsync(tenantId, cancellationToken);
 
         var entity = new KnowledgeBase(
             tenantId,

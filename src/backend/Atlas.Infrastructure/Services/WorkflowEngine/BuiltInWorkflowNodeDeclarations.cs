@@ -242,7 +242,9 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("knowledgeIds", Array.Empty<object>()),
                 ("query", "{{input.message}}"),
                 ("topK", 5),
-                ("minScore", 0.2)),
+                ("minScore", 0.2),
+                ("tags", Array.Empty<object>()),
+                ("ownerFilter", string.Empty)),
             WorkflowNodeType.KnowledgeIndexer => CreateConfig(
                 ("knowledgeId", 0),
                 ("fileId", 0),
@@ -250,7 +252,8 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ("contentType", string.Empty),
                 ("fileSizeBytes", 0),
                 ("chunkSize", 500),
-                ("overlap", 50)),
+                ("overlap", 50),
+                ("parseStrategy", "quick")),
             WorkflowNodeType.KnowledgeDeleter => CreateConfig(
                 ("knowledgeId", 0),
                 ("documentId", 0)),
@@ -500,7 +503,9 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["knowledgeIds"] = "array",
                 ["query"] = "string",
                 ["topK"] = "number",
-                ["minScore"] = "number"
+                ["minScore"] = "number",
+                ["tags"] = "array",
+                ["ownerFilter"] = "string"
             }),
             WorkflowNodeType.KnowledgeIndexer => BuildObjectSchema(["knowledgeId", "fileId"], new Dictionary<string, string>
             {
@@ -510,7 +515,8 @@ internal static class BuiltInWorkflowNodeDeclarations
                 ["contentType"] = "string",
                 ["fileSizeBytes"] = "number",
                 ["chunkSize"] = "number",
-                ["overlap"] = "number"
+                ["overlap"] = "number",
+                ["parseStrategy"] = "string"
             }),
             WorkflowNodeType.KnowledgeDeleter => BuildObjectSchema(["knowledgeId"], new Dictionary<string, string>
             {

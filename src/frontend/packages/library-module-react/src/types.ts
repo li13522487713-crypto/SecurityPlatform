@@ -43,6 +43,10 @@ export interface KnowledgeDocumentDto {
   chunkCount: number;
   createdAt: string;
   processedAt?: string;
+  /** JSON array of tag strings */
+  tagsJson: string;
+  /** JSON object — image KB annotations / metadata */
+  imageMetadataJson: string;
 }
 
 export interface DocumentChunkDto {
@@ -55,6 +59,10 @@ export interface DocumentChunkDto {
   endOffset: number;
   hasEmbedding: boolean;
   createdAt: string;
+  /** 1-based row index for table KB chunks */
+  rowIndex?: number | null;
+  /** Shared column headers JSON for table row chunks */
+  columnHeadersJson?: string | null;
 }
 
 export interface KnowledgeBaseCreateRequest {
@@ -63,10 +71,14 @@ export interface KnowledgeBaseCreateRequest {
   type: KnowledgeBaseType;
 }
 
+/** 0 = quick, 1 = precise (full parser pipeline) */
+export type DocumentParseStrategy = 0 | 1;
+
 export interface DocumentResegmentRequest {
   chunkSize?: number;
   overlap?: number;
   strategy?: 0 | 1 | 2;
+  parseStrategy?: DocumentParseStrategy;
 }
 
 export interface ChunkCreateRequest {
@@ -86,6 +98,12 @@ export interface ChunkUpdateRequest {
 export interface KnowledgeRetrievalTestRequest {
   query: string;
   topK?: number;
+  knowledgeBaseIds?: number[];
+  tags?: string[];
+  minScore?: number;
+  offset?: number;
+  ownerFilter?: string;
+  metadataFilter?: Record<string, string>;
 }
 
 export interface KnowledgeRetrievalTestItem {
@@ -95,6 +113,11 @@ export interface KnowledgeRetrievalTestItem {
   content: string;
   score: number;
   documentName?: string;
+  documentCreatedAt?: string;
+  startOffset?: number;
+  endOffset?: number;
+  tagsJson?: string | null;
+  documentNamespace?: string | null;
 }
 
 export interface LibraryKnowledgeApi {
@@ -124,7 +147,11 @@ export interface LibraryKnowledgeApi {
   updateKnowledgeBase: (id: number, request: KnowledgeBaseCreateRequest) => Promise<void>;
   deleteKnowledgeBase: (id: number) => Promise<void>;
   listDocuments: (knowledgeBaseId: number, request: PagedRequest) => Promise<PagedResult<KnowledgeDocumentDto>>;
-  uploadDocument: (knowledgeBaseId: number, file: File) => Promise<number>;
+  uploadDocument: (
+    knowledgeBaseId: number,
+    file: File,
+    options?: { tagsJson?: string; imageMetadataJson?: string }
+  ) => Promise<number>;
   deleteDocument: (knowledgeBaseId: number, documentId: number) => Promise<void>;
   getDocumentProgress: (
     knowledgeBaseId: number,

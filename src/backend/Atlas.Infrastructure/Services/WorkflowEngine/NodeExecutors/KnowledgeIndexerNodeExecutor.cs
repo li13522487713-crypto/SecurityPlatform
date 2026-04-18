@@ -59,11 +59,14 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
 
         var chunkSize = Math.Clamp(context.GetConfigInt32("chunkSize", 500), 100, 5000);
         var overlap = Math.Clamp(context.GetConfigInt32("overlap", 50), 0, 1000);
+        var parseStrategy = string.Equals(context.GetConfigString("parseStrategy", "quick"), "precise", StringComparison.OrdinalIgnoreCase)
+            ? DocumentParseStrategy.Precise
+            : DocumentParseStrategy.Quick;
         await _documentProcessingService.ProcessAsync(
             context.TenantId,
             knowledgeId,
             document.Id,
-            new ChunkingOptions(chunkSize, overlap, ChunkingStrategy.Fixed),
+            new ChunkingOptions(chunkSize, overlap, ChunkingStrategy.Fixed, parseStrategy),
             cancellationToken);
 
         outputs["document_id"] = JsonSerializer.SerializeToElement(document.Id);

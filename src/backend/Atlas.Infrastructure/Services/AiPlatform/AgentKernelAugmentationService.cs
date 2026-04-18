@@ -234,6 +234,7 @@ public sealed class AgentKernelAugmentationService
             knowledgeBaseIds,
             query.Trim(),
             topK <= 0 ? 5 : Math.Min(topK, 10),
+            filter: null,
             cancellationToken);
         if (results.Count == 0)
         {
