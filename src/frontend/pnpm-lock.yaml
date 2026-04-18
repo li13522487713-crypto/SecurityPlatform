@@ -288,6 +288,9 @@ importers:
       '@atlas/lowcode-action-runtime':
         specifier: workspace:*
         version: link:../../packages/lowcode-action-runtime
+      '@atlas/lowcode-collab-yjs':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-collab-yjs
       '@atlas/lowcode-component-registry':
         specifier: workspace:*
         version: link:../../packages/lowcode-component-registry
@@ -324,6 +327,9 @@ importers:
       '@douyinfe/semi-ui':
         specifier: ^2.82.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@microsoft/signalr':
+        specifier: ^9.0.0
+        version: 9.0.6
       '@tanstack/react-query':
         specifier: ^5.59.20
         version: 5.99.0(react@18.2.0)
@@ -336,6 +342,9 @@ importers:
       react-router-dom:
         specifier: ^6.30.1
         version: 6.30.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      yjs:
+        specifier: ^13.6.18
+        version: 13.6.30
       zustand:
         specifier: ^4.5.5
         version: 4.5.7(@types/react@18.2.37)(immer@10.2.0)(react@18.2.0)

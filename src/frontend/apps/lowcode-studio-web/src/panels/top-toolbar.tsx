@@ -9,6 +9,7 @@ import { VersionDrawer } from './version-drawer';
 import { PublishDrawer } from './publish-drawer';
 import { DebugDrawer } from './debug-drawer';
 import { FaqDrawer } from './faq-drawer';
+import { CollabDrawer } from './collab-drawer';
 
 export interface TopToolbarProps {
   appId: string;
@@ -24,6 +25,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
   const [debugOpen, setDebugOpen] = useState(false);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
+  const [collabOpen, setCollabOpen] = useState(false);
+  const userId = (typeof localStorage !== 'undefined' && localStorage.getItem('atlas_user_id')) || 'me';
 
   /** 保存版本快照（M14 S14-1 用户主动版本，与 M16 协同的系统快照区分）。*/
   const snapshotMut = useMutation({
@@ -51,7 +54,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
         <Button onClick={() => setSnapshotOpen(true)}>{t('lowcode_studio.toolbar.save')}</Button>
         <Button onClick={() => setDebugOpen(true)}>{t('lowcode_studio.toolbar.debug')}</Button>
         <Button onClick={() => setVersionOpen(true)}>{t('lowcode_studio.toolbar.versions')}</Button>
-        <Button>{t('lowcode_studio.toolbar.collab')}</Button>
+        <Button onClick={() => setFaqOpen(true)}>FAQ</Button>
+        <Button onClick={() => setCollabOpen(true)}>{t('lowcode_studio.toolbar.collab')}</Button>
         <Button type="primary" onClick={() => setPublishOpen(true)}>{t('lowcode_studio.toolbar.publish')}</Button>
       </Space>
 
@@ -75,6 +79,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
       <PublishDrawer appId={appId} visible={publishOpen} onClose={() => setPublishOpen(false)} />
       <DebugDrawer appId={appId} visible={debugOpen} onClose={() => setDebugOpen(false)} />
       <FaqDrawer visible={faqOpen} onClose={() => setFaqOpen(false)} />
+      <CollabDrawer appId={appId} userId={userId} visible={collabOpen} onClose={() => setCollabOpen(false)} />
     </Space>
   );
 };
