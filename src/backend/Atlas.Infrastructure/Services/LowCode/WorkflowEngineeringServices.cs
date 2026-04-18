@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
@@ -9,6 +10,8 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Hangfire;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
@@ -26,10 +29,14 @@ public sealed class WorkflowGenerationService : IWorkflowGenerationService
     private static readonly HashSet<string> AllowedModes = new(StringComparer.OrdinalIgnoreCase) { "auto", "assisted" };
 
     private readonly IAuditWriter _auditWriter;
+    private readonly IChatClientFactory _chatClientFactory;
+    private readonly ILogger<WorkflowGenerationService> _logger;
 
-    public WorkflowGenerationService(IAuditWriter auditWriter)
+    public WorkflowGenerationService(IAuditWriter auditWriter, IChatClientFactory chatClientFactory, ILogger<WorkflowGenerationService> logger)
     {
         _auditWriter = auditWriter;
+        _chatClientFactory = chatClientFactory;
+        _logger = logger;
     }
 
     public async Task<WorkflowGenerationResult> GenerateAsync(TenantId tenantId, long currentUserId, WorkflowGenerationRequest request, CancellationToken cancellationToken)
@@ -39,30 +46,141 @@ public sealed class WorkflowGenerationService : IWorkflowGenerationService
         if (string.IsNullOrWhiteSpace(request.Prompt))
             throw new BusinessException(ErrorCodes.ValidationError, "prompt 不可为空");
 
-        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), $"lowcode.workflow.generate.{request.Mode}", "success", $"prompt-bytes:{request.Prompt.Length}", null, null), cancellationToken);
+        // 优先尝试 LLM 真实生成；失败时回退到模板/关键字推断（保证无 LLM 配置时可用）。
+        var (canvas, nodes, usedLlm) = await TryGenerateWithLlmAsync(tenantId, request, cancellationToken);
+        var status = usedLlm ? "success" : "success-fallback";
+
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), $"lowcode.workflow.generate.{request.Mode}", "success", $"prompt-bytes:{request.Prompt.Length}:llm:{usedLlm}", null, null), cancellationToken);
 
         if (string.Equals(request.Mode, "auto", StringComparison.OrdinalIgnoreCase))
         {
-            var canvas = JsonSerializer.Serialize(new
-            {
-                version = "1.0",
-                nodes = new object[]
-                {
-                    new { key = "entry", type = "Entry" },
-                    new { key = "llm-1", type = "Llm", config = new { systemPrompt = request.Prompt } },
-                    new { key = "exit", type = "Exit" }
-                },
-                edges = new object[]
-                {
-                    new { from = "entry", to = "llm-1" },
-                    new { from = "llm-1", to = "exit" }
-                }
-            });
-            return new WorkflowGenerationResult("auto", "success", canvas, null, null);
+            return new WorkflowGenerationResult("auto", status, canvas, null, null);
         }
-        // assisted
-        var nodes = ExtractAssistedSkeleton(request.Prompt);
-        return new WorkflowGenerationResult("assisted", "success", null, nodes, null);
+        // assisted：优先用 LLM 推断；否则关键字 fallback
+        var skeleton = nodes ?? ExtractAssistedSkeleton(request.Prompt);
+        return new WorkflowGenerationResult("assisted", status, null, skeleton, null);
+    }
+
+    /// <summary>
+    /// 调用 IChatClientFactory.CreateAsync 获取租户默认 LLM 模型；用 system + user 两段式 Prompt 让模型产出 canvas / nodes JSON。
+    /// 任何阶段出错或解析失败 → 返回 (templateCanvas, null, usedLlm=false)，调用方走关键字 fallback。
+    /// </summary>
+    private async Task<(string Canvas, IReadOnlyList<GeneratedNodeSkeleton>? Nodes, bool UsedLlm)> TryGenerateWithLlmAsync(TenantId tenantId, WorkflowGenerationRequest request, CancellationToken cancellationToken)
+    {
+        // 默认 fallback canvas（与原 M19 模板一致），便于回退场景。
+        var fallbackCanvas = JsonSerializer.Serialize(new
+        {
+            version = "1.0",
+            nodes = new object[]
+            {
+                new { key = "entry", type = "Entry" },
+                new { key = "llm-1", type = "Llm", config = new { systemPrompt = request.Prompt } },
+                new { key = "exit", type = "Exit" }
+            },
+            edges = new object[]
+            {
+                new { from = "entry", to = "llm-1" },
+                new { from = "llm-1", to = "exit" }
+            }
+        });
+
+        IChatClient? client;
+        try
+        {
+            client = await _chatClientFactory.CreateAsync(tenantId, modelConfigId: null, modelName: null, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "WorkflowGenerationService 无可用 LLM，回退模板/关键字");
+            return (fallbackCanvas, null, false);
+        }
+        if (client is null) return (fallbackCanvas, null, false);
+
+        var systemPrompt = string.Equals(request.Mode, "auto", StringComparison.OrdinalIgnoreCase)
+            ? "你是 Atlas 低代码工作流生成助手。仅输出严格的 JSON，不要带任何 Markdown 代码块或解释文本。\n输出 schema：{\"version\":\"1.0\",\"nodes\":[{\"key\":string,\"type\":string,\"config\":object?}],\"edges\":[{\"from\":string,\"to\":string}]}\n节点 type 限定：Entry / Exit / Llm / KnowledgeRetriever / DatabaseQuery / HttpRequester / TextProcessor / Selector / SubWorkflow / Plugin。\n必须包含 Entry 与 Exit 节点；至少 3 个节点；edges 必须连接所有节点。"
+            : "你是 Atlas 低代码工作流生成助手。仅输出 JSON 数组：[{\"nodeKey\":string,\"type\":string,\"label\":string,\"configHint\":object?}]\n节点 type 限定：Entry / Exit / Llm / KnowledgeRetriever / DatabaseQuery / HttpRequester / TextProcessor / Selector / SubWorkflow / Plugin。\n必须含 Entry 起点与 Exit 终点；3-8 个节点；不输出 Markdown。";
+        try
+        {
+            var messages = new List<ChatMessage>
+            {
+                new(ChatRole.System, systemPrompt),
+                new(ChatRole.User, request.Prompt)
+            };
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            var response = await client.GetResponseAsync(messages, options: null, cancellationToken: timeout.Token);
+            var raw = response?.Text ?? string.Empty;
+            var json = ExtractJson(raw);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("LLM 返回空 / 不含 JSON，回退模板");
+                return (fallbackCanvas, null, false);
+            }
+            if (string.Equals(request.Mode, "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("nodes", out _))
+                {
+                    return (fallbackCanvas, null, false);
+                }
+                return (json, null, true);
+            }
+            else
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                {
+                    return (fallbackCanvas, null, false);
+                }
+                var list = new List<GeneratedNodeSkeleton>();
+                foreach (var n in doc.RootElement.EnumerateArray())
+                {
+                    var key = n.TryGetProperty("nodeKey", out var k) ? k.GetString() ?? string.Empty : string.Empty;
+                    var type = n.TryGetProperty("type", out var t) ? t.GetString() ?? "TextProcessor" : "TextProcessor";
+                    var label = n.TryGetProperty("label", out var l) ? l.GetString() ?? type : type;
+                    Dictionary<string, JsonElement>? hint = null;
+                    if (n.TryGetProperty("configHint", out var h) && h.ValueKind == JsonValueKind.Object)
+                    {
+                        hint = new Dictionary<string, JsonElement>();
+                        foreach (var p in h.EnumerateObject()) hint[p.Name] = p.Value;
+                    }
+                    list.Add(new GeneratedNodeSkeleton(string.IsNullOrWhiteSpace(key) ? $"node-{list.Count + 1}" : key, type, label, hint));
+                }
+                return (fallbackCanvas, list, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "LLM 生成失败，回退模板");
+            return (fallbackCanvas, null, false);
+        }
+    }
+
+    /// <summary>从 LLM 输出中抽取 JSON 子串（容错 ```json ... ``` Markdown）。</summary>
+    private static string ExtractJson(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        var s = raw.Trim();
+        // 去 Markdown 代码块包裹
+        if (s.StartsWith("```"))
+        {
+            var first = s.IndexOf('\n');
+            var last = s.LastIndexOf("```", StringComparison.Ordinal);
+            if (first > 0 && last > first)
+            {
+                s = s[(first + 1)..last].Trim();
+            }
+        }
+        // 找首个 { 或 [ 起始的 JSON 块
+        var startObj = s.IndexOf('{');
+        var startArr = s.IndexOf('[');
+        var start = startObj < 0 ? startArr : (startArr < 0 ? startObj : Math.Min(startObj, startArr));
+        if (start < 0) return string.Empty;
+        var endObj = s.LastIndexOf('}');
+        var endArr = s.LastIndexOf(']');
+        var end = Math.Max(endObj, endArr);
+        if (end <= start) return string.Empty;
+        return s.Substring(start, end - start + 1);
     }
 
     private static IReadOnlyList<GeneratedNodeSkeleton> ExtractAssistedSkeleton(string prompt)
