@@ -12,7 +12,7 @@ namespace Atlas.Domain.LowCode.Entities;
 /// - 聚合根包含完整的 schema JSON 草稿（<see cref="DraftSchemaJson"/>）与"当前生效版本号"指针；
 ///   完整版本归档落在 <see cref="AppVersionArchive"/>。
 /// - schema JSON 列含敏感配置（密钥占位 / Webhook URL 等）时按租户密钥加密；
-///   M01 阶段统一为 <c>text</c>，加密由 M14 / M17 联动落地。
+///   schema JSON 列统一为 <c>text</c>；敏感凭据字段已由 LowCodeCredentialProtector AES-CBC 加密（参见 PluginAuthorization）。
 /// - 多端类型（web / mini_program / hybrid）以字符串枚举存储，避免数据库迁移负担。
 /// </summary>
 public sealed class AppDefinition : TenantEntity

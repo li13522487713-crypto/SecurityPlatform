@@ -87,8 +87,10 @@ public sealed class LowCodeComponentManifestService : ILowCodeComponentManifestS
 /// <summary>
 /// 静态组件 manifest 镜像（与 @atlas/lowcode-components-web/src/meta/categories.ts 完全一致）。
 ///
-/// 注：M06 阶段为代码内常量，避免引入构建脚本耦合；M07 接入 lowcode-studio-web 构建管道时改为读取
-/// 前端 build artifact（dist/manifest.json），保持单一来源。
+/// 注：作为后端"内置 fallback manifest"维护；与前端 packages/lowcode-components-web 的 categories.ts
+/// 共享类型契约。后端不强制读前端 build artifact，避免设计期 / 运行期跨工作区耦合：
+///  - 新组件只在前端 categories.ts 添加 → 同时在此处补一条 Make(...)
+///  - CI 守门：components-web 测试断言两边数量一致
 /// </summary>
 internal static class LowCodeComponentStaticManifest
 {
