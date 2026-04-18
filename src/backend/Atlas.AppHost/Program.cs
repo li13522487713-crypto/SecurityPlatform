@@ -218,6 +218,8 @@ builder.Services.AddSingleton<Atlas.AppHost.Hubs.ILowCodePreviewBroadcaster, Atl
 
 // 低代码资产 GC 调度（M10 S10-3，每日 02:00）
 builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeAssetGcSchedulerHostedService>();
+// 低代码协同离线快照（M16 S16-2，每 10 分钟）
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.LowCode.LowCodeCollabSnapshotSchedulerHostedService>();
 
 // ─── DI：AppHost-specific context accessors ───
 builder.Services.AddScoped<ITenantProvider, AppHostTenantProvider>();

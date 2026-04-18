@@ -94,6 +94,9 @@ public static class LowCodeServiceRegistration
         services.AddScoped<INodeStateStore, NodeStateStore>();
         services.AddSingleton<IDualOrchestrationEngine, DualOrchestrationEngine>();
 
+        // M16 收尾：协同离线快照 Hangfire 周期任务
+        services.AddSingleton<LowCodeCollabSnapshotJob>();
+
         // AutoMapper（Profile 在 Atlas.Application.LowCode 程序集中，按 marker 类型集中注册）
         services.AddAutoMapper(cfg =>
         {
