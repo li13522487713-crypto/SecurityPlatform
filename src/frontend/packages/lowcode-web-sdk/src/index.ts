@@ -28,10 +28,37 @@ export interface MountOptions {
   token?: string;
 }
 
+export interface DispatchActionLite {
+  kind: string;
+  id?: string;
+  payload?: unknown;
+}
+
+export interface DispatchInstanceRequest {
+  pageId?: string;
+  componentId?: string;
+  eventName?: string;
+  inputs?: Record<string, JsonValue>;
+  actions: ReadonlyArray<DispatchActionLite>;
+}
+
+export interface DispatchInstanceResponse {
+  traceId: string;
+  outputs?: Record<string, JsonValue>;
+  statePatches?: ReadonlyArray<RuntimeStatePatch>;
+  messages?: ReadonlyArray<{ kind: string; text: string }>;
+  errors?: ReadonlyArray<{ kind: string; message: string }>;
+}
+
 export interface MountInstance {
   unmount(): void;
   update(patches: ReadonlyArray<RuntimeStatePatch>): void;
   getState(): { page: Record<string, JsonValue>; app: Record<string, JsonValue>; component: Record<string, Record<string, JsonValue>> };
+  /**
+   * 主动触发 dispatch（M13 唯一桥梁）。
+   * 内部 POST /api/runtime/events/dispatch；返回的 statePatches 自动 apply 到本地 state。
+   */
+  dispatch(req: DispatchInstanceRequest, signal?: AbortSignal): Promise<DispatchInstanceResponse>;
   /** 调试：当前选项快照。*/
   inspect(): MountOptions;
 }
@@ -61,6 +88,8 @@ export function mount(opts: MountOptions): MountInstance {
     component: {} as Record<string, Record<string, JsonValue>>
   };
 
+  const baseUrl = (opts.baseUrl ?? '').replace(/\/+$/, '');
+
   const instance: MountInstance = {
     unmount() {
       container.removeChild(root);
@@ -72,6 +101,39 @@ export function mount(opts: MountOptions): MountInstance {
     },
     getState() {
       return state;
+    },
+    async dispatch(req, signal) {
+      const res = await fetch(`${baseUrl}/api/runtime/events/dispatch`, {
+        method: 'POST',
+        signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-Id': opts.tenantId,
+          Authorization: opts.token ? `Bearer ${opts.token}` : ''
+        },
+        body: JSON.stringify({
+          appId: opts.appId,
+          versionId: opts.version,
+          pageId: req.pageId,
+          componentId: req.componentId,
+          eventName: req.eventName,
+          inputs: req.inputs,
+          actions: req.actions
+        })
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`AtlasLowcode dispatch ${res.status}: ${text}`);
+      }
+      const json = (await res.json()) as { success: boolean; data: DispatchInstanceResponse; code?: string; message?: string };
+      if (!json.success) throw new Error(`${json.code ?? 'DISPATCH_ERROR'}: ${json.message ?? ''}`);
+      const data = json.data;
+      if (data.statePatches && data.statePatches.length > 0) {
+        state = applyPatches(state, data.statePatches);
+        opts.onEvent?.({ type: 'state', payload: state });
+      }
+      opts.onEvent?.({ type: 'dispatch', payload: data });
+      return data;
     },
     inspect() {
       return opts;

@@ -77,4 +77,36 @@ describe('AtlasLowcode SDK', () => {
     inst.update([{ scope: 'page', path: 'page.deep.list[0]', op: 'set', value: 'first' }]);
     expect((inst.getState().page.deep as unknown as { list: string[] }).list[0]).toBe('first');
   });
+
+  it('dispatch：成功时自动 apply statePatches 到 state + 触发 onEvent', async () => {
+    document.body.innerHTML = '<div id="dispatchHost"></div>';
+    const events: Array<{ type: string; payload: unknown }> = [];
+    const inst = mount({
+      container: '#dispatchHost',
+      appId: 'demo',
+      tenantId: 't',
+      onEvent: (e) => events.push(e)
+    });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          traceId: 'tr-1',
+          outputs: { ok: 1 },
+          statePatches: [{ scope: 'page', path: 'page.x', op: 'set', value: 42 }]
+        }
+      })
+    });
+    const restore = (globalThis as { fetch: typeof fetch }).fetch;
+    (globalThis as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    try {
+      const r = await inst.dispatch({ eventName: 'click', actions: [{ kind: 'set_variable' }] });
+      expect(r.traceId).toBe('tr-1');
+      expect(inst.getState().page.x).toBe(42);
+      expect(events.find((e) => e.type === 'dispatch')).toBeDefined();
+    } finally {
+      (globalThis as { fetch: typeof fetch }).fetch = restore;
+    }
+  });
 });
