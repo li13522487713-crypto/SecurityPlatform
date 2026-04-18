@@ -1125,6 +1125,140 @@ DTO：
 - `status` ∈ `active | inactive | pending`
 - `supportedTargets` ⊂ `agent | app | workflow`（其它值会被静默剔除）
 
+### 治理 M-G02-C2：渠道发布版本与回滚
+
+> 在 `WorkspacePublishChannel` 之上引入「发布记录」一等实体 `WorkspaceChannelRelease`，
+> 以支持版本化下发与回滚。新发布默认调用 `IWorkspaceChannelConnector` 真实下发；
+> 未注册 connector 的部署不会抛 5xx，而是把记录置 `failed` 并写审计，便于运维回查。
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases?pageIndex&pageSize` → `ApiResponse<PagedResult<WorkspaceChannelReleaseDto>>`
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases/{releaseId}` → `ApiResponse<WorkspaceChannelReleaseDto>`
+- `POST /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases` body `WorkspaceChannelReleaseCreateRequest` → `ApiResponse<WorkspaceChannelReleaseDto>`
+- `POST /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases/rollback` body `WorkspaceChannelReleaseRollbackRequest` → `ApiResponse<WorkspaceChannelReleaseDto>`
+
+DTO：
+
+- `WorkspaceChannelReleaseDto { id, workspaceId, channelId, agentId?, agentPublicationId?, releaseNo, status, publicMetadataJson?, releaseNote?, connectorMessage?, rolledBackFromReleaseId?, releasedByUserId, releasedAt, createdAt, supersededAt? }`
+- `WorkspaceChannelReleaseCreateRequest { agentId?, agentPublicationId?, releaseNote? }`
+- `WorkspaceChannelReleaseRollbackRequest { targetReleaseId, releaseNote? }`
+
+`status` 状态机：`pending → active | failed`；`active → superseded`（被新发布顶掉）或 `rolled-back`（被回滚顶掉）。
+`releaseNo` 在同一 `(workspaceId, channelId)` 内单调递增，从 1 开始。
+回滚时新记录的 `rolledBackFromReleaseId` 指向源记录；源记录本身仍保持原状态不变（因为新记录会以新的 ReleaseNo 落库并接管 active）。
+所有发布与回滚均写审计：`CHANNEL_RELEASE_PUBLISH` / `CHANNEL_RELEASE_ROLLBACK`，`target` 字段记录 `channel:{id}/release:{id}` 与 connector 反馈摘要。
+
+### 治理 M-G02-C3 / C4：Web SDK 与 Open API 公共入口
+
+> 渠道 connector 在发布时会真实下发凭据：`web-sdk` 旋转 HMAC secret 并返回 snippet；
+> `open-api` 颁发租户 bearer token 并提供 endpoint catalog；secret/token 经 `LowCodeCredentialProtector` 加密落库。
+
+**发布返回 `publicMetadataJson` 内容（解析后）：**
+
+- `web-sdk`：`{ endpoint, snippet, originAllowlist[], secret, secretMasked, embedTokenLifetimeSeconds }`
+- `open-api`：`{ endpoint, tenantToken, tokenMasked, endpoints[], rateLimitPerMinute }`
+
+> `secret` / `tenantToken` 是明文，仅在本次发布响应中返回一次；后续只能旋转，不能再次明文获取。
+
+**Web SDK 公共入口（无 JWT，自带 HMAC + Origin 双重校验）：**
+
+`POST /api/v1/runtime/channels/web-sdk/{channelId}/messages`
+
+请求头：
+
+| Header | 说明 |
+| --- | --- |
+| `X-Tenant-Id` | 租户 GUID（必填） |
+| `X-Channel-Signature` | hex(HMAC-SHA256(secret, `{timestamp}\n{nonce}\n{body}`))，必填 |
+| `X-Channel-Timestamp` | unix 秒；默认允许 ±300 秒漂移 |
+| `X-Channel-Nonce` | 每次请求唯一；调用方维护去重 |
+| `X-Channel-External-User` | 可选，外部访客 id（透传到对话上下文） |
+| `Origin` | 与 `originAllowlist` 比较；`*` 表示任意来源 |
+
+请求体：`{ message: string, conversationId?: number, enableRag?: bool }`
+返回：`ApiResponse<{ conversationId: string, messageId: string, content: string, sources?: string }>`
+失败：`401` + `ApiResponse<null>`，`Code` 字段含 `WebSdkSignatureMismatch` / `WebSdkOriginRejected` / `WebSdkChannelNotPublished` 等。
+
+**Open API 公共入口（Bearer + per-channel 限流）：**
+
+`POST /api/v1/runtime/channels/open-api/{channelId}/chat`
+
+请求头：
+
+| Header | 说明 |
+| --- | --- |
+| `X-Tenant-Id` | 租户 GUID（必填） |
+| `Authorization` | `Bearer {tenantToken}`，必填 |
+
+请求体：`{ message: string, conversationId?: number, enableRag?: bool }`
+返回：与 Web SDK 一致；失败码包含 `OpenApiTokenMismatch` / `OpenApiRateLimited` / `OpenApiChannelNotPublished` 等。
+
+> 注：在 PlatformHost 内 `ApiVersionRewriteMiddleware` 会把 `/api/runtime/...` 重写为 `/api/v1/runtime/...`，外部调用两种写法等价。
+
+### 治理 M-G02-C5..C8：飞书渠道全链路
+
+> 飞书 connector 走独立凭据表 `FeishuChannelCredential`：管理员先 upsert 凭据（AppId/AppSecret/VerificationToken/EncryptKey），再发 release 触发 connector 真实接通（验证 token 拉取一次，写入 `RefreshCount` + 过期时间）；webhook 端点收到 `url_verification` 直接回 challenge，业务事件按 verification token 校验并按 `msg_id` 去重后派发到 Agent 对话，回包通过 `IFeishuApiClient.SendImMessageAsync` 走飞书 IM 客服消息。
+
+**凭据管理 API（管理员）：**
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/feishu-credential` → `ApiResponse<FeishuChannelCredentialDto?>`
+- `PUT /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/feishu-credential` body `FeishuChannelCredentialUpsertRequest` → `ApiResponse<FeishuChannelCredentialDto>`
+- `DELETE /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/feishu-credential` → `ApiResponse<{ success }>`
+
+DTO：
+
+- `FeishuChannelCredentialDto { id, channelId, workspaceId, appId, appIdMasked, verificationToken, hasEncryptKey, tenantAccessTokenExpiresAt?, refreshCount, createdAt, updatedAt }`
+- `FeishuChannelCredentialUpsertRequest { appId (1..64), appSecret (1..128), verificationToken (1..64), encryptKey? (max 128) }`
+
+> AppSecret / EncryptKey 经 `LowCodeCredentialProtector.Encrypt` 加密落库；DTO 不返回密文，`appIdMasked` 给前端做轻度脱敏。
+
+**Webhook 公共端点（飞书事件订阅）：**
+
+`POST /api/v1/runtime/channels/feishu/{channelId}/webhook`
+
+- `X-Tenant-Id` 必填（部署侧通常由网关或反代按租户填充）。
+- `type=url_verification`：connector 直接回 `{ challenge }`（飞书要求同步回包）。
+- 业务事件：必须携带 `header.token == VerificationToken`；当前支持 `header.event_type=im.message.receive_v1`，
+  按 `event.message.message_id` 维护 5 分钟内存去重；命中后调用 `IAgentChatService.ChatAsync` 并通过 `IFeishuApiClient.SendImMessageAsync` 异步回包。
+
+**Release 行为：**
+
+- 发布到 `feishu` 类型渠道时，connector 先校验凭据存在；缺失返回 `failed` + `FeishuCredentialMissing`。
+- 验证 token 拉取一次（拉取失败则记 `failed` + 飞书错误码与描述）。
+- 成功后 `publicMetadataJson` 包含 `webhookUrl / appId / appIdMasked / agentId / instructions`。
+
+### 治理 M-G02-C9..C11：微信公众号渠道全链路
+
+> WeChat MP（公众号）connector 行为模式与 Feishu 类似：独立 `WechatMpChannelCredential` 表 + 缓存 access_token + Webhook 验签 + 客服消息异步回包。
+> 类型字符串为 `wechat-mp`（与早期占位 `wechat` 区别），已加入 `WorkspacePublishChannelService` 的允许集合。
+
+**凭据管理 API：**
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-mp-credential` → `ApiResponse<WechatMpChannelCredentialDto?>`
+- `PUT /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-mp-credential` body `WechatMpChannelCredentialUpsertRequest` → `ApiResponse<WechatMpChannelCredentialDto>`
+- `DELETE /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-mp-credential` → `ApiResponse<{ success }>`
+
+DTO：
+
+- `WechatMpChannelCredentialDto { id, channelId, workspaceId, appId, appIdMasked, token, hasEncodingAesKey, accessTokenExpiresAt?, refreshCount, createdAt, updatedAt }`
+- `WechatMpChannelCredentialUpsertRequest { appId (1..64), appSecret (1..128), token (1..64), encodingAesKey? (max 128) }`
+
+**Webhook 公共端点：**
+
+`/api/v1/runtime/channels/wechat-mp/{channelId}/webhook`
+
+- `GET ?signature&timestamp&nonce&echostr`：通过签名校验后，以纯文本返回 `echostr`（微信要求）。
+- `POST ?signature&timestamp&nonce`，体为 XML（默认非加密模式）：
+  - 校验 SHA1 签名 = sort([token, timestamp, nonce]).join('') 的 lower-hex；
+  - `MsgId` 在 5 分钟内存窗口去重；
+  - `MsgType=text` 派发到 Agent 对话，回包通过 `IWechatMpApiClient.SendCustomerMessageAsync`（客服消息接口）。
+- 失败也返回 200（避免微信无意义重试），仅以 JSON `{ handled: false, response: ... }` 表达失败原因。
+
+**Release 行为：**
+
+- 发布前必须先 upsert 凭据；缺失返回 `failed` + `WechatMpCredentialMissing`。
+- 拉取 access_token 验证一次（失败记 `failed` + 微信 errcode/errmsg）。
+- 成功后 `publicMetadataJson` 包含 `webhookUrl / appId / appIdMasked / agentId / instructions`。
+
 ### 安全与权限（M2）
 
 - 视图操作 `Permission:ai-workspace:view`，写入操作 `Permission:ai-workspace:update`。

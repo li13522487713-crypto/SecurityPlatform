@@ -1,5 +1,6 @@
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.AiPlatform.Entities.Channels;
 using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
@@ -226,6 +227,12 @@ public static class AtlasOrmSchemaCatalog
         // Coze PRD Phase III - M2: 工作空间文件夹与发布渠道
         typeof(WorkspaceFolder),
         typeof(WorkspacePublishChannel),
+        // 治理 M-G02-C2 (S1): 渠道发布版本与回滚
+        typeof(WorkspaceChannelRelease),
+        // 治理 M-G02-C5 (S3): 飞书渠道凭据
+        typeof(FeishuChannelCredential),
+        // 治理 M-G02-C9 (S4): 微信公众号渠道凭据
+        typeof(WechatMpChannelCredential),
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）

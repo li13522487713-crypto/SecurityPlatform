@@ -98,6 +98,33 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspacePublishChannelService,
             Atlas.Infrastructure.Services.Coze.WorkspacePublishChannelService>();
 
+        // 治理 M-G02-C2 (S1): 渠道发布版本与回滚
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WorkspaceChannelReleaseRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWorkspaceChannelReleaseService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.WorkspaceChannelReleaseService>();
+
+        // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuApiClient,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuApiClient>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuChannelCredentialService>();
+        services.AddHttpClient(Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu.FeishuApiClient.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        // 治理 M-G02-C9..C11 (S4): 微信公众号渠道凭据 + ApiClient + Connector + Credential 服务
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WechatMpChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatMpApiClient,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpApiClient>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatMpChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpChannelCredentialService>();
+        services.AddHttpClient(Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpApiClient.HttpClientName, client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+
         // Coze PRD Phase III - M4.4: 任务中心持久化（复用 EvaluationTask）。
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTaskService,
             Atlas.Infrastructure.Services.Coze.WorkspaceTaskService>();
