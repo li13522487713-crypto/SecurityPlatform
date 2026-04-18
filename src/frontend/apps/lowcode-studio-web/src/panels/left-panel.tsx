@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space, Select } from '@douyinfe/semi-ui';
 import { listShortcuts } from '@atlas/lowcode-editor-canvas';
-import { lowcodeApi } from '../services/api-core';
+import { lowcodeApi, type AppVariable } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
 import { t } from '../i18n';
 
@@ -20,6 +20,42 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   const [keyword, setKeyword] = useState('');
   const { currentPageCode, setCurrentPageCode } = useStudioSelection();
   const qc = useQueryClient();
+  const [pageOpen, setPageOpen] = useState(false);
+  const [varOpen, setVarOpen] = useState(false);
+
+  const createPageMut = useMutation({
+    mutationFn: (vals: { code: string; displayName: string; path: string; targetType?: string; layout?: string }) =>
+      lowcodeApi.pages.create(appId, vals),
+    onSuccess: () => {
+      Toast.success('页面已创建');
+      setPageOpen(false);
+      qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
+
+  const createVarMut = useMutation({
+    mutationFn: (vals: { code: string; displayName: string; scope: string; valueType: string; defaultValueJson?: string; description?: string }) =>
+      lowcodeApi.variables.create(appId, {
+        // 后端会忽略 id/appId 字段，前端传完整壳即可
+        id: '',
+        appId,
+        code: vals.code,
+        displayName: vals.displayName,
+        scope: vals.scope,
+        valueType: vals.valueType,
+        isReadOnly: false,
+        isPersisted: false,
+        defaultValueJson: vals.defaultValueJson || 'null',
+        description: vals.description
+      } as unknown as AppVariable),
+    onSuccess: () => {
+      Toast.success('变量已创建');
+      setVarOpen(false);
+      qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
+    },
+    onError: (e: Error) => Toast.error(e.message)
+  });
 
   // M07 模板应用：apply 后端返 templateJson → 提示用户确认 → 写入 draft
   const applyTplMut = useMutation({
@@ -138,6 +174,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
       </TabPane>
 
       <TabPane tab={t('lowcode_studio.layout.left.outline')} itemKey="outline">
+        <Button size="small" style={{ marginBottom: 8 }} onClick={() => setPageOpen(true)}>＋ 新增页面</Button>
         {pagesQuery.isLoading ? <Spin /> : (
           <List
             size="small"
@@ -161,6 +198,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
       </TabPane>
 
       <TabPane tab={t('lowcode_studio.layout.left.data')} itemKey="data">
+        <Button size="small" style={{ marginBottom: 8 }} onClick={() => setVarOpen(true)}>＋ 新增变量</Button>
         {variablesQuery.isLoading ? <Spin /> : (
           <List
             size="small"
@@ -200,6 +238,45 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
           快捷键 ≥ {listShortcuts().length} 项；按 Mod+/ 打开面板
         </Typography.Paragraph>
       </TabPane>
+      <Modal title={t('lowcode_studio.pages.add')} visible={pageOpen} onCancel={() => setPageOpen(false)} footer={null}>
+        <Form onSubmit={(vals) => createPageMut.mutate(vals as { code: string; displayName: string; path: string; targetType?: string; layout?: string })}>
+          <Form.Input field="code" label={t('lowcode_studio.app.code')} rules={[{ required: true, pattern: /^[a-zA-Z][a-zA-Z0-9_-]{0,127}$/ }]} />
+          <Form.Input field="displayName" label={t('lowcode_studio.app.displayName')} rules={[{ required: true }]} />
+          <Form.Input field="path" label={t('lowcode_studio.pages.path')} initValue="/" rules={[{ required: true }]} />
+          <Form.Select field="targetType" label={t('lowcode_studio.pages.targetType')} initValue="web" optionList={[{ label: 'web', value: 'web' }, { label: 'mini-wx', value: 'mini-wx' }, { label: 'mini-douyin', value: 'mini-douyin' }, { label: 'h5', value: 'h5' }]} />
+          <Form.Select field="layout" label={t('lowcode_studio.pages.layout')} initValue="default" optionList={[{ label: 'default', value: 'default' }, { label: 'blank', value: 'blank' }, { label: 'split', value: 'split' }]} />
+          <Form.Slot>
+            <Space>
+              <Button htmlType="submit" type="primary" loading={createPageMut.isPending}>提交</Button>
+              <Button onClick={() => setPageOpen(false)}>取消</Button>
+            </Space>
+          </Form.Slot>
+        </Form>
+      </Modal>
+
+      <Modal title={t('lowcode_studio.variables.add')} visible={varOpen} onCancel={() => setVarOpen(false)} footer={null}>
+        <Form onSubmit={(vals) => createVarMut.mutate(vals as { code: string; displayName: string; scope: string; valueType: string; defaultValueJson?: string; description?: string })}>
+          <Form.Input field="code" label={t('lowcode_studio.app.code')} rules={[{ required: true, pattern: /^[a-zA-Z][a-zA-Z0-9_-]{0,127}$/ }]} />
+          <Form.Input field="displayName" label={t('lowcode_studio.app.displayName')} rules={[{ required: true }]} />
+          <Form.Select field="scope" label="作用域" initValue="page" optionList={[
+            { label: t('lowcode_studio.variables.scope.page'), value: 'page' },
+            { label: t('lowcode_studio.variables.scope.app'), value: 'app' },
+            { label: t('lowcode_studio.variables.scope.system'), value: 'system' }
+          ]} />
+          <Form.Select field="valueType" label={t('lowcode_studio.variables.valueType')} initValue="string" optionList={[
+            { label: 'string', value: 'string' }, { label: 'number', value: 'number' }, { label: 'boolean', value: 'boolean' },
+            { label: 'object', value: 'object' }, { label: 'array', value: 'array' }, { label: 'any', value: 'any' }
+          ]} />
+          <Form.TextArea field="defaultValueJson" label="默认值（JSON）" placeholder="null / 0 / {} / []" />
+          <Form.TextArea field="description" label={t('lowcode_studio.app.description')} />
+          <Form.Slot>
+            <Space>
+              <Button htmlType="submit" type="primary" loading={createVarMut.isPending}>提交</Button>
+              <Button onClick={() => setVarOpen(false)}>取消</Button>
+            </Space>
+          </Form.Slot>
+        </Form>
+      </Modal>
     </Tabs>
   );
 };
