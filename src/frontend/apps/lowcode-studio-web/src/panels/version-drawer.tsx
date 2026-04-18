@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { SideSheet, List, Typography, Spin, Empty, Button, Modal, Toast, Space, Tag } from '@douyinfe/semi-ui';
+import { groupDiffsByGroup } from '@atlas/lowcode-versioning-client';
 import { lowcodeApi } from '../services/api-core';
 
 /**
@@ -76,17 +77,27 @@ export const VersionDrawer: React.FC<{ appId: string; visible: boolean; onClose:
         {diffQuery.isLoading ? <Spin /> : diffQuery.data ? (
           <div>
             <Typography.Title heading={6}>{diffQuery.data.fromLabel} → {diffQuery.data.toLabel}</Typography.Title>
-            <List
-              dataSource={diffQuery.data.ops}
-              renderItem={(op) => (
-                <List.Item>
-                  <Tag color={op.op === 'add' ? 'green' : op.op === 'remove' ? 'red' : 'amber'}>{op.op}</Tag>
-                  <Typography.Text style={{ marginLeft: 8 }}>{op.path}</Typography.Text>
-                  {op.before && <pre style={{ background: '#fff7f7', margin: 4, padding: 4, fontSize: 11 }}>- {op.before.slice(0, 200)}</pre>}
-                  {op.after && <pre style={{ background: '#f7fff7', margin: 4, padding: 4, fontSize: 11 }}>+ {op.after.slice(0, 200)}</pre>}
-                </List.Item>
-              )}
-            />
+            <Typography.Paragraph type="tertiary" style={{ marginBottom: 8 }}>
+              共 {diffQuery.data.ops.length} 项变更（按 path 顶段分组：基础 / 页面 / 变量 / 内容参数 / 其它）
+            </Typography.Paragraph>
+            {Object.entries(groupDiffsByGroup(diffQuery.data.ops)).map(([group, ops]) => (
+              <div key={group} style={{ marginBottom: 12 }}>
+                <Typography.Text strong style={{ fontSize: 13, color: '#444' }}>
+                  {group} <Tag size="small">{ops.length}</Tag>
+                </Typography.Text>
+                <List
+                  dataSource={ops}
+                  renderItem={(op) => (
+                    <List.Item>
+                      <Tag color={op.op === 'add' ? 'green' : op.op === 'remove' ? 'red' : 'amber'}>{op.op}</Tag>
+                      <Typography.Text style={{ marginLeft: 8, fontSize: 12 }}>{op.path}</Typography.Text>
+                      {op.before && <pre style={{ background: '#fff7f7', margin: 4, padding: 4, fontSize: 11 }}>- {op.before.slice(0, 200)}</pre>}
+                      {op.after && <pre style={{ background: '#f7fff7', margin: 4, padding: 4, fontSize: 11 }}>+ {op.after.slice(0, 200)}</pre>}
+                    </List.Item>
+                  )}
+                />
+              </div>
+            ))}
           </div>
         ) : <Empty title="选两个版本以查看 diff" />}
       </Modal>

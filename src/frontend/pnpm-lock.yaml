@@ -315,6 +315,9 @@ importers:
       '@atlas/lowcode-schema':
         specifier: workspace:*
         version: link:../../packages/lowcode-schema
+      '@atlas/lowcode-versioning-client':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-versioning-client
       '@douyinfe/semi-icons':
         specifier: ^2.82.0
         version: 2.94.0(react@18.2.0)
