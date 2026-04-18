@@ -2688,6 +2688,10 @@ export function DatabaseDetailPage({
   const [importProgress, setImportProgress] = useState<Awaited<ReturnType<StudioPageProps["api"]["getDatabaseImportProgress"]>>>(null);
   const [importing, setImporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [bulkDialogVisible, setBulkDialogVisible] = useState(false);
+  const [bulkDraft, setBulkDraft] = useState('{"orderId":"DEMO-1","amount":1}\n');
+  const [bulkAsync, setBulkAsync] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   const loadDetail = async () => {
     try {
@@ -2855,6 +2859,62 @@ export function DatabaseDetailPage({
     }
   };
 
+  const openBulkDialog = () => {
+    setBulkDraft('{"orderId":"DEMO-1","amount":1}\n');
+    setBulkAsync(false);
+    setBulkDialogVisible(true);
+  };
+
+  const handleSubmitBulk = async () => {
+    if (!api.bulkCreateDatabaseRecords && !api.submitDatabaseBulkInsertJob) {
+      Toast.error("当前环境未启用批量插入 API。");
+      return;
+    }
+    const lines = bulkDraft.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      Toast.error("请至少输入一行 JSON 对象。");
+      return;
+    }
+    const rows: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        const parsed = JSON.parse(lines[i] ?? "");
+        if (!isRecord(parsed)) {
+          Toast.error(`第 ${i + 1} 行：必须是 JSON 对象。`);
+          return;
+        }
+        rows.push(JSON.stringify(parsed));
+      } catch {
+        Toast.error(`第 ${i + 1} 行：JSON 格式无效。`);
+        return;
+      }
+    }
+    setBulkSubmitting(true);
+    try {
+      if (bulkAsync) {
+        if (!api.submitDatabaseBulkInsertJob) {
+          Toast.error("异步批量接口不可用。");
+          return;
+        }
+        const job = await api.submitDatabaseBulkInsertJob(databaseId, { rows });
+        Toast.success(`异步任务已提交，taskId=${job.taskId}，行数=${job.rowCount}。`);
+      } else {
+        if (!api.bulkCreateDatabaseRecords) {
+          Toast.error("同步批量接口不可用。");
+          return;
+        }
+        const result = await api.bulkCreateDatabaseRecords(databaseId, { rows });
+        Toast.success(`批量完成：成功 ${result.succeeded}，失败 ${result.failed}。`);
+      }
+      setBulkDialogVisible(false);
+      await Promise.all([loadDetail(), loadRecords(pageIndex), loadImportProgress()]);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "批量插入失败。");
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   return (
     <Surface title="数据库详情" subtitle="查看数据库结构与绑定信息。" testId="app-studio-database-detail-page">
       {detail ? (
@@ -2880,6 +2940,9 @@ export function DatabaseDetailPage({
               <Button theme="solid" type="primary" icon={<IconPlus />} onClick={openCreateRecordDialog}>
                 新增记录
               </Button>
+              {api.bulkCreateDatabaseRecords || api.submitDatabaseBulkInsertJob ? (
+                <Button onClick={openBulkDialog}>批量插入</Button>
+              ) : null}
               <Button onClick={() => void handleDownloadTemplate()}>
                 下载模板
               </Button>
@@ -2951,6 +3014,15 @@ export function DatabaseDetailPage({
                   align="left"
                   data={[
                     { key: "taskId", value: importProgress.taskId },
+                    {
+                      key: "source",
+                      value:
+                        importProgress.source === 1
+                          ? "Inline JSON（异步批量）"
+                          : importProgress.source === 0
+                            ? "CSV 文件"
+                            : importProgress.source ?? "-"
+                    },
                     { key: "totalRows", value: importProgress.totalRows },
                     { key: "succeededRows", value: importProgress.succeededRows },
                     { key: "failedRows", value: importProgress.failedRows },
@@ -2961,7 +3033,9 @@ export function DatabaseDetailPage({
                   <Banner type="danger" bordered={false} closeIcon={null} description={importProgress.errorMessage} />
                 ) : (
                   <Typography.Text type="tertiary">
-                    导入任务会先上传 CSV 文件，再异步写入当前数据库资源的记录表。
+                    {importProgress.source === 1
+                      ? "此任务来自内联 JSON 异步批量。"
+                      : "CSV 会先上传文件，再异步写入记录表。"}
                   </Typography.Text>
                 )}
               </div>
@@ -3039,6 +3113,42 @@ export function DatabaseDetailPage({
             className="module-studio__textarea"
             value={recordDraft}
             onChange={event => setRecordDraft(event.target.value)}
+          />
+        </div>
+      </Modal>
+      <Modal
+        title="批量插入记录"
+        visible={bulkDialogVisible}
+        onCancel={() => {
+          if (!bulkSubmitting) {
+            setBulkDialogVisible(false);
+          }
+        }}
+        onOk={() => void handleSubmitBulk()}
+        okText="提交"
+        cancelText="取消"
+        confirmLoading={bulkSubmitting}
+      >
+        <div className="module-studio__stack">
+          <Typography.Text type="tertiary">
+            每行一个 JSON 对象。同步模式受单次批量行数上限限制；异步模式适合更大批量，进度见「最近导入任务」。
+          </Typography.Text>
+          <div>
+            <Typography.Text strong style={{ marginRight: 8 }}>模式</Typography.Text>
+            <Space>
+              <Button size="small" type={bulkAsync ? "tertiary" : "primary"} onClick={() => setBulkAsync(false)}>
+                同步批量
+              </Button>
+              <Button size="small" type={bulkAsync ? "primary" : "tertiary"} onClick={() => setBulkAsync(true)}>
+                异步批量
+              </Button>
+            </Space>
+          </div>
+          <textarea
+            rows={12}
+            className="module-studio__textarea"
+            value={bulkDraft}
+            onChange={event => setBulkDraft(event.target.value)}
           />
         </div>
       </Modal>

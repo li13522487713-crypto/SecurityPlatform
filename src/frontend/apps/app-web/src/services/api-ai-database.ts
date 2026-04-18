@@ -1,5 +1,6 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 import { downloadFile, extractResourceId, requestApi, toQuery, uploadFile } from "./api-core";
+import { aiDatabaseMessage } from "./ai-database.i18n";
 
 export interface AiDatabaseListItem {
   id: number;
@@ -106,7 +107,7 @@ export const enum AiDatabaseChannelScope {
 export async function getAiDatabasesPaged(request: PagedRequest, keyword?: string): Promise<PagedResult<AiDatabaseListItem>> {
   const response = await requestApi<ApiResponse<PagedResult<AiDatabaseListItem>>>(`/ai-databases?${toQuery(request, { keyword })}`);
   if (!response.data) {
-    throw new Error(response.message || "查询数据库失败");
+    throw new Error(response.message || aiDatabaseMessage("getDatabasesPagedFailed"));
   }
 
   return response.data;
@@ -115,7 +116,7 @@ export async function getAiDatabasesPaged(request: PagedRequest, keyword?: strin
 export async function getAiDatabaseById(id: number): Promise<AiDatabaseDetail> {
   const response = await requestApi<ApiResponse<AiDatabaseDetail>>(`/ai-databases/${id}`);
   if (!response.data) {
-    throw new Error(response.message || "查询数据库详情失败");
+    throw new Error(response.message || aiDatabaseMessage("getDatabaseDetailFailed"));
   }
 
   return response.data;
@@ -129,7 +130,7 @@ export async function createAiDatabase(request: AiDatabaseCreateRequest): Promis
   });
   const databaseId = extractResourceId(response.data);
   if (!response.success || !databaseId) {
-    throw new Error(response.message || "创建数据库失败");
+    throw new Error(response.message || aiDatabaseMessage("createDatabaseFailed"));
   }
 
   return Number(databaseId);
@@ -142,7 +143,7 @@ export async function updateAiDatabase(id: number, request: AiDatabaseCreateRequ
     body: JSON.stringify(request)
   });
   if (!response.success) {
-    throw new Error(response.message || "更新数据库失败");
+    throw new Error(response.message || aiDatabaseMessage("updateDatabaseFailed"));
   }
 }
 
@@ -151,7 +152,7 @@ export async function deleteAiDatabase(id: number): Promise<void> {
     method: "DELETE"
   });
   if (!response.success) {
-    throw new Error(response.message || "删除数据库失败");
+    throw new Error(response.message || aiDatabaseMessage("deleteDatabaseFailed"));
   }
 }
 
@@ -162,7 +163,7 @@ export async function validateAiDatabaseSchema(schemaJson: string): Promise<AiDa
     body: JSON.stringify({ tableSchema: schemaJson })
   });
   if (!response.data) {
-    throw new Error(response.message || "校验数据库 Schema 失败");
+    throw new Error(response.message || aiDatabaseMessage("validateSchemaFailed"));
   }
 
   return response.data;
@@ -174,7 +175,7 @@ export async function getAiDatabaseRecordsPaged(
 ): Promise<PagedResult<AiDatabaseRecordListItem>> {
   const response = await requestApi<ApiResponse<PagedResult<AiDatabaseRecordListItem>>>(`/ai-databases/${id}/records?${toQuery(request)}`);
   if (!response.data) {
-    throw new Error(response.message || "查询数据库记录失败");
+    throw new Error(response.message || aiDatabaseMessage("getRecordsFailed"));
   }
 
   return response.data;
@@ -188,7 +189,7 @@ export async function createAiDatabaseRecord(id: number, request: AiDatabaseReco
   });
   const recordId = extractResourceId(response.data);
   if (!response.success || !recordId) {
-    throw new Error(response.message || "创建数据库记录失败");
+    throw new Error(response.message || aiDatabaseMessage("createRecordFailed"));
   }
 
   return Number(recordId);
@@ -205,7 +206,7 @@ export async function updateAiDatabaseRecord(
     body: JSON.stringify(request)
   });
   if (!response.success) {
-    throw new Error(response.message || "更新数据库记录失败");
+    throw new Error(response.message || aiDatabaseMessage("updateRecordFailed"));
   }
 }
 
@@ -214,7 +215,7 @@ export async function deleteAiDatabaseRecord(id: number, recordId: number): Prom
     method: "DELETE"
   });
   if (!response.success) {
-    throw new Error(response.message || "删除数据库记录失败");
+    throw new Error(response.message || aiDatabaseMessage("deleteRecordFailed"));
   }
 }
 
@@ -235,7 +236,7 @@ export async function createAiDatabaseRecordsBulk(
     }
   );
   if (!response.success || !response.data) {
-    throw new Error(response.message || "批量插入数据库记录失败");
+    throw new Error(response.message || aiDatabaseMessage("bulkCreateFailed"));
   }
 
   return response.data;
@@ -257,7 +258,7 @@ export async function submitAiDatabaseBulkInsertJob(
     }
   );
   if (!response.success || !response.data) {
-    throw new Error(response.message || "提交批量异步任务失败");
+    throw new Error(response.message || aiDatabaseMessage("bulkAsyncSubmitFailed"));
   }
 
   return response.data;
@@ -267,7 +268,7 @@ export async function submitAiDatabaseImport(id: number, file: File): Promise<nu
   const uploadResponse = await uploadFile("/files", file);
   const fileId = extractResourceId(uploadResponse.data);
   if (!uploadResponse.success || !fileId) {
-    throw new Error(uploadResponse.message || "上传导入文件失败");
+    throw new Error(uploadResponse.message || aiDatabaseMessage("uploadImportFileFailed"));
   }
 
   const response = await requestApi<ApiResponse<{ taskId?: string; TaskId?: string }>>(`/ai-databases/${id}/imports`, {
@@ -281,7 +282,7 @@ export async function submitAiDatabaseImport(id: number, file: File): Promise<nu
       Id: response.data?.TaskId
     });
   if (!response.success || !taskId) {
-    throw new Error(response.message || "提交数据库导入任务失败");
+    throw new Error(response.message || aiDatabaseMessage("submitImportFailed"));
   }
 
   return Number(taskId);

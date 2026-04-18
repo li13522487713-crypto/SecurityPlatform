@@ -2,8 +2,9 @@ using System.Text;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
-using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Infrastructure.Services.AiPlatform;
+using Atlas.Core.Exceptions;
+using Atlas.Domain.AiPlatform.Enums;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
@@ -22,6 +23,11 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 /// </summary>
 public sealed class DatabaseNl2SqlNodeExecutor : INodeExecutor
 {
+    private static readonly JsonSerializerOptions CamelCaseJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly ISqlSugarClient _db;
     private readonly ILlmProviderFactory _llmProviderFactory;
     private readonly DatabaseQueryNodeExecutor _queryExecutor;
@@ -49,78 +55,127 @@ public sealed class DatabaseNl2SqlNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "DatabaseNl2Sql 缺少 databaseInfoId/databaseId。");
         }
 
-        var promptTemplate = context.GetConfigString("prompt", "{{input.message}}");
-        var question = context.ReplaceVariables(promptTemplate).Trim();
-        if (string.IsNullOrWhiteSpace(question))
-        {
-            return new NodeExecutionResult(false, outputs, "DatabaseNl2Sql 自然语言查询为空。");
-        }
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "AiDatabase.Nl2Sql",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?> { ["db.id"] = databaseId });
 
-        var schemaJson = await AiDatabaseNodeHelper.LoadSchemaAsync(_db, context.TenantId, databaseId, cancellationToken);
-        if (string.IsNullOrWhiteSpace(schemaJson))
-        {
-            return new NodeExecutionResult(false, outputs, "DatabaseNl2Sql 数据库 schema 为空。");
-        }
-
-        var columns = AiDatabaseValueCoercer.ParseColumns(schemaJson);
-        if (columns.Count == 0)
-        {
-            return new NodeExecutionResult(false, outputs, "DatabaseNl2Sql 数据库无可用字段。");
-        }
-
-        // ── 1. 调 LLM 生成 JSON 计划 ──
-        DatabaseNl2SqlPlan? plan;
         try
         {
-            plan = await GeneratePlanAsync(context, columns, question, cancellationToken);
+            var promptTemplate = context.GetConfigString("prompt", "{{input.message}}");
+            var question = context.ReplaceVariables(promptTemplate).Trim();
+            if (string.IsNullOrWhiteSpace(question))
+            {
+                return await FailAsync(context, databaseId, "DatabaseNl2Sql 自然语言查询为空。", cancellationToken);
+            }
+
+            var schemaJson = await AiDatabaseNodeHelper.LoadSchemaAsync(
+                _db,
+                context.TenantId,
+                databaseId,
+                cancellationToken,
+                context.ServiceProvider);
+            if (string.IsNullOrWhiteSpace(schemaJson))
+            {
+                return await FailAsync(context, databaseId, "DatabaseNl2Sql 数据库 schema 为空。", cancellationToken);
+            }
+
+            var columns = AiDatabaseValueCoercer.ParseColumns(schemaJson);
+            if (columns.Count == 0)
+            {
+                return await FailAsync(context, databaseId, "DatabaseNl2Sql 数据库无可用字段。", cancellationToken);
+            }
+
+            DatabaseNl2SqlPlan? plan;
+            try
+            {
+                plan = await GeneratePlanAsync(context, columns, question, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "DatabaseNl2Sql LLM 调用失败 db={DatabaseId}", databaseId);
+                return await FailAsync(context, databaseId, "DatabaseNl2Sql LLM 调用失败，请稍后重试。", cancellationToken);
+            }
+
+            if (plan is null)
+            {
+                return await FailAsync(context, databaseId, "DatabaseNl2Sql 未生成可用查询计划。", cancellationToken);
+            }
+
+            var enrichedConfig = new Dictionary<string, JsonElement>(context.Node.Config, StringComparer.OrdinalIgnoreCase)
+            {
+                ["clauseGroup"] = JsonSerializer.SerializeToElement(plan.Clauses, CamelCaseJson),
+                ["queryFields"] = JsonSerializer.SerializeToElement(plan.Fields, CamelCaseJson)
+            };
+            if (plan.Limit is { } limit)
+            {
+                enrichedConfig["limit"] = JsonSerializer.SerializeToElement(limit);
+            }
+
+            var virtualNode = context.Node with
+            {
+                Type = WorkflowNodeType.DatabaseQuery,
+                Config = enrichedConfig
+            };
+            var queryContext = new NodeExecutionContext(
+                virtualNode,
+                new Dictionary<string, JsonElement>(context.Variables, StringComparer.OrdinalIgnoreCase),
+                context.ServiceProvider,
+                context.TenantId,
+                context.WorkflowId,
+                context.ExecutionId,
+                context.WorkflowCallStack,
+                context.EventChannel,
+                context.UserId,
+                context.ChannelId);
+            var queryResult = await _queryExecutor.ExecuteAsync(queryContext, cancellationToken);
+
+            var merged = new Dictionary<string, JsonElement>(queryResult.Outputs, StringComparer.OrdinalIgnoreCase)
+            {
+                ["nl2sql_plan"] = AiNodeObservability.Mask(JsonSerializer.SerializeToElement(plan)),
+                ["nl2sql_question"] = VariableResolver.CreateStringElement(question)
+            };
+
+            await AiNodeObservability.WriteAuditAsync(
+                context.ServiceProvider,
+                context.TenantId,
+                context.UserId,
+                "ai_database_node.nl2sql",
+                queryResult.Success ? "success" : "failure",
+                $"db:{databaseId}/node:{context.Node.Key}",
+                cancellationToken);
+
+            return new NodeExecutionResult(queryResult.Success, merged, queryResult.ErrorMessage, queryResult.InterruptType);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "DatabaseNl2Sql LLM 调用失败 db={DatabaseId}", databaseId);
-            return new NodeExecutionResult(false, outputs, $"DatabaseNl2Sql LLM 调用失败: {ex.Message}");
+            _logger.LogWarning(ex, "DatabaseNl2Sql 执行失败 db={DatabaseId}", databaseId);
+            return await FailAsync(
+                context,
+                databaseId,
+                ex is BusinessException bex ? bex.Message : "DatabaseNl2Sql 执行失败。",
+                cancellationToken);
         }
+    }
 
-        if (plan is null)
-        {
-            return new NodeExecutionResult(false, outputs, "DatabaseNl2Sql 未生成可用查询计划。");
-        }
-
-        // ── 2. 注入到 config，复用 DatabaseQueryNodeExecutor 执行 ──
-        var enrichedConfig = new Dictionary<string, JsonElement>(context.Node.Config, StringComparer.OrdinalIgnoreCase)
-        {
-            ["clauseGroup"] = JsonSerializer.SerializeToElement(plan.Clauses),
-            ["queryFields"] = JsonSerializer.SerializeToElement(plan.Fields)
-        };
-        if (plan.Limit is { } limit)
-        {
-            enrichedConfig["limit"] = JsonSerializer.SerializeToElement(limit);
-        }
-
-        var virtualNode = context.Node with
-        {
-            Type = WorkflowNodeType.DatabaseQuery,
-            Config = enrichedConfig
-        };
-        var queryContext = new NodeExecutionContext(
-            virtualNode,
-            new Dictionary<string, JsonElement>(context.Variables, StringComparer.OrdinalIgnoreCase),
+    private static async Task<NodeExecutionResult> FailAsync(
+        NodeExecutionContext context,
+        long databaseId,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        await AiNodeObservability.WriteAuditAsync(
             context.ServiceProvider,
             context.TenantId,
-            context.WorkflowId,
-            context.ExecutionId,
-            context.WorkflowCallStack,
-            context.EventChannel,
             context.UserId,
-            context.ChannelId);
-        var queryResult = await _queryExecutor.ExecuteAsync(queryContext, cancellationToken);
-
-        // ── 3. 透出 plan 供调试/观测 ──
-        var merged = new Dictionary<string, JsonElement>(queryResult.Outputs, StringComparer.OrdinalIgnoreCase)
-        {
-            ["nl2sql_plan"] = JsonSerializer.SerializeToElement(plan),
-            ["nl2sql_question"] = VariableResolver.CreateStringElement(question)
-        };
-        return new NodeExecutionResult(queryResult.Success, merged, queryResult.ErrorMessage, queryResult.InterruptType);
+            "ai_database_node.nl2sql",
+            "failure",
+            $"db:{databaseId}/node:{context.Node.Key}",
+            cancellationToken);
+        return new NodeExecutionResult(false, new Dictionary<string, JsonElement>(), message);
     }
 
     private async Task<DatabaseNl2SqlPlan?> GeneratePlanAsync(

@@ -1,8 +1,12 @@
 using System.Globalization;
 using System.Text.Json;
+using Atlas.Core.Exceptions;
+using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Services.AiPlatform;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -22,12 +26,17 @@ internal static class AiDatabaseNodeHelper
         return id;
     }
 
+    /// <param name="sqlTakeLimit">
+    /// 仅在查询场景使用：对 SQL 结果集上限（按 Id 升序截取），防止超大表一次性加载。
+    /// Update/Delete 应传 null 以加载策略下的全部候选行。
+    /// </param>
     public static async Task<List<AiDatabaseRecord>> LoadRecordsAsync(
         ISqlSugarClient db,
         TenantId tenantId,
         long databaseId,
         CancellationToken cancellationToken,
-        AiDatabaseAccessPolicy? policy = null)
+        AiDatabaseAccessPolicy? policy = null,
+        int? sqlTakeLimit = null)
     {
         var query = db.Queryable<AiDatabaseRecord>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId);
@@ -39,6 +48,12 @@ internal static class AiDatabaseNodeHelper
         {
             query = query.Where(x => x.ChannelId == null || x.ChannelId == channelVal);
         }
+
+        if (sqlTakeLimit is > 0)
+        {
+            query = query.OrderBy(x => x.Id, OrderByType.Asc).Take(sqlTakeLimit.Value);
+        }
+
         return await query.ToListAsync(cancellationToken);
     }
 
@@ -52,23 +67,46 @@ internal static class AiDatabaseNodeHelper
         var entity = await db.Queryable<AiDatabase>()
             .Where(x => x.TenantIdValue == context.TenantId.Value && x.Id == databaseId)
             .FirstAsync(cancellationToken);
-        return entity is null
-            ? AiDatabaseAccessPolicy.Open
-            : AiDatabaseAccessPolicy.For(entity, context.UserId, context.ChannelId);
+        if (entity is null)
+        {
+            throw new BusinessException("数据库不存在。", ErrorCodes.NotFound);
+        }
+
+        return AiDatabaseAccessPolicy.For(entity, context.UserId, context.ChannelId);
     }
 
     /// <summary>D3：加载数据库 schema JSON——给 Coercer 与节点表单使用。</summary>
     public static async Task<string?> LoadSchemaAsync(
         ISqlSugarClient db,
-        Atlas.Core.Tenancy.TenantId tenantId,
+        TenantId tenantId,
         long databaseId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IServiceProvider? serviceProvider = null)
     {
+        var cacheKey = $"Atlas:AiDatabase:Schema:{tenantId.Value}:{databaseId}";
+        if (serviceProvider?.GetService<IMemoryCache>() is { } cache &&
+            cache.TryGetValue(cacheKey, out object? cachedObj) &&
+            cachedObj is string cached &&
+            !string.IsNullOrWhiteSpace(cached))
+        {
+            return cached;
+        }
+
         var entity = await db.Queryable<AiDatabase>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == databaseId)
             .Select(x => new { x.TableSchema })
             .FirstAsync(cancellationToken);
-        return entity?.TableSchema;
+        var schema = entity?.TableSchema;
+        if (serviceProvider?.GetService<IMemoryCache>() is { } mem &&
+            !string.IsNullOrWhiteSpace(schema))
+        {
+            mem.Set(cacheKey, schema, new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = TimeSpan.FromMinutes(2)
+            });
+        }
+
+        return schema;
     }
 
     public static List<DbClause> ResolveClauses(IReadOnlyDictionary<string, JsonElement> config)

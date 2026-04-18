@@ -61,7 +61,10 @@ public interface IAiDatabaseService
         long? creatorUserId = null,
         string? channelId = null);
 
-    /// <summary>D5：同步批量插入。受 <c>MaxBulkInsertRows</c> 上限保护。</summary>
+    /// <summary>
+    /// D5：同步批量插入。
+    /// <paramref name="enforceSyncBulkRowLimit"/> 为 true 时受 <c>MaxBulkInsertRows</c> 上限保护；后台异步作业应传 false。
+    /// </summary>
     Task<AiDatabaseRecordBulkCreateResult> CreateRecordsBulkAsync(
         TenantId tenantId,
         long databaseId,
@@ -69,7 +72,8 @@ public interface IAiDatabaseService
         CancellationToken cancellationToken,
         long? ownerUserId = null,
         long? creatorUserId = null,
-        string? channelId = null);
+        string? channelId = null,
+        bool enforceSyncBulkRowLimit = true);
 
     /// <summary>D5：异步批量插入；后台作业写入并落进度到 <c>AiDatabaseImportTask</c>。</summary>
     Task<AiDatabaseBulkJobAccepted> SubmitBulkInsertJobAsync(

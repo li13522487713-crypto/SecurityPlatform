@@ -1,3 +1,4 @@
+using Atlas.Core.Exceptions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Services.AiPlatform;
@@ -15,6 +16,29 @@ public sealed class AiDatabaseAccessPolicyTests
         var policy = AiDatabaseAccessPolicy.For(db, userId: 100, channelId: "web");
         Assert.Null(policy.OwnerUserId);
         Assert.Null(policy.ChannelId);
+    }
+
+    [Fact]
+    public void For_SingleUser_WithoutUserId_ShouldThrow()
+    {
+        var db = new AiDatabase(Tenant, "demo", null, null, "[]", 2L, queryMode: AiDatabaseQueryMode.SingleUser);
+        Assert.Throws<BusinessException>(() => AiDatabaseAccessPolicy.For(db, userId: null, channelId: null));
+    }
+
+    [Fact]
+    public void For_ChannelScope_WithoutChannelId_ShouldThrow()
+    {
+        var db = new AiDatabase(
+            Tenant,
+            "demo",
+            null,
+            null,
+            "[]",
+            2L,
+            queryMode: AiDatabaseQueryMode.MultiUser,
+            channelScope: AiDatabaseChannelScope.Channel);
+        Assert.Throws<BusinessException>(() => AiDatabaseAccessPolicy.For(db, userId: 1, channelId: null));
+        Assert.Throws<BusinessException>(() => AiDatabaseAccessPolicy.For(db, userId: 1, channelId: "   "));
     }
 
     [Fact]

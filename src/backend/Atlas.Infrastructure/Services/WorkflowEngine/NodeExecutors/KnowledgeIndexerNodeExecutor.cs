@@ -69,7 +69,7 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
             _idGeneratorAccessor.NextId());
         await _knowledgeDocumentRepository.AddAsync(document, cancellationToken);
 
-        var chunkSize = Math.Clamp(context.GetConfigInt32("chunkSize", 500), 100, 5000);
+        var chunkSize = Math.Clamp(context.GetConfigInt32("chunkSize", 500), 50, 5000);
         var overlap = Math.Clamp(context.GetConfigInt32("overlap", 50), 0, 1000);
         var parseStrategy = string.Equals(context.GetConfigString("parseStrategy", "quick"), "precise", StringComparison.OrdinalIgnoreCase)
             ? DocumentParseStrategy.Precise

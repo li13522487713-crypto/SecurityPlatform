@@ -55,7 +55,12 @@ public sealed class DatabaseInsertNodeExecutor : INodeExecutor
         var ownerUserId = injectUserContext ? policy.OwnerUserId ?? context.UserId : null;
         var channelId = injectUserContext ? policy.ChannelId ?? context.ChannelId : null;
 
-        var schemaJson = await AiDatabaseNodeHelper.LoadSchemaAsync(_db, context.TenantId, databaseId, cancellationToken);
+        var schemaJson = await AiDatabaseNodeHelper.LoadSchemaAsync(
+            _db,
+            context.TenantId,
+            databaseId,
+            cancellationToken,
+            context.ServiceProvider);
         var entities = new List<AiDatabaseRecord>(rowPayloads.Count);
         foreach (var row in rowPayloads)
         {

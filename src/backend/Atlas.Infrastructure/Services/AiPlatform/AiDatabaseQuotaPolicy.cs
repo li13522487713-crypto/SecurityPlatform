@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
-/// <summary>D4：AI 数据库配额校验。硬上限抛 BusinessException；软上限仅日志告警。</summary>
+/// <summary>D4：AI 数据库配额校验。字段数 / 单次批量 / 库数量为硬上限；表行数默认硬上限，可由 <see cref="AiDatabaseQuotaOptions.EnforceMaxRowsPerTable"/> 关闭。</summary>
 public sealed class AiDatabaseQuotaPolicy
 {
     private readonly AiDatabaseQuotaOptions _options;
@@ -67,9 +67,15 @@ public sealed class AiDatabaseQuotaPolicy
         var projected = existing + incoming;
         if (projected > _options.MaxRowsPerTable)
         {
-            // 软上限：默认仅日志，不抛异常。后续可改为强制 by env config。
+            if (_options.EnforceMaxRowsPerTable)
+            {
+                throw new BusinessException(
+                    $"数据库行数将超过上限（{_options.MaxRowsPerTable}）。",
+                    ErrorCodes.ValidationError);
+            }
+
             _logger.LogWarning(
-                "AI 数据库 {DatabaseId} 行数 {Projected} 超过软上限 {Limit}",
+                "AI 数据库 {DatabaseId} 行数 {Projected} 超过配置上限 {Limit}（当前为软限制，仅告警）",
                 databaseId,
                 projected,
                 _options.MaxRowsPerTable);
