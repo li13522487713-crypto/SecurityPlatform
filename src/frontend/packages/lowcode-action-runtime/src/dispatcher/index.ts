@@ -85,6 +85,14 @@ const callWorkflowHandler: ActionHandler<CallWorkflowAction> = async (action, ct
     throw new Error('call_workflow 动作要求 ActionContext.invokeDispatch 已注入（由 dispatch / Adapter 在 M13 / M09 提供）');
   }
   const loadingPatches = action.loadingTargets ? buildLoadingPatches(action.loadingTargets, true) : [];
+  // P4-4 修复（PLAN §M03 C03-2）：
+  // 此前 callWorkflowHandler 内部 catch 了异常并把错误 patches/messages 作为"成功结果"返回，
+  // 导致外层 chain 的 onError 子链被吞 → 异常分支语义失效。
+  // 现修正为：异常时仍提交 loading 关闭 + errorTargets 错误状态 patches，但**重新抛出**异常，
+  // 让 chain 的 onError 处理器能够捕获并执行配置的异常分支。这样：
+  //  - loadingTargets 正确关闭（finally 语义）
+  //  - errorTargets 收到错误信息（用户可见）
+  //  - chain.onError 能拿到完整异常并按配置执行替代动作 / 弹性回退
   try {
     const result = await withResilience(
       () => ctx.invokeDispatch!(action),
@@ -103,12 +111,27 @@ const callWorkflowHandler: ActionHandler<CallWorkflowAction> = async (action, ct
     return { patches: finalPatches, outputs: result?.outputs, messages: result?.messages };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const finalPatches: RuntimeStatePatch[] = [
+    // 即使 onError 子链将处理，loading/error 视觉状态仍需即时更新（不能等到子链执行后）。
+    // chain executor 看到 throw 后会按 ActionSchema.onError 配置触发子链；如果未配置 onError，
+    // 调用方会按"失败动作"统计错误（而不是把错误隐藏在 ActionResult.messages 中）。
+    const sideEffectPatches: RuntimeStatePatch[] = [
       ...loadingPatches,
       ...(action.loadingTargets ? buildLoadingPatches(action.loadingTargets, false) : []),
       ...(action.errorTargets ? buildErrorPatches(action.errorTargets, { message, kind: 'workflow_error' }) : [])
     ];
-    return { patches: finalPatches, messages: [{ kind: 'error', text: message }] };
+    // 把 side-effect patches 通过 ctx.applySideEffectPatches（chain 暴露的钩子）提交，
+    // 然后重新抛错；如果 ctx 没暴露该钩子（兼容旧调用），退化为"附加到错误 message 中"再 throw。
+    if (ctx.applySideEffectPatches && sideEffectPatches.length > 0) {
+      try {
+        await ctx.applySideEffectPatches(sideEffectPatches);
+      } catch {
+        // 忽略 side-effect 提交失败，仍然抛出原错以让 onError 处理
+      }
+    }
+    const enriched = err instanceof Error ? err : new Error(message);
+    (enriched as Error & { actionId?: string; sideEffectPatches?: RuntimeStatePatch[] }).actionId = action.id;
+    (enriched as Error & { sideEffectPatches?: RuntimeStatePatch[] }).sideEffectPatches = sideEffectPatches;
+    throw enriched;
   }
 };
 

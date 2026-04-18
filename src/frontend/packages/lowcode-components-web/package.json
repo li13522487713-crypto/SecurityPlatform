@@ -2,13 +2,14 @@
   "name": "@atlas/lowcode-components-web",
   "private": true,
   "version": "0.0.0",
-  "description": "Atlas 低代码 Web 组件库（M06 C06-3）—— 30+ 组件完整 ComponentMeta + 元数据驱动注册器（含 AI 原生 4 件 + 6 维矩阵 100% 覆盖）。",
+  "description": "Atlas 低代码 Web 组件库（M06 C06-3 + P1-1 真实 React 实现）—— 47 组件完整 ComponentMeta + propertyPanels + Semi UI thin React 实现 + 6 维矩阵 100% 覆盖。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./meta": "./src/meta/index.ts"
+    "./meta": "./src/meta/index.ts",
+    "./components": "./src/components/index.tsx"
   },
   "scripts": {
     "lint": "echo '@atlas/lowcode-components-web: lint via root pipeline'",
@@ -17,9 +18,15 @@
   },
   "dependencies": {
     "@atlas/lowcode-schema": "workspace:*",
-    "@atlas/lowcode-component-registry": "workspace:*"
+    "@atlas/lowcode-component-registry": "workspace:*",
+    "@atlas/lowcode-chatflow-adapter": "workspace:*",
+    "@douyinfe/semi-icons": "^2.82.0",
+    "@douyinfe/semi-ui": "^2.82.0",
+    "react": "^18.2.0"
   },
   "devDependencies": {
+    "@types/react": "18.2.37",
+    "react-dom": "^18.2.0",
     "vitest": "^4.1.4"
   }
 }

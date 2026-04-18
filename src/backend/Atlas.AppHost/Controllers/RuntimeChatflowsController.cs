@@ -138,6 +138,20 @@ public sealed class RuntimeSessionsController : ControllerBase
         await _service.ArchiveAsync(tenantId, user.UserId, id, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
     }
+
+    /// <summary>
+    /// P0 修复：M11 多会话切换（PLAN.md §M11 C11-6 + S11-2）。
+    /// 前端 HttpSessionAdapter.switch 已调用 POST /api/runtime/sessions/{id}:switch；
+    /// 此前后端无路由，运行时返回 404 → 前后端契约断裂；现补齐路由 + Service。
+    /// </summary>
+    [HttpPost("{id}:switch")]
+    public async Task<ActionResult<ApiResponse<RuntimeSessionInfo>>> Switch(string id, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var user = _currentUser.GetCurrentUserOrThrow();
+        var info = await _service.SwitchAsync(tenantId, user.UserId, id, cancellationToken);
+        return Ok(ApiResponse<RuntimeSessionInfo>.Ok(info, HttpContext.TraceIdentifier));
+    }
 }
 
 [ApiController]

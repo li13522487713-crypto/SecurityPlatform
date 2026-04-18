@@ -7,6 +7,7 @@ import { TopToolbar } from '../panels/top-toolbar';
 import { CanvasViewport } from '../panels/canvas-viewport';
 import { ShortcutPanel } from '../panels/shortcut-panel';
 import { useStudioCommands } from '../hooks/use-studio-commands';
+import { useDraftAutosave } from '../hooks/use-draft-autosave';
 import { t } from '../i18n';
 
 const { Header, Sider, Content } = Layout;
@@ -26,6 +27,8 @@ export const StudioApp: React.FC = () => {
 
   // 必须在条件性 return 之前调用 hook，否则违反 React Rules of Hooks
   useStudioCommands({ appId: appId ?? '' });
+  // P1-3：30s 去抖 autosave 兜底 + draftLock 心跳（PLAN §M04 S04-1 + S04-2）
+  useDraftAutosave(appId);
 
   if (!appId) return <Empty title="缺少应用 ID" />;
 

@@ -110,3 +110,28 @@ public interface IAgentChannelAdapter
 - OAuth：渠道级 access_token / refresh_token 加密存储（LowCodeCredentialProtector）
 - Webhook：签名验签（常量时间比对，避免时序攻击）
 - 推送回调：失败重试 + 指数退避（与 ResiliencePolicy 对齐）
+
+## §12 assistant_coze 17 篇 → Atlas 实现章节对照表（P5-3）
+
+> 与 docx 附录 A（A01-A17）对齐：本表把每篇文档主题映射到 Atlas 现有实现类 / spec 章节，便于审计追溯。
+
+| 序 | 篇名 | Atlas 实现位置 |
+|---|---|---|
+| A01 | 智能体创建（自然语言/AI 双入口） | module-studio-react/assistant + AgentCommandService.CreateAsync |
+| A02 | 智能体三栏 IDE 形态 | AgentWorkbenchLayout（左 nav + 中 config + 右 debug）|
+| A03 | 人设独立配置 | AgentWorkbenchConfigTab.persona |
+| A04 | 提示词模板（Jinja+Markdown） | LowCodePromptTemplatesController + lowcode-expression/template |
+| A05 | @ 引用菜单 | assistant-spec §3 + 增量 Monaco 集成 |
+| A06 | 提示词模板库跨域复用 | LowCodePromptTemplatesController + LLM 节点共享 |
+| A07 | 预览与调试 | AgentWorkbenchDebugPanel + RuntimeTraceService（共享）|
+| A08 | 插件域 | LowCodePluginsController + IPluginRegistry（与 N10 共享）|
+| A09 | 工作流域 | DagWorkflowController + RuntimeWorkflowExecutor |
+| A10 | 知识库域 | KnowledgeRetrieverNodeExecutor + KnowledgeBase 实体 |
+| A11 | 数据库域 | AiDatabaseNodeHelper + DatabaseQuery* Executor |
+| A12 | 长期记忆（A12） | LongTermMemoryRepository + LtmNodeExecutor + MemoryRead/Write/Delete |
+| A13 | 记忆库（A13） | （独立 UI 留增量；契约 §6）|
+| A14 | 变量管理 | LowCodeAppVariablesController + AppVariable 实体 |
+| A15 | 调试链路 | RuntimeTraceService + RuntimeMessageLogService 共享 |
+| A16 | 模型设置 | ModelRegistry + IChatClientFactory + IModelConfigPool（增量）|
+| A17 | 消息日志 | RuntimeMessageLogController + IRuntimeMessageLogService |
+

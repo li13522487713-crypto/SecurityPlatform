@@ -16,6 +16,12 @@ export interface ActionContext {
   traceId?: string;
   /** 调用 dispatch 协议。各 Adapter 在执行 call_workflow 等动作时通过此入口委托。*/
   invokeDispatch?: (action: ActionSchema) => Promise<ActionResult>;
+  /**
+   * P4-4：副作用 patches 钩子。call_workflow 失败时即使要 throw 让 onError 处理，
+   * 也需要先把 loading=false / errorTargets=error 状态 patches 提交，避免按钮卡 loading。
+   * 默认为 undefined（兼容旧调用）；chain executor 注入此钩子让 dispatcher 可以"finally"语义提交副作用。
+   */
+  applySideEffectPatches?: (patches: RuntimeStatePatch[]) => Promise<void> | void;
 }
 
 /** 单动作执行结果。*/

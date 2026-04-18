@@ -9,6 +9,8 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
+using DnsClient;
+using DnsClient.Protocol;
 using Hangfire;
 using Microsoft.Extensions.Logging;
 
@@ -316,10 +318,13 @@ public sealed class RuntimeWebviewDomainService : IRuntimeWebviewDomainService
     }
 
     /// <summary>
-    /// 真实验证：
+    /// 真实验证（P0-4 修复 PLAN §M12 C12-2 + S12-2）：
     ///  - http_file：拉取 https://{domain}/.well-known/atlas-webview-verify.txt，文件内容必须等于 entity.VerificationToken。
-    ///  - dns_txt：因仓库未引入 DnsClient 包，此种方式仍按"提交即通过"处理，但记录 detail=dns_txt:not-implemented；
-    ///    生产环境若需真实 DNS TXT 验证，加入 DnsClient 包后在此处替换实现，无需修改契约。
+    ///  - dns_txt：通过 DnsClient.NET 真实解析 _atlas-webview-verify.{domain} 的 TXT 记录，
+    ///    任意一条 TXT 内容（去引号后）等于 entity.VerificationToken 即视为成功；不再"未实现也通过"。
+    ///
+    /// 此前 dns_txt 总是返回 (true, "dns_txt:not-implemented")，等保 2.0 隐患（未验证即标 verified=true）。
+    /// 现在遵循等保要求：所有外部域名必须经过真实归属证明才能被信任为外链白名单。
     /// </summary>
     private async Task<(bool Verified, string Detail)> TryVerifyAsync(LowCodeWebviewDomain entity, CancellationToken cancellationToken)
     {
@@ -349,9 +354,60 @@ public sealed class RuntimeWebviewDomainService : IRuntimeWebviewDomainService
             }
         }
 
-        // dns_txt：当前仓库未引入 DNS client，标记为通过但 detail 表明实际未做 DNS 解析，
-        // 上线时通过 IConfiguration 切换到 strict 模式或加入 DnsClient 包实施真实 TXT 校验。
-        return (true, "dns_txt:not-implemented");
+        // dns_txt：真实 DNS 解析，约定 TXT 子域名为 _atlas-webview-verify.{domain}（与业界 Google/Microsoft 域名所有权验证模式一致）
+        var txtName = $"_atlas-webview-verify.{entity.Domain}";
+        try
+        {
+            // 使用系统默认 DNS（resolv.conf / Windows DNS Client），8s 超时
+            var lookup = new LookupClient(new LookupClientOptions
+            {
+                Timeout = TimeSpan.FromSeconds(8),
+                UseCache = false,
+                ContinueOnDnsError = false,
+                Retries = 1
+            });
+
+            var dnsResp = await lookup.QueryAsync(txtName, QueryType.TXT, cancellationToken: cancellationToken);
+            if (dnsResp.HasError)
+            {
+                return (false, $"dns_txt:dns-error:{dnsResp.ErrorMessage}");
+            }
+
+            var txtRecords = dnsResp.Answers.OfType<TxtRecord>().ToList();
+            if (txtRecords.Count == 0)
+            {
+                return (false, "dns_txt:no-record");
+            }
+
+            // 任一 TXT 记录值等于 token 即通过；处理多段拼接 + 去引号
+            foreach (var rec in txtRecords)
+            {
+                foreach (var seg in rec.Text)
+                {
+                    var cleaned = seg.Trim('"', ' ', '\r', '\n');
+                    if (string.Equals(cleaned, entity.VerificationToken, StringComparison.Ordinal))
+                    {
+                        return (true, "dns_txt:ok");
+                    }
+                }
+            }
+
+            return (false, "dns_txt:token-mismatch");
+        }
+        catch (DnsResponseException ex)
+        {
+            _logger.LogWarning(ex, "Webview verify dns_txt DnsResponseException: {Domain}", entity.Domain);
+            return (false, $"dns_txt:dns-exception:{ex.Code}");
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, "dns_txt:timeout");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Webview verify dns_txt unexpected: {Domain}", entity.Domain);
+            return (false, $"dns_txt:exception:{ex.GetType().Name}");
+        }
     }
 
     public async Task RemoveAsync(TenantId tenantId, long currentUserId, long id, CancellationToken cancellationToken)
@@ -360,6 +416,28 @@ public sealed class RuntimeWebviewDomainService : IRuntimeWebviewDomainService
         if (existing is null) return;
         await _repo.DeleteAsync(tenantId, id, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.webview.domain.remove", "success", $"domain:{existing.Domain}", null, null), cancellationToken);
+    }
+
+    public async Task<bool> IsAllowedAsync(TenantId tenantId, string url, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return false;
+        // 仅允许 http(s)；其它协议（javascript/data/file…）一律拒绝
+        if (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp) return false;
+        var host = uri.Host?.ToLowerInvariant();
+        if (string.IsNullOrEmpty(host)) return false;
+
+        // 拉当前租户全部已 verified 的域名（数据量较小，一次扫描即可；后续可加缓存）
+        var all = await _repo.ListAsync(tenantId, cancellationToken);
+        foreach (var d in all)
+        {
+            if (!d.Verified) continue;
+            var allowed = d.Domain.ToLowerInvariant();
+            if (host == allowed) return true;
+            // 子域名匹配：a.example.com 命中 example.com 白名单
+            if (host.EndsWith("." + allowed, StringComparison.Ordinal)) return true;
+        }
+        return false;
     }
 
     private static WebviewDomainInfoDto ToDto(LowCodeWebviewDomain d) => new(d.Id.ToString(), d.Domain, d.Verified, d.VerificationKind, d.VerificationToken, d.CreatedAt, d.VerifiedAt);

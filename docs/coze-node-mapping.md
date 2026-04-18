@@ -53,25 +53,37 @@
 | 60（Atlas 私有） | - | `Agent` | `Agent` | `AgentNodeExecutor` | ✅ |
 | 61（Atlas 私有） | - | `KnowledgeDeleter` | `KnowledgeDeleter` | `KnowledgeDeleterNodeExecutor` | ✅（M4 新增 DI） |
 | 62（Atlas 私有） | - | `Ltm` | `Ltm` | `LtmNodeExecutor` | ✅ |
+| 11 | Variable | `Variable` | `Variable` | `VariableNodeExecutor` | ✅（P0-3 M20） |
+| 14 | ImageGenerate | `ImageGenerate` | `ImageGenerate` | `ImageGenerateUpstreamNodeExecutor` | ✅（P0-3 M20） |
+| 15 → 67（私有） | Imageflow | `Imageflow` | `Imageflow` | `ImageflowNodeExecutor` | ✅（P0-3 M20） |
+| 16 | ImageReference | `ImageReference` | `ImageReference` | `ImageReferenceNodeExecutor` | ✅（P0-3 M20） |
+| 17 / 23 | ImageCanvas | `ImageCanvas` | `ImageCanvasUpstream` | `ImageCanvasUpstreamNodeExecutor` | ✅（P0-3 M20） |
+| 24 | SceneVariable | `SceneVariable` | `SceneVariable` | `SceneVariableNodeExecutor` | ✅（P0-3 M20） |
+| 25 | SceneChat | `SceneChat` | `SceneChat` | `SceneChatNodeExecutor` | ✅（P0-3 M20） |
+| 26 | LTM | `LtmUpstream` | `LtmUpstream` | `LtmUpstreamNodeExecutor` | ✅（P0-3 M20，与 Atlas Ltm(62) 联动） |
+| 34 | Trigger（Coze 计划中） | `TriggerUpsert` | `TriggerUpsert` | `TriggerUpsertNodeExecutor` | ✅（P0-2 M12） |
+| 35 | Trigger（Coze 计划中） | `TriggerRead` | `TriggerRead` | `TriggerReadNodeExecutor` | ✅（P0-2 M12） |
+| 36 | Trigger（Coze 计划中） | `TriggerDelete` | `TriggerDelete` | `TriggerDeleteNodeExecutor` | ✅（P0-2 M12） |
+| 64（Atlas 私有，拆分自 Ltm） | - | `MemoryRead` | `MemoryRead` | `MemoryReadNodeExecutor` | ✅（P0-3 M20） |
+| 65（Atlas 私有，拆分自 Ltm） | - | `MemoryWrite` | `MemoryWrite` | `MemoryWriteNodeExecutor` | ✅（P0-3 M20） |
+| 66（Atlas 私有，拆分自 Ltm） | - | `MemoryDelete` | `MemoryDelete` | `MemoryDeleteNodeExecutor` | ✅（P0-3 M20） |
+| 47（Atlas 私有 N47） | - | `VideoGeneration` | `VideoGeneration` | `VideoGenerationNodeExecutor` | ✅（P0-3 M20） |
+| 48（Atlas 私有 N48） | - | `VideoToAudio` | `VideoToAudio` | `VideoToAudioNodeExecutor` | ✅（P0-3 M20） |
+| 49（Atlas 私有 N49） | - | `VideoFrameExtraction` | `VideoFrameExtraction` | `VideoFrameExtractionNodeExecutor` | ✅（P0-3 M20） |
+| 68（Atlas 私有 N44） | - | `ImageGeneration` | `ImageGeneration` | `ImageGenerationNodeExecutor` | ✅（P0-3 M20） |
+| 69（Atlas 私有 N45） | - | `Canvas` | `Canvas` | `CanvasNodeExecutor` | ✅（P0-3 M20） |
+| 70（Atlas 私有 N46） | - | `ImagePlugin` | `ImagePlugin` | `ImagePluginNodeExecutor` | ✅（P0-3 M20） |
 
-## 2. Atlas 暂不支持、需在节点目录中**过滤**的上游节点
+## 2. Atlas 暂不支持、需在节点目录中过滤的上游节点（P5-2 修正：仅剩 Coze ID 12）
 
-> 这些 ID 出现在上游 `StandardNodeType`，但 Atlas 没有等效执行器。`/api/workflow_api/node_type` 与 `node_template_list` 不会返回这些类型，前端节点面板自然不会显示。
+> M12 + M20 落地后，原"暂不支持"列表已大量清空；Variable / ImageGenerate / Imageflow / ImageReference / ImageCanvas / SceneVariable / SceneChat / LtmUpstream / TriggerUpsert/Read/Delete 均已注册执行器（P0-2 + P0-3）。
 
 | Coze ID | Coze type | 缺失原因 / 替代方案 |
 |---|---|---|
-| 11 | Variable | 与 `VariableAggregator(32)` 与 `AssignVariable(40)` 行为部分重叠，Atlas 暂不单独引入读变量节点。 |
-| 12 | Database | Atlas 提供 `DatabaseQuery/Insert/Update/Delete/CustomSql` 5 个细分节点替代。 |
-| 14 | Imageflow | Atlas 不支持 image flow 节点；前端 `imageflow_basic_nodes` fallback 已返回空集。 |
-| 16 | ImageGenerate | 同上。等保2.0 / 商用合规未评估，暂不开放。 |
-| 17 | ImageReference | 同上。 |
-| 23 | ImageCanvas | 同上。 |
-| 24 | SceneVariable | Atlas 暂不实现 Coze 场景变量域。 |
-| 25 | SceneChat | 同上。 |
-| 26 | LTM | Atlas 用私有 `Ltm(62)` 替代，节点 ID 不与上游对齐；前端走 Atlas 自有节点目录。 |
-<!-- M12 已落地 TriggerUpsert(34) / TriggerRead(35) / TriggerDelete(36)，从缺失表移除。 -->
-<!-- M20 已落地 Variable(11) / ImageGenerate(14) / Imageflow(15) / ImageReference(16) / ImageCanvas(17,23) / SceneVariable(24) / SceneChat(25) / LtmUpstream(26)，节点 ID 与上游对齐；缺失表已清空。 -->
-<!-- 节点执行器与 RuntimeTriggerService / 拆分 Memory(64/65/66) / 图像视频 N44-N49 详见 BuiltInWorkflowNodeDeclarations.cs M12+M20 节点区块；docs/lowcode-orchestration-spec.md §3 提供完整映射表。 -->
+| 12 | Database | Atlas 提供 `DatabaseQuery/Insert/Update/Delete/CustomSql` 5 个细分节点替代；不引入"通用 Database"父节点。 |
+
+> 旧的"图像 / 场景 / 长期记忆 / 触发器"缺失项已全部清空，详见 P0-2 + P0-3 修复（`docs/plan-coze-lowcode-gap-fix-P0.md`）。
+> 节点执行器与 RuntimeTriggerService / 拆分 Memory(64/65/66) / 图像视频 N44-N49 详见 `BuiltInWorkflowNodeDeclarations.cs` M12+M20 节点区块。
 
 ## 3. M4 节点执行器 DI 同步
 

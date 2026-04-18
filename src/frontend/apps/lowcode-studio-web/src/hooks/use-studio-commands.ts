@@ -72,11 +72,15 @@ export function useStudioCommands(opts: CommandsOptions): void {
 
       const mod = isMac ? e.metaKey : e.ctrlKey;
       if (mod && e.key.toLowerCase() === 's') {
+        // P1-3 修复（PLAN §M04 C04-7 + docs/lowcode-shortcut-spec.md 第 69 行）：
+        // 此前 Mod+S 走 snapshot（创建一个新版本），与 spec 中"Mod+S → autosave 草稿"行为不一致；
+        // 现修正为：Mod+S 触发 autosave（与 30s 去抖 autosave 同一接口），不再创建版本。
+        // 真正的"创建快照"由顶部"版本"抽屉显式按钮触发。
         e.preventDefault();
         try {
-          const label = `quick-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}`;
-          const r = await lowcodeApi.apps.snapshot(appId, label, 'Mod+S quick snapshot');
-          Toast.success(`已保存版本（${r.versionId}）`);
+          const draft = await lowcodeApi.apps.getDraft(appId);
+          await lowcodeApi.apps.autosave(appId, draft.schemaJson);
+          Toast.success(t('lowcode_studio.common.savedDraft'));
         } catch (err) {
           Toast.error((err as Error).message);
         }

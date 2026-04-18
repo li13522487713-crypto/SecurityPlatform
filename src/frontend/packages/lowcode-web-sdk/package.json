@@ -1,25 +1,33 @@
 {
   "name": "@atlas/lowcode-web-sdk",
   "private": true,
-  "version": "0.0.0",
-  "description": "Atlas 低代码 Web SDK（M17）—— window.AtlasLowcode.mount() 完整 API + UMD/ESM 双输出 + 三种嵌入。",
+  "version": "1.0.0",
+  "description": "Atlas 低代码 Web SDK（M17 P2-1）—— window.AtlasLowcode.mount() 完整 API + UMD/ESM 双输出 + 三种嵌入。",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist/",
+    "src/",
+    "README.md",
+    "rsbuild.lib.config.ts"
+  ],
   "scripts": {
     "lint": "echo '@atlas/lowcode-web-sdk: lint via root pipeline'",
-    "build": "echo '@atlas/lowcode-web-sdk: source-only package; rsbuild library 模式由 apps/lowcode-sdk-playground 触发产物构建'",
-    "test": "vitest --run --passWithNoTests"
+    "build": "pnpm exec rsbuild build --config rsbuild.lib.config.ts",
+    "test": "vitest --run --passWithNoTests",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@atlas/lowcode-runtime-web": "workspace:*",
-    "@atlas/lowcode-schema": "workspace:*",
-    "@vitest/coverage-v8": "^4.1.4"
+    "@atlas/lowcode-schema": "workspace:*"
   },
   "devDependencies": {
+    "@rsbuild/core": "~1.1.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "jsdom": "^22.1.0",
     "vitest": "^4.1.4"
   }
