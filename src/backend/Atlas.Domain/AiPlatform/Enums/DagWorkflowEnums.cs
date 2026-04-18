@@ -112,20 +112,28 @@ public enum WorkflowNodeType
     MemoryWrite = 65,
     /// <summary>M20 内存删除。</summary>
     MemoryDelete = 66,
-    /// <summary>M20 图像生成（Atlas 私有 N44，与上游 ImageGenerate(14) 区分）。</summary>
-    ImageGeneration = 44,
-    /// <summary>M20 图像画布合成（Atlas 私有 N45）。</summary>
-    Canvas = 45,
-    /// <summary>M20 图像插件（Atlas 私有 N46）。</summary>
-    ImagePlugin = 46,
+    /// <summary>
+    /// M20 图像生成（Atlas 私有 N44，与上游 ImageGenerate(14) 区分）。
+    /// 注：Coze 节点编号 44 与 Atlas DatabaseDelete=44 冲突，私有节点改用 68。
+    /// </summary>
+    ImageGeneration = 68,
+    /// <summary>M20 图像画布合成（Atlas 私有 N45）。注：Coze 编号 45 与 Atlas HttpRequester=45 冲突，私有节点改用 69。</summary>
+    Canvas = 69,
+    /// <summary>M20 图像插件（Atlas 私有 N46）。注：Coze 编号 46 与 Atlas DatabaseInsert=46 冲突，私有节点改用 70。</summary>
+    ImagePlugin = 70,
     /// <summary>M20 视频生成（Atlas 私有 N47）。</summary>
     VideoGeneration = 47,
     /// <summary>M20 视频转音频（Atlas 私有 N48）。</summary>
     VideoToAudio = 48,
     /// <summary>M20 视频抽帧（Atlas 私有 N49）。</summary>
     VideoFrameExtraction = 49,
-    /// <summary>M20 上游对齐：图像流（Coze ID 15）。</summary>
-    Imageflow = 15
+    /// <summary>
+    /// M20 上游对齐：图像流（Coze ID 15）。
+    /// 注：Coze 上游 ID 15 与 Atlas 现存 TextProcessor=15 存在枚举值冲突；为保持 DB 兼容
+    /// 将 Atlas 私有 Imageflow 映射到 67（紧跟 MemoryDelete=66）。
+    /// 上游 ID 15 由前端 mapper 在 schema 序列化阶段做单向 67↔15 映射。
+    /// </summary>
+    Imageflow = 67
 }
 
 /// <summary>
