@@ -87,4 +87,17 @@ public sealed class AppDefinitionQueryService : IAppDefinitionQueryService
         var list = await _versionRepo.ListByAppAsync(tenantId, id, includeSystemSnapshot, cancellationToken);
         return _mapper.Map<IReadOnlyList<AppVersionArchiveListItem>>(list);
     }
+
+    public async Task<AppVersionedSchemaSnapshotDto?> GetVersionSchemaSnapshotAsync(TenantId tenantId, long appId, long versionId, CancellationToken cancellationToken)
+    {
+        var archive = await _versionRepo.FindByIdAsync(tenantId, versionId, cancellationToken);
+        if (archive is null || archive.AppId != appId) return null;
+        return new AppVersionedSchemaSnapshotDto(
+            AppId: appId.ToString(),
+            VersionId: archive.Id.ToString(),
+            VersionLabel: archive.VersionLabel,
+            SchemaJson: archive.SchemaSnapshotJson,
+            ResourceSnapshotJson: archive.ResourceSnapshotJson,
+            CreatedAt: archive.CreatedAt);
+    }
 }

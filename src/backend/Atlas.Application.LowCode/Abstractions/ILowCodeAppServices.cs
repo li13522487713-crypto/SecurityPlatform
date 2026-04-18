@@ -19,6 +19,12 @@ public interface IAppDefinitionQueryService
 
     Task<AppSchemaSnapshotDto?> GetSchemaSnapshotAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// 获取指定历史版本的 Schema 快照（M14 完整支持）。
+    /// 数据来源：app_version_archive.schema_snapshot_json（创建快照时写入的不可变副本）+ resource_snapshot_json。
+    /// </summary>
+    Task<AppVersionedSchemaSnapshotDto?> GetVersionSchemaSnapshotAsync(TenantId tenantId, long appId, long versionId, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<AppVersionArchiveListItem>> ListVersionsAsync(
         TenantId tenantId,
         long id,

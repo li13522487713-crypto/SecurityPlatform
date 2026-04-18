@@ -59,20 +59,19 @@ public sealed class RuntimeSchemaController : ControllerBase
         return Ok(ApiResponse<AppSchemaSnapshotDto>.Ok(snapshot, HttpContext.TraceIdentifier));
     }
 
-    /// <summary>获取指定版本的 Schema 快照（M14 联动）。</summary>
+    /// <summary>
+    /// 获取指定版本的 Schema 快照（M08 → M14 完整支持）。
+    /// 返回 app_version_archive.schema_snapshot_json 不可变副本 + resource_snapshot_json，供运行时按版本回看 / 灰度回滚预览。
+    /// </summary>
     [HttpGet("versions/{versionId:long}/schema")]
-    public async Task<ActionResult<ApiResponse<AppSchemaSnapshotDto>>> GetVersionSchema(
+    public async Task<ActionResult<ApiResponse<AppVersionedSchemaSnapshotDto>>> GetVersionSchema(
         long appId,
         long versionId,
         CancellationToken cancellationToken)
     {
-        // M08 阶段：暂仅支持当前生效版本；指定版本快照在 M14 完整支持（含 ResourceSnapshot）。
-        // 这里返回当前 schema + 提示头，避免硬错。
-        _ = versionId;
         var tenantId = _tenantProvider.GetTenantId();
-        var snapshot = await _query.GetSchemaSnapshotAsync(tenantId, appId, cancellationToken)
-            ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{appId}");
-        Response.Headers["X-Atlas-Lowcode-Version-Note"] = "M08 stub: returns current schema; full versioned snapshot in M14";
-        return Ok(ApiResponse<AppSchemaSnapshotDto>.Ok(snapshot, HttpContext.TraceIdentifier));
+        var snapshot = await _query.GetVersionSchemaSnapshotAsync(tenantId, appId, versionId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"版本不存在：app={appId} version={versionId}");
+        return Ok(ApiResponse<AppVersionedSchemaSnapshotDto>.Ok(snapshot, HttpContext.TraceIdentifier));
     }
 }
