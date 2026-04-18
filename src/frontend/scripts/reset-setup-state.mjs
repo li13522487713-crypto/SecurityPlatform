@@ -36,6 +36,32 @@ const appSetupStatePath = "src/backend/Atlas.AppHost/app-setup-state.json";
 
 function stopRelevantProcesses() {
   if (process.platform !== "win32") {
+    // Linux/macOS：通过端口 -> PID 强制结束 5001 / 5002 / 5181 / 5182 上的监听进程，
+    // 避免上一轮 dotnet PlatformHost / AppHost / vite dev server 残留导致 setup 状态被复用。
+    const ports = [5001, 5002, 5181, 5182];
+    const killed = new Set();
+    for (const port of ports) {
+      try {
+        const out = execFileSync("lsof", ["-ti", `:${port}`], { encoding: "utf8" }).trim();
+        if (!out) continue;
+        for (const pidText of out.split(/\s+/)) {
+          const pid = Number.parseInt(pidText, 10);
+          if (Number.isFinite(pid) && pid > 0 && pid !== process.pid) {
+            try {
+              process.kill(pid, "SIGTERM");
+              killed.add(pid);
+            } catch {
+              // process already gone
+            }
+          }
+        }
+      } catch {
+        // lsof 没装 / 端口空闲 → 忽略
+      }
+    }
+    if (killed.size > 0) {
+      console.log(`[reset-setup-state] stopped ${killed.size} listener process(es): ${[...killed].join(", ")}`);
+    }
     return;
   }
 

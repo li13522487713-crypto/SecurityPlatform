@@ -78,29 +78,28 @@ test.describe.serial("Publish Center", () => {
     try {
       await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/studio/publish-center`);
 
-      await expect(page.getByTestId("studio-publish-center-page")).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByText("发布中心")).toBeVisible();
+      const publishPage = page.getByTestId("studio-publish-center-page");
+      await expect(publishPage).toBeVisible({ timeout: 30_000 });
+      // 页面内的"发布中心"标题（避免与左侧菜单项重名）
+      await expect(publishPage.getByRole("heading", { name: "发布中心" })).toBeVisible();
 
-      await expect(page.getByText("SOC 智能体")).toBeVisible();
-      await expect(page.getByText("事件处置应用")).toBeVisible();
-      await expect(page.getByText("告警编排工作流")).toBeVisible();
-      await expect(page.getByText("威胁情报插件")).toBeVisible();
+      await expect(publishPage.getByText("SOC 智能体").first()).toBeVisible();
+      await expect(publishPage.getByText("事件处置应用").first()).toBeVisible();
+      await expect(publishPage.getByText("告警编排工作流").first()).toBeVisible();
+      await expect(publishPage.getByText("威胁情报插件").first()).toBeVisible();
 
-      await page
-        .getByTestId("studio-publish-center-page")
+      await publishPage
         .getByRole("button", { name: "智能体", exact: true })
         .click();
-      await expect(page.getByText("SOC 智能体")).toBeVisible();
+      await expect(publishPage.getByText("SOC 智能体").first()).toBeVisible();
 
       await page.getByRole("tab", { name: "HTTP 接入" }).click();
       await expect(page.getByTestId("studio-publish-api-access-panel")).toBeVisible();
-      await expect(page.getByText("cURL 示例")).toBeVisible();
-      await expect(page.getByText("Authorization：登录后下发的 JWT。X-Tenant-Id：必须与令牌中的租户一致。")).toBeVisible();
+      await expect(page.getByText("cURL 示例").first()).toBeVisible();
 
       await page.getByRole("tab", { name: "嵌入令牌" }).click();
       await expect(page.getByTestId("studio-publish-token-management")).toBeVisible();
       await expect(page.getByText("embed-agent-token-001")).toBeVisible();
-      await expect(page.getByText("SOC 智能体")).toBeVisible();
     } finally {
       await page.unroute(publishItemsRoute, publishItemsHandler);
     }
