@@ -23,8 +23,13 @@ public static class ExternalConnectorsServiceCollectionExtensions
     /// 2. 注册 ILocalUserDirectory 桥接实现（PlatformHost 中桥接到 IUserAccountRepository）；
     /// 3. 注册 IConnectorJwtIssuer 桥接实现（PlatformHost 中桥接到 JwtAuthTokenService）；
     /// 4. 通过 AddWeComConnector / AddFeishuConnector 加挂 provider 实现 + HttpClientFactory 命名客户端。
+    ///
+    /// <paramref name="includeHostedServices"/> 控制是否在本进程内启用目录全量同步与回调重试两类后台 Job。
+    /// PlatformHost 默认开启；AppHost 等数据平面应传 false 避免重复执行造成数据竞态。
     /// </summary>
-    public static IServiceCollection AddExternalConnectorsCore(this IServiceCollection services)
+    public static IServiceCollection AddExternalConnectorsCore(
+        this IServiceCollection services,
+        bool includeHostedServices = true)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -52,9 +57,12 @@ public static class ExternalConnectorsServiceCollectionExtensions
         services.TryAddScoped<IConnectorCallbackInboxService, ConnectorCallbackInboxService>();
         services.TryAddScoped<IConnectorOAuthFlowService, ConnectorOAuthFlowService>();
 
-        services.AddSingleton<ExternalDirectoryRecurringSyncRunner>();
-        services.AddHostedService<ExternalDirectoryFullSyncHostedService>();
-        services.AddHostedService<ExternalCallbackInboxRetryHostedService>();
+        if (includeHostedServices)
+        {
+            services.AddSingleton<ExternalDirectoryRecurringSyncRunner>();
+            services.AddHostedService<ExternalDirectoryFullSyncHostedService>();
+            services.AddHostedService<ExternalCallbackInboxRetryHostedService>();
+        }
 
         // 注册审批通知 Sender：让现有 IApprovalNotificationSender 多渠道总线自动新增 WeCom / Feishu / DingTalk 三条路径。
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, WeComApprovalNotificationSender>();

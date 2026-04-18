@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using Atlas.AppHost;
+using Atlas.AppHost.ExternalConnectors;
 using Atlas.AppHost.Sdk.Health;
 using Atlas.Core.Setup;
 using Atlas.AppHost.Sdk.Hosting;
@@ -193,6 +194,7 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(Atlas.Application.Audit.Validators.AuditRecordValidator).Assembly,
     typeof(Atlas.Application.AgentTeam.Validators.AgentTeamCreateRequestValidator).Assembly,
     typeof(Atlas.Application.Workflow.Validators.PublishEventRequestValidator).Assembly,
+    typeof(Atlas.Application.ExternalConnectors.Validators.ManualBindingRequestValidator).Assembly,
     typeof(Atlas.Presentation.Shared.Validators.ChangePasswordViewModelValidator).Assembly,
 ]);
 
@@ -212,6 +214,9 @@ appServices.AddAtlasApplicationRuntime();
 builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
     .AddAtlasInfrastructurePlatform(builder.Configuration)
     .AddAtlasInfrastructureAppRuntime(builder.Configuration);
+
+// ─── External Collaboration Connectors（数据平面：仅装配 provider/节点/桥接，不跑后台 Job）───
+builder.Services.AddAppHostExternalConnectors();
 
 // 低代码 Preview Hub 推送服务（M08 S08-3）
 builder.Services.AddSingleton<Atlas.Presentation.Shared.Hubs.ILowCodePreviewBroadcaster, Atlas.Presentation.Shared.Hubs.LowCodePreviewBroadcaster>();
