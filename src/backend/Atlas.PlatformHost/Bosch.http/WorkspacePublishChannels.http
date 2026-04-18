@@ -60,3 +60,42 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 治理 M-G02-C2：渠道发布版本
+
+### 列出渠道发布历史（倒序）
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/releases?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 发布一次（不指定 publication 则取该 agent 最新活动 publication；connector 未注册时记录置 failed）
+# @name publishRelease
+POST {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/releases
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "agentId": "1001",
+  "agentPublicationId": null,
+  "releaseNote": "v1 web sdk 上线"
+}
+
+###
+@releaseId = {{publishRelease.response.body.$.data.id}}
+
+### 取一次发布详情
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/releases/{{releaseId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 回滚到指定历史发布（基于历史快照再发布一次；旧 active 置 rolled-back）
+POST {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/releases/rollback
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "targetReleaseId": "{{releaseId}}",
+  "releaseNote": "rollback to v1"
+}

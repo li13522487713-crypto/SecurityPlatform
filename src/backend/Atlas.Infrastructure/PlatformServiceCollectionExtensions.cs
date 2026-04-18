@@ -98,6 +98,11 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspacePublishChannelService,
             Atlas.Infrastructure.Services.Coze.WorkspacePublishChannelService>();
 
+        // 治理 M-G02-C2 (S1): 渠道发布版本与回滚
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WorkspaceChannelReleaseRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWorkspaceChannelReleaseService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.WorkspaceChannelReleaseService>();
+
         // Coze PRD Phase III - M4.4: 任务中心持久化（复用 EvaluationTask）。
         services.AddScoped<Atlas.Application.Coze.Abstractions.IWorkspaceTaskService,
             Atlas.Infrastructure.Services.Coze.WorkspaceTaskService>();

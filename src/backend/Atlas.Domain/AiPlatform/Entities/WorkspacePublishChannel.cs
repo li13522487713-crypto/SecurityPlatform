@@ -79,6 +79,7 @@ public sealed class WorkspacePublishChannel : TenantEntity
     [SugarColumn(Length = 256, IsNullable = false)]
     public string SupportedTargetsJson { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
     public DateTime? LastSyncAt { get; private set; }
 
     public DateTime CreatedAt { get; private set; }

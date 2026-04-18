@@ -1081,6 +1081,28 @@ DTO：
 - `status` ∈ `active | inactive | pending`
 - `supportedTargets` ⊂ `agent | app | workflow`（其它值会被静默剔除）
 
+### 治理 M-G02-C2：渠道发布版本与回滚
+
+> 在 `WorkspacePublishChannel` 之上引入「发布记录」一等实体 `WorkspaceChannelRelease`，
+> 以支持版本化下发与回滚。新发布默认调用 `IWorkspaceChannelConnector` 真实下发；
+> 未注册 connector 的部署不会抛 5xx，而是把记录置 `failed` 并写审计，便于运维回查。
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases?pageIndex&pageSize` → `ApiResponse<PagedResult<WorkspaceChannelReleaseDto>>`
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases/{releaseId}` → `ApiResponse<WorkspaceChannelReleaseDto>`
+- `POST /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases` body `WorkspaceChannelReleaseCreateRequest` → `ApiResponse<WorkspaceChannelReleaseDto>`
+- `POST /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/releases/rollback` body `WorkspaceChannelReleaseRollbackRequest` → `ApiResponse<WorkspaceChannelReleaseDto>`
+
+DTO：
+
+- `WorkspaceChannelReleaseDto { id, workspaceId, channelId, agentId?, agentPublicationId?, releaseNo, status, publicMetadataJson?, releaseNote?, connectorMessage?, rolledBackFromReleaseId?, releasedByUserId, releasedAt, createdAt, supersededAt? }`
+- `WorkspaceChannelReleaseCreateRequest { agentId?, agentPublicationId?, releaseNote? }`
+- `WorkspaceChannelReleaseRollbackRequest { targetReleaseId, releaseNote? }`
+
+`status` 状态机：`pending → active | failed`；`active → superseded`（被新发布顶掉）或 `rolled-back`（被回滚顶掉）。
+`releaseNo` 在同一 `(workspaceId, channelId)` 内单调递增，从 1 开始。
+回滚时新记录的 `rolledBackFromReleaseId` 指向源记录；源记录本身仍保持原状态不变（因为新记录会以新的 ReleaseNo 落库并接管 active）。
+所有发布与回滚均写审计：`CHANNEL_RELEASE_PUBLISH` / `CHANNEL_RELEASE_ROLLBACK`，`target` 字段记录 `channel:{id}/release:{id}` 与 connector 反馈摘要。
+
 ### 安全与权限（M2）
 
 - 视图操作 `Permission:ai-workspace:view`，写入操作 `Permission:ai-workspace:update`。
