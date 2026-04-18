@@ -133,7 +133,9 @@ public enum WorkflowNodeType
     /// 将 Atlas 私有 Imageflow 映射到 67（紧跟 MemoryDelete=66）。
     /// 上游 ID 15 由前端 mapper 在 schema 序列化阶段做单向 67↔15 映射。
     /// </summary>
-    Imageflow = 67
+    Imageflow = 67,
+    /// <summary>D6：自然语言转 SQL/查询条件——通过 LLM 把自然语言转成 JSON clauses，再走标准 DatabaseQuery 执行。</summary>
+    DatabaseNl2Sql = 71
 }
 
 /// <summary>

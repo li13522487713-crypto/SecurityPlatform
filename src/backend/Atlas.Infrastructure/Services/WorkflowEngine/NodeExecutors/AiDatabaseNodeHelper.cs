@@ -57,6 +57,20 @@ internal static class AiDatabaseNodeHelper
             : AiDatabaseAccessPolicy.For(entity, context.UserId, context.ChannelId);
     }
 
+    /// <summary>D3：加载数据库 schema JSON——给 Coercer 与节点表单使用。</summary>
+    public static async Task<string?> LoadSchemaAsync(
+        ISqlSugarClient db,
+        Atlas.Core.Tenancy.TenantId tenantId,
+        long databaseId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await db.Queryable<AiDatabase>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == databaseId)
+            .Select(x => new { x.TableSchema })
+            .FirstAsync(cancellationToken);
+        return entity?.TableSchema;
+    }
+
     public static List<DbClause> ResolveClauses(IReadOnlyDictionary<string, JsonElement> config)
     {
         if (!VariableResolver.TryGetConfigValue(config, "clauseGroup", out var raw) ||

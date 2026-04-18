@@ -44,6 +44,18 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "KnowledgeIndexer 当前仅支持 fileId 导入。");
         }
 
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "Knowledge.Index",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?>
+            {
+                ["kb.id"] = knowledgeId,
+                ["kb.file_id"] = fileId
+            });
+
         var fileName = context.GetConfigString("fileName", $"doc-{fileId}.txt");
         var contentType = context.GetConfigString("contentType", "text/plain");
         var fileSizeBytes = context.GetConfigInt64("fileSizeBytes", 0L);
@@ -72,6 +84,14 @@ public sealed class KnowledgeIndexerNodeExecutor : INodeExecutor
         outputs["document_id"] = JsonSerializer.SerializeToElement(document.Id);
         outputs["knowledge_id"] = JsonSerializer.SerializeToElement(knowledgeId);
         outputs["status"] = VariableResolver.CreateStringElement("indexed");
+        await AiNodeObservability.WriteAuditAsync(
+            context.ServiceProvider,
+            context.TenantId,
+            context.UserId,
+            "knowledge_node.index",
+            "success",
+            $"kb:{knowledgeId}/doc:{document.Id}/file:{fileId}/node:{context.Node.Key}",
+            cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }
 }

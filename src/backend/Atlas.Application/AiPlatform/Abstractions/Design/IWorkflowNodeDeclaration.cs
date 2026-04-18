@@ -23,4 +23,10 @@ public interface IWorkflowNodeDeclaration
     string ConfigSchemaJson { get; }
 
     WorkflowNodeUiMetadata UiMeta { get; }
+
+    /// <summary>
+    /// D9/K8：节点表单元数据（formMeta）—— JSON 数组，描述属性面板字段（label、type、enum 等）。
+    /// 缺省 / null 时前端按 ConfigSchemaJson 生成默认表单。
+    /// </summary>
+    string? FormMetaJson { get; }
 }

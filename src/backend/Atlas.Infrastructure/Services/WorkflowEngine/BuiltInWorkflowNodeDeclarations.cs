@@ -23,6 +23,8 @@ internal sealed class StaticWorkflowNodeDeclaration : IWorkflowNodeDeclaration
     public required string ConfigSchemaJson { get; init; }
 
     public required WorkflowNodeUiMetadata UiMeta { get; init; }
+
+    public string? FormMetaJson { get; init; }
 }
 
 internal static class BuiltInWorkflowNodeDeclarations
@@ -63,6 +65,7 @@ internal static class BuiltInWorkflowNodeDeclarations
         Create(WorkflowNodeType.DatabaseUpdate, "DatabaseUpdate", "数据库更新", "database", "更新数据库记录。", [In("input"), Out("output")], "#3B82F6"),
         Create(WorkflowNodeType.DatabaseDelete, "DatabaseDelete", "数据库删除", "database", "删除数据库记录。", [In("input"), Out("output")], "#3B82F6"),
         Create(WorkflowNodeType.DatabaseCustomSql, "DatabaseCustomSql", "自定义SQL", "database", "执行自定义 SQL。", [In("input"), Out("output")], "#3B82F6"),
+        Create(WorkflowNodeType.DatabaseNl2Sql, "DatabaseNl2Sql", "自然语言查询", "database", "通过 LLM 把自然语言转为 JSON 查询计划，再走标准 DatabaseQuery 执行。", [In("input"), Out("output")], "#3B82F6"),
 
         Create(WorkflowNodeType.CreateConversation, "CreateConversation", "创建会话", "conversation", "创建新会话。", [In("input"), Out("conversation_id")], "#EC4899"),
         Create(WorkflowNodeType.ConversationList, "ConversationList", "查询会话列表", "conversation", "查询会话列表。", [In("input"), Out("conversations")], "#EC4899"),
@@ -286,6 +289,13 @@ internal static class BuiltInWorkflowNodeDeclarations
             WorkflowNodeType.DatabaseCustomSql => CreateConfig(
                 ("databaseInfoId", 0),
                 ("sqlTemplate", string.Empty)),
+            WorkflowNodeType.DatabaseNl2Sql => CreateConfig(
+                ("databaseInfoId", 0),
+                ("prompt", "{{input.message}}"),
+                ("provider", string.Empty),
+                ("model", string.Empty),
+                ("limit", 100),
+                ("outputKey", "db_rows")),
             WorkflowNodeType.CreateConversation => CreateConfig(
                 ("title", string.Empty),
                 ("userId", 0),
@@ -356,7 +366,86 @@ internal static class BuiltInWorkflowNodeDeclarations
             UiMeta = new WorkflowNodeUiMetadata(
                 Icon: $"workflow/{key}.svg",
                 Color: color,
-                SupportsBatch: supportsBatch)
+                SupportsBatch: supportsBatch),
+            FormMetaJson = BuildFormMeta(type)
+        };
+    }
+
+    /// <summary>
+    /// D9/K8：返回节点表单元数据 JSON（属性面板字段）。仅对 DB / KB / NL2SQL 节点提供详细 formMeta，
+    /// 其余节点返回 null（前端按 ConfigSchemaJson 自动生成）。
+    /// </summary>
+    private static string? BuildFormMeta(WorkflowNodeType type)
+    {
+        return type switch
+        {
+            WorkflowNodeType.DatabaseQuery =>
+                "[" +
+                "{\"key\":\"databaseInfoId\",\"label\":\"数据库\",\"type\":\"ai_database_picker\",\"required\":true}," +
+                "{\"key\":\"queryFields\",\"label\":\"查询字段\",\"type\":\"field_multiselect\",\"source\":\"databaseInfoId.fields\"}," +
+                "{\"key\":\"clauseGroup\",\"label\":\"过滤条件\",\"type\":\"clause_group\",\"source\":\"databaseInfoId.fields\"}," +
+                "{\"key\":\"limit\",\"label\":\"返回上限\",\"type\":\"number\",\"min\":1,\"max\":5000,\"default\":100}," +
+                "{\"key\":\"outputKey\",\"label\":\"输出变量名\",\"type\":\"string\",\"default\":\"db_rows\"}" +
+                "]",
+            WorkflowNodeType.DatabaseInsert =>
+                "[" +
+                "{\"key\":\"databaseInfoId\",\"label\":\"数据库\",\"type\":\"ai_database_picker\",\"required\":true}," +
+                "{\"key\":\"rows\",\"label\":\"插入行（JSON 数组或对象）\",\"type\":\"json_array\",\"source\":\"databaseInfoId.fields\"}," +
+                "{\"key\":\"injectUserContext\",\"label\":\"注入当前用户/渠道\",\"type\":\"boolean\",\"default\":true,\"hint\":\"SingleUser/Channel 模式下自动写入 ownerUserId、channelId\"}" +
+                "]",
+            WorkflowNodeType.DatabaseUpdate =>
+                "[" +
+                "{\"key\":\"databaseInfoId\",\"label\":\"数据库\",\"type\":\"ai_database_picker\",\"required\":true}," +
+                "{\"key\":\"updateFields\",\"label\":\"更新字段\",\"type\":\"field_value_map\",\"source\":\"databaseInfoId.fields\"}," +
+                "{\"key\":\"clauseGroup\",\"label\":\"过滤条件\",\"type\":\"clause_group\",\"source\":\"databaseInfoId.fields\"}" +
+                "]",
+            WorkflowNodeType.DatabaseDelete =>
+                "[" +
+                "{\"key\":\"databaseInfoId\",\"label\":\"数据库\",\"type\":\"ai_database_picker\",\"required\":true}," +
+                "{\"key\":\"clauseGroup\",\"label\":\"过滤条件\",\"type\":\"clause_group\",\"source\":\"databaseInfoId.fields\",\"required\":true}" +
+                "]",
+            WorkflowNodeType.DatabaseCustomSql =>
+                "[" +
+                "{\"key\":\"databaseInfoId\",\"label\":\"数据库\",\"type\":\"ai_database_picker\",\"required\":true}," +
+                "{\"key\":\"sqlTemplate\",\"label\":\"SQL 模板\",\"type\":\"sql_editor\",\"required\":true,\"hint\":\"禁止 ;/--//* 与 DROP/TRUNCATE/ALTER\"}" +
+                "]",
+            WorkflowNodeType.DatabaseNl2Sql =>
+                "[" +
+                "{\"key\":\"databaseInfoId\",\"label\":\"数据库\",\"type\":\"ai_database_picker\",\"required\":true}," +
+                "{\"key\":\"prompt\",\"label\":\"自然语言查询\",\"type\":\"string_template\",\"required\":true,\"default\":\"{{input.message}}\"}," +
+                "{\"key\":\"provider\",\"label\":\"LLM Provider\",\"type\":\"string\"}," +
+                "{\"key\":\"model\",\"label\":\"模型\",\"type\":\"string\",\"default\":\"gpt-4o-mini\"}," +
+                "{\"key\":\"limit\",\"label\":\"返回上限\",\"type\":\"number\",\"min\":1,\"max\":5000,\"default\":100}," +
+                "{\"key\":\"outputKey\",\"label\":\"输出变量名\",\"type\":\"string\",\"default\":\"db_rows\"}" +
+                "]",
+            WorkflowNodeType.KnowledgeRetriever =>
+                "[" +
+                "{\"key\":\"knowledgeIds\",\"label\":\"知识库\",\"type\":\"knowledge_picker\",\"multiple\":true,\"required\":true}," +
+                "{\"key\":\"query\",\"label\":\"查询语句\",\"type\":\"string_template\",\"required\":true,\"default\":\"{{input.message}}\"}," +
+                "{\"key\":\"topK\",\"label\":\"Top-K\",\"type\":\"number\",\"min\":1,\"max\":50,\"default\":5}," +
+                "{\"key\":\"minScore\",\"label\":\"最低相似度\",\"type\":\"number\",\"min\":0,\"max\":1,\"step\":0.05,\"default\":0.2}," +
+                "{\"key\":\"tags\",\"label\":\"标签过滤\",\"type\":\"tag_multiselect\"}," +
+                "{\"key\":\"ownerFilter\",\"label\":\"Owner 过滤\",\"type\":\"string\",\"hint\":\"可选；非空时仅检索 owner=该值 的切片\"}" +
+                "]",
+            WorkflowNodeType.KnowledgeIndexer =>
+                "[" +
+                "{\"key\":\"knowledgeId\",\"label\":\"知识库\",\"type\":\"knowledge_picker\",\"required\":true}," +
+                "{\"key\":\"fileId\",\"label\":\"文件 ID\",\"type\":\"file_picker\",\"required\":true}," +
+                "{\"key\":\"fileName\",\"label\":\"文件名\",\"type\":\"string\"}," +
+                "{\"key\":\"contentType\",\"label\":\"MIME 类型\",\"type\":\"string\"}," +
+                "{\"key\":\"chunkSize\",\"label\":\"切片大小\",\"type\":\"number\",\"min\":50,\"max\":4000,\"default\":500}," +
+                "{\"key\":\"overlap\",\"label\":\"切片重叠\",\"type\":\"number\",\"min\":0,\"max\":1000,\"default\":50}," +
+                "{\"key\":\"parseStrategy\",\"label\":\"解析策略\",\"type\":\"select\",\"options\":[" +
+                "{\"value\":\"quick\",\"label\":\"快速\"}," +
+                "{\"value\":\"precise\",\"label\":\"精确\"}" +
+                "],\"default\":\"quick\"}" +
+                "]",
+            WorkflowNodeType.KnowledgeDeleter =>
+                "[" +
+                "{\"key\":\"knowledgeId\",\"label\":\"知识库\",\"type\":\"knowledge_picker\",\"required\":true}," +
+                "{\"key\":\"documentId\",\"label\":\"文档 ID\",\"type\":\"number\"}" +
+                "]",
+            _ => null
         };
     }
 
@@ -563,6 +652,15 @@ internal static class BuiltInWorkflowNodeDeclarations
             {
                 ["databaseInfoId"] = "number",
                 ["sqlTemplate"] = "string"
+            }),
+            WorkflowNodeType.DatabaseNl2Sql => BuildObjectSchema(["databaseInfoId", "prompt"], new Dictionary<string, string>
+            {
+                ["databaseInfoId"] = "number",
+                ["prompt"] = "string",
+                ["provider"] = "string",
+                ["model"] = "string",
+                ["limit"] = "number",
+                ["outputKey"] = "string"
             }),
             WorkflowNodeType.CreateConversation => BuildObjectSchema(["userId", "agentId"], new Dictionary<string, string>
             {

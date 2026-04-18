@@ -28,8 +28,17 @@ public sealed class DatabaseDeleteNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "DatabaseDelete 缺少 databaseInfoId/databaseId。");
         }
 
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "AiDatabase.Delete",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?> { ["db.id"] = databaseId });
+
         var clauses = AiDatabaseNodeHelper.ResolveClauses(context.Node.Config);
-        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken);
+        var policy = await AiDatabaseNodeHelper.ResolvePolicyAsync(_db, context, databaseId, cancellationToken);
+        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken, policy);
         var deleteIds = records
             .Where(record =>
             {
@@ -52,6 +61,15 @@ public sealed class DatabaseDeleteNodeExecutor : INodeExecutor
         }
 
         outputs["affected_rows"] = JsonSerializer.SerializeToElement(affectedRows);
+        activity?.SetTag("db.affected_rows", affectedRows);
+        await AiNodeObservability.WriteAuditAsync(
+            context.ServiceProvider,
+            context.TenantId,
+            context.UserId,
+            "ai_database_node.delete",
+            "success",
+            $"db:{databaseId}/rows:{affectedRows}/node:{context.Node.Key}",
+            cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }
 }

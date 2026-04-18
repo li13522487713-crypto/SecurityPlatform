@@ -30,6 +30,18 @@ public sealed class KnowledgeRetrieverNodeExecutor : INodeExecutor
             return new NodeExecutionResult(true, outputs);
         }
 
+        using var activity = AiNodeObservability.StartNodeActivity(
+            "Knowledge.Retrieve",
+            context.TenantId,
+            context.UserId,
+            context.ChannelId,
+            context.Node.Key,
+            new Dictionary<string, object?>
+            {
+                ["kb.ids"] = string.Join(',', knowledgeIds),
+                ["kb.count"] = knowledgeIds.Count
+            });
+
         var queryTemplate = context.GetConfigString("query", "{{query}}");
         var query = context.ReplaceVariables(queryTemplate).Trim();
         if (string.IsNullOrWhiteSpace(query))
@@ -54,10 +66,21 @@ public sealed class KnowledgeRetrieverNodeExecutor : INodeExecutor
             cancellationToken);
 
         var filtered = results.OrderByDescending(x => x.Score).ToList();
-
-        outputs["documents"] = JsonSerializer.SerializeToElement(filtered);
+        var documentsJson = JsonSerializer.SerializeToElement(filtered);
+        // X2：默认对检索文档应用脱敏；可通过 config.maskSensitive=false 关闭。
+        var maskSensitive = context.GetConfigBoolean("maskSensitive", true);
+        outputs["documents"] = maskSensitive ? AiNodeObservability.Mask(documentsJson) : documentsJson;
         outputs["retrieved_count"] = JsonSerializer.SerializeToElement(filtered.Count);
         outputs["query"] = VariableResolver.CreateStringElement(query);
+        activity?.SetTag("kb.retrieved_count", filtered.Count);
+        await AiNodeObservability.WriteAuditAsync(
+            context.ServiceProvider,
+            context.TenantId,
+            context.UserId,
+            "knowledge_node.retrieve",
+            "success",
+            $"kb:[{string.Join(',', knowledgeIds)}]/hits:{filtered.Count}/node:{context.Node.Key}",
+            cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }
 
