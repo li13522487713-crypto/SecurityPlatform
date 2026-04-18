@@ -3,11 +3,12 @@ import { Layout, Select, Space, Typography, Empty, Spin, Banner, Tag } from '@do
 import * as signalR from '@microsoft/signalr';
 import QRCode from 'qrcode';
 import type { AppSchema, ComponentSchema, PageSchema } from '@atlas/lowcode-schema';
+import { t } from './i18n';
 
 const DEVICES = [
-  { value: 'desktop', label: '桌面 1280x800', width: 1280, height: 800 },
-  { value: 'tablet', label: 'iPad 1024x768', width: 1024, height: 768 },
-  { value: 'mobile', label: 'iPhone 375x812', width: 375, height: 812 }
+  { value: 'desktop', labelKey: 'preview.deviceDesktop' as const, width: 1280, height: 800 },
+  { value: 'tablet', labelKey: 'preview.deviceTablet' as const, width: 1024, height: 768 },
+  { value: 'mobile', labelKey: 'preview.deviceMobile' as const, width: 375, height: 812 }
 ];
 
 /**
@@ -90,11 +91,11 @@ export const PreviewShell: React.FC<{ appId: string }> = ({ appId }) => {
     <Layout style={{ height: '100vh' }}>
       <Layout.Header>
         <Space style={{ padding: '0 16px', height: 56, width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography.Title heading={6} style={{ margin: 0 }}>预览 #{appId}</Typography.Title>
+          <Typography.Title heading={6} style={{ margin: 0 }}>{t('preview.title')} #{appId}</Typography.Title>
           <Space>
             <Select value={device} onChange={(v) => setDevice(v as string)} style={{ width: 200 }}>
               {DEVICES.map((d) => (
-                <Select.Option key={d.value} value={d.value}>{d.label}</Select.Option>
+                <Select.Option key={d.value} value={d.value}>{t(d.labelKey)}</Select.Option>
               ))}
             </Select>
             {qr ? <img src={qr} alt="qr" style={{ width: 56, height: 56 }} /> : null}
@@ -115,7 +116,7 @@ export const PreviewShell: React.FC<{ appId: string }> = ({ appId }) => {
         >
           {loading && <Spin />}
           {error && <Banner type="danger" description={error} />}
-          {!loading && !error && !page && <Empty title="该应用暂无页面" />}
+          {!loading && !error && !page && <Empty title={t('preview.empty')} />}
           {!loading && !error && page && (
             <>
               <Typography.Title heading={6} style={{ margin: '0 0 12px' }}>
