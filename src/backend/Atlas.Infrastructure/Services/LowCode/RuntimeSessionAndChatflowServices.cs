@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
@@ -80,13 +82,15 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
 {
     private readonly ILowCodeSessionRepository _sessionRepo;
     private readonly IRuntimeMessageLogService _messageLog;
+    private readonly IDagWorkflowExecutionService _engine;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
 
-    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, IRuntimeMessageLogService messageLog, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, IRuntimeMessageLogService messageLog, IDagWorkflowExecutionService engine, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
     {
         _sessionRepo = sessionRepo;
         _messageLog = messageLog;
+        _engine = engine;
         _idGen = idGen;
         _auditWriter = auditWriter;
     }
@@ -96,27 +100,109 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
         var sessionId = await EnsureSessionAsync(tenantId, currentUserId, request.SessionId, cancellationToken);
         await _messageLog.RecordAsync(tenantId, "chatflow", "user_input", sessionId, null, null, null, JsonSerializer.Serialize(new { text = request.Input }), cancellationToken);
 
+        // M11 收尾：若 chatflowId 是 long（DAG 工作流 ID），桥接到 IDagWorkflowExecutionService.StreamRunAsync 真实流式；
+        // 否则走 mock pipeline（用于无后端 chatflow 时的本地调试）。
         var seq = 0;
-        // M11 默认实现：走简化 mock pipeline（tool_call → 多帧 message → final）；
-        // 真实模型对接由 docs/coze-api-gap.md 流式接入计划逐步替换为 IDagWorkflowExecutionService.StreamRunAsync。
-        seq++;
-        yield return Sse(new { kind = "tool_call", toolName = "compose", args = new { input = request.Input }, seq });
-
-        var tokens = SplitTokens(request.Input);
-        foreach (var token in tokens)
+        var bridged = false;
+        var hadFinal = false;
+        if (long.TryParse(request.ChatflowId, out var workflowId))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(30, cancellationToken);
-            seq++;
-            yield return Sse(new { kind = "message", content = token, markdown = true, seq });
+            var inputsJson = JsonSerializer.Serialize(new
+            {
+                input = request.Input,
+                sessionId,
+                context = request.Context
+            });
+            DagWorkflowRunRequest runReq = new(inputsJson, source: "lowcode-chatflow");
+            IAsyncEnumerable<SseEvent>? stream = null;
+            string? startError = null;
+            try
+            {
+                stream = _engine.StreamRunAsync(tenantId, workflowId, currentUserId, runReq, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                startError = ex.Message;
+            }
+            if (startError is not null)
+            {
+                seq++;
+                yield return Sse(new { kind = "error", message = $"启动 chatflow 引擎失败：{startError}", recoverable = false, seq });
+                await _messageLog.RecordAsync(tenantId, "chatflow", "error", sessionId, request.ChatflowId, null, null, JsonSerializer.Serialize(new { message = startError }), cancellationToken);
+            }
+            if (stream is not null)
+            {
+                bridged = true;
+                await foreach (var evt in stream.WithCancellation(cancellationToken))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var (kind, payload) = MapEngineEventToChunk(evt, ++seq);
+                    yield return payload;
+                    LowCodeOtelInstrumentation.ChatflowStreamChunk.Add(1,
+                        new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
+                        new KeyValuePair<string, object?>("lowcode.chatflow_id", request.ChatflowId),
+                        new KeyValuePair<string, object?>("chunk.kind", kind));
+                    if (kind == "final") hadFinal = true;
+                }
+            }
         }
 
-        seq++;
-        var outputs = new { final = string.Concat(tokens), inputEcho = request.Input };
-        yield return Sse(new { kind = "final", outputs, seq });
+        if (!bridged)
+        {
+            // 回退：mock pipeline（与 M11 初版一致），便于无 LLM 时仍可演示。
+            seq++;
+            yield return Sse(new { kind = "tool_call", toolName = "compose", args = new { input = request.Input }, seq });
+            var tokens = SplitTokens(request.Input);
+            foreach (var token in tokens)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(30, cancellationToken);
+                seq++;
+                yield return Sse(new { kind = "message", content = token, markdown = true, seq });
+            }
+            seq++;
+            var outputs = new { final = string.Concat(tokens), inputEcho = request.Input };
+            yield return Sse(new { kind = "final", outputs, seq });
+            hadFinal = true;
+        }
 
-        await _messageLog.RecordAsync(tenantId, "chatflow", "final", sessionId, null, null, null, JsonSerializer.Serialize(outputs), cancellationToken);
-        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.chatflow.invoke", "success", $"sess:{sessionId}:cf:{request.ChatflowId}", null, null), cancellationToken);
+        if (!hadFinal)
+        {
+            seq++;
+            yield return Sse(new { kind = "final", outputs = new { final = "" }, seq });
+        }
+
+        await _messageLog.RecordAsync(tenantId, "chatflow", "final", sessionId, request.ChatflowId, null, null, JsonSerializer.Serialize(new { bridged }), cancellationToken);
+        await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.runtime.chatflow.invoke", "success", $"sess:{sessionId}:cf:{request.ChatflowId}:bridged:{bridged}", null, null), cancellationToken);
+    }
+
+    /// <summary>
+    /// 把 IDagWorkflowExecutionService 的 SseEvent (event/data) 协议转为前端 ChatChunk 4 类（tool_call/message/error/final）。
+    /// </summary>
+    private static (string Kind, string Payload) MapEngineEventToChunk(SseEvent evt, int seq)
+    {
+        var ev = evt.Event?.ToLowerInvariant() ?? "message";
+        return ev switch
+        {
+            "tool_call" or "function_call" => ("tool_call", Sse(new { kind = "tool_call", toolName = "tool", args = SafeParse(evt.Data), seq })),
+            "error" => ("error", Sse(new { kind = "error", message = evt.Data, recoverable = false, seq })),
+            "final" or "complete" or "done" => ("final", Sse(new { kind = "final", outputs = SafeParseObject(evt.Data), seq })),
+            _ => ("message", Sse(new { kind = "message", content = evt.Data, markdown = true, seq })),
+        };
+    }
+
+    private static object? SafeParse(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return JsonSerializer.Deserialize<JsonElement>(json); }
+        catch { return new { raw = json }; }
+    }
+
+    private static object SafeParseObject(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new { final = "" };
+        try { return JsonSerializer.Deserialize<JsonElement>(json); }
+        catch { return new { final = json }; }
     }
 
     public async Task PauseAsync(TenantId tenantId, long currentUserId, string sessionId, CancellationToken cancellationToken)

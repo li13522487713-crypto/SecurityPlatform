@@ -69,7 +69,7 @@
 | `OpenAPIStreamRunFlow` | POST `/v1/workflow/stream_run` | Fallback | 同上。 |
 | `OpenAPIStreamResumeFlow` | POST `/v1/workflow/stream_resume` | Fallback | 同上。 |
 | `OpenAPIGetWorkflowRunHistory` | GET `/v1/workflow/get_run_history` | Fallback | M5 实现。 |
-| `OpenAPIChatFlowRun` | POST `/v1/workflows/chat` | **OK-via-runtime** | M11 已落地 `/api/runtime/chatflows/{id}:invoke`（SSE 4 类事件 + 中断/恢复/插入 + 多会话）。Coze 兼容层端点保留为壳层；真实 LLM 流式接入由 IDagWorkflowExecutionService.StreamRunAsync 在后续模型对接里完整化。 |
+| `OpenAPIChatFlowRun` | POST `/v1/workflows/chat` | **OK-via-runtime** | M11 已落地 `/api/runtime/chatflows/{id}:invoke`（SSE 4 类事件 + 中断/恢复/插入 + 多会话）。**M11 收尾（2026-04）已桥接 IDagWorkflowExecutionService.StreamRunAsync**：当 chatflowId 是合法 long（DAG 工作流 ID）时走真实流式；引擎事件按 (event,data) → ChatChunk(tool_call/message/error/final) 自动映射；非 long 时回退 mock pipeline 用于无 LLM 调试。 |
 | `OpenAPIGetWorkflowInfo` | GET `/v1/workflows/{id}` | Fallback | M5 实现。 |
 | `OpenAPICreateConversation` | POST `/v1/workflow/conversation/create` | Fallback | M3 ChatFlow 一并完成。 |
 
