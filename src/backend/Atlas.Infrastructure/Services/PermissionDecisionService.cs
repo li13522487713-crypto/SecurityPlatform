@@ -153,6 +153,19 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
         return _cache.RemoveByTagAsync(AtlasCacheTags.IdentityTenant(tenantId), cancellationToken).AsTask();
     }
 
+    public Task InvalidateResourceAsync(
+        TenantId tenantId,
+        string resourceType,
+        long resourceId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(resourceType) || resourceId <= 0)
+        {
+            return Task.CompletedTask;
+        }
+        return _cache.RemoveByTagAsync(AtlasCacheTags.Resource(tenantId, resourceType, resourceId), cancellationToken).AsTask();
+    }
+
     private async Task<PermissionDecisionCacheEntry> GetOrCreateAsync(
         TenantId tenantId,
         long userId,

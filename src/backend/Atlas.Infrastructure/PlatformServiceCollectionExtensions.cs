@@ -103,6 +103,10 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWorkspaceChannelReleaseService,
             Atlas.Infrastructure.Services.AiPlatform.Channels.WorkspaceChannelReleaseService>();
 
+        // 治理 M-G03-C2 (S5): 资源访问统一守卫（三级合并判定 + PDP 失效）
+        services.AddScoped<Atlas.Application.Authorization.IResourceAccessGuard,
+            Atlas.Infrastructure.Services.Authorization.ResourceAccessGuard>();
+
         // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
         services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuApiClient,

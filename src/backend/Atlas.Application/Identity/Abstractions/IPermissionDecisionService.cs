@@ -32,4 +32,15 @@ public interface IPermissionDecisionService
     Task InvalidateTenantAsync(
         TenantId tenantId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 治理 M-G03-C1：当资源 ACL 变更时（owner 更换、协作者增删、角色权限改），
+    /// 失效该资源相关的 PDP 缓存。一般在 ResourceAccessGuard 内部按 tag 处理；
+    /// 这里暴露顶层 API 是为 Service 层在更新 WorkspaceResourcePermission 后显式调用。
+    /// </summary>
+    Task InvalidateResourceAsync(
+        TenantId tenantId,
+        string resourceType,
+        long resourceId,
+        CancellationToken cancellationToken = default);
 }
