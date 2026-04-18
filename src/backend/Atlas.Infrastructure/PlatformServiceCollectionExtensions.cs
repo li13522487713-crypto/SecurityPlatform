@@ -127,6 +127,13 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Identity.Abstractions.IOrganizationMemberService,
             Atlas.Infrastructure.Services.OrganizationMemberService>();
 
+        // 治理 M-G06-C1..C2 (S11): 成员邀请 + 邮件 + 状态机
+        services.AddScoped<Atlas.Infrastructure.Repositories.MemberInvitationRepository>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IInvitationEmailSender,
+            Atlas.Infrastructure.Services.Notifications.SmtpInvitationEmailSender>();
+        services.AddScoped<Atlas.Application.Identity.Abstractions.IMemberInvitationService,
+            Atlas.Infrastructure.Services.MemberInvitationService>();
+
         // 治理 M-G02-C5..C8 (S3): 飞书渠道凭据 + ApiClient + Connector + Credential 服务
         services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.FeishuChannelCredentialRepository>();
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IFeishuApiClient,

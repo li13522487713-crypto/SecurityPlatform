@@ -237,6 +237,8 @@ public static class AtlasOrmSchemaCatalog
         typeof(Organization),
         // 治理 M-G05-C4 (S10): 组织成员
         typeof(OrganizationMember),
+        // 治理 M-G06-C1 (S11): 成员邀请
+        typeof(MemberInvitation),
         // Coze PRD Phase III - M4.2: 文件夹与对象的关联表
         typeof(WorkspaceFolderItem),
         // Coze PRD Phase III - M4.5: 平台运营内容（首页 banner / tutorial / announcement / recommended）
