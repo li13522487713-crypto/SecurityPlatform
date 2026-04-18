@@ -19,7 +19,9 @@
 | 新增 SignalR Hub | 3 个 | `/hubs/lowcode-debug` / `/hubs/lowcode-collab` / `/hubs/lowcode-preview` |
 | 新增 DAG 节点 | 20 个 | M12 触发器 3 + M20 上游对齐 8 + Atlas 私有图像视频 6 + Memory 拆分 3 |
 | 新增契约文档 | 12 份 | `docs/lowcode-*-spec.md` 系列 |
-| 累计前端单测 | **≥ 183** | A 75 + B 58 + C 33 + D 17 |
+| 累计前端单测（lowcode 包） | **199** | 21 个包按现行实测：schema 22 / canvas 22 / expression 40 / action-runtime 28 / property-forms 9 / runtime-web 6 / web-sdk 7 / workflow-adapter 13 / 其它 9 个包 52 |
+| 累计后端单测（非集成） | **337** | xUnit 全绿 |
+| WorkflowCore 单测 | **4** | 全绿 |
 | 后端 build | **0 警告 0 错误** | 全程严守 |
 | i18n 检查 | **0 缺失** | 全程严守 |
 
