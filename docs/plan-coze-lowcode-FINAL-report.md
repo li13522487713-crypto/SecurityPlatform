@@ -79,13 +79,19 @@
 - `generate / {id}/batch / {id}/compose / {id}/decompose / quota`（M19）
 - `orchestration/plan`（M20）
 
-## 5. 已知简化与延后项
+## 5. 已知简化与延后项（最终收尾后剩余）
 
-- **真实 LLM 接入**：M11 chatflow stream / M19 AI 生成均用 mock pipeline，等待 ModelRegistry 后续模型对接。接口与 DTO 已稳定。
-- **Hangfire 异步任务调度**：M09 SubmitAsync 用 fire-and-forget；M10 GC Job 已接 Hangfire 周期任务；M19 批量执行同步实现，可在后续切到 Hangfire 队列。
-- **Yjs 离线快照**：M16 服务端 LowCodeCollabSnapshotCache 内存暂存；后续接 Hangfire 10 分钟周期落 AppVersionArchive。
-- **Webview 域名验证**：M12 简化为模拟通过；M17 上线时接外部 DNS TXT / HTTP 文件真实校验。
-- **凭据加密**：M18 plugin auth 用 base64 占位；M14 等保密钥加密接入后替换。
+> 已完成的收尾项（2026-04 收尾批次）：
+> - ✅ **M11 chatflow 真实流式**：RuntimeChatflowService 桥接 `IDagWorkflowExecutionService.StreamRunAsync`，SseEvent → ChatChunk 4 类自动映射；非 long chatflowId 回退 mock。
+> - ✅ **M16 Yjs 离线快照**：`LowCodeCollabSnapshotJob` Hangfire 每 10 分钟落 `AppVersionArchive(systemSnapshot=true)` + 自动 Cache.Clear。
+> - ✅ **M19 异步/批量 Hangfire**：`RuntimeWorkflowBackgroundJob` 接管 fire-and-forget 与同步循环；进度通过 `RuntimeWorkflowAsyncJob.UpdateProgress` 定期回写。
+> - ✅ **M13 OTel 全链路**：`LowCodeOtelInstrumentation` 暴露 ActivitySource 'lowcode.runtime' + Meter 5 项指标，AppHost 已 AddSource/AddMeter。
+
+剩余延后项：
+
+- **真实 LLM 接入（M19 AI 生成）**：M19 generate 仍走模板/关键字推断；接 ModelRegistry 后端模型对接里替换。接口与 DTO 已稳定。
+- **Webview 域名验证**：M12 简化为模拟通过；M17 上线时接外部 DNS TXT / HTTP 文件真实校验（需要外部网络）。
+- **凭据加密**：M18 plugin auth 用 base64 占位；待 M14 等保密钥加密层接入后替换为真实加密。
 - **Taro 真实 build**：M15 lowcode-mini-host 提供 H5 预览壳；微信 / 抖音小程序 build 由运维流水线 `taro build --type weapp/tt` 触发。
 
 ## 6. 后续维护建议
