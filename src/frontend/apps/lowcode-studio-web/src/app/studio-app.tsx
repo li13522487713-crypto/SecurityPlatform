@@ -5,6 +5,7 @@ import { LeftPanel } from '../panels/left-panel';
 import { RightInspector } from '../panels/right-inspector';
 import { TopToolbar } from '../panels/top-toolbar';
 import { CanvasViewport } from '../panels/canvas-viewport';
+import { ShortcutPanel } from '../panels/shortcut-panel';
 import { t } from '../i18n';
 
 const { Header, Sider, Content } = Layout;
@@ -49,6 +50,7 @@ export const StudioApp: React.FC = () => {
           </Tabs>
         </Sider>
       </Layout>
+      <ShortcutPanel />
     </Layout>
   );
 };
