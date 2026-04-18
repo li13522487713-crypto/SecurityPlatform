@@ -2,7 +2,8 @@
 
 > 来源：`coze_lowcode_replica_architecture_report_v3.docx` 第 22–26 章（Assistant 体系、账号与权限、缺口清单、官方来源、最终判断）。  
 > 基线仓库：`Atlas.SecurityPlatform`（本 worktree）。  
-> 衔接文档：[plan-coze-lowcode-FINAL-report.md](plan-coze-lowcode-FINAL-report.md)（M01–M20 低代码已完工）、[plan-coze-atlas-round2.md](plan-coze-atlas-round2.md)（AiPlatform 落仓骨架）。
+> 衔接文档：[plan-coze-lowcode-FINAL-report.md](plan-coze-lowcode-FINAL-report.md)（M01–M20 低代码已完工）、[plan-coze-atlas-round2.md](plan-coze-atlas-round2.md)（AiPlatform 落仓骨架）。  
+> **执行视图**：本路线图的里程碑被拆为 16 个 session × 43 case 调度，详见 [plan-coze-governance-sessions.md](plan-coze-governance-sessions.md)。
 
 本文档只做 **Gap 调研矩阵 + 可执行路线图**，不替代 [contracts.md](contracts.md) 与低代码系列 spec。
 
