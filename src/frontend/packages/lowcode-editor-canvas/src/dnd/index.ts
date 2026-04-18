@@ -6,13 +6,27 @@
  * 包含：
  *  - DnDDescriptor：单个可拖拽节点的描述
  *  - canDrop：父子约束检查
- *  - reorderInParent / moveAcrossParent：组件树操作（基于 immer）
+ *  - reorderInParent / moveAcrossParent：组件树操作（不可变更新；以 cloneTree 替代 immer，
+ *    以避开 Draft<ComponentSchema> 的递归类型实例化深度上限 TS2589）
  *
  * 实际 useDraggable / useDroppable / DragOverlay 由 lowcode-studio-web (M07) 在 React 层装配。
  */
 
-import { produce } from 'immer';
 import type { ComponentMeta, ComponentSchema } from '@atlas/lowcode-schema';
+
+/**
+ * 浅克隆 ComponentSchema 子树（保持引用替换的不可变性，等价于 immer.produce 但避开
+ * Draft<ComponentSchema> 的过深递归类型实例化 TS2589）。
+ */
+function cloneTree(node: ComponentSchema): ComponentSchema {
+  return {
+    ...node,
+    children: node.children ? node.children.map(cloneTree) : undefined,
+    slots: node.slots
+      ? Object.fromEntries(Object.entries(node.slots).map(([k, v]) => [k, v.map(cloneTree)]))
+      : undefined
+  };
+}
 
 export interface DnDDescriptor {
   /** 组件实例 ID（树中唯一）。*/
@@ -56,25 +70,25 @@ export function findNode(root: ComponentSchema, id: string): { node: ComponentSc
 
 /** 在同一父组件内重新排序。*/
 export function reorderInParent(root: ComponentSchema, parentId: string, fromIndex: number, toIndex: number): ComponentSchema {
-  return produce(root, (draft) => {
-    const target = parentId === draft.id ? draft : findInDraft(draft, parentId);
-    if (!target || !target.children) return;
-    const [moved] = target.children.splice(fromIndex, 1);
-    if (moved) target.children.splice(toIndex, 0, moved);
-  });
+  const draft = cloneTree(root);
+  const target = parentId === draft.id ? draft : findInDraft(draft, parentId);
+  if (!target || !target.children) return draft;
+  const [moved] = target.children.splice(fromIndex, 1);
+  if (moved) target.children.splice(toIndex, 0, moved);
+  return draft;
 }
 
 /** 跨父组件移动节点。*/
 export function moveAcrossParent(root: ComponentSchema, fromParentId: string, fromIndex: number, toParentId: string, toIndex: number): ComponentSchema {
-  return produce(root, (draft) => {
-    const fromParent = fromParentId === draft.id ? draft : findInDraft(draft, fromParentId);
-    const toParent = toParentId === draft.id ? draft : findInDraft(draft, toParentId);
-    if (!fromParent?.children || !toParent) return;
-    const [moved] = fromParent.children.splice(fromIndex, 1);
-    if (!moved) return;
-    if (!toParent.children) toParent.children = [];
-    toParent.children.splice(toIndex, 0, moved);
-  });
+  const draft = cloneTree(root);
+  const fromParent = fromParentId === draft.id ? draft : findInDraft(draft, fromParentId);
+  const toParent = toParentId === draft.id ? draft : findInDraft(draft, toParentId);
+  if (!fromParent?.children || !toParent) return draft;
+  const [moved] = fromParent.children.splice(fromIndex, 1);
+  if (!moved) return draft;
+  if (!toParent.children) toParent.children = [];
+  toParent.children.splice(toIndex, 0, moved);
+  return draft;
 }
 
 function findInDraft(node: ComponentSchema, id: string): ComponentSchema | null {

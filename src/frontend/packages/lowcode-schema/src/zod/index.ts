@@ -194,7 +194,9 @@ const ResiliencePolicyZod = z.object({
 });
 
 // 因 ActionSchema 自递归（onError 内允许嵌套），用 z.lazy 处理。
-type ZAction = z.infer<typeof ActionSchemaZod>;
+// 不能用 `z.infer<typeof ActionSchemaZod>`（会触发 TS2456 自引用），改用显式类型
+// 复用 src/types/action.ts 已定义的 ActionSchema 联合类型。
+import type { ActionSchema as ZAction } from '../types/action';
 const ActionBaseZodShape = {
   id: z.string().optional(),
   when: z.string().optional(),
