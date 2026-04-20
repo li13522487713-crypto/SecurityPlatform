@@ -94,12 +94,12 @@ public sealed class WeComDirectoryProvider : IExternalDirectoryProvider
         };
         try
         {
+            var runtime = WeComApiClient.ResolveRuntime(context);
             var resp = await _api.SendAuthorizedGetAsync<WeComDepartmentMemberDetailResponse>(context, "/cgi-bin/user/list", query, cancellationToken).ConfigureAwait(false);
             if (resp.UserList is null || resp.UserList.Length == 0)
             {
                 return Array.Empty<ExternalUserProfile>();
             }
-            var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
             return resp.UserList.Where(u => !string.IsNullOrEmpty(u.UserId))
                 .Select(u => MapUser(runtime.CorpId, u))
                 .ToArray();
@@ -115,8 +115,8 @@ public sealed class WeComDirectoryProvider : IExternalDirectoryProvider
         var query = new Dictionary<string, string>(StringComparer.Ordinal) { ["userid"] = externalUserId };
         try
         {
+            var runtime = WeComApiClient.ResolveRuntime(context);
             var detail = await _api.SendAuthorizedGetAsync<WeComUserDetailResponse>(context, "/cgi-bin/user/get", query, cancellationToken).ConfigureAwait(false);
-            var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
             return MapUser(runtime.CorpId, detail);
         }
         catch (ConnectorException ex) when (IsScopeDenied(ex))

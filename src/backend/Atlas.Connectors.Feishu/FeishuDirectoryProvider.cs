@@ -30,6 +30,7 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
 
     public async Task<IReadOnlyList<ExternalDepartment>> ListChildDepartmentsAsync(ConnectorContext context, string parentExternalDepartmentId, bool recursive, CancellationToken cancellationToken)
     {
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var collected = new List<ExternalDepartment>();
         string? pageToken = null;
         do
@@ -49,7 +50,6 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
                 {
                     break;
                 }
-                var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
                 foreach (var d in items)
                 {
                     collected.Add(MapDepartment(runtime, d));
@@ -69,6 +69,7 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
 
     public async Task<ExternalDepartment?> GetDepartmentAsync(ConnectorContext context, string externalDepartmentId, CancellationToken cancellationToken)
     {
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var path = $"/open-apis/contact/v3/departments/{Uri.EscapeDataString(externalDepartmentId)}?department_id_type=open_department_id";
         try
         {
@@ -77,7 +78,6 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
             {
                 return null;
             }
-            var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
             return MapDepartment(runtime, resp.Data.Department);
         }
         catch (ConnectorException ex) when (IsScopeDenied(ex))
@@ -94,6 +94,7 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
 
     public async Task<IReadOnlyList<ExternalUserProfile>> ListDepartmentMembersAsync(ConnectorContext context, string externalDepartmentId, bool recursive, CancellationToken cancellationToken)
     {
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var collected = new List<ExternalUserProfile>();
         string? pageToken = null;
         var idType = _options.DefaultUserIdType;
@@ -115,7 +116,6 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
                 {
                     break;
                 }
-                var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
                 foreach (var u in items)
                 {
                     collected.Add(MapUser(runtime, u));
@@ -146,6 +146,7 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
 
     public async Task<ExternalUserProfile?> GetUserAsync(ConnectorContext context, string externalUserId, CancellationToken cancellationToken)
     {
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var idType = _options.DefaultUserIdType;
         var path = $"/open-apis/contact/v3/users/{Uri.EscapeDataString(externalUserId)}?user_id_type={idType}";
         try
@@ -156,7 +157,6 @@ public sealed class FeishuDirectoryProvider : IExternalDirectoryProvider
             {
                 return null;
             }
-            var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
             return MapUser(runtime, user);
         }
         catch (ConnectorException ex) when (IsScopeDenied(ex))

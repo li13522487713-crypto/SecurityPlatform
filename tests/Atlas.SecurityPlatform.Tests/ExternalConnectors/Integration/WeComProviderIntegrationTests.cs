@@ -3,6 +3,7 @@ using System.Text.Json;
 using Atlas.Connectors.Core;
 using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Core.Caching;
+using Atlas.Connectors.Core.Models;
 using Atlas.Connectors.WeCom;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,6 +30,7 @@ public sealed class WeComProviderIntegrationTests : IDisposable
     private readonly WeComApiClient _apiClient;
     private readonly WeComOptions _options;
     private readonly InMemoryConnectorTokenCache _tokenCache;
+    private readonly WeComRuntimeOptions _runtime;
 
     public WeComProviderIntegrationTests()
     {
@@ -45,20 +47,25 @@ public sealed class WeComProviderIntegrationTests : IDisposable
         httpFactory.CreateClient(WeComApiClient.HttpClientName).Returns(_ => new HttpClient { BaseAddress = new Uri(_server.Url!) });
 
         _tokenCache = new InMemoryConnectorTokenCache(new MemoryCache(new MemoryCacheOptions()));
+        _runtime = new WeComRuntimeOptions
+        {
+            CorpId = "wxCorpTest",
+            CorpSecret = "secretTest",
+            AgentId = "1000003",
+            CallbackBaseUrl = $"{_server.Url}/cb",
+            TrustedDomains = new[] { "platform.example.com" },
+        };
 
-        var runtimeResolver = Substitute.For<IConnectorRuntimeOptionsResolver<WeComRuntimeOptions>>();
-        runtimeResolver.ResolveAsync(Arg.Any<ConnectorContext>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(new WeComRuntimeOptions
-            {
-                CorpId = "wxCorpTest",
-                CorpSecret = "secretTest",
-                AgentId = "1000003",
-                CallbackBaseUrl = $"{_server.Url}/cb",
-                TrustedDomains = new[] { "platform.example.com" },
-            }));
-
-        _apiClient = new WeComApiClient(httpFactory, _tokenCache, runtimeResolver, Options.Create(_options), NullLogger<WeComApiClient>.Instance);
+        _apiClient = new WeComApiClient(httpFactory, _tokenCache, Options.Create(_options), NullLogger<WeComApiClient>.Instance);
     }
+
+    private ConnectorContext NewContext() => new()
+    {
+        TenantId = Guid.NewGuid(),
+        ProviderInstanceId = 1,
+        ProviderType = WeComConnectorMarker.ProviderType,
+        RuntimeOptions = _runtime,
+    };
 
     [Fact]
     public async Task GetAccessToken_HitsGetTokenEndpoint_AndCachesValue()
@@ -72,7 +79,7 @@ public sealed class WeComProviderIntegrationTests : IDisposable
                 expires_in = 7200,
             }));
 
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "wecom" };
+        var ctx = NewContext();
         var t1 = await _apiClient.GetAccessTokenAsync(ctx, CancellationToken.None);
         var t2 = await _apiClient.GetAccessTokenAsync(ctx, CancellationToken.None);
 
@@ -106,7 +113,7 @@ public sealed class WeComProviderIntegrationTests : IDisposable
                 ["days"] = new() { ValueType = "number", RawJson = "3" },
             },
         };
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "wecom" };
+        var ctx = NewContext();
         var result = await provider.SubmitApprovalAsync(ctx, submission, CancellationToken.None);
 
         Assert.Equal("202604180001", result.ExternalInstanceId);
@@ -127,7 +134,7 @@ public sealed class WeComProviderIntegrationTests : IDisposable
             }));
 
         var provider = new WeComApprovalProvider(_apiClient);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "wecom" };
+        var ctx = NewContext();
         var page = await provider.ListRecentInstanceIdsAsync(ctx, new ExternalApprovalInstanceIdQuery
         {
             StartTime = DateTimeOffset.UtcNow.AddDays(-1),
@@ -152,7 +159,7 @@ public sealed class WeComProviderIntegrationTests : IDisposable
             }));
 
         var provider = new WeComDirectoryProvider(_apiClient, NullLogger<WeComDirectoryProvider>.Instance);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "wecom" };
+        var ctx = NewContext();
         var depts = await provider.ListChildDepartmentsAsync(ctx, "1", recursive: false, CancellationToken.None);
 
         Assert.Empty(depts);
@@ -170,7 +177,7 @@ public sealed class WeComProviderIntegrationTests : IDisposable
             }));
 
         var provider = new WeComDirectoryProvider(_apiClient, NullLogger<WeComDirectoryProvider>.Instance);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "wecom" };
+        var ctx = NewContext();
         var ids = await provider.ListDepartmentMemberIdsAsync(ctx, "100", recursive: false, CancellationToken.None);
 
         // 60020 has been added to WeComErrorMapper as VisibilityScopeDenied → degraded silently.

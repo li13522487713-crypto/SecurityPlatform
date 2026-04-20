@@ -1,7 +1,8 @@
+using Atlas.Application.ExternalConnectors.Abstractions;
+using Atlas.Application.ExternalConnectors.Repositories;
 using Atlas.Connectors.Core;
 using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Core.Models;
-using Atlas.Application.ExternalConnectors.Repositories;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.ExternalConnectors.Enums;
 
@@ -21,12 +22,18 @@ public abstract class ExternalSendMessageNodeBase : IConnectorPluginNode
 {
     private readonly IConnectorRegistry _registry;
     private readonly IExternalIdentityProviderRepository _providerRepository;
+    private readonly IConnectorRuntimeOptionsAccessor _runtimeOptionsAccessor;
     private readonly ITenantProvider _tenantProvider;
 
-    protected ExternalSendMessageNodeBase(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, ITenantProvider tenantProvider)
+    protected ExternalSendMessageNodeBase(
+        IConnectorRegistry registry,
+        IExternalIdentityProviderRepository providerRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
+        ITenantProvider tenantProvider)
     {
         _registry = registry;
         _providerRepository = providerRepository;
+        _runtimeOptionsAccessor = runtimeOptionsAccessor;
         _tenantProvider = tenantProvider;
     }
 
@@ -49,7 +56,8 @@ public abstract class ExternalSendMessageNodeBase : IConnectorPluginNode
             }
             var providerType = provider.ProviderType.ToProviderType();
             var messaging = _registry.GetMessaging(providerType);
-            var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
+            var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
+            var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType, RuntimeOptions = runtime };
 
             var userIds = context.Inputs.GetValueOrDefault("userIds") as IEnumerable<object> ?? Array.Empty<object>();
             var recipient = new ExternalMessageRecipient { UserIds = userIds.Select(u => u?.ToString() ?? string.Empty).Where(s => !string.IsNullOrEmpty(s)).ToArray() };
@@ -91,8 +99,8 @@ public abstract class ExternalSendMessageNodeBase : IConnectorPluginNode
 
 public sealed class WeComSendMessageNode : ExternalSendMessageNodeBase
 {
-    public WeComSendMessageNode(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, ITenantProvider tenantProvider)
-        : base(registry, providerRepository, tenantProvider) { }
+    public WeComSendMessageNode(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor, ITenantProvider tenantProvider)
+        : base(registry, providerRepository, runtimeOptionsAccessor, tenantProvider) { }
     protected override ConnectorProviderType TargetProviderType => ConnectorProviderType.WeCom;
     public override string NodeType => "wecom_send_message";
     public override string DisplayName => "发送企微消息";
@@ -100,8 +108,8 @@ public sealed class WeComSendMessageNode : ExternalSendMessageNodeBase
 
 public sealed class FeishuSendMessageNode : ExternalSendMessageNodeBase
 {
-    public FeishuSendMessageNode(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, ITenantProvider tenantProvider)
-        : base(registry, providerRepository, tenantProvider) { }
+    public FeishuSendMessageNode(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor, ITenantProvider tenantProvider)
+        : base(registry, providerRepository, runtimeOptionsAccessor, tenantProvider) { }
     protected override ConnectorProviderType TargetProviderType => ConnectorProviderType.Feishu;
     public override string NodeType => "feishu_send_message";
     public override string DisplayName => "发送飞书消息";
@@ -109,8 +117,8 @@ public sealed class FeishuSendMessageNode : ExternalSendMessageNodeBase
 
 public sealed class DingTalkSendMessageNode : ExternalSendMessageNodeBase
 {
-    public DingTalkSendMessageNode(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, ITenantProvider tenantProvider)
-        : base(registry, providerRepository, tenantProvider) { }
+    public DingTalkSendMessageNode(IConnectorRegistry registry, IExternalIdentityProviderRepository providerRepository, IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor, ITenantProvider tenantProvider)
+        : base(registry, providerRepository, runtimeOptionsAccessor, tenantProvider) { }
     protected override ConnectorProviderType TargetProviderType => ConnectorProviderType.DingTalk;
     public override string NodeType => "dingtalk_send_message";
     public override string DisplayName => "发送钉钉工作通知";

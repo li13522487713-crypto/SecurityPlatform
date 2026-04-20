@@ -2,7 +2,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Atlas.Connectors.Core;
-using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Core.Caching;
 using Atlas.Connectors.Feishu.Internal;
 using Microsoft.Extensions.Logging;
@@ -11,9 +10,11 @@ using Microsoft.Extensions.Options;
 namespace Atlas.Connectors.Feishu;
 
 /// <summary>
-/// 飞书 OpenAPI 客户端。负责：
+/// 飞书 OpenAPI 客户端。注册为 Singleton，无任何 Scoped 依赖。
+/// 调用方（Application 层）须先通过 IConnectorRuntimeOptionsAccessor 解析 FeishuRuntimeOptions，
+/// 再塞进 ConnectorContext.RuntimeOptions 传入；本客户端只负责：
 /// 1. 通过 IHttpClientFactory 命名 feishu-api 拿 HttpClient；
-/// 2. tenant_access_token 缓存与刷新；
+/// 2. tenant_access_token / user_access_token 缓存与刷新；
 /// 3. 提供低层 SendTenantGet / SendTenantPost / SendUserGet 方法。
 /// </summary>
 public sealed class FeishuApiClient
@@ -22,31 +23,42 @@ public sealed class FeishuApiClient
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConnectorTokenCache _tokenCache;
-    private readonly IConnectorRuntimeOptionsResolver<FeishuRuntimeOptions> _runtimeResolver;
     private readonly FeishuOptions _options;
     private readonly ILogger<FeishuApiClient> _logger;
 
     public FeishuApiClient(
         IHttpClientFactory httpClientFactory,
         IConnectorTokenCache tokenCache,
-        IConnectorRuntimeOptionsResolver<FeishuRuntimeOptions> runtimeResolver,
         IOptions<FeishuOptions> options,
         ILogger<FeishuApiClient> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _tokenCache = tokenCache ?? throw new ArgumentNullException(nameof(tokenCache));
-        _runtimeResolver = runtimeResolver ?? throw new ArgumentNullException(nameof(runtimeResolver));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Task<FeishuRuntimeOptions> ResolveRuntimeOptionsAsync(ConnectorContext context, CancellationToken cancellationToken)
-        => _runtimeResolver.ResolveAsync(context, cancellationToken);
+    /// <summary>
+    /// 从 ConnectorContext.RuntimeOptions 强类型 cast 出 FeishuRuntimeOptions。
+    /// 类型不匹配（即调用方未先经 Application 层 Accessor 解析）抛 ProviderConfigInvalid。
+    /// </summary>
+    public static FeishuRuntimeOptions ResolveRuntime(ConnectorContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.RuntimeOptions is not FeishuRuntimeOptions runtime)
+        {
+            throw new ConnectorException(
+                ConnectorErrorCodes.ProviderConfigInvalid,
+                $"ConnectorContext.RuntimeOptions is not FeishuRuntimeOptions (actual: {context.RuntimeOptions?.GetType().FullName ?? "null"}). Caller must resolve runtime via IConnectorRuntimeOptionsAccessor before invoking Feishu provider.",
+                FeishuConnectorMarker.ProviderType);
+        }
+        return runtime;
+    }
 
     public async Task<string> GetTenantAccessTokenAsync(ConnectorContext context, CancellationToken cancellationToken)
     {
-        var runtime = await _runtimeResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
-        var cacheKey = BuildTenantTokenCacheKey(context.TenantId, context.ProviderInstanceId);
+        var runtime = ResolveRuntime(context);
+        var cacheKey = BuildTenantTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint());
 
         var cached = await _tokenCache.GetOrCreateAsync(cacheKey, async ct =>
         {
@@ -60,7 +72,8 @@ public sealed class FeishuApiClient
 
     public async Task InvalidateTenantAccessTokenAsync(ConnectorContext context, CancellationToken cancellationToken)
     {
-        var cacheKey = BuildTenantTokenCacheKey(context.TenantId, context.ProviderInstanceId);
+        var runtime = ResolveRuntime(context);
+        var cacheKey = BuildTenantTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint());
         await _tokenCache.RemoveAsync(cacheKey, cancellationToken).ConfigureAwait(false);
     }
 
@@ -75,7 +88,7 @@ public sealed class FeishuApiClient
         string redirectUri,
         CancellationToken cancellationToken)
     {
-        var runtime = await _runtimeResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = ResolveRuntime(context);
         var body = new FeishuUserTokenExchangeBody
         {
             GrantType = "authorization_code",
@@ -92,7 +105,7 @@ public sealed class FeishuApiClient
     /// </summary>
     internal async Task<FeishuUserAccessTokenData> RefreshUserAccessTokenAsync(ConnectorContext context, string refreshToken, CancellationToken cancellationToken)
     {
-        var runtime = await _runtimeResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = ResolveRuntime(context);
         var body = new FeishuUserTokenExchangeBody
         {
             GrantType = "refresh_token",
@@ -116,6 +129,7 @@ public sealed class FeishuApiClient
             return;
         }
 
+        var runtime = ResolveRuntime(context);
         var now = DateTimeOffset.UtcNow;
         var accessTtlSeconds = Math.Max(60, data.ExpiresIn - _options.UserTokenSafetyMarginSeconds);
         var refreshExpiresAtUtc = data.RefreshExpiresIn > 0 ? now.AddSeconds(data.RefreshExpiresIn) : now.AddDays(30);
@@ -126,7 +140,7 @@ public sealed class FeishuApiClient
             refreshExpiresAtUtc,
             externalUserId);
 
-        var cacheKey = BuildUserTokenCacheKey(context.TenantId, context.ProviderInstanceId, externalUserId);
+        var cacheKey = BuildUserTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint(), externalUserId);
         var entryTtl = refreshExpiresAtUtc - now;
         if (entryTtl <= TimeSpan.Zero)
         {
@@ -146,7 +160,8 @@ public sealed class FeishuApiClient
             return null;
         }
 
-        var cacheKey = BuildUserTokenCacheKey(context.TenantId, context.ProviderInstanceId, externalUserId);
+        var runtime = ResolveRuntime(context);
+        var cacheKey = BuildUserTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint(), externalUserId);
         var cached = await _tokenCache.GetAsync<FeishuCachedUserToken>(cacheKey, cancellationToken).ConfigureAwait(false);
         if (cached is null)
         {
@@ -371,11 +386,11 @@ public sealed class FeishuApiClient
         return client;
     }
 
-    private static string BuildTenantTokenCacheKey(Guid tenantId, long providerInstanceId)
-        => $"connector:feishu:{tenantId:D}:{providerInstanceId}:tenant_access_token";
+    private static string BuildTenantTokenCacheKey(Guid tenantId, long providerInstanceId, string credentialFingerprint)
+        => $"connector:feishu:{tenantId:D}:{providerInstanceId}:{credentialFingerprint}:tenant_access_token";
 
-    private static string BuildUserTokenCacheKey(Guid tenantId, long providerInstanceId, string externalUserId)
-        => $"connector:feishu:{tenantId:D}:{providerInstanceId}:user_access_token:{externalUserId}";
+    private static string BuildUserTokenCacheKey(Guid tenantId, long providerInstanceId, string credentialFingerprint, string externalUserId)
+        => $"connector:feishu:{tenantId:D}:{providerInstanceId}:{credentialFingerprint}:user_access_token:{externalUserId}";
 }
 
 internal sealed record FeishuCachedToken(string AccessToken, DateTimeOffset ExpiresAtUtc);

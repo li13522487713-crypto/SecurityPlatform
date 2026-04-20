@@ -35,6 +35,8 @@ public static class ExternalConnectorsServiceCollectionExtensions
 
         services.AddConnectorsCore();
 
+        services.TryAddScoped<IConnectorRuntimeOptionsAccessor, ConnectorRuntimeOptionsAccessor>();
+
         services.TryAddScoped<IExternalIdentityProviderRepository, ExternalIdentityProviderRepository>();
         services.TryAddScoped<IExternalIdentityBindingRepository, ExternalIdentityBindingRepository>();
         services.TryAddScoped<IExternalIdentityBindingAuditRepository, ExternalIdentityBindingAuditRepository>();

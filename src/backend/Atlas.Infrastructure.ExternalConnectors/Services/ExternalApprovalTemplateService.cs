@@ -18,6 +18,7 @@ public sealed class ExternalApprovalTemplateService : IExternalApprovalTemplateS
     private readonly IExternalIdentityProviderRepository _providerRepository;
     private readonly IExternalApprovalTemplateCacheRepository _cacheRepository;
     private readonly IExternalApprovalTemplateMappingRepository _mappingRepository;
+    private readonly IConnectorRuntimeOptionsAccessor _runtimeOptionsAccessor;
     private readonly ITenantProvider _tenantProvider;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly TimeProvider _timeProvider;
@@ -27,6 +28,7 @@ public sealed class ExternalApprovalTemplateService : IExternalApprovalTemplateS
         IExternalIdentityProviderRepository providerRepository,
         IExternalApprovalTemplateCacheRepository cacheRepository,
         IExternalApprovalTemplateMappingRepository mappingRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ITenantProvider tenantProvider,
         IIdGeneratorAccessor idGenerator,
         TimeProvider timeProvider)
@@ -35,6 +37,7 @@ public sealed class ExternalApprovalTemplateService : IExternalApprovalTemplateS
         _providerRepository = providerRepository;
         _cacheRepository = cacheRepository;
         _mappingRepository = mappingRepository;
+        _runtimeOptionsAccessor = runtimeOptionsAccessor;
         _tenantProvider = tenantProvider;
         _idGenerator = idGenerator;
         _timeProvider = timeProvider;
@@ -54,7 +57,8 @@ public sealed class ExternalApprovalTemplateService : IExternalApprovalTemplateS
 
         var providerType = provider.ProviderType.ToProviderType();
         var approvalProvider = _registry.GetApproval(providerType);
-        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
+        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType, RuntimeOptions = runtime };
         var template = await approvalProvider.GetTemplateAsync(ctx, externalTemplateId, cancellationToken).ConfigureAwait(false);
 
         var controlsJson = JsonSerializer.Serialize(template.Controls);

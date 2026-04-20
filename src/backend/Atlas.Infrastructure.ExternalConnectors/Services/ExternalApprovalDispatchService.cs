@@ -22,6 +22,7 @@ public sealed class ExternalApprovalDispatchService : IExternalApprovalDispatchS
     private readonly IExternalApprovalTemplateMappingRepository _mappingRepository;
     private readonly IExternalApprovalInstanceLinkRepository _linkRepository;
     private readonly IExternalIdentityProviderRepository _providerRepository;
+    private readonly IConnectorRuntimeOptionsAccessor _runtimeOptionsAccessor;
     private readonly ITenantProvider _tenantProvider;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly TimeProvider _timeProvider;
@@ -32,6 +33,7 @@ public sealed class ExternalApprovalDispatchService : IExternalApprovalDispatchS
         IExternalApprovalTemplateMappingRepository mappingRepository,
         IExternalApprovalInstanceLinkRepository linkRepository,
         IExternalIdentityProviderRepository providerRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ITenantProvider tenantProvider,
         IIdGeneratorAccessor idGenerator,
         TimeProvider timeProvider,
@@ -41,6 +43,7 @@ public sealed class ExternalApprovalDispatchService : IExternalApprovalDispatchS
         _mappingRepository = mappingRepository;
         _linkRepository = linkRepository;
         _providerRepository = providerRepository;
+        _runtimeOptionsAccessor = runtimeOptionsAccessor;
         _tenantProvider = tenantProvider;
         _idGenerator = idGenerator;
         _timeProvider = timeProvider;
@@ -73,7 +76,8 @@ public sealed class ExternalApprovalDispatchService : IExternalApprovalDispatchS
 
         var providerType = provider.ProviderType.ToProviderType();
         var approvalProvider = _registry.GetApproval(providerType);
-        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
+        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType, RuntimeOptions = runtime };
 
         // 把 mapping 的 ExternalTemplateId 强制注入 payload，避免 fanout handler 因不知道模板 ID 而传空。
         var resolvedPayload = payload with { ExternalTemplateId = mapping.ExternalTemplateId };
@@ -121,7 +125,17 @@ public sealed class ExternalApprovalDispatchService : IExternalApprovalDispatchS
 
             var providerType = provider.ProviderType.ToProviderType();
             var approval = _registry.GetApproval(providerType);
-            var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
+            object runtime;
+            try
+            {
+                runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
+            }
+            catch (ConnectorException ex)
+            {
+                _logger.LogWarning(ex, "External approval runtime resolve failed for provider {ProviderId}.", provider.Id);
+                continue;
+            }
+            var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType, RuntimeOptions = runtime };
 
             try
             {

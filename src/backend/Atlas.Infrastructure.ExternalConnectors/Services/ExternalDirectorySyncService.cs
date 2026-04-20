@@ -25,6 +25,7 @@ public sealed class ExternalDirectorySyncService : IExternalDirectorySyncService
     private readonly IExternalDirectoryMirrorRepository _mirrorRepository;
     private readonly IExternalDirectorySyncJobRepository _jobRepository;
     private readonly IExternalDirectorySyncDiffRepository _diffRepository;
+    private readonly IConnectorRuntimeOptionsAccessor _runtimeOptionsAccessor;
     private readonly ITenantProvider _tenantProvider;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly TimeProvider _timeProvider;
@@ -36,6 +37,7 @@ public sealed class ExternalDirectorySyncService : IExternalDirectorySyncService
         IExternalDirectoryMirrorRepository mirrorRepository,
         IExternalDirectorySyncJobRepository jobRepository,
         IExternalDirectorySyncDiffRepository diffRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ITenantProvider tenantProvider,
         IIdGeneratorAccessor idGenerator,
         TimeProvider timeProvider,
@@ -46,6 +48,7 @@ public sealed class ExternalDirectorySyncService : IExternalDirectorySyncService
         _mirrorRepository = mirrorRepository;
         _jobRepository = jobRepository;
         _diffRepository = diffRepository;
+        _runtimeOptionsAccessor = runtimeOptionsAccessor;
         _tenantProvider = tenantProvider;
         _idGenerator = idGenerator;
         _timeProvider = timeProvider;
@@ -64,11 +67,13 @@ public sealed class ExternalDirectorySyncService : IExternalDirectorySyncService
 
         var providerType = provider.ProviderType.ToProviderType();
         var directory = _registry.GetDirectory(providerType);
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
         var connectorContext = new ConnectorContext
         {
             TenantId = tenantId.Value,
             ProviderInstanceId = provider.Id,
             ProviderType = providerType,
+            RuntimeOptions = runtime,
         };
 
         var now = _timeProvider.GetUtcNow();
@@ -134,11 +139,13 @@ public sealed class ExternalDirectorySyncService : IExternalDirectorySyncService
 
         var providerType = provider.ProviderType.ToProviderType();
         var directory = _registry.GetDirectory(providerType);
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
         var connectorContext = new ConnectorContext
         {
             TenantId = tenantId.Value,
             ProviderInstanceId = provider.Id,
             ProviderType = providerType,
+            RuntimeOptions = runtime,
         };
 
         var now = _timeProvider.GetUtcNow();

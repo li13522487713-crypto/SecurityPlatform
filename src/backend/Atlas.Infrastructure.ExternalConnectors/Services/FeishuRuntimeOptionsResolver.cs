@@ -2,7 +2,6 @@ using System.Text.Json;
 using Atlas.Application.ExternalConnectors.Abstractions;
 using Atlas.Application.ExternalConnectors.Repositories;
 using Atlas.Connectors.Core;
-using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Feishu;
 using Atlas.Domain.ExternalConnectors.Enums;
 
@@ -19,10 +18,10 @@ public sealed class FeishuRuntimeOptionsResolver : IConnectorRuntimeOptionsResol
         _secretProtector = secretProtector;
     }
 
-    public async Task<FeishuRuntimeOptions> ResolveAsync(ConnectorContext context, CancellationToken cancellationToken)
+    public async Task<FeishuRuntimeOptions> ResolveAsync(Guid tenantId, long providerInstanceId, CancellationToken cancellationToken)
     {
-        var entity = await _repository.GetByIdAsync(context.TenantId, context.ProviderInstanceId, cancellationToken).ConfigureAwait(false)
-            ?? throw new ConnectorException(ConnectorErrorCodes.ProviderNotFound, $"Feishu provider {context.ProviderInstanceId} not found in tenant {context.TenantId:D}.", FeishuConnectorMarker.ProviderType);
+        var entity = await _repository.GetByIdAsync(tenantId, providerInstanceId, cancellationToken).ConfigureAwait(false)
+            ?? throw new ConnectorException(ConnectorErrorCodes.ProviderNotFound, $"Feishu provider {providerInstanceId} not found in tenant {tenantId:D}.", FeishuConnectorMarker.ProviderType);
 
         if (entity.ProviderType != ConnectorProviderType.Feishu)
         {

@@ -1,4 +1,5 @@
 using Atlas.Application.Approval.Abstractions;
+using Atlas.Application.ExternalConnectors.Abstractions;
 using Atlas.Application.ExternalConnectors.Repositories;
 using Atlas.Connectors.Core;
 using Atlas.Connectors.Core.Abstractions;
@@ -20,17 +21,20 @@ public abstract class ExternalMessagingApprovalNotificationSenderBase : IApprova
     private readonly IConnectorRegistry _registry;
     private readonly IExternalIdentityProviderRepository _providerRepository;
     private readonly IExternalIdentityBindingRepository _bindingRepository;
+    private readonly IConnectorRuntimeOptionsAccessor _runtimeOptionsAccessor;
     private readonly ILogger _logger;
 
     protected ExternalMessagingApprovalNotificationSenderBase(
         IConnectorRegistry registry,
         IExternalIdentityProviderRepository providerRepository,
         IExternalIdentityBindingRepository bindingRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ILogger logger)
     {
         _registry = registry;
         _providerRepository = providerRepository;
         _bindingRepository = bindingRepository;
+        _runtimeOptionsAccessor = runtimeOptionsAccessor;
         _logger = logger;
     }
 
@@ -59,7 +63,17 @@ public abstract class ExternalMessagingApprovalNotificationSenderBase : IApprova
 
         var providerType = provider.ProviderType.ToProviderType();
         var messaging = _registry.GetMessaging(providerType);
-        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
+        object runtime;
+        try
+        {
+            runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ConnectorException ex)
+        {
+            _logger.LogWarning(ex, "External {ProviderType} runtime resolve failed for provider {ProviderId}; skip {Channel} notification.", providerType, provider.Id, SupportedChannel);
+            return false;
+        }
+        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType, RuntimeOptions = runtime };
         var card = new ExternalMessageCard
         {
             Title = title,
@@ -89,8 +103,9 @@ public sealed class WeComApprovalNotificationSender : ExternalMessagingApprovalN
         IConnectorRegistry registry,
         IExternalIdentityProviderRepository providerRepository,
         IExternalIdentityBindingRepository bindingRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ILogger<WeComApprovalNotificationSender> logger)
-        : base(registry, providerRepository, bindingRepository, logger) { }
+        : base(registry, providerRepository, bindingRepository, runtimeOptionsAccessor, logger) { }
 
     public override ApprovalNotificationChannel SupportedChannel => ApprovalNotificationChannel.WeCom;
 
@@ -103,8 +118,9 @@ public sealed class FeishuApprovalNotificationSender : ExternalMessagingApproval
         IConnectorRegistry registry,
         IExternalIdentityProviderRepository providerRepository,
         IExternalIdentityBindingRepository bindingRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ILogger<FeishuApprovalNotificationSender> logger)
-        : base(registry, providerRepository, bindingRepository, logger) { }
+        : base(registry, providerRepository, bindingRepository, runtimeOptionsAccessor, logger) { }
 
     public override ApprovalNotificationChannel SupportedChannel => ApprovalNotificationChannel.Feishu;
 
@@ -117,8 +133,9 @@ public sealed class DingTalkApprovalNotificationSender : ExternalMessagingApprov
         IConnectorRegistry registry,
         IExternalIdentityProviderRepository providerRepository,
         IExternalIdentityBindingRepository bindingRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ILogger<DingTalkApprovalNotificationSender> logger)
-        : base(registry, providerRepository, bindingRepository, logger) { }
+        : base(registry, providerRepository, bindingRepository, runtimeOptionsAccessor, logger) { }
 
     public override ApprovalNotificationChannel SupportedChannel => ApprovalNotificationChannel.DingTalk;
 

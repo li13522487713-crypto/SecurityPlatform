@@ -36,8 +36,8 @@ public sealed class WeComIdentityProvider : IExternalIdentityProvider
 
     public Uri BuildAuthorizationUrl(ConnectorContext context, string redirectUri, string state, IReadOnlyList<string>? scopes, CancellationToken cancellationToken)
     {
-        ValidateRedirectAgainstTrustedDomains(context, redirectUri).GetAwaiter().GetResult();
-        var runtime = _api.ResolveRuntimeOptionsAsync(context, cancellationToken).GetAwaiter().GetResult();
+        var runtime = WeComApiClient.ResolveRuntime(context);
+        ValidateRedirectAgainstTrustedDomains(runtime, redirectUri);
         var scope = scopes is { Count: > 0 } ? scopes[0] : _options.OAuthScope;
 
         // 企微 OAuth2 跳转：https://open.weixin.qq.com/connect/oauth2/authorize?appid=CORPID&redirect_uri=...&response_type=code&scope=snsapi_base&agentid=AGENTID&state=STATE#wechat_redirect
@@ -61,7 +61,8 @@ public sealed class WeComIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.OAuthCodeInvalid, "WeCom OAuth code missing.", ProviderType);
         }
 
-        await ValidateRedirectAgainstTrustedDomains(context, redirectUri).ConfigureAwait(false);
+        var runtime = WeComApiClient.ResolveRuntime(context);
+        ValidateRedirectAgainstTrustedDomains(runtime, redirectUri);
 
         var query = new Dictionary<string, string>(StringComparer.Ordinal) { ["code"] = code };
         var response = await _api.SendAuthorizedGetAsync<WeComGetUserInfoResponse>(context, "/cgi-bin/auth/getuserinfo", query, cancellationToken).ConfigureAwait(false);
@@ -71,7 +72,6 @@ public sealed class WeComIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.IdentityNotFound, "WeCom getuserinfo returned neither userid nor openid.", ProviderType);
         }
 
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
         var rawJson = JsonSerializer.Serialize(response);
 
         return new ExternalUserProfile
@@ -92,9 +92,9 @@ public sealed class WeComIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.IdentityNotFound, "WeCom user/get requires non-empty userid.", ProviderType);
         }
 
+        var runtime = WeComApiClient.ResolveRuntime(context);
         var query = new Dictionary<string, string>(StringComparer.Ordinal) { ["userid"] = externalUserId };
         var detail = await _api.SendAuthorizedGetAsync<WeComUserDetailResponse>(context, "/cgi-bin/user/get", query, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
 
         return new ExternalUserProfile
         {
@@ -153,7 +153,7 @@ public sealed class WeComIdentityProvider : IExternalIdentityProvider
         }
     }
 
-    private async Task ValidateRedirectAgainstTrustedDomains(ConnectorContext context, string redirectUri)
+    private void ValidateRedirectAgainstTrustedDomains(WeComRuntimeOptions runtime, string redirectUri)
     {
         if (string.IsNullOrWhiteSpace(redirectUri))
         {
@@ -165,7 +165,6 @@ public sealed class WeComIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.TrustedDomainMismatch, $"WeCom redirect uri '{redirectUri}' is not an absolute URI.", ProviderType);
         }
 
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, CancellationToken.None).ConfigureAwait(false);
         if (runtime.TrustedDomains.Count == 0)
         {
             // 显式未配置可信域名时，按企微生产建议拒绝；开发环境应通过 ExternalConnectors 配置补齐。
@@ -182,7 +181,7 @@ public sealed class WeComIdentityProvider : IExternalIdentityProvider
 
         throw new ConnectorException(
             ConnectorErrorCodes.TrustedDomainMismatch,
-            $"WeCom redirect host '{uri.Host}' is not in the trusted domain list of provider {context.ProviderInstanceId}.",
+            $"WeCom redirect host '{uri.Host}' is not in the trusted domain list (corp {runtime.CorpId}).",
             ProviderType);
     }
 }

@@ -23,6 +23,7 @@ public sealed class ExternalMessagingService : IExternalMessagingService
     private readonly IConnectorRegistry _registry;
     private readonly IExternalIdentityProviderRepository _providerRepository;
     private readonly IExternalMessageDispatchRepository _dispatchRepository;
+    private readonly IConnectorRuntimeOptionsAccessor _runtimeOptionsAccessor;
     private readonly ITenantProvider _tenantProvider;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly TimeProvider _timeProvider;
@@ -32,6 +33,7 @@ public sealed class ExternalMessagingService : IExternalMessagingService
         IConnectorRegistry registry,
         IExternalIdentityProviderRepository providerRepository,
         IExternalMessageDispatchRepository dispatchRepository,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ITenantProvider tenantProvider,
         IIdGeneratorAccessor idGenerator,
         TimeProvider timeProvider,
@@ -40,6 +42,7 @@ public sealed class ExternalMessagingService : IExternalMessagingService
         _registry = registry;
         _providerRepository = providerRepository;
         _dispatchRepository = dispatchRepository;
+        _runtimeOptionsAccessor = runtimeOptionsAccessor;
         _tenantProvider = tenantProvider;
         _idGenerator = idGenerator;
         _timeProvider = timeProvider;
@@ -59,7 +62,8 @@ public sealed class ExternalMessagingService : IExternalMessagingService
 
         var providerType = provider.ProviderType.ToProviderType();
         var messaging = _registry.GetMessaging(providerType);
-        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
+        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType, RuntimeOptions = runtime };
 
         var entity = new ExternalMessageDispatch(
             tenantId,
@@ -123,7 +127,8 @@ public sealed class ExternalMessagingService : IExternalMessagingService
             ?? throw new BusinessException("CONNECTOR_PROVIDER_NOT_FOUND", $"Provider {entity.ProviderId} not found.");
         var providerType = provider.ProviderType.ToProviderType();
         var messaging = _registry.GetMessaging(providerType);
-        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType };
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
+        var ctx = new ConnectorContext { TenantId = tenantId.Value, ProviderInstanceId = provider.Id, ProviderType = providerType, RuntimeOptions = runtime };
 
         // 用 dispatch entity 的快照重建上一次结果（企微 update_template_card 需要 response_code）
         var previous = new ExternalMessageDispatchResult

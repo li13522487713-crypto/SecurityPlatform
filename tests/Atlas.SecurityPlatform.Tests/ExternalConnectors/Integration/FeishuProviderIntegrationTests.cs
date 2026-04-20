@@ -29,6 +29,7 @@ public sealed class FeishuProviderIntegrationTests : IDisposable
     private readonly WireMockServer _server;
     private readonly FeishuApiClient _apiClient;
     private readonly InMemoryConnectorTokenCache _tokenCache;
+    private readonly FeishuRuntimeOptions _runtime;
 
     public FeishuProviderIntegrationTests()
     {
@@ -43,21 +44,26 @@ public sealed class FeishuProviderIntegrationTests : IDisposable
         httpFactory.CreateClient(FeishuApiClient.HttpClientName).Returns(_ => new HttpClient { BaseAddress = new Uri(_server.Url!) });
 
         _tokenCache = new InMemoryConnectorTokenCache(new MemoryCache(new MemoryCacheOptions()));
+        _runtime = new FeishuRuntimeOptions
+        {
+            AppId = "cli_app_id",
+            AppSecret = "app_secret",
+            TenantKey = "tenant_test",
+            CallbackBaseUrl = $"{_server.Url}/cb",
+            EventVerificationToken = "vt-test",
+            EventEncryptKey = "ek-test",
+        };
 
-        var runtimeResolver = Substitute.For<IConnectorRuntimeOptionsResolver<FeishuRuntimeOptions>>();
-        runtimeResolver.ResolveAsync(Arg.Any<ConnectorContext>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(new FeishuRuntimeOptions
-            {
-                AppId = "cli_app_id",
-                AppSecret = "app_secret",
-                TenantKey = "tenant_test",
-                CallbackBaseUrl = $"{_server.Url}/cb",
-                EventVerificationToken = "vt-test",
-                EventEncryptKey = "ek-test",
-            }));
-
-        _apiClient = new FeishuApiClient(httpFactory, _tokenCache, runtimeResolver, Options.Create(options), NullLogger<FeishuApiClient>.Instance);
+        _apiClient = new FeishuApiClient(httpFactory, _tokenCache, Options.Create(options), NullLogger<FeishuApiClient>.Instance);
     }
+
+    private ConnectorContext NewContext() => new()
+    {
+        TenantId = Guid.NewGuid(),
+        ProviderInstanceId = 1,
+        ProviderType = FeishuConnectorMarker.ProviderType,
+        RuntimeOptions = _runtime,
+    };
 
     [Fact]
     public async Task GetTenantAccessToken_HitsInternalEndpoint_AndCaches()
@@ -71,7 +77,7 @@ public sealed class FeishuProviderIntegrationTests : IDisposable
                 expire = 7200,
             }));
 
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "feishu" };
+        var ctx = NewContext();
         var t1 = await _apiClient.GetTenantAccessTokenAsync(ctx, CancellationToken.None);
         var t2 = await _apiClient.GetTenantAccessTokenAsync(ctx, CancellationToken.None);
 
@@ -94,7 +100,7 @@ public sealed class FeishuProviderIntegrationTests : IDisposable
             }));
 
         var provider = new FeishuApprovalProvider(_apiClient);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "feishu" };
+        var ctx = NewContext();
         var result = await provider.SubmitApprovalAsync(ctx, new ExternalApprovalSubmission
         {
             ApplicantExternalUserId = "ou_xxx",
@@ -119,7 +125,7 @@ public sealed class FeishuProviderIntegrationTests : IDisposable
             .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new { code = 0, msg = "ok", data = new { } }));
 
         var provider = new FeishuApprovalProvider(_apiClient);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "feishu" };
+        var ctx = NewContext();
         var ok = await provider.SyncThirdPartyInstanceAsync(ctx, new ExternalThirdPartyInstancePatch
         {
             ExternalInstanceId = "FS-INSTANCE-001",
@@ -147,7 +153,7 @@ public sealed class FeishuProviderIntegrationTests : IDisposable
             }));
 
         var provider = new FeishuMessagingProvider(_apiClient);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "feishu" };
+        var ctx = NewContext();
         var card = new ExternalMessageCard { Title = "测试卡片", Subtitle = "副标题", Content = "内容" };
         var recipient = new ExternalMessageRecipient { UserIds = new[] { "ou_xxx" } };
 

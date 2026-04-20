@@ -2,14 +2,13 @@ using System.Text.Json;
 using Atlas.Application.ExternalConnectors.Abstractions;
 using Atlas.Application.ExternalConnectors.Repositories;
 using Atlas.Connectors.Core;
-using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.DingTalk;
 using Atlas.Domain.ExternalConnectors.Enums;
 
 namespace Atlas.Infrastructure.ExternalConnectors.Services;
 
 /// <summary>
-/// 把 ConnectorContext 解析成 DingTalkRuntimeOptions。
+/// 把 (TenantId, ProviderInstanceId) 解析成 DingTalkRuntimeOptions。
 /// SecretEncrypted 中保存的 DingTalkSecretPayload JSON：{ AppSecret, CallbackToken, CallbackAesKey }。
 /// </summary>
 public sealed class DingTalkRuntimeOptionsResolver : IConnectorRuntimeOptionsResolver<DingTalkRuntimeOptions>
@@ -23,10 +22,10 @@ public sealed class DingTalkRuntimeOptionsResolver : IConnectorRuntimeOptionsRes
         _secretProtector = secretProtector;
     }
 
-    public async Task<DingTalkRuntimeOptions> ResolveAsync(ConnectorContext context, CancellationToken cancellationToken)
+    public async Task<DingTalkRuntimeOptions> ResolveAsync(Guid tenantId, long providerInstanceId, CancellationToken cancellationToken)
     {
-        var entity = await _repository.GetByIdAsync(context.TenantId, context.ProviderInstanceId, cancellationToken).ConfigureAwait(false)
-            ?? throw new ConnectorException(ConnectorErrorCodes.ProviderNotFound, $"DingTalk provider {context.ProviderInstanceId} not found in tenant {context.TenantId:D}.", DingTalkConnectorMarker.ProviderType);
+        var entity = await _repository.GetByIdAsync(tenantId, providerInstanceId, cancellationToken).ConfigureAwait(false)
+            ?? throw new ConnectorException(ConnectorErrorCodes.ProviderNotFound, $"DingTalk provider {providerInstanceId} not found in tenant {tenantId:D}.", DingTalkConnectorMarker.ProviderType);
 
         if (entity.ProviderType != ConnectorProviderType.DingTalk)
         {

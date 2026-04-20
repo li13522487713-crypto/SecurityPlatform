@@ -16,6 +16,14 @@ public sealed record ConnectorContext
     public required string ProviderType { get; init; }
 
     /// <summary>
+    /// 已解密的运行时配置载荷（如 WeComRuntimeOptions / FeishuRuntimeOptions / DingTalkRuntimeOptions）。
+    /// 由调用方（Application/Infrastructure 层，Scoped）通过 IConnectorRuntimeOptionsAccessor 解析后注入；
+    /// Connectors.* 底层库（Singleton）不再反向依赖任何 Scoped 仓储，彻底消除 captive dependency。
+    /// 各 Provider 内部按 ProviderType 强制 cast 为自身 RuntimeOptions 类型；类型不匹配抛 ProviderConfigInvalid。
+    /// </summary>
+    public required object RuntimeOptions { get; init; }
+
+    /// <summary>
     /// 用于 trace / 日志 / 审计的关联 ID；缺省由调用方生成。
     /// </summary>
     public string TraceId { get; init; } = Guid.NewGuid().ToString("N");

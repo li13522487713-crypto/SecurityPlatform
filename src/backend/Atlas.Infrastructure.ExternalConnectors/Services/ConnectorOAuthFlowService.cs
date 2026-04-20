@@ -22,6 +22,7 @@ public sealed class ConnectorOAuthFlowService : IConnectorOAuthFlowService
     private readonly IExternalIdentityBindingService _bindingService;
     private readonly IConnectorJwtIssuer _jwtIssuer;
     private readonly IOAuthStateStore _stateStore;
+    private readonly IConnectorRuntimeOptionsAccessor _runtimeOptionsAccessor;
     private readonly ITenantProvider _tenantProvider;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ConnectorOAuthFlowService> _logger;
@@ -32,6 +33,7 @@ public sealed class ConnectorOAuthFlowService : IConnectorOAuthFlowService
         IExternalIdentityBindingService bindingService,
         IConnectorJwtIssuer jwtIssuer,
         IOAuthStateStore stateStore,
+        IConnectorRuntimeOptionsAccessor runtimeOptionsAccessor,
         ITenantProvider tenantProvider,
         TimeProvider timeProvider,
         ILogger<ConnectorOAuthFlowService> logger)
@@ -41,6 +43,7 @@ public sealed class ConnectorOAuthFlowService : IConnectorOAuthFlowService
         _bindingService = bindingService;
         _jwtIssuer = jwtIssuer;
         _stateStore = stateStore;
+        _runtimeOptionsAccessor = runtimeOptionsAccessor;
         _tenantProvider = tenantProvider;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -75,11 +78,13 @@ public sealed class ConnectorOAuthFlowService : IConnectorOAuthFlowService
         };
         await _stateStore.SaveAsync(state, cancellationToken).ConfigureAwait(false);
 
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(tenantId.Value, provider.Id, providerType, cancellationToken).ConfigureAwait(false);
         var context = new ConnectorContext
         {
             TenantId = tenantId.Value,
             ProviderInstanceId = provider.Id,
             ProviderType = providerType,
+            RuntimeOptions = runtime,
         };
         var url = identityProvider.BuildAuthorizationUrl(context, redirectUri, stateValue, scopes: null, cancellationToken);
         return new OAuthInitiationResponse
@@ -108,11 +113,13 @@ public sealed class ConnectorOAuthFlowService : IConnectorOAuthFlowService
         }
 
         var identityProvider = _registry.GetIdentity(state.ProviderType);
+        var runtime = await _runtimeOptionsAccessor.ResolveAsync(state.TenantId, state.ProviderInstanceId, state.ProviderType, cancellationToken).ConfigureAwait(false);
         var context = new ConnectorContext
         {
             TenantId = state.TenantId,
             ProviderInstanceId = state.ProviderInstanceId,
             ProviderType = state.ProviderType,
+            RuntimeOptions = runtime,
         };
 
         var profile = await identityProvider.ExchangeCodeAsync(context, request.Code, state.RedirectUri, cancellationToken).ConfigureAwait(false);

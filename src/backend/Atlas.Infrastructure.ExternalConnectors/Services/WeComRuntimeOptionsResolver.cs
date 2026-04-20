@@ -2,15 +2,18 @@ using System.Text.Json;
 using Atlas.Application.ExternalConnectors.Abstractions;
 using Atlas.Application.ExternalConnectors.Repositories;
 using Atlas.Connectors.Core;
-using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.WeCom;
 using Atlas.Domain.ExternalConnectors.Enums;
 
 namespace Atlas.Infrastructure.ExternalConnectors.Services;
 
 /// <summary>
-/// 把 ConnectorContext 解析成 WeComRuntimeOptions。
+/// 把 (TenantId, ProviderInstanceId) 解析成 WeComRuntimeOptions。
 /// 实现：从 ExternalIdentityProviderRepository 拉实体，使用 ISecretProtector 解密 SecretJson 后构造 RuntimeOptions。
+///
+/// 注：本实现位于 Infrastructure 层（Scoped，依赖 SqlSugar 仓储），并实现 Application 层的
+/// <see cref="IConnectorRuntimeOptionsResolver{TRuntimeOptions}"/> 端口。底层 Connectors.WeCom 库不再
+/// 反向依赖此端口，从而消除「Singleton WeComApiClient 持有 Scoped Resolver」的 captive dependency。
 /// </summary>
 public sealed class WeComRuntimeOptionsResolver : IConnectorRuntimeOptionsResolver<WeComRuntimeOptions>
 {
@@ -23,10 +26,10 @@ public sealed class WeComRuntimeOptionsResolver : IConnectorRuntimeOptionsResolv
         _secretProtector = secretProtector;
     }
 
-    public async Task<WeComRuntimeOptions> ResolveAsync(ConnectorContext context, CancellationToken cancellationToken)
+    public async Task<WeComRuntimeOptions> ResolveAsync(Guid tenantId, long providerInstanceId, CancellationToken cancellationToken)
     {
-        var entity = await _repository.GetByIdAsync(context.TenantId, context.ProviderInstanceId, cancellationToken).ConfigureAwait(false)
-            ?? throw new ConnectorException(ConnectorErrorCodes.ProviderNotFound, $"WeCom provider {context.ProviderInstanceId} not found in tenant {context.TenantId:D}.", WeComConnectorMarker.ProviderType);
+        var entity = await _repository.GetByIdAsync(tenantId, providerInstanceId, cancellationToken).ConfigureAwait(false)
+            ?? throw new ConnectorException(ConnectorErrorCodes.ProviderNotFound, $"WeCom provider {providerInstanceId} not found in tenant {tenantId:D}.", WeComConnectorMarker.ProviderType);
 
         if (entity.ProviderType != ConnectorProviderType.WeCom)
         {

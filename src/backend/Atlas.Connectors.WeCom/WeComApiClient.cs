@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Atlas.Connectors.Core;
-using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Core.Caching;
 using Atlas.Connectors.WeCom.Internal;
 using Microsoft.Extensions.Logging;
@@ -10,7 +9,9 @@ using Microsoft.Extensions.Options;
 namespace Atlas.Connectors.WeCom;
 
 /// <summary>
-/// 企微 API 客户端。负责：
+/// 企微 API 客户端。注册为 Singleton，无任何 Scoped 依赖。
+/// 调用方（Application 层）须先通过 IConnectorRuntimeOptionsAccessor 解析 WeComRuntimeOptions，
+/// 然后塞进 ConnectorContext.RuntimeOptions 传入；本客户端只负责：
 /// 1. 通过 IHttpClientFactory 命名 wecom-api 拿 HttpClient；
 /// 2. 通过 IConnectorTokenCache 缓存 access_token；
 /// 3. 提供身份 / 通讯录 / 审批 / 消息相关的低层 GET/POST 方法（具体业务封装由 4 个 Provider 调用）。
@@ -21,34 +22,45 @@ public sealed class WeComApiClient
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConnectorTokenCache _tokenCache;
-    private readonly IConnectorRuntimeOptionsResolver<WeComRuntimeOptions> _runtimeOptionsResolver;
     private readonly WeComOptions _options;
     private readonly ILogger<WeComApiClient> _logger;
 
     public WeComApiClient(
         IHttpClientFactory httpClientFactory,
         IConnectorTokenCache tokenCache,
-        IConnectorRuntimeOptionsResolver<WeComRuntimeOptions> runtimeOptionsResolver,
         IOptions<WeComOptions> options,
         ILogger<WeComApiClient> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _tokenCache = tokenCache ?? throw new ArgumentNullException(nameof(tokenCache));
-        _runtimeOptionsResolver = runtimeOptionsResolver ?? throw new ArgumentNullException(nameof(runtimeOptionsResolver));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Task<WeComRuntimeOptions> ResolveRuntimeOptionsAsync(ConnectorContext context, CancellationToken cancellationToken)
-        => _runtimeOptionsResolver.ResolveAsync(context, cancellationToken);
+    /// <summary>
+    /// 从 ConnectorContext.RuntimeOptions 强类型 cast 出 WeComRuntimeOptions。
+    /// 类型不匹配（即调用方未先经 Application 层 Accessor 解析）抛 ProviderConfigInvalid。
+    /// </summary>
+    public static WeComRuntimeOptions ResolveRuntime(ConnectorContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.RuntimeOptions is not WeComRuntimeOptions runtime)
+        {
+            throw new ConnectorException(
+                ConnectorErrorCodes.ProviderConfigInvalid,
+                $"ConnectorContext.RuntimeOptions is not WeComRuntimeOptions (actual: {context.RuntimeOptions?.GetType().FullName ?? "null"}). Caller must resolve runtime via IConnectorRuntimeOptionsAccessor before invoking WeCom provider.",
+                WeComConnectorMarker.ProviderType);
+        }
+        return runtime;
+    }
 
     /// <summary>
     /// 拿到当前 provider 实例的 access_token。同一进程的并发请求会通过 IConnectorTokenCache 串行刷新。
     /// </summary>
     public async Task<string> GetAccessTokenAsync(ConnectorContext context, CancellationToken cancellationToken)
     {
-        var runtime = await _runtimeOptionsResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
-        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId);
+        var runtime = ResolveRuntime(context);
+        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint());
 
         return await _tokenCache.GetOrCreateAsync(cacheKey, async ct =>
         {
@@ -63,7 +75,8 @@ public sealed class WeComApiClient
 
     public async Task InvalidateAccessTokenAsync(ConnectorContext context, CancellationToken cancellationToken)
     {
-        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId);
+        var runtime = ResolveRuntime(context);
+        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint());
         await _tokenCache.RemoveAsync(cacheKey, cancellationToken).ConfigureAwait(false);
     }
 
@@ -176,8 +189,8 @@ public sealed class WeComApiClient
         return body;
     }
 
-    private static string BuildAccessTokenCacheKey(Guid tenantId, long providerInstanceId)
-        => $"connector:wecom:{tenantId:D}:{providerInstanceId}:access_token";
+    private static string BuildAccessTokenCacheKey(Guid tenantId, long providerInstanceId, string credentialFingerprint)
+        => $"connector:wecom:{tenantId:D}:{providerInstanceId}:{credentialFingerprint}:access_token";
 }
 
 internal sealed record WeComCachedToken(string AccessToken, DateTimeOffset ExpiresAtUtc);

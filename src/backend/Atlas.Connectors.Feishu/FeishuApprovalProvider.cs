@@ -25,9 +25,9 @@ public sealed class FeishuApprovalProvider : IExternalApprovalProvider
 
     public async Task<ExternalApprovalTemplate> GetTemplateAsync(ConnectorContext context, string externalTemplateId, CancellationToken cancellationToken)
     {
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var path = $"/open-apis/approval/v4/approvals/{Uri.EscapeDataString(externalTemplateId)}?locale=zh-CN";
         var resp = await _api.SendTenantGetAsync<FeishuApprovalDetailData>(context, path, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
 
         IReadOnlyList<ExternalApprovalTemplateControl> controls;
         if (!string.IsNullOrEmpty(resp.Data?.Form))
@@ -76,8 +76,8 @@ public sealed class FeishuApprovalProvider : IExternalApprovalProvider
             node_cc_user_id_list = submission.CcExternalUserIds,
             uuid = submission.BusinessKey,
         };
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var resp = await _api.SendTenantPostAsync<object, FeishuCreateInstanceData>(context, "/open-apis/approval/v4/instances", body, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
         return new ExternalApprovalInstanceRef
         {
             ProviderType = ProviderType,
@@ -92,13 +92,13 @@ public sealed class FeishuApprovalProvider : IExternalApprovalProvider
 
     public async Task<ExternalApprovalInstanceRef?> GetInstanceAsync(ConnectorContext context, string externalInstanceId, CancellationToken cancellationToken)
     {
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var path = $"/open-apis/approval/v4/instances/{Uri.EscapeDataString(externalInstanceId)}?locale=zh-CN";
         var resp = await _api.SendTenantGetAsync<FeishuInstanceDetailData>(context, path, cancellationToken).ConfigureAwait(false);
         if (resp.Data is null)
         {
             return null;
         }
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
         return new ExternalApprovalInstanceRef
         {
             ProviderType = ProviderType,

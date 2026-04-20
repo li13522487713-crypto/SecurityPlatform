@@ -4,7 +4,8 @@ namespace Atlas.Connectors.DingTalk;
 
 /// <summary>
 /// Connectors.DingTalk 全局默认 Options。所有值可通过 appsettings 的
-/// ExternalConnectors:DingTalk 节覆盖，提供实例运行时的再由 IConnectorRuntimeOptionsResolver 注入。
+/// ExternalConnectors:DingTalk 节覆盖；单个实例的 AppKey / AppSecret / AgentId 等运行时凭据走
+/// DingTalkRuntimeOptions（通过 ConnectorContext.RuntimeOptions 由调用方注入）。
 /// </summary>
 public sealed class DingTalkOptions : ConnectorOptions
 {

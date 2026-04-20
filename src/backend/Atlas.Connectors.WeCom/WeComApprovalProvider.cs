@@ -24,9 +24,9 @@ public sealed class WeComApprovalProvider : IExternalApprovalProvider
 
     public async Task<ExternalApprovalTemplate> GetTemplateAsync(ConnectorContext context, string externalTemplateId, CancellationToken cancellationToken)
     {
+        var runtime = WeComApiClient.ResolveRuntime(context);
         var body = new { template_id = externalTemplateId };
         var resp = await _api.SendAuthorizedPostJsonAsync<object, WeComApprovalTemplateResponse>(context, "/cgi-bin/oa/approval/gettemplatedetail", body, null, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
 
         var controls = (resp.TemplateContent?.Controls ?? Array.Empty<WeComTemplateControl>())
             .Select(c => new ExternalApprovalTemplateControl
@@ -81,8 +81,8 @@ public sealed class WeComApprovalProvider : IExternalApprovalProvider
                 ? null
                 : new[] { new { summary_info = new[] { new { text = submission.SummaryText, lang = "zh_CN" } } } },
         };
+        var runtime = WeComApiClient.ResolveRuntime(context);
         var resp = await _api.SendAuthorizedPostJsonAsync<object, WeComApplyEventResponse>(context, "/cgi-bin/oa/applyevent", body, null, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
         return new ExternalApprovalInstanceRef
         {
             ProviderType = ProviderType,
@@ -97,9 +97,9 @@ public sealed class WeComApprovalProvider : IExternalApprovalProvider
 
     public async Task<ExternalApprovalInstanceRef?> GetInstanceAsync(ConnectorContext context, string externalInstanceId, CancellationToken cancellationToken)
     {
+        var runtime = WeComApiClient.ResolveRuntime(context);
         var body = new { sp_no = externalInstanceId };
         var resp = await _api.SendAuthorizedPostJsonAsync<object, WeComApprovalDetailResponse>(context, "/cgi-bin/oa/getapprovaldetail", body, null, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
         if (resp.Info is null)
         {
             return null;

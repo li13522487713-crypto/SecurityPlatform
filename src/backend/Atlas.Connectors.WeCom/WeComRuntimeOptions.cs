@@ -1,8 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Atlas.Connectors.WeCom;
 
 /// <summary>
 /// 单个 WeCom provider 实例的运行时配置（已解密）。
-/// 由 Infrastructure.ExternalConnectors 的 IConnectorRuntimeOptionsResolver 实现读取 ExternalIdentityProvider 实体后构造。
+/// 由 Application 层 IConnectorRuntimeOptionsAccessor 解析后通过 ConnectorContext.RuntimeOptions 传给 Connectors.WeCom 底层库。
 /// </summary>
 public sealed record WeComRuntimeOptions
 {
@@ -22,4 +25,16 @@ public sealed record WeComRuntimeOptions
 
     /// <summary>回调 URL 配置中的 EncodingAESKey（base64 + "=" 后 43 位）。</summary>
     public string? CallbackEncodingAesKey { get; init; }
+
+    /// <summary>
+    /// 凭据指纹：用于 access_token 缓存键拼接，运维改 secret 后旧 key 自然失效。
+    /// 取 SHA-256(CorpId + ":" + CorpSecret + ":" + AgentId) 前 8 字符 hex。
+    /// </summary>
+    internal string GetCredentialFingerprint()
+    {
+        var raw = string.Concat(CorpId, ":", CorpSecret, ":", AgentId);
+        var bytes = Encoding.UTF8.GetBytes(raw);
+        var hash = SHA256.HashData(bytes);
+        return Convert.ToHexString(hash, 0, 4).ToLowerInvariant();
+    }
 }

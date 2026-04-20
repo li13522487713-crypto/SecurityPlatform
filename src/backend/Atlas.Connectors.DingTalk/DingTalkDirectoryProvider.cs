@@ -83,6 +83,7 @@ public sealed class DingTalkDirectoryProvider : IExternalDirectoryProvider
 
     public async Task<IReadOnlyList<ExternalUserProfile>> ListDepartmentMembersAsync(ConnectorContext context, string externalDepartmentId, bool recursive, CancellationToken cancellationToken)
     {
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         var deptId = ParseDeptId(externalDepartmentId, defaultValue: 1);
         var all = new List<ExternalUserProfile>();
         long cursor = 0;
@@ -103,7 +104,6 @@ public sealed class DingTalkDirectoryProvider : IExternalDirectoryProvider
                 var resp = await _api.SendLegacyPostJsonAsync<object, DingTalkLegacyUserListResponse>(context, "/topapi/v2/user/list", body, cancellationToken).ConfigureAwait(false);
                 if (resp.Result?.List is { Length: > 0 } list)
                 {
-                    var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
                     all.AddRange(list.Select(u => MapUser(runtime.CorpId ?? runtime.AppKey, u)));
                 }
                 if (resp.Result is null || !resp.Result.HasMore)
@@ -122,11 +122,11 @@ public sealed class DingTalkDirectoryProvider : IExternalDirectoryProvider
 
     public async Task<ExternalUserProfile?> GetUserAsync(ConnectorContext context, string externalUserId, CancellationToken cancellationToken)
     {
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         var body = new { userid = externalUserId, language = "zh_CN" };
         try
         {
             var resp = await _api.SendLegacyPostJsonAsync<object, DingTalkLegacyUserDetailResponse>(context, "/topapi/v2/user/get", body, cancellationToken).ConfigureAwait(false);
-            var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
             return resp.Result is null ? null : MapUser(runtime.CorpId ?? runtime.AppKey, resp.Result);
         }
         catch (ConnectorException ex) when (IsScopeDenied(ex) || string.Equals(ex.Code, ConnectorErrorCodes.IdentityNotFound, StringComparison.Ordinal))

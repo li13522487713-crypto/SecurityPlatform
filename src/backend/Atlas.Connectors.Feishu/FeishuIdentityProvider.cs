@@ -36,7 +36,7 @@ public sealed class FeishuIdentityProvider : IExternalIdentityProvider
 
     public Uri BuildAuthorizationUrl(ConnectorContext context, string redirectUri, string state, IReadOnlyList<string>? scopes, CancellationToken cancellationToken)
     {
-        var runtime = _api.ResolveRuntimeOptionsAsync(context, cancellationToken).GetAwaiter().GetResult();
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         ValidateRedirectAgainstTrustedDomains(runtime, redirectUri);
         var scope = scopes is { Count: > 0 } ? string.Join(' ', scopes) : _options.OAuthScope;
 
@@ -57,7 +57,7 @@ public sealed class FeishuIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.OAuthCodeInvalid, "Feishu OAuth code missing.", ProviderType);
         }
 
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         ValidateRedirectAgainstTrustedDomains(runtime, redirectUri);
 
         var token = await _api.ExchangeUserAccessTokenAsync(context, code, redirectUri, cancellationToken).ConfigureAwait(false);
@@ -93,13 +93,13 @@ public sealed class FeishuIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.IdentityNotFound, "Feishu contact get requires non-empty external_user_id.", ProviderType);
         }
 
+        var runtime = FeishuApiClient.ResolveRuntime(context);
         var idType = _options.DefaultUserIdType;
         var path = $"/open-apis/contact/v3/users/{Uri.EscapeDataString(externalUserId)}?user_id_type={idType}";
         var resp = await _api.SendTenantGetAsync<FeishuContactUserData>(context, path, cancellationToken).ConfigureAwait(false);
         var user = resp.Data?.User
             ?? throw new ConnectorException(ConnectorErrorCodes.IdentityNotFound, "Feishu contact returned empty user.", ProviderType);
 
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
         return new ExternalUserProfile
         {
             ProviderType = ProviderType,

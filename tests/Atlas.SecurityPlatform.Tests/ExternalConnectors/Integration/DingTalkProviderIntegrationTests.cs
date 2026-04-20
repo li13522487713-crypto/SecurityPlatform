@@ -27,6 +27,7 @@ public sealed class DingTalkProviderIntegrationTests : IDisposable
     private readonly WireMockServer _server;
     private readonly DingTalkApiClient _apiClient;
     private readonly InMemoryConnectorTokenCache _tokenCache;
+    private readonly DingTalkRuntimeOptions _runtime;
 
     public DingTalkProviderIntegrationTests()
     {
@@ -43,21 +44,26 @@ public sealed class DingTalkProviderIntegrationTests : IDisposable
         httpFactory.CreateClient(DingTalkApiClient.HttpClientName).Returns(_ => new HttpClient { BaseAddress = new Uri(_server.Url!) });
 
         _tokenCache = new InMemoryConnectorTokenCache(new MemoryCache(new MemoryCacheOptions()));
+        _runtime = new DingTalkRuntimeOptions
+        {
+            AppKey = "ding_app_key",
+            AppSecret = "ding_app_secret",
+            AgentId = "1234567890",
+            CorpId = "ding_corp_id",
+            CallbackBaseUrl = $"{_server.Url}/cb",
+            TrustedDomains = new[] { "platform.example.com" },
+        };
 
-        var runtimeResolver = Substitute.For<IConnectorRuntimeOptionsResolver<DingTalkRuntimeOptions>>();
-        runtimeResolver.ResolveAsync(Arg.Any<ConnectorContext>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Task.FromResult(new DingTalkRuntimeOptions
-            {
-                AppKey = "ding_app_key",
-                AppSecret = "ding_app_secret",
-                AgentId = "1234567890",
-                CorpId = "ding_corp_id",
-                CallbackBaseUrl = $"{_server.Url}/cb",
-                TrustedDomains = new[] { "platform.example.com" },
-            }));
-
-        _apiClient = new DingTalkApiClient(httpFactory, _tokenCache, runtimeResolver, Options.Create(options), NullLogger<DingTalkApiClient>.Instance);
+        _apiClient = new DingTalkApiClient(httpFactory, _tokenCache, Options.Create(options), NullLogger<DingTalkApiClient>.Instance);
     }
+
+    private ConnectorContext NewContext() => new()
+    {
+        TenantId = Guid.NewGuid(),
+        ProviderInstanceId = 1,
+        ProviderType = DingTalkConnectorMarker.ProviderType,
+        RuntimeOptions = _runtime,
+    };
 
     [Fact]
     public async Task GetAccessToken_HitsV1OAuth2Endpoint_AndCaches()
@@ -69,7 +75,7 @@ public sealed class DingTalkProviderIntegrationTests : IDisposable
                 expireIn = 7200,
             }));
 
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "dingtalk" };
+        var ctx = NewContext();
         var t1 = await _apiClient.GetAccessTokenAsync(ctx, CancellationToken.None);
         var t2 = await _apiClient.GetAccessTokenAsync(ctx, CancellationToken.None);
 
@@ -87,7 +93,7 @@ public sealed class DingTalkProviderIntegrationTests : IDisposable
             .RespondWith(Response.Create().WithStatusCode(200).WithBodyAsJson(new { instanceId = "DING-INSTANCE-001" }));
 
         var provider = new DingTalkApprovalProvider(_apiClient);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "dingtalk" };
+        var ctx = NewContext();
         var ref_ = await provider.SubmitApprovalAsync(ctx, new ExternalApprovalSubmission
         {
             ApplicantExternalUserId = "ding_zhangsan",
@@ -111,7 +117,7 @@ public sealed class DingTalkProviderIntegrationTests : IDisposable
             }));
 
         var provider = new DingTalkDirectoryProvider(_apiClient, NullLogger<DingTalkDirectoryProvider>.Instance);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "dingtalk" };
+        var ctx = NewContext();
         var depts = await provider.ListChildDepartmentsAsync(ctx, "1", recursive: false, CancellationToken.None);
 
         Assert.Empty(depts);
@@ -130,7 +136,7 @@ public sealed class DingTalkProviderIntegrationTests : IDisposable
             }));
 
         var provider = new DingTalkMessagingProvider(_apiClient);
-        var ctx = new ConnectorContext { TenantId = Guid.NewGuid(), ProviderInstanceId = 1, ProviderType = "dingtalk" };
+        var ctx = NewContext();
         var dispatch = await provider.SendTextAsync(ctx, new ExternalMessageRecipient { UserIds = new[] { "ding_zhangsan" } }, "测试", CancellationToken.None);
 
         Assert.Equal("99988877766", dispatch.MessageId);

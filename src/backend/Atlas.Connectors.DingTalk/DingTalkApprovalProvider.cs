@@ -73,8 +73,8 @@ public sealed class DingTalkApprovalProvider : IExternalApprovalProvider
             ccList = submission.CcExternalUserIds,
             ccPosition = "FINISH",
         };
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         var resp = await _api.SendV1PostJsonAsync<object, DingTalkCreateProcessInstanceResponse>(context, "/v1.0/workflow/processInstances", body, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
 
         return new ExternalApprovalInstanceRef
         {
@@ -97,12 +97,12 @@ public sealed class DingTalkApprovalProvider : IExternalApprovalProvider
         var path = $"/v1.0/workflow/processInstances?processInstanceId={Uri.EscapeDataString(externalInstanceId)}";
         try
         {
+            var runtime = DingTalkApiClient.ResolveRuntime(context);
             var resp = await _api.SendV1GetAsync<DingTalkProcessInstanceDetailResponse>(context, path, cancellationToken).ConfigureAwait(false);
             if (resp.Result is null)
             {
                 return null;
             }
-            var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
             return new ExternalApprovalInstanceRef
             {
                 ProviderType = ProviderType,

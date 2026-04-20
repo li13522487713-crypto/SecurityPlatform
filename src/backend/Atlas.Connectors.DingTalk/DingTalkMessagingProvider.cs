@@ -26,7 +26,7 @@ public sealed class DingTalkMessagingProvider : IExternalMessagingProvider
 
     public async Task<ExternalMessageDispatchResult> SendTextAsync(ConnectorContext context, ExternalMessageRecipient recipient, string text, CancellationToken cancellationToken)
     {
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         if (string.IsNullOrEmpty(runtime.AgentId))
         {
             throw new ConnectorException(ConnectorErrorCodes.MessagingFailed, "DingTalk asyncsend_v2 requires AgentId.", ProviderType);
@@ -58,7 +58,7 @@ public sealed class DingTalkMessagingProvider : IExternalMessagingProvider
 
     public async Task<ExternalMessageDispatchResult> SendCardAsync(ConnectorContext context, ExternalMessageRecipient recipient, ExternalMessageCard card, CancellationToken cancellationToken)
     {
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         if (string.IsNullOrEmpty(runtime.AgentId))
         {
             throw new ConnectorException(ConnectorErrorCodes.MessagingFailed, "DingTalk asyncsend_v2 requires AgentId.", ProviderType);
@@ -92,7 +92,7 @@ public sealed class DingTalkMessagingProvider : IExternalMessagingProvider
     public async Task<ExternalMessageDispatchResult> UpdateCardAsync(ConnectorContext context, ExternalMessageDispatchResult previous, ExternalMessageCard card, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(previous);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         if (string.IsNullOrEmpty(runtime.AgentId))
         {
             throw new ConnectorException(ConnectorErrorCodes.MessagingFailed, "DingTalk recall requires AgentId.", ProviderType);

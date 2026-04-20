@@ -22,7 +22,7 @@ public sealed class WeComMessagingProvider : IExternalMessagingProvider
 
     public async Task<ExternalMessageDispatchResult> SendTextAsync(ConnectorContext context, ExternalMessageRecipient recipient, string text, CancellationToken cancellationToken)
     {
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = WeComApiClient.ResolveRuntime(context);
         var body = new
         {
             touser = recipient.UserIds is { Count: > 0 } ? string.Join('|', recipient.UserIds) : (recipient.ToAll ? "@all" : ""),
@@ -44,7 +44,7 @@ public sealed class WeComMessagingProvider : IExternalMessagingProvider
 
     public async Task<ExternalMessageDispatchResult> SendCardAsync(ConnectorContext context, ExternalMessageRecipient recipient, ExternalMessageCard card, CancellationToken cancellationToken)
     {
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = WeComApiClient.ResolveRuntime(context);
         var templateCard = BuildTemplateCard(card);
         var body = new
         {
@@ -68,7 +68,7 @@ public sealed class WeComMessagingProvider : IExternalMessagingProvider
     public async Task<ExternalMessageDispatchResult> UpdateCardAsync(ConnectorContext context, ExternalMessageDispatchResult previous, ExternalMessageCard card, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(previous);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = WeComApiClient.ResolveRuntime(context);
         var body = new
         {
             userids = Array.Empty<string>(),

@@ -35,7 +35,7 @@ public sealed class DingTalkIdentityProvider : IExternalIdentityProvider
 
     public Uri BuildAuthorizationUrl(ConnectorContext context, string redirectUri, string state, IReadOnlyList<string>? scopes, CancellationToken cancellationToken)
     {
-        var runtime = _api.ResolveRuntimeOptionsAsync(context, cancellationToken).GetAwaiter().GetResult();
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         ValidateRedirectAgainstTrustedDomains(runtime, redirectUri);
         var scope = scopes is { Count: > 0 } ? string.Join(' ', scopes) : "openid";
 
@@ -59,7 +59,7 @@ public sealed class DingTalkIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.OAuthCodeInvalid, "DingTalk OAuth code missing.", ProviderType);
         }
 
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         ValidateRedirectAgainstTrustedDomains(runtime, redirectUri);
 
         var userToken = await _api.ExchangeUserAccessTokenAsync(context, code, cancellationToken).ConfigureAwait(false);
@@ -96,9 +96,9 @@ public sealed class DingTalkIdentityProvider : IExternalIdentityProvider
             throw new ConnectorException(ConnectorErrorCodes.IdentityNotFound, "DingTalk user/get requires non-empty userid.", ProviderType);
         }
 
+        var runtime = DingTalkApiClient.ResolveRuntime(context);
         var body = new { userid = externalUserId, language = "zh_CN" };
         var resp = await _api.SendLegacyPostJsonAsync<object, DingTalkLegacyUserDetailResponse>(context, "/topapi/v2/user/get", body, cancellationToken).ConfigureAwait(false);
-        var runtime = await _api.ResolveRuntimeOptionsAsync(context, cancellationToken).ConfigureAwait(false);
 
         return MapUser(runtime.CorpId ?? runtime.AppKey, resp.Result) with
         {

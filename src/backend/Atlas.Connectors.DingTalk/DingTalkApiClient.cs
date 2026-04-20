@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Atlas.Connectors.Core;
-using Atlas.Connectors.Core.Abstractions;
 using Atlas.Connectors.Core.Caching;
 using Atlas.Connectors.DingTalk.Internal;
 using Microsoft.Extensions.Logging;
@@ -10,7 +9,9 @@ using Microsoft.Extensions.Options;
 namespace Atlas.Connectors.DingTalk;
 
 /// <summary>
-/// 钉钉 OpenAPI 客户端。负责：
+/// 钉钉 OpenAPI 客户端。注册为 Singleton，无任何 Scoped 依赖。
+/// 调用方（Application 层）须先通过 IConnectorRuntimeOptionsAccessor 解析 DingTalkRuntimeOptions，
+/// 再塞进 ConnectorContext.RuntimeOptions 传入；本客户端只负责：
 /// 1. IHttpClientFactory 命名 dingtalk-api 拿 HttpClient；
 /// 2. IConnectorTokenCache 缓存 access_token（走 v1.0 的 oauth2/accessToken）；
 /// 3. 提供 v1 老版（errcode 样式）GET/POST 与 v1.0 新版（Bearer + errcode 样式 result）GET/POST。
@@ -21,31 +22,42 @@ public sealed class DingTalkApiClient
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConnectorTokenCache _tokenCache;
-    private readonly IConnectorRuntimeOptionsResolver<DingTalkRuntimeOptions> _runtimeResolver;
     private readonly DingTalkOptions _options;
     private readonly ILogger<DingTalkApiClient> _logger;
 
     public DingTalkApiClient(
         IHttpClientFactory httpClientFactory,
         IConnectorTokenCache tokenCache,
-        IConnectorRuntimeOptionsResolver<DingTalkRuntimeOptions> runtimeResolver,
         IOptions<DingTalkOptions> options,
         ILogger<DingTalkApiClient> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _tokenCache = tokenCache ?? throw new ArgumentNullException(nameof(tokenCache));
-        _runtimeResolver = runtimeResolver ?? throw new ArgumentNullException(nameof(runtimeResolver));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Task<DingTalkRuntimeOptions> ResolveRuntimeOptionsAsync(ConnectorContext context, CancellationToken cancellationToken)
-        => _runtimeResolver.ResolveAsync(context, cancellationToken);
+    /// <summary>
+    /// 从 ConnectorContext.RuntimeOptions 强类型 cast 出 DingTalkRuntimeOptions。
+    /// 类型不匹配（即调用方未先经 Application 层 Accessor 解析）抛 ProviderConfigInvalid。
+    /// </summary>
+    public static DingTalkRuntimeOptions ResolveRuntime(ConnectorContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.RuntimeOptions is not DingTalkRuntimeOptions runtime)
+        {
+            throw new ConnectorException(
+                ConnectorErrorCodes.ProviderConfigInvalid,
+                $"ConnectorContext.RuntimeOptions is not DingTalkRuntimeOptions (actual: {context.RuntimeOptions?.GetType().FullName ?? "null"}). Caller must resolve runtime via IConnectorRuntimeOptionsAccessor before invoking DingTalk provider.",
+                DingTalkConnectorMarker.ProviderType);
+        }
+        return runtime;
+    }
 
     public async Task<string> GetAccessTokenAsync(ConnectorContext context, CancellationToken cancellationToken)
     {
-        var runtime = await _runtimeResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
-        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId);
+        var runtime = ResolveRuntime(context);
+        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint());
 
         var cached = await _tokenCache.GetOrCreateAsync(cacheKey, async ct =>
         {
@@ -59,7 +71,8 @@ public sealed class DingTalkApiClient
 
     public async Task InvalidateAccessTokenAsync(ConnectorContext context, CancellationToken cancellationToken)
     {
-        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId);
+        var runtime = ResolveRuntime(context);
+        var cacheKey = BuildAccessTokenCacheKey(context.TenantId, context.ProviderInstanceId, runtime.GetCredentialFingerprint());
         await _tokenCache.RemoveAsync(cacheKey, cancellationToken).ConfigureAwait(false);
     }
 
@@ -143,7 +156,7 @@ public sealed class DingTalkApiClient
         string code,
         CancellationToken cancellationToken)
     {
-        var runtime = await _runtimeResolver.ResolveAsync(context, cancellationToken).ConfigureAwait(false);
+        var runtime = ResolveRuntime(context);
         var body = new
         {
             clientId = runtime.AppKey,
@@ -249,8 +262,8 @@ public sealed class DingTalkApiClient
         return payload;
     }
 
-    private static string BuildAccessTokenCacheKey(Guid tenantId, long providerInstanceId)
-        => $"connector:dingtalk:{tenantId:D}:{providerInstanceId}:access_token";
+    private static string BuildAccessTokenCacheKey(Guid tenantId, long providerInstanceId, string credentialFingerprint)
+        => $"connector:dingtalk:{tenantId:D}:{providerInstanceId}:{credentialFingerprint}:access_token";
 }
 
 internal sealed record DingTalkCachedToken(string AccessToken, DateTimeOffset ExpiresAtUtc);
