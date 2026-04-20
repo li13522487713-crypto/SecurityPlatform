@@ -364,11 +364,15 @@ async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> 
     await page.goto(`${appBaseUrl}${currentPath}`, { waitUntil: "domcontentloaded" });
     lastUrl = page.url();
 
-    const loginFormVisible = await page
-      .getByTestId("app-login-tenant")
+    const usernameVisible = await page
+      .getByTestId("app-login-username")
       .isVisible({ timeout: 5_000 })
       .catch(() => false);
-    if (loginFormVisible) {
+    const passwordVisible = await page
+      .getByTestId("app-login-password")
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    if (usernameVisible && passwordVisible) {
       return;
     }
 
@@ -377,11 +381,11 @@ async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> 
       .isVisible({ timeout: 2_000 })
       .catch(() => false);
     if (loginPageVisible) {
-      const tenantVisible = await page
-        .getByTestId("app-login-tenant")
+      const usernameVisibleOnLoginPage = await page
+        .getByTestId("app-login-username")
         .isVisible({ timeout: 5_000 })
         .catch(() => false);
-      if (tenantVisible) {
+      if (usernameVisibleOnLoginPage) {
         return;
       }
     }
@@ -416,8 +420,6 @@ export async function loginApp(
 ) {
   const expectSuccess = options?.expectSuccess ?? true;
   await waitForLoginFormReady(page, appKey);
-  await page.getByTestId("app-login-tenant").fill(defaultTenantId);
-  await page.waitForTimeout(gazeShiftDelay());
   await page.getByTestId("app-login-username").fill(defaultUsername);
   await page.waitForTimeout(gazeShiftDelay());
   await page.getByTestId("app-login-password").fill(password);

@@ -257,7 +257,6 @@ async function assertPlatformHomeVisible(page: Page) {
 }
 
 async function fillAppLoginForm(page: Page, password: string) {
-  await page.getByTestId("app-login-tenant").fill(defaultTenantId);
   await page.getByTestId("app-login-username").fill(defaultUsername);
   await page.getByTestId("app-login-password").fill(password);
 }
