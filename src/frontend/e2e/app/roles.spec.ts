@@ -9,6 +9,7 @@ import {
 } from "./helpers";
 
 test.describe.serial("App Roles CRUD", () => {
+  test.fixme("旧壳角色管理页已下线，待新壳权限管理场景补齐后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

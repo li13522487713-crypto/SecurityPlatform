@@ -118,6 +118,7 @@ public static class AtlasOrmSchemaCatalog
         typeof(AiPluginApi),
         typeof(AiApp),
         typeof(AiAppPublishRecord),
+        typeof(AiAppConversationTemplate),
         typeof(AiAppResourceBinding),
         typeof(AiAppResourceCopyTask),
         typeof(AiPromptTemplate),

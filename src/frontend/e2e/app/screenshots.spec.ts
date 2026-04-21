@@ -6,6 +6,7 @@ import {
 } from "./helpers";
 
 test.describe.serial("App Screenshot E2E", () => {
+  test.fixme("旧壳截图基线（develop/users）已下线，待新壳截图基线重建后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

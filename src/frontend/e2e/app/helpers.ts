@@ -1,7 +1,6 @@
 import path from "node:path";
 import { expect, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
 import {
-  appSignPath,
   communityWorksPath,
   docsPath,
   marketPluginsPath,
@@ -364,7 +363,8 @@ export async function resolveCanonicalAppKey(request: APIRequestContext): Promis
 }
 
 async function waitForLoginFormReady(page: Page, appKey: string): Promise<void> {
-  const loginPaths = Array.from(new Set([appSignPath(appKey), signPath()]));
+  void appKey;
+  const loginPaths = [signPath()];
   const maxAttempts = loginPaths.length * 3;
   let lastUrl = page.url();
 

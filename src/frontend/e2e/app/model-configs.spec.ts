@@ -8,6 +8,7 @@ import {
 } from "./helpers";
 
 test.describe.serial("App Model Configs CRUD", () => {
+  test.fixme("旧壳 Model Configs CRUD 页面已随 /workspace/* 收敛下线，待新壳场景重建后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

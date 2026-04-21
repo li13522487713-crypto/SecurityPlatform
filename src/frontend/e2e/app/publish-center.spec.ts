@@ -12,6 +12,7 @@ function apiOk<T>(data: T) {
 }
 
 test.describe.serial("Publish Center", () => {
+  test.fixme("旧壳 Publish Center 页面入口已下线，待新壳发布中心场景补齐后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

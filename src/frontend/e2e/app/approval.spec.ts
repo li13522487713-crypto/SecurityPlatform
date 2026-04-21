@@ -5,6 +5,7 @@ import {
 } from "./helpers";
 
 test.describe.serial("App Approval Workspace", () => {
+  test.fixme("旧壳审批管理页已下线，待新壳对应任务中心能力补齐后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

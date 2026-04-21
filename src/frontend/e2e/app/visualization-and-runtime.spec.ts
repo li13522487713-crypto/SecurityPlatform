@@ -6,6 +6,7 @@ import {
 } from "./helpers";
 
 test.describe.serial("App Visualization And Runtime", () => {
+  test.fixme("旧壳可视化与 runtime 入口已下线，待新壳运行时入口场景补齐后恢复。");
   let appKey = "";
 
   test.beforeAll(async ({ request, ensureLoggedInSession }) => {

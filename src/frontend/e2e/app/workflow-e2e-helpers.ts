@@ -39,8 +39,10 @@ interface WorkflowCreateResponse {
   success?: boolean;
   code?: string | number;
   message?: string;
+  workflow_id?: string | number;
   data?: {
     workflow_id?: string | number;
+    workflowId?: string | number;
     id?: string | number;
     Id?: string | number;
   };
@@ -133,8 +135,10 @@ async function createWorkflowViaApi(
   const payload = (await response.json()) as WorkflowCreateResponse;
   const workflowId = String(
     payload.data?.workflow_id ??
+    payload.data?.workflowId ??
     payload.data?.id ??
     payload.data?.Id ??
+    payload.workflow_id ??
     ""
   ).trim();
   expect(workflowId).not.toBe("");

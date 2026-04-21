@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Dropdown, Input, Spin, Tag } from "@douyinfe/semi-ui";
+import { Dropdown, Input, Spin, Tag } from "@douyinfe/semi-ui";
 import { IconChevronDown, IconPlus, IconSearch, IconArrowUp } from "@douyinfe/semi-icons";
 import { useNavigate } from "react-router-dom";
 import { getTenantId } from "@atlas/shared-react-core/utils";
