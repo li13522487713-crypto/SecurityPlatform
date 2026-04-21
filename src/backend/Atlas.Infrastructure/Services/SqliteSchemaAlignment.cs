@@ -69,6 +69,25 @@ internal static class SqliteSchemaAlignment
         return false;
     }
 
+    public static bool HasColumns<TEntity>(ISqlSugarClient db, params string[] columnNames)
+        where TEntity : class, new()
+    {
+        if (columnNames.Length == 0)
+        {
+            return false;
+        }
+
+        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return false;
+        }
+
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        return columnNames.Any(columnName => columns.Any(c =>
+            string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase)));
+    }
+
     public static async Task RebuildTableViaOrmAsync<TEntity>(ISqlSugarClient db, CancellationToken cancellationToken)
         where TEntity : class, new()
     {
@@ -148,6 +167,47 @@ internal static class SqliteSchemaAlignment
             {
             }
         }
+    }
+
+    public static async Task RebuildTablePreservingIntersectionAsync<TEntity>(
+        ISqlSugarClient db,
+        CancellationToken cancellationToken)
+        where TEntity : class, new()
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
+        var backupTableName = await PrepareBackupTableAsync(db, tableName, cancellationToken);
+        db.CodeFirst.InitTables<TEntity>();
+
+        var targetColumns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false)
+            .Select(column => column.DbColumnName)
+            .ToArray();
+        var sourceColumns = db.DbMaintenance.GetColumnInfosByTableName(backupTableName, false)
+            .Select(column => column.DbColumnName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var sharedColumns = targetColumns
+            .Where(sourceColumns.Contains)
+            .ToArray();
+        if (sharedColumns.Length > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var quotedColumns = string.Join(",", sharedColumns.Select(QuoteIdentifier));
+            await db.Ado.ExecuteCommandAsync(
+                $"""
+                INSERT INTO {QuoteIdentifier(tableName)} ({quotedColumns})
+                SELECT {quotedColumns}
+                FROM {QuoteIdentifier(backupTableName)};
+                """);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await db.Ado.ExecuteCommandAsync($"DROP TABLE {QuoteIdentifier(backupTableName)}");
     }
 
     private static async Task RebuildAppDepartmentViaSqlAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -265,6 +325,9 @@ internal static class SqliteSchemaAlignment
             FROM "{backupTableName}";
             """;
     }
+
+    private static string QuoteIdentifier(string identifier)
+        => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 
     private static string BuildAppPermissionCopySql(string tableName, string backupTableName)
     {

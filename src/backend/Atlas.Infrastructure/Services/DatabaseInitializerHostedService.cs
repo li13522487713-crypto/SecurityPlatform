@@ -1893,8 +1893,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        if (!RequiresMissingColumnFix<Agent>(db, "DefaultWorkflowId", "DefaultWorkflowName")
-            && !RequiresNullableColumnFix<Agent>(db, "PromptTemplateId"))
+        if (HasColumns<Agent>(db, "PromptTemplateId"))
+        {
+            await RebuildTablePreservingIntersectionAsync<Agent>(db, cancellationToken);
+            return;
+        }
+
+        if (!RequiresMissingColumnFix<Agent>(db, "DefaultWorkflowId", "DefaultWorkflowName"))
         {
             return;
         }
@@ -2612,6 +2617,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         where TEntity : class, new()
         => SqliteSchemaAlignment.RebuildTableViaOrmAsync<TEntity>(db, cancellationToken);
 
+    private static Task RebuildTablePreservingIntersectionAsync<TEntity>(ISqlSugarClient db, CancellationToken cancellationToken)
+        where TEntity : class, new()
+        => SqliteSchemaAlignment.RebuildTablePreservingIntersectionAsync<TEntity>(db, cancellationToken);
+
     private static bool RequiresNullableColumnFix<TEntity>(ISqlSugarClient db, params string[] columnNames)
         where TEntity : class, new()
         => SqliteSchemaAlignment.RequiresNullableColumnFix<TEntity>(db, columnNames);
@@ -2619,6 +2628,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private static bool RequiresMissingColumnFix<TEntity>(ISqlSugarClient db, params string[] requiredColumnNames)
         where TEntity : class, new()
         => SqliteSchemaAlignment.RequiresMissingColumnFix<TEntity>(db, requiredColumnNames);
+
+    private static bool HasColumns<TEntity>(ISqlSugarClient db, params string[] columnNames)
+        where TEntity : class, new()
+        => SqliteSchemaAlignment.HasColumns<TEntity>(db, columnNames);
 
     private static bool RequiresWorkspaceLegacyNotNullFix(ISqlSugarClient db)
     {

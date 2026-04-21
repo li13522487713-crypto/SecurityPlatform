@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@atlas/app-shell-shared": "workspace:*",
+    "@atlas/lowcode-studio-react": "workspace:*",
     "@atlas/lowcode-action-runtime": "workspace:*",
     "@atlas/lowcode-component-registry": "workspace:*",
     "@atlas/lowcode-components-web": "workspace:*",

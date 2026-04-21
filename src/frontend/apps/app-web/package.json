@@ -18,6 +18,7 @@
     "@atlas/external-connectors-react": "workspace:*",
     "@atlas/foundation-bridge": "workspace:*",
     "@atlas/library-module-react": "workspace:*",
+    "@atlas/lowcode-studio-react": "workspace:*",
     "@atlas/module-admin-react": "workspace:*",
     "@atlas/module-explore-react": "workspace:*",
     "@atlas/module-studio-react": "workspace:*",

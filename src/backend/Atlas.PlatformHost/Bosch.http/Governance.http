@@ -34,30 +34,16 @@ X-Tenant-Id: {{tenantId}}
 ###
 
 ### Governance — quotas (list)
-GET {{host}}/api/v1/governance/quotas
+# 说明：配额/限额接口 /api/v1/governance/quotas 已下线
+# 请使用其他治理能力（如版本冻结 / 灰度发布）进行治理操作。
+#
+# Governance — canary releases (list)
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Accept-Language: {{localeZh}}
-
-### Governance — quota by resource type
-GET {{host}}/api/v1/governance/quotas?resourceType=logic_flow_executions
-Authorization: Bearer {{token}}
-X-Tenant-Id: {{tenantId}}
-Accept-Language: {{localeZh}}
-
-### Governance — consume quota
-POST {{host}}/api/v1/governance/quotas/logic_flow_executions/consume
-Authorization: Bearer {{token}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-Accept-Language: {{localeZh}}
-
-{
-  "amount": 1
-}
+GET {{host}}/api/v1/governance/canary-releases
 
 ### Governance — canary releases (list)
-GET {{host}}/api/v1/governance/canary-releases
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Accept-Language: {{localeZh}}

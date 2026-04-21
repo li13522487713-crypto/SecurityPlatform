@@ -4,7 +4,6 @@ using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Atlas.Presentation.Shared.Filters;
 
 namespace Atlas.PlatformHost.Controllers;
 
@@ -13,48 +12,18 @@ namespace Atlas.PlatformHost.Controllers;
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class GovernanceController : ControllerBase
 {
-    private readonly IQuotaService _quotaService;
     private readonly ICanaryReleaseService _canaryService;
     private readonly IVersionFreezeService _versionFreezeService;
     private readonly ITenantProvider _tenantProvider;
 
     public GovernanceController(
-        IQuotaService quotaService,
         ICanaryReleaseService canaryService,
         IVersionFreezeService versionFreezeService,
         ITenantProvider tenantProvider)
     {
-        _quotaService = quotaService;
         _canaryService = canaryService;
         _versionFreezeService = versionFreezeService;
         _tenantProvider = tenantProvider;
-    }
-
-    [HttpGet("quotas")]
-    public async Task<ActionResult<ApiResponse<object>>> GetQuotas(
-        [FromQuery] string? resourceType,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId().Value.ToString();
-        if (string.IsNullOrWhiteSpace(resourceType))
-        {
-            var list = await _quotaService.ListQuotasAsync(tenantId, cancellationToken);
-            return Ok(ApiResponse<object>.Ok(list, HttpContext.TraceIdentifier));
-        }
-
-        var one = await _quotaService.GetQuotaAsync(tenantId, resourceType, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(one, HttpContext.TraceIdentifier));
-    }
-
-    [HttpPost("quotas/{resourceType}/consume")]
-    public async Task<ActionResult<ApiResponse<object>>> ConsumeQuota(
-        string resourceType,
-        [FromBody] ConsumeQuotaBody body,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId().Value.ToString();
-        var ok = await _quotaService.TryConsumeAsync(tenantId, resourceType, body.Amount, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { Success = ok }, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("canary-releases")]
@@ -105,8 +74,6 @@ public sealed class GovernanceController : ControllerBase
         return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
     }
 }
-
-public sealed record ConsumeQuotaBody(int Amount);
 
 public sealed record SetCanaryRolloutBody(int RolloutPercentage);
 

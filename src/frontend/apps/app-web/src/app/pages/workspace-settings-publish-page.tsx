@@ -143,8 +143,9 @@ function AgentsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
 
 function AppsPanel() {
   const { t } = useAppI18n();
+  const navigate = useNavigate();
   const workspace = useWorkspaceContext();
-  const appGateway = useMemo(() => createLowcodeProjectAppGateway(), []);
+  const appGateway = useMemo(() => createLowcodeProjectAppGateway({ navigate }), [navigate]);
   const [items, setItems] = useState<ProjectAppCard[]>([]);
   const [loading, setLoading] = useState(true);
 

@@ -1,5 +1,4 @@
 using Atlas.Application.LowCode.Abstractions;
-using Atlas.Application.LowCode.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -8,51 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.PlatformHost.Controllers;
-
-[ApiController]
-[Route("api/v1/lowcode/prompt-templates")]
-public sealed class LowCodePromptTemplatesController : ControllerBase
-{
-    private readonly IPromptTemplateService _service;
-    private readonly ITenantProvider _tenantProvider;
-    private readonly ICurrentUserAccessor _currentUser;
-
-    public LowCodePromptTemplatesController(IPromptTemplateService service, ITenantProvider tenantProvider, ICurrentUserAccessor currentUser)
-    {
-        _service = service;
-        _tenantProvider = tenantProvider;
-        _currentUser = currentUser;
-    }
-
-    [HttpGet]
-    [Authorize(Policy = PermissionPolicies.LowcodeAppView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<PromptTemplateDto>>>> Search([FromQuery] string? keyword, [FromQuery] int? pageIndex, [FromQuery] int? pageSize, CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var list = await _service.SearchAsync(tenantId, keyword, pageIndex ?? 1, pageSize ?? 20, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<PromptTemplateDto>>.Ok(list, HttpContext.TraceIdentifier));
-    }
-
-    [HttpPost]
-    [Authorize(Policy = PermissionPolicies.LowcodeAppUpdate)]
-    public async Task<ActionResult<ApiResponse<object>>> Upsert([FromBody] PromptTemplateUpsertRequest request, CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var user = _currentUser.GetCurrentUserOrThrow();
-        var id = await _service.UpsertAsync(tenantId, user.UserId, request, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { id = id.ToString() }, HttpContext.TraceIdentifier));
-    }
-
-    [HttpDelete("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.LowcodeAppDelete)]
-    public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var user = _currentUser.GetCurrentUserOrThrow();
-        await _service.DeleteAsync(tenantId, user.UserId, id, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
-    }
-}
 
 [ApiController]
 [Route("api/v1/lowcode/plugins")]

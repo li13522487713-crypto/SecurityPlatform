@@ -81,7 +81,6 @@ public sealed class Agent : TenantEntity
     public string DatabaseBindingsJson { get; private set; }
     public string VariableBindingsJson { get; private set; }
     public AgentMode Mode { get; private set; }
-    public long? PromptTemplateId { get; private set; }
     public string PromptVersion { get; private set; }
     public string LayoutConfigJson { get; private set; }
     public string DebugConfigJson { get; private set; }
@@ -128,7 +127,6 @@ public sealed class Agent : TenantEntity
         bool? enableLongTermMemory = null,
         int? longTermMemoryTopK = null,
         AgentMode? mode = null,
-        long? promptTemplateId = null,
         string? promptVersion = null,
         string? layoutConfigJson = null,
         string? debugConfigJson = null,
@@ -153,7 +151,6 @@ public sealed class Agent : TenantEntity
         DatabaseBindingsJson = string.IsNullOrWhiteSpace(databaseBindingsJson) ? "[]" : databaseBindingsJson;
         VariableBindingsJson = string.IsNullOrWhiteSpace(variableBindingsJson) ? "[]" : variableBindingsJson;
         Mode = mode ?? Mode;
-        PromptTemplateId = promptTemplateId;
         PromptVersion = promptVersion ?? string.Empty;
         LayoutConfigJson = string.IsNullOrWhiteSpace(layoutConfigJson) ? "{}" : layoutConfigJson;
         DebugConfigJson = string.IsNullOrWhiteSpace(debugConfigJson) ? "{}" : debugConfigJson;

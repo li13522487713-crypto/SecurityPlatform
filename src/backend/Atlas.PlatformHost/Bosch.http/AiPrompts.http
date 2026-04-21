@@ -1,69 +1,7 @@
-@baseUrl = http://localhost:5000
+@baseUrl = http://localhost:5001
 @tenantId = 00000000-0000-0000-0000-000000000001
-@username = admin
-@password = P@ssw0rd!
-@promptId = 1
 
-### 登录获取令牌
-# @name login
-POST {{baseUrl}}/api/v1/auth/token
-Content-Type: application/json
-X-Tenant-Id: {{tenantId}}
-
-{
-  "username": "{{username}}",
-  "password": "{{password}}"
-}
-
-###
-@accessToken = {{login.response.body.$.data.accessToken}}
-
-### 获取 CSRF Token
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-###
-
-### Prompt 分页
-GET {{baseUrl}}/api/v1/ai-prompts?PageIndex=1&PageSize=20
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 创建 Prompt
-POST {{baseUrl}}/api/v1/ai-prompts
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "name": "客服助手系统提示词",
-  "description": "客服问答场景",
-  "category": "customer-service",
-  "content": "你是一个专业客服助手，请根据知识库回答用户问题。",
-  "tags": ["客服", "知识库"],
-  "isSystem": false
-}
-
-### 查询 Prompt 详情
-GET {{baseUrl}}/api/v1/ai-prompts/{{promptId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 更新 Prompt
-PUT {{baseUrl}}/api/v1/ai-prompts/{{promptId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "name": "客服助手系统提示词V2",
-  "description": "更新后的描述",
-  "category": "customer-service",
-  "content": "你是一个严谨的客服助手，回答时请引用知识库依据。",
-  "tags": ["客服", "知识库", "严谨"]
-}
-
-### 删除 Prompt
-DELETE {{baseUrl}}/api/v1/ai-prompts/{{promptId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
+### 说明
+## Atlas.PlatformHost
+## 提示词接口已于 2026-04-22 下线（暂停维护）
+## 请不要再调用 /api/v1/ai-prompts

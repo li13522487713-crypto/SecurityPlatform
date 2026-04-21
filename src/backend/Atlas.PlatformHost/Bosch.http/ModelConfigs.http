@@ -81,41 +81,7 @@ Content-Type: application/json
   "model": "gpt-4o-mini"
 }
 
-### 测试提示词流式输出（正文 + 思维链）
-POST {{baseUrl}}/api/v1/model-configs/test/stream
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-Accept: text/event-stream
-
-{
-  "providerType": "openai",
-  "apiKey": "sk-demo-key",
-  "baseUrl": "https://api.openai.com",
-  "model": "gpt-4o-mini",
-  "prompt": "请分步骤分析如何优化 SQL 查询，并给出最终建议。",
-  "enableReasoning": true,
-  "enableTools": true,
-  "enableStreaming": true
-}
-
-### 测试提示词非流式输出
-POST {{baseUrl}}/api/v1/model-configs/test/stream
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-Accept: text/event-stream
-
-{
-  "providerType": "openai",
-  "apiKey": "sk-demo-key",
-  "baseUrl": "https://api.openai.com",
-  "model": "gpt-4o-mini",
-  "prompt": "你好，请简单介绍自己。",
-  "enableReasoning": false,
-  "enableTools": false,
-  "enableStreaming": false
-}
+# 注：模型配置不再提供 /test/stream（提示词流式测试）接口；请使用 /test
 
 ### 根据 ID 查询模型配置
 GET {{baseUrl}}/api/v1/model-configs/{{modelConfigId}}

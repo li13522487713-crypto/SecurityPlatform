@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Card, Empty, List, Space, Modal, Form, Toast } from '@douyinfe/semi-ui';
 import { lowcodeAppStudioPath } from '@atlas/app-shell-shared';
-import { lowcodeApi, type AppListItem } from '../services/api-core';
-import { t } from '../i18n';
+import { lowcodeApi, t, type AppListItem } from '@atlas/lowcode-studio-react';
 
 export const AppListPage: React.FC = () => {
   const nav = useNavigate();

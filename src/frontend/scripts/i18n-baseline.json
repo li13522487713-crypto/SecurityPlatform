@@ -1,14 +1,17 @@
 {
   "_comment": "i18n-audit 包级 baseline。每条豁免必须有清晰的 reason，M6 完成时所有用户可见 UI 文案都应已收口（仅保留开发者诊断/错误抛出等非 UI 文案的文件级豁免）。",
-  "_lastUpdated": "2026-04-18",
+  "_lastUpdated": "2026-04-22",
   "_categories": {
     "M2-completed-but-host-no-page-yet": "组件已 i18n 收口，但宿主 app-web 还没接入对应路由/页面，先用 skipLabelsCoverageConsts 豁免；M5/后续宿主开发阶段移除豁免",
     "M3-library-copy-dictionary": "包内 copy.ts 字典文件本身必须保留中文翻译，永久豁免",
     "M4abc-module-studio-react-pending": "module-studio-react 巨型页面待后续按业务优先级收口",
     "M5-developer-diagnostic-only": "纯开发者诊断 / Error 抛出 / 日志，不是用户可见 UI；可豁免（但应保留英文）",
-    "M5-pending-user-facing": "用户可见 UI，应该收口；当前批次未完成，留待后续"
+    "M5-pending-user-facing": "用户可见 UI，应该收口；当前批次未完成，留待后续",
+    "M7-lowcode-studio-shared-transition": "从独立 lowcode-studio-web 抽出的共享壳，先保持现有词条与文案，后续再按包级 i18n 契约统一收口"
   },
-  "allowedCjkPackages": [],
+  "allowedCjkPackages": [
+    "lowcode-studio-react"
+  ],
   "allowedCjkFiles": [
     "packages/library-module-react/src/copy.ts",
     "packages/module-studio-react/src/copy.ts",

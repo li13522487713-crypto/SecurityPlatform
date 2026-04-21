@@ -4,6 +4,7 @@ import { Button } from "@douyinfe/semi-ui";
 import {
   agentPublishPath,
   chatflowEditorPath,
+  workspaceProjectsPath,
   workflowEditorPath
 } from "@atlas/app-shell-shared";
 import { lazyNamed } from "../lazy-named";
@@ -13,15 +14,16 @@ import { WorkflowRuntimeBoundary } from "../workflow-runtime-boundary";
 import { useAppApis } from "../app";
 import { TestsetDrawer } from "../components/testset-drawer";
 import { PageShell } from "../_shared";
-import { LowcodeStudioRedirectPage } from "./lowcode-studio-redirect-page";
 
 const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
+const loadLowcodeStudioModule = () => import("@atlas/lowcode-studio-react");
 
 const BotIdePage = lazyNamed(loadStudioModule, "BotIdePage");
 const AssistantPublishPage = lazyNamed(loadStudioModule, "AssistantPublishPage");
 const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
+const LowcodeStudioApp = lazyNamed(loadLowcodeStudioModule, "LowcodeStudioApp");
 
 function EditorLoading() {
   return <PageShell loading testId="coze-editor-loading" />;
@@ -75,16 +77,35 @@ export function AgentPublishRoute() {
 
 export function AppEditorRoute() {
   const { projectId = "" } = useParams<{ projectId: string }>();
-  return <LowcodeAppRedirectRoute projectId={projectId} />;
+  return <LowcodeStudioRoute projectId={projectId} />;
 }
 
 export function AppPublishRoute() {
   const { projectId = "" } = useParams<{ projectId: string }>();
-  return <LowcodeAppRedirectRoute projectId={projectId} />;
+  return <LowcodeStudioRoute projectId={projectId} />;
 }
 
-function LowcodeAppRedirectRoute({ projectId }: { projectId: string }) {
-  return <LowcodeStudioRedirectPage appId={projectId} />;
+export function CanonicalLowcodeStudioRoute() {
+  const { id = "" } = useParams<{ id: string }>();
+  return <LowcodeStudioRoute projectId={id} />;
+}
+
+function LowcodeStudioRoute({ projectId }: { projectId: string }) {
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const workspace = useWorkspaceContext();
+
+  return (
+    <Suspense fallback={<EditorLoading />}>
+      <LowcodeStudioApp
+        appId={projectId}
+        locale={locale}
+        workspaceId={workspace.id}
+        workspaceLabel={workspace.name || workspace.appKey}
+        onBack={() => navigate(workspaceProjectsPath(workspace.id))}
+      />
+    </Suspense>
+  );
 }
 
 /**

@@ -41,6 +41,7 @@ export interface ProjectAppGateway {
 
 export interface LowcodeProjectAppGatewayOptions {
   canDelete?: boolean;
+  navigate?: (path: string) => void;
 }
 
 const LOWCODE_APP_CAPABILITIES: ProjectAppCapabilities = {
@@ -73,6 +74,7 @@ function buildAppCode(name: string): string {
 
 export function createLowcodeProjectAppGateway(options?: LowcodeProjectAppGatewayOptions): ProjectAppGateway {
   const canDelete = options?.canDelete ?? true;
+  const navigate = options?.navigate;
 
   return {
     async list(query) {
@@ -103,7 +105,7 @@ export function createLowcodeProjectAppGateway(options?: LowcodeProjectAppGatewa
     },
     delete: deleteLowcodeApp,
     open(appId) {
-      navigateToLowcodeStudio(appId);
+      navigateToLowcodeStudio(appId, navigate);
     },
     getCapabilities() {
       return {

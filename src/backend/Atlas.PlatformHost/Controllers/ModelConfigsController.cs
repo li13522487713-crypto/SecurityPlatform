@@ -6,7 +6,6 @@ using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Atlas.Presentation.Shared.Filters;
 
 namespace Atlas.PlatformHost.Controllers;
 
@@ -20,7 +19,6 @@ public sealed class ModelConfigsController : ControllerBase
     private readonly IValidator<ModelConfigCreateRequest> _createValidator;
     private readonly IValidator<ModelConfigUpdateRequest> _updateValidator;
     private readonly IValidator<ModelConfigTestRequest> _testValidator;
-    private readonly IValidator<ModelConfigPromptTestRequest> _promptTestValidator;
 
     public ModelConfigsController(
         IModelConfigQueryService queryService,
@@ -28,8 +26,7 @@ public sealed class ModelConfigsController : ControllerBase
         ITenantProvider tenantProvider,
         IValidator<ModelConfigCreateRequest> createValidator,
         IValidator<ModelConfigUpdateRequest> updateValidator,
-        IValidator<ModelConfigTestRequest> testValidator,
-        IValidator<ModelConfigPromptTestRequest> promptTestValidator)
+        IValidator<ModelConfigTestRequest> testValidator)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -37,7 +34,6 @@ public sealed class ModelConfigsController : ControllerBase
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _testValidator = testValidator;
-        _promptTestValidator = promptTestValidator;
     }
 
     [HttpGet]
@@ -134,49 +130,5 @@ public sealed class ModelConfigsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _commandService.TestConnectionAsync(tenantId, request, cancellationToken);
         return Ok(ApiResponse<ModelConfigTestResult>.Ok(result, HttpContext.TraceIdentifier));
-    }
-
-    [HttpPost("test/stream")]
-    [Authorize(Policy = PermissionPolicies.ModelConfigCreate)]
-    public async Task TestPromptStream(
-        [FromBody] ModelConfigPromptTestRequest request,
-        CancellationToken cancellationToken)
-    {
-        _promptTestValidator.ValidateAndThrow(request);
-        var tenantId = _tenantProvider.GetTenantId();
-        Response.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-
-        await foreach (var evt in _commandService.TestPromptStreamAsync(tenantId, request, cancellationToken))
-        {
-            await WriteSseTypedEventAsync(Response, evt.EventType, evt.Data, cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
-        }
-
-        await WriteSseTypedEventAsync(Response, "done", "[DONE]", cancellationToken);
-        await Response.Body.FlushAsync(cancellationToken);
-    }
-
-    private static async Task WriteSseTypedEventAsync(
-        HttpResponse response,
-        string eventType,
-        string payload,
-        CancellationToken cancellationToken)
-    {
-        await response.WriteAsync($"event: {eventType}\n", cancellationToken);
-        await WriteSseDataEventAsync(response, payload, cancellationToken);
-    }
-
-    private static async Task WriteSseDataEventAsync(HttpResponse response, string payload, CancellationToken cancellationToken)
-    {
-        var normalized = payload.Replace("\r\n", "\n").Replace('\r', '\n');
-        var lines = normalized.Split('\n');
-        foreach (var line in lines)
-        {
-            await response.WriteAsync($"data: {line}\n", cancellationToken);
-        }
-
-        await response.WriteAsync("\n", cancellationToken);
     }
 }

@@ -84,9 +84,10 @@ describe("project-app-gateway", () => {
   });
 
   it("open 通过 lowcode studio 导航器跳转", () => {
-    const gateway = createLowcodeProjectAppGateway();
+    const navigate = vi.fn();
+    const gateway = createLowcodeProjectAppGateway({ navigate });
     gateway.open("7788");
-    expect(navigateToLowcodeStudioMock).toHaveBeenCalledWith("7788");
+    expect(navigateToLowcodeStudioMock).toHaveBeenCalledWith("7788", navigate);
   });
 
   it("delete 透传 lowcode delete 接口", async () => {

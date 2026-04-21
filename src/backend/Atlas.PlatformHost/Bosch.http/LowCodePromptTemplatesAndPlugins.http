@@ -13,26 +13,6 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
-### 提示词模板：搜索
-GET {{baseUrl}}/api/v1/lowcode/prompt-templates?keyword=客服
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 提示词模板：创建
-POST {{baseUrl}}/api/v1/lowcode/prompt-templates
-Content-Type: application/json
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-{
-  "code": "agent_persona",
-  "name": "智能体人设",
-  "body": "你是 {{name}}，{{persona}}。请按以下原则回复：{{rules}}",
-  "mode": "jinja",
-  "description": "通用智能体人设模板",
-  "shareScope": "team"
-}
-
 ### 插件：搜索
 GET {{baseUrl}}/api/v1/lowcode/plugins?keyword=&shareScope=public
 Authorization: Bearer {{accessToken}}

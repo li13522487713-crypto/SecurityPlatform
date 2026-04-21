@@ -88,6 +88,7 @@ import {
   orgWorkspaceDatabaseDetailPath,
   orgWorkspacePluginDetailPath,
   orgWorkspaceSettingsPath,
+  lowcodeAppStudioPath,
   signPath
 } from "@atlas/app-shell-shared";
 import { lazyNamed } from "./lazy-named";
@@ -190,6 +191,7 @@ import {
   AgentPublishRoute,
   AppEditorRoute,
   AppPublishRoute,
+  CanonicalLowcodeStudioRoute,
   ChatflowEditorRoute,
   WorkflowEditorRoute
 } from "./pages/editor-routes";
@@ -200,7 +202,6 @@ import { WorkspaceTasksPage } from "./pages/workspace-tasks-page";
 import { WorkspaceEvaluationsPage } from "./pages/workspace-evaluations-page";
 import { WorkspaceSettingsPublishPage } from "./pages/workspace-settings-publish-page";
 import { WorkspaceSettingsModelsPage } from "./pages/workspace-settings-models-page";
-import { LowcodeStudioRedirectPage } from "./pages/lowcode-studio-redirect-page";
 import { MarketTemplatesPage } from "./pages/market-templates-page";
 import { MarketPluginsPage } from "./pages/market-plugins-page";
 import { CommunityWorksPage } from "./pages/community-works-page";
@@ -3262,7 +3263,7 @@ function WorkspaceAccessSettingsRoute({
 
 function LegacyWorkspaceAppRedirectRoute() {
   const { id = "" } = useParams();
-  return <LowcodeStudioRedirectPage appId={id} />;
+  return <Navigate to={lowcodeAppStudioPath(id)} replace />;
 }
 
 function WorkspaceAgentDetailRoute() {
@@ -3522,9 +3523,10 @@ export const appRoutes = [
   },
   {
     path: "/apps/lowcode/:id/studio",
-    element: <LegacyWorkspaceAppRedirectRoute />,
+    element: <EditorShellLayout />,
     handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
+    errorElement: <FatalErrorPage />,
+    children: [{ index: true, element: <CanonicalLowcodeStudioRoute /> }]
   },
   {
     path: "/agent",

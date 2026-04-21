@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Form, Modal, Toast } from "@douyinfe/semi-ui";
+import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import { createLowcodeProjectAppGateway } from "../gateways/project-app-gateway";
 
@@ -17,7 +18,8 @@ interface AppFormValues {
 
 export function CreateAppModal({ visible, workspaceId, onClose, onCreated }: CreateAppModalProps) {
   const { t, locale } = useAppI18n();
-  const appGateway = createLowcodeProjectAppGateway();
+  const navigate = useNavigate();
+  const appGateway = createLowcodeProjectAppGateway({ navigate });
   const [submitting, setSubmitting] = useState(false);
   const [values, setValues] = useState<AppFormValues>({ name: "", description: "" });
 

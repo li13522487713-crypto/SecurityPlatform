@@ -92,8 +92,11 @@ export function WorkspaceProjectsPage() {
   const { folderId } = useParams<{ folderId?: string }>();
   const navigate = useNavigate();
   const lowcodeGateway = useMemo(
-    () => createLowcodeProjectAppGateway({ canDelete: auth.hasPermission("lowcode-app:delete") }),
-    [auth]
+    () => createLowcodeProjectAppGateway({
+      canDelete: auth.hasPermission("lowcode-app:delete"),
+      navigate
+    }),
+    [auth, navigate]
   );
 
   const [keyword, setKeyword] = useState("");

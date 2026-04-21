@@ -59,6 +59,9 @@ importers:
       '@atlas/library-module-react':
         specifier: workspace:*
         version: link:../../packages/library-module-react
+      '@atlas/lowcode-studio-react':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-studio-react
       '@atlas/module-admin-react':
         specifier: workspace:*
         version: link:../../packages/module-admin-react
@@ -333,6 +336,9 @@ importers:
       '@atlas/lowcode-schema':
         specifier: workspace:*
         version: link:../../packages/lowcode-schema
+      '@atlas/lowcode-studio-react':
+        specifier: workspace:*
+        version: link:../../packages/lowcode-studio-react
       '@atlas/lowcode-versioning-client':
         specifier: workspace:*
         version: link:../../packages/lowcode-versioning-client
@@ -17760,6 +17766,82 @@ importers:
       vitest:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/lowcode-studio-react:
+    dependencies:
+      '@atlas/app-shell-shared':
+        specifier: workspace:*
+        version: link:../app-shell-shared
+      '@atlas/lowcode-action-runtime':
+        specifier: workspace:*
+        version: link:../lowcode-action-runtime
+      '@atlas/lowcode-collab-yjs':
+        specifier: workspace:*
+        version: link:../lowcode-collab-yjs
+      '@atlas/lowcode-component-registry':
+        specifier: workspace:*
+        version: link:../lowcode-component-registry
+      '@atlas/lowcode-components-web':
+        specifier: workspace:*
+        version: link:../lowcode-components-web
+      '@atlas/lowcode-debug-client':
+        specifier: workspace:*
+        version: link:../lowcode-debug-client
+      '@atlas/lowcode-editor-canvas':
+        specifier: workspace:*
+        version: link:../lowcode-editor-canvas
+      '@atlas/lowcode-editor-inspector':
+        specifier: workspace:*
+        version: link:../lowcode-editor-inspector
+      '@atlas/lowcode-editor-outline':
+        specifier: workspace:*
+        version: link:../lowcode-editor-outline
+      '@atlas/lowcode-expression':
+        specifier: workspace:*
+        version: link:../lowcode-expression
+      '@atlas/lowcode-property-forms':
+        specifier: workspace:*
+        version: link:../lowcode-property-forms
+      '@atlas/lowcode-schema':
+        specifier: workspace:*
+        version: link:../lowcode-schema
+      '@atlas/lowcode-versioning-client':
+        specifier: workspace:*
+        version: link:../lowcode-versioning-client
+      '@douyinfe/semi-icons':
+        specifier: ^2.82.0
+        version: 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@microsoft/signalr':
+        specifier: ^9.0.0
+        version: 9.0.6
+      '@tanstack/react-query':
+        specifier: ^5.59.20
+        version: 5.99.0(react@18.2.0)
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      react-dom:
+        specifier: 18.2.0
+        version: 18.2.0(react@18.2.0)
+      react-router-dom:
+        specifier: ^6.30.1
+        version: 6.30.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      yjs:
+        specifier: ^13.6.18
+        version: 13.6.30
+      zustand:
+        specifier: ^4.5.5
+        version: 4.5.7(@types/react@18.2.37)(immer@10.2.0)(react@18.2.0)
+    devDependencies:
+      '@types/react':
+        specifier: 18.2.37
+        version: 18.2.37
+      '@types/react-dom':
+        specifier: 18.2.15
+        version: 18.2.15
 
   packages/lowcode-trigger-adapter:
     devDependencies:
