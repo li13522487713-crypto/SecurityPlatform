@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { getTenantId } from "@atlas/shared-react-core/utils";
-import { selectWorkspacePath, signPath, workspaceHomePath } from "@atlas/app-shell-shared";
+import { orgWorkspacesPath, selectWorkspacePath, signPath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 import { useAuth } from "../auth-context";
-import { getWorkspaces } from "../../services/api-org-workspaces";
-import { rememberLastWorkspaceId, readLastWorkspaceId } from "../layouts/workspace-shell";
 import { PageShell } from "../_shared";
 
 /**
@@ -17,10 +15,7 @@ import { PageShell } from "../_shared";
  * 2. platform 未就绪 → /platform-not-ready
  * 3. app 未就绪 → /app-setup
  * 4. 未登录 → /sign
- * 5. 已登录 → 选目标工作空间：
- *    a) localStorage 的 last workspace
- *    b) 否则 getWorkspaces() 取第一个
- *    c) 否则 /select-workspace
+ * 5. 已登录 → 统一进入组织工作空间页
  */
 export function HomePage() {
   const { t } = useAppI18n();
@@ -49,36 +44,14 @@ export function HomePage() {
       return;
     }
 
-    const lastWorkspaceId = readLastWorkspaceId();
-    if (lastWorkspaceId) {
-      setTarget(workspaceHomePath(lastWorkspaceId));
-      setResolving(false);
-      return;
-    }
-
     const orgId = getTenantId();
     if (!orgId) {
       setTarget(selectWorkspacePath());
       setResolving(false);
       return;
     }
-
-    getWorkspaces(orgId)
-      .then(list => {
-        if (list.length === 0) {
-          setTarget(selectWorkspacePath());
-          return;
-        }
-        const first = list[0];
-        rememberLastWorkspaceId(first.id);
-        setTarget(workspaceHomePath(first.id));
-      })
-      .catch(() => {
-        setTarget(selectWorkspacePath());
-      })
-      .finally(() => {
-        setResolving(false);
-      });
+    setTarget(orgWorkspacesPath(orgId));
+    setResolving(false);
   }, [auth.isAuthenticated, auth.loading, bootstrap.appReady, bootstrap.loading, bootstrap.platformReady]);
 
   if (resolving) {

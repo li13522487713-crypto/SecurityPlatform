@@ -1,11 +1,8 @@
 .coze-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   grid-template-areas: "sidebar content";
-  background:
-    radial-gradient(circle at top left, rgba(47, 129, 247, 0.14), transparent 24%),
-    linear-gradient(180deg, #f4f8ff 0%, #f7f8fb 40%, #fbfbfd 100%);
   color: #111827;
 }
 
@@ -17,11 +14,8 @@
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 20px 16px;
-  background: linear-gradient(180deg, #111827 0%, #182238 100%);
-  color: #f8fafc;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0;
+  position: relative;
 }
 
 .coze-shell__sidebar-toolbar {
@@ -29,16 +23,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-
-.coze-shell__back {
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-  color: inherit;
-  cursor: pointer;
+  padding: 20px 16px 16px;
 }
 
 .coze-shell__collapse {
@@ -47,33 +32,7 @@
   border: none;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
-  color: rgba(226, 232, 240, 0.84);
   cursor: pointer;
-}
-
-.coze-shell__brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.coze-shell__brand-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.coze-shell__brand-title {
-  font-weight: 600;
-  color: #f8fafc;
-}
-
-.coze-shell__brand-subtitle {
-  color: rgba(226, 232, 240, 0.64);
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .coze-shell__sidebar-nav {
@@ -81,90 +40,38 @@
   flex-direction: column;
   min-height: 0;
   overflow: auto;
-  padding-right: 4px;
+  padding: 0 8px;
 }
 
 .coze-shell__section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 0 0;
-}
-
-.coze-shell__section + .coze-shell__section {
-  margin-top: 14px;
-  border-top: 1px solid rgba(226, 232, 240, 0.12);
-}
-
-.coze-shell__section-title {
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(191, 219, 254, 0.72);
-  word-break: keep-all;
-  overflow-wrap: normal;
+  padding: 0;
 }
 
 .coze-shell__section-items {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .coze-shell__secondary-item {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 40px;
-  gap: 10px;
-  padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  color: rgba(248, 250, 252, 0.84);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.coze-shell__secondary-item:hover,
-.coze-shell__secondary-item.is-active {
-  background: linear-gradient(180deg, rgba(84, 128, 255, 0.22), rgba(69, 118, 255, 0.18));
-  border-color: rgba(120, 154, 255, 0.3);
-  color: #ffffff;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.14);
-}
-
-.coze-shell__secondary-item--more {
-  color: rgba(226, 232, 240, 0.76);
-}
-
-.coze-shell__secondary-item--more.is-expanded {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(148, 163, 184, 0.24);
-  color: #ffffff;
-  box-shadow: none;
-}
-
-.coze-shell__section-overflow {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 2px;
-  padding-left: 14px;
-  border-left: 1px dashed rgba(191, 219, 254, 0.24);
-}
-
-.coze-shell__secondary-item--overflow {
   min-height: 36px;
-  padding-left: 8px;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
 }
 
 .coze-shell__secondary-item-icon {
-  flex: 0 0 20px;
-  width: 20px;
-  min-width: 20px;
+  flex: 0 0 15px;
+  width: 15px;
+  min-width: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -178,10 +85,20 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 13px;
 }
 
-.coze-shell__secondary-item .semi-tag {
-  flex: 0 0 auto;
+.coze-shell__section-overflow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+  padding-left: 14px;
+}
+
+.coze-shell__secondary-item--overflow {
+  min-height: 36px;
+  padding-left: 8px;
 }
 
 .coze-shell__content {
@@ -189,6 +106,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background-color: #f9fafb;
 }
 
 .coze-shell__header {
@@ -197,12 +115,6 @@
   gap: 24px;
   align-items: flex-start;
   padding: 28px 32px 18px;
-}
-
-.coze-shell__header-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .coze-shell__main {
@@ -243,34 +155,9 @@
   color: #2457d6;
 }
 
-.coze-shell--sidebar-collapsed .coze-shell__brand-copy,
-.coze-shell--sidebar-collapsed .coze-shell__section-title,
-.coze-shell--sidebar-collapsed .coze-shell__secondary-item-label,
-.coze-shell--sidebar-collapsed .coze-shell__secondary-item .semi-tag {
-  display: none;
-}
-
-.coze-shell--sidebar-collapsed .coze-shell__brand {
-  justify-content: center;
-}
-
-.coze-shell--sidebar-collapsed .coze-shell__section-overflow {
-  padding-left: 0;
-  border-left: none;
-}
-
-.coze-shell--sidebar-collapsed .coze-shell__secondary-item {
-  justify-content: center;
-  padding: 0;
-}
-
 @media (max-width: 1200px) {
   .coze-shell {
-    grid-template-columns: 160px minmax(0, 1fr);
-  }
-
-  .coze-shell__section {
-    padding-top: 10px;
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 }
 
@@ -281,15 +168,10 @@
 
   .coze-shell__sidebar {
     min-width: 0;
-    padding: 18px 12px 14px;
-  }
-
-  .coze-shell__section {
-    padding: 12px 4px 0;
   }
 
   .coze-shell__secondary-item {
-    min-height: 38px;
+    min-height: 36px;
     padding: 0 8px;
   }
 
@@ -311,24 +193,5 @@
     grid-template-areas:
       "sidebar"
       "content";
-  }
-
-  .coze-shell__sidebar {
-    padding-inline: 10px;
-  }
-
-  .coze-shell__back {
-    width: 40px;
-    height: 40px;
-    border-radius: 14px;
-  }
-
-  .coze-shell__section-overflow {
-    padding-left: 10px;
-  }
-
-  .coze-shell__header,
-  .coze-shell__main {
-    padding-inline: 16px;
   }
 }

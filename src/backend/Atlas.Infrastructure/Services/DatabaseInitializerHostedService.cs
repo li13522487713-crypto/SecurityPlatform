@@ -30,6 +30,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -2037,8 +2038,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         // 1→N 模型：Workspace.AppInstanceId / AppKey 改为可空（历史一对一字段，仅作为「默认主应用」回填）
-        if (db.DbMaintenance.IsAnyTable("Workspace", false)
-            && RequiresNullableColumnFix<Workspace>(db, "AppInstanceId", "AppKey"))
+        var requiresWorkspaceNullableFix =
+            RequiresNullableColumnFix<Workspace>(db, "AppInstanceId", "AppKey")
+            || RequiresWorkspaceLegacyNotNullFix(db);
+        if (db.DbMaintenance.IsAnyTable("Workspace", false) && requiresWorkspaceNullableFix)
         {
             await RebuildTableViaOrmAsync<Workspace>(db, cancellationToken);
         }
@@ -2596,6 +2599,36 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private static bool RequiresMissingColumnFix<TEntity>(ISqlSugarClient db, params string[] requiredColumnNames)
         where TEntity : class, new()
         => SqliteSchemaAlignment.RequiresMissingColumnFix<TEntity>(db, requiredColumnNames);
+
+    private static bool RequiresWorkspaceLegacyNotNullFix(ISqlSugarClient db)
+    {
+        if (!db.DbMaintenance.IsAnyTable("Workspace", false))
+        {
+            return false;
+        }
+
+        var ddl = db.Ado.GetString(
+            """
+            SELECT sql
+            FROM sqlite_master
+            WHERE lower(type) = 'table'
+              AND lower(name) = 'workspace'
+            LIMIT 1;
+            """);
+        if (string.IsNullOrWhiteSpace(ddl))
+        {
+            return false;
+        }
+
+        return ContainsNotNullColumn(ddl, "AppInstanceId")
+               || ContainsNotNullColumn(ddl, "AppKey");
+    }
+
+    private static bool ContainsNotNullColumn(string ddl, string columnName)
+    {
+        var pattern = $@"(?is)(?:^|,)\s*(?:\[{Regex.Escape(columnName)}\]|`{Regex.Escape(columnName)}`|""{Regex.Escape(columnName)}""|{Regex.Escape(columnName)})\b[^,]*\bNOT\s+NULL\b";
+        return Regex.IsMatch(ddl, pattern, RegexOptions.CultureInvariant);
+    }
 
     private static async Task AddColumnIfMissingAsync(
         ISqlSugarClient db,

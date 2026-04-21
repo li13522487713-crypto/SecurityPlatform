@@ -68,8 +68,10 @@ body {
 .coze-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px 32px;
+  gap: var(--atlas-layout-content-gap, 16px);
+  padding: var(--atlas-layout-page-padding-y, 24px) var(--atlas-layout-page-padding-x, 32px);
+  width: min(100%, var(--atlas-layout-max-width, 1480px));
+  margin: 0 auto;
   min-height: calc(100vh - 60px);
   background: var(--semi-color-bg-0, #f7f8fa);
 }
@@ -362,45 +364,91 @@ body {
 .coze-workspace-shell-toolbar {
   display: flex;
   justify-content: flex-start;
-  padding: 12px 24px 0;
+  width: min(100%, var(--atlas-layout-max-width, 1480px));
+  margin: 0 auto;
+  padding: 12px var(--atlas-layout-page-padding-x, 24px) 0;
   background: transparent;
 }
 
 .coze-workspace-switcher {
-  width: 280px;
+  width: 286px;
   background: var(--semi-color-bg-2, #fff);
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid var(--semi-color-border, #e5e6eb);
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 .coze-workspace-switcher__head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 13px;
+  color: var(--semi-color-text-0, #1d2129);
+  font-weight: 600;
+}
+
+.coze-workspace-switcher__manage-link {
+  border: none;
+  background: none;
+  color: var(--semi-color-primary, #1677ff);
   font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.coze-workspace-switcher__scope-trigger {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 4px;
+  align-items: center;
+  text-align: left;
+  border: 1px solid var(--semi-color-border, #e5e6eb);
+  border-radius: 8px;
+  background: var(--semi-color-fill-0, #f7f8fa);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.coze-workspace-switcher__scope-trigger > span {
+  font-size: 13px;
+  color: var(--semi-color-text-0, #1d2129);
+}
+
+.coze-workspace-switcher__scope-trigger > small {
+  grid-column: 1/2;
+  font-size: 11px;
   color: var(--semi-color-text-2, #86909c);
 }
 
 .coze-workspace-switcher__create {
-  background: none;
-  border: none;
+  border: 1px dashed rgba(22, 119, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(22, 119, 255, 0.04);
   color: var(--semi-color-primary, #1677ff);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
 }
 
 .coze-workspace-switcher__list {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 320px;
+  max-height: 220px;
   overflow-y: auto;
+}
+
+.coze-workspace-switcher__section-label {
+  font-size: 12px;
+  color: var(--semi-color-text-2, #86909c);
+  margin-top: 4px;
 }
 
 .coze-workspace-switcher__loading,
@@ -415,11 +463,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px;
+  padding: 8px 10px;
   background: none;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: background-color 120ms ease;
 }
 
@@ -429,6 +477,7 @@ body {
 
 .coze-workspace-switcher__item.is-active {
   background: rgba(22, 119, 255, 0.08);
+  border-color: rgba(22, 119, 255, 0.2);
 }
 
 .coze-workspace-switcher__item-meta {
@@ -446,6 +495,25 @@ body {
 .coze-workspace-switcher__item-sub {
   font-size: 11px;
   color: var(--semi-color-text-2, #86909c);
+}
+
+.coze-workspace-switcher__check {
+  color: var(--semi-color-primary, #1677ff);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.coze-workspace-switcher__create-team {
+  border: none;
+  background: var(--semi-color-fill-0, #f7f8fa);
+  border-radius: 8px;
+  color: var(--semi-color-text-1, #4e5969);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
 }
 
 .coze-workspace-switcher__trigger {

@@ -28,10 +28,15 @@ import {
   adminPath,
   appForbiddenPath,
   appSignPath,
+  communityWorksPath,
   explorePath,
   explorePluginDetailPath,
   exploreTemplateDetailPath,
   inferPrimaryArea,
+  marketPluginsPath,
+  marketTemplatesPath,
+  meProfilePath,
+  openApiPath,
   orgWorkspaceAssistantToolsPath,
   orgWorkspaceChatPath,
   orgWorkspaceDashboardPath,
@@ -180,8 +185,9 @@ import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
 import { SetupConsolePage } from "./pages/setup-console";
-import { WorkspaceShellLayout, PlatformShellLayout } from "./layouts/workspace-shell";
+import { WorkspaceShellLayout, PlatformShellLayout, readLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
+import { WorkspaceSwitcher } from "./components/workspace-switcher";
 import {
   AgentEditorRoute,
   AgentPublishRoute,
@@ -1959,6 +1965,7 @@ function AppShellRoute() {
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
         profileLabel={t("sidebarProfile")}
         logoutLabel={t("logout")}
+        sidebarTop={<WorkspaceSwitcher workspaceId={bootstrap.spaceId} workspaceLabel={bootstrap.workspaceLabel || appKey} />}
         onNavigate={navigate}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
         onOpenProfile={() => navigate(adminPath(appKey, "profile"))}
@@ -2406,8 +2413,10 @@ function RootEntryRoute() {
 function WorkspaceListRoute() {
   const { orgId = "" } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const auth = useAuth();
   const bootstrap = useBootstrap();
+  const { locale, setLocale, t } = useAppI18n();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(null);
@@ -2464,7 +2473,124 @@ function WorkspaceListRoute() {
     return <Navigate to={signPath()} replace />;
   }
 
+  const activePath = `${location.pathname}${location.search}`;
+  const rememberedWorkspaceId = readLastWorkspaceId();
+  const currentWorkspace = items.find(item => item.id === rememberedWorkspaceId) ?? items[0] ?? null;
+  const workspaceId = currentWorkspace?.id ?? "";
+  const workspaceLabel = currentWorkspace?.name || currentWorkspace?.appKey || t("cozeShellWorkspaceSwitcherTitle");
+
+  const workspaceRoute = (resolver: (resolvedOrgId: string, resolvedWorkspaceId: string) => string) => {
+    if (!workspaceId) {
+      return orgWorkspacesPath(orgId);
+    }
+    return resolver(orgId, workspaceId);
+  };
+
+  const navSections: CozeNavSection[] = [
+    {
+      key: "workspace",
+      title: t("cozeMenuGroupWorkspace"),
+      items: [
+        {
+          key: "home",
+          label: t("sidebarOverview"),
+          icon: navGlyph("H"),
+          path: orgWorkspacesPath(orgId),
+          testId: "app-sidebar-item-org-workspaces"
+        },
+        {
+          key: "projects",
+          label: t("cozeMenuProjects"),
+          icon: navGlyph("P"),
+          path: workspaceRoute(orgWorkspaceDevelopPath),
+          testId: "app-sidebar-item-org-projects"
+        },
+        {
+          key: "resources",
+          label: t("cozeMenuResources"),
+          icon: navGlyph("L"),
+          path: workspaceRoute(orgWorkspaceLibraryPath),
+          testId: "app-sidebar-item-org-library"
+        },
+        {
+          key: "tasks",
+          label: t("cozeMenuTasks"),
+          icon: navGlyph("T"),
+          path: workspaceRoute(orgWorkspaceManagePath),
+          testId: "app-sidebar-item-org-tasks"
+        },
+        {
+          key: "evaluations",
+          label: t("cozeMenuEvaluations"),
+          icon: navGlyph("E"),
+          path: workspaceRoute(orgWorkspacePublishCenterPath),
+          testId: "app-sidebar-item-org-evaluations"
+        },
+        {
+          key: "settings",
+          label: t("sidebarSettings"),
+          icon: navGlyph("S"),
+          path: workspaceRoute(orgWorkspaceSettingsPath),
+          testId: "app-sidebar-item-org-settings"
+        }
+      ]
+    },
+    {
+      key: "ecosystem",
+      title: t("cozeMenuGroupEcosystem"),
+      items: [
+        {
+          key: "templates",
+          label: t("cozeMenuTemplates"),
+          icon: navGlyph("M"),
+          path: marketTemplatesPath(),
+          testId: "app-sidebar-item-templates"
+        },
+        {
+          key: "plugins",
+          label: t("cozeMenuPlugins"),
+          icon: navGlyph("PG"),
+          path: marketPluginsPath(),
+          testId: "app-sidebar-item-plugins"
+        },
+        {
+          key: "community",
+          label: t("cozeMenuCommunity"),
+          icon: navGlyph("C"),
+          path: communityWorksPath(),
+          testId: "app-sidebar-item-community"
+        },
+        {
+          key: "open-api",
+          label: t("cozeMenuOpenApi"),
+          icon: navGlyph("API"),
+          path: openApiPath(),
+          testId: "app-sidebar-item-open-api"
+        }
+      ]
+    }
+  ];
+
   return (
+    <CozeShell
+      appKey={currentWorkspace?.appKey || "atlas"}
+      workspaceLabel={workspaceLabel}
+      activePath={activePath}
+      navSections={navSections}
+      headerTitle={t("workspaceListTitle")}
+      headerSubtitle={workspaceLabel}
+      localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
+      userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+      profileLabel={t("cozeShellAvatarMenuProfile")}
+      logoutLabel={t("cozeShellAvatarMenuLogout")}
+      sidebarTop={<WorkspaceSwitcher workspaceId={workspaceId} workspaceLabel={workspaceLabel} />}
+      onNavigate={path => navigate(path)}
+      onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
+      onOpenProfile={() => navigate(meProfilePath())}
+      onLogout={() => {
+        void auth.logout().then(() => navigate(signPath(), { replace: true }));
+      }}
+    >
       <OrganizationProvider orgId={orgId}>
         <OrganizationWorkspacesPage
           loading={loading}
@@ -2474,43 +2600,45 @@ function WorkspaceListRoute() {
           keyword={keyword}
           items={items}
           onKeywordChange={setKeyword}
-          onOpenWorkspace={workspaceId => navigate(orgWorkspaceDashboardPath(orgId, workspaceId))}
+          onOpenWorkspace={targetWorkspaceId => navigate(orgWorkspaceDashboardPath(orgId, targetWorkspaceId))}
           onCreateWorkspace={async (request: WorkspaceCreateRequest) => {
             setSaving(true);
             try {
-              await createWorkspace(orgId, request);
-              await loadWorkspaces();
+              const targetWorkspaceId = await createWorkspace(orgId, request);
+              navigate(orgWorkspaceDashboardPath(orgId, targetWorkspaceId));
+              return targetWorkspaceId;
             } finally {
               setSaving(false);
             }
           }}
-          onUpdateWorkspace={async (workspaceId: string, request: WorkspaceUpdateRequest) => {
+          onUpdateWorkspace={async (targetWorkspaceId: string, request: WorkspaceUpdateRequest) => {
             setSaving(true);
             try {
-              await updateWorkspace(orgId, workspaceId, request);
+              await updateWorkspace(orgId, targetWorkspaceId, request);
               await loadWorkspaces();
             } finally {
               setSaving(false);
             }
           }}
-          onDeleteWorkspace={async (workspaceId: string) => {
-            setDeletingWorkspaceId(workspaceId);
+          onDeleteWorkspace={async (targetWorkspaceId: string) => {
+            setDeletingWorkspaceId(targetWorkspaceId);
             try {
-              await deleteWorkspace(orgId, workspaceId);
+              await deleteWorkspace(orgId, targetWorkspaceId);
               await loadWorkspaces();
             } finally {
               setDeletingWorkspaceId(null);
             }
           }}
-          onCreateAppInstance={async (workspaceId, request) => {
-            const result = await createWorkspaceAppInstance(orgId, workspaceId, request);
+          onCreateAppInstance={async (targetWorkspaceId, request) => {
+            const result = await createWorkspaceAppInstance(orgId, targetWorkspaceId, request);
             await loadWorkspaces();
             return result;
           }}
         />
       </OrganizationProvider>
-    );
-  }
+    </CozeShell>
+  );
+}
 
 function WorkspaceShellRoute() {
   const { orgId = "", workspaceId = "" } = useParams();
@@ -2656,6 +2784,7 @@ function WorkspaceShellInner() {
         userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
         profileLabel={t("sidebarProfile")}
         logoutLabel={t("logout")}
+        sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />}
         onNavigate={navigate}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
         onOpenProfile={() => navigate(orgWorkspaceSettingsPath(organization, workspace.id, "profile"))}

@@ -7,7 +7,7 @@ import { orgWorkspacesPath } from "../app-paths";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
 import { getLoginCaptcha } from "../../services/api-auth";
-import { InfoBanner, PageShell } from "../_shared";
+import { InfoBanner, PageShell, PublicRatioFrame, PublicRatioLayout, PublicRatioSplit } from "../_shared";
 
 const { Title, Text } = Typography;
 
@@ -41,19 +41,20 @@ const responsiveStyles = `
 .app-login-grid {
   position: relative;
   z-index: 1;
-  min-height: 100dvh;
-  height: 100dvh;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  min-height: 100vh;
   align-items: stretch;
   overflow: hidden;
+}
+
+.app-login-frame {
+  min-height: 100vh;
 }
 
 .app-login-left {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(18px, 4vh, 56px) clamp(18px, 4vw, 64px);
+  padding: var(--atlas-layout-pane-padding-y) var(--atlas-layout-pane-padding-x);
   min-width: 0;
   min-height: 0;
 }
@@ -62,7 +63,7 @@ const responsiveStyles = `
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(18px, 4vh, 56px) clamp(18px, 4vw, 64px);
+  padding: var(--atlas-layout-pane-padding-y) var(--atlas-layout-pane-padding-x);
   min-width: 0;
   min-height: 0;
 }
@@ -136,7 +137,6 @@ const responsiveStyles = `
 }
 
 @media (max-width: 1120px) {
-  .app-login-grid { grid-template-columns: minmax(0, 1fr); }
   .app-login-left { display: none; }
   .app-login-right { padding: clamp(12px, 3vh, 24px) 16px; }
 }
@@ -389,11 +389,12 @@ export function LoginPage() {
   return (
     <PageShell testId="app-login-page">
       <style>{responsiveStyles}</style>
-      <div className="app-login-root">
+      <PublicRatioLayout mode="full" className="app-login-root">
         <div style={{ position: "absolute", top: 22, right: 24, zIndex: 2 }}>
           <LocaleSwitchButton />
         </div>
-        <div className="app-login-grid">
+        <PublicRatioFrame className="app-login-frame">
+          <PublicRatioSplit className="app-login-grid">
           <aside className="app-login-left">
             <div className="app-login-left-panel" style={{ color: "#ebf4ff" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "clamp(24px, 11vh, 128px)" }}>
@@ -674,8 +675,9 @@ export function LoginPage() {
               <span>全程 TLS 1.3 加密传输 · 等保2.0 三级合规</span>
             </div>
           </main>
-        </div>
-      </div>
+          </PublicRatioSplit>
+        </PublicRatioFrame>
+      </PublicRatioLayout>
     </PageShell>
   );
 }

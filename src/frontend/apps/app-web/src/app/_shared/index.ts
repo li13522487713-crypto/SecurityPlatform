@@ -17,3 +17,8 @@ export {
   type InfoBannerProps,
   type InfoBannerVariant
 } from "./semi-info-banner";
+export {
+  PublicRatioLayout,
+  PublicRatioFrame,
+  PublicRatioSplit
+} from "./public-ratio-layout";

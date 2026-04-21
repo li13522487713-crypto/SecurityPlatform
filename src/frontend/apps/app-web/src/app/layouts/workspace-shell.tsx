@@ -212,6 +212,7 @@ function ShellChrome({ variant }: ShellChromeProps) {
             testId: "coze-shell-create-button"
           }
         ]}
+        sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspaceLabel} />}
         onNavigate={path => navigate(path)}
         onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
         onOpenProfile={() => navigate(meProfilePath())}
@@ -219,9 +220,6 @@ function ShellChrome({ variant }: ShellChromeProps) {
           void auth.logout().then(() => navigate(signPath(), { replace: true }));
         }}
       >
-        <div className="coze-workspace-shell-toolbar" data-testid="coze-workspace-shell-toolbar">
-          <WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspaceLabel} />
-        </div>
         <Outlet />
       </CozeShell>
 
