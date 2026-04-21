@@ -2025,6 +2025,21 @@ function LegacyWorkspaceHomeRedirect() {
   return <Navigate to={orgWorkspaceHomePath(orgId, workspaceId)} replace />;
 }
 
+function LegacyOrgWorkspacesRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/workspaces${location.search}`} replace />;
+}
+
+function LegacyOrgWorkspaceRouteRedirect() {
+  const { orgId = "", workspaceId = "*" } = useParams();
+  const location = useLocation();
+  const legacyPrefix = `/org/${encodeURIComponent(orgId)}/workspaces/${encodeURIComponent(workspaceId)}`;
+  const relativePath = location.pathname.startsWith(legacyPrefix)
+    ? location.pathname.slice(legacyPrefix.length)
+    : "";
+  return <Navigate to={`${orgWorkspacePath(orgId, workspaceId)}${relativePath}${location.search}`} replace />;
+}
+
 function DashboardRoute() {
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
@@ -2472,7 +2487,7 @@ function RootEntryRoute() {
 }
 
 function WorkspaceListRoute() {
-  const { orgId = "" } = useParams();
+  const orgId = useResolvedOrgId();
   const navigate = useNavigate();
   const location = useLocation();
   const auth = useAuth();
@@ -2737,7 +2752,8 @@ function WorkspaceListRoute() {
 }
 
 function WorkspaceShellRoute() {
-  const { orgId = "", workspaceId = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const { workspaceId = "" } = useParams();
 
   return (
     <OrganizationProvider orgId={orgId}>
@@ -3642,13 +3658,13 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />
   },
   {
-    path: "/org/:orgId/workspaces",
+    path: "/workspaces",
     element: <WorkspaceListRoute />,
     handle: WORKSPACE_LIST_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {
-    path: "/org/:orgId/workspaces/:workspaceId",
+    path: "/w/:workspaceId",
     element: <WorkspaceShellRoute />,
     handle: WORKSPACE_SHELL_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />,
@@ -3857,6 +3873,18 @@ export const appRoutes = [
         element: <ConnectorDetailRoute />
       }
     ]
+  },
+  {
+    path: "/org/:orgId/workspaces",
+    element: <LegacyOrgWorkspacesRedirect />,
+    handle: WORKSPACE_LIST_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/org/:orgId/workspaces/:workspaceId/*",
+    element: <LegacyOrgWorkspaceRouteRedirect />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
   },
   {
     path: "/explore/plugin/:productId",

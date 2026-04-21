@@ -55,6 +55,9 @@ public sealed class WorkspaceIdeController : ControllerBase
         [FromQuery] string? keyword = null,
         [FromQuery] string? resourceType = null,
         [FromQuery] bool favoriteOnly = false,
+        [FromQuery] string? folderId = null,
+        [FromQuery] string? status = null,
+        [FromQuery] string? workspaceId = null,
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 24,
         CancellationToken cancellationToken = default)
@@ -64,7 +67,7 @@ public sealed class WorkspaceIdeController : ControllerBase
         var result = await _service.GetResourcesAsync(
             tenantId,
             userId,
-            new WorkspaceIdeResourceQueryRequest(keyword, resourceType, favoriteOnly, pageIndex, pageSize),
+            new WorkspaceIdeResourceQueryRequest(keyword, resourceType, favoriteOnly, pageIndex, pageSize, folderId, status, workspaceId),
             cancellationToken);
         return Ok(ApiResponse<PagedResult<WorkspaceIdeResourceCardResponse>>.Ok(result, HttpContext.TraceIdentifier));
     }
@@ -128,5 +131,59 @@ public sealed class WorkspaceIdeController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _service.GetPublishCenterItemsAsync(tenantId, resourceType, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<WorkspaceIdePublishCenterItemResponse>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("resources/{resourceType}/{resourceId:long}/duplicate")]
+    [Authorize(Policy = PermissionPolicies.AgentUpdate)]
+    public async Task<ActionResult<ApiResponse<WorkspaceIdeResourceActionResult>>> DuplicateResource(
+        string resourceType,
+        long resourceId,
+        [FromBody] WorkspaceIdeResourceDuplicateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var result = await _service.DuplicateResourceAsync(tenantId, userId, resourceType, resourceId, request, cancellationToken);
+        return Ok(ApiResponse<WorkspaceIdeResourceActionResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("resources/{resourceType}/{resourceId:long}/migrate")]
+    [Authorize(Policy = PermissionPolicies.AgentUpdate)]
+    public async Task<ActionResult<ApiResponse<WorkspaceIdeResourceActionResult>>> MigrateResource(
+        string resourceType,
+        long resourceId,
+        [FromBody] WorkspaceIdeResourceMoveWorkspaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var result = await _service.MigrateResourceAsync(tenantId, userId, resourceType, resourceId, request, cancellationToken);
+        return Ok(ApiResponse<WorkspaceIdeResourceActionResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("resources/{resourceType}/{resourceId:long}/copy-to-workspace")]
+    [Authorize(Policy = PermissionPolicies.AgentUpdate)]
+    public async Task<ActionResult<ApiResponse<WorkspaceIdeResourceActionResult>>> CopyResourceToWorkspace(
+        string resourceType,
+        long resourceId,
+        [FromBody] WorkspaceIdeResourceMoveWorkspaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var result = await _service.CopyToWorkspaceAsync(tenantId, userId, resourceType, resourceId, request, cancellationToken);
+        return Ok(ApiResponse<WorkspaceIdeResourceActionResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("resources/{resourceType}/{resourceId:long}")]
+    [Authorize(Policy = PermissionPolicies.AgentDelete)]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteResource(
+        string resourceType,
+        long resourceId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _service.DeleteResourceAsync(tenantId, resourceType, resourceId, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { resourceType, resourceId }, HttpContext.TraceIdentifier));
     }
 }

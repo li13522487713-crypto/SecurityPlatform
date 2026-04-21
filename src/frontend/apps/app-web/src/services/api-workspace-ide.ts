@@ -37,14 +37,38 @@ export interface WorkspaceIdeResourceCardDto {
   entryRoute: string;
   badge?: string;
   linkedWorkflowId?: string;
+  folderId?: string;
+  ownerDisplayName?: string;
+  lastEditedByDisplayName?: string;
 }
 
 export interface WorkspaceIdeResourceQuery {
   keyword?: string;
   resourceType?: WorkspaceIdeResourceType;
+  folderId?: string;
+  status?: string;
+  workspaceId?: string;
   favoriteOnly?: boolean;
   pageIndex?: number;
   pageSize?: number;
+}
+
+export interface WorkspaceIdeResourceDuplicateRequest {
+  workspaceId: string;
+  folderId?: string;
+}
+
+export interface WorkspaceIdeResourceMoveWorkspaceRequest {
+  sourceWorkspaceId: string;
+  targetWorkspaceId: string;
+}
+
+export interface WorkspaceIdeResourceActionResultDto {
+  resourceType: string;
+  resourceId: string;
+  action: string;
+  workspaceId?: string;
+  targetWorkspaceId?: string;
 }
 
 export interface WorkspaceIdeCreateAppRequest {
@@ -125,6 +149,18 @@ export async function getWorkspaceIdeResources(query?: WorkspaceIdeResourceQuery
     params.set("resourceType", query.resourceType);
   }
 
+  if (query?.folderId) {
+    params.set("folderId", query.folderId);
+  }
+
+  if (query?.status) {
+    params.set("status", query.status);
+  }
+
+  if (query?.workspaceId) {
+    params.set("workspaceId", query.workspaceId);
+  }
+
   if (query?.favoriteOnly) {
     params.set("favoriteOnly", "true");
   }
@@ -202,4 +238,73 @@ export async function getWorkspacePublishCenterItems(resourceType?: string): Pro
     throw new Error(response.message || "获取发布中心数据失败");
   }
   return response.data;
+}
+
+export async function duplicateWorkspaceIdeResource(
+  resourceType: WorkspaceIdeResourceType,
+  resourceId: string,
+  request: WorkspaceIdeResourceDuplicateRequest
+): Promise<WorkspaceIdeResourceActionResultDto> {
+  const response = await requestApi<ApiResponse<WorkspaceIdeResourceActionResultDto>>(
+    `/workspace-ide/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}/duplicate`,
+    {
+      method: "POST",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "创建副本失败");
+  }
+  return response.data;
+}
+
+export async function migrateWorkspaceIdeResource(
+  resourceType: WorkspaceIdeResourceType,
+  resourceId: string,
+  request: WorkspaceIdeResourceMoveWorkspaceRequest
+): Promise<WorkspaceIdeResourceActionResultDto> {
+  const response = await requestApi<ApiResponse<WorkspaceIdeResourceActionResultDto>>(
+    `/workspace-ide/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}/migrate`,
+    {
+      method: "POST",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "迁移失败");
+  }
+  return response.data;
+}
+
+export async function copyWorkspaceIdeResourceToWorkspace(
+  resourceType: WorkspaceIdeResourceType,
+  resourceId: string,
+  request: WorkspaceIdeResourceMoveWorkspaceRequest
+): Promise<WorkspaceIdeResourceActionResultDto> {
+  const response = await requestApi<ApiResponse<WorkspaceIdeResourceActionResultDto>>(
+    `/workspace-ide/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}/copy-to-workspace`,
+    {
+      method: "POST",
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "复制到其它空间失败");
+  }
+  return response.data;
+}
+
+export async function deleteWorkspaceIdeResource(
+  resourceType: WorkspaceIdeResourceType,
+  resourceId: string
+): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `/workspace-ide/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}`,
+    {
+      method: "DELETE"
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
+  }
 }

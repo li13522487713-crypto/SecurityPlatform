@@ -52,4 +52,34 @@ public interface IWorkspaceIdeService
         TenantId tenantId,
         string? resourceType,
         CancellationToken cancellationToken = default);
+
+    Task<WorkspaceIdeResourceActionResult> DuplicateResourceAsync(
+        TenantId tenantId,
+        long userId,
+        string resourceType,
+        long resourceId,
+        WorkspaceIdeResourceDuplicateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceIdeResourceActionResult> MigrateResourceAsync(
+        TenantId tenantId,
+        long userId,
+        string resourceType,
+        long resourceId,
+        WorkspaceIdeResourceMoveWorkspaceRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceIdeResourceActionResult> CopyToWorkspaceAsync(
+        TenantId tenantId,
+        long userId,
+        string resourceType,
+        long resourceId,
+        WorkspaceIdeResourceMoveWorkspaceRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteResourceAsync(
+        TenantId tenantId,
+        string resourceType,
+        long resourceId,
+        CancellationToken cancellationToken = default);
 }

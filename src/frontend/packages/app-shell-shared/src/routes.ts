@@ -74,11 +74,13 @@ export function orgRootPath(orgId: string): string {
 }
 
 export function orgWorkspacesPath(orgId: string): string {
-  return `${orgRootPath(orgId)}/workspaces`;
+  void orgId;
+  return "/workspaces";
 }
 
 export function orgWorkspacePath(orgId: string, workspaceId: string): string {
-  return `${orgWorkspacesPath(orgId)}/${encodeSegment(workspaceId)}`;
+  void orgId;
+  return `/w/${encodeSegment(workspaceId)}`;
 }
 
 export function orgWorkspaceHomePath(orgId: string, workspaceId: string): string {
