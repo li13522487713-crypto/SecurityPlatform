@@ -2,9 +2,10 @@ import React, { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Empty, Spin, Typography, Tag, List, Banner, Space, Switch, Toast, Button, Modal } from '@douyinfe/semi-ui';
 import type { AppSchema, ComponentSchema } from '@atlas/lowcode-schema';
-import { lowcodeApi, type ComponentMetaWire } from '../services/api-core';
+import type { ComponentMetaWire } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 /**
  * 右侧三 Tab 检视器（M07 C07-3）。
@@ -18,14 +19,15 @@ import { t } from '../i18n';
  */
 export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style' | 'events' }> = ({ appId, kind }) => {
   const { selectedComponentId, setSelectedComponentId } = useStudioSelection();
+  const { api } = useLowcodeStudioHost();
   const qc = useQueryClient();
   const draftQuery = useQuery({
     queryKey: ['lowcode-draft', appId],
-    queryFn: () => lowcodeApi.apps.getDraft(appId)
+    queryFn: () => api.apps.getDraft(appId)
   });
   const registryQuery = useQuery({
     queryKey: ['lowcode-components', 'web'],
-    queryFn: () => lowcodeApi.components.registry('web')
+    queryFn: () => api.components.registry('web')
   });
 
   /**
@@ -47,7 +49,7 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
         }
       }
       if (!touched) throw new Error(t('lowcode_studio.common.nodeNotFound'));
-      await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
+      await api.apps.autosave(appId, JSON.stringify(app));
     },
     onSuccess: async () => {
       Toast.success(t('lowcode_studio.common.applied'));
@@ -72,7 +74,7 @@ export const RightInspector: React.FC<{ appId: string; kind: 'property' | 'style
         }
       }
       if (!removed) throw new Error(t('lowcode_studio.common.nodeNotFound'));
-      await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
+      await api.apps.autosave(appId, JSON.stringify(app));
     },
     onSuccess: async () => {
       Toast.success(t('lowcode_studio.common.deleted'));

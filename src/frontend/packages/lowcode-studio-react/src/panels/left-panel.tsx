@@ -2,9 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space } from '@douyinfe/semi-ui';
 import { listShortcuts } from '@atlas/lowcode-editor-canvas';
-import { lowcodeApi, type AppVariable } from '../services/api-core';
+import type { AppVariable } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 /**
  * 左侧 5 Tab 面板（M07 C07-2 / C07-5 / C07-6 / C07-7）。
@@ -19,13 +20,14 @@ import { t } from '../i18n';
 export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   const [keyword, setKeyword] = useState('');
   const { currentPageCode, setCurrentPageCode } = useStudioSelection();
+  const { api } = useLowcodeStudioHost();
   const qc = useQueryClient();
   const [pageOpen, setPageOpen] = useState(false);
   const [varOpen, setVarOpen] = useState(false);
 
   const createPageMut = useMutation({
     mutationFn: (vals: { code: string; displayName: string; path: string; targetType?: string; layout?: string }) =>
-      lowcodeApi.pages.create(appId, vals),
+      api.pages.create(appId, vals),
     onSuccess: () => {
       Toast.success(t('lowcode_studio.common.created'));
       setPageOpen(false);
@@ -35,7 +37,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   });
 
   const deletePageMut = useMutation({
-    mutationFn: (pageId: string) => lowcodeApi.pages.delete(appId, pageId),
+    mutationFn: (pageId: string) => api.pages.delete(appId, pageId),
     onSuccess: () => {
       Toast.success(t('lowcode_studio.common.deleted'));
       qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
@@ -45,7 +47,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   });
 
   const deleteVarMut = useMutation({
-    mutationFn: (variableId: string) => lowcodeApi.variables.delete(appId, variableId),
+    mutationFn: (variableId: string) => api.variables.delete(appId, variableId),
     onSuccess: () => {
       Toast.success(t('lowcode_studio.common.deleted'));
       qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
@@ -55,7 +57,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
 
   const createVarMut = useMutation({
     mutationFn: (vals: { code: string; displayName: string; scope: string; valueType: string; defaultValueJson?: string; description?: string }) =>
-      lowcodeApi.variables.create(appId, {
+      api.variables.create(appId, {
         // 后端会忽略 id/appId 字段，前端传完整壳即可
         id: '',
         appId,
@@ -79,7 +81,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   // M07 模板应用：apply 后端返 templateJson → 提示用户确认 → 写入 draft
   const applyTplMut = useMutation({
     mutationFn: async (templateId: string) => {
-      const r = await lowcodeApi.templates.apply(templateId);
+      const r = await api.templates.apply(templateId);
       return r;
     },
     onSuccess: async (r) => {
@@ -90,7 +92,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
         cancelText: t('lowcode_studio.common.cancel'),
         onOk: async () => {
           try {
-            await lowcodeApi.apps.replaceDraft(appId, r.templateJson);
+            await api.apps.replaceDraft(appId, r.templateJson);
             await qc.invalidateQueries({ queryKey: ['lowcode-draft', appId] });
             await qc.invalidateQueries({ queryKey: ['lowcode-pages', appId] });
             Toast.success(t('lowcode_studio.common.applied'));
@@ -106,7 +108,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   // Tab 1：组件
   const componentsQuery = useQuery({
     queryKey: ['lowcode-components', 'web'],
-    queryFn: () => lowcodeApi.components.registry('web')
+    queryFn: () => api.components.registry('web')
   });
   const filteredComponents = useMemo(() => {
     const all = componentsQuery.data?.components ?? [];
@@ -118,53 +120,53 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
   // Tab 2：模板
   const templatesQuery = useQuery({
     queryKey: ['lowcode-templates', keyword],
-    queryFn: () => lowcodeApi.templates.search({ keyword, pageSize: 20 })
+    queryFn: () => api.templates.search({ keyword, pageSize: 20 })
   });
 
   // Tab 3：结构（页面列表）
   const pagesQuery = useQuery({
     queryKey: ['lowcode-pages', appId],
-    queryFn: () => lowcodeApi.pages.list(appId)
+    queryFn: () => api.pages.list(appId)
   });
 
   // Tab 4：数据（变量列表）
   const variablesQuery = useQuery({
     queryKey: ['lowcode-variables', appId],
-    queryFn: () => lowcodeApi.variables.list(appId)
+    queryFn: () => api.variables.list(appId)
   });
 
   // Tab 5：资源（投射模式聚合 8 类）
   const resourcesQuery = useQuery({
     queryKey: ['lowcode-resources', appId, keyword],
-    queryFn: () => lowcodeApi.resources.search(appId, { keyword, pageSize: 20 })
+    queryFn: () => api.resources.search(appId, { keyword, pageSize: 20 })
   });
 
   return (
     <>
-    <Tabs tabPosition="left" type="line" defaultActiveKey="components">
-      <TabPane tab={t('lowcode_studio.layout.left.components')} itemKey="components">
-        <Input prefix="🔍" placeholder="搜索组件" value={keyword} onChange={setKeyword} />
-        {componentsQuery.isLoading ? <Spin /> : (
-          <List
-            size="small"
-            style={{ marginTop: 8, maxHeight: 'calc(100vh - 200px)', overflow: 'auto' }}
-            dataSource={filteredComponents}
-            renderItem={(item) => (
-              <List.Item>
-                <span
-                  draggable
-                  onDragStart={(e) => e.dataTransfer.setData('atlas/component-type', item.type)}
-                  style={{ cursor: 'grab', display: 'inline-flex', alignItems: 'center' }}
-                >
-                  <Typography.Text>{item.displayName}</Typography.Text>
-                  <Tag size="small" style={{ marginLeft: 8 }}>{item.category}</Tag>
-                </span>
-              </List.Item>
-            )}
-            emptyContent={<Empty title="无匹配组件" />}
-          />
-        )}
-      </TabPane>
+      <Tabs tabPosition="left" type="line" defaultActiveKey="components">
+        <TabPane tab={t('lowcode_studio.layout.left.components')} itemKey="components">
+          <Input prefix="🔍" placeholder="搜索组件" value={keyword} onChange={setKeyword} />
+          {componentsQuery.isLoading ? <Spin /> : (
+            <List
+              size="small"
+              style={{ marginTop: 8, maxHeight: 'calc(100vh - 200px)', overflow: 'auto' }}
+              dataSource={filteredComponents}
+              renderItem={(item) => (
+                <List.Item>
+                  <span
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData('atlas/component-type', item.type)}
+                    style={{ cursor: 'grab', display: 'inline-flex', alignItems: 'center' }}
+                  >
+                    <Typography.Text>{item.displayName}</Typography.Text>
+                    <Tag size="small" style={{ marginLeft: 8 }}>{item.category}</Tag>
+                  </span>
+                </List.Item>
+              )}
+              emptyContent={<Empty title="无匹配组件" />}
+            />
+          )}
+        </TabPane>
 
       <TabPane tab={t('lowcode_studio.layout.left.templates')} itemKey="templates">
         <Input prefix="🔍" placeholder="搜索模板（page / pattern-A..D / industry）" value={keyword} onChange={setKeyword} />
@@ -293,7 +295,7 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
           快捷键 ≥ {listShortcuts().length} 项；按 Mod+/ 打开面板
         </Typography.Paragraph>
       </TabPane>
-    </Tabs>
+      </Tabs>
       <Modal title={t('lowcode_studio.pages.add')} visible={pageOpen} onCancel={() => setPageOpen(false)} footer={null}>
         <Form onSubmit={(vals) => createPageMut.mutate(vals as { code: string; displayName: string; path: string; targetType?: string; layout?: string })}>
           <Form.Input field="code" label={t('lowcode_studio.app.code')} rules={[{ required: true, pattern: /^[a-zA-Z][a-zA-Z0-9_-]{0,127}$/ }]} />

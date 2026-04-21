@@ -14,6 +14,7 @@ import { WorkflowRuntimeBoundary } from "../workflow-runtime-boundary";
 import { useAppApis } from "../app";
 import { TestsetDrawer } from "../components/testset-drawer";
 import { PageShell } from "../_shared";
+import { createAppWebLowcodeStudioHost } from "../lowcode/studio-host";
 
 const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
@@ -94,11 +95,13 @@ function LowcodeStudioRoute({ projectId }: { projectId: string }) {
   const { locale } = useAppI18n();
   const navigate = useNavigate();
   const workspace = useWorkspaceContext();
+  const lowcodeHost = useMemo(() => createAppWebLowcodeStudioHost(), []);
 
   return (
     <Suspense fallback={<EditorLoading />}>
       <LowcodeStudioApp
         appId={projectId}
+        host={lowcodeHost}
         locale={locale}
         workspaceId={workspace.id}
         workspaceLabel={workspace.name || workspace.appKey}

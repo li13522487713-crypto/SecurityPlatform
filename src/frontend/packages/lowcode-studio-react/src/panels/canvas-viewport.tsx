@@ -2,9 +2,9 @@ import React, { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Empty, Spin, Tag, Typography, Banner, Toast } from '@douyinfe/semi-ui';
 import type { AppSchema, ComponentSchema } from '@atlas/lowcode-schema';
-import { lowcodeApi } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 /**
  * 设计期画布（M07 C07-2 / C07-8 / C07-9）。
@@ -19,9 +19,10 @@ import { t } from '../i18n';
  * 在 lowcode-preview-web (M08) 装配，与本视口完全隔离。
  */
 export const CanvasViewport: React.FC<{ appId: string }> = ({ appId }) => {
+  const { api } = useLowcodeStudioHost();
   const draftQuery = useQuery({
     queryKey: ['lowcode-draft', appId],
-    queryFn: () => lowcodeApi.apps.getDraft(appId)
+    queryFn: () => api.apps.getDraft(appId)
   });
   const qc = useQueryClient();
   const { selectedComponentId, setSelectedComponentId, currentPageCode } = useStudioSelection();
@@ -47,7 +48,7 @@ export const CanvasViewport: React.FC<{ appId: string }> = ({ appId }) => {
         }
       }
       if (!touched) throw new Error(`未找到父节点 ${vals.parentId}`);
-      await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
+      await api.apps.autosave(appId, JSON.stringify(app));
     },
     onSuccess: async () => {
       Toast.success(t('lowcode_studio.common.added'));

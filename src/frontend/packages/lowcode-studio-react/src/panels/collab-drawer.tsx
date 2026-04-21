@@ -4,6 +4,7 @@ import * as signalR from '@microsoft/signalr';
 import * as Y from 'yjs';
 import { YjsSignalRProvider, CollabAwareness, CollabLockManager, type AwarenessUserState } from '@atlas/lowcode-collab-yjs';
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 /**
  * 协同编辑抽屉（M16 C16-1）。
@@ -17,6 +18,7 @@ import { t } from '../i18n';
  * （在线用户 / 锁状态展示），完整 schema 协同编辑由调用方在 lowcode-editor-canvas 内桥接 Yjs Map。
  */
 export const CollabDrawer: React.FC<{ appId: string; userId: string; visible: boolean; onClose: () => void }> = ({ appId, userId, visible, onClose }) => {
+  const { auth } = useLowcodeStudioHost();
   const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [peers, setPeers] = useState<Array<{ clientId: number; userId?: string }>>([]);
@@ -25,7 +27,7 @@ export const CollabDrawer: React.FC<{ appId: string; userId: string; visible: bo
   useEffect(() => {
     if (!visible || providerRef) return;
     const conn = new signalR.HubConnectionBuilder()
-      .withUrl('/hubs/lowcode-collab', { accessTokenFactory: () => localStorage.getItem('atlas_access_token') ?? '' })
+      .withUrl('/hubs/lowcode-collab', { accessTokenFactory: auth.accessTokenFactory })
       .withAutomaticReconnect()
       .build();
 
@@ -53,7 +55,7 @@ export const CollabDrawer: React.FC<{ appId: string; userId: string; visible: bo
       setProviderRef(null);
       setStatus('disconnected');
     };
-  }, [appId, userId, visible, providerRef]);
+  }, [appId, auth, userId, visible, providerRef]);
 
   // 简单轮询：从 awareness 读取 remote peers 列表
   useEffect(() => {

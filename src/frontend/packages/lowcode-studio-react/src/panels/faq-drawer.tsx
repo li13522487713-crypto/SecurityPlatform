@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { SideSheet, Input, List, Typography, Spin, Empty, Tag, Space } from '@douyinfe/semi-ui';
-import { lowcodeApi, type FaqEntry } from '../services/api-core';
+import type { FaqEntry } from '../services/api-core';
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 /**
  * UI Builder FAQ 抽屉（M14 + 二轮深审 #26）。
@@ -14,15 +15,16 @@ import { t } from '../i18n';
 export const FaqDrawer: React.FC<{ visible: boolean; onClose: () => void }> = ({ visible, onClose }) => {
   const [keyword, setKeyword] = useState('');
   const [opened, setOpened] = useState<FaqEntry | null>(null);
+  const { api } = useLowcodeStudioHost();
 
   const faqQuery = useQuery({
     queryKey: ['lowcode-faq', keyword],
-    queryFn: () => lowcodeApi.faq.search(keyword || undefined, 1, 50),
+    queryFn: () => api.faq.search(keyword || undefined, 1, 50),
     enabled: visible
   });
 
   const hitMut = useMutation({
-    mutationFn: (id: string) => lowcodeApi.faq.hit(id),
+    mutationFn: (id: string) => api.faq.hit(id),
     onSuccess: (data) => {
       if (data) setOpened(data);
       faqQuery.refetch();

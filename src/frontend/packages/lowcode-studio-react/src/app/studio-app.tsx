@@ -9,6 +9,7 @@ import { ShortcutPanel } from '../panels/shortcut-panel';
 import { useStudioCommands } from '../hooks/use-studio-commands';
 import { useDraftAutosave } from '../hooks/use-draft-autosave';
 import { setLocale, t, type Locale } from '../i18n';
+import { LowcodeStudioHostProvider, type LowcodeStudioHostConfig } from '../host';
 
 const { Header, Sider, Content } = Layout;
 
@@ -37,9 +38,10 @@ export interface LowcodeStudioAppProps {
   workspaceId?: string;
   workspaceLabel?: string;
   onBack?: () => void;
+  host?: LowcodeStudioHostConfig;
 }
 
-export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale }) => {
+export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale, host }) => {
   const [topMode, setTopMode] = useState<'business' | 'ui'>('ui');
 
   useEffect(() => {
@@ -56,34 +58,36 @@ export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, local
   if (!appId) return <Empty title="缺少应用 ID" />;
 
   return (
-    <QueryClientProvider client={studioQueryClient}>
-      <Layout style={{ height: '100vh' }}>
-        <Header>
-          <TopToolbar appId={appId} mode={topMode} onModeChange={setTopMode} />
-        </Header>
-        <Layout>
-          <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
-            <LeftPanel appId={appId} />
-          </Sider>
-          <Content>
-            <CanvasViewport appId={appId} />
-          </Content>
-          <Sider style={{ width: 320, background: '#fff', borderLeft: '1px solid #eee' }}>
-            <Tabs type="line" defaultActiveKey="property">
-              <TabPane tab={t('lowcode_studio.layout.right.property')} itemKey="property">
-                <RightInspector appId={appId} kind="property" />
-              </TabPane>
-              <TabPane tab={t('lowcode_studio.layout.right.style')} itemKey="style">
-                <RightInspector appId={appId} kind="style" />
-              </TabPane>
-              <TabPane tab={t('lowcode_studio.layout.right.events')} itemKey="events">
-                <RightInspector appId={appId} kind="events" />
-              </TabPane>
-            </Tabs>
-          </Sider>
+    <LowcodeStudioHostProvider host={host}>
+      <QueryClientProvider client={studioQueryClient}>
+        <Layout style={{ height: '100vh' }}>
+          <Header>
+            <TopToolbar appId={appId} mode={topMode} onModeChange={setTopMode} />
+          </Header>
+          <Layout>
+            <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
+              <LeftPanel appId={appId} />
+            </Sider>
+            <Content>
+              <CanvasViewport appId={appId} />
+            </Content>
+            <Sider style={{ width: 320, background: '#fff', borderLeft: '1px solid #eee' }}>
+              <Tabs type="line" defaultActiveKey="property">
+                <TabPane tab={t('lowcode_studio.layout.right.property')} itemKey="property">
+                  <RightInspector appId={appId} kind="property" />
+                </TabPane>
+                <TabPane tab={t('lowcode_studio.layout.right.style')} itemKey="style">
+                  <RightInspector appId={appId} kind="style" />
+                </TabPane>
+                <TabPane tab={t('lowcode_studio.layout.right.events')} itemKey="events">
+                  <RightInspector appId={appId} kind="events" />
+                </TabPane>
+              </Tabs>
+            </Sider>
+          </Layout>
+          <ShortcutPanel />
         </Layout>
-        <ShortcutPanel />
-      </Layout>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </LowcodeStudioHostProvider>
   );
 };

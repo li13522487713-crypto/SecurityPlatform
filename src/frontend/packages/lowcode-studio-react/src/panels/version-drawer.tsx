@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { SideSheet, List, Typography, Spin, Empty, Button, Modal, Toast, Space, Tag } from '@douyinfe/semi-ui';
 import { groupDiffsByGroup } from '@atlas/lowcode-versioning-client';
-import { lowcodeApi } from '../services/api-core';
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 /**
  * 版本管理抽屉（M14）。点击行项可：
@@ -13,21 +13,22 @@ import { t } from '../i18n';
 export const VersionDrawer: React.FC<{ appId: string; visible: boolean; onClose: () => void }> = ({ appId, visible, onClose }) => {
   const [diffSelection, setDiffSelection] = useState<string[]>([]);
   const [showDiff, setShowDiff] = useState(false);
+  const { api } = useLowcodeStudioHost();
 
   const versionsQuery = useQuery({
     queryKey: ['lowcode-versions', appId],
-    queryFn: () => lowcodeApi.apps.listVersions(appId),
+    queryFn: () => api.apps.listVersions(appId),
     enabled: visible
   });
 
   const diffQuery = useQuery({
     queryKey: ['lowcode-version-diff', appId, ...diffSelection],
-    queryFn: () => lowcodeApi.versions.diff(appId, diffSelection[0], diffSelection[1]),
+    queryFn: () => api.versions.diff(appId, diffSelection[0], diffSelection[1]),
     enabled: showDiff && diffSelection.length === 2
   });
 
   const rollbackMut = useMutation({
-    mutationFn: (versionId: string) => lowcodeApi.versions.rollback(appId, versionId, t('lowcode_studio.common.fromVersionDrawer')),
+    mutationFn: (versionId: string) => api.versions.rollback(appId, versionId, t('lowcode_studio.common.fromVersionDrawer')),
     onSuccess: () => Toast.success(t('lowcode_studio.common.rollbackSuccess')),
     onError: (e: Error) => Toast.error(e.message)
   });

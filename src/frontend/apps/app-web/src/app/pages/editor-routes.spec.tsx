@@ -6,22 +6,27 @@ import ReactDOM from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppEditorRoute, CanonicalLowcodeStudioRoute } from "./editor-routes";
 
-const { navigateMock } = vi.hoisted(() => ({
-  navigateMock: vi.fn()
+const { navigateMock, lowcodeStudioPropsMock } = vi.hoisted(() => ({
+  navigateMock: vi.fn(),
+  lowcodeStudioPropsMock: vi.fn()
 }));
 
 vi.mock("../lazy-named", () => ({
   lazyNamed: (_loader: unknown, name: string) => {
     if (name === "LowcodeStudioApp") {
-      return (props: Record<string, string>) => (
-        <div
-          data-testid="mock-lowcode-studio-app"
-          data-app-id={props.appId}
-          data-locale={props.locale}
-          data-workspace-id={props.workspaceId}
-          data-workspace-label={props.workspaceLabel}
-        />
-      );
+      return (props: Record<string, unknown>) => {
+        lowcodeStudioPropsMock(props);
+        return (
+          <div
+            data-testid="mock-lowcode-studio-app"
+            data-app-id={String(props.appId ?? "")}
+            data-locale={String(props.locale ?? "")}
+            data-workspace-id={String(props.workspaceId ?? "")}
+            data-workspace-label={String(props.workspaceLabel ?? "")}
+            data-has-host={props.host ? "true" : "false"}
+          />
+        );
+      };
     }
     return () => null;
   }
@@ -88,6 +93,17 @@ describe("editor-routes lowcode", () => {
     expect(studio?.getAttribute("data-locale")).toBe("zh-CN");
     expect(studio?.getAttribute("data-workspace-id")).toBe("ws-2001");
     expect(studio?.getAttribute("data-workspace-label")).toBe("工作空间 A");
+    expect(studio?.getAttribute("data-has-host")).toBe("true");
+    expect(lowcodeStudioPropsMock).toHaveBeenCalledWith(expect.objectContaining({
+      host: expect.objectContaining({
+        api: expect.any(Object),
+        auth: expect.objectContaining({
+          accessTokenFactory: expect.any(Function),
+          tenantIdFactory: expect.any(Function),
+          userIdFactory: expect.any(Function)
+        })
+      })
+    }));
   });
 
   it("CanonicalLowcodeStudioRoute 使用 canonical /apps/lowcode/:id/studio 参数", () => {

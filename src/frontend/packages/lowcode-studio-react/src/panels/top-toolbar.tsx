@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Space, RadioGroup, Radio, Modal, Form, Toast } from '@douyinfe/semi-ui';
 import { lowcodeAppPreviewPath } from '@atlas/app-shell-shared';
-import { lowcodeApi } from '../services/api-core';
 import { t } from '../i18n';
 import { VersionDrawer } from './version-drawer';
 import { PublishDrawer } from './publish-drawer';
 import { DebugDrawer } from './debug-drawer';
 import { FaqDrawer } from './faq-drawer';
 import { CollabDrawer } from './collab-drawer';
+import { useLowcodeStudioHost } from '../host';
 
 export interface TopToolbarProps {
   appId: string;
@@ -20,17 +20,18 @@ export interface TopToolbarProps {
 export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChange }) => {
   const nav = useNavigate();
   const qc = useQueryClient();
+  const { api, auth } = useLowcodeStudioHost();
   const [versionOpen, setVersionOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [collabOpen, setCollabOpen] = useState(false);
-  const userId = (typeof localStorage !== 'undefined' && localStorage.getItem('atlas_user_id')) || 'me';
+  const userId = auth.userIdFactory();
 
   /** 保存版本快照（M14 S14-1 用户主动版本，与 M16 协同的系统快照区分）。*/
   const snapshotMut = useMutation({
-    mutationFn: (vals: { versionLabel: string; note?: string }) => lowcodeApi.apps.snapshot(appId, vals.versionLabel, vals.note),
+    mutationFn: (vals: { versionLabel: string; note?: string }) => api.apps.snapshot(appId, vals.versionLabel, vals.note),
     onSuccess: (r) => {
       Toast.success(`已保存版本（${r.versionId}）`);
       setSnapshotOpen(false);

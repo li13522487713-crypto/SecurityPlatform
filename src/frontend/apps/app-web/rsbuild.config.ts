@@ -10,8 +10,11 @@ const apiBase = process.env.VITE_API_BASE?.trim();
 const derivedAppHostTarget = apiBase && /^https?:\/\//i.test(apiBase)
   ? new URL(apiBase).origin
   : undefined;
+const platformHostTarget =
+  process.env.VITE_PLATFORM_HOST_TARGET || "http://127.0.0.1:5001";
 const appHostTarget =
   process.env.VITE_APP_HOST_TARGET || derivedAppHostTarget || "http://127.0.0.1:5002";
+const lowcodeDesignTarget = mode === "platform" ? platformHostTarget : appHostTarget;
 const workspaceRoots = [
   "../../packages/app-shell-shared",
   "../../packages/atlas-foundation-bridge",
@@ -62,6 +65,19 @@ export default defineConfig({
     host: "0.0.0.0",
     strictPort: true,
     proxy: [
+      {
+        context: ["/api/v1/lowcode"],
+        target: lowcodeDesignTarget,
+        secure: false,
+        changeOrigin: true,
+      },
+      {
+        context: ["/hubs/lowcode-debug", "/hubs/lowcode-collab", "/hubs/lowcode-preview"],
+        target: appHostTarget,
+        secure: false,
+        changeOrigin: true,
+        ws: true,
+      },
       {
         // `api/v2/workflows`：v2 为 REST API 版本前缀（后端 `DagWorkflowController`），非产品「V2」语义
         context: ["/api/v2/workflows", "/api", "/v1"],

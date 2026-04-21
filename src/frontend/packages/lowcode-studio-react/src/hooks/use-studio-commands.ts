@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { AppSchema, ComponentSchema } from '@atlas/lowcode-schema';
-import { lowcodeApi } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 interface CommandsOptions {
   appId: string;
@@ -22,6 +22,7 @@ interface CommandsOptions {
  */
 export function useStudioCommands(opts: CommandsOptions): void {
   const { appId } = opts;
+  const { api } = useLowcodeStudioHost();
   const { selectedComponentId, setSelectedComponentId } = useStudioSelection();
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function useStudioCommands(opts: CommandsOptions): void {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedComponentId) {
         e.preventDefault();
         try {
-          const draft = await lowcodeApi.apps.getDraft(appId);
+          const draft = await api.apps.getDraft(appId);
           const app = JSON.parse(draft.schemaJson) as AppSchema;
           let removed = false;
           for (const page of app.pages ?? []) {
@@ -61,7 +62,7 @@ export function useStudioCommands(opts: CommandsOptions): void {
             Toast.warning(t('lowcode_studio.common.nodeNotFound'));
             return;
           }
-          await lowcodeApi.apps.autosave(appId, JSON.stringify(app));
+          await api.apps.autosave(appId, JSON.stringify(app));
           Toast.success(t('lowcode_studio.common.deleted'));
           setSelectedComponentId(null);
         } catch (err) {
@@ -78,8 +79,8 @@ export function useStudioCommands(opts: CommandsOptions): void {
         // 真正的"创建快照"由顶部"版本"抽屉显式按钮触发。
         e.preventDefault();
         try {
-          const draft = await lowcodeApi.apps.getDraft(appId);
-          await lowcodeApi.apps.autosave(appId, draft.schemaJson);
+          const draft = await api.apps.getDraft(appId);
+          await api.apps.autosave(appId, draft.schemaJson);
           Toast.success(t('lowcode_studio.common.savedDraft'));
         } catch (err) {
           Toast.error((err as Error).message);
@@ -89,7 +90,7 @@ export function useStudioCommands(opts: CommandsOptions): void {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [appId, selectedComponentId, setSelectedComponentId]);
+  }, [api, appId, selectedComponentId, setSelectedComponentId]);
 }
 
 function deleteById(node: ComponentSchema, id: string): boolean {

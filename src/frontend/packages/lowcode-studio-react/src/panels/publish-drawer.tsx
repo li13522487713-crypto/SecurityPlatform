@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { SideSheet, Button, List, Tag, Typography, Spin, Toast, Space, Empty, Checkbox, CheckboxGroup } from '@douyinfe/semi-ui';
-import { lowcodeApi, type PublishArtifact } from '../services/api-core';
+import type { PublishArtifact } from '../services/api-core';
 
 import { t } from '../i18n';
+import { useLowcodeStudioHost } from '../host';
 
 const RENDERER_OPTIONS = [
   { label: 'web', value: 'web' },
@@ -19,10 +20,11 @@ const RENDERER_OPTIONS = [
  */
 export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose: () => void }> = ({ appId, visible, onClose }) => {
   const [renderers, setRenderers] = useState<string[]>(['web']);
+  const { api } = useLowcodeStudioHost();
 
   const artifactsQuery = useQuery({
     queryKey: ['lowcode-artifacts', appId],
-    queryFn: () => lowcodeApi.publish.list(appId),
+    queryFn: () => api.publish.list(appId),
     enabled: visible
   });
 
@@ -32,7 +34,7 @@ export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose:
       const matrix = kind === 'preview'
         ? { web: true }
         : Object.fromEntries((renderers.length > 0 ? renderers : ['web']).map((r) => [r, true]));
-      return lowcodeApi.publish.publish(appId, kind, { rendererMatrixJson: JSON.stringify(matrix) });
+      return api.publish.publish(appId, kind, { rendererMatrixJson: JSON.stringify(matrix) });
     },
     onSuccess: (a: PublishArtifact) => {
       Toast.success(`发布成功（${a.kind}）`);
@@ -42,7 +44,7 @@ export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose:
   });
 
   const rollbackMut = useMutation({
-    mutationFn: (artifactId: string) => lowcodeApi.publish.rollback(appId, artifactId),
+    mutationFn: (artifactId: string) => api.publish.rollback(appId, artifactId),
     onSuccess: () => {
       Toast.success(t('lowcode_studio.common.revoked'));
       artifactsQuery.refetch();

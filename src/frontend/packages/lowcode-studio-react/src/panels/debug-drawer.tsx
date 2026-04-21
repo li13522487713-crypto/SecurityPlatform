@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { SideSheet, Form, Button, List, Tag, Typography, Spin, Empty, Space, Modal, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { DebugClient, summarizePhases, buildSpanTree, type TraceDto, type TraceSpanDto, type PhaseStats, type MessageLogEntryDto } from '@atlas/lowcode-debug-client';
+import { useLowcodeStudioHost } from '../host';
 
 /**
  * 调试台抽屉（M13 C13-1）：6 维 trace 检索 + span 时间线视图 + 性能阶段汇总。
@@ -9,16 +10,18 @@ import { DebugClient, summarizePhases, buildSpanTree, type TraceDto, type TraceS
  * 6 维：traceId / appId+page / component / 时间范围 from-to / errorType / userId。
  */
 export const DebugDrawer: React.FC<{ appId: string; visible: boolean; onClose: () => void }> = ({ appId, visible, onClose }) => {
+  const { auth } = useLowcodeStudioHost();
   const [traces, setTraces] = useState<TraceDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [openTrace, setOpenTrace] = useState<TraceDto | null>(null);
   const [openLoading, setOpenLoading] = useState(false);
 
   const client = useMemo(() => {
-    const tenantId = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_tenant_id') : null) ?? '00000000-0000-0000-0000-000000000001';
-    const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_access_token') : null) ?? '';
-    return new DebugClient({ tenantId, token });
-  }, []);
+    return new DebugClient({
+      tenantId: auth.tenantIdFactory(),
+      token: auth.accessTokenFactory()
+    });
+  }, [auth]);
 
   const search = async (vals: Record<string, string | undefined>) => {
     setLoading(true);

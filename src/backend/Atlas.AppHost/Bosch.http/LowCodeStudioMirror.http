@@ -1,0 +1,74 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 100
+
+### Login（先执行获取 token）
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 组件注册表（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/components/registry?renderer=web
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 页面列表（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/pages
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 变量列表（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/variables?scope=app
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 资源聚合（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/resources?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 模板搜索（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/templates?pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取草稿（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取草稿锁状态（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/status
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取草稿锁
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/acquire
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "sessionId": "app-web-direct-session"
+}
+
+### 释放草稿锁
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/release
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "sessionId": "app-web-direct-session"
+}

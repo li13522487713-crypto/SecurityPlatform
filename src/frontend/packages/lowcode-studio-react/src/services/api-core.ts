@@ -19,6 +19,8 @@ interface ApiResponse<T> {
   data: T;
 }
 
+export type LowcodeRequest = <T>(method: string, path: string, body?: JsonValue) => Promise<T>;
+
 async function request<T>(method: string, path: string, body?: JsonValue): Promise<T> {
   const tenantId = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_tenant_id') : null) ?? '00000000-0000-0000-0000-000000000001';
   const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_access_token') : null) ?? '';
@@ -169,37 +171,38 @@ export interface PublishArtifact {
   updatedAt: string;
 }
 
-export const lowcodeApi = {
+export function createLowcodeApi(requestImpl: LowcodeRequest) {
+  return {
   apps: {
     list: (pageIndex = 1, pageSize = 20, keyword?: string, status?: string) => {
       const params = new URLSearchParams({ pageIndex: String(pageIndex), pageSize: String(pageSize) });
       if (keyword) params.set('keyword', keyword);
       if (status) params.set('status', status);
-      return request<PagedResult<AppListItem>>('GET', `/apps?${params}`);
+      return requestImpl<PagedResult<AppListItem>>('GET', `/apps?${params}`);
     },
     create: (body: { code: string; displayName: string; description?: string; targetTypes: string; defaultLocale?: string }) =>
-      request<{ id: string }>('POST', '/apps', body as never),
-    detail: (id: string) => request<AppListItem>('GET', `/apps/${id}`),
-    delete: (id: string) => request<unknown>('DELETE', `/apps/${id}`),
-    getDraft: (id: string) => request<{ schemaJson: string; schemaVersion: string; updatedAt: string }>('GET', `/apps/${id}/draft`),
-    replaceDraft: (id: string, schemaJson: string) => request<unknown>('POST', `/apps/${id}/draft`, { schemaJson } as never),
-    autosave: (id: string, schemaJson: string) => request<unknown>('POST', `/apps/${id}/autosave`, { schemaJson } as never),
+      requestImpl<{ id: string }>('POST', '/apps', body as never),
+    detail: (id: string) => requestImpl<AppListItem>('GET', `/apps/${id}`),
+    delete: (id: string) => requestImpl<unknown>('DELETE', `/apps/${id}`),
+    getDraft: (id: string) => requestImpl<{ schemaJson: string; schemaVersion: string; updatedAt: string }>('GET', `/apps/${id}/draft`),
+    replaceDraft: (id: string, schemaJson: string) => requestImpl<unknown>('POST', `/apps/${id}/draft`, { schemaJson } as never),
+    autosave: (id: string, schemaJson: string) => requestImpl<unknown>('POST', `/apps/${id}/autosave`, { schemaJson } as never),
     snapshot: (id: string, versionLabel: string, note?: string) =>
-      request<{ versionId: string }>('POST', `/apps/${id}/snapshot`, { versionLabel, note } as never),
-    listVersions: (id: string) => request<Array<{ id: string; appId: string; versionLabel: string; note?: string; isSystemSnapshot: boolean; createdByUserId: number; createdAt: string }>>('GET', `/apps/${id}/versions`),
-    getSchema: (id: string) => request<unknown>('GET', `/apps/${id}/schema`)
+      requestImpl<{ versionId: string }>('POST', `/apps/${id}/snapshot`, { versionLabel, note } as never),
+    listVersions: (id: string) => requestImpl<Array<{ id: string; appId: string; versionLabel: string; note?: string; isSystemSnapshot: boolean; createdByUserId: number; createdAt: string }>>('GET', `/apps/${id}/versions`),
+    getSchema: (id: string) => requestImpl<unknown>('GET', `/apps/${id}/schema`)
   },
   pages: {
-    list: (appId: string) => request<AppPage[]>('GET', `/apps/${appId}/pages`),
+    list: (appId: string) => requestImpl<AppPage[]>('GET', `/apps/${appId}/pages`),
     create: (appId: string, body: { code: string; displayName: string; path: string; targetType?: string; layout?: string }) =>
-      request<{ id: string }>('POST', `/apps/${appId}/pages`, body as never),
-    delete: (appId: string, pageId: string) => request<unknown>('DELETE', `/apps/${appId}/pages/${pageId}`)
+      requestImpl<{ id: string }>('POST', `/apps/${appId}/pages`, body as never),
+    delete: (appId: string, pageId: string) => requestImpl<unknown>('DELETE', `/apps/${appId}/pages/${pageId}`)
   },
   variables: {
-    list: (appId: string, scope?: string) => request<AppVariable[]>('GET', `/apps/${appId}/variables${scope ? `?scope=${scope}` : ''}`),
+    list: (appId: string, scope?: string) => requestImpl<AppVariable[]>('GET', `/apps/${appId}/variables${scope ? `?scope=${scope}` : ''}`),
     create: (appId: string, body: AppVariable & { isReadOnly?: boolean; isPersisted?: boolean }) =>
-      request<{ id: string }>('POST', `/apps/${appId}/variables`, body as never),
-    delete: (appId: string, variableId: string) => request<unknown>('DELETE', `/apps/${appId}/variables/${variableId}`)
+      requestImpl<{ id: string }>('POST', `/apps/${appId}/variables`, body as never),
+    delete: (appId: string, variableId: string) => requestImpl<unknown>('DELETE', `/apps/${appId}/variables/${variableId}`)
   },
   resources: {
     search: (appId: string, params: { types?: string; keyword?: string; pageIndex?: number; pageSize?: number } = {}) => {
@@ -208,7 +211,7 @@ export const lowcodeApi = {
       if (params.keyword) sp.set('keyword', params.keyword);
       sp.set('pageIndex', String(params.pageIndex ?? 1));
       sp.set('pageSize', String(params.pageSize ?? 20));
-      return request<ResourceCatalog>('GET', `/apps/${appId}/resources?${sp}`);
+      return requestImpl<ResourceCatalog>('GET', `/apps/${appId}/resources?${sp}`);
     }
   },
   templates: {
@@ -217,38 +220,43 @@ export const lowcodeApi = {
       for (const [k, v] of Object.entries(params)) {
         if (v !== undefined && v !== '') sp.set(k, String(v));
       }
-      return request<AppTemplate[]>('GET', `/templates?${sp}`);
+      return requestImpl<AppTemplate[]>('GET', `/templates?${sp}`);
     },
-    apply: (id: string) => request<{ templateId: string; templateJson: string; useCount: number }>('POST', `/templates/${id}/apply`),
-    star: (id: string, increment = true) => request<{ stars: number }>('POST', `/templates/${id}/star?increment=${increment}`)
+    apply: (id: string) => requestImpl<{ templateId: string; templateJson: string; useCount: number }>('POST', `/templates/${id}/apply`),
+    star: (id: string, increment = true) => requestImpl<{ stars: number }>('POST', `/templates/${id}/star?increment=${increment}`)
   },
   faq: {
     search: (keyword?: string, pageIndex = 1, pageSize = 20) => {
       const sp = new URLSearchParams({ pageIndex: String(pageIndex), pageSize: String(pageSize) });
       if (keyword) sp.set('keyword', keyword);
-      return request<FaqEntry[]>('GET', `/faq?${sp}`);
+      return requestImpl<FaqEntry[]>('GET', `/faq?${sp}`);
     },
-    hit: (id: string) => request<FaqEntry | null>('POST', `/faq/${id}/hit`)
+    hit: (id: string) => requestImpl<FaqEntry | null>('POST', `/faq/${id}/hit`)
   },
   versions: {
     diff: (appId: string, fromId: string, toId: string) =>
-      request<VersionDiff>('GET', `/apps/${appId}/versions/${fromId}/diff/${toId}`),
+      requestImpl<VersionDiff>('GET', `/apps/${appId}/versions/${fromId}/diff/${toId}`),
     rollback: (appId: string, versionId: string, note?: string) =>
-      request<unknown>('POST', `/apps/${appId}/versions/${versionId}/rollback`, { note } as never)
+      requestImpl<unknown>('POST', `/apps/${appId}/versions/${versionId}/rollback`, { note } as never)
   },
   publish: {
-    list: (appId: string) => request<PublishArtifact[]>('GET', `/apps/${appId}/artifacts`),
+    list: (appId: string) => requestImpl<PublishArtifact[]>('GET', `/apps/${appId}/artifacts`),
     publish: (appId: string, kind: 'hosted' | 'embedded-sdk' | 'preview', body?: { versionId?: string; rendererMatrixJson?: string }) =>
-      request<PublishArtifact>('POST', `/apps/${appId}/publish/${kind}`, { kind, ...body } as never),
-    rollback: (appId: string, artifactId: string) => request<unknown>('POST', `/apps/${appId}/publish/rollback`, { artifactId } as never)
+      requestImpl<PublishArtifact>('POST', `/apps/${appId}/publish/${kind}`, { kind, ...body } as never),
+    rollback: (appId: string, artifactId: string) => requestImpl<unknown>('POST', `/apps/${appId}/publish/rollback`, { artifactId } as never)
   },
   draftLock: {
-    acquire: (appId: string, sessionId: string) => request<unknown>('POST', `/apps/${appId}/draft-lock/acquire`, { sessionId } as never),
-    renew: (appId: string, sessionId: string) => request<unknown>('POST', `/apps/${appId}/draft-lock/renew`, { sessionId } as never),
-    release: (appId: string, sessionId: string) => request<unknown>('POST', `/apps/${appId}/draft-lock/release`, { sessionId } as never),
-    status: (appId: string) => request<unknown>('GET', `/apps/${appId}/draft-lock/status`)
+    acquire: (appId: string, sessionId: string) => requestImpl<unknown>('POST', `/apps/${appId}/draft-lock/acquire`, { sessionId } as never),
+    renew: (appId: string, sessionId: string) => requestImpl<unknown>('POST', `/apps/${appId}/draft-lock/renew`, { sessionId } as never),
+    release: (appId: string, sessionId: string) => requestImpl<unknown>('POST', `/apps/${appId}/draft-lock/release`, { sessionId } as never),
+    status: (appId: string) => requestImpl<unknown>('GET', `/apps/${appId}/draft-lock/status`)
   },
   components: {
-    registry: (renderer = 'web') => request<ComponentRegistry>('GET', `/components/registry?renderer=${renderer}`)
+    registry: (renderer = 'web') => requestImpl<ComponentRegistry>('GET', `/components/registry?renderer=${renderer}`)
   }
-};
+  };
+}
+
+export type LowcodeApi = ReturnType<typeof createLowcodeApi>;
+
+export const lowcodeApi = createLowcodeApi(request);
