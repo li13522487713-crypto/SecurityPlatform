@@ -45,7 +45,8 @@ Content-Type: application/json
 
 {
   "name": "Workspace App {{$timestamp}}",
-  "description": "用于验证 AppHost Workspace IDE 兼容入口"
+  "description": "用于验证 AppHost Workspace IDE 兼容入口",
+  "workspaceId": "{{workspaceId}}"
 }
 
 ###
