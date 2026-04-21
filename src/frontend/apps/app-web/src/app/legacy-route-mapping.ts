@@ -7,10 +7,10 @@ import {
   orgWorkspaceChatPath,
   orgWorkspaceChatflowPath,
   orgWorkspaceChatflowsPath,
-  orgWorkspaceDashboardPath,
   orgWorkspaceDataPath,
   orgWorkspaceDatabaseDetailPath,
   orgWorkspaceDevelopPath,
+  orgWorkspaceHomePath,
   orgWorkspaceKnowledgeBaseDetailPath,
   orgWorkspaceKnowledgeBaseUploadPath,
   orgWorkspaceLibraryPath,
@@ -188,7 +188,7 @@ export function resolveLegacyAppRedirectTarget(context: LegacyAppRedirectContext
   }
 
   if (relativePath.startsWith("/studio/dashboard")) {
-    return orgWorkspaceDashboardPath(orgId, workspaceId);
+    return orgWorkspaceHomePath(orgId, workspaceId);
   }
 
   if (relativePath.startsWith("/studio/publish-center")) {
@@ -269,11 +269,11 @@ export function resolveLegacyAppRedirectTarget(context: LegacyAppRedirectContext
     }
 
     if (relativePath.includes("/dashboard")) {
-      return orgWorkspaceDashboardPath(orgId, workspaceId);
+      return orgWorkspaceHomePath(orgId, workspaceId);
     }
 
     return orgWorkspaceDevelopPath(orgId, workspaceId);
   }
 
-  return orgWorkspaceDashboardPath(orgId, workspaceId);
+  return orgWorkspaceHomePath(orgId, workspaceId);
 }

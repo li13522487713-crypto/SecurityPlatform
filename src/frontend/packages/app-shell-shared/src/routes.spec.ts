@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   orgWorkspacesPath,
+  orgWorkspaceHomePath,
   orgWorkspaceDashboardPath,
   orgWorkspaceDevelopPath,
   orgWorkspaceChatPath,
@@ -26,6 +27,7 @@ describe("organization workspace routes", () => {
 
   it("builds workspace list and develop paths", () => {
     expect(orgWorkspacesPath("tenant-1")).toBe("/org/tenant-1/workspaces");
+    expect(orgWorkspaceHomePath("tenant-1", "100")).toBe("/org/tenant-1/workspaces/100/home");
     expect(orgWorkspaceDashboardPath("tenant-1", "100")).toBe("/org/tenant-1/workspaces/100/dashboard");
     expect(orgWorkspaceDevelopPath("tenant-1", "100")).toBe("/org/tenant-1/workspaces/100/develop");
     expect(orgWorkspaceChatPath("tenant-1", "100")).toBe("/org/tenant-1/workspaces/100/develop/chat");

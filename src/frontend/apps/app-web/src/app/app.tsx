@@ -39,8 +39,8 @@ import {
   openApiPath,
   orgWorkspaceAssistantToolsPath,
   orgWorkspaceChatPath,
-  orgWorkspaceDashboardPath,
   orgWorkspaceDataPath,
+  orgWorkspaceHomePath,
   replacePathAppKey,
   studioAppsPath,
   studioAppDetailPath,
@@ -65,7 +65,6 @@ import {
   workspaceBotPath,
   workspaceChatPath,
   workspaceDevelopPath,
-  workspaceHomePath,
   workspaceModelConfigsPath,
   orgWorkspacesPath,
   orgWorkspaceDevelopPath,
@@ -2015,8 +2014,15 @@ function DevelopRoute() {
 }
 
 function LegacyOrgWorkspaceHomeRedirect() {
+  const orgId = useResolvedOrgId();
   const workspaceId = useResolvedWorkspaceId();
-  return <Navigate to={workspaceHomePath(workspaceId)} replace />;
+  return <Navigate to={orgWorkspaceHomePath(orgId, workspaceId)} replace />;
+}
+
+function LegacyWorkspaceHomeRedirect() {
+  const orgId = useResolvedOrgId();
+  const workspaceId = useResolvedWorkspaceId();
+  return <Navigate to={orgWorkspaceHomePath(orgId, workspaceId)} replace />;
 }
 
 function DashboardRoute() {
@@ -2553,6 +2559,10 @@ function WorkspaceListRoute() {
   const workspaceId = currentWorkspace?.id ?? "";
   const workspaceLabel = currentWorkspace?.name || currentWorkspace?.appKey || t("cozeShellWorkspaceSwitcherTitle");
 
+  if (!loading && workspaceId) {
+    return <Navigate to={orgWorkspaceHomePath(orgId, workspaceId)} replace />;
+  }
+
   const workspaceRoute = (resolver: (resolvedOrgId: string, resolvedWorkspaceId: string) => string) => {
     if (!workspaceId) {
       return orgWorkspacesPath(orgId);
@@ -2567,45 +2577,45 @@ function WorkspaceListRoute() {
       items: [
         {
           key: "home",
-          label: t("sidebarOverview"),
-          icon: navGlyph("H"),
-          path: orgWorkspacesPath(orgId),
-          testId: "app-sidebar-item-org-workspaces"
+          label: t("cozeMenuHome"),
+          icon: navGlyph("首"),
+          path: workspaceRoute(orgWorkspaceHomePath),
+          testId: "app-sidebar-item-home"
         },
         {
           key: "projects",
           label: t("cozeMenuProjects"),
-          icon: navGlyph("P"),
+          icon: navGlyph("项"),
           path: workspaceRoute(orgWorkspaceDevelopPath),
-          testId: "app-sidebar-item-org-projects"
+          testId: "app-sidebar-item-projects"
         },
         {
           key: "resources",
           label: t("cozeMenuResources"),
-          icon: navGlyph("L"),
+          icon: navGlyph("资"),
           path: workspaceRoute(orgWorkspaceLibraryPath),
-          testId: "app-sidebar-item-org-library"
+          testId: "app-sidebar-item-resources"
         },
         {
           key: "tasks",
           label: t("cozeMenuTasks"),
-          icon: navGlyph("T"),
+          icon: navGlyph("任"),
           path: workspaceRoute(orgWorkspaceManagePath),
-          testId: "app-sidebar-item-org-tasks"
+          testId: "app-sidebar-item-tasks"
         },
         {
           key: "evaluations",
           label: t("cozeMenuEvaluations"),
-          icon: navGlyph("E"),
+          icon: navGlyph("评"),
           path: workspaceRoute(orgWorkspacePublishCenterPath),
-          testId: "app-sidebar-item-org-evaluations"
+          testId: "app-sidebar-item-evaluations"
         },
         {
           key: "settings",
-          label: t("sidebarSettings"),
-          icon: navGlyph("S"),
+          label: t("cozeMenuSettings"),
+          icon: navGlyph("配"),
           path: workspaceRoute(orgWorkspaceSettingsPath),
-          testId: "app-sidebar-item-org-settings"
+          testId: "app-sidebar-item-settings"
         }
       ]
     },
@@ -2616,21 +2626,21 @@ function WorkspaceListRoute() {
         {
           key: "templates",
           label: t("cozeMenuTemplates"),
-          icon: navGlyph("M"),
+          icon: navGlyph("模"),
           path: marketTemplatesPath(),
           testId: "app-sidebar-item-templates"
         },
         {
           key: "plugins",
           label: t("cozeMenuPlugins"),
-          icon: navGlyph("PG"),
+          icon: navGlyph("插"),
           path: marketPluginsPath(),
           testId: "app-sidebar-item-plugins"
         },
         {
           key: "community",
           label: t("cozeMenuCommunity"),
-          icon: navGlyph("C"),
+          icon: navGlyph("社"),
           path: communityWorksPath(),
           testId: "app-sidebar-item-community"
         },
@@ -2685,13 +2695,13 @@ function WorkspaceListRoute() {
           activeWorkspaceId={workspaceId}
           activeWorkspaceLabel={workspaceLabel}
           onKeywordChange={setKeyword}
-          onOpenWorkspace={targetWorkspaceId => navigate(workspaceHomePath(targetWorkspaceId))}
+          onOpenWorkspace={targetWorkspaceId => navigate(orgWorkspaceHomePath(orgId, targetWorkspaceId))}
           onCreateWorkspace={async (request: WorkspaceCreateRequest) => {
             setSaving(true);
             try {
               const targetWorkspaceId = await createWorkspace(orgId, request);
               await loadWorkspaces();
-              navigate(workspaceHomePath(targetWorkspaceId), { replace: true });
+              navigate(orgWorkspaceHomePath(orgId, targetWorkspaceId), { replace: true });
               return targetWorkspaceId;
             } finally {
               setSaving(false);
@@ -2766,8 +2776,12 @@ function WorkspaceShellInner() {
     return <LoadingPage />;
   }
 
+  const workspaceHomeRoute = orgWorkspaceHomePath(organization, workspace.id);
+
   if (!appKey) {
-    return <Navigate to={workspaceHomePath(workspace.id)} replace />;
+    if (location.pathname !== workspaceHomeRoute) {
+      return <Navigate to={workspaceHomeRoute} replace />;
+    }
   }
 
   if (!bootstrap.platformReady) {
@@ -2786,42 +2800,83 @@ function WorkspaceShellInner() {
   const navSections: CozeNavSection[] = [
     {
       key: "workspace",
-      title: t("shellNavWorkspaceNavigation"),
+      title: t("cozeMenuGroupWorkspace"),
       items: [
         {
-          key: "dashboard",
-          label: t("shellNavDashboard"),
-          icon: navGlyph("DB"),
-          path: workspaceHomePath(workspace.id),
-          testId: "app-sidebar-item-dashboard"
+          key: "home",
+          label: t("cozeMenuHome"),
+          icon: navGlyph("首"),
+          path: workspaceHomeRoute,
+          testId: "app-sidebar-item-home"
         },
         {
-          key: "develop",
-          label: t("shellNavDevelop"),
-          icon: navGlyph("D"),
+          key: "projects",
+          label: t("cozeMenuProjects"),
+          icon: navGlyph("项"),
           path: orgWorkspaceDevelopPath(organization, workspace.id),
-          testId: "app-sidebar-item-develop"
+          testId: "app-sidebar-item-projects"
         },
         {
-          key: "library",
-          label: t("sidebarLibrary"),
-          icon: navGlyph("L"),
+          key: "resources",
+          label: t("cozeMenuResources"),
+          icon: navGlyph("资"),
           path: orgWorkspaceLibraryPath(organization, workspace.id),
-          testId: "app-sidebar-item-library"
+          testId: "app-sidebar-item-resources"
         },
         {
-          key: "manage",
-          label: t("shellNavManagement"),
-          icon: navGlyph("MG"),
+          key: "tasks",
+          label: t("cozeMenuTasks"),
+          icon: navGlyph("任"),
           path: orgWorkspaceManagePath(organization, workspace.id),
-          testId: "app-sidebar-item-manage"
+          testId: "app-sidebar-item-tasks"
+        },
+        {
+          key: "evaluations",
+          label: t("cozeMenuEvaluations"),
+          icon: navGlyph("评"),
+          path: orgWorkspacePublishCenterPath(organization, workspace.id),
+          testId: "app-sidebar-item-evaluations"
         },
         {
           key: "settings",
-          label: t("sidebarSettings"),
-          icon: navGlyph("ST"),
+          label: t("cozeMenuSettings"),
+          icon: navGlyph("配"),
           path: orgWorkspaceSettingsPath(organization, workspace.id),
           testId: "app-sidebar-item-settings"
+        }
+      ]
+    },
+    {
+      key: "ecosystem",
+      title: t("cozeMenuGroupEcosystem"),
+      items: [
+        {
+          key: "templates",
+          label: t("cozeMenuTemplates"),
+          icon: navGlyph("模"),
+          path: marketTemplatesPath(),
+          testId: "app-sidebar-item-templates"
+        },
+        {
+          key: "plugins",
+          label: t("cozeMenuPlugins"),
+          icon: navGlyph("插"),
+          path: marketPluginsPath(),
+          testId: "app-sidebar-item-plugins"
+        },
+        {
+          key: "community",
+          label: t("cozeMenuCommunity"),
+          icon: navGlyph("社"),
+          path: communityWorksPath(),
+          testId: "app-sidebar-item-community"
+        },
+        {
+          key: "open-api",
+          label: t("cozeMenuOpenApi"),
+          icon: navGlyph("API"),
+          path: openApiPath(),
+          testId: "app-sidebar-item-open-api"
         }
       ]
     }
@@ -3455,7 +3510,7 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />,
     children: [
       { index: true, element: <Navigate to="home" replace /> },
-      { path: "home", element: <WorkspaceHomePage /> },
+      { path: "home", element: <LegacyWorkspaceHomeRedirect /> },
       { path: "projects", element: <WorkspaceProjectsPage /> },
       { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage /> },
       { path: "resources", element: <WorkspaceResourcesPage /> },
@@ -3601,6 +3656,11 @@ export const appRoutes = [
       {
         index: true,
         element: <LegacyOrgWorkspaceHomeRedirect />,
+        handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
+      },
+      {
+        path: "home",
+        element: <WorkspaceHomePage />,
         handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
       },
       {

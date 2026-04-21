@@ -81,6 +81,10 @@ export function orgWorkspacePath(orgId: string, workspaceId: string): string {
   return `${orgWorkspacesPath(orgId)}/${encodeSegment(workspaceId)}`;
 }
 
+export function orgWorkspaceHomePath(orgId: string, workspaceId: string): string {
+  return `${orgWorkspacePath(orgId, workspaceId)}/home`;
+}
+
 export function orgWorkspaceDashboardPath(orgId: string, workspaceId: string): string {
   return `${orgWorkspacePath(orgId, workspaceId)}/dashboard`;
 }

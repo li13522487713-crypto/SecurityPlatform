@@ -11,7 +11,7 @@ describe("legacy route mapping", () => {
       workspaceId: "workspace-1",
       relativePath: "/studio/dashboard",
       searchText: ""
-    })).toBe("/org/tenant-1/workspaces/workspace-1/dashboard");
+    })).toBe("/org/tenant-1/workspaces/workspace-1/home");
 
     expect(resolveLegacyAppRedirectTarget({
       orgId: "tenant-1",
