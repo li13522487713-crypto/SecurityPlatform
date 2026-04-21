@@ -1,4 +1,4 @@
-@baseUrl = http://localhost:5001
+@baseUrl = http://localhost:5002
 @tenantId = 00000000-0000-0000-0000-000000000001
 @workspaceId = atlas-space
 @username = admin

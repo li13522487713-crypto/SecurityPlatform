@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Typography } from "@douyinfe/semi-ui";
+import { Modal, Tag, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
 import { CreateAgentModal } from "./create-agent-modal";
 import { CreateAppModal } from "./create-app-modal";
@@ -28,7 +28,8 @@ export function GlobalCreateModal({ visible, workspaceId, onClose }: GlobalCreat
         visible={visible && target === null}
         onCancel={handleClose}
         footer={null}
-        width={680}
+        width={900}
+        className="coze-global-create-modal"
         data-testid="coze-global-create-modal"
       >
         <div className="coze-create-cards">
@@ -38,13 +39,28 @@ export function GlobalCreateModal({ visible, workspaceId, onClose }: GlobalCreat
             onClick={() => setTarget("agent")}
             data-testid="coze-global-create-agent"
           >
-            <div className="coze-create-card__icon" aria-hidden>
-              {t("cozeCreateChooseAgent").slice(0, 1)}
+            <div className="coze-create-card__visual coze-create-card__visual--agent" aria-hidden>
+              <div className="coze-create-agent-preview">
+                <div className="coze-create-agent-preview__bubble coze-create-agent-preview__bubble--top" />
+                <div className="coze-create-agent-preview__bubble coze-create-agent-preview__bubble--middle" />
+                <div className="coze-create-agent-preview__bubble coze-create-agent-preview__bubble--bottom" />
+                <div className="coze-create-agent-preview__avatar coze-create-agent-preview__avatar--top" />
+                <div className="coze-create-agent-preview__avatar coze-create-agent-preview__avatar--middle" />
+                <div className="coze-create-agent-preview__avatar coze-create-agent-preview__avatar--bottom" />
+              </div>
+              <div className="coze-create-card__announce">
+                <span>{t("cozeCreateAgentSupportNotice")}</span>
+                <span className="coze-create-card__announce-close">×</span>
+              </div>
             </div>
-            <Typography.Title heading={5} style={{ margin: "12px 0 4px" }}>
-              {t("cozeCreateChooseAgent")}
-            </Typography.Title>
-            <Typography.Text type="tertiary">{t("cozeCreateChooseAgentDesc")}</Typography.Text>
+            <div className="coze-create-card__content">
+              <Typography.Title heading={4} className="coze-create-card__title">
+                {t("cozeCreateChooseAgent")}
+              </Typography.Title>
+              <Typography.Text type="tertiary" className="coze-create-card__desc">
+                {t("cozeCreateChooseAgentDesc")}
+              </Typography.Text>
+            </div>
           </button>
           <button
             type="button"
@@ -52,13 +68,39 @@ export function GlobalCreateModal({ visible, workspaceId, onClose }: GlobalCreat
             onClick={() => setTarget("app")}
             data-testid="coze-global-create-app"
           >
-            <div className="coze-create-card__icon" aria-hidden>
-              {t("cozeCreateChooseApp").slice(0, 1)}
+            <div className="coze-create-card__visual coze-create-card__visual--app" aria-hidden>
+              <div className="coze-create-app-preview">
+                <div className="coze-create-app-preview__desktop">
+                  <div className="coze-create-app-preview__desktop-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="coze-create-app-preview__desktop-line coze-create-app-preview__desktop-line--title" />
+                  <div className="coze-create-app-preview__desktop-line" />
+                  <div className="coze-create-app-preview__desktop-line coze-create-app-preview__desktop-line--short" />
+                </div>
+                <div className="coze-create-app-preview__phone">
+                  <div className="coze-create-app-preview__phone-time" />
+                  <div className="coze-create-app-preview__phone-title" />
+                  <div className="coze-create-app-preview__phone-line" />
+                  <div className="coze-create-app-preview__phone-input" />
+                </div>
+              </div>
             </div>
-            <Typography.Title heading={5} style={{ margin: "12px 0 4px" }}>
-              {t("cozeCreateChooseApp")}
-            </Typography.Title>
-            <Typography.Text type="tertiary">{t("cozeCreateChooseAppDesc")}</Typography.Text>
+            <div className="coze-create-card__content">
+              <div className="coze-create-card__title-row">
+                <Typography.Title heading={4} className="coze-create-card__title">
+                  {t("cozeCreateChooseApp")}
+                </Typography.Title>
+                <Tag size="small" color="blue" className="coze-create-card__beta-tag">
+                  {t("cozeCreateAppBetaTag")}
+                </Tag>
+              </div>
+              <Typography.Text type="tertiary" className="coze-create-card__desc">
+                {t("cozeCreateChooseAppDesc")}
+              </Typography.Text>
+            </div>
           </button>
         </div>
       </Modal>

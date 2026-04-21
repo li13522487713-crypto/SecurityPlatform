@@ -3077,10 +3077,6 @@ function WorkspaceKnowledgeUploadRoute() {
   return <KnowledgeUploadPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} knowledgeBaseId={Number(id)} initialType={searchParams.get("type")} onNavigate={navigate} />;
 }
 
-function WorkspaceDevelopRoute() {
-  return <WorkspaceStudioRoute defaultFocus="overview" />;
-}
-
 function WorkspaceManageRoute() {
   const { tab = "overview" } = useParams();
   const orgId = useResolvedOrgId();
@@ -3686,7 +3682,12 @@ export const appRoutes = [
       },
       {
         path: "develop",
-        element: <WorkspaceDevelopRoute />,
+        element: <WorkspaceProjectsPage />,
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+      },
+      {
+        path: "develop/folder/:folderId",
+        element: <WorkspaceProjectsPage />,
         handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
       },
       {

@@ -7,7 +7,7 @@ using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.AppHost.Controllers;
 
 /// <summary>
 /// Coze PRD 项目开发-文件夹（PRD 03-5.4）。

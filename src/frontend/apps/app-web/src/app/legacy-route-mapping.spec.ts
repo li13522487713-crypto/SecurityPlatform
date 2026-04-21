@@ -32,6 +32,13 @@ describe("legacy route mapping", () => {
     expect(resolveLegacyAppRedirectTarget({
       orgId: "tenant-1",
       workspaceId: "workspace-1",
+      relativePath: "/studio/develop",
+      searchText: ""
+    })).toBe("/w/workspace-1/develop");
+
+    expect(resolveLegacyAppRedirectTarget({
+      orgId: "tenant-1",
+      workspaceId: "workspace-1",
       relativePath: "/studio/apps/app-9/publish",
       searchText: ""
     })).toBe("/w/workspace-1/apps/app-9/publish");

@@ -168,8 +168,7 @@ body {
 
 .coze-card,
 .coze-project-card,
-.coze-tutorial-card,
-.coze-create-card {
+.coze-tutorial-card {
   background: var(--semi-color-bg-2, #fff);
   border: 1px solid var(--semi-color-border, #e5e6eb);
   border-radius: 12px;
@@ -184,8 +183,7 @@ body {
 
 .coze-card:hover,
 .coze-project-card:hover,
-.coze-tutorial-card:hover,
-.coze-create-card:hover {
+.coze-tutorial-card:hover {
   border-color: var(--semi-color-primary, #1677ff);
   box-shadow: 0 4px 12px rgba(22, 119, 255, 0.08);
 }
@@ -497,27 +495,283 @@ body {
 .coze-create-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
+}
+
+.coze-global-create-modal .semi-modal-content {
+  border-radius: 16px;
+}
+
+.coze-global-create-modal .semi-modal-header {
+  padding: 18px 24px 6px;
+}
+
+.coze-global-create-modal .semi-modal-title {
+  font-size: 38px;
+}
+
+.coze-global-create-modal .semi-modal-body {
+  padding: 10px 24px 24px;
 }
 
 .coze-create-card {
-  align-items: stretch;
+  border: 1px solid #e8ebf2;
+  border-radius: 16px;
+  background: #fff;
+  padding: 10px 10px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   text-align: center;
-  padding: 24px 16px;
+  align-items: stretch;
 }
 
-.coze-create-card__icon {
-  width: 56px;
-  height: 56px;
+.coze-create-card:hover {
+  border-color: rgba(72, 109, 240, 0.42);
+  box-shadow: 0 12px 32px rgba(70, 91, 170, 0.14);
+  transform: translateY(-2px);
+}
+
+.coze-create-card:focus-visible {
+  outline: 2px solid rgba(60, 102, 238, 0.7);
+  outline-offset: 3px;
+}
+
+.coze-create-card__visual {
+  position: relative;
+  overflow: hidden;
+  height: 300px;
   border-radius: 12px;
-  background: rgba(22, 119, 255, 0.12);
-  color: var(--semi-color-primary, #1677ff);
-  font-weight: 700;
-  font-size: 24px;
+  border: 1px solid #d8e0f4;
+}
+
+.coze-create-card__visual--agent {
+  background: linear-gradient(180deg, #d8e4fb 0%, #dfe7ff 100%);
+}
+
+.coze-create-card__visual--app {
+  background: linear-gradient(180deg, #d8e4fb 0%, #dce6ff 100%);
+}
+
+.coze-create-agent-preview {
+  position: absolute;
+  inset: 0;
+}
+
+.coze-create-agent-preview__bubble {
+  position: absolute;
+  left: 34px;
+  right: 104px;
+  height: 54px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.coze-create-agent-preview__bubble::before,
+.coze-create-agent-preview__bubble::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  border-radius: 999px;
+  background: rgba(207, 216, 238, 0.75);
+}
+
+.coze-create-agent-preview__bubble::before {
+  top: 14px;
+  width: 56%;
+  height: 8px;
+}
+
+.coze-create-agent-preview__bubble::after {
+  top: 30px;
+  width: 74%;
+  height: 7px;
+}
+
+.coze-create-agent-preview__bubble--top {
+  top: 52px;
+  left: 86px;
+  right: 86px;
+}
+
+.coze-create-agent-preview__bubble--middle {
+  top: 126px;
+}
+
+.coze-create-agent-preview__bubble--bottom {
+  top: 206px;
+  left: 86px;
+  right: 86px;
+  opacity: 0.92;
+}
+
+.coze-create-agent-preview__avatar {
+  position: absolute;
+  right: 50px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, #ffffff 18%, transparent 19%), radial-gradient(circle at 50% 78%, #ffffff 22%, transparent 23%), #b9c5f3;
+}
+
+.coze-create-agent-preview__avatar--top {
+  top: 62px;
+}
+
+.coze-create-agent-preview__avatar--middle {
+  top: 136px;
+  right: 24px;
+  background: radial-gradient(circle at 50% 38%, #ffffff 18%, transparent 19%), radial-gradient(circle at 50% 78%, #ffffff 22%, transparent 23%), #4e67ee;
+}
+
+.coze-create-agent-preview__avatar--bottom {
+  top: 218px;
+}
+
+.coze-create-card__announce {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34px;
+  background: linear-gradient(90deg, #edf0ff 0%, #f2f4ff 100%);
+  color: #4d61df;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 8px;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 14px;
+}
+
+.coze-create-card__announce span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coze-create-card__announce-close {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.coze-create-app-preview {
+  position: absolute;
+  inset: 0;
+}
+
+.coze-create-app-preview__desktop {
+  position: absolute;
+  inset: 28px 24px 72px;
+  border-radius: 14px;
+  background: rgba(247, 250, 255, 0.58);
+  border: 1px solid rgba(202, 213, 247, 0.65);
+  padding: 14px;
+}
+
+.coze-create-app-preview__desktop-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.coze-create-app-preview__desktop-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(193, 204, 238, 0.8);
+}
+
+.coze-create-app-preview__desktop-line {
+  height: 10px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(214, 223, 245, 0.84);
+}
+
+.coze-create-app-preview__desktop-line--title {
+  margin-top: 18px;
+  width: 52%;
+  height: 14px;
+}
+
+.coze-create-app-preview__desktop-line--short {
+  width: 66%;
+}
+
+.coze-create-app-preview__phone {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: 154px;
+  height: 194px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(219, 226, 247, 0.9);
+  box-shadow: 0 12px 30px rgba(57, 79, 149, 0.12);
+  padding: 14px 12px;
+}
+
+.coze-create-app-preview__phone-time {
+  width: 32px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(157, 167, 199, 0.75);
+}
+
+.coze-create-app-preview__phone-title {
+  width: 68%;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(89, 103, 163, 0.78);
+  margin-top: 14px;
+}
+
+.coze-create-app-preview__phone-line {
+  width: 56%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(202, 211, 235, 0.9);
+  margin-top: 10px;
+}
+
+.coze-create-app-preview__phone-input {
+  width: 100%;
+  height: 72px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 219, 241, 0.95);
+  background: rgba(249, 251, 255, 0.86);
+  margin-top: 14px;
+}
+
+.coze-create-card__content {
+  padding: 2px 10px 0;
+}
+
+.coze-create-card__title-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.coze-create-card__title {
+  margin: 0;
+  color: #222936;
+}
+
+.coze-create-card__beta-tag {
+  border-radius: 999px;
+}
+
+.coze-create-card__desc {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  color: #677087;
 }
 
 .coze-home-banner {
