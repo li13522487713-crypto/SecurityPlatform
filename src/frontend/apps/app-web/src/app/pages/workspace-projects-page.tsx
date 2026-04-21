@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Button, Dropdown, Empty, Input, Modal, Select, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Avatar, Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconFolder, IconMore, IconPlus } from "@douyinfe/semi-icons";
 import {
   agentEditorPath,
@@ -403,8 +403,12 @@ export function WorkspaceProjectsPage() {
   };
 
   return (
-    <div className="coze-page coze-projects-page" data-testid="coze-projects-page">
-      <header className="coze-page__header coze-projects-page__header">
+    <div 
+      className="coze-page coze-projects-page" 
+      data-testid="coze-projects-page"
+      style={{ height: "calc(100vh - 60px)", display: "flex", flexDirection: "column", overflow: "hidden", padding: "24px 32px 0", gap: 20 }}
+    >
+      <header className="coze-page__header coze-projects-page__header" style={{ flexShrink: 0 }}>
         <div className="coze-projects-page__title-wrap">
           <Typography.Title heading={3} style={{ margin: 0 }}>
             {t("cozeProjectsTitle")}
@@ -429,9 +433,16 @@ export function WorkspaceProjectsPage() {
             onChange={value => setKeyword(value)}
             placeholder={t("cozeProjectsSearchPlaceholder")}
             showClear
-            style={{ width: 290 }}
+            style={{ width: 280, borderRadius: 8 }}
           />
-          <Button icon={<IconPlus />} onClick={() => setCreateFolderOpen(true)} data-testid="coze-projects-create-folder">
+          <Button 
+            theme="light" 
+            type="tertiary" 
+            icon={<IconPlus />} 
+            onClick={() => setCreateFolderOpen(true)} 
+            data-testid="coze-projects-create-folder"
+            style={{ borderRadius: 8, fontWeight: 500 }}
+          >
             {t("cozeProjectsCreateFolder")}
           </Button>
           <Button
@@ -440,6 +451,7 @@ export function WorkspaceProjectsPage() {
             icon={<IconPlus />}
             onClick={() => setGlobalCreateOpen(true)}
             data-testid="coze-projects-create-project"
+            style={{ borderRadius: 8, fontWeight: 500, boxShadow: "0 4px 10px rgba(37,99,235,0.2)" }}
           >
             {t("cozeProjectsCreateProject")}
           </Button>
@@ -447,40 +459,41 @@ export function WorkspaceProjectsPage() {
       </header>
 
       {!folderId ? (
-        <section className="coze-projects-page__folder-section">
+        <section className="coze-projects-page__folder-section" style={{ flexShrink: 0, marginBottom: 8 }}>
           {visibleFolders.length > 0 ? (
-            <div className="coze-projects-folder-list">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
               {visibleFolders.map(item => (
-                <button
+                <Card
                   key={item.id}
-                  type="button"
-                  className="coze-projects-folder-item"
+                  shadows="hover"
+                  style={{ borderRadius: 16, cursor: "pointer", border: "1px solid rgba(15, 23, 42, 0.06)" }}
+                  bodyStyle={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}
                   onClick={() => handleOpenFolder(item.id)}
                   data-testid={`coze-projects-folder-${item.id}`}
                 >
-                  <div className="coze-projects-folder-item__left">
-                    <IconFolder size="large" />
-                    <span>{item.name}</span>
-                  </div>
-                  <IconMore />
-                </button>
+                  <Space align="center" spacing={12}>
+                    <IconFolder size="large" style={{ color: "#1677ff" }} />
+                    <Typography.Text strong style={{ fontSize: 16 }}>{item.name}</Typography.Text>
+                  </Space>
+                  <IconMore style={{ color: "#86909c" }} />
+                </Card>
               ))}
             </div>
           ) : (
-            <div className="coze-projects-page__folder-empty">{t("cozeProjectsFoldersEmpty")}</div>
+            <Empty description={t("cozeProjectsFoldersEmpty")} style={{ padding: "20px 0" }} />
           )}
         </section>
       ) : null}
 
-      <section className="coze-projects-page__projects-header">
+      <section className="coze-projects-page__projects-header" style={{ flexShrink: 0 }}>
         <Typography.Title heading={5} style={{ margin: 0 }}>
           {t("cozeProjectsSectionTitle")}
         </Typography.Title>
       </section>
 
-      <section className="coze-page__toolbar">
+      <section className="coze-page__toolbar" style={{ flexShrink: 0, marginBottom: 4 }}>
         <Select
-          style={{ width: 160 }}
+          style={{ width: 140, borderRadius: 8 }}
           value={resourceTypeFilter}
           optionList={[
             { label: t("cozeProjectsFilterTypeAll"), value: "all" },
@@ -490,7 +503,7 @@ export function WorkspaceProjectsPage() {
           onChange={value => setResourceTypeFilter((value as ProjectsResourceTypeFilter) ?? "all")}
         />
         <Select
-          style={{ width: 160 }}
+          style={{ width: 140, borderRadius: 8 }}
           value={statusFilter}
           optionList={[
             { label: t("cozeProjectsFilterStatusAll"), value: "all" },
@@ -502,7 +515,7 @@ export function WorkspaceProjectsPage() {
         />
       </section>
 
-      <section className="coze-page__body">
+      <section className="coze-page__body" style={{ flex: 1, overflowY: "auto", paddingBottom: 32, minHeight: 0 }}>
         {loading ? (
           <div className="coze-page__loading">
             <Spin />
@@ -510,7 +523,7 @@ export function WorkspaceProjectsPage() {
         ) : resources.length === 0 ? (
           <Empty title={t("cozeProjectsEmptyTitle")} description={t("cozeProjectsEmptyTip")} />
         ) : (
-          <div className="coze-projects-resource-grid">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
             {resources.map(item => {
               const actionPrefix = `${item.resourceType}-${item.resourceId}`;
               const menuItems: Array<{
@@ -574,54 +587,59 @@ export function WorkspaceProjectsPage() {
               }
 
               return (
-                <article
+                <Card
                   key={`${item.resourceType}-${item.resourceId}`}
-                  className="coze-projects-resource-card"
+                  shadows="hover"
+                  style={{ borderRadius: 16, border: "1px solid rgba(15, 23, 42, 0.06)", display: "flex", flexDirection: "column", minHeight: 180 }}
+                  bodyStyle={{ padding: "20px 24px", flex: 1, display: "flex", flexDirection: "column" }}
                   data-testid={`coze-project-card-${item.resourceType}-${item.resourceId}`}
                 >
-                  <button
-                    type="button"
-                    className="coze-projects-resource-card__main"
-                    onClick={() => handleOpenResource(item)}
-                  >
-                    <div className="coze-projects-resource-card__head">
-                      <div className="coze-projects-resource-card__text">
-                        <strong>{item.name}</strong>
-                        <span>{item.description || "—"}</span>
-                      </div>
-                      <Avatar size="medium" color={item.resourceType === "app" ? "orange" : "light-blue"}>
-                        {(item.name || "R").slice(0, 1).toUpperCase()}
-                      </Avatar>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", cursor: "pointer", marginBottom: 16 }} onClick={() => handleOpenResource(item)}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, paddingRight: 20 }}>
+                      <Typography.Text strong style={{ fontSize: 18, color: "#1d2129", lineHeight: 1.4 }} ellipsis={{ rows: 2 }}>{item.name}</Typography.Text>
+                      <Typography.Text type="tertiary" style={{ fontSize: 14 }} ellipsis={{ rows: 2 }}>{item.description || "—"}</Typography.Text>
                     </div>
-                  </button>
+                    <Avatar 
+                      shape="square" 
+                      color={item.resourceType === "app" ? "orange" : "light-blue"} 
+                      style={{ flexShrink: 0, width: 64, height: 64, borderRadius: 16, fontSize: 24, fontWeight: 600 }}
+                    >
+                      {(item.name || "R").slice(0, 1).toUpperCase()}
+                    </Avatar>
+                  </div>
 
-                  <div className="coze-projects-resource-card__meta-row">
+                  <Space spacing={8} wrap style={{ marginBottom: "auto", paddingBottom: 16 }}>
                     {renderCardTags(item, t)}
-                  </div>
+                  </Space>
 
-                  <div className="coze-projects-resource-card__owner">
-                    {item.ownerDisplayName || "RootUser"} · {t("cozeProjectsEditedBy")} {item.lastEditedByDisplayName || item.ownerDisplayName || "RootUser"} · {t("cozeProjectsEditedAt")} {formatShortDateTime(item.lastEditedAt || item.updatedAt)}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Space spacing={6}>
+                      <Avatar size="extra-small" color="blue" style={{ width: 18, height: 18, fontSize: 10 }}>
+                        <Typography.Text style={{ color: "#fff", fontSize: 10 }}>{(item.lastEditedByDisplayName || item.ownerDisplayName || "U").slice(0, 1).toUpperCase()}</Typography.Text>
+                      </Avatar>
+                      <Typography.Text type="tertiary" style={{ fontSize: 13 }}>
+                         {item.ownerDisplayName || "RootUser"} · {t("cozeProjectsEditedAt")} {formatShortDateTime(item.lastEditedAt || item.updatedAt)}
+                      </Typography.Text>
+                    </Space>
+                    <Space spacing={8}>
+                      {item.capabilities.canFavorite ? (
+                        <Button
+                          icon={<Typography.Text style={{ fontSize: 16, lineHeight: 1 }}>{item.isFavorite ? "★" : "☆"}</Typography.Text>}
+                          theme="light"
+                          type={item.isFavorite ? "warning" : "tertiary"}
+                          loading={actionLoadingKey === `${actionPrefix}-favorite`}
+                          onClick={() => void handleToggleFavorite(item)}
+                          style={{ borderRadius: 8, padding: 6, height: 32, width: 32 }}
+                        />
+                      ) : null}
+                      {menuItems.length > 0 ? (
+                        <Dropdown trigger="click" position="bottomRight" menu={menuItems}>
+                          <Button icon={<IconMore />} theme="light" type="tertiary" style={{ borderRadius: 8, padding: 6, height: 32, width: 32 }} />
+                        </Dropdown>
+                      ) : null}
+                    </Space>
                   </div>
-
-                  <div className="coze-projects-resource-card__actions">
-                    {item.capabilities.canFavorite ? (
-                      <Button
-                        size="small"
-                        loading={actionLoadingKey === `${actionPrefix}-favorite`}
-                        onClick={() => {
-                          void handleToggleFavorite(item);
-                        }}
-                      >
-                        {item.isFavorite ? "★" : "☆"}
-                      </Button>
-                    ) : null}
-                    {menuItems.length > 0 ? (
-                      <Dropdown trigger="click" position="bottomRight" menu={menuItems}>
-                        <Button icon={<IconMore />} size="small" />
-                      </Dropdown>
-                    ) : null}
-                  </div>
-                </article>
+                </Card>
               );
             })}
           </div>
@@ -771,12 +789,12 @@ function mapLowcodeAppCard(
 
 function renderCardTags(item: ProjectsResourceCard, t: (key: AppMessageKey) => string) {
   if (item.resourceType === "agent") {
-    return <Tag size="small">{t("cozeProjectsFilterTypeAgent")}</Tag>;
+    return <Tag color="violet" type="light" style={{ borderRadius: 6, padding: "2px 8px", fontSize: 13, fontWeight: 500 }}>{t("cozeProjectsFilterTypeAgent")}</Tag>;
   }
   return (
     <>
-      <Tag size="small">{t("cozeProjectsFilterTypeApp")}</Tag>
-      <Tag size="small" color="blue">
+      <Tag color="violet" type="light" style={{ borderRadius: 6, padding: "2px 8px", fontSize: 13, fontWeight: 500 }}>{t("cozeProjectsFilterTypeApp")}</Tag>
+      <Tag color="blue" type="light" style={{ borderRadius: 6, padding: "2px 8px", fontSize: 13, fontWeight: 500 }}>
         {t("cozeProjectsTagLowcode")}
       </Tag>
     </>

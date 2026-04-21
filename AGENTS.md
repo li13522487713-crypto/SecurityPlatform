@@ -73,6 +73,7 @@ pnpm run format                 # 格式化所有项目
 
 - **.NET：** 4 空格缩进，PascalCase 类型/公开成员，camelCase 局部变量；File-scoped namespaces；启用 Nullable reference types。
 - **React/TSX：** 2 空格缩进，kebab-case 页面/路由文件，PascalCase 组件导出；hooks 用 `useXxx`；TypeScript 严格模式，禁止 `any`。
+- **前端 UI 框架（强制约束）：** 所有前端应用与 workspace 包的用户可见 UI **必须且只能使用 `@douyinfe/semi-ui ^2.82.0`**（含 `@douyinfe/semi-icons`、`@douyinfe/semi-foundation`、`@douyinfe/semi-illustrations`）作为组件库。**禁止**引入 Ant Design、MUI、Chakra UI、Element Plus 或任何其他第三方组件库；新增 `apps/*` 或 `packages/*` 若包含可交互 UI，必须在其 `package.json` `dependencies` 中声明 `@douyinfe/semi-ui ^2.82.0`，否则 PR 不予合并。
 - **异步：** 所有 I/O 必须 async/await；控制器必须通过 Repository / Service，不得直接访问数据库。
 - **注释：** 只说明"为什么"与约束背景，禁止复述"做了什么"；禁止无上下文 TODO。
 - **前端分层：** 跨页面/模块/壳能力优先沉淀到 `packages/*`，`apps/*` 只负责装配、路由、页面编排与环境适配。
@@ -157,6 +158,7 @@ pnpm run format                 # 格式化所有项目
 - 后端：禁止反射、`dynamic`、运行时编译或表达式树等弱类型特性；必须使用强类型 DTO、实体与接口，所有公共 API 输入输出显式类型声明与验证。
 - 后端：禁止在循环内执行数据库操作；优先批量查询/更新/删除，通过字典或集合聚合减少往返次数。
 - 前端：禁止 `any`、`unknown` 或 `eval`/动态注入；必须全量 TypeScript 类型标注，API 客户端与接口契约保持类型对齐。
+- **前端 UI 框架（唯一强制）：** 所有前端 UI 组件必须使用 `@douyinfe/semi-ui`（Semi Design）；禁止引入任何其他 UI 组件库；自绘组件必须基于 Semi 组件进行封装或扩展，不得绕过 Semi 体系独立实现可交互 UI。
 - 前端：搜索下拉框默认展示 20 条结果，必须提供搜索框并支持远程检索。
 - 前后端：遇到缺陷、重复逻辑、边界不清时，先做系统性诊断，再局部修补。
 - 契约：前后端共享数据契约集中于 `docs/contracts.md` 并保持与实现同步，修改契约时同步更新类型定义与验证。

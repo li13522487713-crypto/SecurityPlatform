@@ -2,7 +2,7 @@ import type { ApiResponse, PagedResult } from "@atlas/shared-react-core/types";
 import { requestApi } from "./api-core";
 
 /** 解析 ASP.NET Core ValidationProblemDetails 或后端自定义 errors 对象，拼接所有字段错误为可读字符串。 */
-function extractValidationErrors(body: unknown): string | null {
+function _extractValidationErrors(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   const obj = body as Record<string, unknown>;
   // ASP.NET Core ProblemDetails: { errors: { FieldName: ["msg1", "msg2"] } }

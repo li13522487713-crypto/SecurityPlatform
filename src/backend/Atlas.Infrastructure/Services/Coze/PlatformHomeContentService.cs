@@ -28,7 +28,7 @@ public sealed class PlatformHomeContentService : IHomeContentService
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static readonly HomeBannerDto DefaultBanner = new(
-        HeroTitle: "扣子，让 AI 离应用更近一步",
+        HeroTitle: "Atlas，让 AI 离应用更近一步",
         HeroSubtitle: "新一代 AI 应用开发平台 — 无需代码，轻松创建，支持发布多平台、WebSDK 及 API。",
         CtaList: new[]
         {
@@ -40,7 +40,7 @@ public sealed class PlatformHomeContentService : IHomeContentService
 
     private static readonly IReadOnlyList<HomeTutorialCardDto> DefaultTutorials = new[]
     {
-        new HomeTutorialCardDto("intro", "什么是扣子", "5 分钟了解平台基础概念。", "intro", "/docs/welcome"),
+        new HomeTutorialCardDto("intro", "什么是 Atlas", "5 分钟了解平台基础概念。", "intro", "/docs/welcome"),
         new HomeTutorialCardDto("quickstart", "快速开始", "跟着指引创建你的第一个智能体。", "quickstart", "/docs/quick-start"),
         new HomeTutorialCardDto("release", "产品动态", "查看最新功能与版本更新。", "release", "/docs/release-notes")
     };
@@ -49,16 +49,16 @@ public sealed class PlatformHomeContentService : IHomeContentService
     {
         new HomeAnnouncementItemDto(
             "ann-1",
-            "扣子小助手工作流模板已上线",
+            "Atlas 小助手工作流模板已上线",
             "官方模板帮助你快速搭建客服 / 销售助手。",
-            "扣子官方",
+            "Atlas 官方",
             DateTimeOffset.Parse("2026-04-12T10:00:00Z"),
             "公告",
             "/docs/release-notes#tpl"),
         new HomeAnnouncementItemDto(
             "ann-2",
             "DAG 工作流引擎升级：支持批处理与续跑",
-            "引擎能力对齐 Coze parity，新节点支持续跑能力。",
+            "引擎能力对齐 Atlas parity，新节点支持续跑能力。",
             "工作流团队",
             DateTimeOffset.Parse("2026-04-10T08:00:00Z"),
             null,

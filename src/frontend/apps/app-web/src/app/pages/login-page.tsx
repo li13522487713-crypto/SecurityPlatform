@@ -1,15 +1,15 @@
 import { clearAuthStorage } from "@atlas/shared-react-core/utils";
 import { useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Button, Input, Typography } from "@douyinfe/semi-ui";
-import { IconLock, IconUser } from "@douyinfe/semi-icons";
+import { Button, Checkbox, Input, Typography } from "@douyinfe/semi-ui";
+import { IconEyeClosedSolid, IconEyeOpened } from "@douyinfe/semi-icons";
 import { selectWorkspacePath } from "../app-paths";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
 import { getLoginCaptcha } from "../../services/api-auth";
 import { InfoBanner, PageShell, PublicRatioFrame, PublicRatioLayout, PublicRatioSplit } from "../_shared";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const FIXED_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 const HARDCODED_DEFAULT_USERNAME = "admin";
@@ -21,9 +21,7 @@ const responsiveStyles = `
   min-height: 100vh;
   width: 100%;
   overflow: hidden;
-  background:
-    radial-gradient(58% 48% at 83% 89%, rgba(20, 161, 255, 0.22) 0%, rgba(4, 12, 28, 0) 100%),
-    linear-gradient(90deg, #031630 0%, #071f45 38%, #031229 100%);
+  background-color: #f7f7f9;
 }
 
 .app-login-root::before {
@@ -31,11 +29,8 @@ const responsiveStyles = `
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.2;
-  background-image:
-    linear-gradient(rgba(52, 112, 188, 0.26) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(52, 112, 188, 0.26) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-image: radial-gradient(#e5e6eb 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
 .app-login-grid {
@@ -52,9 +47,8 @@ const responsiveStyles = `
 
 .app-login-left {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--atlas-layout-pane-padding-y) var(--atlas-layout-pane-padding-x);
+  flex-direction: column;
+  padding: 40px 60px;
   min-width: 0;
   min-height: 0;
 }
@@ -69,113 +63,104 @@ const responsiveStyles = `
 }
 
 .app-login-left-panel {
-  width: min(100%, 560px);
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .app-login-main-title {
-  font-size: clamp(42px, 5vw, 60px);
-  line-height: 1.14;
+  font-size: clamp(32px, 4vw, 48px);
+  line-height: 1.2;
+  color: #1d2129;
+  font-weight: 500;
+  margin-bottom: 24px;
 }
 
-.app-login-main-subtitle {
-  margin-top: clamp(10px, 2.4vh, 24px);
-  font-size: clamp(17px, 2.2vw, 28px);
-  line-height: 1.6;
+.app-login-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: #fff;
+  border: 1px solid #e5e6eb;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #4e5969;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+  margin-bottom: 32px;
 }
 
-.app-login-feature-list {
-  margin-top: clamp(16px, 4vh, 54px);
-  gap: clamp(10px, 2vh, 22px);
-}
-
-.app-login-feature-title {
-  font-size: clamp(18px, 2vw, 24px);
-}
-
-.app-login-feature-desc {
-  font-size: clamp(14px, 1.5vw, 18px);
-}
-
-.app-login-stats {
-  gap: clamp(16px, 2.8vw, 42px);
-  margin-top: clamp(20px, 4vh, 60px);
-}
-
-.app-login-stat-value {
-  font-size: clamp(24px, 3vw, 42px);
+.app-login-hero-img {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e6eb;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.05);
+  padding: 24px;
 }
 
 .app-login-card {
   width: 100%;
-  max-width: min(520px, 100%);
-  border-radius: 22px;
-  border: 1px solid rgba(75, 136, 212, 0.25);
-  background: linear-gradient(180deg, rgba(8, 27, 56, 0.88) 0%, rgba(5, 20, 42, 0.84) 100%);
-  box-shadow: 0 24px 58px rgba(4, 18, 42, 0.44);
-  padding: clamp(16px, 2.2vh, 30px);
+  max-width: min(440px, 100%);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  padding: clamp(24px, 4vh, 40px);
 }
 
 .app-login-tab-btn {
-  height: clamp(42px, 5vh, 52px);
-  font-size: clamp(16px, 1.8vw, 24px);
+  font-size: 15px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  padding: 8px 4px;
+  color: #4e5969;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.app-login-tab-btn.active {
+  color: #1664ff;
+  border-bottom-color: #1664ff;
+  font-weight: 500;
 }
 
 .app-login-primary-btn {
   margin-top: 8px;
-  height: clamp(46px, 5.6vh, 54px);
-  border-radius: 12px;
-  font-weight: 600;
-  background: linear-gradient(90deg, #3578e5 0%, #1eb2f5 100%);
+  height: 44px;
+  border-radius: 4px;
+  font-weight: 500;
+  background: #1664ff;
+  font-size: 16px;
 }
 
-.app-login-sso-btn {
-  height: clamp(42px, 5.2vh, 50px);
-  border-radius: 12px;
-  background: rgba(15, 40, 74, 0.72);
-  border: 1px solid rgba(74, 130, 205, 0.28);
-  color: #b8d8ff;
+.app-login-input .semi-input-wrapper {
+  background: #fff;
+  border: 1px solid #e5e6eb;
+  border-radius: 4px;
+}
+
+.app-login-input .semi-input-wrapper:hover,
+.app-login-input .semi-input-wrapper-focus {
+  border-color: #1664ff;
+}
+
+.app-login-input .semi-input {
+  color: #1d2129;
+  font-size: 14px;
+}
+
+.app-login-input .semi-input::placeholder {
+  color: #86909c;
 }
 
 @media (max-width: 1120px) {
   .app-login-left { display: none; }
   .app-login-right { padding: clamp(12px, 3vh, 24px) 16px; }
-}
-
-@media (max-height: 860px) {
-  .app-login-feature-list {
-    margin-top: 14px;
-    gap: 8px;
-  }
-
-  .app-login-stats {
-    margin-top: 14px;
-    gap: 14px;
-  }
-
-  .app-login-card {
-    padding: 14px;
-  }
-
-  .app-login-main-subtitle {
-    line-height: 1.45;
-  }
-}
-
-.app-login-input .semi-input-wrapper {
-  color: #e8f2ff;
-}
-
-.app-login-input .semi-input {
-  color: #e8f2ff;
-  font-size: 16px;
-}
-
-.app-login-input .semi-input::placeholder {
-  color: rgba(167, 193, 228, 0.78);
-}
-
-.app-login-input .semi-input-prefix {
-  color: #75a8e2;
 }
 `;
 
@@ -187,72 +172,24 @@ function LocaleSwitchButton() {
       theme="borderless"
       type="tertiary"
       onClick={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
+      style={{ color: "#4e5969" }}
     >
       {locale === "zh-CN" ? t("switchToEnglish") : t("switchToChinese")}
     </Button>
   );
 }
 
-function LogoMark({ tone }: { tone: "light" | "dark" }) {
-  const isLight = tone === "light";
-  const fillOuter = isLight ? "rgba(255,255,255,0.15)" : "rgba(22,119,255,0.10)";
-  const strokeOuter = isLight ? "rgba(255,255,255,0.6)" : "var(--semi-color-primary)";
-  const fillInner = isLight ? "rgba(255,255,255,0.25)" : "rgba(22,119,255,0.15)";
-  const strokeInner = isLight ? "#fff" : "var(--semi-color-primary)";
-  const dotFill = isLight ? "#fff" : "var(--semi-color-primary)";
-
+function LogoMark() {
   return (
     <span
       aria-hidden="true"
-      style={{ width: 32, height: 32, display: "inline-flex", alignItems: "center" }}
+      style={{ display: "inline-flex", alignItems: "center" }}
     >
-      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-          d="M16 2L28 9v14l-12 7L4 23V9l12-7z"
-          fill={fillOuter}
-          stroke={strokeOuter}
-          strokeWidth="1.5"
-        />
-        <path
-          d="M16 8l7 4v8l-7 4-7-4v-8l7-4z"
-          fill={fillInner}
-          stroke={strokeInner}
-          strokeWidth="1.5"
-        />
-        <circle cx="16" cy="16" r="3" fill={dotFill} />
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L21 7V17L12 22L3 17V7L12 2Z" fill="#1664ff"/>
+        <path d="M12 6L16.5 8.5V13.5L12 16L7.5 13.5V8.5L12 6Z" fill="#fff"/>
       </svg>
     </span>
-  );
-}
-
-function FeatureGlyph({ kind }: { kind: "shield" | "apps" | "team" }) {
-  const baseStyle = { width: 22, height: 22, color: "currentColor" } as const;
-  if (kind === "shield") {
-    return (
-      <svg viewBox="0 0 24 24" style={baseStyle} aria-hidden="true">
-        <path d="M12 2l7 3v6c0 5-3.2 8.8-7 11-3.8-2.2-7-6-7-11V5l7-3z" fill="currentColor" opacity="0.92" />
-      </svg>
-    );
-  }
-
-  if (kind === "apps") {
-    return (
-      <svg viewBox="0 0 24 24" style={baseStyle} aria-hidden="true">
-        <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
-        <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.72" />
-        <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.72" />
-        <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" style={baseStyle} aria-hidden="true">
-      <circle cx="9" cy="8" r="3" fill="currentColor" />
-      <circle cx="16.5" cy="9.5" r="2.5" fill="currentColor" opacity="0.72" />
-      <path d="M4 19c0-2.8 2.7-5 6-5s6 2.2 6 5H4z" fill="currentColor" />
-      <path d="M13.5 19c.2-1.9 2-3.4 4.2-3.4 1.4 0 2.7.6 3.5 1.6V19h-7.7z" fill="currentColor" opacity="0.72" />
-    </svg>
   );
 }
 
@@ -318,6 +255,7 @@ export function LoginPage() {
   const [captchaCode, setCaptchaCode] = useState("");
   const [captchaImage, setCaptchaImage] = useState("");
   const [loadingCaptcha, setLoadingCaptcha] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   const redirectTarget = searchParams.get("redirect");
   const workspaceTarget = selectWorkspacePath();
@@ -350,6 +288,10 @@ export function LoginPage() {
   const handleSubmit = async () => {
     try {
       setErrorMessage("");
+      if (!agreed) {
+        setErrorMessage(t("appLoginAgreementRequired"));
+        return;
+      }
       clearAuthStorage();
       if (shouldRequireCaptcha && !captchaCode.trim()) {
         setErrorMessage(t("appLoginCaptchaRequired"));
@@ -390,177 +332,91 @@ export function LoginPage() {
     <PageShell testId="app-login-page">
       <style>{responsiveStyles}</style>
       <PublicRatioLayout mode="full" className="app-login-root">
+        {/* Top bar */}
+        <div style={{ position: "absolute", top: 24, left: 32, zIndex: 2, display: "flex", alignItems: "center", gap: 10 }}>
+          <LogoMark />
+          <Text style={{ fontSize: 18, fontWeight: 600, color: "#1d2129" }}>{t("appLoginBrandName")}</Text>
+        </div>
         <div style={{ position: "absolute", top: 22, right: 24, zIndex: 2 }}>
           <LocaleSwitchButton />
         </div>
+
         <PublicRatioFrame className="app-login-frame">
           <PublicRatioSplit className="app-login-grid">
-          <aside className="app-login-left">
-            <div className="app-login-left-panel" style={{ color: "#ebf4ff" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "clamp(24px, 11vh, 128px)" }}>
-                <LogoMark tone="light" />
-                <Text style={{ color: "#ebf4ff", fontSize: "clamp(24px, 2.4vw, 34px)", fontWeight: 700, letterSpacing: "-0.02em" }}>
-                  {t("appLoginBrandTitle")}
-                </Text>
-              </div>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  border: "1px solid rgba(71, 153, 255, 0.45)",
-                  background: "rgba(16, 67, 138, 0.25)",
-                  color: "#8fc2ff",
-                  padding: "8px 14px",
-                  borderRadius: 10,
-                  fontSize: 14,
-                  marginBottom: 26
-                }}
-              >
-                已通过等保2.0三级认证
-              </div>
-              <Title heading={1} className="app-login-main-title" style={{ color: "#d6e8ff", margin: 0 }}>
-                安全可靠的
-                <br />
-                应用运行平台
-              </Title>
-              <Text className="app-login-main-subtitle" style={{ display: "block", color: "rgba(173, 204, 244, 0.78)" }}>
-                {t("appLoginHeroSubtitle")}
-              </Text>
-              <div className="app-login-feature-list" style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, color: "#cfe4ff" }}>
-                  <FeatureGlyph kind="shield" />
-                  <div>
-                    <div className="app-login-feature-title" style={{ fontWeight: 600 }}>{t("appLoginHeroPoint1")}</div>
-                    <Text className="app-login-feature-desc" style={{ color: "rgba(165, 191, 228, 0.72)" }}>覆盖五大安全层，开箱即用</Text>
+            {/* Left panel */}
+            <aside className="app-login-left">
+              <div className="app-login-left-panel">
+                <h1 className="app-login-main-title">{t("appLoginMainTitle")}</h1>
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <div className="app-login-badge">
+                    <span style={{ marginRight: 6 }}>✨</span> {t("appLoginBadge")}
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, color: "#cfe4ff" }}>
-                  <FeatureGlyph kind="apps" />
-                  <div>
-                    <div className="app-login-feature-title" style={{ fontWeight: 600 }}>{t("appLoginHeroPoint2")}</div>
-                    <Text className="app-login-feature-desc" style={{ color: "rgba(165, 191, 228, 0.72)" }}>容器级强隔离，故障域最小化</Text>
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, color: "#cfe4ff" }}>
-                  <FeatureGlyph kind="team" />
-                  <div>
-                    <div className="app-login-feature-title" style={{ fontWeight: 600 }}>{t("appLoginHeroPoint3")}</div>
-                    <Text className="app-login-feature-desc" style={{ color: "rgba(165, 191, 228, 0.72)" }}>全量操作日志，事后可溯源</Text>
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <div className="app-login-hero-img">
+                    <div style={{ background: "#f7f8fa", borderRadius: 8, padding: 24, textAlign: "left", minHeight: 280 }}>
+                      <div style={{ fontSize: 20, fontWeight: 500, color: "#1d2129", marginBottom: 16 }}>
+                        {t("appLoginHeroEmptyTitle")}
+                      </div>
+                      <div style={{ height: 48, background: "#fff", borderRadius: 8, border: "1px solid #e5e6eb", marginBottom: 24 }} />
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                        <div style={{ height: 80, background: "#e8f3ff", borderRadius: 8 }} />
+                        <div style={{ height: 80, background: "#f2f3f5", borderRadius: 8 }} />
+                        <div style={{ height: 80, background: "#f2f3f5", borderRadius: 8 }} />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="app-login-stats" style={{ display: "flex", alignItems: "center" }}>
-                <div>
-                  <div className="app-login-stat-value" style={{ fontWeight: 700, color: "#f5f8ff" }}>2,400+</div>
-                  <Text style={{ color: "rgba(165, 191, 228, 0.72)", fontSize: 16 }}>企业客户</Text>
-                </div>
-                <div>
-                  <div className="app-login-stat-value" style={{ fontWeight: 700, color: "#f5f8ff" }}>99.99%</div>
-                  <Text style={{ color: "rgba(165, 191, 228, 0.72)", fontSize: 16 }}>服务可用性</Text>
-                </div>
-                <div>
-                  <div className="app-login-stat-value" style={{ fontWeight: 700, color: "#f5f8ff" }}>0次</div>
-                  <Text style={{ color: "rgba(165, 191, 228, 0.72)", fontSize: 16 }}>安全违规</Text>
-                </div>
-              </div>
-            </div>
-          </aside>
+            </aside>
 
-          <main className="app-login-right">
-            <div className="app-login-card">
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  borderRadius: 12,
-                  border: "1px solid rgba(74, 130, 205, 0.24)",
-                  background: "rgba(3, 21, 45, 0.8)",
-                  marginBottom: 28,
-                  padding: 4
-                }}
-              >
-                <button
-                  type="button"
-                  className="app-login-tab-btn"
+            {/* Right panel - login card */}
+            <main className="app-login-right">
+              <div className="app-login-card">
+                <h2 style={{ fontSize: 22, fontWeight: 500, color: "#1d2129", marginBottom: 24, marginTop: 0 }}>
+                  {t("appLoginWelcome")}
+                </h2>
+
+                {/* Tabs */}
+                <div
                   style={{
-                    border: "none",
-                    borderRadius: 9,
-                    background: "rgba(53, 119, 212, 0.4)",
-                    color: "#8bc3ff",
-                    fontWeight: 600,
-                    cursor: "default"
+                    display: "flex",
+                    gap: 16,
+                    borderBottom: "1px solid #e5e6eb",
+                    marginBottom: 24
                   }}
                 >
-                  账号登录
-                </button>
-                <button
-                  type="button"
-                  className="app-login-tab-btn"
-                  style={{
-                    border: "none",
-                    borderRadius: 9,
-                    background: "transparent",
-                    color: "rgba(111, 143, 184, 0.82)",
-                    fontWeight: 500
+                  <button type="button" className="app-login-tab-btn">{t("appLoginTabPhone")}</button>
+                  <button type="button" className="app-login-tab-btn active">{t("appLoginTabAccount")}</button>
+                </div>
+
+                {/* Error banner */}
+                {errorMessage ? (
+                  <div style={{ marginBottom: 14 }}>
+                    <InfoBanner variant="danger" description={errorMessage} testId="app-login-error" />
+                  </div>
+                ) : null}
+
+                <form
+                  style={{ display: "flex", flexDirection: "column", gap: 20 }}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSubmit();
                   }}
                 >
-                  注册账号
-                </button>
-              </div>
-
-              {errorMessage ? (
-                <div style={{ marginBottom: 14 }}>
-                  <InfoBanner variant="danger" description={errorMessage} testId="app-login-error" />
-                </div>
-              ) : null}
-
-              <form
-                style={{ display: "flex", flexDirection: "column", gap: 18 }}
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void handleSubmit();
-                }}
-              >
-                <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Text style={{ color: "rgba(143, 173, 214, 0.85)", fontSize: 16 }}>账号 / 手机号 / 邮箱</Text>
                   <Input
                     data-testid="app-login-username"
                     className="app-login-input"
-                    prefix={<IconUser />}
-                    placeholder={t("appLoginUsernamePlaceholder")}
+                    placeholder={t("appLoginUsernamePlaceholderNew")}
                     value={username}
                     onChange={(value) => setUsername(value)}
                     size="large"
-                    style={{
-                      borderRadius: 12,
-                      background: "rgba(6, 24, 50, 0.92)",
-                      border: "1px solid rgba(63, 124, 204, 0.26)"
-                    }}
-                    inputStyle={{ color: "#e8f2ff", fontWeight: 500 }}
                   />
-                </label>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <Text style={{ color: "rgba(143, 173, 214, 0.85)", fontSize: 16 }}>{t("password")}</Text>
-                    <button
-                      type="button"
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        color: "#4fa7ff",
-                        fontSize: 14,
-                        cursor: "pointer"
-                      }}
-                    >
-                      忘记密码？
-                    </button>
-                  </div>
                   <Input
                     data-testid="app-login-password"
                     className="app-login-input"
-                    prefix={<IconLock />}
-                    placeholder={t("appLoginPasswordPlaceholder")}
+                    placeholder={t("appLoginPasswordPlaceholderNew")}
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(value) => setPassword(value)}
@@ -572,109 +428,142 @@ export function LoginPage() {
                         style={{
                           border: "none",
                           background: "transparent",
-                          color: "#7dc0ff",
-                          fontSize: 13,
+                          color: "#86909c",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "0 8px",
                           cursor: "pointer"
                         }}
                       >
-                        {showPassword ? "隐藏" : "显示"}
+                        {showPassword ? <IconEyeOpened /> : <IconEyeClosedSolid />}
                       </button>
                     )}
-                    style={{
-                      borderRadius: 12,
-                      background: "rgba(6, 24, 50, 0.92)",
-                      border: "1px solid rgba(63, 124, 204, 0.26)"
-                    }}
-                    inputStyle={{ color: "#e8f2ff", fontWeight: 500 }}
                   />
-                </label>
 
-                {shouldRequireCaptcha ? (
-                  <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <Text style={{ color: "rgba(143, 173, 214, 0.85)", fontSize: 16 }}>
-                      {t("appLoginCaptchaPlaceholder")}
-                    </Text>
-                    <Input
-                      data-testid="app-login-captcha"
-                      placeholder={t("appLoginCaptchaPlaceholder")}
-                      value={captchaCode}
-                      onChange={(value) => setCaptchaCode(value)}
-                      size="large"
-                    />
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      {captchaImage ? (
-                        <img
-                          src={captchaImage}
-                          alt={t("appLoginCaptchaPlaceholder")}
-                          style={{ height: 38, borderRadius: 8, border: "1px solid rgba(63, 124, 204, 0.26)" }}
-                        />
-                      ) : null}
-                      <Button
-                        theme="borderless"
-                        type="tertiary"
-                        onClick={() => {
-                          void fetchCaptcha();
-                        }}
-                        loading={loadingCaptcha}
-                        style={{ color: "#67b4ff" }}
-                      >
-                        {loadingCaptcha ? t("loading") : t("appLoginCaptchaRefresh")}
-                      </Button>
+                  {shouldRequireCaptcha ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <Input
+                        data-testid="app-login-captcha"
+                        className="app-login-input"
+                        placeholder={t("appLoginCaptchaPlaceholder")}
+                        value={captchaCode}
+                        onChange={(value) => setCaptchaCode(value)}
+                        size="large"
+                      />
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        {captchaImage ? (
+                          <img
+                            src={captchaImage}
+                            alt={t("appLoginCaptchaPlaceholder")}
+                            style={{ height: 38, borderRadius: 4, border: "1px solid #e5e6eb" }}
+                          />
+                        ) : null}
+                        <Button
+                          theme="borderless"
+                          type="tertiary"
+                          onClick={() => { void fetchCaptcha(); }}
+                          loading={loadingCaptcha}
+                        >
+                          {loadingCaptcha ? t("loading") : t("appLoginCaptchaRefresh")}
+                        </Button>
+                      </div>
                     </div>
-                  </label>
-                ) : null}
+                  ) : null}
 
-                <Button
-                  data-testid="app-login-submit"
-                  type="primary"
-                  theme="solid"
-                  htmlType="submit"
-                  block
-                  size="large"
-                  loading={auth.loading}
-                  className="app-login-primary-btn"
-                >
-                  {auth.loading ? t("loading") : "安全登录"}
-                </Button>
+                  {/* Agreement checkbox */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+                    <Text style={{ fontSize: 12, color: "#4e5969", lineHeight: 1.6 }}>
+                      {t("appLoginAgreementText")}{" "}
+                      <a href="#" style={{ color: "#1664ff", textDecoration: "none" }}>{t("appLoginAgreementTerms")}</a>、
+                      <a href="#" style={{ color: "#1664ff", textDecoration: "none" }}>{t("appLoginAgreementPrivacy")}</a>、
+                      <a href="#" style={{ color: "#1664ff", textDecoration: "none" }}>{t("appLoginAgreementUser")}</a>{" "}
+                      和{" "}
+                      <a href="#" style={{ color: "#1664ff", textDecoration: "none" }}>{t("appLoginAgreementPolicy")}</a>
+                    </Text>
+                  </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "2px 0" }}>
-                  <div style={{ flex: 1, height: 1, background: "rgba(74, 112, 157, 0.25)" }} />
-                  <Text style={{ color: "rgba(121, 149, 190, 0.8)", fontSize: 14 }}>或通过以下方式登录</Text>
-                  <div style={{ flex: 1, height: 1, background: "rgba(74, 112, 157, 0.25)" }} />
-                </div>
+                  <Button
+                    data-testid="app-login-submit"
+                    type="primary"
+                    theme="solid"
+                    htmlType="submit"
+                    block
+                    size="large"
+                    loading={auth.loading}
+                    className="app-login-primary-btn"
+                  >
+                    {auth.loading ? t("appLoginSubmitting") : t("appLoginSubmit")}
+                  </Button>
 
-                <Button
-                  theme="light"
-                  block
-                  size="large"
-                  className="app-login-sso-btn"
-                >
-                  企业 SSO 单点登录
-                </Button>
-              </form>
+                  {/* Bottom links */}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#4e5969" }}>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        style={{ border: "none", background: "transparent", color: "#4e5969", cursor: "pointer", padding: 0, fontSize: 14 }}
+                      >
+                        {t("appLoginForgotAccount")}
+                      </button>
+                      <span style={{ color: "#e5e6eb" }}>|</span>
+                      <button
+                        type="button"
+                        style={{ border: "none", background: "transparent", color: "#4e5969", cursor: "pointer", padding: 0, fontSize: 14 }}
+                      >
+                        {t("appLoginForgotPassword")}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      style={{ border: "none", background: "transparent", color: "#4e5969", cursor: "pointer", padding: 0, fontSize: 14 }}
+                    >
+                      {t("appLoginSwitchEnterprise")}
+                    </button>
+                  </div>
 
-              <div style={{ marginTop: 24, textAlign: "center" }}>
-                <Text style={{ color: "rgba(121, 149, 190, 0.8)" }}>还没有账号？</Text>
-                <button
-                  type="button"
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#49adff",
-                    fontWeight: 600,
-                    fontSize: 16,
-                    cursor: "pointer",
-                    marginLeft: 8
-                  }}
-                >
-                  立即注册
-                </button>
+                  {/* Other login methods divider */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "8px 0" }}>
+                    <div style={{ flex: 1, height: 1, background: "#f2f3f5" }} />
+                    <Text style={{ color: "#86909c", fontSize: 12 }}>{t("appLoginOtherMethods")}</Text>
+                    <div style={{ flex: 1, height: 1, background: "#f2f3f5" }} />
+                  </div>
+
+                  {/* Social icons */}
+                  <div style={{ display: "flex", justifyContent: "center", gap: 16 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#f2f3f5", display: "flex", alignItems: "center", justifyContent: "center", color: "#1d2129", fontWeight: "bold", cursor: "pointer" }}>
+                      d
+                    </div>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#f2f3f5", display: "flex", alignItems: "center", justifyContent: "center", color: "#1664ff", fontWeight: "bold", cursor: "pointer" }}>
+                      F
+                    </div>
+                  </div>
+
+                  {/* Register link */}
+                  <div style={{ textAlign: "center" }}>
+                    <Text style={{ color: "#4e5969", fontSize: 14 }}>{t("appLoginNoAccount")}</Text>
+                    <button
+                      type="button"
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        color: "#1664ff",
+                        fontSize: 14,
+                        cursor: "pointer",
+                        marginLeft: 4
+                      }}
+                    >
+                      {t("appLoginRegisterNow")}
+                    </button>
+                  </div>
+                </form>
               </div>
-            </div>
-            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 8, color: "rgba(121, 149, 190, 0.7)", fontSize: 12 }}>
-              <span>全程 TLS 1.3 加密传输 · 等保2.0 三级合规</span>
-            </div>
-          </main>
+
+              {/* Encryption hint */}
+              <div style={{ marginTop: 16, textAlign: "center", color: "#86909c", fontSize: 12 }}>
+                {t("appLoginEncryptionHint")}
+              </div>
+            </main>
           </PublicRatioSplit>
         </PublicRatioFrame>
       </PublicRatioLayout>

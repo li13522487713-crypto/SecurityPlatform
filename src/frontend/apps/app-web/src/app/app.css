@@ -131,13 +131,63 @@ body {
   gap: 12px;
 }
 
+.coze-page__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.coze-page__toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.coze-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coze-page__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 0;
+}
+
+.coze-page__footer {
+  margin-top: 24px;
+}
+
+.coze-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coze-list__item {
+  background: var(--semi-color-bg-2, #fff);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--semi-color-border, #e5e6eb);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 .coze-list__item--clickable {
   cursor: pointer;
   transition: background-color 120ms ease;
 }
 
 .coze-list__item--clickable:hover {
-  background: var(--semi-color-fill-0, #f7f8fa);
+  background: rgba(37, 99, 235, 0.04);
+  border-color: rgba(37, 99, 235, 0.2);
 }
 
 .coze-list__item > div {
@@ -170,22 +220,23 @@ body {
 .coze-project-card,
 .coze-tutorial-card {
   background: var(--semi-color-bg-2, #fff);
-  border: 1px solid var(--semi-color-border, #e5e6eb);
-  border-radius: 12px;
-  padding: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   cursor: pointer;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
   text-align: left;
 }
 
 .coze-card:hover,
 .coze-project-card:hover,
 .coze-tutorial-card:hover {
-  border-color: var(--semi-color-primary, #1677ff);
-  box-shadow: 0 4px 12px rgba(22, 119, 255, 0.08);
+  border-color: rgba(37, 99, 235, 0.15);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05);
+  transform: translateY(-3px);
 }
 
 .coze-project-card__head {
@@ -772,33 +823,6 @@ body {
   margin-top: 8px;
   font-size: 14px;
   color: #677087;
-}
-
-.coze-home-banner {
-  background: linear-gradient(120deg, #0f1733 0%, #2742a7 100%);
-  border-radius: 16px;
-  padding: 32px 36px;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.coze-home-banner__copy {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.coze-home-banner__copy .semi-typography {
-  color: #fff;
-}
-
-.coze-home-banner__cta {
-  display: flex;
-  gap: 12px;
-  margin-top: 12px;
 }
 
 .coze-home-section {

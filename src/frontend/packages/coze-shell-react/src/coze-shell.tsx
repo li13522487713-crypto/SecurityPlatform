@@ -98,12 +98,17 @@ export function CozeShell({
           </div>
         )}
 
-        {!collapsed && (
+        {!collapsed && extraActions && extraActions.length > 0 && (
           <div className="flex flex-col px-[12px] mb-[16px]">
-            <div className="border border-blue-200 border-dashed rounded-[10px] py-[8px] flex items-center justify-center gap-[6px] cursor-pointer hover:bg-blue-50 transition-colors text-blue-500">
-              <IconPlus size="small" />
-              <span className="text-[13px] font-medium">创建</span>
-            </div>
+            <button
+              type="button"
+              className="border-none rounded-[10px] py-[8px] flex items-center justify-center gap-[6px] cursor-pointer bg-[#f3f4f6] hover:bg-[#e5e6eb] transition-colors text-[#1f2329] font-medium w-full"
+              onClick={extraActions[0].onClick}
+              data-testid={extraActions[0].testId}
+            >
+              {extraActions[0].icon || <IconPlus size="small" />}
+              <span className="text-[13px]">{extraActions[0].label}</span>
+            </button>
           </div>
         )}
 

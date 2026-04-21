@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Avatar, Button, Empty, Tabs, TabPane, Dropdown } from "@douyinfe/semi-ui";
+import { Empty } from "@douyinfe/semi-ui";
 import { IconEdit, IconShareStroked, IconSetting, IconUser, IconChevronDown } from "@douyinfe/semi-icons";
 import { useNavigate } from "react-router-dom";
 import { meSettingsPath } from "@atlas/app-shell-shared";

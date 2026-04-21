@@ -4,8 +4,12 @@ import { IconChevronDown, IconPlus, IconSearch, IconArrowUp } from "@douyinfe/se
 import { useNavigate } from "react-router-dom";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import { selectWorkspacePath, workspaceHomePath } from "@atlas/app-shell-shared";
-import { getWorkspaces, type WorkspaceSummaryDto } from "../../services/api-org-workspaces";
+import {
+  getWorkspaces,
+  type WorkspaceSummaryDto
+} from "../../services/api-org-workspaces";
 import { useAppI18n } from "../i18n";
+import { CreateWorkspaceModal } from "./create-workspace-modal";
 
 interface WorkspaceSwitcherProps {
   workspaceId: string;
@@ -29,6 +33,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
   const [workspaces, setWorkspaces] = useState<WorkspaceSummaryDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,9 +78,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
     [workspaceId, workspaces]
   );
 
-  const openCreateWorkspace = () => {
-    navigate(`${selectWorkspacePath()}?create=1`);
-  };
+  const openCreateWorkspace = () => setCreateOpen(true);
 
   const selectWorkspace = (targetWorkspaceId: string) => {
     if (onSelectWorkspace) {
@@ -106,107 +109,114 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
   };
 
   return (
-    <Dropdown
-      trigger="click"
-      position="bottomLeft"
-      render={(
-        <div className="w-[280px] bg-white rounded-[16px] shadow-[0_4px_24px_rgba(0,0,0,0.1)] p-[12px] flex flex-col gap-[12px]" data-testid="coze-workspace-switcher-panel">
-          <div className="flex items-center justify-between">
-            <span className="text-[#1f2329] text-[14px] font-medium">{t("cozeShellWorkspaceSwitcherManage")}</span>
-            <button 
-              type="button" 
-              className="text-blue-500 hover:text-blue-600 text-[12px] bg-transparent border-none cursor-pointer p-0 font-medium" 
-              onClick={() => navigate(selectWorkspacePath())}
-            >
-              {t("cozeShellWorkspaceSwitcherManageLink")}
-            </button>
-          </div>
-
-          {currentWorkspace ? (
-            <div 
-              className="bg-[#eff6ff] border border-blue-200 rounded-[12px] p-[12px] flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors"
-              onClick={() => selectWorkspace(currentWorkspace.id)}
-            >
-              <div className="flex items-center gap-[10px]">
-                {renderAvatar(currentWorkspace.name || currentWorkspace.appKey, "large")}
-                <div className="flex flex-col gap-[2px]">
-                  <span className="text-[#1f2329] text-[14px] font-medium leading-none">
-                    {currentWorkspace.name || currentWorkspace.appKey}
-                  </span>
-                  <span className="bg-[#e5e6eb] text-[#4a5565] text-[10px] px-[6px] py-[2px] rounded-[4px] self-start leading-none mt-[2px]">
-                    所有者
-                  </span>
-                </div>
-              </div>
-              <span className="text-blue-500 font-bold text-[14px]">✓</span>
+    <>
+      <Dropdown
+        trigger="click"
+        position="bottomLeft"
+        render={(
+          <div className="w-[280px] bg-white rounded-[16px] shadow-[0_4px_24px_rgba(0,0,0,0.1)] p-[12px] flex flex-col gap-[12px]" data-testid="coze-workspace-switcher-panel">
+            <div className="flex items-center justify-between">
+              <span className="text-[#1f2329] text-[14px] font-medium">{t("cozeShellWorkspaceSwitcherManage")}</span>
+              <button
+                type="button"
+                className="text-blue-500 hover:text-blue-600 text-[12px] bg-transparent border-none cursor-pointer p-0 font-medium"
+                onClick={() => navigate(selectWorkspacePath())}
+              >
+                {t("cozeShellWorkspaceSwitcherManageLink")}
+              </button>
             </div>
-          ) : null}
 
-          <Input
-            value={keyword}
-            onChange={value => setKeyword(value)}
-            placeholder={t("cozeShellWorkspaceSwitcherSearch")}
-            prefix={<IconSearch className="text-gray-400 ml-[4px]" />}
-            className="!bg-gray-50 !border-transparent !rounded-[8px] hover:!bg-gray-100 focus-within:!bg-white focus-within:!border-blue-500 h-[32px]"
-            showClear
-          />
+            {currentWorkspace ? (
+              <div
+                className="bg-[#eff6ff] border border-blue-200 rounded-[12px] p-[12px] flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors"
+                onClick={() => selectWorkspace(currentWorkspace.id)}
+              >
+                <div className="flex items-center gap-[10px]">
+                  {renderAvatar(currentWorkspace.name || currentWorkspace.appKey, "large")}
+                  <div className="flex flex-col gap-[2px]">
+                    <span className="text-[#1f2329] text-[14px] font-medium leading-none">
+                      {currentWorkspace.name || currentWorkspace.appKey}
+                    </span>
+                    <span className="bg-[#e5e6eb] text-[#4a5565] text-[10px] px-[6px] py-[2px] rounded-[4px] self-start leading-none mt-[2px]">
+                      所有者
+                    </span>
+                  </div>
+                </div>
+                <span className="text-blue-500 font-bold text-[14px]">✓</span>
+              </div>
+            ) : null}
 
-          <div className="flex flex-col gap-[2px] max-h-[220px] overflow-y-auto mt-[-4px]">
-            {loading ? (
-              <div className="p-[16px] text-center"><Spin size="small" /></div>
-            ) : filtered.length === 0 ? (
-              <div className="p-[16px] text-center text-gray-400 text-[12px]">{t("cozeShellWorkspaceSwitcherEmpty")}</div>
-            ) : (
-              filtered.map(item => {
-                const isActive = item.id === workspaceId;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`flex items-center justify-between w-full p-[8px] rounded-[8px] border-none cursor-pointer transition-colors ${isActive ? "bg-[#eff6ff]" : "bg-transparent hover:bg-gray-50"}`}
-                    onClick={() => selectWorkspace(item.id)}
-                    data-testid={`coze-workspace-switcher-item-${item.id}`}
-                  >
-                    <div className="flex items-center gap-[10px]">
-                      {renderAvatar(item.name || item.appKey, "small")}
-                      <span className={`text-[13px] ${isActive ? "text-blue-600 font-medium" : "text-[#1f2329]"}`}>
-                        {item.name || item.appKey}
-                      </span>
-                    </div>
-                    {isActive ? <span className="text-blue-500 font-bold text-[14px]">✓</span> : null}
-                  </button>
-                );
-              })
-            )}
+            <Input
+              value={keyword}
+              onChange={value => setKeyword(value)}
+              placeholder={t("cozeShellWorkspaceSwitcherSearch")}
+              prefix={<IconSearch className="text-gray-400 ml-[4px]" />}
+              className="!bg-gray-50 !border-transparent !rounded-[8px] hover:!bg-gray-100 focus-within:!bg-white focus-within:!border-blue-500 h-[32px]"
+              showClear
+            />
+
+            <div className="flex flex-col gap-[2px] max-h-[220px] overflow-y-auto mt-[-4px]">
+              {loading ? (
+                <div className="p-[16px] text-center"><Spin size="small" /></div>
+              ) : filtered.length === 0 ? (
+                <div className="p-[16px] text-center text-gray-400 text-[12px]">{t("cozeShellWorkspaceSwitcherEmpty")}</div>
+              ) : (
+                filtered.map(item => {
+                  const isActive = item.id === workspaceId;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`flex items-center justify-between w-full p-[8px] rounded-[8px] border-none cursor-pointer transition-colors ${isActive ? "bg-[#eff6ff]" : "bg-transparent hover:bg-gray-50"}`}
+                      onClick={() => selectWorkspace(item.id)}
+                      data-testid={`coze-workspace-switcher-item-${item.id}`}
+                    >
+                      <div className="flex items-center gap-[10px]">
+                        {renderAvatar(item.name || item.appKey, "small")}
+                        <span className={`text-[13px] ${isActive ? "text-blue-600 font-medium" : "text-[#1f2329]"}`}>
+                          {item.name || item.appKey}
+                        </span>
+                      </div>
+                      {isActive ? <span className="text-blue-500 font-bold text-[14px]">✓</span> : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="border-t border-[#f3f4f6] mx-[-12px] mt-[4px] mb-[-12px] pt-[4px] pb-[4px] px-[8px]">
+              <button
+                type="button"
+                className="flex items-center gap-[8px] w-full p-[8px] rounded-[8px] border-none bg-transparent cursor-pointer hover:bg-gray-50 transition-colors text-[#4a5565]"
+                onClick={openCreateWorkspace}
+              >
+                <IconPlus className="text-gray-400" size="small" />
+                <span className="text-[13px] font-medium">{t("cozeShellWorkspaceSwitcherCreateTeam")}</span>
+                <Tag size="small" color="orange" className="!bg-orange-50 !text-orange-500 !border-orange-200 ml-auto">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
+              </button>
+            </div>
           </div>
-
-          <div className="border-t border-[#f3f4f6] mx-[-12px] mt-[4px] mb-[-12px] pt-[4px] pb-[4px] px-[8px]">
-            <button 
-              type="button" 
-              className="flex items-center gap-[8px] w-full p-[8px] rounded-[8px] border-none bg-transparent cursor-pointer hover:bg-gray-50 transition-colors text-[#4a5565]" 
-              onClick={openCreateWorkspace}
-            >
-              <IconPlus className="text-gray-400" size="small" />
-              <span className="text-[13px] font-medium">{t("cozeShellWorkspaceSwitcherCreateTeam")}</span>
-              <Tag size="small" color="orange" className="!bg-orange-50 !text-orange-500 !border-orange-200 ml-auto">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
-            </button>
-          </div>
-        </div>
-      )}
-    >
-      <button 
-        type="button" 
-        className="flex items-center justify-between w-full bg-white border border-[#e5e6eb] rounded-[12px] px-[12px] py-[8px] hover:border-blue-500 transition-colors cursor-pointer outline-none" 
-        data-testid="coze-workspace-switcher-trigger"
+        )}
       >
-        <div className="flex items-center gap-[8px]">
-          {renderAvatar(workspaceLabel || t("cozeShellWorkspaceSwitcherTitle"), "small")}
-          <span className="text-[#1f2329] text-[14px] font-medium truncate max-w-[120px]">
-            {workspaceLabel || t("cozeShellWorkspaceSwitcherTitle")}
-          </span>
-        </div>
-        <IconChevronDown className="text-gray-400" size="small" />
-      </button>
-    </Dropdown>
+        <button
+          type="button"
+          className="flex items-center justify-between w-full bg-white border border-[#e5e6eb] rounded-[12px] px-[12px] py-[8px] hover:border-blue-500 transition-colors cursor-pointer outline-none"
+          data-testid="coze-workspace-switcher-trigger"
+        >
+          <div className="flex items-center gap-[8px]">
+            {renderAvatar(workspaceLabel || t("cozeShellWorkspaceSwitcherTitle"), "small")}
+            <span className="text-[#1f2329] text-[14px] font-medium truncate max-w-[120px]">
+              {workspaceLabel || t("cozeShellWorkspaceSwitcherTitle")}
+            </span>
+          </div>
+          <IconChevronDown className="text-gray-400" size="small" />
+        </button>
+      </Dropdown>
+
+      <CreateWorkspaceModal
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+      />
+    </>
   );
 }

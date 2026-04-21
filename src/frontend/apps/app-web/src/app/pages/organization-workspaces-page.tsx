@@ -89,7 +89,7 @@ interface WorkspaceCardProps {
   onDelete: () => void;
 }
 
-function WorkspaceCard({ item, deleting, onOpen, onEdit, onDelete }: WorkspaceCardProps) {
+function WorkspaceCard({ item, deleting, onOpen, onEdit }: WorkspaceCardProps) {
   const { t } = useAppI18n();
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -357,7 +357,6 @@ interface OrganizationWorkspacesPageProps {
 
 export function OrganizationWorkspacesPage({
   loading,
-  canManage,
   saving,
   deletingWorkspaceId,
   keyword,
@@ -367,8 +366,7 @@ export function OrganizationWorkspacesPage({
   onKeywordChange,
   onOpenWorkspace,
   onCreateWorkspace,
-  onUpdateWorkspace,
-  onDeleteWorkspace
+  _onUpdateWorkspace
 }: OrganizationWorkspacesPageProps) {
   const { t } = useAppI18n();
   const navigate = useNavigate();

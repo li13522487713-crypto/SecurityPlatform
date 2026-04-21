@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import { IconPlus } from "@douyinfe/semi-icons";
+import {
+  IconHome,
+  IconAppCenter,
+  IconFolder,
+  IconTickCircle,
+  IconHistogram,
+  IconSetting,
+  IconGridRectangle,
+  IconBox,
+  IconGlobe,
+  IconLink,
+  IconFile,
+  IconServer,
+  IconPlus
+} from "@douyinfe/semi-icons";
 import type { CozeNavSection } from "@atlas/coze-shell-react";
 import { CozeShell } from "@atlas/coze-shell-react";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import {
   meProfilePath,
-  selectWorkspacePath,
   signPath,
   workspaceHomePath
 } from "@atlas/app-shell-shared";
@@ -22,14 +35,28 @@ import { OrganizationProvider } from "../organization-context";
 import { PermissionProvider } from "../permission-context";
 import { MENU_GROUPS } from "../menu-config";
 import { WorkspaceSwitcher } from "../components/workspace-switcher";
-import { GlobalCreateModal } from "../components/global-create-modal";
 import { PageShell } from "../_shared";
 import type { AppMessageKey } from "../messages";
+import { CreateWorkspaceModal } from "../components/create-workspace-modal";
 
 const LAST_WORKSPACE_KEY = "atlas_last_workspace_id";
 
-function navGlyph(label: string) {
-  return <span className="app-nav-glyph" aria-hidden="true">{label}</span>;
+function getNavIcon(key: string, glyph: string) {
+  switch (key) {
+    case "home": return <IconHome />;
+    case "projects": return <IconAppCenter />;
+    case "resources": return <IconFolder />;
+    case "tasks": return <IconTickCircle />;
+    case "evaluations": return <IconHistogram />;
+    case "settings": return <IconSetting />;
+    case "templates": return <IconGridRectangle />;
+    case "plugins": return <IconBox />;
+    case "community": return <IconGlobe />;
+    case "open-api": return <IconLink />;
+    case "docs": return <IconFile />;
+    case "platform": return <IconServer />;
+    default: return <span className="app-nav-glyph" aria-hidden="true">{glyph}</span>;
+  }
 }
 
 function LoadingPage() {
@@ -161,6 +188,8 @@ function ShellChrome({ variant }: ShellChromeProps) {
   const workspace = useWorkspaceContext();
   const [createOpen, setCreateOpen] = useState(false);
 
+  const handleOpenCreate = () => setCreateOpen(true);
+
   useEffect(() => {
     if (auth.isAuthenticated && !auth.profile && !auth.loading) {
       void auth.ensureProfile();
@@ -174,7 +203,7 @@ function ShellChrome({ variant }: ShellChromeProps) {
       items: group.items.map(item => ({
         key: item.key,
         label: t(item.labelKey),
-        icon: navGlyph(item.iconGlyph),
+        icon: getNavIcon(item.key, item.iconGlyph),
         path: item.buildPath(workspace.id),
         testId: `app-sidebar-item-${item.testIdSuffix}`
       }))
@@ -191,43 +220,42 @@ function ShellChrome({ variant }: ShellChromeProps) {
 
   return (
     <>
-      <CozeShell
-        appKey={workspace.appKey}
-        backPath={workspaceHomePath(workspace.id || "")}
-        workspaceLabel={workspaceLabel}
-        activePath={activePath}
-        navSections={navSections}
-        headerTitle={headerTitle}
-        headerSubtitle={workspaceLabel}
-        localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
-        userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-        profileLabel={t("cozeShellAvatarMenuProfile")}
-        logoutLabel={t("cozeShellAvatarMenuLogout")}
-        extraActions={[
-          {
-            key: "create",
-            label: t("cozeShellCreateButton"),
-            icon: <IconPlus />,
-            onClick: () => setCreateOpen(true),
-            testId: "coze-shell-create-button"
-          }
-        ]}
-        sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspaceLabel} />}
-        onNavigate={path => navigate(path)}
-        onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
-        onOpenProfile={() => navigate(meProfilePath())}
-        onLogout={() => {
-          void auth.logout().then(() => navigate(signPath(), { replace: true }));
-        }}
-      >
-        <Outlet />
-      </CozeShell>
+    <CozeShell
+      appKey={workspace.appKey}
+      backPath={workspaceHomePath(workspace.id || "")}
+      workspaceLabel={workspaceLabel}
+      activePath={activePath}
+      navSections={navSections}
+      headerTitle={headerTitle}
+      headerSubtitle={workspaceLabel}
+      localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
+      userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+      profileLabel={t("cozeShellAvatarMenuProfile")}
+      logoutLabel={t("cozeShellAvatarMenuLogout")}
+      extraActions={[
+        {
+          key: "create",
+          label: t("cozeShellCreateButton"),
+          icon: <IconPlus />,
+          onClick: handleOpenCreate,
+          testId: "coze-shell-create-button"
+        }
+      ]}
+      sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspaceLabel} />}
+      onNavigate={path => navigate(path)}
+      onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
+      onOpenProfile={() => navigate(meProfilePath())}
+      onLogout={() => {
+        void auth.logout().then(() => navigate(signPath(), { replace: true }));
+      }}
+    >
+      <Outlet />
+    </CozeShell>
 
-      <GlobalCreateModal
-        visible={createOpen}
-        workspaceId={workspace.id}
-        onClose={() => setCreateOpen(false)}
-      />
+    <CreateWorkspaceModal
+      visible={createOpen}
+      onClose={() => setCreateOpen(false)}
+    />
     </>
   );
 }

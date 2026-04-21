@@ -23,7 +23,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Frontend
 - **React 18** + **TypeScript** (strict mode)
 - **Rsbuild** build/dev toolchain
-- **Semi Design** + workspace packages modular architecture
+- **Semi Design (`@douyinfe/semi-ui ^2.82.0`)** — **强制且唯一的前端 UI 框架**，禁止引入任何其他组件库
+- workspace packages modular architecture
 - **React Router 6** for routing
 
 ## Build and Development Commands
@@ -217,6 +218,7 @@ src/
 - **Component Files:** kebab-case (e.g., `login-page.tsx`)
 - **Component Names:** PascalCase in code (e.g., `LoginPage`)
 - **TypeScript:** Strict mode enabled, no unused variables
+- **UI Framework (MANDATORY):** ALL user-visible UI components MUST use `@douyinfe/semi-ui` (Semi Design). Importing Ant Design, MUI, Chakra UI, Element Plus, or any other third-party component library is **strictly forbidden**. Custom components must be built on top of Semi components. Every `apps/*` or `packages/*` package containing interactive UI must declare `@douyinfe/semi-ui ^2.82.0` in its `package.json` `dependencies`.
 
 ## Security and Compliance (等保2.0)
 

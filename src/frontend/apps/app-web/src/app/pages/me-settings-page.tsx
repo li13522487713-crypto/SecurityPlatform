@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Button, Empty, Form, Spin, TabPane, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Form, Spin, Tag, Toast } from "@douyinfe/semi-ui";
 import { IconClose, IconEdit, IconUser } from "@douyinfe/semi-icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { meSettingsPath, type MeSettingsTab } from "@atlas/app-shell-shared";
@@ -18,7 +18,6 @@ import {
 const TAB_KEYS: MeSettingsTab[] = ["account", "general", "channels", "datasource"];
 
 export function MeSettingsPage() {
-  const { t } = useAppI18n();
   const navigate = useNavigate();
   const auth = useAuth();
   const params = useParams<{ tab?: string }>();
@@ -88,7 +87,6 @@ export function MeSettingsPage() {
 }
 
 function AccountPanel() {
-  const { t } = useAppI18n();
   const auth = useAuth();
   const profile = auth.profile;
   
