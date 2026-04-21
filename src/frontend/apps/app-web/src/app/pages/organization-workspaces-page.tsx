@@ -1,13 +1,17 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Avatar,
   Button,
   Dropdown,
+  Empty,
   Form,
   Input,
   Modal,
   Skeleton,
   Spin,
+  TabPane,
   Tag,
+  Tabs,
   Toast,
   Typography
 } from "@douyinfe/semi-ui";
@@ -18,7 +22,7 @@ import {
   IconSearch,
   IconDelete
 } from "@douyinfe/semi-icons";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type {
   WorkspaceAppInstanceCreateRequest,
   WorkspaceAppInstanceDto,
@@ -26,6 +30,17 @@ import type {
   WorkspaceSummaryDto,
   WorkspaceUpdateRequest
 } from "../../services/api-org-workspaces";
+import {
+  getHomeAnnouncements,
+  getHomeRecentActivities,
+  getHomeRecommendedAgents,
+  getHomeTutorials,
+  type AnnouncementItem,
+  type AnnouncementTab,
+  type RecentActivityItem,
+  type RecommendedAgentItem,
+  type TutorialCard
+} from "../../services/mock";
 import { useAppI18n } from "../i18n";
 
 const { Title, Text } = Typography;
@@ -112,14 +127,15 @@ function WorkspaceCard({ item, deleting, onOpen, onEdit, onDelete }: WorkspaceCa
         background: "#fff",
         border: "1px solid #f0f0f0",
         borderRadius: 16,
-        padding: "20px",
+        padding: "16px",
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 10,
         cursor: "pointer",
         transition: "box-shadow 0.2s, border-color 0.2s",
         position: "relative",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.06)"
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        minHeight: 176
       }}
       onMouseEnter={e => {
         (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.10)";
@@ -170,7 +186,7 @@ function WorkspaceCard({ item, deleting, onOpen, onEdit, onDelete }: WorkspaceCa
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontWeight: 600,
-            fontSize: 15,
+            fontSize: 14,
             color: "#1f2329",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -180,11 +196,15 @@ function WorkspaceCard({ item, deleting, onOpen, onEdit, onDelete }: WorkspaceCa
             {item.name || item.appKey}
           </div>
           <div style={{
-              fontSize: 12,
+              fontSize: 11,
               color: "#6b7280",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical" as const,
+              lineHeight: 1.35,
+              minHeight: 30,
               marginTop: 2
             }}>
               {item.description || t("workspaceListDescriptionFallback")}
@@ -195,15 +215,15 @@ function WorkspaceCard({ item, deleting, onOpen, onEdit, onDelete }: WorkspaceCa
       {/* Stats */}
       <div style={{ display: "flex", gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#1f2329" }}>{item.appCount ?? 0}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#1f2329" }}>{item.appCount ?? 0}</span>
           <span style={{ fontSize: 11, color: "#9ca3af" }}>{t("workspaceListAppCount")}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#1f2329" }}>{item.agentCount ?? 0}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#1f2329" }}>{item.agentCount ?? 0}</span>
           <span style={{ fontSize: 11, color: "#9ca3af" }}>{t("workspaceListAgentCount")}</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#1f2329" }}>{item.workflowCount ?? 0}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#1f2329" }}>{item.workflowCount ?? 0}</span>
           <span style={{ fontSize: 11, color: "#9ca3af" }}>{t("workspaceListWorkflowCount")}</span>
         </div>
       </div>
@@ -322,6 +342,8 @@ interface OrganizationWorkspacesPageProps {
   deletingWorkspaceId: string | null;
   keyword: string;
   items: WorkspaceSummaryDto[];
+  activeWorkspaceId: string;
+  activeWorkspaceLabel: string;
   onKeywordChange: (value: string) => void;
   onOpenWorkspace: (workspaceId: string) => void;
   onCreateWorkspace: (request: WorkspaceCreateRequest) => Promise<string>;
@@ -340,6 +362,8 @@ export function OrganizationWorkspacesPage({
   deletingWorkspaceId,
   keyword,
   items,
+  activeWorkspaceId,
+  activeWorkspaceLabel,
   onKeywordChange,
   onOpenWorkspace,
   onCreateWorkspace,
@@ -347,11 +371,18 @@ export function OrganizationWorkspacesPage({
   onDeleteWorkspace
 }: OrganizationWorkspacesPageProps) {
   const { t } = useAppI18n();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [createVisible, setCreateVisible] = useState(false);
   const [editTarget, setEditTarget] = useState<WorkspaceSummaryDto | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const createdWorkspaceId = searchParams.get("created");
+  const [announcementTab, setAnnouncementTab] = useState<AnnouncementTab>("all");
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [tutorials, setTutorials] = useState<TutorialCard[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [recommended, setRecommended] = useState<RecommendedAgentItem[]>([]);
+  const [recents, setRecents] = useState<RecentActivityItem[]>([]);
 
   const deferred = useDeferredValue(keyword);
   const filtered = useMemo(() => {
@@ -374,6 +405,55 @@ export function OrganizationWorkspacesPage({
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      setTutorials([]);
+      setAnnouncements([]);
+      setRecommended([]);
+      setRecents([]);
+      return;
+    }
+
+    let cancelled = false;
+    setInsightsLoading(true);
+
+    Promise.all([
+      getHomeTutorials(activeWorkspaceId),
+      getHomeAnnouncements(activeWorkspaceId, { pageIndex: 1, pageSize: 10, tab: announcementTab }),
+      getHomeRecommendedAgents(activeWorkspaceId),
+      getHomeRecentActivities(activeWorkspaceId)
+    ])
+      .then(([tutorialResult, announcementResult, recommendedResult, recentResult]) => {
+        if (cancelled) {
+          return;
+        }
+
+        setTutorials(tutorialResult);
+        setAnnouncements(announcementResult.items);
+        setRecommended(recommendedResult);
+        setRecents(recentResult);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+
+        setTutorials([]);
+        setAnnouncements([]);
+        setRecommended([]);
+        setRecents([]);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInsightsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId, announcementTab]);
 
   const handleCreate = async (values: { name: string; description?: string }) => {
     try {
@@ -414,19 +494,19 @@ export function OrganizationWorkspacesPage({
       style={{
         maxWidth: 1200,
         margin: "0 auto",
-        padding: "32px 32px 48px",
+        padding: "20px 24px 24px",
         display: "flex",
         flexDirection: "column",
-        gap: 24
+        gap: 16
       }}
     >
       {/* Page header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <Title heading={3} style={{ margin: 0, color: "#1f2329" }}>
+          <Title heading={3} style={{ margin: 0, color: "#1f2329", lineHeight: 1.2 }}>
           {t("workspaceListTitle")}
         </Title>
-        <Text style={{ fontSize: 13, color: "#6b7280", marginTop: 4, display: "block" }}>
+        <Text style={{ fontSize: 13, color: "#6b7280", marginTop: 4, display: "block", maxWidth: 760 }}>
           {t("workspaceListSubtitle")}
         </Text>        </div>
         <Button
@@ -448,7 +528,7 @@ export function OrganizationWorkspacesPage({
           value={keyword}
           onChange={onKeywordChange}
           showClear
-          size="large"
+          size="default"
           style={{ borderRadius: 12 }}
         />
       </div>
@@ -459,7 +539,7 @@ export function OrganizationWorkspacesPage({
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: 16
+            gap: 12
           }}
         >
           {Array.from({ length: 4 }).map((_, i) => (
@@ -526,7 +606,7 @@ export function OrganizationWorkspacesPage({
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            gap: 16
+            gap: 12
           }}
         >
           {filtered.map(item => (
@@ -550,6 +630,140 @@ export function OrganizationWorkspacesPage({
           ))}
         </div>
       )}
+
+      <div className="coze-home-section" data-testid="workspace-list-insights" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <header className="coze-home-section__head">
+          <div>
+            <Typography.Title heading={5} style={{ margin: 0 }}>
+              {t("cozeHomeTutorialsTitle")}
+            </Typography.Title>
+            <Typography.Text type="tertiary">
+              {(activeWorkspaceLabel || t("cozeShellWorkspaceSwitcherTitle")).trim()}
+            </Typography.Text>
+          </div>
+        </header>
+
+        {insightsLoading ? (
+          <div className="coze-page__loading">
+            <Spin />
+          </div>
+        ) : (
+          <>
+            <div className="coze-card-grid coze-card-grid--3" style={{ gap: 12 }}>
+              {tutorials.map(card => (
+                <button
+                  key={card.id}
+                  type="button"
+                  className="coze-tutorial-card"
+                  onClick={() => navigate(card.link)}
+                  data-testid={`workspace-list-tutorial-${card.id}`}
+                  style={{ minHeight: 112, padding: 14 }}
+                >
+                  <div className="coze-tutorial-card__icon" aria-hidden>
+                    {card.iconKey === "intro" ? "?" : card.iconKey === "quickstart" ? ">" : "i"}
+                  </div>
+                  <strong>{card.title}</strong>
+                  <span>{card.description}</span>
+                </button>
+              ))}
+            </div>
+
+            <section className="coze-home-row" style={{ alignItems: "stretch", gap: 12 }}>
+              <div className="coze-home-row__main" style={{ minHeight: 220 }}>
+                <header className="coze-home-section__head">
+                  <Typography.Title heading={5} style={{ margin: 0 }}>
+                    {t("cozeHomeAnnouncementsTitle")}
+                  </Typography.Title>
+                </header>
+                <Tabs activeKey={announcementTab} onChange={key => setAnnouncementTab((key as AnnouncementTab) ?? "all")}>
+                  <TabPane tab={t("cozeHomeAnnouncementsTabAll")} itemKey="all" />
+                  <TabPane tab={t("cozeHomeAnnouncementsTabNotice")} itemKey="notice" />
+                </Tabs>
+                {announcements.length === 0 ? (
+                  <Empty description={t("cozeHomeAnnouncementsEmpty")} />
+                ) : (
+                  <ul className="coze-list" style={{ maxHeight: 168, overflow: "auto" }}>
+                    {announcements.map(item => (
+                      <li key={item.id} className="coze-list__item">
+                        <div>
+                          <strong>{item.title}</strong>
+                          <span>{item.summary}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          {item.tag ? <Tag size="small" color="blue">{item.tag}</Tag> : null}
+                          <span style={{ color: "var(--semi-color-text-2)" }}>{item.publisher}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <aside className="coze-home-row__aside" style={{ minHeight: 220 }}>
+                <header className="coze-home-section__head">
+                  <Typography.Title heading={5} style={{ margin: 0 }}>
+                    {t("cozeHomeRecommendedTitle")}
+                  </Typography.Title>
+                </header>
+                {recommended.length === 0 ? (
+                  <Empty description={t("workspaceListRecommendEmpty")} />
+                ) : (
+                  <div className="coze-recommended-list" style={{ maxHeight: 168, overflow: "auto" }}>
+                    {recommended.map(item => (
+                      <div key={item.id} className="coze-recommended-item">
+                        <Avatar size="small" color="light-blue">
+                          {item.name.slice(0, 1)}
+                        </Avatar>
+                        <div className="coze-recommended-item__meta">
+                          <strong>{item.name}</strong>
+                          <span>{item.description}</span>
+                        </div>
+                        <Button
+                          size="small"
+                          theme="light"
+                          type="primary"
+                          onClick={() => navigate(item.link)}
+                          data-testid={`workspace-list-recommended-${item.id}`}
+                        >
+                          {t("cozeHomeRecommendedTryNow")}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </aside>
+            </section>
+
+            <section className="coze-home-section">
+              <header className="coze-home-section__head">
+                <Typography.Title heading={5} style={{ margin: 0 }}>
+                  {t("cozeHomeRecentTitle")}
+                </Typography.Title>
+              </header>
+              {recents.length === 0 ? (
+                <Empty description={t("cozeHomeRecentEmpty")} />
+              ) : (
+                <ul className="coze-list" style={{ maxHeight: 132, overflow: "auto" }}>
+                  {recents.map(item => (
+                    <li
+                      key={item.id}
+                      className="coze-list__item coze-list__item--clickable"
+                      onClick={() => navigate(item.entryRoute)}
+                      role="button"
+                    >
+                      <div>
+                        <strong>{item.name}</strong>
+                        <span>{item.description ?? ""}</span>
+                      </div>
+                      <Tag size="small" color="grey">{item.type}</Tag>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+      </div>
 
       {createdWorkspaceId ? (
         <div data-testid="workspace-created-marker" style={{ display: "none" }}>

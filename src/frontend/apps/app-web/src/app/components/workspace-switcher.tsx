@@ -10,6 +10,7 @@ import { useAppI18n } from "../i18n";
 interface WorkspaceSwitcherProps {
   workspaceId: string;
   workspaceLabel: string;
+  onSelectWorkspace?: (workspaceId: string) => void;
 }
 
 // Helper to generate a consistent color based on string
@@ -22,7 +23,7 @@ function getAvatarColor(name: string) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export function WorkspaceSwitcher({ workspaceId, workspaceLabel }: WorkspaceSwitcherProps) {
+export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspace }: WorkspaceSwitcherProps) {
   const { t } = useAppI18n();
   const navigate = useNavigate();
   const [workspaces, setWorkspaces] = useState<WorkspaceSummaryDto[]>([]);
@@ -80,6 +81,15 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel }: WorkspaceSwit
     navigate(`${orgWorkspacesPath(orgId)}?create=1`);
   };
 
+  const selectWorkspace = (targetWorkspaceId: string) => {
+    if (onSelectWorkspace) {
+      onSelectWorkspace(targetWorkspaceId);
+      return;
+    }
+
+    navigate(workspaceHomePath(targetWorkspaceId));
+  };
+
   const renderAvatar = (name: string, size: "small" | "large" = "small") => {
     const isPersonal = name.includes("个人空间") || name.toLowerCase() === "personal";
     if (isPersonal) {
@@ -119,7 +129,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel }: WorkspaceSwit
           {currentWorkspace ? (
             <div 
               className="bg-[#eff6ff] border border-blue-200 rounded-[12px] p-[12px] flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors"
-              onClick={() => navigate(workspaceHomePath(currentWorkspace.id))}
+              onClick={() => selectWorkspace(currentWorkspace.id)}
             >
               <div className="flex items-center gap-[10px]">
                 {renderAvatar(currentWorkspace.name || currentWorkspace.appKey, "large")}
@@ -158,7 +168,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel }: WorkspaceSwit
                     key={item.id}
                     type="button"
                     className={`flex items-center justify-between w-full p-[8px] rounded-[8px] border-none cursor-pointer transition-colors ${isActive ? "bg-[#eff6ff]" : "bg-transparent hover:bg-gray-50"}`}
-                    onClick={() => navigate(workspaceHomePath(item.id))}
+                    onClick={() => selectWorkspace(item.id)}
                     data-testid={`coze-workspace-switcher-item-${item.id}`}
                   >
                     <div className="flex items-center gap-[10px]">

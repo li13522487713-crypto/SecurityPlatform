@@ -65,6 +65,7 @@ import {
   workspaceBotPath,
   workspaceChatPath,
   workspaceDevelopPath,
+  workspaceHomePath,
   workspaceModelConfigsPath,
   orgWorkspacesPath,
   orgWorkspaceDevelopPath,
@@ -185,7 +186,7 @@ import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
 import { SetupConsolePage } from "./pages/setup-console";
-import { WorkspaceShellLayout, PlatformShellLayout, readLastWorkspaceId } from "./layouts/workspace-shell";
+import { WorkspaceShellLayout, PlatformShellLayout, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
 import { WorkspaceSwitcher } from "./components/workspace-switcher";
 import { GlobalCreateModal } from "./components/global-create-modal";
@@ -2013,6 +2014,11 @@ function DevelopRoute() {
   return <WorkspaceStudioRoute defaultFocus="overview" />;
 }
 
+function LegacyOrgWorkspaceHomeRedirect() {
+  const workspaceId = useResolvedWorkspaceId();
+  return <Navigate to={workspaceHomePath(workspaceId)} replace />;
+}
+
 function DashboardRoute() {
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
@@ -2471,6 +2477,7 @@ function WorkspaceListRoute() {
   const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
   const [items, setItems] = useState<Awaited<ReturnType<typeof getWorkspaces>>>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
 
   const loadWorkspaces = async () => {
     if (!auth.isAuthenticated) {
@@ -2514,6 +2521,25 @@ function WorkspaceListRoute() {
     };
   }, [auth.isAuthenticated, orgId]);
 
+  useEffect(() => {
+    if (items.length === 0) {
+      if (selectedWorkspaceId) {
+        setSelectedWorkspaceId("");
+      }
+      return;
+    }
+
+    const rememberedWorkspaceId = readLastWorkspaceId();
+    const fallbackWorkspaceId =
+      (rememberedWorkspaceId && items.some(item => item.id === rememberedWorkspaceId) ? rememberedWorkspaceId : null) ??
+      items[0]?.id ??
+      "";
+
+    setSelectedWorkspaceId(current =>
+      current && items.some(item => item.id === current) ? current : fallbackWorkspaceId
+    );
+  }, [items, selectedWorkspaceId]);
+
   if (bootstrap.loading || auth.loading) {
     return <LoadingPage />;
   }
@@ -2523,8 +2549,7 @@ function WorkspaceListRoute() {
   }
 
   const activePath = `${location.pathname}${location.search}`;
-  const rememberedWorkspaceId = readLastWorkspaceId();
-  const currentWorkspace = items.find(item => item.id === rememberedWorkspaceId) ?? items[0] ?? null;
+  const currentWorkspace = items.find(item => item.id === selectedWorkspaceId) ?? items[0] ?? null;
   const workspaceId = currentWorkspace?.id ?? "";
   const workspaceLabel = currentWorkspace?.name || currentWorkspace?.appKey || t("cozeShellWorkspaceSwitcherTitle");
 
@@ -2632,7 +2657,16 @@ function WorkspaceListRoute() {
       userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
       profileLabel={t("cozeShellAvatarMenuProfile")}
       logoutLabel={t("cozeShellAvatarMenuLogout")}
-      sidebarTop={<WorkspaceSwitcher workspaceId={workspaceId} workspaceLabel={workspaceLabel} />}
+      sidebarTop={
+        <WorkspaceSwitcher
+          workspaceId={workspaceId}
+          workspaceLabel={workspaceLabel}
+          onSelectWorkspace={(targetWorkspaceId) => {
+            setSelectedWorkspaceId(targetWorkspaceId);
+            rememberLastWorkspaceId(targetWorkspaceId);
+          }}
+        />
+      }
       onNavigate={path => navigate(path)}
       onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
       onOpenProfile={() => navigate(meProfilePath())}
@@ -2648,14 +2682,16 @@ function WorkspaceListRoute() {
           deletingWorkspaceId={deletingWorkspaceId}
           keyword={keyword}
           items={items}
+          activeWorkspaceId={workspaceId}
+          activeWorkspaceLabel={workspaceLabel}
           onKeywordChange={setKeyword}
-          onOpenWorkspace={targetWorkspaceId => navigate(orgWorkspaceDashboardPath(orgId, targetWorkspaceId))}
+          onOpenWorkspace={targetWorkspaceId => navigate(workspaceHomePath(targetWorkspaceId))}
           onCreateWorkspace={async (request: WorkspaceCreateRequest) => {
             setSaving(true);
             try {
               const targetWorkspaceId = await createWorkspace(orgId, request);
               await loadWorkspaces();
-              navigate(orgWorkspaceDashboardPath(orgId, targetWorkspaceId), { replace: true });
+              navigate(workspaceHomePath(targetWorkspaceId), { replace: true });
               return targetWorkspaceId;
             } finally {
               setSaving(false);
@@ -2730,8 +2766,8 @@ function WorkspaceShellInner() {
     return <LoadingPage />;
   }
 
-  if (!appKey && !location.pathname.endsWith(`/workspaces/${workspace.id}/dashboard`)) {
-    return <Navigate to={orgWorkspaceDashboardPath(organization, workspace.id)} replace />;
+  if (!appKey) {
+    return <Navigate to={workspaceHomePath(workspace.id)} replace />;
   }
 
   if (!bootstrap.platformReady) {
@@ -2756,7 +2792,7 @@ function WorkspaceShellInner() {
           key: "dashboard",
           label: t("shellNavDashboard"),
           icon: navGlyph("DB"),
-          path: orgWorkspaceDashboardPath(organization, workspace.id),
+          path: workspaceHomePath(workspace.id),
           testId: "app-sidebar-item-dashboard"
         },
         {
@@ -3564,12 +3600,12 @@ export const appRoutes = [
     children: [
       {
         index: true,
-        element: <Navigate to="dashboard" replace />,
+        element: <LegacyOrgWorkspaceHomeRedirect />,
         handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
       },
       {
         path: "dashboard",
-        element: <DashboardRoute />,
+        element: <LegacyOrgWorkspaceHomeRedirect />,
         handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
       },
       {
