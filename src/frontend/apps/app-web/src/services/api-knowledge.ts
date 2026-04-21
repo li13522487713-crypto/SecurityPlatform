@@ -34,8 +34,8 @@ import type {
 } from "@atlas/library-module-react";
 import { extractResourceId, requestApi, toQuery } from "./api-core";
 
-export async function getKnowledgeBasesPaged(request: PagedRequest, keyword?: string) {
-  const query = toQuery(request, { keyword });
+export async function getKnowledgeBasesPaged(request: PagedRequest, keyword?: string, workspaceId?: string) {
+  const query = toQuery(request, { keyword, workspaceId });
   const response = await requestApi<ApiResponse<PagedResult<KnowledgeBaseDto>>>(`/knowledge-bases?${query}`);
   if (!response.data) throw new Error(response.message || "查询知识库失败");
   return response.data;

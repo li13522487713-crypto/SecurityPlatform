@@ -5,6 +5,7 @@
 @databaseId = 1
 @recordId = 1
 @fileId = 1
+@workspaceId = 2001
 
 ### 登录获取令牌
 # @name login
@@ -27,7 +28,7 @@ X-Tenant-Id: {{tenantId}}
 ###
 
 ### 数据库分页
-GET {{baseUrl}}/api/v1/ai-databases?PageIndex=1&PageSize=20
+GET {{baseUrl}}/api/v1/ai-databases?PageIndex=1&PageSize=20&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -41,7 +42,8 @@ Content-Type: application/json
   "name": "客户订单库",
   "description": "导入 CRM 订单信息",
   "botId": null,
-  "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"customerName\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"}]"
+  "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"customerName\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"}]",
+  "workspaceId": {{workspaceId}}
 }
 
 ### 查询数据库详情
@@ -59,7 +61,8 @@ Content-Type: application/json
   "name": "客户订单库-更新",
   "description": "增加来源渠道字段",
   "botId": null,
-  "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"customerName\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"},{\"name\":\"source\",\"type\":\"string\"}]"
+  "tableSchema": "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"customerName\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"},{\"name\":\"source\",\"type\":\"string\"}]",
+  "workspaceId": {{workspaceId}}
 }
 
 ### 绑定 Bot

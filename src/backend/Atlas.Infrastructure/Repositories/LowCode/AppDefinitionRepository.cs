@@ -80,10 +80,15 @@ public sealed class AppDefinitionRepository : IAppDefinitionRepository
         int pageSize,
         string? keyword,
         string? status,
+        string? workspaceId,
         CancellationToken cancellationToken)
     {
         var q = _db.Queryable<AppDefinition>()
             .Where(x => x.TenantIdValue == tenantId.Value);
+        if (!string.IsNullOrWhiteSpace(workspaceId))
+        {
+            q = q.Where(x => x.WorkspaceId == workspaceId);
+        }
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             q = q.Where(x => x.Code.Contains(keyword) || x.DisplayName.Contains(keyword));

@@ -32,7 +32,13 @@ public sealed class AiDatabaseQuotaPolicy
 
     public async Task EnsureCanCreateDatabaseAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        var query = await _databaseRepository.GetPagedAsync(tenantId, keyword: null, pageIndex: 1, pageSize: 1, cancellationToken);
+        var query = await _databaseRepository.GetPagedAsync(
+            tenantId,
+            keyword: null,
+            workspaceId: null,
+            pageIndex: 1,
+            pageSize: 1,
+            cancellationToken);
         if (query.Total >= _options.MaxPerTenant)
         {
             throw new BusinessException(

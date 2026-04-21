@@ -18,7 +18,7 @@ describe("api-lowcode-apps", () => {
     vi.clearAllMocks();
   });
 
-  it("列表请求会拼接 keyword/status/page 参数", async () => {
+  it("列表请求会拼接 keyword/status/page/workspace 参数", async () => {
     requestApiMock.mockResolvedValue({
       success: true,
       data: {
@@ -33,7 +33,8 @@ describe("api-lowcode-apps", () => {
       pageIndex: 2,
       pageSize: 30,
       keyword: "demo",
-      status: "draft"
+      status: "draft",
+      workspaceId: "ws-2001"
     });
 
     expect(requestApiMock).toHaveBeenCalledTimes(1);
@@ -44,6 +45,7 @@ describe("api-lowcode-apps", () => {
     expect(parsed.searchParams.get("pageSize")).toBe("30");
     expect(parsed.searchParams.get("keyword")).toBe("demo");
     expect(parsed.searchParams.get("status")).toBe("draft");
+    expect(parsed.searchParams.get("workspaceId")).toBe("ws-2001");
   });
 
   it("创建接口返回 data.id", async () => {
@@ -55,13 +57,22 @@ describe("api-lowcode-apps", () => {
     const appId = await createLowcodeApp({
       code: "demo",
       displayName: "Demo",
-      targetTypes: "web"
+      targetTypes: "web",
+      workspaceId: "ws-2001"
     });
 
     expect(appId).toBe("12345");
     expect(requestApiMock).toHaveBeenCalledWith(
       "/lowcode/apps",
-      expect.objectContaining({ method: "POST" })
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          code: "demo",
+          displayName: "Demo",
+          targetTypes: "web",
+          workspaceId: "ws-2001"
+        })
+      })
     );
   });
 

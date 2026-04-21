@@ -96,6 +96,7 @@ export function createLowcodeProjectAppGateway(options?: LowcodeProjectAppGatewa
         description: request.description?.trim() || undefined,
         targetTypes: "web",
         defaultLocale: normalizeLocale(request.locale),
+        workspaceId: request.workspaceId,
         theme: null
       });
       return { appId };

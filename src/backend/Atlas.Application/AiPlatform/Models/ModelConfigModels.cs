@@ -21,7 +21,8 @@ public sealed record ModelConfigDto(
     float? FrequencyPenalty,
     float? PresencePenalty,
     string? ApiKeyMasked,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? WorkspaceId = null);
 
 public sealed record ModelConfigCreateRequest(
     string Name,
@@ -41,7 +42,8 @@ public sealed record ModelConfigCreateRequest(
     int? MaxTokens = null,
     float? TopP = null,
     float? FrequencyPenalty = null,
-    float? PresencePenalty = null);
+    float? PresencePenalty = null,
+    string? WorkspaceId = null);
 
 public sealed record ModelConfigUpdateRequest(
     string Name,
@@ -61,7 +63,8 @@ public sealed record ModelConfigUpdateRequest(
     int? MaxTokens = null,
     float? TopP = null,
     float? FrequencyPenalty = null,
-    float? PresencePenalty = null);
+    float? PresencePenalty = null,
+    string? WorkspaceId = null);
 
 public sealed record ModelConfigTestRequest(
     long? ModelConfigId,

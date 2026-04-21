@@ -105,7 +105,10 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
                 BuildModelConfigCacheKey(tenantId),
                 async ct =>
                 {
-                    var rows = await _modelConfigRepository.GetAllEnabledAsync(tenantId, ct);
+                    var rows = await _modelConfigRepository.GetAllEnabledAsync(
+                        tenantId,
+                        workspaceId: null,
+                        cancellationToken: ct);
                     return rows.ToArray();
                 },
                 TimeSpan.FromMinutes(2),

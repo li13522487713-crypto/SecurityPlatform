@@ -6,6 +6,7 @@
     "dev:app-web": "pnpm --filter atlas-app-web run dev",
     "dev:app-web:platform": "pnpm --filter atlas-app-web run dev:platform",
     "dev:app-web:direct": "pnpm --filter atlas-app-web run dev:direct",
+    "dev:lowcode-studio": "pnpm --filter atlas-lowcode-studio-web run dev",
     "build": "pnpm run build:app-web",
     "build:app-web": "pnpm --filter atlas-app-web run build",
     "lint": "pnpm run lint:app-web",

@@ -37,7 +37,8 @@ public sealed class AppDefinition : TenantEntity
         string code,
         string displayName,
         string targetTypes,
-        string? defaultLocale)
+        string? defaultLocale,
+        string? workspaceId = null)
         : base(tenantId)
     {
         Id = id;
@@ -48,6 +49,7 @@ public sealed class AppDefinition : TenantEntity
         SchemaVersion = "v1";
         DraftSchemaJson = "{}";
         Status = "draft";
+        WorkspaceId = NormalizeWorkspaceId(workspaceId);
         CreatedAt = DateTimeOffset.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -59,6 +61,9 @@ public sealed class AppDefinition : TenantEntity
     /// <summary>显示名（租户内可重复）。</summary>
     [SugarColumn(Length = 200, IsNullable = false)]
     public string DisplayName { get; private set; }
+
+    [SugarColumn(Length = 64, IsNullable = true)]
+    public string? WorkspaceId { get; private set; }
 
     /// <summary>简介（用于资源列表展示与共享市场）。</summary>
     [SugarColumn(Length = 2000, IsNullable = true)]
@@ -112,13 +117,24 @@ public sealed class AppDefinition : TenantEntity
         UpdatedByUserId = userId;
     }
 
-    public void UpdateMetadata(string displayName, string? description, string targetTypes, string defaultLocale, AppThemeConfig? theme, long updatedByUserId)
+    public void UpdateMetadata(
+        string displayName,
+        string? description,
+        string targetTypes,
+        string defaultLocale,
+        AppThemeConfig? theme,
+        long updatedByUserId,
+        string? workspaceId = null)
     {
         DisplayName = displayName;
         Description = description;
         TargetTypes = string.IsNullOrWhiteSpace(targetTypes) ? "web" : targetTypes;
         DefaultLocale = string.IsNullOrWhiteSpace(defaultLocale) ? "zh-CN" : defaultLocale;
         Theme = theme;
+        if (workspaceId is not null)
+        {
+            WorkspaceId = NormalizeWorkspaceId(workspaceId);
+        }
         UpdatedAt = DateTimeOffset.UtcNow;
         UpdatedByUserId = updatedByUserId;
     }
@@ -169,6 +185,12 @@ public sealed class AppDefinition : TenantEntity
         Status = "archived";
         UpdatedAt = DateTimeOffset.UtcNow;
         UpdatedByUserId = updatedByUserId;
+    }
+
+    private static string? NormalizeWorkspaceId(string? workspaceId)
+    {
+        var trimmed = workspaceId?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 }
 

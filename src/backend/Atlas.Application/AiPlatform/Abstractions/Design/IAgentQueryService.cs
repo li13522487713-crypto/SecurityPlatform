@@ -10,6 +10,7 @@ public interface IAgentQueryService
         TenantId tenantId,
         string? keyword,
         string? status,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken);

@@ -2,6 +2,7 @@
 @tenantId = 00000000-0000-0000-0000-000000000001
 @username = admin
 @password = P@ssw0rd!
+@workspaceId = 2001
 
 ### 登录获取令牌
 # @name login
@@ -24,7 +25,7 @@ X-Tenant-Id: {{tenantId}}
 ###
 
 ### 查询知识库列表
-GET {{baseUrl}}/api/v1/knowledge-bases?pageIndex=1&pageSize=20
+GET {{baseUrl}}/api/v1/knowledge-bases?pageIndex=1&pageSize=20&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -38,7 +39,8 @@ Content-Type: application/json
 {
   "name": "React Library Knowledge {{$timestamp}}",
   "description": "用于验证 React 版资源库入口",
-  "type": 0
+  "type": 0,
+  "workspaceId": {{workspaceId}}
 }
 
 ###

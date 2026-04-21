@@ -2,6 +2,7 @@
 @tenantId = 00000000-0000-0000-0000-000000000001
 @username = admin
 @password = P@ssw0rd!
+@workspaceId = 2001
 
 ### Login（先执行获取 token）
 # @name login
@@ -30,6 +31,7 @@ X-Tenant-Id: {{tenantId}}
   "description": "M01 验证用应用",
   "targetTypes": "web",
   "defaultLocale": "zh-CN",
+  "workspaceId": "{{workspaceId}}",
   "theme": {
     "primaryColor": "#1677ff",
     "borderRadius": 4,
@@ -41,12 +43,12 @@ X-Tenant-Id: {{tenantId}}
 @appId = {{createApp.response.body.$.data.id}}
 
 ### 列表（默认 pageSize=20）
-GET {{baseUrl}}/api/v1/lowcode/apps?pageIndex=1&pageSize=20
+GET {{baseUrl}}/api/v1/lowcode/apps?pageIndex=1&pageSize=20&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 列表（按状态过滤）
-GET {{baseUrl}}/api/v1/lowcode/apps?status=draft
+GET {{baseUrl}}/api/v1/lowcode/apps?status=draft&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -66,6 +68,7 @@ X-Tenant-Id: {{tenantId}}
   "description": "更新后",
   "targetTypes": "web,mini_program",
   "defaultLocale": "zh-CN",
+  "workspaceId": "{{workspaceId}}",
   "theme": null
 }
 

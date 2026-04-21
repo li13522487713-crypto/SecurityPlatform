@@ -56,6 +56,7 @@ public sealed class AgentsController : ControllerBase
             tenantId,
             keyword,
             status,
+            workspaceId: null,
             request.PageIndex,
             request.PageSize,
             cancellationToken);

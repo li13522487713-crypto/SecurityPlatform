@@ -2099,3 +2099,41 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 - 新增 `.tsx` 用户可见 UI 必须 import `@douyinfe/semi-ui`，禁止再以原生 `<button>` / `<input>` / `<select>` / `<textarea>` 构造可交互控件（已 Semi 化的 `<button className=coze-create-card>` 之类卡片型按钮属于历史保留，新增不允许）；
 - 上述豁免清单仅由架构师在做语义/工程决策时新增；新增豁免必须先在 PR 描述中说明工程理由，并同步更新本表；
 - 4 个 lowcode 子应用与 app-web 互不引用，可独立 `pnpm --filter atlas-lowcode-* run lint` 验证。
+
+## 工作空间查询隔离契约（2026-04）
+
+### 路由与切换
+
+- `app-web` 新工作空间壳统一使用 `/workspace/:workspaceId/*`；
+- 左侧工作空间切换器在工作空间域内必须优先保留当前菜单与查询参数；
+- 命中详情型高风险路径时允许自动降级到菜单根路由：
+  - `/workspace/:workspaceId/projects/folder/:folderId` -> `/workspace/:workspaceId/projects`
+  - `/workspace/:workspaceId/tasks/:taskId` -> `/workspace/:workspaceId/tasks`
+  - `/workspace/:workspaceId/evaluations/:evaluationId` -> `/workspace/:workspaceId/evaluations`
+- 在平台域菜单（`/market/*`、`/community/*`、`/open/*`、`/docs/*`、`/platform/*`、`/me/*`）切换工作空间时，URL 保持当前菜单路径不变，仅更新当前工作空间上下文。
+
+### 查询接口
+
+以下查询接口新增可选 `workspaceId` 参数：
+
+- `GET /api/v1/agents`
+- `GET /api/v1/ai-databases`
+- `GET /api/v1/knowledge-bases`
+- `GET /api/v1/ai-plugins`
+- `GET /api/v1/lowcode/apps`
+- `GET /api/v1/model-configs`
+- `GET /api/v1/model-configs/enabled`
+- `GET /api/v1/model-configs/stats`
+
+约束：
+
+- 未传 `workspaceId` 时保持原有租户级查询语义；
+- 传入 `workspaceId` 时必须严格按该工作空间过滤；
+- `workspaceId = null` 的历史记录在工作空间视图中不可见；
+- 前端工作空间壳内调用上述接口时必须显式传 `workspaceId`，不得依赖租户级默认查询。
+
+### 数据归属字段
+
+- `ModelConfig` 新增 `workspaceId?: string`，并贯通创建、更新、分页、启用列表、统计接口；
+- `LowCode AppDefinition` 新增 `workspaceId?: string`，并贯通创建、更新、列表与详情 DTO；
+- 资源隔离使用工作空间字符串 ID 透传，禁止前端在查询链路中通过 `Number(workspaceId)` 参与隔离过滤。

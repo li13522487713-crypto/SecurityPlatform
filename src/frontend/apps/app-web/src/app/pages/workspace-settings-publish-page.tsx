@@ -94,7 +94,7 @@ function AgentsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getAiAssistantsPaged({ pageIndex: 1, pageSize: 50 })
+    getAiAssistantsPaged({ pageIndex: 1, pageSize: 50, workspaceId: workspace.id })
       .then(result => {
         if (!cancelled) {
           setItems(result.items);
@@ -113,7 +113,7 @@ function AgentsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspace.id]);
 
   const columns: ColumnProps<AgentListItem>[] = [
     { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },
@@ -151,7 +151,7 @@ function AppsPanel() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    appGateway.list({ pageIndex: 1, pageSize: 50 })
+    appGateway.list({ pageIndex: 1, pageSize: 50, workspaceId: workspace.id })
       .then(result => {
         if (!cancelled) {
           setItems(result.items);
@@ -170,7 +170,7 @@ function AppsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [appGateway]);
+  }, [appGateway, workspace.id]);
 
   const columns: ColumnProps<ProjectAppCard>[] = [
     { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },
@@ -203,7 +203,7 @@ function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listWorkflows(1, 100)
+    listWorkflows(1, 100, undefined, workspace.id)
       .then(result => {
         if (!cancelled) {
           const list = (result.data?.items ?? []).filter(item => item.status === 1);
@@ -223,7 +223,7 @@ function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspace.id]);
 
   const columns: ColumnProps<WorkflowListItem>[] = [
     { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },

@@ -13,7 +13,7 @@ import { listWorkflows } from "../../services/api-workflow";
 import { getAiPluginsPaged } from "../../services/api-explore";
 import { getKnowledgeBasesPaged } from "../../services/api-knowledge";
 import { getAiDatabasesPaged } from "../../services/api-ai-database";
-import { getAiVariablesPaged } from "../../services/api-ai-variable";
+import { buildWorkspaceVariableFilters, getAiVariablesPaged } from "../../services/api-ai-variable";
 import type { AppMessageKey } from "../messages";
 
 const TAB_KEYS: ResourceLeaf[] = [
@@ -190,7 +190,7 @@ async function loadRows(
   }
 
   if (kind === "plugins") {
-    const result = await getAiPluginsPaged({ pageIndex: 1, pageSize: 50 }, keyword || undefined);
+    const result = await getAiPluginsPaged({ pageIndex: 1, pageSize: 50 }, keyword || undefined, workspaceId);
     return result.items.map(item => ({
       id: String(item.id),
       name: item.name,
@@ -201,7 +201,7 @@ async function loadRows(
   }
 
   if (kind === "knowledge") {
-    const result = await getKnowledgeBasesPaged({ pageIndex: 1, pageSize: 50 }, keyword || undefined);
+    const result = await getKnowledgeBasesPaged({ pageIndex: 1, pageSize: 50 }, keyword || undefined, workspaceId);
     return result.items.map(item => ({
       id: String(item.id),
       name: item.name,
@@ -212,7 +212,7 @@ async function loadRows(
   }
 
   if (kind === "databases") {
-    const result = await getAiDatabasesPaged({ pageIndex: 1, pageSize: 50 }, keyword || undefined);
+    const result = await getAiDatabasesPaged({ pageIndex: 1, pageSize: 50 }, keyword || undefined, workspaceId);
     return result.items.map(item => ({
       id: String(item.id),
       name: item.name,
@@ -222,7 +222,10 @@ async function loadRows(
   }
 
   if (kind === "variables") {
-    const result = await getAiVariablesPaged({ pageIndex: 1, pageSize: 50 }, { keyword: keyword || undefined });
+    const result = await getAiVariablesPaged(
+      { pageIndex: 1, pageSize: 50 },
+      buildWorkspaceVariableFilters(workspaceId, keyword || undefined)
+    );
     return result.items.map(item => ({
       id: String(item.id),
       name: item.key,

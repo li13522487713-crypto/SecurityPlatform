@@ -2286,7 +2286,10 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             };
         }
 
-        var models = await queryService.GetAllEnabledAsync(_tenantProvider.GetTenantId(), cancellationToken);
+        var models = await queryService.GetAllEnabledAsync(
+            _tenantProvider.GetTenantId(),
+            workspaceId: null,
+            cancellationToken: cancellationToken);
         var modelList = models.Select(item => new
         {
             name = item.DefaultModel,

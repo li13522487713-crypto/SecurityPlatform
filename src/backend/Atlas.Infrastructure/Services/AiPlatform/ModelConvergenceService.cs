@@ -24,7 +24,10 @@ public sealed class ModelConvergenceService : IModelConvergenceService
         TenantId tenantId,
         CancellationToken cancellationToken = default)
     {
-        var enabledModels = await _modelConfigRepository.GetAllEnabledAsync(tenantId, cancellationToken);
+        var enabledModels = await _modelConfigRepository.GetAllEnabledAsync(
+            tenantId,
+            workspaceId: null,
+            cancellationToken: cancellationToken);
         var diffs = enabledModels
             .Select(item => new ModelConvergenceDiffItem(
                 item.ProviderType,

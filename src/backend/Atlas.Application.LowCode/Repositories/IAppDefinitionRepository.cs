@@ -27,6 +27,7 @@ public interface IAppDefinitionRepository
         int pageSize,
         string? keyword,
         string? status,
+        string? workspaceId,
         CancellationToken cancellationToken);
 }
 

@@ -73,6 +73,7 @@ export async function getAiAssistantsPaged(params?: {
   pageSize?: number;
   keyword?: string;
   status?: string;
+  workspaceId?: string;
 }): Promise<PagedResult<AgentListItem>> {
   const request: PagedRequest = {
     pageIndex: params?.pageIndex ?? 1,
@@ -81,7 +82,8 @@ export async function getAiAssistantsPaged(params?: {
   const response = await requestApi<ApiResponse<PagedResult<AgentListItem>>>(
     `${assistantBase()}?${toQuery(request, {
       keyword: params?.keyword,
-      status: params?.status
+      status: params?.status,
+      workspaceId: params?.workspaceId
     })}`
   );
   if (!response.data) {

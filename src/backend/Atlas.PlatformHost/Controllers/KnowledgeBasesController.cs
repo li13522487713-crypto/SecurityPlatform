@@ -88,12 +88,14 @@ public sealed class KnowledgeBasesController : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<KnowledgeBaseDto>>>> GetPaged(
         [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
+        [FromQuery] long? workspaceId = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _knowledgeBaseService.GetPagedAsync(
             tenantId,
             keyword ?? request.Keyword,
+            workspaceId,
             request.PageIndex,
             request.PageSize,
             cancellationToken);

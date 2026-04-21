@@ -3,6 +3,7 @@
 @username = admin
 @password = P@ssw0rd!
 @agentId = 1
+@workspaceId = 2001
 
 ### 登录获取令牌
 # @name login
@@ -25,7 +26,7 @@ X-Tenant-Id: {{tenantId}}
 ###
 
 ### Agent 分页
-GET {{baseUrl}}/api/v1/agents?PageIndex=1&PageSize=20
+GET {{baseUrl}}/api/v1/agents?PageIndex=1&PageSize=20&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -51,7 +52,8 @@ Content-Type: application/json
     "给我一个安全事件处置清单"
   ],
   "temperature": 0.7,
-  "maxTokens": 2048
+  "maxTokens": 2048,
+  "workspaceId": {{workspaceId}}
 }
 
 ### 查询 Agent 详情
@@ -159,7 +161,8 @@ Content-Type: application/json
       "isRequired": true,
       "defaultValueOverride": "srv-001"
     }
-  ]
+  ],
+  "workspaceId": {{workspaceId}}
 }
 
 ### 复制 Agent

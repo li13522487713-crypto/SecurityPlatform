@@ -56,14 +56,29 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
             request.Code,
             request.DisplayName,
             request.TargetTypes,
-            request.DefaultLocale);
+            request.DefaultLocale,
+            request.WorkspaceId);
         if (!string.IsNullOrWhiteSpace(request.Description))
         {
-            app.UpdateMetadata(request.DisplayName, request.Description, request.TargetTypes, request.DefaultLocale ?? "zh-CN", _mapper.Map<AppThemeConfig?>(request.Theme), currentUserId);
+            app.UpdateMetadata(
+                request.DisplayName,
+                request.Description,
+                request.TargetTypes,
+                request.DefaultLocale ?? "zh-CN",
+                _mapper.Map<AppThemeConfig?>(request.Theme),
+                currentUserId,
+                request.WorkspaceId);
         }
         else if (request.Theme is not null)
         {
-            app.UpdateMetadata(request.DisplayName, request.Description, request.TargetTypes, request.DefaultLocale ?? "zh-CN", _mapper.Map<AppThemeConfig?>(request.Theme), currentUserId);
+            app.UpdateMetadata(
+                request.DisplayName,
+                request.Description,
+                request.TargetTypes,
+                request.DefaultLocale ?? "zh-CN",
+                _mapper.Map<AppThemeConfig?>(request.Theme),
+                currentUserId,
+                request.WorkspaceId);
         }
 
         app.SetCreatedByUser(currentUserId);
@@ -78,7 +93,14 @@ public sealed class AppDefinitionCommandService : IAppDefinitionCommandService
         var app = await _appRepo.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"应用不存在：{id}");
 
-        app.UpdateMetadata(request.DisplayName, request.Description, request.TargetTypes, request.DefaultLocale, _mapper.Map<AppThemeConfig?>(request.Theme), currentUserId);
+        app.UpdateMetadata(
+            request.DisplayName,
+            request.Description,
+            request.TargetTypes,
+            request.DefaultLocale,
+            _mapper.Map<AppThemeConfig?>(request.Theme),
+            currentUserId,
+            request.WorkspaceId);
         await _appRepo.UpdateAsync(app, cancellationToken);
 
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.app.update", "success", $"app:{id}", null, null), cancellationToken);

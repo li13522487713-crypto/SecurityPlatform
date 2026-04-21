@@ -45,10 +45,11 @@ public sealed class LowCodeAppDefinitionsController : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<AppDefinitionListItem>>>> List(
         [FromQuery] PagedRequest request,
         [FromQuery] string? status,
+        [FromQuery] string? workspaceId,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _query.QueryAsync(request, tenantId, status, cancellationToken);
+        var result = await _query.QueryAsync(request, tenantId, status, workspaceId, cancellationToken);
         return Ok(ApiResponse<PagedResult<AppDefinitionListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

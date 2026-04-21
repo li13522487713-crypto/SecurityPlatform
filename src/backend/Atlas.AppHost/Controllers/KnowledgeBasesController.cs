@@ -94,6 +94,7 @@ public sealed class KnowledgeBasesController : ControllerBase
         var result = await _knowledgeBaseService.GetPagedAsync(
             tenantId,
             keyword ?? request.Keyword,
+            workspaceId: null,
             request.PageIndex,
             request.PageSize,
             cancellationToken);

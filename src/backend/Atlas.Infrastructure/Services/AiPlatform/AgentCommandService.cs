@@ -400,7 +400,10 @@ public sealed class AgentCommandService : IAgentCommandService
             return requestedModelConfigId.Value;
         }
 
-        var enabled = await _modelConfigRepository.GetAllEnabledAsync(tenantId, cancellationToken);
+        var enabled = await _modelConfigRepository.GetAllEnabledAsync(
+            tenantId,
+            workspaceId: null,
+            cancellationToken: cancellationToken);
         return enabled.FirstOrDefault()?.Id;
     }
 
@@ -675,7 +678,13 @@ public sealed class AgentCommandService : IAgentCommandService
         IReadOnlyCollection<long> selectedDatabaseIds,
         CancellationToken cancellationToken)
     {
-        var (currentItems, _) = await _databaseRepository.GetPagedAsync(tenantId, keyword: null, pageIndex: 1, pageSize: 500, cancellationToken);
+        var (currentItems, _) = await _databaseRepository.GetPagedAsync(
+            tenantId,
+            keyword: null,
+            workspaceId: null,
+            pageIndex: 1,
+            pageSize: 500,
+            cancellationToken);
         var boundItems = currentItems
             .Where(item => item.BotId.HasValue && item.BotId.Value == botId)
             .ToArray();

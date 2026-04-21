@@ -43,9 +43,9 @@ describe("project-app-gateway", () => {
     });
 
     const gateway = createLowcodeProjectAppGateway();
-    const result = await gateway.list({ pageIndex: 1, pageSize: 20 });
+    const result = await gateway.list({ pageIndex: 1, pageSize: 20, workspaceId: "ws-2001" });
 
-    expect(getLowcodeAppsPagedMock).toHaveBeenCalledWith({ pageIndex: 1, pageSize: 20 });
+    expect(getLowcodeAppsPagedMock).toHaveBeenCalledWith({ pageIndex: 1, pageSize: 20, workspaceId: "ws-2001" });
     expect(result.items[0]).toEqual({
       id: "101",
       name: "Demo App",
@@ -58,14 +58,15 @@ describe("project-app-gateway", () => {
   it("create 使用 lowcode create 接口并返回 appId", async () => {
     createLowcodeAppMock.mockResolvedValue("9001");
     const gateway = createLowcodeProjectAppGateway();
-    const result = await gateway.create({ name: "测试工作流系统", description: "demo", locale: "zh-CN" });
+    const result = await gateway.create({ name: "测试工作流系统", description: "demo", locale: "zh-CN", workspaceId: "ws-2001" });
 
     expect(createLowcodeAppMock).toHaveBeenCalledTimes(1);
     expect(createLowcodeAppMock.mock.calls[0][0]).toMatchObject({
       displayName: "测试工作流系统",
       description: "demo",
       targetTypes: "web",
-      defaultLocale: "zh-CN"
+      defaultLocale: "zh-CN",
+      workspaceId: "ws-2001"
     });
     expect(result).toEqual({ appId: "9001" });
   });

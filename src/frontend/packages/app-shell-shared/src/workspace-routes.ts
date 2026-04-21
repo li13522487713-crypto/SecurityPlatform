@@ -76,6 +76,46 @@ export function workspaceSettingsModelsPath(workspaceId: string): string {
   return `${workspaceSettingsPath(workspaceId)}/models`;
 }
 
+function splitPathAndQuery(pathWithSearch: string): { pathname: string; search: string } {
+  const trimmed = pathWithSearch.trim();
+  if (!trimmed) {
+    return { pathname: "", search: "" };
+  }
+
+  const queryIndex = trimmed.indexOf("?");
+  if (queryIndex < 0) {
+    return { pathname: trimmed, search: "" };
+  }
+
+  return {
+    pathname: trimmed.slice(0, queryIndex),
+    search: trimmed.slice(queryIndex)
+  };
+}
+
+export function buildWorkspaceSwitchPath(pathWithSearch: string, workspaceId: string): string {
+  const { pathname, search } = splitPathAndQuery(pathWithSearch);
+  const decodedWorkspaceId = encodeSegment(workspaceId);
+
+  if (!pathname.startsWith("/workspace/")) {
+    return `${pathname}${search}`;
+  }
+
+  const detailFallbacks: Array<[RegExp, string]> = [
+    [/^\/workspace\/[^/]+\/projects\/folder\/[^/]+$/u, workspaceProjectsPath(workspaceId)],
+    [/^\/workspace\/[^/]+\/tasks\/[^/]+$/u, workspaceTasksPath(workspaceId)],
+    [/^\/workspace\/[^/]+\/evaluations\/[^/]+$/u, workspaceEvaluationsPath(workspaceId)]
+  ];
+
+  for (const [pattern, fallbackPath] of detailFallbacks) {
+    if (pattern.test(pathname)) {
+      return fallbackPath;
+    }
+  }
+
+  return pathname.replace(/^\/workspace\/[^/]+/u, `/workspace/${decodedWorkspaceId}`) + search;
+}
+
 export function marketTemplatesPath(): string {
   return "/market/templates";
 }

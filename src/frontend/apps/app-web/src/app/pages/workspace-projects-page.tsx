@@ -175,7 +175,7 @@ export function WorkspaceProjectsPage() {
           })
           : Promise.resolve({ items: [] as WorkspaceIdeResourceCardDto[], pageIndex: 1, pageSize: 120, total: 0 }),
         loadApps
-          ? lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status })
+          ? lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status, workspaceId: workspace.id })
           : Promise.resolve({ items: [], pageIndex: 1, pageSize: 120, total: 0 }),
         listFolders(workspace.id, { pageIndex: 1, pageSize: 200 })
       ]);

@@ -19,7 +19,9 @@ import type { CozeNavSection } from "@atlas/coze-shell-react";
 import { CozeShell } from "@atlas/coze-shell-react";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import {
+  buildWorkspaceSwitchPath,
   meProfilePath,
+  selectWorkspacePath,
   signPath,
   workspaceHomePath
 } from "@atlas/app-shell-shared";
@@ -136,7 +138,7 @@ export function PlatformShellLayout() {
   const auth = useAuth();
   const bootstrap = useBootstrap();
   const location = useLocation();
-  const lastWorkspaceId = readLastWorkspaceId();
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(() => readLastWorkspaceId());
   const tenantId = getTenantId() ?? "";
 
   if (bootstrap.loading || auth.loading) {
@@ -151,15 +153,16 @@ export function PlatformShellLayout() {
     return <Navigate to={signPath(location.pathname + location.search)} replace />;
   }
 
-  if (!lastWorkspaceId) {
+  if (!selectedWorkspaceId) {
     return <Navigate to={selectWorkspacePath()} replace />;
   }
 
   return (
     <OrganizationProvider orgId={tenantId}>
-      <WorkspaceProvider workspaceId={lastWorkspaceId}>
+      <WorkspaceProvider workspaceId={selectedWorkspaceId}>
         <PermissionProvider>
-          <ShellChrome variant="platform" />
+          <RememberWorkspace />
+          <ShellChrome variant="platform" onSelectWorkspace={setSelectedWorkspaceId} />
         </PermissionProvider>
       </WorkspaceProvider>
     </OrganizationProvider>
@@ -178,9 +181,10 @@ function RememberWorkspace() {
 
 interface ShellChromeProps {
   variant: "workspace" | "platform";
+  onSelectWorkspace?: (workspaceId: string) => void;
 }
 
-function ShellChrome({ variant }: ShellChromeProps) {
+function ShellChrome({ variant, onSelectWorkspace }: ShellChromeProps) {
   const { t, locale, setLocale } = useAppI18n();
   const auth = useAuth();
   const navigate = useNavigate();
@@ -213,6 +217,19 @@ function ShellChrome({ variant }: ShellChromeProps) {
   const headerTitle = useMemo(() => resolveHeaderTitle(location.pathname, t), [location.pathname, t]);
   const workspaceLabel = workspace.name || workspace.appKey || t("cozeShellWorkspaceSwitcherTitle");
   const activePath = `${location.pathname}${location.search}`;
+  const handleSelectWorkspace = (targetWorkspaceId: string) => {
+    if (!targetWorkspaceId || targetWorkspaceId === workspace.id) {
+      return;
+    }
+
+    rememberLastWorkspaceId(targetWorkspaceId);
+    if (variant === "platform") {
+      onSelectWorkspace?.(targetWorkspaceId);
+      return;
+    }
+
+    navigate(buildWorkspaceSwitchPath(activePath, targetWorkspaceId));
+  };
 
   if (variant === "workspace" && workspace.loading) {
     return <LoadingPage />;
@@ -241,7 +258,13 @@ function ShellChrome({ variant }: ShellChromeProps) {
           testId: "coze-shell-create-button"
         }
       ]}
-      sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspaceLabel} />}
+      sidebarTop={(
+        <WorkspaceSwitcher
+          workspaceId={workspace.id}
+          workspaceLabel={workspaceLabel}
+          onSelectWorkspace={handleSelectWorkspace}
+        />
+      )}
       onNavigate={path => navigate(path)}
       onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
       onOpenProfile={() => navigate(meProfilePath())}

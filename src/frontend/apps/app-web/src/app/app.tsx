@@ -1170,7 +1170,7 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
         }));
     },
     listPlugins: async () => {
-      const result = await getAiPluginsPaged({ pageIndex: 1, pageSize: 50 });
+      const result = await getAiPluginsPaged({ pageIndex: 1, pageSize: 50 }, undefined, workspaceId);
       return result.items.map(item => ({
         id: item.id,
         name: item.name,
@@ -1211,7 +1211,7 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
     },
     publishPlugin: publishAiPlugin,
     listKnowledgeBases: async () => {
-      const result = await getKnowledgeBasesPaged({ pageIndex: 1, pageSize: 50 });
+      const result = await getKnowledgeBasesPaged({ pageIndex: 1, pageSize: 50 }, undefined, workspaceId);
       return result.items.map(item => ({
         id: item.id,
         name: item.name,
@@ -1220,7 +1220,7 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
     },
     getKnowledgeBase: getKnowledgeBaseById,
     listDatabases: async () => {
-      const result = await getAiDatabasesPaged({ pageIndex: 1, pageSize: 50 });
+      const result = await getAiDatabasesPaged({ pageIndex: 1, pageSize: 50 }, undefined, workspaceId);
       return result.items.map(item => ({
         id: item.id,
         name: item.name,
@@ -1246,7 +1246,7 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
     listBotVariables: async (currentBotId: string) => {
       const result = await getAiVariablesPaged(
         { pageIndex: 1, pageSize: 100 },
-        { scope: 2, scopeId: Number(currentBotId) }
+        { scope: 2, scopeId: currentBotId }
       );
       return result.items.map(item => ({
         id: item.id,
@@ -1299,9 +1299,9 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
       return response.data;
     },
     generateAssistant: (kind, description) => generateByAiAssistant(appKey, kind, description),
-    listModelConfigs: () => getModelConfigsPaged({ pageIndex: 1, pageSize: 50 }),
+    listModelConfigs: () => getModelConfigsPaged({ pageIndex: 1, pageSize: 50 }, { workspaceId }),
     getModelConfig: getModelConfigById,
-    getModelConfigStats,
+    getModelConfigStats: keyword => getModelConfigStats(keyword, workspaceId),
     createModelConfig,
     updateModelConfig,
     deleteModelConfig,
@@ -2154,11 +2154,6 @@ function AiAssistantRoute() {
   const { locale } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
   return <AiAssistantPage api={studioApi} locale={locale} />;
-}
-
-function LegacyAppStudioRedirectRoute() {
-  const { id = "" } = useParams();
-  return <LowcodeStudioRedirectPage appId={id} />;
 }
 
 function StudioAssistantDetailRoute() {
@@ -3515,13 +3510,19 @@ export const appRoutes = [
   },
   {
     path: "/apps/:appKey/studio/apps/:id",
-    element: <LegacyAppStudioRedirectRoute />,
+    element: <LegacyWorkspaceAppRedirectRoute />,
     handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {
     path: "/apps/:appKey/studio/apps/:id/publish",
-    element: <LegacyAppStudioRedirectRoute />,
+    element: <LegacyWorkspaceAppRedirectRoute />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/apps/lowcode/:id/studio",
+    element: <LegacyWorkspaceAppRedirectRoute />,
     handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },

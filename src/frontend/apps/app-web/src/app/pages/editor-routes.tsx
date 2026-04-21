@@ -75,11 +75,15 @@ export function AgentPublishRoute() {
 
 export function AppEditorRoute() {
   const { projectId = "" } = useParams<{ projectId: string }>();
-  return <LowcodeStudioRedirectPage appId={projectId} />;
+  return <LowcodeAppRedirectRoute projectId={projectId} />;
 }
 
 export function AppPublishRoute() {
   const { projectId = "" } = useParams<{ projectId: string }>();
+  return <LowcodeAppRedirectRoute projectId={projectId} />;
+}
+
+function LowcodeAppRedirectRoute({ projectId }: { projectId: string }) {
   return <LowcodeStudioRedirectPage appId={projectId} />;
 }
 

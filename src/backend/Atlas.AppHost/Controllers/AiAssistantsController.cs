@@ -64,6 +64,7 @@ public sealed class AiAssistantsController : ControllerBase
             tenantId,
             keyword,
             status,
+            workspaceId: null,
             request.PageIndex,
             request.PageSize,
             cancellationToken);

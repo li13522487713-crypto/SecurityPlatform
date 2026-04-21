@@ -17,7 +17,7 @@ export function WorkspaceSettingsModelsPage() {
 
   const refresh = () => {
     setLoading(true);
-    getModelConfigsPaged({ pageIndex: 1, pageSize: 50 })
+    getModelConfigsPaged({ pageIndex: 1, pageSize: 50 }, { workspaceId: workspace.id })
       .then(result => setItems(result.items))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
@@ -25,7 +25,7 @@ export function WorkspaceSettingsModelsPage() {
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [workspace.id]);
 
   const handleToggle = async (item: ModelConfigDto, nextEnabled: boolean) => {
     try {
@@ -47,7 +47,8 @@ export function WorkspaceSettingsModelsPage() {
         maxTokens: item.maxTokens,
         topP: item.topP,
         frequencyPenalty: item.frequencyPenalty,
-        presencePenalty: item.presencePenalty
+        presencePenalty: item.presencePenalty,
+        workspaceId: workspace.id
       });
       Toast.success(t("cozeCreateSuccess"));
       refresh();

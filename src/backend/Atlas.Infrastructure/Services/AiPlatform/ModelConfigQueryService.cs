@@ -19,11 +19,12 @@ public sealed class ModelConfigQueryService : IModelConfigQueryService
     public async Task<PagedResult<ModelConfigDto>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        string? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var (items, total) = await _repository.GetPagedAsync(tenantId, keyword, pageIndex, pageSize, cancellationToken);
+        var (items, total) = await _repository.GetPagedAsync(tenantId, keyword, workspaceId, pageIndex, pageSize, cancellationToken);
         var dtos = items.Select(Map).ToList();
         return new PagedResult<ModelConfigDto>(dtos, total, pageIndex, pageSize);
     }
@@ -34,18 +35,22 @@ public sealed class ModelConfigQueryService : IModelConfigQueryService
         return item is null ? null : Map(item);
     }
 
-    public async Task<IReadOnlyList<ModelConfigDto>> GetAllEnabledAsync(TenantId tenantId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ModelConfigDto>> GetAllEnabledAsync(
+        TenantId tenantId,
+        string? workspaceId,
+        CancellationToken cancellationToken)
     {
-        var items = await _repository.GetAllEnabledAsync(tenantId, cancellationToken);
+        var items = await _repository.GetAllEnabledAsync(tenantId, workspaceId, cancellationToken);
         return items.Select(Map).ToList();
     }
 
     public async Task<ModelConfigStatsDto> GetStatsAsync(
         TenantId tenantId,
         string? keyword,
+        string? workspaceId,
         CancellationToken cancellationToken)
     {
-        var (total, enabled, embeddingCount) = await _repository.GetStatsAsync(tenantId, keyword, cancellationToken);
+        var (total, enabled, embeddingCount) = await _repository.GetStatsAsync(tenantId, keyword, workspaceId, cancellationToken);
         var disabled = total - enabled;
         return new ModelConfigStatsDto(total, enabled, disabled, embeddingCount);
     }
@@ -72,7 +77,8 @@ public sealed class ModelConfigQueryService : IModelConfigQueryService
             item.FrequencyPenalty,
             item.PresencePenalty,
             MaskApiKey(item.ApiKey),
-            item.CreatedAt);
+            item.CreatedAt,
+            item.WorkspaceId);
 
     private static string? MaskApiKey(string? apiKey)
     {

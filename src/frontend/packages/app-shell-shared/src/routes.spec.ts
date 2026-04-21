@@ -62,6 +62,7 @@ import {
   lowcodeFaqPath,
   lowcodeTemplatesPath
 } from "./routes";
+import { buildWorkspaceSwitchPath } from "./workspace-routes";
 
 describe("lowcode routes (M07 C07-11)", () => {
   it("uses lowcode app key", () => {
@@ -90,5 +91,26 @@ describe("lowcode routes (M07 C07-11)", () => {
     expect(LOWCODE_ROUTES.versions("9")).toBe("/apps/lowcode/9/versions");
     expect(LOWCODE_ROUTES.faq()).toBe("/apps/lowcode/faq");
     expect(LOWCODE_ROUTES.templates()).toBe("/apps/lowcode/templates");
+  });
+});
+
+describe("workspace switch path", () => {
+  it("保留工作区菜单路径与查询参数", () => {
+    expect(buildWorkspaceSwitchPath("/workspace/100/resources/knowledge?keyword=demo", "200"))
+      .toBe("/workspace/200/resources/knowledge?keyword=demo");
+  });
+
+  it("详情型路径会自动降级到菜单根路径", () => {
+    expect(buildWorkspaceSwitchPath("/workspace/100/projects/folder/f-1", "200"))
+      .toBe("/workspace/200/projects");
+    expect(buildWorkspaceSwitchPath("/workspace/100/tasks/t-1?tab=detail", "200"))
+      .toBe("/workspace/200/tasks");
+    expect(buildWorkspaceSwitchPath("/workspace/100/evaluations/e-1", "200"))
+      .toBe("/workspace/200/evaluations");
+  });
+
+  it("非工作区路径保持不变", () => {
+    expect(buildWorkspaceSwitchPath("/market/templates?keyword=test", "200"))
+      .toBe("/market/templates?keyword=test");
   });
 });

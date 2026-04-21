@@ -46,6 +46,7 @@ public sealed class OpenKnowledgeController : ControllerBase
         var result = await _knowledgeBaseService.GetPagedAsync(
             tenantId,
             keyword,
+            workspaceId: null,
             request.PageIndex,
             request.PageSize,
             cancellationToken);

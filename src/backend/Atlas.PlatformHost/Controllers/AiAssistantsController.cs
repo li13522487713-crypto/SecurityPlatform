@@ -58,6 +58,7 @@ public sealed class AiAssistantsController : ControllerBase
         [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
         [FromQuery] string? status = null,
+        [FromQuery] long? workspaceId = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -65,6 +66,7 @@ public sealed class AiAssistantsController : ControllerBase
             tenantId,
             keyword,
             status,
+            workspaceId,
             request.PageIndex,
             request.PageSize,
             cancellationToken);

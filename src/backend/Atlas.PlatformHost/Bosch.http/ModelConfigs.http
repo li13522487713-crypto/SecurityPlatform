@@ -3,6 +3,7 @@
 @username = admin
 @password = P@ssw0rd!
 @modelConfigId = 1
+@workspaceId = 2001
 
 ### 登录获取令牌
 # @name login
@@ -25,17 +26,17 @@ X-Tenant-Id: {{tenantId}}
 ###
 
 ### 模型配置分页
-GET {{baseUrl}}/api/v1/model-configs?PageIndex=1&PageSize=20
+GET {{baseUrl}}/api/v1/model-configs?PageIndex=1&PageSize=20&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 模型配置启用列表
-GET {{baseUrl}}/api/v1/model-configs/enabled
+GET {{baseUrl}}/api/v1/model-configs/enabled?workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 模型配置统计
-GET {{baseUrl}}/api/v1/model-configs/stats?keyword=
+GET {{baseUrl}}/api/v1/model-configs/stats?keyword=&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -63,7 +64,8 @@ Content-Type: application/json
   "maxTokens": 2048,
   "topP": 1.0,
   "frequencyPenalty": 0,
-  "presencePenalty": 0
+  "presencePenalty": 0,
+  "workspaceId": "{{workspaceId}}"
 }
 
 ### 测试模型连接
@@ -144,7 +146,8 @@ Content-Type: application/json
   "maxTokens": 4096,
   "topP": 0.9,
   "frequencyPenalty": 0.1,
-  "presencePenalty": 0.1
+  "presencePenalty": 0.1,
+  "workspaceId": "{{workspaceId}}"
 }
 
 ### 删除模型配置

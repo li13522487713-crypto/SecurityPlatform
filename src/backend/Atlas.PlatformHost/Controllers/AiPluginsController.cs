@@ -49,10 +49,11 @@ public sealed class AiPluginsController : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<AiPluginListItem>>>> GetPaged(
         [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
+        [FromQuery] long? workspaceId = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _service.GetPagedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
+        var result = await _service.GetPagedAsync(tenantId, keyword, workspaceId, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<AiPluginListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

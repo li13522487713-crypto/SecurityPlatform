@@ -19,7 +19,7 @@ export interface AiVariableCreateRequest {
   key: string;
   value?: string;
   scope: AiVariableScope;
-  scopeId?: number;
+  scopeId?: string | number;
 }
 
 export interface AiSystemVariableDefinition {
@@ -31,7 +31,7 @@ export interface AiSystemVariableDefinition {
 
 export async function getAiVariablesPaged(
   request: PagedRequest,
-  filters?: { keyword?: string; scope?: AiVariableScope; scopeId?: number }
+  filters?: { keyword?: string; scope?: AiVariableScope; scopeId?: string | number }
 ): Promise<PagedResult<AiVariableListItem>> {
   const response = await requestApi<ApiResponse<PagedResult<AiVariableListItem>>>(`/ai-variables?${toQuery(request, {
     keyword: filters?.keyword,
@@ -95,4 +95,16 @@ export async function getAiSystemVariableDefinitions(): Promise<AiSystemVariable
   }
 
   return response.data;
+}
+
+export function buildWorkspaceVariableFilters(workspaceId: string, keyword?: string): {
+  keyword?: string;
+  scope: AiVariableScope;
+  scopeId: string;
+} {
+  return {
+    keyword,
+    scope: 1,
+    scopeId: workspaceId
+  };
 }

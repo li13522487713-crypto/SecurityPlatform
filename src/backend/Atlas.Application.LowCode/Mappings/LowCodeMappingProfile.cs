@@ -25,7 +25,8 @@ public sealed class LowCodeMappingProfile : Profile
             .ForCtorParam("Status", opt => opt.MapFrom(src => src.Status))
             .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue && src.CurrentVersionId.Value > 0 ? src.CurrentVersionId : null))
             .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAt))
-            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt))
+            .ForCtorParam("WorkspaceId", opt => opt.MapFrom(src => src.WorkspaceId));
 
         CreateMap<AppDefinition, AppDefinitionDetail>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()))
@@ -39,7 +40,8 @@ public sealed class LowCodeMappingProfile : Profile
             .ForCtorParam("Status", opt => opt.MapFrom(src => src.Status))
             .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue && src.CurrentVersionId.Value > 0 ? src.CurrentVersionId.Value.ToString() : null))
             .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAt))
-            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt));
+            .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt))
+            .ForCtorParam("WorkspaceId", opt => opt.MapFrom(src => src.WorkspaceId));
 
         CreateMap<PageDefinition, PageDefinitionListItem>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()))

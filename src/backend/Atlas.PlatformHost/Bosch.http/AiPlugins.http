@@ -4,6 +4,7 @@
 @password = P@ssw0rd!
 @pluginId = 1
 @apiId = 1
+@workspaceId = 2001
 
 ### 登录获取令牌
 # @name login
@@ -26,7 +27,7 @@ X-Tenant-Id: {{tenantId}}
 ###
 
 ### 插件分页
-GET {{baseUrl}}/api/v1/ai-plugins?PageIndex=1&PageSize=20
+GET {{baseUrl}}/api/v1/ai-plugins?PageIndex=1&PageSize=20&workspaceId={{workspaceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -47,7 +48,8 @@ Content-Type: application/json
   "icon": "api",
   "category": "integration",
   "type": 0,
-  "definitionJson": "{\"baseUrl\":\"https://example.com\"}"
+  "definitionJson": "{\"baseUrl\":\"https://example.com\"}",
+  "workspaceId": {{workspaceId}}
 }
 
 ### 查询插件详情
@@ -67,7 +69,8 @@ Content-Type: application/json
   "icon": "api",
   "category": "integration",
   "type": 0,
-  "definitionJson": "{\"baseUrl\":\"https://example.com/api\"}"
+  "definitionJson": "{\"baseUrl\":\"https://example.com/api\"}",
+  "workspaceId": {{workspaceId}}
 }
 
 ### 插件调试

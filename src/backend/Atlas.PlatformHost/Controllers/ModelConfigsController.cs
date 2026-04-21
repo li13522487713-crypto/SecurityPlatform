@@ -45,19 +45,22 @@ public sealed class ModelConfigsController : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<ModelConfigDto>>>> GetPaged(
         [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
+        [FromQuery] string? workspaceId = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetPagedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
+        var result = await _queryService.GetPagedAsync(tenantId, keyword, workspaceId, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<ModelConfigDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("enabled")]
     [Authorize(Policy = PermissionPolicies.ModelConfigView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<ModelConfigDto>>>> GetEnabled(CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<ModelConfigDto>>>> GetEnabled(
+        [FromQuery] string? workspaceId,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetAllEnabledAsync(tenantId, cancellationToken);
+        var result = await _queryService.GetAllEnabledAsync(tenantId, workspaceId, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<ModelConfigDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -65,10 +68,11 @@ public sealed class ModelConfigsController : ControllerBase
     [Authorize(Policy = PermissionPolicies.ModelConfigView)]
     public async Task<ActionResult<ApiResponse<ModelConfigStatsDto>>> GetStats(
         [FromQuery] string? keyword = null,
+        [FromQuery] string? workspaceId = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetStatsAsync(tenantId, keyword, cancellationToken);
+        var result = await _queryService.GetStatsAsync(tenantId, keyword, workspaceId, cancellationToken);
         return Ok(ApiResponse<ModelConfigStatsDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 

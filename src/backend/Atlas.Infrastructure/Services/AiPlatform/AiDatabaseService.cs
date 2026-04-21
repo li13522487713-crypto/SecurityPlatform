@@ -55,6 +55,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
     public async Task<PagedResult<AiDatabaseListItem>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
@@ -62,6 +63,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
         var (items, total) = await _databaseRepository.GetPagedAsync(
             tenantId,
             keyword,
+            workspaceId,
             pageIndex,
             pageSize,
             cancellationToken);

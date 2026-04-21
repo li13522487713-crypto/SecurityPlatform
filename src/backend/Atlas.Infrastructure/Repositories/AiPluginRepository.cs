@@ -14,12 +14,18 @@ public sealed class AiPluginRepository : RepositoryBase<AiPlugin>
     public async Task<(List<AiPlugin> Items, long Total)> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
     {
         var query = Db.Queryable<AiPlugin>()
             .Where(x => x.TenantIdValue == tenantId.Value);
+
+        if (workspaceId.HasValue)
+        {
+            query = query.Where(x => x.WorkspaceId == workspaceId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {

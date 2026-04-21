@@ -46,6 +46,7 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
     public async Task<PagedResult<KnowledgeBaseDto>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        long? workspaceId,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
@@ -53,6 +54,7 @@ public sealed class KnowledgeBaseService : IKnowledgeBaseService
         var (items, total) = await _knowledgeBaseRepository.GetPagedAsync(
             tenantId,
             keyword,
+            workspaceId,
             pageIndex,
             pageSize,
             cancellationToken);

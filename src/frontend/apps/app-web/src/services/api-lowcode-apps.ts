@@ -35,6 +35,7 @@ export interface LowcodeAppListQuery {
   status?: string;
   pageIndex?: number;
   pageSize?: number;
+  workspaceId?: string;
 }
 
 export interface LowcodeAppCreateRequest {
@@ -43,6 +44,7 @@ export interface LowcodeAppCreateRequest {
   description?: string;
   targetTypes: string;
   defaultLocale?: string;
+  workspaceId?: string;
   theme?: {
     primaryColor?: string;
     borderRadius?: number;
@@ -67,6 +69,10 @@ export async function getLowcodeAppsPaged(query?: LowcodeAppListQuery): Promise<
 
   if (query?.status) {
     params.set("status", query.status);
+  }
+
+  if (query?.workspaceId) {
+    params.set("workspaceId", query.workspaceId);
   }
 
   const response = await requestApi<ApiResponse<PagedResult<LowcodeAppListItemDto>>>(`/lowcode/apps?${params.toString()}`);

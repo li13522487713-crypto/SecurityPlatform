@@ -104,8 +104,15 @@ export const enum AiDatabaseChannelScope {
   Channel = 1
 }
 
-export async function getAiDatabasesPaged(request: PagedRequest, keyword?: string): Promise<PagedResult<AiDatabaseListItem>> {
-  const response = await requestApi<ApiResponse<PagedResult<AiDatabaseListItem>>>(`/ai-databases?${toQuery(request, { keyword })}`);
+export async function getAiDatabasesPaged(
+  request: PagedRequest,
+  keyword?: string,
+  workspaceId?: string
+): Promise<PagedResult<AiDatabaseListItem>> {
+  const response = await requestApi<ApiResponse<PagedResult<AiDatabaseListItem>>>(`/ai-databases?${toQuery(request, {
+    keyword,
+    workspaceId
+  })}`);
   if (!response.data) {
     throw new Error(response.message || aiDatabaseMessage("getDatabasesPagedFailed"));
   }

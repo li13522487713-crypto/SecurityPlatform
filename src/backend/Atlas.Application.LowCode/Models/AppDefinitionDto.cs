@@ -12,7 +12,8 @@ public sealed record AppDefinitionListItem(
     string Status,
     long? CurrentVersionId,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? WorkspaceId = null);
 
 /// <summary>应用详情（含主题，但不含 schema 完整 JSON——schema 通过专用端点拉取以避免过大列表负载）。</summary>
 public sealed record AppDefinitionDetail(
@@ -27,7 +28,8 @@ public sealed record AppDefinitionDetail(
     string Status,
     string? CurrentVersionId,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? WorkspaceId = null);
 
 /// <summary>主题配置 DTO，与领域 <c>AppThemeConfig</c> 镜像。</summary>
 public sealed record AppThemeConfigDto(
@@ -43,7 +45,8 @@ public sealed record AppDefinitionCreateRequest(
     string? Description,
     string TargetTypes,
     string? DefaultLocale,
-    AppThemeConfigDto? Theme);
+    AppThemeConfigDto? Theme,
+    string? WorkspaceId = null);
 
 /// <summary>更新应用元数据请求（不含 schema）。</summary>
 public sealed record AppDefinitionUpdateRequest(
@@ -51,7 +54,8 @@ public sealed record AppDefinitionUpdateRequest(
     string? Description,
     string TargetTypes,
     string DefaultLocale,
-    AppThemeConfigDto? Theme);
+    AppThemeConfigDto? Theme,
+    string? WorkspaceId = null);
 
 /// <summary>替换 schema 草稿请求（完整 AppSchema JSON 字符串，由前端 zod 校验后提交）。</summary>
 public sealed record AppDraftReplaceRequest(string SchemaJson);

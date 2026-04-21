@@ -61,7 +61,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         ModelConfigCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var exists = await _repository.ExistsByNameAsync(tenantId, request.Name, cancellationToken);
+        var exists = await _repository.ExistsByNameAsync(tenantId, request.Name, request.WorkspaceId, cancellationToken);
         if (exists)
         {
             throw new BusinessException($"模型配置名称 '{request.Name}' 已存在。", ErrorCodes.ValidationError);
@@ -74,7 +74,8 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             request.ApiKey,
             request.BaseUrl,
             request.DefaultModel,
-            _idGeneratorAccessor.NextId());
+            _idGeneratorAccessor.NextId(),
+            request.WorkspaceId);
         entity.Update(
             request.Name,
             request.ApiKey,
@@ -93,7 +94,8 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             maxTokens: request.MaxTokens,
             topP: request.TopP,
             frequencyPenalty: request.FrequencyPenalty,
-            presencePenalty: request.PresencePenalty);
+            presencePenalty: request.PresencePenalty,
+            workspaceId: request.WorkspaceId);
 
         await _repository.AddAsync(entity, cancellationToken);
         await InvalidateModelConfigCacheAsync(tenantId, cancellationToken);
@@ -109,7 +111,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         var entity = await _repository.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("模型配置不存在。", ErrorCodes.NotFound);
 
-        var duplicated = await _repository.FindByNameAsync(tenantId, request.Name, cancellationToken);
+        var duplicated = await _repository.FindByNameAsync(tenantId, request.Name, request.WorkspaceId, cancellationToken);
         if (duplicated is not null && duplicated.Id != id)
         {
             throw new BusinessException($"模型配置名称 '{request.Name}' 已存在。", ErrorCodes.ValidationError);
@@ -137,7 +139,8 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             maxTokens: request.MaxTokens,
             topP: request.TopP,
             frequencyPenalty: request.FrequencyPenalty,
-            presencePenalty: request.PresencePenalty);
+            presencePenalty: request.PresencePenalty,
+            workspaceId: request.WorkspaceId);
         await _repository.UpdateAsync(entity, cancellationToken);
         await InvalidateModelConfigCacheAsync(tenantId, cancellationToken);
     }
