@@ -23,7 +23,6 @@ import {
   EMPTY_AGENT_PROMPT_SECTIONS,
   isRecord
 } from "./assistant/agent-ide-helpers";
-import { AppBuilderPage } from "./app-builder";
 import { ResourceReferenceCard } from "./shared/resource-reference-card";
 import type {
   AgentListItem,
@@ -2071,13 +2070,20 @@ export function PluginDetailPage({
 }
 
 export function AppDetailPage(
-  props: StudioPageProps & {
+  _props: StudioPageProps & {
     appId: string;
     onOpenWorkflow?: (workflowId: string) => void;
     onOpenPublish?: () => void;
   }
 ) {
-  return <AppBuilderPage {...props} />;
+  return (
+    <Surface
+      title="App editor has moved"
+      subtitle="This legacy AppBuilder page is retired. Please open Lowcode Studio."
+    >
+      <Empty title="Open /apps/lowcode/:appId/studio" image={null} />
+    </Surface>
+  );
 }
 
 export function AppPublishPage({

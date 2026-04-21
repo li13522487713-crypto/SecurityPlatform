@@ -1,6 +1,7 @@
 using Atlas.Application.LowCode.Repositories;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Entities;
+using Microsoft.Data.Sqlite;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories.LowCode;
@@ -17,7 +18,17 @@ public sealed class AppDefinitionRepository : IAppDefinitionRepository
 
     public async Task<long> InsertAsync(AppDefinition app, CancellationToken cancellationToken)
     {
-        await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
+        try
+        {
+            await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
+        }
+        catch (SqliteException ex) when (IsLegacyCurrentVersionNotNullConstraint(ex))
+        {
+            // 兼容历史 SQLite 结构：CurrentVersionId 被误建为 NOT NULL 时，用 0 占位重试一次。
+            app.ApplyLegacyDraftCurrentVersionFallback();
+            await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
+        }
+
         return app.Id;
     }
 
@@ -86,5 +97,17 @@ public sealed class AppDefinitionRepository : IAppDefinitionRepository
         var list = await q.OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
         return (list, total);
+    }
+
+    private static bool IsLegacyCurrentVersionNotNullConstraint(SqliteException ex)
+    {
+        if (ex.SqliteErrorCode != 19)
+        {
+            return false;
+        }
+
+        var message = ex.Message;
+        return message.Contains("NOT NULL constraint failed", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("AppDefinition.CurrentVersionId", StringComparison.OrdinalIgnoreCase);
     }
 }

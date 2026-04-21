@@ -3,7 +3,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@douyinfe/semi-ui";
 import {
   agentPublishPath,
-  appPublishPath,
   chatflowEditorPath,
   workflowEditorPath
 } from "@atlas/app-shell-shared";
@@ -14,14 +13,13 @@ import { WorkflowRuntimeBoundary } from "../workflow-runtime-boundary";
 import { useAppApis } from "../app";
 import { TestsetDrawer } from "../components/testset-drawer";
 import { PageShell } from "../_shared";
+import { LowcodeStudioRedirectPage } from "./lowcode-studio-redirect-page";
 
 const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
 
 const BotIdePage = lazyNamed(loadStudioModule, "BotIdePage");
 const AssistantPublishPage = lazyNamed(loadStudioModule, "AssistantPublishPage");
-const AppDetailPage = lazyNamed(loadStudioModule, "AppDetailPage");
-const AppPublishPage = lazyNamed(loadStudioModule, "AppPublishPage");
 const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
 
@@ -77,41 +75,12 @@ export function AgentPublishRoute() {
 
 export function AppEditorRoute() {
   const { projectId = "" } = useParams<{ projectId: string }>();
-  const { locale } = useAppI18n();
-  const navigate = useNavigate();
-  const workspace = useWorkspaceContext();
-  const apis = useAppApis(workspace.appKey);
-  const studioApi = apis.studioApi;
-
-  return (
-    <Suspense fallback={<EditorLoading />}>
-      <StudioContextProvider api={studioApi}>
-        <AppDetailPage
-          api={studioApi}
-          locale={locale}
-          appId={projectId}
-          onOpenWorkflow={workflowId => navigate(workflowEditorPath(workflowId))}
-          onOpenPublish={() => navigate(appPublishPath(projectId))}
-        />
-      </StudioContextProvider>
-    </Suspense>
-  );
+  return <LowcodeStudioRedirectPage appId={projectId} />;
 }
 
 export function AppPublishRoute() {
   const { projectId = "" } = useParams<{ projectId: string }>();
-  const { locale } = useAppI18n();
-  const workspace = useWorkspaceContext();
-  const apis = useAppApis(workspace.appKey);
-  const studioApi = apis.studioApi;
-
-  return (
-    <Suspense fallback={<EditorLoading />}>
-      <StudioContextProvider api={studioApi}>
-        <AppPublishPage api={studioApi} locale={locale} appId={projectId} />
-      </StudioContextProvider>
-    </Suspense>
-  );
+  return <LowcodeStudioRedirectPage appId={projectId} />;
 }
 
 /**

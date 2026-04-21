@@ -141,6 +141,21 @@ public sealed class AppDefinition : TenantEntity
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>
+    /// 历史库兼容：当 CurrentVersionId 被错误建为 NOT NULL 时，
+    /// 草稿态应用使用 0 作为占位值（业务侧视同"无当前版本"）。
+    /// </summary>
+    public void ApplyLegacyDraftCurrentVersionFallback()
+    {
+        if (CurrentVersionId.HasValue && CurrentVersionId.Value > 0)
+        {
+            return;
+        }
+
+        CurrentVersionId = 0;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void MarkPublished(long versionId, long updatedByUserId)
     {
         Status = "published";

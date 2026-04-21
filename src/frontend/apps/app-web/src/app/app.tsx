@@ -79,8 +79,6 @@ import {
   orgWorkspaceAppPublishPath,
   orgWorkspaceAgentDetailPath,
   orgWorkspaceAgentPublishPath,
-  orgWorkspaceAppWorkflowPath,
-  orgWorkspaceAppChatflowPath,
   orgWorkspaceWorkflowsPath,
   orgWorkspaceChatflowsPath,
   orgWorkspaceWorkflowPath,
@@ -202,6 +200,7 @@ import { WorkspaceTasksPage } from "./pages/workspace-tasks-page";
 import { WorkspaceEvaluationsPage } from "./pages/workspace-evaluations-page";
 import { WorkspaceSettingsPublishPage } from "./pages/workspace-settings-publish-page";
 import { WorkspaceSettingsModelsPage } from "./pages/workspace-settings-models-page";
+import { LowcodeStudioRedirectPage } from "./pages/lowcode-studio-redirect-page";
 import { MarketTemplatesPage } from "./pages/market-templates-page";
 import { MarketPluginsPage } from "./pages/market-plugins-page";
 import { CommunityWorksPage } from "./pages/community-works-page";
@@ -432,8 +431,6 @@ const AppsPage = lazyNamed(loadStudioModule, "AppsPage");
 const AgentChatPage = lazyNamed(loadStudioModule, "AgentChatPage");
 const AssistantsPage = lazyNamed(loadStudioModule, "AssistantsPage");
 const AiAssistantPage = lazyNamed(loadStudioModule, "AiAssistantPage");
-const AppDetailPage = lazyNamed(loadStudioModule, "AppDetailPage");
-const AppPublishPage = lazyNamed(loadStudioModule, "AppPublishPage");
 const AssistantPublishPage = lazyNamed(loadStudioModule, "AssistantPublishPage");
 const BotIdePage = lazyNamed(loadStudioModule, "BotIdePage");
 const DataResourcesPage = lazyNamed(loadStudioModule, "DataResourcesPage");
@@ -2159,27 +2156,9 @@ function AiAssistantRoute() {
   return <AiAssistantPage api={studioApi} locale={locale} />;
 }
 
-function StudioAppDetailRoute() {
-  const { appKey = "", id = "" } = useParams();
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
-  const { studioApi } = useAppApis(appKey);
-  return (
-    <AppDetailPage
-      api={studioApi}
-      locale={locale}
-      appId={id}
-      onOpenWorkflow={workflowId => navigate(buildWorkflowWorkbenchPath(appKey, workflowId))}
-      onOpenPublish={() => navigate(studioAppPublishPath(appKey, id))}
-    />
-  );
-}
-
-function StudioAppPublishRoute() {
-  const { appKey = "", id = "" } = useParams();
-  const { locale } = useAppI18n();
-  const { studioApi } = useAppApis(appKey);
-  return <AppPublishPage api={studioApi} locale={locale} appId={id} />;
+function LegacyAppStudioRedirectRoute() {
+  const { id = "" } = useParams();
+  return <LowcodeStudioRedirectPage appId={id} />;
 }
 
 function StudioAssistantDetailRoute() {
@@ -3286,30 +3265,9 @@ function WorkspaceAccessSettingsRoute({
   );
 }
 
-function WorkspaceAppDetailRoute() {
+function LegacyWorkspaceAppRedirectRoute() {
   const { id = "" } = useParams();
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
-  const workspace = useWorkspaceContext();
-  const orgId = useResolvedOrgId();
-  const { studioApi } = useAppApis(workspace.appKey);
-  return (
-    <AppDetailPage
-      api={studioApi}
-      locale={locale}
-      appId={id}
-      onOpenWorkflow={workflowId => navigate(orgWorkspaceAppWorkflowPath(orgId, workspace.id, id, workflowId))}
-      onOpenPublish={() => navigate(orgWorkspaceAppPublishPath(orgId, workspace.id, id))}
-    />
-  );
-}
-
-function WorkspaceAppPublishRoute() {
-  const { id = "" } = useParams();
-  const { locale } = useAppI18n();
-  const workspace = useWorkspaceContext();
-  const { studioApi } = useAppApis(workspace.appKey);
-  return <AppPublishPage api={studioApi} locale={locale} appId={id} />;
+  return <LowcodeStudioRedirectPage appId={id} />;
 }
 
 function WorkspaceAgentDetailRoute() {
@@ -3342,14 +3300,6 @@ function WorkspaceWorkflowRedirectRoute() {
 }
 
 function WorkspaceChatflowRedirectRoute() {
-  return <WorkspaceWorkflowWorkbenchRoute mode="chatflow" />;
-}
-
-function WorkspaceAppWorkflowRedirectRoute() {
-  return <WorkspaceWorkflowWorkbenchRoute mode="workflow" />;
-}
-
-function WorkspaceAppChatflowRedirectRoute() {
   return <WorkspaceWorkflowWorkbenchRoute mode="chatflow" />;
 }
 
@@ -3479,6 +3429,8 @@ export const appRoutes = [
       { path: "tasks/:taskId", element: <WorkspaceTasksPage /> },
       { path: "evaluations", element: <WorkspaceEvaluationsPage /> },
       { path: "evaluations/:evaluationId", element: <WorkspaceEvaluationsPage /> },
+      { path: "apps/:id", element: <LegacyWorkspaceAppRedirectRoute /> },
+      { path: "apps/:id/publish", element: <LegacyWorkspaceAppRedirectRoute /> },
       { path: "settings", element: <Navigate to="publish" replace /> },
       { path: "settings/publish", element: <WorkspaceSettingsPublishPage /> },
       { path: "settings/publish/:tab", element: <WorkspaceSettingsPublishPage /> },
@@ -3548,6 +3500,30 @@ export const appRoutes = [
       { index: true, element: <Navigate to="general" replace /> },
       { path: "general", element: <PlatformGeneralPage /> }
     ]
+  },
+  {
+    path: "/w/:workspaceId/apps/:id",
+    element: <LegacyWorkspaceAppRedirectRoute />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/w/:workspaceId/apps/:id/publish",
+    element: <LegacyWorkspaceAppRedirectRoute />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/apps/:appKey/studio/apps/:id",
+    element: <LegacyAppStudioRedirectRoute />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/apps/:appKey/studio/apps/:id/publish",
+    element: <LegacyAppStudioRedirectRoute />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
   },
   {
     path: "/agent",

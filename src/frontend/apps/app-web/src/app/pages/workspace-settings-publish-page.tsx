@@ -4,7 +4,6 @@ import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   agentEditorPath,
-  appEditorPath,
   workflowEditorPath,
   workspaceProjectsPath,
   workspaceSettingsPublishPath,
@@ -14,10 +13,6 @@ import { useAppI18n } from "../i18n";
 import { useWorkspaceContext } from "../workspace-context";
 import { getAiAssistantsPaged } from "../../services/api-ai-assistant";
 import type { AgentListItem } from "../../services/api-agent";
-import {
-  getWorkspaceIdeResources,
-  type WorkspaceIdeResourceCardDto
-} from "../../services/api-workspace-ide";
 import { listWorkflows, type WorkflowListItem } from "../../services/api-workflow";
 import {
   deletePublishChannel,
@@ -25,6 +20,7 @@ import {
   reauthPublishChannel,
   type PublishChannelItem
 } from "../../services/mock";
+import { createLowcodeProjectAppGateway, type ProjectAppCard } from "../gateways/project-app-gateway";
 
 type Tab = WorkspaceSettingsPublishTab;
 
@@ -61,7 +57,7 @@ export function WorkspaceSettingsPublishPage() {
           {activeTab === "agents" ? <AgentsPanel onOpenEditor={agentId => navigate(agentEditorPath(agentId))} /> : null}
         </TabPane>
         <TabPane tab={t("cozeSettingsPublishApps")} itemKey="apps">
-          {activeTab === "apps" ? <AppsPanel onOpenEditor={appId => navigate(appEditorPath(appId))} /> : null}
+          {activeTab === "apps" ? <AppsPanel /> : null}
         </TabPane>
         <TabPane tab={t("cozeSettingsPublishWorkflows")} itemKey="workflows">
           {activeTab === "workflows" ? <WorkflowsPanel onOpenEditor={workflowId => navigate(workflowEditorPath(workflowId))} /> : null}
@@ -145,16 +141,17 @@ function AgentsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
   return <Table columns={columns} dataSource={items} rowKey="id" pagination={false} />;
 }
 
-function AppsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
+function AppsPanel() {
   const { t } = useAppI18n();
   const workspace = useWorkspaceContext();
-  const [items, setItems] = useState<WorkspaceIdeResourceCardDto[]>([]);
+  const appGateway = useMemo(() => createLowcodeProjectAppGateway(), []);
+  const [items, setItems] = useState<ProjectAppCard[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getWorkspaceIdeResources({ resourceType: "app", pageIndex: 1, pageSize: 50 })
+    appGateway.list({ pageIndex: 1, pageSize: 50 })
       .then(result => {
         if (!cancelled) {
           setItems(result.items);
@@ -173,17 +170,17 @@ function AppsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [appGateway]);
 
-  const columns: ColumnProps<WorkspaceIdeResourceCardDto>[] = [
+  const columns: ColumnProps<ProjectAppCard>[] = [
     { title: t("cozeSettingsPublishColumnName"), dataIndex: "name" },
-    { title: t("cozeSettingsPublishColumnStatus"), dataIndex: "publishStatus", render: (value: string) => <Tag color="blue">{value}</Tag> },
+    { title: t("cozeSettingsPublishColumnStatus"), dataIndex: "status", render: (value: string) => <Tag color="blue">{value}</Tag> },
     { title: t("cozeSettingsPublishColumnUpdatedAt"), dataIndex: "updatedAt" },
     {
       title: t("cozeSettingsPublishColumnActions"),
-      dataIndex: "resourceId",
+      dataIndex: "id",
       render: (_value, record) => (
-        <Button theme="borderless" onClick={() => onOpenEditor(String(record.resourceId))}>{t("cozeSettingsPublishGoProjects")}</Button>
+        <Button theme="borderless" onClick={() => appGateway.open(String(record.id))}>{t("cozeSettingsPublishGoProjects")}</Button>
       )
     }
   ];
@@ -194,7 +191,7 @@ function AppsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {
   if (items.length === 0) {
     return <PublishEmpty goPath={workspaceProjectsPath(workspace.id)} />;
   }
-  return <Table columns={columns} dataSource={items} rowKey="resourceId" pagination={false} />;
+  return <Table columns={columns} dataSource={items} rowKey="id" pagination={false} />;
 }
 
 function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }) {

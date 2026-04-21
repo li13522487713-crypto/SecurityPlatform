@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { Form, Modal, Toast } from "@douyinfe/semi-ui";
-import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
-import { createWorkspaceIdeApp } from "../../services/api-workspace-ide";
-import { appEditorPath } from "@atlas/app-shell-shared";
+import { createLowcodeProjectAppGateway } from "../gateways/project-app-gateway";
 
 interface CreateAppModalProps {
   visible: boolean;
@@ -18,8 +16,8 @@ interface AppFormValues {
 }
 
 export function CreateAppModal({ visible, workspaceId, onClose, onCreated }: CreateAppModalProps) {
-  const { t } = useAppI18n();
-  const navigate = useNavigate();
+  const { t, locale } = useAppI18n();
+  const appGateway = createLowcodeProjectAppGateway();
   const [submitting, setSubmitting] = useState(false);
   const [values, setValues] = useState<AppFormValues>({ name: "", description: "" });
 
@@ -31,16 +29,17 @@ export function CreateAppModal({ visible, workspaceId, onClose, onCreated }: Cre
     }
     setSubmitting(true);
     try {
-      const result = await createWorkspaceIdeApp({
+      const result = await appGateway.create({
         name: trimmed,
         description: values.description?.trim() || undefined,
-        workspaceId
+        workspaceId,
+        locale
       });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(result.appId);
       onClose();
       setValues({ name: "", description: "" });
-      navigate(appEditorPath(result.appId));
+      appGateway.open(result.appId);
     } catch (error) {
       Toast.error((error as Error).message || t("cozeCreateFailed"));
     } finally {

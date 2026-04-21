@@ -8,7 +8,6 @@ import "./app/console-workspace-workflow.smoke.spec";
 import "./app/navigation.spec";
 import "./app/studio-dashboard.spec";
 import "./app/model-configs.spec";
-import "./app/app-builder.spec";
 import "./app/publish-center.spec";
 import "./app/agent-workbench.spec";
 import "./app/approval.spec";

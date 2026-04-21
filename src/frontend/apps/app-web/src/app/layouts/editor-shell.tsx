@@ -26,7 +26,7 @@ function LoadingPage() {
  * - 不渲染左侧 12 项菜单（编辑器是沉浸式工作页）
  * - 顶部条只有“返回项目开发 + 当前工作空间标签”
  * - 仍然挂 OrganizationProvider + WorkspaceProvider + PermissionProvider，
- *   因为内核组件（BotIdePage / AppDetailPage / CozeWorkflowPage）依赖这些上下文。
+ *   因为内核组件（BotIdePage / CozeWorkflowPage / Lowcode 跳转壳）依赖这些上下文。
  *
  * workspaceId 来源：localStorage `atlas_last_workspace_id`，无则跳 `/select-workspace`。
  * 第三阶段后端补齐"按对象 ID 反查 workspaceId"接口后，再做 URL → workspace 校正。

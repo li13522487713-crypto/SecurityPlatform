@@ -1,4 +1,4 @@
-using Atlas.Application.Abstractions;
+﻿using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Options;
 using Atlas.Application.Security;
@@ -230,6 +230,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         // 兼容历史库：Permission.AppId 误建为 NOT NULL 时，平台权限种子无法插入（AppId 应为 NULL）
         await EnsurePermissionAppIdNullableSchemaAsync(db, cancellationToken);
+        // 兼容历史库：AppDefinition.CurrentVersionId 误建为 NOT NULL，新建草稿应用无法插入（草稿态应为 NULL）
+        await EnsureAppDefinitionCurrentVersionIdNullableAsync(db, cancellationToken);
 
         await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureTenantAppDataSourceBindingHealthAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
@@ -1945,6 +1947,23 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<AuthSession>(db, cancellationToken);
+    }
+
+    private static async Task EnsureAppDefinitionCurrentVersionIdNullableAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var tableName = db.EntityMaintenance.GetTableName<Atlas.Domain.LowCode.Entities.AppDefinition>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
+        // CurrentVersionId 是草稿态指针，新建应用时应为 NULL。历史表若建为 NOT NULL 则重建。
+        if (!RequiresNullableColumnFix<Atlas.Domain.LowCode.Entities.AppDefinition>(db, "CurrentVersionId"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<Atlas.Domain.LowCode.Entities.AppDefinition>(db, cancellationToken);
     }
 
     private static async Task EnsurePermissionAppIdNullableSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

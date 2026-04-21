@@ -23,7 +23,7 @@ public sealed class LowCodeMappingProfile : Profile
             .ForCtorParam("TargetTypes", opt => opt.MapFrom(src => src.TargetTypes))
             .ForCtorParam("DefaultLocale", opt => opt.MapFrom(src => src.DefaultLocale))
             .ForCtorParam("Status", opt => opt.MapFrom(src => src.Status))
-            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId))
+            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue && src.CurrentVersionId.Value > 0 ? src.CurrentVersionId : null))
             .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAt))
             .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt));
 
@@ -37,7 +37,7 @@ public sealed class LowCodeMappingProfile : Profile
             .ForCtorParam("DefaultLocale", opt => opt.MapFrom(src => src.DefaultLocale))
             .ForCtorParam("Theme", opt => opt.MapFrom(src => src.Theme))
             .ForCtorParam("Status", opt => opt.MapFrom(src => src.Status))
-            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue ? src.CurrentVersionId.Value.ToString() : null))
+            .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue && src.CurrentVersionId.Value > 0 ? src.CurrentVersionId.Value.ToString() : null))
             .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAt))
             .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt));
 

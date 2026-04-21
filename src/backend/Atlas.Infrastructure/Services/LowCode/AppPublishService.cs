@@ -105,9 +105,13 @@ public sealed class AppPublishService : IAppPublishService
             }
         }
 
+        var effectiveCurrentVersionId = app.CurrentVersionId.GetValueOrDefault() > 0
+            ? app.CurrentVersionId
+            : null;
+
         long versionId = !string.IsNullOrWhiteSpace(request.VersionId) && long.TryParse(request.VersionId, out var vId)
             ? vId
-            : (app.CurrentVersionId ?? await CreateImplicitSnapshotAsync(tenantId, currentUserId, appId, app.DraftSchemaJson, cancellationToken));
+            : (effectiveCurrentVersionId ?? await CreateImplicitSnapshotAsync(tenantId, currentUserId, appId, app.DraftSchemaJson, cancellationToken));
 
         var fingerprint = ComputeFingerprint(app.DraftSchemaJson, request.Kind, versionId);
         var artifactId = _idGen.NextId();
