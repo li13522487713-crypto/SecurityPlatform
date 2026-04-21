@@ -537,6 +537,7 @@ export interface StudioApplicationCreateRequest {
   name: string;
   description?: string;
   icon?: string;
+  workspaceId?: string;
 }
 
 export interface StudioApplicationUpdateRequest {

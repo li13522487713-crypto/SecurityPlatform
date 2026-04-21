@@ -256,11 +256,24 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
             throw new BusinessException("应用名称不能为空。", ErrorCodes.ValidationError);
         }
 
+        var workspaceIdValue = request.WorkspaceId?.Trim();
+        if (string.IsNullOrWhiteSpace(workspaceIdValue))
+        {
+            throw new BusinessException("创建应用必须指定工作空间。", ErrorCodes.ValidationError);
+        }
+
+        var workspaceId = ParseWorkspaceIdOrThrow(workspaceIdValue);
+        await EnsureWorkspaceEditableByUserAsync(tenantId, userId, workspaceId, cancellationToken);
+
         var workflowName = NormalizeWorkflowName(normalizedName);
         var workflowId = await _workflowCommandService.CreateAsync(
             tenantId,
             userId,
-            new DagWorkflowCreateRequest(workflowName, request.Description?.Trim() ?? normalizedName, WorkflowMode.Standard),
+            new DagWorkflowCreateRequest(
+                workflowName,
+                request.Description?.Trim() ?? normalizedName,
+                WorkflowMode.Standard,
+                workspaceId),
             cancellationToken);
 
         var appId = await _aiAppService.CreateAsync(
@@ -271,11 +284,41 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
                 request.Icon?.Trim(),
                 null,
                 workflowId,
-                null),
+                null,
+                workspaceId),
             cancellationToken);
 
         var entryRoute = BuildWorkflowEntryRoute(workflowId, WorkflowMode.Standard);
         return new WorkspaceIdeCreateAppResult(appId.ToString(), workflowId.ToString(), entryRoute);
+    }
+
+    private async Task EnsureWorkspaceEditableByUserAsync(
+        TenantId tenantId,
+        long userId,
+        long workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var workspaceExists = await _db.Queryable<Workspace>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.Id == workspaceId
+                && !x.IsArchived)
+            .CountAsync(cancellationToken) > 0;
+        if (!workspaceExists)
+        {
+            throw new BusinessException("工作空间不存在或已归档。", ErrorCodes.NotFound);
+        }
+
+        var hasMembership = await _db.Queryable<WorkspaceMember>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.WorkspaceId == workspaceId
+                && x.UserId == userId)
+            .CountAsync(cancellationToken) > 0;
+        if (!hasMembership)
+        {
+            throw new BusinessException("当前用户无权在目标工作空间创建应用。", ErrorCodes.Forbidden);
+        }
     }
 
     public async Task UpdateFavoriteAsync(

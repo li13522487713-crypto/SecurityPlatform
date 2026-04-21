@@ -47,6 +47,7 @@ function SurfaceAppBuilder({
 
 export function AppBuilderPage({
   api,
+  locale,
   appId,
   onOpenWorkflow,
   onOpenPublish

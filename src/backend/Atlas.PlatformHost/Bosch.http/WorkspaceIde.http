@@ -63,7 +63,8 @@ Content-Type: application/json
 {
   "name": "Coze 工作空间应用",
   "description": "通过工作空间 IDE 一键创建",
-  "icon": "bot"
+  "icon": "bot",
+  "workspaceId": "{{workspaceId}}"
 }
 
 ###

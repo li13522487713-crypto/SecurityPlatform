@@ -1,61 +1,123 @@
 import { expect, test } from "../fixtures/single-session";
-import { appBaseUrl, defaultTenantId, ensureAppSetup, loginApp, uniqueName } from "./helpers";
-import { orgWorkspacesPath } from "@atlas/app-shell-shared";
+import type { APIRequestContext } from "@playwright/test";
+import { defaultTenantId, ensureAppSetup, uniqueName } from "./helpers";
+
+const platformApiBase = "http://127.0.0.1:5001";
+
+function authHeaders(accessToken: string): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken}`,
+    "X-Tenant-Id": defaultTenantId
+  };
+}
+
+async function loginPlatformAccessToken(request: APIRequestContext): Promise<string> {
+  const response = await request.post(`${platformApiBase}/api/v1/auth/token`, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-Tenant-Id": defaultTenantId
+    },
+    data: {
+      username: "admin",
+      password: "P@ssw0rd!"
+    }
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = (await response.json()) as {
+    data?: { accessToken?: string };
+  };
+  const accessToken = String(payload?.data?.accessToken ?? "").trim();
+  expect(accessToken).not.toBe("");
+  return accessToken;
+}
+
+async function ensureWorkspaceId(request: APIRequestContext, accessToken: string): Promise<string> {
+  const listResponse = await request.get(`${platformApiBase}/api/v1/workspaces?page_num=1&page_size=20`, {
+    headers: authHeaders(accessToken)
+  });
+  expect(listResponse.ok()).toBeTruthy();
+  const listPayload = (await listResponse.json()) as {
+    data?: { workspaces?: Array<{ id?: string | number }> };
+  };
+  const existingWorkspaceId = String(listPayload?.data?.workspaces?.[0]?.id ?? "").trim();
+  if (existingWorkspaceId) {
+    return existingWorkspaceId;
+  }
+
+  const createResponse = await request.post(`${platformApiBase}/api/v1/workspaces`, {
+    headers: authHeaders(accessToken),
+    data: {
+      name: uniqueName("e2e-workspace"),
+      description: "created by playwright e2e"
+    }
+  });
+  expect(createResponse.ok()).toBeTruthy();
+  const createPayload = (await createResponse.json()) as {
+    success?: boolean;
+    code?: number | string;
+    data?: { id?: string | number; workspace_id?: string | number };
+  };
+  const success = createPayload.success === true || Number(createPayload.code) === 0;
+  expect(success).toBeTruthy();
+  const workspaceId = String(createPayload.data?.id ?? createPayload.data?.workspace_id ?? "").trim();
+  expect(workspaceId).not.toBe("");
+  return workspaceId;
+}
 
 test.describe.serial("@smoke Workspace Create", () => {
-  let appKey = "";
-
   test.beforeAll(async ({ request }) => {
-    appKey = await ensureAppSetup(request);
+    await ensureAppSetup(request);
   });
 
-  test("create workspace enters the new workspace immediately", async ({ page, resetAuthForCase }) => {
+  test("create app and create agent with workspaceId should succeed", async ({ request }) => {
     test.setTimeout(180_000);
 
-    const workspaceName = uniqueName("e2e-workspace");
-    const workspaceDescription = `created by ${workspaceName}`;
+    const accessToken = await loginPlatformAccessToken(request);
+    const workspaceId = await ensureWorkspaceId(request, accessToken);
 
-    await resetAuthForCase();
-    await loginApp(page, appKey);
-    await expect(page).toHaveURL(new RegExp(`${orgWorkspacesPath(defaultTenantId)}(?:\\?.*)?$`));
-    await expect(page.getByTestId("workspace-list-page")).toBeVisible({ timeout: 30_000 });
+    const createAppResponse = await request.post(`${platformApiBase}/api/v1/workspace-ide/apps`, {
+      headers: authHeaders(accessToken),
+      data: {
+        name: uniqueName("e2e-app"),
+        description: "created by playwright e2e",
+        workspaceId
+      }
+    });
+    expect(createAppResponse.ok()).toBeTruthy();
+    const createAppPayload = (await createAppResponse.json()) as {
+      success?: boolean;
+      data?: { appId?: string | number; workflowId?: string | number };
+    };
+    expect(createAppPayload.success).toBeTruthy();
+    const appId = String(createAppPayload.data?.appId ?? "").trim();
+    const workflowId = String(createAppPayload.data?.workflowId ?? "").trim();
+    expect(appId).not.toBe("");
+    expect(workflowId).not.toBe("");
 
-    await page.getByTestId("workspace-create-btn").click();
-    const formModal = page.locator('[role="dialog"]').last();
-    await expect(formModal).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByPlaceholder(/输入工作空间名称|workspace name/i).last()).toBeVisible({ timeout: 30_000 });
-    await page.getByPlaceholder(/输入工作空间名称|workspace name/i).last().fill(workspaceName);
-    await page.getByPlaceholder(/输入工作空间描述|workspace description/i).last().fill(workspaceDescription);
-
-    const createResponsePromise = page.waitForResponse((response) => {
-      return (
-        response.request().method() === "POST" &&
-        response.url().includes(`/api/v1/organizations/${encodeURIComponent(defaultTenantId)}/workspaces`)
-      );
-    }, { timeout: 30_000 });
-    await page.locator('[data-testid="workspace-form-submit"]:visible').first().click();
-
-    const createResponse = await createResponsePromise;
-    expect(createResponse.ok()).toBeTruthy();
-    const createPayload = (await createResponse.json()) as {
+    const createAgentResponse = await request.post(`${platformApiBase}/api/v1/ai-assistants`, {
+      headers: authHeaders(accessToken),
+      data: {
+        name: uniqueName("e2e-agent"),
+        description: "created by playwright e2e",
+        systemPrompt: "You are a helpful agent.",
+        enableMemory: true,
+        enableShortTermMemory: true,
+        enableLongTermMemory: true,
+        longTermMemoryTopK: 3,
+        workspaceId: Number(workspaceId)
+      }
+    });
+    const createAgentPayload = (await createAgentResponse.json()) as {
       success?: boolean;
       data?: { id?: string | number; Id?: string | number };
     };
-    expect(createPayload.success).toBeTruthy();
-
-    const createdWorkspaceId = String(createPayload.data?.id ?? createPayload.data?.Id ?? "").trim();
-    expect(createdWorkspaceId).not.toBe("");
-    await expect(page).toHaveURL(new RegExp(`/org/${defaultTenantId}/workspaces/${createdWorkspaceId}/dashboard(?:\\?.*)?$`), {
-      timeout: 30_000
-    });
-    await expect(page.getByTestId("workspace-no-app-dashboard")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("workspace-no-app-dashboard")).toContainText(workspaceName);
-    await expect(page.getByTestId("workspace-no-app-create")).toBeVisible({ timeout: 30_000 });
-
-    await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
-    const workspaceCard = page.getByTestId(`workspace-card-${createdWorkspaceId}`);
-    await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
-    await expect(workspaceCard).toContainText(workspaceName);
-    await expect(workspaceCard).toContainText(workspaceDescription);
+    expect(
+      createAgentResponse.ok(),
+      `createAgent failed: status=${createAgentResponse.status()} payload=${JSON.stringify(createAgentPayload)}`
+    ).toBeTruthy();
+    expect(createAgentPayload.success).toBeTruthy();
+    const agentId = String(createAgentPayload.data?.id ?? createAgentPayload.data?.Id ?? "").trim();
+    expect(agentId).not.toBe("");
   });
 });

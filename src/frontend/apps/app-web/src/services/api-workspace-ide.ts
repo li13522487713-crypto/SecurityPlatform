@@ -75,6 +75,7 @@ export interface WorkspaceIdeCreateAppRequest {
   name: string;
   description?: string;
   icon?: string;
+  workspaceId?: string;
 }
 
 export interface WorkspaceIdeCreateAppResult {

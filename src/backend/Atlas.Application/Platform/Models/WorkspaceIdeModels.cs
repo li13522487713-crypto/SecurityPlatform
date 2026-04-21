@@ -85,7 +85,8 @@ public sealed record WorkspaceIdeActivityCreateRequest(
 public sealed record WorkspaceIdeCreateAppRequest(
     string Name,
     string? Description,
-    string? Icon);
+    string? Icon,
+    string? WorkspaceId = null);
 
 public sealed record WorkspaceIdeCreateAppResult(
     string AppId,

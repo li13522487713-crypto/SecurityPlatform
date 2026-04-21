@@ -120,6 +120,7 @@ import {
   buildWorkspaceWorkbenchPath,
   resolveLegacyAppRedirectTarget
 } from "./legacy-route-mapping";
+import { requiresWorkspaceAppKey } from "./workspace-app-key-guard";
 import { APP_PERMISSIONS } from "../constants/permissions";
 import {
   getConfiguredAppKey,
@@ -983,7 +984,16 @@ async function* createAgentMessageStream(
   }
 }
 
-export function createStudioApi(appKey: string): StudioModuleApi {
+function normalizeWorkspaceIdValue(rawValue?: string | null): string | undefined {
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const normalized = rawValue.trim();
+  return /^\d+$/.test(normalized) ? normalized : undefined;
+}
+
+export function createStudioApi(appKey: string, workspaceId?: string): StudioModuleApi {
   return {
     listAgents: getAiAssistantsPaged,
     getAgent: getAiAssistantById,
@@ -1002,7 +1012,10 @@ export function createStudioApi(appKey: string): StudioModuleApi {
       };
     },
     createApplication: async request => {
-      const result = await createWorkspaceIdeApp(request);
+      const result = await createWorkspaceIdeApp({
+        ...request,
+        workspaceId: request.workspaceId ?? workspaceId
+      });
       return {
         ...result,
         entryRoute: toAppShellPath(appKey, result.entryRoute)
@@ -1354,11 +1367,13 @@ export function createStudioApi(appKey: string): StudioModuleApi {
 
 export function useAppApis(appKey: string) {
   const { t } = useAppI18n();
+  const workspace = useOptionalWorkspaceContext();
+  const resolvedWorkspaceId = normalizeWorkspaceIdValue(workspace?.id);
   return useMemo(() => ({
     adminApi: createAdminApi(appKey),
     exploreApi: createExploreApi(appKey),
-    studioApi: createStudioApi(appKey)
-  }), [appKey, t]);
+    studioApi: createStudioApi(appKey, resolvedWorkspaceId)
+  }), [appKey, resolvedWorkspaceId, t]);
 }
 
 
@@ -2794,10 +2809,8 @@ function WorkspaceShellInner() {
 
   const workspaceHomeRoute = orgWorkspaceHomePath(organization, workspace.id);
 
-  if (!appKey) {
-    if (location.pathname !== workspaceHomeRoute) {
-      return <Navigate to={workspaceHomeRoute} replace />;
-    }
+  if (!appKey && requiresWorkspaceAppKey(location.pathname)) {
+    return <Navigate to={workspaceHomeRoute} replace />;
   }
 
   if (!bootstrap.platformReady) {

@@ -17,7 +17,7 @@ interface AppFormValues {
   description?: string;
 }
 
-export function CreateAppModal({ visible, workspaceId: _workspaceId, onClose, onCreated }: CreateAppModalProps) {
+export function CreateAppModal({ visible, workspaceId, onClose, onCreated }: CreateAppModalProps) {
   const { t } = useAppI18n();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
@@ -33,7 +33,8 @@ export function CreateAppModal({ visible, workspaceId: _workspaceId, onClose, on
     try {
       const result = await createWorkspaceIdeApp({
         name: trimmed,
-        description: values.description?.trim() || undefined
+        description: values.description?.trim() || undefined,
+        workspaceId
       });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(result.appId);

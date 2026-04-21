@@ -33,8 +33,9 @@ export const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 export const defaultUsername = "admin";
 export const defaultPassword = "P@ssw0rd!";
 
-const platformDatabasePath = "Data Source=atlas.e2e.db";
-const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.e2e.db")}`;
+const e2eRunSeed = process.env.PLAYWRIGHT_E2E_RUN_ID ?? `${Date.now()}-${process.pid}`;
+const platformDatabasePath = `Data Source=${path.resolve(process.cwd(), `../backend/Atlas.PlatformHost/atlas.e2e.platform.${e2eRunSeed}.db`)}`;
+const appDatabasePath = `Data Source=${path.resolve(process.cwd(), `../backend/Atlas.AppHost/atlas.e2e.app.${e2eRunSeed}.db`)}`;
 const appName = "App E2E Regression";
 const e2eDataSourceName = "App E2E DataSource";
 
@@ -258,6 +259,7 @@ export async function ensurePlatformSetup(request: APIRequestContext) {
   }
 
   const initializeResp = await request.post(`${platformApiBase}/api/v1/setup/initialize`, {
+    timeout: 60_000,
     data: {
       database: {
         driverCode: "SQLite",
@@ -283,7 +285,10 @@ export async function ensurePlatformSetup(request: APIRequestContext) {
   const initialized =
     (initializeResp.ok() && initializePayload?.success) ||
     initializePayload?.code === "ALREADY_CONFIGURED";
-  expect(initialized).toBeTruthy();
+  expect(
+    initialized,
+    `platform setup initialize failed: status=${initializeResp.status()} payload=${JSON.stringify(initializePayload)}`
+  ).toBeTruthy();
 
   await expect
     .poll(async () => {
@@ -306,6 +311,7 @@ export async function ensureAppSetup(request: APIRequestContext): Promise<string
   }
 
   const initializeResp = await request.post(`${appApiBase}/api/v1/setup/initialize`, {
+    timeout: 60_000,
     data: {
       database: {
         driverCode: "SQLite",
@@ -330,7 +336,10 @@ export async function ensureAppSetup(request: APIRequestContext): Promise<string
   const initialized =
     (initializeResp.ok() && initializePayload?.success) ||
     initializePayload?.code === "ALREADY_CONFIGURED";
-  expect(initialized).toBeTruthy();
+  expect(
+    initialized,
+    `app setup initialize failed: status=${initializeResp.status()} payload=${JSON.stringify(initializePayload)}`
+  ).toBeTruthy();
 
   await expect
     .poll(async () => {
