@@ -4,7 +4,7 @@ import { Component, Suspense, useCallback, useEffect, useMemo, useState, type Er
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button, Card, Typography } from "@douyinfe/semi-ui";
 import { getTenantId } from "@atlas/shared-react-core/utils";
-import { PageShell } from "./_shared";
+import { PageShell, ResultCard } from "./_shared";
 
 const { Title, Text } = Typography;
 import type { CozeNavSection } from "@atlas/coze-shell-react";
@@ -188,6 +188,7 @@ import { SetupConsolePage } from "./pages/setup-console";
 import { WorkspaceShellLayout, PlatformShellLayout, readLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
 import { WorkspaceSwitcher } from "./components/workspace-switcher";
+import { GlobalCreateModal } from "./components/global-create-modal";
 import {
   AgentEditorRoute,
   AgentPublishRoute,
@@ -2015,6 +2016,9 @@ function DevelopRoute() {
 function DashboardRoute() {
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
+  if (!workspace.appKey) {
+    return <WorkspaceNoAppDashboard />;
+  }
   const appKey = useResolvedAppKey();
   const navigate = useNavigate();
   const { locale } = useAppI18n();
@@ -2035,6 +2039,51 @@ function DashboardRoute() {
       onCreateApp={() => navigate(`${orgWorkspaceDevelopPath(orgId, workspace.id)}?focus=projects`)}
       onCreateWorkflow={() => navigate(`${orgWorkspaceWorkflowsPath(orgId, workspace.id)}?create=1`)}
     />
+  );
+}
+
+function WorkspaceNoAppDashboard() {
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const navigate = useNavigate();
+  const { t } = useAppI18n();
+  const [createOpen, setCreateOpen] = useState(false);
+
+  return (
+    <>
+      <div data-testid="workspace-no-app-dashboard">
+        <ResultCard
+          status="info"
+          title={t("workspaceNoAppTitle")}
+          description={t("workspaceNoAppDescription").replace("{workspace}", workspace.name || workspace.id)}
+          actions={
+            <>
+              <Button
+                type="primary"
+                theme="solid"
+                data-testid="workspace-no-app-create"
+                onClick={() => setCreateOpen(true)}
+              >
+                {t("workspaceNoAppCreate")}
+              </Button>
+              <Button
+                type="tertiary"
+                theme="light"
+                data-testid="workspace-no-app-back"
+                onClick={() => navigate(orgWorkspacesPath(orgId))}
+              >
+                {t("workspaceNoAppBack")}
+              </Button>
+            </>
+          }
+        />
+      </div>
+      <GlobalCreateModal
+        visible={createOpen}
+        workspaceId={workspace.id}
+        onClose={() => setCreateOpen(false)}
+      />
+    </>
   );
 }
 
@@ -2605,7 +2654,8 @@ function WorkspaceListRoute() {
             setSaving(true);
             try {
               const targetWorkspaceId = await createWorkspace(orgId, request);
-              navigate(orgWorkspaceDashboardPath(orgId, targetWorkspaceId));
+              await loadWorkspaces();
+              navigate(orgWorkspaceDashboardPath(orgId, targetWorkspaceId), { replace: true });
               return targetWorkspaceId;
             } finally {
               setSaving(false);
@@ -2680,8 +2730,8 @@ function WorkspaceShellInner() {
     return <LoadingPage />;
   }
 
-  if (!appKey) {
-    return <Navigate to={orgWorkspacesPath(organization)} replace />;
+  if (!appKey && !location.pathname.endsWith(`/workspaces/${workspace.id}/dashboard`)) {
+    return <Navigate to={orgWorkspaceDashboardPath(organization, workspace.id)} replace />;
   }
 
   if (!bootstrap.platformReady) {

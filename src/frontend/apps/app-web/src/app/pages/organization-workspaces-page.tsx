@@ -106,6 +106,7 @@ function WorkspaceCard({ item, deleting, onOpen, onEdit, onDelete }: WorkspaceCa
 
   return (
     <div
+      className="atlas-workspace-card"
       data-testid={`workspace-card-${item.id}`}
       style={{
         background: "#fff",
@@ -208,11 +209,24 @@ function WorkspaceCard({ item, deleting, onOpen, onEdit, onDelete }: WorkspaceCa
       </div>
 
       {/* Footer: role */}
-      <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
         <Tag size="small" color="blue" style={{ borderRadius: 6 }}>
           {item.roleCode === "Owner" ? "Owner" : item.roleCode === "Admin" ? "Admin" : "Member"}
         </Tag>
-        {deleting ? <Spin size="small" style={{ marginLeft: "auto" }} /> : null}
+        <Button
+          type="tertiary"
+          theme="borderless"
+          size="small"
+          data-testid={`workspace-open-${item.id}`}
+          style={{ marginLeft: "auto" }}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+        >
+          {t("workspaceListOpen")}
+        </Button>
+        {deleting ? <Spin size="small" /> : null}
       </div>
     </div>
   );
@@ -262,6 +276,9 @@ function WorkspaceFormModal({
     <Modal
       title={title}
       visible={visible}
+      data-testid="workspace-form-modal"
+      okButtonProps={{ "data-testid": "workspace-form-submit" }}
+      cancelButtonProps={{ "data-testid": "workspace-form-cancel" }}
       onOk={() => { void handleOk(); }}
       onCancel={onCancel}
       confirmLoading={saving}
@@ -273,6 +290,7 @@ function WorkspaceFormModal({
       <Form layout="vertical" style={{ marginTop: 8 }}>
         <Form.Label required>{t("workspaceListCreateNameLabel")}</Form.Label>
         <Input
+          data-testid="workspace-form-name"
           ref={inputRef as React.Ref<HTMLInputElement>}
           value={name}
           onChange={setName}
@@ -284,6 +302,7 @@ function WorkspaceFormModal({
         />
         <Form.Label>{t("workspaceListCreateDescriptionLabel")}</Form.Label>
         <Input
+          data-testid="workspace-form-description"
           value={description}
           onChange={setDescription}
           placeholder={t("workspaceListDescriptionPlaceholder")}
@@ -332,6 +351,7 @@ export function OrganizationWorkspacesPage({
   const [createVisible, setCreateVisible] = useState(false);
   const [editTarget, setEditTarget] = useState<WorkspaceSummaryDto | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const createdWorkspaceId = searchParams.get("created");
 
   const deferred = useDeferredValue(keyword);
   const filtered = useMemo(() => {
@@ -530,6 +550,12 @@ export function OrganizationWorkspacesPage({
           ))}
         </div>
       )}
+
+      {createdWorkspaceId ? (
+        <div data-testid="workspace-created-marker" style={{ display: "none" }}>
+          {createdWorkspaceId}
+        </div>
+      ) : null}
 
       {/* Create modal */}
       <WorkspaceFormModal
