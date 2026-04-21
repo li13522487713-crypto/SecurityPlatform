@@ -66,6 +66,8 @@ import {
   workspaceChatPath,
   workspaceDevelopPath,
   workspaceModelConfigsPath,
+  workspaceResourcesPath,
+  selectWorkspacePath,
   orgWorkspacesPath,
   orgWorkspaceDevelopPath,
   orgWorkspaceLibraryPath,
@@ -116,11 +118,6 @@ import {
 import { AppStartupKernel } from "./startup-kernel";
 import { WorkflowRuntimeBoundary } from "./workflow-runtime-boundary";
 import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
-import {
-  buildWorkspaceWorkbenchPath,
-  resolveLegacyAppRedirectTarget
-} from "./legacy-route-mapping";
-import { requiresWorkspaceAppKey } from "./workspace-app-key-guard";
 import { APP_PERMISSIONS } from "../constants/permissions";
 import {
   getConfiguredAppKey,
@@ -991,6 +988,37 @@ function normalizeWorkspaceIdValue(rawValue?: string | null): string | undefined
 
   const normalized = rawValue.trim();
   return /^\d+$/.test(normalized) ? normalized : undefined;
+}
+
+function buildWorkspaceWorkbenchPath(
+  orgId: string,
+  workspaceId: string,
+  mode: WorkflowResourceMode,
+  workflowId?: string,
+  contentMode: WorkflowWorkbenchContentMode = "canvas",
+  searchParams?: URLSearchParams
+): string {
+  const pathname = workflowId
+    ? mode === "chatflow"
+      ? orgWorkspaceChatflowPath(orgId, workspaceId, workflowId)
+      : orgWorkspaceWorkflowPath(orgId, workspaceId, workflowId)
+    : mode === "chatflow"
+      ? orgWorkspaceChatflowsPath(orgId, workspaceId)
+      : orgWorkspaceWorkflowsPath(orgId, workspaceId);
+
+  const nextSearch = new URLSearchParams(searchParams ?? undefined);
+  if (contentMode === "canvas") {
+    nextSearch.delete("contentMode");
+  } else {
+    nextSearch.set("contentMode", contentMode);
+  }
+
+  if (workflowId) {
+    nextSearch.delete("workflow_id");
+  }
+
+  const query = nextSearch.toString();
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 export function createStudioApi(appKey: string, workspaceId?: string): StudioModuleApi {
@@ -2028,33 +2056,6 @@ function DevelopRoute() {
   return <WorkspaceStudioRoute defaultFocus="overview" />;
 }
 
-function LegacyOrgWorkspaceHomeRedirect() {
-  const orgId = useResolvedOrgId();
-  const workspaceId = useResolvedWorkspaceId();
-  return <Navigate to={orgWorkspaceHomePath(orgId, workspaceId)} replace />;
-}
-
-function LegacyWorkspaceHomeRedirect() {
-  const orgId = useResolvedOrgId();
-  const workspaceId = useResolvedWorkspaceId();
-  return <Navigate to={orgWorkspaceHomePath(orgId, workspaceId)} replace />;
-}
-
-function LegacyOrgWorkspacesRedirect() {
-  const location = useLocation();
-  return <Navigate to={`/workspaces${location.search}`} replace />;
-}
-
-function LegacyOrgWorkspaceRouteRedirect() {
-  const { orgId = "", workspaceId = "*" } = useParams();
-  const location = useLocation();
-  const legacyPrefix = `/org/${encodeURIComponent(orgId)}/workspaces/${encodeURIComponent(workspaceId)}`;
-  const relativePath = location.pathname.startsWith(legacyPrefix)
-    ? location.pathname.slice(legacyPrefix.length)
-    : "";
-  return <Navigate to={`${orgWorkspacePath(orgId, workspaceId)}${relativePath}${location.search}`} replace />;
-}
-
 function DashboardRoute() {
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
@@ -2809,10 +2810,6 @@ function WorkspaceShellInner() {
 
   const workspaceHomeRoute = orgWorkspaceHomePath(organization, workspace.id);
 
-  if (!appKey && requiresWorkspaceAppKey(location.pathname)) {
-    return <Navigate to={workspaceHomeRoute} replace />;
-  }
-
   if (!bootstrap.platformReady) {
     return <Navigate to="/platform-not-ready" replace />;
   }
@@ -3359,81 +3356,19 @@ function WorkspaceAppChatflowRedirectRoute() {
 function StandaloneWorkflowRoute() {
   const { workflowId = "" } = useParams();
   const location = useLocation();
-  const bootstrap = useBootstrap();
-  const resolvedAppKey = (bootstrap.appKey || getConfiguredAppKey()).trim();
-
-  if (!resolvedAppKey) {
-    return <EntryGatewayPage />;
+  const query = new URLSearchParams(location.search);
+  const queryWorkflowId = query.get("workflow_id")?.trim() ?? "";
+  const resolvedWorkflowId = workflowId || queryWorkflowId;
+  if (resolvedWorkflowId) {
+    return <Navigate to={`/workflow/${encodeURIComponent(resolvedWorkflowId)}/editor`} replace />;
   }
 
-  if (location.pathname.startsWith("/workflow")) {
-    const nextSearch = new URLSearchParams(location.search);
-    if (workflowId && !nextSearch.has("workflow_id")) {
-      nextSearch.set("workflow_id", workflowId);
-    }
-    const queryText = nextSearch.toString();
-    return <Navigate to={`/apps/${encodeURIComponent(resolvedAppKey)}/workflows${queryText ? `?${queryText}` : ""}`} replace />;
+  const fallbackWorkspaceId = readLastWorkspaceId();
+  if (!fallbackWorkspaceId) {
+    return <Navigate to={selectWorkspacePath()} replace />;
   }
 
-  return <Navigate to={`/apps/${encodeURIComponent(resolvedAppKey)}${location.pathname}${location.search}`} replace />;
-}
-
-function LegacyAppRedirectRoute() {
-  const { appKey = "" } = useParams();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [target, setTarget] = useState<string>("");
-  const tenantId = getTenantId() ?? "";
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (!tenantId || !appKey) {
-        setTarget(signPath());
-        return;
-      }
-
-      try {
-        const workspace = await getWorkspaceByAppKey(tenantId, appKey);
-        if (!cancelled) {
-          if (!workspace) {
-            setTarget(orgWorkspacesPath(tenantId));
-            return;
-          }
-
-          const currentPath = `${location.pathname}${location.search}`;
-          const normalizedAppPrefix = `/apps/${encodeURIComponent(appKey)}`;
-          const relativePath = currentPath.startsWith(normalizedAppPrefix)
-            ? currentPath.slice(normalizedAppPrefix.length)
-            : "";
-
-          setTarget(resolveLegacyAppRedirectTarget({
-            orgId: tenantId,
-            workspaceId: workspace.id,
-            relativePath,
-            searchText: location.search
-          }));
-        }
-      } catch {
-        if (!cancelled) {
-          setTarget(signPath());
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [appKey, location.pathname, location.search, tenantId]);
-
-  useEffect(() => {
-    if (target) {
-      navigate(target, { replace: true });
-    }
-  }, [navigate, target]);
-
-  return <LoadingPage />;
+  return <Navigate to={workspaceResourcesPath(fallbackWorkspaceId, "workflows")} replace />;
 }
 
 interface AppErrorBoundaryState {
@@ -3535,7 +3470,7 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />,
     children: [
       { index: true, element: <Navigate to="home" replace /> },
-      { path: "home", element: <LegacyWorkspaceHomeRedirect /> },
+      { path: "home", element: <WorkspaceHomePage /> },
       { path: "projects", element: <WorkspaceProjectsPage /> },
       { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage /> },
       { path: "resources", element: <WorkspaceResourcesPage /> },
@@ -3667,240 +3602,6 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />
   },
   {
-    path: "/workspaces",
-    element: <WorkspaceListRoute />,
-    handle: WORKSPACE_LIST_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
-  },
-  {
-    path: "/w/:workspaceId",
-    element: <WorkspaceShellRoute />,
-    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />,
-    children: [
-      {
-        index: true,
-        element: <LegacyOrgWorkspaceHomeRedirect />,
-        handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
-      },
-      {
-        path: "home",
-        element: <WorkspaceHomePage />,
-        handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
-      },
-      {
-        path: "dashboard",
-        element: <LegacyOrgWorkspaceHomeRedirect />,
-        handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE
-      },
-      {
-        path: "develop",
-        element: <WorkspaceProjectsPage />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "develop/folder/:folderId",
-        element: <WorkspaceProjectsPage />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "develop/chat",
-        element: <AgentChatRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "develop/model-configs",
-        element: <ModelConfigsRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "develop/assistant-tools",
-        element: <StudioAssistantToolsRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "develop/publish-center",
-        element: <StudioPublishCenterRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "library",
-        element: (
-          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
-            <WorkspaceLibraryRoute />
-          </ProtectedPage>
-        ),
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "library/jobs",
-        element: (
-          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
-            <WorkspaceKnowledgeJobsCenterRoute />
-          </ProtectedPage>
-        ),
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "library/providers",
-        element: (
-          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
-            <WorkspaceKnowledgeProviderCenterRoute />
-          </ProtectedPage>
-        ),
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "library/data",
-        element: <StudioDataRoute />,
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "library/variables",
-        element: <StudioVariablesRoute />,
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "apps/:id",
-        element: <WorkspaceAppDetailRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "apps/:id/publish",
-        element: <WorkspaceAppPublishRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "apps/:id/workflows/:workflowId",
-        element: <WorkspaceAppWorkflowRedirectRoute />,
-        handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE
-      },
-      {
-        path: "apps/:id/chatflows/:workflowId",
-        element: <WorkspaceAppChatflowRedirectRoute />,
-        handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE
-      },
-      {
-        path: "agents/:id",
-        element: <WorkspaceAgentDetailRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "agents/:id/publish",
-        element: <WorkspaceAgentPublishRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "workflows",
-        element: <WorkspaceWorkflowWorkbenchRoute mode="workflow" />,
-        handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE
-      },
-      {
-        path: "workflows/:id",
-        element: <WorkspaceWorkflowRedirectRoute />,
-        handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE
-      },
-      {
-        path: "chatflows",
-        element: <WorkspaceWorkflowWorkbenchRoute mode="chatflow" />,
-        handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE
-      },
-      {
-        path: "chatflows/:id",
-        element: <WorkspaceChatflowRedirectRoute />,
-        handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE
-      },
-      {
-        path: "knowledge-bases/:id",
-        element: (
-          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_VIEW}>
-            <WorkspaceKnowledgeDetailRoute />
-          </ProtectedPage>
-        ),
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        // v5 §32 / 计划 G8：独立创建路由，支持 ?kind=text|table|image 预选 KB 类型
-        path: "knowledge-bases/new",
-        element: (
-          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}>
-            <WorkspaceKnowledgeCreateRoute />
-          </ProtectedPage>
-        ),
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "knowledge-bases/:id/upload",
-        element: (
-          <ProtectedPage permission={APP_PERMISSIONS.KNOWLEDGE_BASE_UPDATE}>
-            <WorkspaceKnowledgeUploadRoute />
-          </ProtectedPage>
-        ),
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "databases/:id",
-        element: <StudioDatabaseDetailRoute />,
-        handle: WORKSPACE_LIBRARY_ROUTE_HANDLE
-      },
-      {
-        path: "plugins/:id",
-        element: <StudioPluginDetailRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "plugins/:id/tools/:toolId",
-        element: <WorkspacePluginToolRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "plugin/:id/tool/:toolId",
-        element: <WorkspacePluginToolRoute />,
-        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
-      },
-      {
-        path: "manage",
-        element: <Navigate to="overview" replace />,
-        handle: WORKSPACE_MANAGE_ROUTE_HANDLE
-      },
-      {
-        path: "manage/:tab",
-        element: <WorkspaceManageRoute />,
-        handle: WORKSPACE_MANAGE_ROUTE_HANDLE
-      },
-      {
-        path: "settings",
-        element: <Navigate to="members" replace />,
-        handle: WORKSPACE_SETTINGS_ROUTE_HANDLE
-      },
-      {
-        path: "settings/:tab",
-        element: <WorkspaceSettingsRoute />,
-        handle: WORKSPACE_SETTINGS_ROUTE_HANDLE
-      },
-      {
-        path: "settings/connectors",
-        element: <ConnectorsListRoute />
-      },
-      {
-        path: "settings/connectors/:providerId",
-        element: <ConnectorDetailRoute />
-      }
-    ]
-  },
-  {
-    path: "/org/:orgId/workspaces",
-    element: <LegacyOrgWorkspacesRedirect />,
-    handle: WORKSPACE_LIST_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
-  },
-  {
-    path: "/org/:orgId/workspaces/:workspaceId/*",
-    element: <LegacyOrgWorkspaceRouteRedirect />,
-    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
-  },
-  {
     path: "/explore/plugin/:productId",
     element: <ExplorePluginDetailRoute />,
     handle: EXPLORE_ROUTE_HANDLE,
@@ -3928,12 +3629,6 @@ export const appRoutes = [
     path: "/search/:word",
     element: <ExploreSearchRoute />,
     handle: EXPLORE_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
-  },
-  {
-    path: "/apps/:appKey/*",
-    element: <LegacyAppRedirectRoute />,
-    handle: STATUS_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {

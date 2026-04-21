@@ -1891,7 +1891,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        if (!RequiresMissingColumnFix<Agent>(db, "DefaultWorkflowId", "DefaultWorkflowName"))
+        if (!RequiresMissingColumnFix<Agent>(db, "DefaultWorkflowId", "DefaultWorkflowName")
+            && !RequiresNullableColumnFix<Agent>(db, "PromptTemplateId"))
         {
             return;
         }

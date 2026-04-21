@@ -1,8 +1,7 @@
 import { expect, test } from "../fixtures/single-session";
-import { orgWorkspacesPath, signPath } from "@atlas/app-shell-shared";
+import { selectWorkspacePath, signPath } from "@atlas/app-shell-shared";
 import {
   appBaseUrl,
-  defaultTenantId,
   ensureAppSetup,
   ensureAppWorkspace,
   expectNoI18nKeyLeak,
@@ -22,18 +21,28 @@ test.describe.serial("@smoke App Auth And Routing", () => {
     await ensureLoggedInSession(appKey);
   });
 
-  test("login success should enter workspace list", async ({ page, resetAuthForCase }) => {
+  test("login success should enter workspace selector or workspace home", async ({ page, resetAuthForCase }) => {
     await resetAuthForCase();
     await loginApp(page, appKey);
-    await expect(page).toHaveURL(new RegExp(`${orgWorkspacesPath(defaultTenantId)}(?:\\?.*)?$`));
-    await expect(page.getByTestId("workspace-list-page")).toBeVisible();
-    await expectNoI18nKeyLeak(page, "workspace-list-page");
+    const workspaceSelectPattern = new RegExp(`${selectWorkspacePath()}(?:\\?.*)?$`);
+    const workspaceHomePattern = /\/workspace\/[^/]+\/home(?:\?.*)?$/;
+    await expect(page).toHaveURL((url) =>
+      workspaceSelectPattern.test(url.pathname + url.search) || workspaceHomePattern.test(url.pathname + url.search)
+    );
+
+    if (workspaceSelectPattern.test(new URL(page.url()).pathname + new URL(page.url()).search)) {
+      await expect(page.getByTestId("coze-select-workspace-page")).toBeVisible();
+      await expectNoI18nKeyLeak(page, "coze-select-workspace-page");
+    } else {
+      await expect(page.getByTestId("coze-home-page")).toBeVisible();
+      await expectNoI18nKeyLeak(page, "coze-home-page");
+    }
   });
 
-  test("authenticated session should enter workspace dashboard", async ({ page }) => {
+  test("authenticated session should enter workspace home", async ({ page }) => {
     await ensureAppWorkspace(page, appKey);
-    await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
-    await expectNoI18nKeyLeak(page, "app-dashboard-page");
+    await expect(page.getByTestId("coze-home-page")).toBeVisible();
+    await expectNoI18nKeyLeak(page, "coze-home-page");
   });
 
   test("wrong password should stay at canonical login", async ({ page, resetAuthForCase }) => {
@@ -43,9 +52,9 @@ test.describe.serial("@smoke App Auth And Routing", () => {
     await expect(page.locator(".login-error")).toBeVisible();
   });
 
-  test("unauthenticated workspace list should redirect login", async ({ page, resetAuthForCase }) => {
+  test("unauthenticated workspace selector should redirect login", async ({ page, resetAuthForCase }) => {
     await resetAuthForCase();
-    await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
+    await page.goto(`${appBaseUrl}${selectWorkspacePath()}`);
     await expect(page).toHaveURL(new RegExp(`${signPath().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\?.*)?$`));
   });
 

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button, Input, Typography } from "@douyinfe/semi-ui";
 import { IconLock, IconUser } from "@douyinfe/semi-icons";
-import { orgWorkspacesPath } from "../app-paths";
+import { selectWorkspacePath } from "../app-paths";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
 import { getLoginCaptcha } from "../../services/api-auth";
@@ -320,7 +320,7 @@ export function LoginPage() {
   const [loadingCaptcha, setLoadingCaptcha] = useState(false);
 
   const redirectTarget = searchParams.get("redirect");
-  const workspaceTarget = orgWorkspacesPath(FIXED_TENANT_ID);
+  const workspaceTarget = selectWorkspacePath();
 
   if (auth.isAuthenticated) {
     const nextTarget =

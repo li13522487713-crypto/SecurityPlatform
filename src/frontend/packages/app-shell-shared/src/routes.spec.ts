@@ -26,28 +26,28 @@ describe("organization workspace routes", () => {
   });
 
   it("builds workspace list and develop paths", () => {
-    expect(orgWorkspacesPath("tenant-1")).toBe("/workspaces");
-    expect(orgWorkspaceHomePath("tenant-1", "100")).toBe("/w/100/home");
-    expect(orgWorkspaceDashboardPath("tenant-1", "100")).toBe("/w/100/dashboard");
-    expect(orgWorkspaceDevelopPath("tenant-1", "100")).toBe("/w/100/develop");
-    expect(orgWorkspaceChatPath("tenant-1", "100")).toBe("/w/100/develop/chat");
-    expect(orgWorkspaceModelConfigsPath("tenant-1", "100")).toBe("/w/100/develop/model-configs");
-    expect(orgWorkspaceAssistantToolsPath("tenant-1", "100")).toBe("/w/100/develop/assistant-tools");
-    expect(orgWorkspacePublishCenterPath("tenant-1", "100")).toBe("/w/100/develop/publish-center");
-    expect(orgWorkspaceDataPath("tenant-1", "100")).toBe("/w/100/library/data");
-    expect(orgWorkspaceVariablesPath("tenant-1", "100")).toBe("/w/100/library/variables");
-    expect(orgWorkspaceManagePath("tenant-1", "100")).toBe("/w/100/manage");
-    expect(orgWorkspaceManagePath("tenant-1", "100", "users")).toBe("/w/100/manage/users");
-    expect(orgWorkspaceSettingsPath("tenant-1", "100")).toBe("/w/100/settings");
-    expect(orgWorkspaceSettingsPath("tenant-1", "100", "members")).toBe("/w/100/settings/members");
+    expect(orgWorkspacesPath("tenant-1")).toBe("/select-workspace");
+    expect(orgWorkspaceHomePath("tenant-1", "100")).toBe("/workspace/100/home");
+    expect(orgWorkspaceDashboardPath("tenant-1", "100")).toBe("/workspace/100/home");
+    expect(orgWorkspaceDevelopPath("tenant-1", "100")).toBe("/workspace/100/develop");
+    expect(orgWorkspaceChatPath("tenant-1", "100")).toBe("/workspace/100/develop/chat");
+    expect(orgWorkspaceModelConfigsPath("tenant-1", "100")).toBe("/workspace/100/develop/model-configs");
+    expect(orgWorkspaceAssistantToolsPath("tenant-1", "100")).toBe("/workspace/100/develop/assistant-tools");
+    expect(orgWorkspacePublishCenterPath("tenant-1", "100")).toBe("/workspace/100/develop/publish-center");
+    expect(orgWorkspaceDataPath("tenant-1", "100")).toBe("/workspace/100/library/data");
+    expect(orgWorkspaceVariablesPath("tenant-1", "100")).toBe("/workspace/100/library/variables");
+    expect(orgWorkspaceManagePath("tenant-1", "100")).toBe("/workspace/100/manage");
+    expect(orgWorkspaceManagePath("tenant-1", "100", "users")).toBe("/workspace/100/manage/users");
+    expect(orgWorkspaceSettingsPath("tenant-1", "100")).toBe("/workspace/100/settings");
+    expect(orgWorkspaceSettingsPath("tenant-1", "100", "members")).toBe("/workspace/100/settings/members");
   });
 
   it("builds deep resource paths", () => {
-    expect(orgWorkspaceAppDetailPath("tenant-1", "100", "200")).toBe("/w/100/apps/200");
-    expect(orgWorkspaceAgentDetailPath("tenant-1", "100", "300")).toBe("/w/100/agents/300");
-    expect(orgWorkspaceWorkflowsPath("tenant-1", "100")).toBe("/w/100/workflows");
-    expect(orgWorkspaceChatflowsPath("tenant-1", "100")).toBe("/w/100/chatflows");
-    expect(orgWorkspaceAppWorkflowPath("tenant-1", "100", "200", "400")).toBe("/w/100/apps/200/workflows/400");
+    expect(orgWorkspaceAppDetailPath("tenant-1", "100", "200")).toBe("/workspace/100/apps/200");
+    expect(orgWorkspaceAgentDetailPath("tenant-1", "100", "300")).toBe("/workspace/100/agents/300");
+    expect(orgWorkspaceWorkflowsPath("tenant-1", "100")).toBe("/workspace/100/workflows");
+    expect(orgWorkspaceChatflowsPath("tenant-1", "100")).toBe("/workspace/100/chatflows");
+    expect(orgWorkspaceAppWorkflowPath("tenant-1", "100", "200", "400")).toBe("/workspace/100/apps/200/workflows/400");
   });
 });
 

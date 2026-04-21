@@ -2,20 +2,20 @@ import path from "node:path";
 import { expect, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
 import {
   appSignPath,
-  orgWorkspaceAssistantToolsPath,
-  orgWorkspaceChatPath,
-  orgWorkspaceDashboardPath,
-  orgWorkspaceDataPath,
-  orgWorkspaceDevelopPath,
-  orgWorkspaceLibraryPath,
-  orgWorkspaceManagePath,
-  orgWorkspaceModelConfigsPath,
-  orgWorkspacePublishCenterPath,
-  orgWorkspaceSettingsPath,
-  orgWorkspaceVariablesPath,
-  orgWorkspaceWorkflowsPath,
-  orgWorkspaceChatflowsPath,
-  orgWorkspacesPath,
+  communityWorksPath,
+  docsPath,
+  marketPluginsPath,
+  marketTemplatesPath,
+  openApiPath,
+  platformGeneralPath,
+  selectWorkspacePath,
+  workspaceEvaluationsPath,
+  workspaceHomePath,
+  workspaceProjectsPath,
+  workspaceResourcesPath,
+  workspaceSettingsModelsPath,
+  workspaceSettingsPublishPath,
+  workspaceTasksPath,
   signPath
 } from "@atlas/app-shell-shared";
 import { gazeShiftDelay, randomBetween, thinkingPause } from "../fixtures/human-mouse";
@@ -439,100 +439,105 @@ export async function loginApp(
     return;
   }
 
-  // 当前 IA：单租户单工作空间下登录会直接落到 dashboard；
-  // 多工作空间或新建后会落到工作空间列表。两种 URL 都视为登录成功。
-  const workspacesListPattern = new RegExp(`${orgWorkspacesPath(defaultTenantId)}(?:\\?.*)?$`);
-  const workspaceDashboardPattern = /\/org\/[^/]+\/workspaces\/[^/]+\/dashboard(?:\?.*)?$/;
-  await page.waitForURL((url) => workspacesListPattern.test(url.pathname + url.search) || workspaceDashboardPattern.test(url.pathname + url.search), {
+  // 新 IA：登录后要么停留在工作空间选择页，要么自动进入工作空间首页。
+  const workspaceSelectPattern = new RegExp(`${selectWorkspacePath()}(?:\\?.*)?$`);
+  const workspaceHomePattern = /\/workspace\/[^/]+\/home(?:\?.*)?$/;
+  await page.waitForURL((url) => workspaceSelectPattern.test(url.pathname + url.search) || workspaceHomePattern.test(url.pathname + url.search), {
     timeout: 30_000
   });
-  // 任一稳态都视为登录成功；后续 ensureAppWorkspace 会按需回到指定空间。
-  const onListPage = await page.getByTestId("workspace-list-page").isVisible().catch(() => false);
-  if (!onListPage) {
+  const onSelectPage = await page.getByTestId("coze-select-workspace-page").isVisible().catch(() => false);
+  if (!onSelectPage) {
     await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
   }
 }
 
 export async function ensureAppWorkspace(page: Page, appKey: string) {
-  const dashboardPattern = new RegExp(`/org/[^/]+/workspaces/[^/]+/dashboard(?:\\?.*)?$`);
-  if (!dashboardPattern.test(page.url())) {
-    await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
-    const workspaceCard = page.locator(`.atlas-workspace-card:has-text("${appKey}")`).first();
-    await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
-    await workspaceCard.locator('[data-testid^="workspace-open-"]').first().click();
+  const workspaceHomePattern = /\/workspace\/[^/]+\/home(?:\?.*)?$/;
+  if (!workspaceHomePattern.test(page.url())) {
+    await page.goto(`${appBaseUrl}${selectWorkspacePath()}`);
+    await expect(page.getByTestId("coze-select-workspace-page")).toBeVisible({ timeout: 30_000 });
+
+    const matchedWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]', { hasText: appKey }).first();
+    if (await matchedWorkspaceButton.count()) {
+      await matchedWorkspaceButton.click();
+    } else {
+      await page.locator('[data-testid^="coze-select-workspace-"]').first().click();
+    }
   }
 
-  await page.waitForURL(dashboardPattern, { timeout: 45_000 });
+  await page.waitForURL(workspaceHomePattern, { timeout: 45_000 });
   await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
 }
 
-function getWorkspaceRouteContext(page: Page): { orgId: string; workspaceId: string } {
+function getWorkspaceRouteContext(page: Page): { workspaceId: string } {
   const currentUrl = new URL(page.url());
-  const match = currentUrl.pathname.match(/^\/org\/([^/]+)\/workspaces\/([^/]+)/);
+  const match = currentUrl.pathname.match(/^\/workspace\/([^/]+)/);
   if (!match) {
     throw new Error(`当前页面不在工作区上下文中，无法解析 canonical 路由: ${currentUrl.pathname}`);
   }
 
   return {
-    orgId: decodeURIComponent(match[1]),
-    workspaceId: decodeURIComponent(match[2])
+    workspaceId: decodeURIComponent(match[1])
   };
 }
 
 function resolveSidebarAliasTarget(page: Page, itemKey: string): string | null {
-  const { orgId, workspaceId } = getWorkspaceRouteContext(page);
+  const { workspaceId } = getWorkspaceRouteContext(page);
 
   switch (itemKey) {
+    case "home":
     case "dashboard":
-      return orgWorkspaceDashboardPath(orgId, workspaceId);
-    case "develop":
-      return orgWorkspaceDevelopPath(orgId, workspaceId);
-    case "library":
-      return orgWorkspaceLibraryPath(orgId, workspaceId);
-    case "manage":
-      return orgWorkspaceManagePath(orgId, workspaceId, "overview");
-    case "settings":
-      return orgWorkspaceSettingsPath(orgId, workspaceId, "members");
-    case "users":
-      return orgWorkspaceManagePath(orgId, workspaceId, "users");
-    case "roles":
-      return orgWorkspaceManagePath(orgId, workspaceId, "roles");
-    case "departments":
-      return orgWorkspaceManagePath(orgId, workspaceId, "departments");
-    case "positions":
-      return orgWorkspaceManagePath(orgId, workspaceId, "positions");
-    case "approval":
-      return orgWorkspaceManagePath(orgId, workspaceId, "approval");
-    case "reports":
-      return orgWorkspaceManagePath(orgId, workspaceId, "reports");
-    case "dashboards":
-      return orgWorkspaceManagePath(orgId, workspaceId, "dashboards");
-    case "visualization":
-      return orgWorkspaceManagePath(orgId, workspaceId, "visualization");
-    case "model-configs":
-      return orgWorkspaceModelConfigsPath(orgId, workspaceId);
-    case "agent-chat":
-      return orgWorkspaceChatPath(orgId, workspaceId);
-    case "ai-assistant":
-      return orgWorkspaceAssistantToolsPath(orgId, workspaceId);
-    case "publish-center":
-      return orgWorkspacePublishCenterPath(orgId, workspaceId);
-    case "workflows":
-      return orgWorkspaceWorkflowsPath(orgId, workspaceId);
-    case "chatflows":
-      return orgWorkspaceChatflowsPath(orgId, workspaceId);
-    case "data":
-      return orgWorkspaceDataPath(orgId, workspaceId);
-    case "variables":
-      return orgWorkspaceVariablesPath(orgId, workspaceId);
-    case "agents":
-      return `${orgWorkspaceDevelopPath(orgId, workspaceId)}?focus=agents`;
+      return workspaceHomePath(workspaceId);
     case "projects":
-      return `${orgWorkspaceDevelopPath(orgId, workspaceId)}?focus=projects`;
+    case "develop":
+    case "agents":
+      return workspaceProjectsPath(workspaceId);
+    case "resources":
+    case "library":
+      return workspaceResourcesPath(workspaceId);
+    case "tasks":
+    case "manage":
+    case "users":
+    case "roles":
+    case "departments":
+    case "positions":
+    case "approval":
+      return workspaceTasksPath(workspaceId);
+    case "evaluations":
+    case "reports":
+    case "dashboards":
+    case "visualization":
+      return workspaceEvaluationsPath(workspaceId);
+    case "settings":
+    case "agent-chat":
+    case "ai-assistant":
+    case "publish-center":
+      return workspaceSettingsPublishPath(workspaceId);
+    case "model-configs":
+      return workspaceSettingsModelsPath(workspaceId);
+    case "workflows":
+      return workspaceResourcesPath(workspaceId, "workflows");
+    case "chatflows":
+      return workspaceResourcesPath(workspaceId, "chatflows");
     case "knowledge-bases":
-      return orgWorkspaceLibraryPath(orgId, workspaceId);
+      return workspaceResourcesPath(workspaceId, "knowledge");
     case "databases":
-      return orgWorkspaceDataPath(orgId, workspaceId);
+    case "data":
+      return workspaceResourcesPath(workspaceId, "databases");
+    case "variables":
+      return workspaceResourcesPath(workspaceId, "variables");
+    case "templates":
+      return marketTemplatesPath();
+    case "plugins":
+      return marketPluginsPath();
+    case "community":
+      return communityWorksPath();
+    case "open-api":
+      return openApiPath();
+    case "docs":
+      return docsPath();
+    case "platform":
+      return platformGeneralPath();
     default:
       return null;
   }

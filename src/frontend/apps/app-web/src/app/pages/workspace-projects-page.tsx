@@ -4,12 +4,10 @@ import { IconFolder, IconMore, IconPlus } from "@douyinfe/semi-icons";
 import {
   appEditorPath,
   agentEditorPath,
-  orgWorkspaceDevelopPath,
   workspaceProjectsFolderPath,
   workspaceProjectsPath
 } from "@atlas/app-shell-shared";
-import { getTenantId } from "@atlas/shared-react-core/utils";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import type { AppMessageKey } from "../messages";
 import { useWorkspaceContext } from "../workspace-context";
@@ -54,7 +52,6 @@ export function WorkspaceProjectsPage() {
   const { t } = useAppI18n();
   const workspace = useWorkspaceContext();
   const { folderId } = useParams<{ folderId?: string }>();
-  const location = useLocation();
   const navigate = useNavigate();
 
   const [keyword, setKeyword] = useState("");
@@ -72,10 +69,7 @@ export function WorkspaceProjectsPage() {
   const [workspaceOptionsLoading, setWorkspaceOptionsLoading] = useState(false);
 
   const normalizedKeyword = keyword.trim();
-  const usingDevelopRoute = location.pathname.includes("/w/") && location.pathname.includes("/develop");
-  const projectsRootPath = usingDevelopRoute
-    ? orgWorkspaceDevelopPath(workspace.orgId || getTenantId() || "", workspace.id)
-    : workspaceProjectsPath(workspace.id);
+  const projectsRootPath = workspaceProjectsPath(workspace.id);
 
   const currentFolder = useMemo(
     () => folders.find(item => item.id === folderId),
@@ -170,9 +164,7 @@ export function WorkspaceProjectsPage() {
   };
 
   const handleOpenFolder = (targetFolderId: string) => {
-    const targetPath = usingDevelopRoute
-      ? `${projectsRootPath}/folder/${encodeURIComponent(targetFolderId)}`
-      : workspaceProjectsFolderPath(workspace.id, targetFolderId);
+    const targetPath = workspaceProjectsFolderPath(workspace.id, targetFolderId);
     navigate(targetPath);
   };
 

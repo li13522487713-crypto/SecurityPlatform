@@ -75,12 +75,12 @@ export function orgRootPath(orgId: string): string {
 
 export function orgWorkspacesPath(orgId: string): string {
   void orgId;
-  return "/workspaces";
+  return "/select-workspace";
 }
 
 export function orgWorkspacePath(orgId: string, workspaceId: string): string {
   void orgId;
-  return `/w/${encodeSegment(workspaceId)}`;
+  return `/workspace/${encodeSegment(workspaceId)}`;
 }
 
 export function orgWorkspaceHomePath(orgId: string, workspaceId: string): string {
@@ -88,7 +88,7 @@ export function orgWorkspaceHomePath(orgId: string, workspaceId: string): string
 }
 
 export function orgWorkspaceDashboardPath(orgId: string, workspaceId: string): string {
-  return `${orgWorkspacePath(orgId, workspaceId)}/dashboard`;
+  return orgWorkspaceHomePath(orgId, workspaceId);
 }
 
 export function orgWorkspaceDevelopPath(orgId: string, workspaceId: string): string {

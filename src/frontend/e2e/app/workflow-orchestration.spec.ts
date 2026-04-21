@@ -10,14 +10,12 @@ test.describe.serial("@smoke Workflow Orchestration", () => {
   });
 
   test("应可进入工作流列表页并看到列表区域", async ({ page }) => {
-    // 当前 UI：/org/<org>/workspaces/<ws>/workflows 在没有具体 workflowId 时
-    // 渲染 WorkspaceStudioRoute（focus=workflow），实际页面 testId 为 app-develop-page。
+    // 新壳：工作流列表统一收口到 /workspace/<ws>/resources/workflows。
     await navigateBySidebar(page, "workflows", {
-      pageTestId: "app-develop-page",
-      urlPattern: /\/org\/[^/]+\/workspaces\/[^/]+\/workflows(?:\?.*)?$/
+      pageTestId: "coze-resource-page",
+      urlPattern: /\/workspace\/[^/]+\/resources\/workflows(?:\?.*)?$/
     });
-    // "创建" 入口在 develop 顶栏的 dropdown 内，testId=app-develop-create-menu
-    await expect(page.getByTestId("app-develop-create-menu")).toBeVisible();
+    await expect(page.getByTestId("coze-resource-page")).toBeVisible();
   });
 });
 

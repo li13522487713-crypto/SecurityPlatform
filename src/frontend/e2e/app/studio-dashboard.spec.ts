@@ -1,6 +1,6 @@
 import { expect, test } from "../fixtures/single-session";
-import { orgWorkspacesPath } from "@atlas/app-shell-shared";
-import { appBaseUrl, defaultTenantId, ensureAppSetup, navigateBySidebar } from "./helpers";
+import { selectWorkspacePath } from "@atlas/app-shell-shared";
+import { appBaseUrl, ensureAppSetup, navigateBySidebar } from "./helpers";
 
 function apiOk<T>(data: T) {
   return {
@@ -166,29 +166,18 @@ test.describe.serial("Studio Dashboard", () => {
     await page.route(dashboardStatsRoute, dashboardStatsHandler);
 
     try {
-      await page.goto(`${appBaseUrl}${orgWorkspacesPath(defaultTenantId)}`);
-      const workspaceCard = page.locator(`.atlas-workspace-card:has-text("${appKey}")`).first();
-      await expect(workspaceCard).toBeVisible({ timeout: 30_000 });
-      await workspaceCard.locator('[data-testid^="workspace-open-"]').first().click();
+      await page.goto(`${appBaseUrl}${selectWorkspacePath()}`);
+      const matchedWorkspaceButton = page.locator('[data-testid^="coze-select-workspace-"]', { hasText: appKey }).first();
+      if (await matchedWorkspaceButton.count()) {
+        await matchedWorkspaceButton.click();
+      } else {
+        await page.locator('[data-testid^="coze-select-workspace-"]').first().click();
+      }
       await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
-      await navigateBySidebar(page, "dashboard", { pageTestId: "app-dashboard-page" });
+      await navigateBySidebar(page, "home", { pageTestId: "coze-home-page" });
 
-      await expect(page.getByText("AI Studio 工作台")).toBeVisible();
-      await expect(page.getByText("快速开始")).toBeVisible();
-      await expect(page.getByText("构建智能体")).toBeVisible();
-      await expect(page.getByText("搭建应用")).toBeVisible();
-      await expect(page.getByText("编排工作流")).toBeVisible();
-
-      await expect(page.getByText("系统尚未配置 AI 模型")).toBeVisible();
-      await expect(page.getByRole("button", { name: "前往配置模型" })).toBeVisible();
-
-      await expect(page.getByText("最近访问")).toBeVisible();
-      await expect(page.getByText("安全助手")).toBeVisible();
-      await expect(page.getByText("告警分诊工作流")).toBeVisible();
-
-      await expect(page.getByText("待发布更新")).toBeVisible();
-      await expect(page.getByText("威胁分析应用")).toBeVisible();
-      await expect(page.getByRole("button", { name: "前往发布中心" })).toBeVisible();
+      await expect(page.getByTestId("coze-home-page")).toBeVisible();
+      await expect(page.getByTestId("coze-home-banner-cta-create")).toBeVisible();
     } finally {
       await page.unroute(summaryRoute, summaryHandler);
       await page.unroute(modelConfigsRoute, modelConfigsHandler);

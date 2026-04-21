@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { getTenantId } from "@atlas/shared-react-core/utils";
-import { orgWorkspacesPath, selectWorkspacePath, signPath } from "@atlas/app-shell-shared";
+import { selectWorkspacePath, signPath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 import { useAuth } from "../auth-context";
@@ -44,13 +43,7 @@ export function HomePage() {
       return;
     }
 
-    const orgId = getTenantId();
-    if (!orgId) {
-      setTarget(selectWorkspacePath());
-      setResolving(false);
-      return;
-    }
-    setTarget(orgWorkspacesPath(orgId));
+    setTarget(selectWorkspacePath());
     setResolving(false);
   }, [auth.isAuthenticated, auth.loading, bootstrap.appReady, bootstrap.loading, bootstrap.platformReady]);
 

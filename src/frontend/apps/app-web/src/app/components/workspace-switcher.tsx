@@ -3,7 +3,7 @@ import { Avatar, Dropdown, Input, Spin, Tag } from "@douyinfe/semi-ui";
 import { IconChevronDown, IconPlus, IconSearch, IconArrowUp } from "@douyinfe/semi-icons";
 import { useNavigate } from "react-router-dom";
 import { getTenantId } from "@atlas/shared-react-core/utils";
-import { orgWorkspacesPath, workspaceHomePath } from "@atlas/app-shell-shared";
+import { selectWorkspacePath, workspaceHomePath } from "@atlas/app-shell-shared";
 import { getWorkspaces, type WorkspaceSummaryDto } from "../../services/api-org-workspaces";
 import { useAppI18n } from "../i18n";
 
@@ -68,17 +68,13 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
     return workspaces.filter(item => item.name?.toLowerCase().includes(lower) || item.appKey.toLowerCase().includes(lower));
   }, [keyword, workspaces]);
 
-  const orgId = getTenantId();
   const currentWorkspace = useMemo(
     () => workspaces.find(item => item.id === workspaceId) ?? null,
     [workspaceId, workspaces]
   );
 
   const openCreateWorkspace = () => {
-    if (!orgId) {
-      return;
-    }
-    navigate(`${orgWorkspacesPath(orgId)}?create=1`);
+    navigate(`${selectWorkspacePath()}?create=1`);
   };
 
   const selectWorkspace = (targetWorkspaceId: string) => {
@@ -120,7 +116,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
             <button 
               type="button" 
               className="text-blue-500 hover:text-blue-600 text-[12px] bg-transparent border-none cursor-pointer p-0 font-medium" 
-              onClick={() => orgId && navigate(orgWorkspacesPath(orgId))}
+              onClick={() => navigate(selectWorkspacePath())}
             >
               {t("cozeShellWorkspaceSwitcherManageLink")}
             </button>
