@@ -188,9 +188,9 @@ export function CozeShell({
         </div>
 
         {!collapsed && (
-          <>
+          <div className="coze-shell__sidebar-footer">
             <div className="border-t border-[#f3f4f6] mx-[12px] mt-[8px]" />
-            <div className="mt-auto pt-[16px] flex flex-col gap-[12px] px-[12px]">
+            <div className="coze-shell__sidebar-plan pt-[16px] flex flex-col gap-[12px] px-[12px]">
               <div className="flex items-center justify-between">
                 <span className="text-[#6a7282] text-[11px]">总积分: 500</span>
                 <span className="bg-blue-500 text-white text-[10px] px-[6px] py-[2px] rounded-[4px]">专业版</span>
@@ -241,7 +241,7 @@ export function CozeShell({
                 </div>
               }
             >
-              <div className="mx-[12px] my-[12px] flex items-center justify-between bg-gray-100 rounded-[10px] px-[10px] py-[8px] cursor-pointer hover:bg-gray-200 transition-colors border border-transparent">
+              <div className="coze-shell__sidebar-user mx-[12px] my-[12px] flex items-center justify-between bg-gray-100 rounded-[10px] px-[10px] py-[8px] cursor-pointer hover:bg-gray-200 transition-colors border border-transparent">
                 <div className="flex items-center gap-[8px] min-w-0">
                   <div className="bg-blue-500 rounded-full size-[24px] flex items-center justify-center text-white shrink-0">
                     <IconUser size="small" />
@@ -257,7 +257,7 @@ export function CozeShell({
                 </div>
               </div>
             </Dropdown>
-          </>
+          </div>
         )}
       </aside>
 

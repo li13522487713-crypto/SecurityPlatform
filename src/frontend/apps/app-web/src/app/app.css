@@ -76,6 +76,12 @@ body {
   background: var(--semi-color-bg-0, #f7f8fa);
 }
 
+.coze-shell__main {
+  box-sizing: border-box;
+  height: calc(100vh - 60px) !important;
+  overflow-y: auto;
+}
+
 .coze-page__header {
   display: flex;
   flex-direction: column;

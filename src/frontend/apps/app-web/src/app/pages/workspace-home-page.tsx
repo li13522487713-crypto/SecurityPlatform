@@ -89,18 +89,25 @@ export function WorkspaceHomePage() {
   );
 
   return (
-    <div className="coze-page coze-home-page" data-testid="coze-home-page">
+    <div
+      className="coze-page coze-home-page"
+      data-testid="coze-home-page"
+      style={{
+        gap: 12,
+        padding: "16px 24px 20px"
+      }}
+    >
       {loading ? (
         <div className="coze-page__loading"><Spin /></div>
       ) : (
         <>
           {banner ? (
-            <section className="coze-home-banner">
+            <section className="coze-home-banner" style={{ padding: 16 }}>
               <div className="coze-home-banner__copy">
                 <Typography.Text type="tertiary">{workspaceContextHint}</Typography.Text>
-                <Typography.Title heading={2} style={{ margin: "8px 0 12px" }}>{banner.heroTitle}</Typography.Title>
-                <Typography.Paragraph>{banner.heroSubtitle}</Typography.Paragraph>
-                <div className="coze-home-banner__cta">
+                <Typography.Title heading={2} style={{ margin: "6px 0 10px", lineHeight: 1.2 }}>{banner.heroTitle}</Typography.Title>
+                <Typography.Paragraph style={{ marginBottom: 12 }}>{banner.heroSubtitle}</Typography.Paragraph>
+                <div className="coze-home-banner__cta" style={{ gap: 8 }}>
                   {banner.ctaList.map(cta => (
                     <Button
                       key={cta.key}
@@ -117,11 +124,11 @@ export function WorkspaceHomePage() {
             </section>
           ) : null}
 
-          <section className="coze-home-section">
+          <section className="coze-home-section" style={{ gap: 10 }}>
             <header className="coze-home-section__head">
               <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeTutorialsTitle")}</Typography.Title>
             </header>
-            <div className="coze-card-grid coze-card-grid--3">
+            <div className="coze-card-grid coze-card-grid--3" style={{ gap: 12 }}>
               {tutorials.map(card => (
                 <button
                   key={card.id}
@@ -129,6 +136,7 @@ export function WorkspaceHomePage() {
                   className="coze-tutorial-card"
                   onClick={() => navigate(card.link)}
                   data-testid={`coze-home-tutorial-${card.id}`}
+                  style={{ minHeight: 96, padding: 14 }}
                 >
                   <div className="coze-tutorial-card__icon" aria-hidden>
                     {card.iconKey === "intro" ? "?" : card.iconKey === "quickstart" ? ">" : "i"}
@@ -140,8 +148,8 @@ export function WorkspaceHomePage() {
             </div>
           </section>
 
-          <section className="coze-home-row">
-            <div className="coze-home-row__main">
+          <section className="coze-home-row" style={{ gap: 12 }}>
+            <div className="coze-home-row__main" style={{ padding: 14, gap: 10, minHeight: 188 }}>
               <header className="coze-home-section__head">
                 <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeAnnouncementsTitle")}</Typography.Title>
               </header>
@@ -152,7 +160,7 @@ export function WorkspaceHomePage() {
               {announcements.length === 0 ? (
                 <Empty description={t("cozeHomeAnnouncementsEmpty")} />
               ) : (
-                <ul className="coze-list">
+                <ul className="coze-list" style={{ maxHeight: 124, overflow: "auto" }}>
                   {announcements.map(item => (
                     <li key={item.id} className="coze-list__item">
                       <div>
@@ -169,14 +177,14 @@ export function WorkspaceHomePage() {
               )}
             </div>
 
-            <aside className="coze-home-row__aside">
+            <aside className="coze-home-row__aside" style={{ padding: 14, gap: 10, minHeight: 188 }}>
               <header className="coze-home-section__head">
                 <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeRecommendedTitle")}</Typography.Title>
                 <Button theme="borderless" onClick={() => navigate("/explore/template")}>
                   {t("cozeHomeRecommendedMore")}
                 </Button>
               </header>
-              <div className="coze-recommended-list">
+              <div className="coze-recommended-list" style={{ maxHeight: 124, overflow: "auto" }}>
                 {recommended.map(item => (
                   <div key={item.id} className="coze-recommended-item">
                     <Avatar size="small" color="light-blue">{item.name.slice(0, 1)}</Avatar>
@@ -199,14 +207,14 @@ export function WorkspaceHomePage() {
             </aside>
           </section>
 
-          <section className="coze-home-section">
+          <section className="coze-home-section" style={{ gap: 10 }}>
             <header className="coze-home-section__head">
               <Typography.Title heading={5} style={{ margin: 0 }}>{t("cozeHomeRecentTitle")}</Typography.Title>
             </header>
             {recents.length === 0 ? (
               <Empty description={t("cozeHomeRecentEmpty")} />
             ) : (
-              <ul className="coze-list">
+              <ul className="coze-list" style={{ maxHeight: 124, overflow: "auto" }}>
                 {recents.map(item => (
                   <li
                     key={item.id}
