@@ -13,6 +13,7 @@ import { useDraftAutosave } from '../hooks/use-draft-autosave';
 import { setLocale, t, type Locale } from '../i18n';
 import { LowcodeStudioHostProvider, type LowcodeStudioHostConfig } from '../host';
 import { PublishPage } from '../panels/publish-page';
+import { shouldRetryLowcodeQuery } from '../query-retry';
 
 const { Header, Sider, Content } = Layout;
 
@@ -20,8 +21,9 @@ const { Header, Sider, Content } = Layout;
 const studioQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: shouldRetryLowcodeQuery,
       staleTime: 30_000,
+      refetchOnWindowFocus: false,
     },
   },
 });

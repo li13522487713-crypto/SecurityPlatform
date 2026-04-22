@@ -1,4 +1,3 @@
-using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
@@ -19,12 +18,12 @@ namespace Atlas.AppHost.Controllers;
 public sealed class LowCodeAppResourcesController : ControllerBase
 {
     private readonly IAppResourceCatalogService _service;
-    private readonly IAiAppResourceBindingService _bindingService;
+    private readonly ILowCodeAppResourceBindingService _bindingService;
     private readonly ITenantProvider _tenantProvider;
 
     public LowCodeAppResourcesController(
         IAppResourceCatalogService service,
-        IAiAppResourceBindingService bindingService,
+        ILowCodeAppResourceBindingService bindingService,
         ITenantProvider tenantProvider)
     {
         _service = service;

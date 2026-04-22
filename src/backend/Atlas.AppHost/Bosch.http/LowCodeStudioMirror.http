@@ -38,6 +38,11 @@ GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/resources?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 资源绑定列表（direct 模式）
+GET {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/resources/bindings
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 模板搜索（direct 模式）
 GET {{baseUrl}}/api/v1/lowcode/templates?pageSize=20
 Authorization: Bearer {{accessToken}}

@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(frontendRoot, "..", "..");
+const appHostHealthUrl = process.env.PLAYWRIGHT_APP_API_BASE?.trim() || "http://127.0.0.1:5002/internal/health/live";
+const frontendProbeUrls = [
+  process.env.PLAYWRIGHT_APP_BASE_URL?.trim(),
+  "http://127.0.0.1:5181",
+  "http://127.0.0.1:5182"
+].filter((value): value is string => Boolean(value));
 
 const cleanupTargets = [
   "src/backend/Atlas.PlatformHost/setup-state.json",
@@ -33,6 +39,31 @@ const cleanupDirectories = [
 
 const runtimeConfigPath = "src/backend/Atlas.PlatformHost/appsettings.runtime.json";
 const appSetupStatePath = "src/backend/Atlas.AppHost/app-setup-state.json";
+
+async function isUrlReady(url) {
+  try {
+    const response = await fetch(url, { method: "GET" });
+    return response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+async function shouldReuseRunningServices() {
+  const appHostReady = await isUrlReady(appHostHealthUrl);
+  if (!appHostReady) {
+    return false;
+  }
+
+  for (const frontendUrl of frontendProbeUrls) {
+    if (await isUrlReady(frontendUrl)) {
+      console.log(`[reset-setup-state] detected running services, skip destructive reset: appHost=${appHostHealthUrl}, appWeb=${frontendUrl}`);
+      return true;
+    }
+  }
+
+  return false;
+}
 
 function stopRelevantProcesses() {
   if (process.platform !== "win32") {
@@ -178,17 +209,21 @@ function writeAppSetupStatePlaceholder() {
   console.log(`[reset-setup-state] reset file: ${appSetupStatePath}`);
 }
 
-stopRelevantProcesses();
+if (await shouldReuseRunningServices()) {
+  console.log("[reset-setup-state] reuse mode active, preserve current processes and state files.");
+} else {
+  stopRelevantProcesses();
 
-for (const target of cleanupTargets) {
-  removeFile(target);
+  for (const target of cleanupTargets) {
+    removeFile(target);
+  }
+
+  for (const directory of cleanupDirectories) {
+    clearDirectoryContents(directory);
+  }
+
+  writeRuntimeConfigPlaceholder();
+  writeAppSetupStatePlaceholder();
+
+  console.log("[reset-setup-state] setup test environment reset complete.");
 }
-
-for (const directory of cleanupDirectories) {
-  clearDirectoryContents(directory);
-}
-
-writeRuntimeConfigPlaceholder();
-writeAppSetupStatePlaceholder();
-
-console.log("[reset-setup-state] setup test environment reset complete.");

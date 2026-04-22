@@ -3,12 +3,16 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes, Navigate, useParams } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LOWCODE_APP_KEY } from '@atlas/app-shell-shared';
-import { LowcodeStudioApp } from '@atlas/lowcode-studio-react';
+import { LowcodeStudioApp, shouldRetryLowcodeQuery } from '@atlas/lowcode-studio-react';
 import { AppListPage } from './pages/app-list-page';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, refetchOnWindowFocus: false }
+    queries: {
+      retry: shouldRetryLowcodeQuery,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false
+    }
   }
 });
 

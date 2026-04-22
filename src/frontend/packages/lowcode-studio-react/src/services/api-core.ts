@@ -21,6 +21,20 @@ interface ApiResponse<T> {
 
 export type LowcodeRequest = <T>(method: string, path: string, body?: JsonValue) => Promise<T>;
 
+export class LowcodeApiError extends Error {
+  status: number;
+  code?: string;
+  traceId?: string;
+
+  constructor(message: string, status: number, code?: string, traceId?: string) {
+    super(message);
+    this.name = 'LowcodeApiError';
+    this.status = status;
+    this.code = code;
+    this.traceId = traceId;
+  }
+}
+
 async function request<T>(method: string, path: string, body?: JsonValue): Promise<T> {
   const tenantId = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_tenant_id') : null) ?? '00000000-0000-0000-0000-000000000001';
   const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_access_token') : null) ?? '';
@@ -401,10 +415,12 @@ async function requestRuntime<T>(method: string, path: string, body?: JsonValue)
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`API ${method} ${path} 失败 ${res.status}: ${text}`);
+    throw new LowcodeApiError(`API ${method} ${path} 失败 ${res.status}: ${text}`, res.status);
   }
   const json = (await res.json()) as ApiResponse<T>;
-  if (!json.success) throw new Error(`${json.code}: ${json.message}`);
+  if (!json.success) {
+    throw new LowcodeApiError(`${json.code}: ${json.message}`, res.status, json.code, json.traceId);
+  }
   return json.data;
 }
 

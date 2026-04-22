@@ -2,11 +2,10 @@ import path from "node:path";
 import { expect, test, type Page } from "../fixtures/single-session";
 
 test.describe.skip("鐪熷疄娴忚鍣?setup E2E", () => {
-  // 与 run-app-e2e.mjs 中 PlatformHost 实际启动时的 ConnectionString 保持一致；
-  // 该脚本会用 atlas.app.e2e.db 启动平台，setup wizard 写入也必须落到同一个 DB
-  // 否则平台重启后业务测试找不到管理员账号。
+  // 与 run-app-e2e.mjs 中 AppHost 实际启动时的 ConnectionString 保持一致；
+  // setup wizard 写入必须落到同一个 DB，否则应用重启后业务测试找不到管理员账号。
   const platformDatabasePath = "Data Source=atlas.app.e2e.db";
-  const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.app.e2e.db")}`;
+  const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.AppHost/atlas.app.e2e.db")}`;
   const appBaseUrl = `http://127.0.0.1:${process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181"}`;
   const platformBaseUrl = process.env.PLAYWRIGHT_PLATFORM_BASE_URL ?? appBaseUrl;
   const platformSetupUrl = `${platformBaseUrl}/setup`;
@@ -160,7 +159,7 @@ test.describe.skip("鐪熷疄娴忚鍣?setup E2E", () => {
 
     await expect
       .poll(async () => {
-        const response = await request.get("http://127.0.0.1:5001/api/v1/setup/state");
+        const response = await request.get("http://127.0.0.1:5002/api/v1/setup/state");
         const payload = await response.json();
         return payload?.data?.status;
       }, { timeout: 30_000 })
@@ -168,7 +167,7 @@ test.describe.skip("鐪熷疄娴忚鍣?setup E2E", () => {
   });
 
   test("[platform] repeated initialize remains stable", async ({ request }) => {
-    const response = await request.post("http://127.0.0.1:5001/api/v1/setup/initialize", {
+    const response = await request.post("http://127.0.0.1:5002/api/v1/setup/initialize", {
       data: {
         database: {
           driverCode: "SQLite",

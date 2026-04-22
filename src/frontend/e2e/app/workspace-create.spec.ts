@@ -2,7 +2,7 @@ import { expect, test } from "../fixtures/single-session";
 import type { APIRequestContext } from "@playwright/test";
 import { defaultTenantId, ensureAppSetup, uniqueName } from "./helpers";
 
-const platformApiBase = "http://127.0.0.1:5001";
+const platformApiBase = "http://127.0.0.1:5002";
 
 function authHeaders(accessToken: string): Record<string, string> {
   return {

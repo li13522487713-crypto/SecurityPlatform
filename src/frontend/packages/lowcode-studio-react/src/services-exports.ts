@@ -22,8 +22,9 @@ export type {
   RuntimeDispatchResponse,
   RuntimeTrace
 } from "./services/api-core";
-export { createLowcodeApi, createRuntimeSessionApi, lowcodeApi, runtimeSessionApi } from "./services/api-core";
+export { createLowcodeApi, createRuntimeSessionApi, lowcodeApi, runtimeSessionApi, LowcodeApiError } from "./services/api-core";
 export { getLocale, setLocale, t, type Locale } from "./i18n";
+export { shouldRetryLowcodeQuery } from "./query-retry";
 export type {
   LowcodeStudioAuth,
   LowcodeStudioHostConfig,

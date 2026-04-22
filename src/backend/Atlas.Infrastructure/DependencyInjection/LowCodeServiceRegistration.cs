@@ -124,6 +124,7 @@ public static class LowCodeServiceRegistration
 
         // M07 S07-3：应用资源聚合
         services.AddScoped<IAppResourceCatalogService, AppResourceCatalogService>();
+        services.AddScoped<ILowCodeAppResourceBindingService, LowCodeAppResourceBindingService>();
 
         // M07 S07-4：应用模板（CRUD + 共享市场）
         services.AddScoped<IAppTemplateRepository, AppTemplateRepository>();

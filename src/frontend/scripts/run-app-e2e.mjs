@@ -7,12 +7,9 @@ const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const repoRoot = path.resolve(frontendRoot, "..", "..");
 const platformHostRoot = path.resolve(repoRoot, "src", "backend", "Atlas.PlatformHost");
 const appHostRoot = path.resolve(repoRoot, "src", "backend", "Atlas.AppHost");
-const platformHostProject = path.resolve(platformHostRoot, "Atlas.PlatformHost.csproj");
 const appHostProject = path.resolve(appHostRoot, "Atlas.AppHost.csproj");
 const e2eBuildRoot = path.resolve(repoRoot, "artifacts", "e2e");
-const platformHostBuildDir = path.resolve(e2eBuildRoot, "Atlas.PlatformHost");
 const appHostBuildDir = path.resolve(e2eBuildRoot, "Atlas.AppHost");
-const platformHostDll = path.resolve(platformHostBuildDir, "Atlas.PlatformHost.dll");
 const appHostDll = path.resolve(appHostBuildDir, "Atlas.AppHost.dll");
 const isWindows = process.platform === "win32";
 const rawPlaywrightArgs = process.argv.slice(2);
@@ -25,11 +22,12 @@ const playwrightArgs = hasExplicitConfigArg
   : ["test", "-c", defaultPlaywrightConfig, ...rawPlaywrightArgs];
 const appWebPort = 5181;
 const appWebScript = "dev:app-web";
-const platformApiBase = "http://127.0.0.1:5001";
 const appApiBase = "http://127.0.0.1:5002";
+const platformApiBase = appApiBase;
+const appWebBaseUrl = process.env.PLAYWRIGHT_APP_BASE_URL?.trim() || `http://127.0.0.1:${appWebPort}`;
 const platformDatabasePath = "Data Source=atlas.app.e2e.db";
-const appDatabasePath = `Data Source=${path.resolve(frontendRoot, "../backend/Atlas.PlatformHost/atlas.app.e2e.db")}`;
-const e2eConnectionString = `Data Source=${path.resolve(platformHostRoot, "atlas.app.e2e.db")}`;
+const appDatabasePath = `Data Source=${path.resolve(frontendRoot, "../backend/Atlas.AppHost/atlas.app.e2e.db")}`;
+const e2eConnectionString = `Data Source=${path.resolve(appHostRoot, "atlas.app.e2e.db")}`;
 const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 const defaultUsername = "admin";
 const defaultPassword = "P@ssw0rd!";
@@ -41,19 +39,6 @@ const managedProcesses = [];
 const serviceProcesses = new Map();
 
 const services = [
-  {
-    name: "PlatformHost",
-    command: "dotnet",
-    args: [platformHostDll],
-    cwd: platformHostRoot,
-    url: "http://127.0.0.1:5001/internal/health/live",
-    env: {
-      ASPNETCORE_ENVIRONMENT: "Development",
-      ASPNETCORE_URLS: "http://127.0.0.1:5001",
-      Database__ConnectionString: e2eConnectionString,
-      Database__DbType: "SQLite"
-    }
-  },
   {
     name: "AppHost",
     command: "dotnet",
@@ -74,28 +59,35 @@ const services = [
     command: isWindows ? "cmd.exe" : "pnpm",
     args: isWindows ? ["/d", "/s", "/c", `pnpm run ${appWebScript}`] : ["run", appWebScript],
     cwd: frontendRoot,
-    url: `http://127.0.0.1:${appWebPort}`,
+    url: appWebBaseUrl,
     env: {
       PLAYWRIGHT_E2E: "1",
       PLAYWRIGHT_APP_WEB_PORT: String(appWebPort)
     }
   }
 ];
-const platformHostService = services[0];
-const appHostService = services[1];
-const appWebService = services[2];
+const appHostService = services[0];
+const appWebService = services[1];
 
 function log(message) {
   process.stdout.write(`[run-app-e2e] ${message}\n`);
 }
 
 function ensureBuildDirectories() {
-  fs.mkdirSync(platformHostBuildDir, { recursive: true });
   fs.mkdirSync(appHostBuildDir, { recursive: true });
 }
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function isUrlReady(url) {
+  try {
+    const response = await fetch(url, { method: "GET" });
+    return response.status < 500;
+  } catch {
+    return false;
+  }
 }
 
 async function waitForUrl(url, timeoutMs, serviceName) {
@@ -362,18 +354,57 @@ async function cleanupOnce() {
 }
 
 async function startServices() {
-  spawnService(platformHostService);
-  await waitForUrl(platformHostService.url, 180_000, platformHostService.name);
-  await ensurePlatformSetupState();
-  await restartService(platformHostService);
-
   spawnService(appHostService);
   await waitForUrl(appHostService.url, 180_000, appHostService.name);
+  await ensurePlatformSetupState();
   await ensureAppSetupState();
   await restartService(appHostService);
 
   spawnService(appWebService);
   await waitForUrl(appWebService.url, 180_000, appWebService.name);
+}
+
+async function ensureServiceAvailable(service, options = {}) {
+  const { skipSetup = false } = options;
+  if (await isUrlReady(service.url)) {
+    log(`检测到现有 ${service.name} 服务，直接复用: ${service.url}`);
+    if (!skipSetup) {
+      await ensurePlatformSetupState();
+      await ensureAppSetupState();
+    }
+    return;
+  }
+
+  if (service === appHostService) {
+    ensureBuildDirectories();
+    await runCommand(
+      "dotnet",
+      [
+        "build",
+        appHostProject,
+        "--no-restore",
+        "-m:1",
+        "-nr:false",
+        "/p:UseAppHost=false",
+        `/p:OutDir=${appHostBuildDir}${path.sep}`
+      ],
+      frontendRoot,
+      {
+        ASPNETCORE_ENVIRONMENT: "Development",
+        ASPNETCORE_URLS: "http://127.0.0.1:5002"
+      },
+      "AppHost 构建"
+    );
+
+    spawnService(service);
+    await waitForUrl(service.url, 180_000, service.name);
+    await ensurePlatformSetupState();
+    await ensureAppSetupState();
+    return;
+  }
+
+  spawnService(service);
+  await waitForUrl(service.url, 180_000, service.name);
 }
 
 async function runPlaywright() {
@@ -404,48 +435,10 @@ async function runPlaywright() {
 }
 
 async function main() {
-  log(`应用前端入口: http://127.0.0.1:${appWebPort}`);
-  ensureBuildDirectories();
+  log(`应用前端入口: ${appWebBaseUrl}`);
+  await ensureServiceAvailable(appHostService);
+  await ensureServiceAvailable(appWebService, { skipSetup: true });
 
-  await runCommand(
-    "dotnet",
-    [
-      "build",
-      platformHostProject,
-      "--no-restore",
-      "-m:1",
-      "-nr:false",
-      "/p:UseAppHost=false",
-      `/p:OutDir=${platformHostBuildDir}${path.sep}`
-    ],
-    frontendRoot,
-    {
-      ASPNETCORE_ENVIRONMENT: "Development",
-      ASPNETCORE_URLS: "http://127.0.0.1:5001"
-    },
-    "PlatformHost 构建"
-  );
-
-  await runCommand(
-    "dotnet",
-    [
-      "build",
-      appHostProject,
-      "--no-restore",
-      "-m:1",
-      "-nr:false",
-      "/p:UseAppHost=false",
-      `/p:OutDir=${appHostBuildDir}${path.sep}`
-    ],
-    frontendRoot,
-    {
-      ASPNETCORE_ENVIRONMENT: "Development",
-      ASPNETCORE_URLS: "http://127.0.0.1:5002"
-    },
-    "AppHost 构建"
-  );
-
-  await startServices();
   await runPlaywright();
   await cleanupOnce();
   process.exit(0);

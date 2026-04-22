@@ -10,7 +10,7 @@ import {
   uniqueName
 } from "./helpers";
 
-const platformApiBase = "http://127.0.0.1:5001";
+const platformApiBase = "http://127.0.0.1:5002";
 
 function authHeaders(accessToken: string): Record<string, string> {
   return {

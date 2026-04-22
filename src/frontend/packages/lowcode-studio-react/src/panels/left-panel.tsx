@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Input, List, Typography, Empty, Spin, Tag, Button, Toast, Modal, Form, Space, Banner } from '@douyinfe/semi-ui';
 import { listShortcuts } from '@atlas/lowcode-editor-canvas';
 import type { AppVariable } from '../services/api-core';
 import { useStudioSelection } from '../stores/selection-store';
@@ -141,6 +141,8 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
     queryFn: () => api.resources.search(appId, { keyword, pageSize: 20 })
   });
 
+  const resourcesErrorMessage = resourcesQuery.error instanceof Error ? resourcesQuery.error.message : null;
+
   return (
     <>
       <Tabs tabPosition="left" type="line" defaultActiveKey="components">
@@ -273,7 +275,14 @@ export const LeftPanel: React.FC<{ appId: string }> = ({ appId }) => {
 
       <TabPane tab={t('lowcode_studio.layout.left.resources')} itemKey="resources">
         <Input prefix="🔍" placeholder={t('lowcode_studio.resources.search')} value={keyword} onChange={setKeyword} />
-        {resourcesQuery.isLoading ? <Spin /> : (
+        {resourcesQuery.isLoading ? <Spin /> : resourcesErrorMessage ? (
+          <Banner
+            type="danger"
+            closeIcon={null}
+            description={`资源加载失败：${resourcesErrorMessage}`}
+            style={{ marginTop: 8 }}
+          />
+        ) : (
           <div style={{ marginTop: 8 }}>
             {Object.entries(resourcesQuery.data?.byType ?? {}).map(([type, items]) => (
               <div key={type} style={{ marginBottom: 12 }}>

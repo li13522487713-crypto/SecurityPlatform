@@ -23,7 +23,7 @@
   - 宿主与路由：`app-shell-shared`
   - 协议与共享：`schema-protocol`、`shared-react-core`
   - Shell 与业务模块：`coze-shell-react`、`library-module-react`、`module-admin-react`、`module-explore-react`、`module-studio-react`、`workflow`
-- 运行拓扑：`PlatformHost` 是平台控制面与 API 网关，`AppHost` 是应用运行时数据面；当前前端宿主只有 `app-web`
+- 运行拓扑：当前开发与运行默认统一收敛到 `AppHost`（`5002`）；`PlatformHost` 已废弃，仅保留历史目录与兼容资产；当前前端宿主只有 `app-web`
 - 共享契约：`docs/contracts.md` 定义 API / 画布 / 运行时契约，跨宿主共享类型优先沉淀到 `Atlas.Shared.Contracts` 与前端 workspace packages
 
 完整结构与依赖以仓库实际目录、各项目 `.csproj` / `package.json`、`.cursor/environment.json` 以及 `docs/contracts.md` 为准。
@@ -39,7 +39,6 @@
 ### 后端
 ```bash
 dotnet build                                    # 必须 0 错误 0 警告
-dotnet run --project src/backend/Atlas.PlatformHost   # 平台后端 http://localhost:5001
 dotnet run --project src/backend/Atlas.AppHost        # 应用后端 http://localhost:5002
 dotnet restore
 ```
@@ -49,8 +48,8 @@ dotnet restore
 cd src/frontend
 pnpm install                    # 安装所有 workspace 依赖
 pnpm run dev:app-web            # AppWeb 开发服务器 http://localhost:5181
-pnpm run dev:app-web:platform   # AppWeb 以平台代理模式启动
-pnpm run dev:app-web:direct     # AppWeb 以直连模式启动
+pnpm run dev:app-web:platform   # AppWeb 以平台语义模式启动（开发代理仍统一命中 AppHost）
+pnpm run dev:app-web:direct     # AppWeb 以直连语义模式启动（开发代理同样命中 AppHost）
 pnpm run build                  # 构建前端（当前默认构建 app-web）
 pnpm run build:app-web          # 仅构建 AppWeb
 pnpm run test:unit              # 运行前端单元测试
@@ -243,11 +242,10 @@ pnpm run format                 # 格式化所有项目
 
 | 服务 | 端口 | 启动命令 |
 |---|---|---|
-| PlatformHost | 5001 | `dotnet run --project src/backend/Atlas.PlatformHost` |
 | AppHost | 5002 | `dotnet run --project src/backend/Atlas.AppHost` |
 | AppWeb 开发服务器 | 5181 | `cd src/frontend && pnpm run dev:app-web` |
 
-`app-web` 默认以 `platform` 模式启动；如需直连 `AppHost`，使用 `cd src/frontend && pnpm run dev:app-web:direct`。
+`app-web` 默认以 `platform` 语义模式启动，但本地开发代理统一直达 `AppHost`；如需切换前端运行语义，可使用 `cd src/frontend && pnpm run dev:app-web:direct`。
 
 数据库为嵌入式 SQLite（`atlas.db`），无需外部数据库服务。Hangfire（`hangfire.db`）同样为嵌入式 SQLite 存储。首次启动时会自动创建数据库并初始化 BootstrapAdmin 账号。
 
@@ -256,8 +254,6 @@ pnpm run format                 # 格式化所有项目
 后端在 `Development` 模式下运行，配置来自 `appsettings.Development.json`。标准启动命令：
 
 ```bash
-dotnet run --project src/backend/Atlas.PlatformHost
-# 如需运行应用数据面服务，再启动：
 dotnet run --project src/backend/Atlas.AppHost
 ```
 

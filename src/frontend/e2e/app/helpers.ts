@@ -23,8 +23,8 @@ const appWebPort = process.env.PLAYWRIGHT_APP_WEB_PORT ?? "5181";
 const platformWebPort = process.env.PLAYWRIGHT_PLATFORM_WEB_PORT ?? appWebPort;
 export const platformBaseUrl = `http://127.0.0.1:${platformWebPort}`;
 export const appBaseUrl = `http://127.0.0.1:${appWebPort}`;
-export const platformApiBase = "http://127.0.0.1:5001";
 export const appApiBase = "http://127.0.0.1:5002";
+export const platformApiBase = appApiBase;
 const appWebMode = (process.env.PLAYWRIGHT_APP_WEB_MODE ?? "platform").toLowerCase();
 const usesPlatformControlPlane = appWebMode === "platform";
 
@@ -33,7 +33,7 @@ export const defaultUsername = "admin";
 export const defaultPassword = "P@ssw0rd!";
 
 const e2eRunSeed = process.env.PLAYWRIGHT_E2E_RUN_ID ?? `${Date.now()}-${process.pid}`;
-const platformDatabasePath = `Data Source=${path.resolve(process.cwd(), `../backend/Atlas.PlatformHost/atlas.e2e.platform.${e2eRunSeed}.db`)}`;
+const platformDatabasePath = `Data Source=${path.resolve(process.cwd(), `../backend/Atlas.AppHost/atlas.e2e.platform.${e2eRunSeed}.db`)}`;
 const appDatabasePath = `Data Source=${path.resolve(process.cwd(), `../backend/Atlas.AppHost/atlas.e2e.app.${e2eRunSeed}.db`)}`;
 const appName = "App E2E Regression";
 const e2eDataSourceName = "App E2E DataSource";

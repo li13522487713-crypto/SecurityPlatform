@@ -28,6 +28,42 @@ GET {{baseUrl}}/api/v1/lowcode/apps/100/resources?keyword=order&types=workflow,k
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 列出指定 lowcode 应用的资源绑定
+GET {{baseUrl}}/api/v1/lowcode/apps/100/resources/bindings
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 为指定 lowcode 应用绑定知识库
+POST {{baseUrl}}/api/v1/lowcode/apps/100/resources/bindings
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "resourceType": "knowledge",
+  "resourceId": 200,
+  "role": "default",
+  "displayOrder": 10,
+  "configJson": "{}"
+}
+
+### 更新 lowcode 应用资源绑定
+PUT {{baseUrl}}/api/v1/lowcode/apps/100/resources/bindings/300
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "role": "default",
+  "displayOrder": 20,
+  "configJson": "{\"source\":\"lowcode\"}"
+}
+
+### 解绑 lowcode 应用资源
+DELETE {{baseUrl}}/api/v1/lowcode/apps/100/resources/bindings/knowledge/200
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### --- 应用模板（M07 S07-4 模板市场） ---
 ### 模板搜索
 GET {{baseUrl}}/api/v1/lowcode/templates?keyword=&kind=&pageSize=20
