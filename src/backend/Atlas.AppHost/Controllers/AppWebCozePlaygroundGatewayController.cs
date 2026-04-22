@@ -31,6 +31,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("space/list")]
+    [HttpPost("/api/playground_api/space/list")]
     public async Task<ActionResult<object>> GetSpaceList(
         [FromBody] CozeGetSpaceListRequest? request,
         CancellationToken cancellationToken)
@@ -67,6 +68,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("space/save")]
+    [HttpPost("/api/playground_api/space/save")]
     public async Task<ActionResult<object>> SaveSpace(
         [FromBody] CozeSaveSpaceRequest? request,
         CancellationToken cancellationToken)
@@ -84,6 +86,25 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
             ? workspaces.FirstOrDefault(item => string.Equals(item.Id, targetSpaceId, StringComparison.OrdinalIgnoreCase))
             : workspaces.FirstOrDefault();
 
+        if (matched is null && !string.IsNullOrWhiteSpace(request?.name))
+        {
+            var createdWorkspaceId = await _workspacePortalService.CreateWorkspaceAsync(
+                tenantId,
+                currentUser.UserId,
+                new WorkspaceCreateRequest(
+                    request.name.Trim(),
+                    string.IsNullOrWhiteSpace(request.description) ? null : request.description.Trim(),
+                    null),
+                cancellationToken);
+
+            matched = (await _workspacePortalService.ListWorkspacesAsync(
+                    tenantId,
+                    currentUser.UserId,
+                    currentUser.IsPlatformAdmin,
+                    cancellationToken))
+                .FirstOrDefault(item => string.Equals(item.Id, createdWorkspaceId.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase));
+        }
+
         return Ok(CozeCompatGatewaySupport.Success(new
         {
             id = matched?.Id ?? targetSpaceId ?? string.Empty,
@@ -92,6 +113,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("space/info")]
+    [HttpPost("/api/playground_api/space/info")]
     public async Task<ActionResult<object>> GetSpaceInfo(
         [FromBody] CozeGetSpaceInfoRequest? request,
         CancellationToken cancellationToken)
@@ -128,6 +150,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("get_type_list")]
+    [HttpPost("/api/playground_api/get_type_list")]
     public async Task<ActionResult<object>> GetTypeList(
         [FromBody] CozeGetTypeListRequest? request,
         CancellationToken cancellationToken)
@@ -180,6 +203,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpGet("open/workspaces")]
+    [HttpGet("/v1/workspaces")]
     public async Task<ActionResult<object>> OpenSpaceList(
         [FromQuery(Name = "page_num")] int? pageNum,
         [FromQuery(Name = "page_size")] int? pageSize,
@@ -217,6 +241,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("open/workspaces")]
+    [HttpPost("/v1/workspaces")]
     public async Task<ActionResult<object>> OpenCreateSpace(
         [FromBody] CozeOpenCreateSpaceRequest? request,
         CancellationToken cancellationToken)
@@ -241,6 +266,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpGet("open/workspaces/{workspaceId}/members")]
+    [HttpGet("/v1/workspaces/{workspaceId}/members")]
     public async Task<ActionResult<object>> OpenSpaceMemberList(
         [FromRoute] string workspaceId,
         [FromQuery(Name = "page_num")] int? pageNum,
@@ -277,6 +303,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("open/workspaces/{workspaceId}/members")]
+    [HttpPost("/v1/workspaces/{workspaceId}/members")]
     public async Task<ActionResult<object>> OpenAddSpaceMember(
         [FromRoute] string workspaceId,
         [FromBody] CozeOpenAddSpaceMemberRequest? request,
@@ -337,6 +364,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpDelete("open/workspaces/{workspaceId}/members")]
+    [HttpDelete("/v1/workspaces/{workspaceId}/members")]
     public async Task<ActionResult<object>> OpenRemoveSpaceMember(
         [FromRoute] string workspaceId,
         [FromBody] CozeOpenRemoveSpaceMemberRequest? request,
@@ -388,6 +416,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("open/workspaces/{workspaceId}/members/apply")]
+    [HttpPost("/v1/workspaces/{workspaceId}/members/apply")]
     public ActionResult<object> OpenApplyJoinSpace(
         [FromRoute] string workspaceId,
         [FromBody] CozeOpenApplyJoinSpaceRequest? request)
@@ -412,6 +441,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPut("open/workspaces/{workspaceId}/members/{userId}")]
+    [HttpPut("/v1/workspaces/{workspaceId}/members/{userId}")]
     public async Task<ActionResult<object>> OpenUpdateSpaceMember(
         [FromRoute] string workspaceId,
         [FromRoute] string userId,
@@ -442,6 +472,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpDelete("open/workspaces/{workspaceId}")]
+    [HttpDelete("/v1/workspaces/{workspaceId}")]
     public async Task<ActionResult<object>> OpenRemoveSpace(
         [FromRoute] string workspaceId,
         CancellationToken cancellationToken)
@@ -463,6 +494,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpGet("open/bots/{botId}")]
+    [HttpGet("/v1/bots/{botId}")]
     public ActionResult<object> OpenGetBotInfo([FromRoute] string botId)
     {
         return Ok(CozeCompatGatewaySupport.Success(new
@@ -477,6 +509,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpGet("open/bots/{botId}/versions")]
+    [HttpGet("/v1/bots/{botId}/versions")]
     public ActionResult<object> OpenListBotVersions([FromRoute] string botId)
     {
         return Ok(CozeCompatGatewaySupport.Success(new
@@ -487,6 +520,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpPost("open/bots/{botId}/collaboration_mode")]
+    [HttpPost("/v1/bots/{botId}/collaboration_mode")]
     public ActionResult<object> OpenSwitchBotDevelopMode(
         [FromRoute] string botId,
         [FromBody] CozeOpenSwitchBotDevelopModeRequest? request)
