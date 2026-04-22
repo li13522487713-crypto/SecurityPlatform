@@ -108,6 +108,56 @@ X-Tenant-Id: {{tenantId}}
   "bot_id": "1"
 }
 
+### Coze 原生 developer：connector query schemas
+POST {{host}}/api/connector/query_schemas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "connector_id": "2001",
+  "scene": "bot"
+}
+
+### Coze 原生 developer：connector bind
+POST {{host}}/api/draftbot/bind/connector
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1",
+  "connector_id": "2001",
+  "connector_info": {
+    "endpoint_url": "https://example.test/webhook",
+    "api_key": "demo-key",
+    "share_link": "https://example.test/share/bot-1"
+  },
+  "agent_type": 0
+}
+
+### Coze 原生 developer：publish draftbot
+POST {{host}}/api/draftbot/publish
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1",
+  "publish_id": "compat-publish-1",
+  "history_info": "compat publish",
+  "connectors": {
+    "1001": {},
+    "2001": {
+      "endpoint_url": "https://example.test/webhook",
+      "api_key": "demo-key",
+      "share_link": "https://example.test/share/bot-1"
+    }
+  }
+}
+
 ### Coze 原生 playground：draftbot get_draft_bot_info
 POST {{host}}/api/playground_api/draftbot/get_draft_bot_info
 Content-Type: {{contentType}}

@@ -7,10 +7,23 @@
 - `@atlas/workflow-core-react`、`@atlas/workflow-editor-react`、`@atlas/module-workflow-react` 已删除，不再作为宿主桥接边界。
 - 前端与后端协议当前统一收敛到 `AppHost` 的 Coze 原生路由族：
   - workflow：`/api/workflow_api/*`
-  - developer：`/api/bot/*`、`/api/space/*`、`/api/draftbot/*`
+  - developer：`/api/bot/*`、`/api/space/*`、`/api/draftbot/*`、`/api/connector/*`
   - playground：`/api/playground_api/*`、`/v1/workspaces/*`、`/v1/bots/*`
   - passport：`/api/passport/*`、`/api/web/user/*`、`/api/user/*`
   - intelligence：`/api/intelligence_api/*`
+
+### Coze 原生智能体发布链
+
+- `app-web` 当前已把 `/space/:space_id/bot/:bot_id/publish` 与旧 `/agent/:agentId/publish` 统一接到 `@coze-agent-ide/agent-publish`。
+- 发布页主契约收敛为以下原生路由：
+  - `POST /api/draftbot/publish/connector/list`
+  - `POST /api/draftbot/publish`
+  - `POST /api/connector/query_schemas`
+  - `POST /api/draftbot/bind/get_connector_config`
+  - `POST /api/draftbot/bind/save_connector_config`
+  - `POST /api/draftbot/bind/connector`
+  - `POST /api/draftbot/unbind/connector`
+- 以上路由当前由 `Atlas.AppHost.Controllers.AppWebCozeDeveloperGatewayController` 提供兼容实现，并把渠道配置持久化到 `Atlas.Domain.AiPlatform.Entities.Agent.PublishedConnectorConfigJson`，作为原生 Coze 发布主链的唯一后端落点。
 
 ## Assistant 域命名映射
 
@@ -192,6 +205,15 @@ Tenant
   - `/v1/workspaces/*`
   - `/v1/bots/*`
 - `api/app-web/coze-developer/*` 与 `api/app-web/coze-playground/*` 仍保留为历史兼容入口，但 `app-web` 原生 Coze 接入不再依赖这些私有 gateway。
+- `app-web` 已新增 `/space/:space_id/*` 原生兼容路由组，承接 Coze `workspace-adapter` / `agent-ide` / `library` 内部使用的 `/space/*` 导航：
+  - `/space/:space_id/develop`
+  - `/space/:space_id/library`
+  - `/space/:space_id/bot/:bot_id`
+  - `/space/:space_id/bot/:bot_id/publish`
+  - `/space/:space_id/project-ide/:id`
+  - `/space/:space_id/plugin/:id`
+  - `/space/:space_id/knowledge/:id`
+  - `/space/:space_id/database/:id`
 - 第一批原生直连已接真实服务：
   - `POST /api/playground_api/space/list`
   - `POST /api/playground_api/space/save`

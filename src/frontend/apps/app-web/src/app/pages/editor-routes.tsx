@@ -1,8 +1,7 @@
 import { Suspense, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@douyinfe/semi-ui";
 import {
-  agentPublishPath,
   chatflowEditorPath,
   workspaceProjectsPath,
   workflowEditorPath
@@ -16,13 +15,9 @@ import { TestsetDrawer } from "../components/testset-drawer";
 import { PageShell } from "../_shared";
 import { createAppWebLowcodeStudioHost } from "../lowcode/studio-host";
 
-const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
 const loadLowcodeStudioModule = () => import("@atlas/lowcode-studio-react");
 
-const BotIdePage = lazyNamed(loadStudioModule, "BotIdePage");
-const AssistantPublishPage = lazyNamed(loadStudioModule, "AssistantPublishPage");
-const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
 const LowcodeStudioApp = lazyNamed(loadLowcodeStudioModule, "LowcodeStudioApp");
 
@@ -33,47 +28,18 @@ function EditorLoading() {
 /**
  * 智能体编辑器路由 - `/agent/:agentId/editor`
  *
- * 复用 module-studio-react 的 BotIdePage（即 AgentWorkbench），
- * 包 StudioContextProvider 注入 workspace summary / model configs。
+ * 旧编辑器入口统一重定向到已经接入 Coze 原生壳的 `/space/:space_id/bot/:bot_id`。
  */
 export function AgentEditorRoute() {
   const { agentId = "" } = useParams<{ agentId: string }>();
-  const { locale } = useAppI18n();
-  const navigate = useNavigate();
   const workspace = useWorkspaceContext();
-  const apis = useAppApis(workspace.appKey);
-  const studioApi = apis.studioApi;
-
-  const props = useMemo(() => ({
-    api: studioApi,
-    locale,
-    botId: agentId,
-    onOpenPublish: () => navigate(agentPublishPath(agentId))
-  }), [agentId, locale, navigate, studioApi]);
-
-  return (
-    <Suspense fallback={<EditorLoading />}>
-      <StudioContextProvider api={studioApi}>
-        <BotIdePage {...props} />
-      </StudioContextProvider>
-    </Suspense>
-  );
+  return <Navigate to={`/space/${encodeURIComponent(workspace.id)}/bot/${encodeURIComponent(agentId)}`} replace />;
 }
 
 export function AgentPublishRoute() {
   const { agentId = "" } = useParams<{ agentId: string }>();
-  const { locale } = useAppI18n();
   const workspace = useWorkspaceContext();
-  const apis = useAppApis(workspace.appKey);
-  const studioApi = apis.studioApi;
-
-  return (
-    <Suspense fallback={<EditorLoading />}>
-      <StudioContextProvider api={studioApi}>
-        <AssistantPublishPage api={studioApi} locale={locale} assistantId={agentId} />
-      </StudioContextProvider>
-    </Suspense>
-  );
+  return <Navigate to={`/space/${encodeURIComponent(workspace.id)}/bot/${encodeURIComponent(agentId)}/publish`} replace />;
 }
 
 export function AppEditorRoute() {

@@ -1,9 +1,12 @@
 using System.Globalization;
+using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Infrastructure.Repositories;
 using Atlas.Presentation.Shared.Controllers.Ai;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,6 +19,7 @@ namespace Atlas.AppHost.Controllers;
 [Authorize]
 public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IWorkspacePortalService _workspacePortalService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
@@ -433,55 +437,358 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
 
     [HttpPost("draftbot/publish/connector/list")]
     [HttpPost("/api/draftbot/publish/connector/list")]
-    public ActionResult<object> PublishConnectorList(
-        [FromBody] CozeDraftBotPublishConnectorListRequest? request)
+    public async Task<ActionResult<object>> PublishConnectorList(
+        [FromBody] CozeDraftBotPublishConnectorListRequest? request,
+        CancellationToken cancellationToken)
     {
-        var botId = request?.bot_id ?? string.Empty;
+        var connectorState = TryParsePositiveId(request?.bot_id, out var botId)
+            ? await LoadAgentConnectorStateAsync(botId, cancellationToken)
+            : null;
+        var state = connectorState?.State ?? new CozeCompatConnectorStateDocument();
+        var publishConnectors = SupportedPublishConnectors
+            .Select(definition => BuildPublishConnectorPayload(definition, state, request?.space_id, request?.bot_id))
+            .ToArray();
+
         return Ok(new
         {
             code = 0,
             msg = "success",
-            publish_connector_list = new object[]
-            {
-                new
-                {
-                    id = "1001",
-                    name = "Web SDK",
-                    icon = string.Empty,
-                    desc = "Atlas Web SDK publish channel",
-                    share_link = string.Empty,
-                    config_status = 1,
-                    last_publish_time = "0",
-                    bind_type = 5,
-                    bind_info = new Dictionary<string, string>(),
-                    bind_id = string.Empty,
-                    is_last_published = true,
-                    connector_status = 0,
-                    privacy_policy = string.Empty,
-                    user_agreement = string.Empty,
-                    allow_punish = 0,
-                    not_allow_reason = string.Empty,
-                    config_status_toast = string.Empty,
-                    brand_id = "1001",
-                    support_monetization = false
-                }
-            },
+            publish_connector_list = publishConnectors,
             submit_bot_market_option = new
             {
                 can_open_source = true
             },
-            connector_brand_info_map = new Dictionary<string, object>
-            {
-                ["1001"] = new
-                {
-                    id = "1001",
-                    name = "Web SDK",
-                    icon = string.Empty
-                }
-            },
+            connector_brand_info_map = SupportedPublishConnectors
+                .Where(definition => !string.IsNullOrWhiteSpace(definition.BrandId))
+                .ToDictionary(
+                    definition => definition.BrandId!,
+                    definition => (object)new
+                    {
+                        id = definition.BrandId!,
+                        name = definition.Name,
+                        icon = definition.Icon
+                    },
+                    StringComparer.OrdinalIgnoreCase),
             publish_tips = new
             {
-                cost_tips = string.IsNullOrWhiteSpace(botId) ? string.Empty : "Compat publish tips"
+                cost_tips = string.IsNullOrWhiteSpace(request?.bot_id)
+                    ? string.Empty
+                    : "Compat publish tips"
+            }
+        });
+    }
+
+    [HttpPost("connector/query_schemas")]
+    [HttpPost("/api/connector/query_schemas")]
+    public ActionResult<object> QueryConnectorSchemas([FromBody] CozeQueryConnectorSchemaRequest? request)
+    {
+        var connector = GetSupportedConnector(request?.connector_id);
+        if (connector is null || connector.SchemaFields.Count == 0)
+        {
+            return Ok(new
+            {
+                code = 0,
+                msg = "success",
+                title_text = string.Empty,
+                start_text = string.Empty,
+                schema_area_pages = Array.Empty<object>()
+            });
+        }
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            title_text = connector.ConfigureTitle,
+            start_text = connector.ConfigureDescription,
+            schema_area_pages = new object[]
+            {
+                new
+                {
+                    schema_area = new
+                    {
+                        title_text = connector.ConfigureTitle,
+                        description = connector.ConfigureDescription,
+                        step_order = 1,
+                        schema_list = connector.SchemaFields.Select(field => new
+                        {
+                            name = field.Name,
+                            title = field.Title,
+                            required = field.Required,
+                            component = "Input",
+                            type = "string",
+                            rules = field.Required
+                                ? new object[]
+                                {
+                                    new
+                                    {
+                                        required = true,
+                                        message = $"{field.Title} is required"
+                                    }
+                                }
+                                : Array.Empty<object>()
+                        }).ToArray()
+                    }
+                }
+            }
+        });
+    }
+
+    [HttpPost("draftbot/bind/get_connector_config")]
+    [HttpPost("/api/draftbot/bind/get_connector_config")]
+    public async Task<ActionResult<object>> GetBindConnectorConfig(
+        [FromBody] CozeDraftBotConnectorConfigRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var connectorContext = await LoadAgentConnectorStateAsync(botId, cancellationToken);
+        if (connectorContext is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        var definition = GetSupportedConnector(request?.connector_id);
+        if (definition is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("connector_id is invalid"));
+        }
+
+        var connectorState = GetOrCreateConnectorState(connectorContext.Value.State, definition);
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            config = new
+            {
+                connector_id = definition.Id,
+                app_id = connectorState.AppId ?? string.Empty,
+                detail = connectorState.Detail
+            }
+        });
+    }
+
+    [HttpPost("draftbot/bind/save_connector_config")]
+    [HttpPost("/api/draftbot/bind/save_connector_config")]
+    public async Task<ActionResult<object>> SaveBindConnectorConfig(
+        [FromBody] CozeDraftBotConnectorConfigRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var connectorContext = await LoadAgentConnectorStateAsync(botId, cancellationToken);
+        if (connectorContext is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        var definition = GetSupportedConnector(request?.connector_id);
+        if (definition is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("connector_id is invalid"));
+        }
+
+        var connectorState = GetOrCreateConnectorState(connectorContext.Value.State, definition);
+        connectorState.AppId = request?.app_id;
+        connectorState.Detail = NormalizeConnectorDetail(request?.detail);
+        await PersistAgentConnectorStateAsync(connectorContext.Value.Entity, connectorContext.Value.State, cancellationToken);
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success"
+        });
+    }
+
+    [HttpPost("draftbot/bind/connector")]
+    [HttpPost("/api/draftbot/bind/connector")]
+    public async Task<ActionResult<object>> BindConnector(
+        [FromBody] CozeBindConnectorCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var connectorContext = await LoadAgentConnectorStateAsync(botId, cancellationToken);
+        if (connectorContext is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        var definition = GetSupportedConnector(request?.connector_id);
+        if (definition is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("connector_id is invalid"));
+        }
+
+        var connectorState = GetOrCreateConnectorState(connectorContext.Value.State, definition);
+        connectorState.Detail = NormalizeConnectorDetail(request?.connector_info);
+        connectorState.BindId = string.IsNullOrWhiteSpace(connectorState.BindId)
+            ? Guid.NewGuid().ToString("N")
+            : connectorState.BindId;
+        connectorState.ConfigStatus = definition.DefaultConfiguredStatus;
+        connectorState.ConnectorStatus = 0;
+        await PersistAgentConnectorStateAsync(connectorContext.Value.Entity, connectorContext.Value.State, cancellationToken);
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            bind_id = connectorState.BindId,
+            bind_bot_id = request?.bot_id ?? string.Empty,
+            bind_bot_name = connectorContext.Value.Entity.Name,
+            bind_space_id = connectorContext.Value.Entity.WorkspaceId?.ToString(CultureInfo.InvariantCulture) ?? request?.space_id ?? string.Empty,
+            bind_agent_type = request?.agent_type ?? 0
+        });
+    }
+
+    [HttpPost("draftbot/unbind/connector")]
+    [HttpPost("/api/draftbot/unbind/connector")]
+    public async Task<ActionResult<object>> UnBindConnector(
+        [FromBody] CozeUnBindConnectorCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var connectorContext = await LoadAgentConnectorStateAsync(botId, cancellationToken);
+        if (connectorContext is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        var definition = GetSupportedConnector(request?.connector_id);
+        if (definition is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("connector_id is invalid"));
+        }
+
+        var connectorState = GetOrCreateConnectorState(connectorContext.Value.State, definition);
+        connectorState.BindId = string.Empty;
+        connectorState.Detail = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        connectorState.ConfigStatus = 2;
+        connectorState.ConnectorStatus = 0;
+        await PersistAgentConnectorStateAsync(connectorContext.Value.Entity, connectorContext.Value.State, cancellationToken);
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success"
+        });
+    }
+
+    [HttpPost("draftbot/publish")]
+    [HttpPost("/api/draftbot/publish")]
+    public async Task<ActionResult<object>> PublishDraftBot(
+        [FromBody] CozePublishDraftBotCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var connectorContext = await LoadAgentConnectorStateAsync(botId, cancellationToken);
+        if (connectorContext is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        var selectedConnectorIds = request?.connectors?.Keys
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray()
+            ?? Array.Empty<string>();
+        if (selectedConnectorIds.Length == 0)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("connectors are required"));
+        }
+
+        var publishResult = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        var now = DateTimeOffset.UtcNow;
+        var hasSuccess = false;
+        foreach (var connectorId in selectedConnectorIds)
+        {
+            var definition = GetSupportedConnector(connectorId);
+            if (definition is null)
+            {
+                publishResult[connectorId] = BuildPublishResultPayload(
+                    connector: new
+                    {
+                        id = connectorId,
+                        name = connectorId,
+                        share_link = string.Empty,
+                        bind_info = new Dictionary<string, string>()
+                    },
+                    status: 2,
+                    message: "connector is not supported");
+                continue;
+            }
+
+            var connectorState = GetOrCreateConnectorState(connectorContext.Value.State, definition);
+            var requestConnectorDetail = request?.connectors is not null && request.connectors.TryGetValue(connectorId, out var submittedDetail)
+                ? NormalizeConnectorDetail(submittedDetail)
+                : connectorState.Detail;
+            if (requestConnectorDetail.Count > 0)
+            {
+                connectorState.Detail = requestConnectorDetail;
+            }
+
+            if (definition.RequiresBinding && string.IsNullOrWhiteSpace(connectorState.BindId))
+            {
+                publishResult[connectorId] = BuildPublishResultPayload(
+                    connector: BuildPublishResultConnectorPayload(definition, connectorState, request?.space_id, request?.bot_id),
+                    status: 2,
+                    message: "connector is not configured");
+                continue;
+            }
+
+            connectorState.LastPublishedAt = now.ToUnixTimeMilliseconds();
+            connectorState.LastPublishId = request?.publish_id;
+            connectorState.LastCommitVersion = request?.commit_version;
+            connectorState.LastHistoryInfo = request?.history_info;
+            connectorState.IsLastPublished = true;
+            connectorState.ShareLink = BuildConnectorShareLink(definition, request?.space_id, request?.bot_id);
+            connectorState.ConfigStatus = definition.DefaultConfiguredStatus;
+            connectorState.ConnectorStatus = 0;
+            publishResult[connectorId] = BuildPublishResultPayload(
+                connector: BuildPublishResultConnectorPayload(definition, connectorState, request?.space_id, request?.bot_id),
+                status: 1,
+                message: string.Empty);
+            hasSuccess = true;
+        }
+
+        if (hasSuccess)
+        {
+            var commandService = HttpContext.RequestServices.GetService<IAgentCommandService>();
+            if (commandService is not null)
+            {
+                await commandService.PublishAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+            }
+        }
+
+        await PersistAgentConnectorStateAsync(connectorContext.Value.Entity, connectorContext.Value.State, cancellationToken);
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            data = new
+            {
+                publish_result = publishResult,
+                check_not_pass = false,
+                hit_manual_check = false,
+                publish_monetization_result = false
             }
         });
     }
@@ -570,6 +877,234 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
             avatar_url = string.Empty,
             user_unique_name = currentUser.Username,
             user_label = new { }
+        };
+    }
+
+    private static readonly IReadOnlyList<CozeCompatConnectorDefinition> SupportedPublishConnectors =
+    [
+        new(
+            "1001",
+            "Web SDK",
+            string.Empty,
+            "Atlas Web SDK publish channel",
+            bindType: 6,
+            defaultConfiguredStatus: 1,
+            brandId: "1001",
+            requiresBinding: false,
+            configureTitle: "Web SDK",
+            configureDescription: "Web SDK channel is ready to publish without extra configuration.",
+            schemaFields: Array.Empty<CozeCompatConnectorSchemaField>()),
+        new(
+            "2001",
+            "Generic Endpoint",
+            string.Empty,
+            "Configurable endpoint publish channel",
+            bindType: 3,
+            defaultConfiguredStatus: 1,
+            brandId: null,
+            requiresBinding: true,
+            configureTitle: "Configure Generic Endpoint",
+            configureDescription: "Provide the endpoint address and token that Coze native publish should use.",
+            schemaFields:
+            [
+                new("endpoint_url", "Endpoint URL", true),
+                new("api_key", "API Key", false),
+                new("share_link", "Share Link", false)
+            ])
+    ];
+
+    private static CozeCompatConnectorDefinition? GetSupportedConnector(string? connectorId)
+        => SupportedPublishConnectors.FirstOrDefault(item => string.Equals(item.Id, connectorId, StringComparison.OrdinalIgnoreCase));
+
+    private async Task<(Agent Entity, CozeCompatConnectorStateDocument State)?> LoadAgentConnectorStateAsync(long botId, CancellationToken cancellationToken)
+    {
+        var repository = HttpContext.RequestServices.GetService<AgentRepository>();
+        if (repository is null)
+        {
+            return null;
+        }
+
+        var entity = await repository.FindByIdAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (entity is null)
+        {
+            return null;
+        }
+
+        return (entity, ParseConnectorStateDocument(entity.PublishedConnectorConfigJson));
+    }
+
+    private async Task PersistAgentConnectorStateAsync(
+        Agent entity,
+        CozeCompatConnectorStateDocument state,
+        CancellationToken cancellationToken)
+    {
+        var repository = HttpContext.RequestServices.GetService<AgentRepository>();
+        if (repository is null)
+        {
+            return;
+        }
+
+        entity.Update(
+            entity.Name,
+            entity.Description,
+            entity.AvatarUrl,
+            entity.SystemPrompt,
+            entity.PersonaMarkdown,
+            entity.Goals,
+            entity.ReplyLogic,
+            entity.OutputFormat,
+            entity.Constraints,
+            entity.OpeningMessage,
+            entity.PresetQuestionsJson,
+            entity.DatabaseBindingsJson,
+            entity.VariableBindingsJson,
+            entity.ModelConfigId,
+            entity.ModelName,
+            entity.Temperature,
+            entity.MaxTokens,
+            entity.DefaultWorkflowId,
+            entity.DefaultWorkflowName,
+            entity.EnableMemory,
+            entity.EnableShortTermMemory,
+            entity.EnableLongTermMemory,
+            entity.LongTermMemoryTopK,
+            entity.Mode,
+            entity.PromptVersion,
+            entity.LayoutConfigJson,
+            entity.DebugConfigJson,
+            JsonSerializer.Serialize(state, JsonOptions),
+            entity.WorkspaceId);
+        await repository.UpdateAsync(entity, cancellationToken);
+    }
+
+    private static CozeCompatConnectorStateDocument ParseConnectorStateDocument(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new CozeCompatConnectorStateDocument();
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<CozeCompatConnectorStateDocument>(json, JsonOptions);
+            return parsed ?? new CozeCompatConnectorStateDocument();
+        }
+        catch
+        {
+            return new CozeCompatConnectorStateDocument();
+        }
+    }
+
+    private static CozeCompatConnectorItemState GetOrCreateConnectorState(
+        CozeCompatConnectorStateDocument state,
+        CozeCompatConnectorDefinition definition)
+    {
+        if (!state.Connectors.TryGetValue(definition.Id, out var connectorState))
+        {
+            connectorState = new CozeCompatConnectorItemState
+            {
+                ConfigStatus = definition.RequiresBinding ? 2 : definition.DefaultConfiguredStatus,
+                ConnectorStatus = 0,
+                IsLastPublished = true
+            };
+            state.Connectors[definition.Id] = connectorState;
+        }
+
+        connectorState.Detail = NormalizeConnectorDetail(connectorState.Detail);
+        return connectorState;
+    }
+
+    private static Dictionary<string, string> NormalizeConnectorDetail(IDictionary<string, string>? detail)
+    {
+        return detail?
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key))
+            .ToDictionary(
+                item => item.Key.Trim(),
+                item => item.Value ?? string.Empty,
+                StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static object BuildPublishConnectorPayload(
+        CozeCompatConnectorDefinition definition,
+        CozeCompatConnectorStateDocument state,
+        string? spaceId,
+        string? botId)
+    {
+        var connectorState = GetOrCreateConnectorState(state, definition);
+        var shareLink = string.IsNullOrWhiteSpace(connectorState.ShareLink)
+            ? BuildConnectorShareLink(definition, spaceId, botId)
+            : connectorState.ShareLink!;
+        return new
+        {
+            id = definition.Id,
+            name = definition.Name,
+            icon = definition.Icon,
+            desc = definition.Description,
+            share_link = shareLink,
+            config_status = connectorState.ConfigStatus <= 0
+                ? (definition.RequiresBinding ? 2 : definition.DefaultConfiguredStatus)
+                : connectorState.ConfigStatus,
+            last_publish_time = connectorState.LastPublishedAt,
+            bind_type = definition.BindType,
+            bind_info = connectorState.Detail,
+            bind_id = connectorState.BindId ?? string.Empty,
+            is_last_published = connectorState.IsLastPublished,
+            connector_status = connectorState.ConnectorStatus,
+            privacy_policy = string.Empty,
+            user_agreement = string.Empty,
+            allow_punish = 0,
+            not_allow_reason = string.Empty,
+            config_status_toast = string.Empty,
+            brand_id = definition.BrandId,
+            support_monetization = false
+        };
+    }
+
+    private static string BuildConnectorShareLink(
+        CozeCompatConnectorDefinition definition,
+        string? spaceId,
+        string? botId)
+    {
+        if (!string.Equals(definition.Id, "1001", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(spaceId) || string.IsNullOrWhiteSpace(botId))
+        {
+            return string.Empty;
+        }
+
+        return $"/space/{spaceId}/bot/{botId}";
+    }
+
+    private static object BuildPublishResultConnectorPayload(
+        CozeCompatConnectorDefinition definition,
+        CozeCompatConnectorItemState state,
+        string? spaceId,
+        string? botId)
+    {
+        return new
+        {
+            id = definition.Id,
+            name = definition.Name,
+            icon = definition.Icon,
+            share_link = string.IsNullOrWhiteSpace(state.ShareLink)
+                ? BuildConnectorShareLink(definition, spaceId, botId)
+                : state.ShareLink,
+            bind_info = state.Detail
+        };
+    }
+
+    private static object BuildPublishResultPayload(object connector, int status, string message)
+    {
+        return new
+        {
+            connector,
+            code = status == 1 ? 0 : 1,
+            msg = message,
+            publish_result_status = status
         };
     }
 
@@ -670,3 +1205,93 @@ public sealed record CozeDraftBotPublishConnectorListRequest(
     string? space_id,
     string? bot_id,
     string? commit_version);
+
+public sealed record CozeQueryConnectorSchemaRequest(
+    string? connector_id,
+    string? scene);
+
+public sealed record CozeDraftBotConnectorConfigRequest(
+    string? space_id,
+    string? bot_id,
+    string? connector_id,
+    string? app_id,
+    Dictionary<string, string>? detail,
+    long? agent_type);
+
+public sealed record CozeBindConnectorCompatRequest(
+    string? space_id,
+    string? bot_id,
+    string? connector_id,
+    Dictionary<string, string>? connector_info,
+    long? agent_type);
+
+public sealed record CozeUnBindConnectorCompatRequest(
+    string? space_id,
+    string? bot_id,
+    string? connector_id,
+    string? bind_id,
+    long? agent_type);
+
+public sealed record CozePublishDraftBotCompatRequest(
+    string? space_id,
+    string? bot_id,
+    CozeDraftBotWorkInfoCompat? work_info,
+    Dictionary<string, Dictionary<string, string>>? connector_list,
+    Dictionary<string, Dictionary<string, string>>? connectors,
+    int? botMode,
+    string? canvas_data,
+    string? publish_id,
+    string? commit_version,
+    int? publish_type,
+    string? pre_publish_ext,
+    string? history_info);
+
+public sealed record CozeCompatConnectorDefinition(
+    string Id,
+    string Name,
+    string Icon,
+    string Description,
+    int BindType,
+    int DefaultConfiguredStatus,
+    string? BrandId,
+    bool RequiresBinding,
+    string ConfigureTitle,
+    string ConfigureDescription,
+    IReadOnlyList<CozeCompatConnectorSchemaField> SchemaFields);
+
+public sealed record CozeCompatConnectorSchemaField(
+    string Name,
+    string Title,
+    bool Required);
+
+public sealed class CozeCompatConnectorStateDocument
+{
+    public Dictionary<string, CozeCompatConnectorItemState> Connectors { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class CozeCompatConnectorItemState
+{
+    public string? BindId { get; set; }
+
+    public string? AppId { get; set; }
+
+    public Dictionary<string, string> Detail { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public long LastPublishedAt { get; set; }
+
+    public string? LastPublishId { get; set; }
+
+    public string? LastCommitVersion { get; set; }
+
+    public string? LastHistoryInfo { get; set; }
+
+    public string? ShareLink { get; set; }
+
+    public int ConfigStatus { get; set; }
+
+    public int ConnectorStatus { get; set; }
+
+    public bool IsLastPublished { get; set; } = true;
+}
