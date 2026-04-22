@@ -18,18 +18,29 @@ export function useDraftAutosave(appId: string | undefined): void {
   const { api } = useLowcodeStudioHost();
   const sessionIdRef = useRef<string>(`studio-${Math.random().toString(36).slice(2)}-${Date.now()}`);
   const lastDraftJsonRef = useRef<string | null>(null);
+  const lockHeldRef = useRef(false);
 
   useEffect(() => {
     if (!appId) return;
     const sessionId = sessionIdRef.current;
+    lockHeldRef.current = false;
     let cancelled = false;
 
-    // 启动时尝试获取锁；忽略冲突（多 tab 共存仍可只读）
-    void api.draftLock.acquire(appId, sessionId).catch(() => undefined);
+    // 启动时尝试获取锁；未拿到锁时保持只读，不再继续心跳/自动保存。
+    void api.draftLock.acquire(appId, sessionId)
+      .then((result) => {
+        lockHeldRef.current = Boolean(result.acquired);
+      })
+      .catch(() => {
+        lockHeldRef.current = false;
+      });
 
     // 30s 去抖 autosave 兜底（用于"无操作期间也保持 latest"），此处用 setInterval 保守实现；
     // 复杂的局部 schema 变更去抖由各编辑组件实时调用 autosave 实现。
     const autosaveTimer = window.setInterval(async () => {
+      if (!lockHeldRef.current) {
+        return;
+      }
       try {
         const draft = await api.apps.getDraft(appId);
         // 仅当 schemaJson 与上次不同才写回（避免无意义重复写库 + 审计噪音）
@@ -50,11 +61,19 @@ export function useDraftAutosave(appId: string | undefined): void {
 
     // 心跳 30s 一次（与 60s TTL 配合，保留 30s 容错窗口）
     const renewTimer = window.setInterval(() => {
-      void api.draftLock.renew(appId, sessionId).catch(() => undefined);
+      if (!lockHeldRef.current) {
+        return;
+      }
+      void api.draftLock.renew(appId, sessionId).catch(() => {
+        lockHeldRef.current = false;
+      });
     }, 30_000);
 
     // 离开页面时释放锁
     const onBeforeUnload = () => {
+      if (!lockHeldRef.current) {
+        return;
+      }
       try {
         void api.draftLock.release(appId, sessionId);
       } catch {
@@ -68,7 +87,10 @@ export function useDraftAutosave(appId: string | undefined): void {
       window.clearInterval(autosaveTimer);
       window.clearInterval(renewTimer);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      void api.draftLock.release(appId, sessionId).catch(() => undefined);
+      if (lockHeldRef.current) {
+        void api.draftLock.release(appId, sessionId).catch(() => undefined);
+      }
+      lockHeldRef.current = false;
       // 防止悬挂引用警告
       void cancelled;
     };

@@ -13,6 +13,7 @@ import {
 } from "@atlas/lowcode-studio-react/services";
 import { createElement } from "react";
 import { LowcodeWorkflowEmbed } from "./workflow-embed";
+import { createWorkflow } from "../../services/api-workflow";
 import {
   getAccessToken,
   getAuthProfile,
@@ -104,6 +105,26 @@ export function createAppWebLowcodeStudioHost(): LowcodeStudioHostConfig {
       reconnectDelaysMs: [0, 1000, 3000, 5000]
     },
     renderWorkflowEditor: (props) => createElement(LowcodeWorkflowEmbed, props),
+    createWorkflow: async ({ appId, name, description, workspaceId }) => {
+      const response = await createWorkflow({
+        name,
+        description,
+        mode: 0,
+        workspaceId
+      });
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "创建工作流失败");
+      }
+      const workflowId = response.data;
+      // 绑定工作流到当前低代码 App，使其出现在 resources.search(appId) 结果中
+      // 否则新建的 WorkflowMeta 行缺少 AiAppResourceBinding，左侧面板刷新后看不到
+      await requestJson(
+        `/api/v1/lowcode/apps/${encodeURIComponent(appId)}/resources/bindings`,
+        "POST",
+        { resourceType: "workflow", resourceId: Number(workflowId) }
+      );
+      return { workflowId };
+    },
     auth: {
       accessTokenFactory: () => getAccessToken() ?? "",
       tenantIdFactory: () => getTenantId() ?? DEFAULT_TENANT_ID,

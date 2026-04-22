@@ -167,12 +167,41 @@ function mapAtlasModelConfigToModel(item: AtlasEnabledModelConfig): Model {
   };
 }
 
+/**
+ * Read the atlas auth token from storage using the same key convention
+ * as shared-react-core/utils/auth.ts (namespace: "atlas").
+ * We avoid importing @atlas/shared-react-core here because @coze-workflow/nodes
+ * does not (and should not) depend on atlas-internal packages.
+ */
+function readAtlasAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (typeof window === 'undefined') return headers;
+
+  const ns = 'atlas';
+  try {
+    const token =
+      window.sessionStorage.getItem(`${ns}_access_token`) ??
+      window.localStorage.getItem(`${ns}_access_token`);
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const tenantId = window.localStorage.getItem(`${ns}_tenant_id`);
+    if (tenantId) {
+      headers['X-Tenant-Id'] = tenantId;
+    }
+  } catch {
+    // Storage access may fail in restricted environments; fall back gracefully.
+  }
+  return headers;
+}
+
 async function getAtlasEnabledModels(): Promise<Model[]> {
   const response = await fetch('/api/v1/model-configs/enabled', {
     credentials: 'include',
     headers: {
       'content-type': 'application/json',
       'x-requested-with': 'XMLHttpRequest',
+      ...readAtlasAuthHeaders(),
     },
   });
   if (!response.ok) {

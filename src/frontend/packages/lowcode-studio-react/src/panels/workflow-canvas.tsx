@@ -42,8 +42,20 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ appId, workspace
     );
   }
 
+  // key 随 workflowId 变化，切换工作流时强制 remount
+  // 避免 @coze-workflow/playground 内部 inversify 容器与 Zustand store 持有上一个工作流的状态
   return (
-    <div style={{ height: '100%', width: '100%', overflow: 'hidden' }}>
+    <div
+      key={selectedWorkflowId}
+      style={{
+        height: '100%',
+        width: '100%',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#fafafa'
+      }}
+    >
       {renderWorkflowEditor({ appId, workflowId: selectedWorkflowId, workspaceId, workspaceLabel })}
     </div>
   );

@@ -18,6 +18,7 @@ export type {
   LowcodeStudioAuth,
   LowcodeStudioHostConfig,
   LowcodeWorkflowEditorProps,
+  LowcodeWorkflowCreateRequest,
   ProjectIdeBootstrapApi,
   LowcodeValidationApi,
   LowcodePublishApi,

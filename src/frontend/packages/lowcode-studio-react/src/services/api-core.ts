@@ -324,6 +324,19 @@ export interface RuntimeTrace {
   spans: RuntimeTraceSpan[];
 }
 
+export interface AppDraftLockInfo {
+  appId: string | number;
+  ownerUserId: string | number;
+  sessionId: string;
+  acquiredAt: string;
+  lastRenewedAt: string;
+}
+
+export interface AppDraftLockResult {
+  acquired: boolean;
+  lock?: AppDraftLockInfo | null;
+}
+
 export function createLowcodeApi(requestImpl: LowcodeRequest) {
   return {
   apps: {
@@ -399,10 +412,10 @@ export function createLowcodeApi(requestImpl: LowcodeRequest) {
     rollback: (appId: string, artifactId: string) => requestImpl<unknown>('POST', `/apps/${appId}/publish/rollback`, { artifactId } as never)
   },
   draftLock: {
-    acquire: (appId: string, sessionId: string) => requestImpl<unknown>('POST', `/apps/${appId}/draft-lock/acquire`, { sessionId } as never),
+    acquire: (appId: string, sessionId: string) => requestImpl<AppDraftLockResult>('POST', `/apps/${appId}/draft-lock/acquire`, { sessionId } as never),
     renew: (appId: string, sessionId: string) => requestImpl<unknown>('POST', `/apps/${appId}/draft-lock/renew`, { sessionId } as never),
     release: (appId: string, sessionId: string) => requestImpl<unknown>('POST', `/apps/${appId}/draft-lock/release`, { sessionId } as never),
-    status: (appId: string) => requestImpl<unknown>('GET', `/apps/${appId}/draft-lock/status`)
+    status: (appId: string) => requestImpl<AppDraftLockInfo | null>('GET', `/apps/${appId}/draft-lock/status`)
   },
   components: {
     registry: (renderer = 'web') => requestImpl<ComponentRegistry>('GET', `/components/registry?renderer=${renderer}`)

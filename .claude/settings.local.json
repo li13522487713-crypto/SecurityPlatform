@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(pnpm --filter @atlas/lowcode-studio-react exec tsc --noEmit)",
-      "Bash(pnpm exec *)"
+      "Bash(pnpm exec *)",
+      "Bash(xargs grep *)",
+      "Bash(xargs cat *)",
+      "Bash(find /d/Code/Web_SaaS_Backend/SecurityPlatform/src/frontend -name \"package.json\" -path \"*lowcode-studio-react*\" -exec cat {} \\\\;)",
+      "Bash(pnpm --filter @atlas/app-web exec tsc --noEmit)",
+      "Bash(npx tsc *)"
     ]
   }
 }

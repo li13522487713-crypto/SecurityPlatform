@@ -44,23 +44,36 @@ export interface LowcodeStudioAppProps {
 }
 
 export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale, host, workspaceId, workspaceLabel }) => {
-  const [topMode, setTopMode] = useState<'business' | 'ui'>('ui');
-
   useEffect(() => {
     if (locale) {
       setLocale(locale);
     }
   }, [locale]);
 
-  // 必须在条件性 return 之前调用 hook，否则违反 React Rules of Hooks
-  useStudioCommands({ appId });
-  // P1-3：30s 去抖 autosave 兜底 + draftLock 心跳（PLAN §M04 S04-1 + S04-2）
-  useDraftAutosave(appId);
-
   if (!appId) return <Empty title="缺少应用 ID" />;
 
   return (
     <LowcodeStudioHostProvider host={host}>
+      <LowcodeStudioShell appId={appId} workspaceId={workspaceId} workspaceLabel={workspaceLabel} />
+    </LowcodeStudioHostProvider>
+  );
+};
+
+interface LowcodeStudioShellProps {
+  appId: string;
+  workspaceId?: string;
+  workspaceLabel?: string;
+}
+
+function LowcodeStudioShell({ appId, workspaceId, workspaceLabel }: LowcodeStudioShellProps) {
+  const [topMode, setTopMode] = useState<'business' | 'ui'>('business');
+
+  useStudioCommands({ appId });
+  // 这些 hook 必须在宿主 Provider 内执行，才能拿到 app-web 注入的 host.api/auth。
+  useDraftAutosave(appId);
+
+  return (
+    <>
       <QueryClientProvider client={studioQueryClient}>
         <Layout style={{ height: '100vh' }}>
           <Header>
@@ -91,7 +104,7 @@ export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, local
           ) : (
             <Layout>
               <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
-                <WorkflowLeftPanel appId={appId} />
+                <WorkflowLeftPanel appId={appId} workspaceId={workspaceId} />
               </Sider>
               <Content>
                 <WorkflowCanvas appId={appId} workspaceId={workspaceId} workspaceLabel={workspaceLabel} />
@@ -101,6 +114,6 @@ export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, local
           <ShortcutPanel />
         </Layout>
       </QueryClientProvider>
-    </LowcodeStudioHostProvider>
+    </>
   );
-};
+}

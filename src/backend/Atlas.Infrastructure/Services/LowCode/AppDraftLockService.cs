@@ -43,7 +43,7 @@ public sealed class AppDraftLockService : IAppDraftLockService
             }
             // 同一持有者重新获取 / 已过期由本人接管
             existing.Takeover(userId, sessionId);
-            await _db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
+            await UpdateLockAsync(tenantId, existing, appId, cancellationToken);
             await _auditWriter.WriteAsync(new AuditRecord(tenantId, userId.ToString(), "lowcode.app.draft.lock.acquire", "success", $"app:{appId}", null, null), cancellationToken);
             return new AppDraftLockResult(true, ToInfo(existing));
         }
@@ -62,8 +62,10 @@ public sealed class AppDraftLockService : IAppDraftLockService
         if (existing is null) return false;
         if (!string.Equals(existing.SessionId, sessionId, StringComparison.Ordinal)) return false;
         existing.Renew(sessionId);
-        await _db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
-        return true;
+        var affectedRows = await _db.Updateable(existing)
+            .Where(x => x.Id == existing.Id && x.TenantIdValue == tenantId.Value && x.AppId == appId && x.SessionId == sessionId)
+            .ExecuteCommandAsync(cancellationToken);
+        return affectedRows > 0;
     }
 
     public async Task ReleaseAsync(TenantId tenantId, long appId, string sessionId, CancellationToken cancellationToken)
@@ -89,7 +91,7 @@ public sealed class AppDraftLockService : IAppDraftLockService
             return await TryAcquireAsync(tenantId, appId, newOwnerUserId, newSessionId, cancellationToken);
         }
         existing.Takeover(newOwnerUserId, newSessionId);
-        await _db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
+        await UpdateLockAsync(tenantId, existing, appId, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, newOwnerUserId.ToString(), "lowcode.app.draft.lock.takeover", "success", $"app:{appId}:from-user:{existing.OwnerUserId}", null, null), cancellationToken);
         return new AppDraftLockResult(true, ToInfo(existing));
     }
@@ -100,6 +102,13 @@ public sealed class AppDraftLockService : IAppDraftLockService
             .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId)
             .FirstAsync(cancellationToken);
         return existing is null ? null : ToInfo(existing);
+    }
+
+    private async Task UpdateLockAsync(TenantId tenantId, AppDraftLock entity, long appId, CancellationToken cancellationToken)
+    {
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == tenantId.Value && x.AppId == appId)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     private static AppDraftLockInfo ToInfo(AppDraftLock l) =>

@@ -263,6 +263,19 @@ export class WorkflowPlaygroundContext implements PlaygroundContext {
     isSupportImageflowNodes = false,
   ): NodeCategory[] {
     const isBindDouyin = Boolean(this.globalState?.isBindDouyin);
+    const CATEGORY_NAME_MAPPING: Record<string, string> = {
+      'flow': '业务逻辑',
+      'ai': '大模型',
+      'data': '数据处理',
+      'external': '外部能力',
+      'knowledge': '知识库&数据',
+      'database': '数据库',
+      'conversation': '会话管理',
+      'io': '输入&输出',
+      'trigger': '触发器',
+      'image': '图像生成',
+      'video': '视频处理'
+    };
     const nodeCategoryList =
       this.nodeCategoryList.length !== 0
         ? this.nodeCategoryList
@@ -318,7 +331,7 @@ export class WorkflowPlaygroundContext implements PlaygroundContext {
           };
         });
         return {
-          categoryName: category.name,
+          categoryName: CATEGORY_NAME_MAPPING[category.name] || category.name,
           nodeList: isSupportImageflowNodes
             ? [
                 ...nodeList,

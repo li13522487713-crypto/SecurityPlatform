@@ -63,6 +63,13 @@ export interface LowcodeWorkflowEditorProps {
   workspaceLabel?: string;
 }
 
+export interface LowcodeWorkflowCreateRequest {
+  appId: string;
+  name: string;
+  description?: string;
+  workspaceId?: string;
+}
+
 export interface LowcodeStudioHostConfig {
   api: LowcodeApi;
   auth: LowcodeStudioAuth;
@@ -77,6 +84,11 @@ export interface LowcodeStudioHostConfig {
    * 由宿主（通常是 app-web）注入，避免 Studio 壳层直接依赖 @coze-workflow 运行时。
    */
   renderWorkflowEditor?: (props: LowcodeWorkflowEditorProps) => ReactNode;
+  /**
+   * 业务逻辑模式下新建工作流。由宿主注入，直连 Coze/DAG 后端创建端点。
+   * 返回新建工作流的 ID。
+   */
+  createWorkflow?: (request: LowcodeWorkflowCreateRequest) => Promise<{ workflowId: string }>;
 }
 
 function readStorageValue(key: string): string {

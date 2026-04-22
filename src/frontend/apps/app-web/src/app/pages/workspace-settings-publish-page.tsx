@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Empty, Spin, Table, TabPane, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Spin, Table, TabPane, Tabs, Tag, Toast } from "@douyinfe/semi-ui";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -21,6 +21,7 @@ import {
   type PublishChannelItem
 } from "../../services/mock";
 import { createLowcodeProjectAppGateway, type ProjectAppCard } from "../gateways/project-app-gateway";
+import { WorkspaceSettingsLayout } from "../layouts/workspace-settings-layout";
 
 type Tab = WorkspaceSettingsPublishTab;
 
@@ -36,19 +37,8 @@ export function WorkspaceSettingsPublishPage() {
     return value && TAB_KEYS.includes(value) ? value : "agents";
   }, [params.tab]);
 
-  const subtitle = useMemo(
-    () => t("cozeSettingsSubtitle").replace("{workspace}", workspace.name || workspace.appKey || ""),
-    [t, workspace.appKey, workspace.name]
-  );
-
   return (
-    <div className="coze-page coze-settings-page" data-testid="coze-settings-publish-page">
-      <header className="coze-page__header">
-        <Typography.Text type="tertiary">{t("cozeSettingsKicker")}</Typography.Text>
-        <Typography.Title heading={3} style={{ margin: "8px 0 4px" }}>{t("cozeMenuSettings")}</Typography.Title>
-        <Typography.Text type="tertiary">{subtitle}</Typography.Text>
-      </header>
-
+    <WorkspaceSettingsLayout activeTab="publish">
       <Tabs
         activeKey={activeTab}
         onChange={key => navigate(workspaceSettingsPublishPath(workspace.id, key as Tab))}
@@ -66,7 +56,7 @@ export function WorkspaceSettingsPublishPage() {
           {activeTab === "channels" ? <ChannelsPanel workspaceId={workspace.id} /> : null}
         </TabPane>
       </Tabs>
-    </div>
+    </WorkspaceSettingsLayout>
   );
 }
 

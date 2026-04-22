@@ -25,6 +25,8 @@ import {
   type NodeData,
 } from '@coze-workflow/nodes';
 import { Avatar } from '@coze-arch/coze-design';
+import { IconBox } from '@douyinfe/semi-icons';
+import { I18n } from '@coze-arch/i18n';
 
 import { type ProblemItem } from '../../types';
 import { BaseItem } from './base-item';
@@ -58,8 +60,25 @@ export const NodeItem: React.FC<NodeItemProps> = ({ problem, onClick }) => {
   return (
     <BaseItem
       problem={problem}
-      title={meta?.title || ''}
-      icon={<Avatar src={meta?.icon} shape="square" size="small" />}
+      title={meta?.title || I18n.t('workflow_node')}
+      icon={
+        meta?.icon ? (
+          <Avatar src={meta.icon} shape="square" size="small" />
+        ) : (
+          <div style={{
+            width: 24,
+            height: 24,
+            background: 'var(--semi-color-fill-0, rgba(var(--semi-grey-2), 1))',
+            borderRadius: 4,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--semi-color-text-2)'
+          }}>
+            <IconBox />
+          </div>
+        )
+      }
       onClick={onClick}
     />
   );
