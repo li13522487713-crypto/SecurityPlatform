@@ -8,8 +8,7 @@ namespace Atlas.SecurityPlatform.Tests.Workflows;
 /// <summary>
 /// M1：Coze 兼容层新增端点的 DTO/Request 协议契约测试。
 ///
-/// 由于 <see cref="CozeWorkflowCompatControllerBase"/> 真实构造依赖大量仓储与执行服务，
-/// 本测试只覆盖：
+/// 由于新 gateway 采用共享 request/response contracts，本测试只覆盖：
 /// 1) 新端点请求 record 能从 Coze Thrift 风格的 snake_case JSON 反序列化；
 /// 2) 新增 DTO 在 JSON Web 序列化下字段命名/类型符合预期；
 /// 3) 变量树作用域枚举的整数值不被意外修改（前端依赖该枚举做分组）。

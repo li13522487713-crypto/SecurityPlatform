@@ -75,7 +75,7 @@ export interface PluginExtendProps {
 }
 
 /**
- * Plugin data structures returned by interface /api/workflow_api/apiDetail
+ * Plugin data structures returned by the app-web workflow gateway apiDetail endpoint
  * Since the backend of parameter types such as inputs and outputs is not clearly defined, it will be supplemented here.
  */
 export type ApiNodeDetailDTO = Required<ApiDetailData> & {

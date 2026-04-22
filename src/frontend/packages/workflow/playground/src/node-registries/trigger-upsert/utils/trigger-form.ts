@@ -141,7 +141,7 @@ export const fetchTriggerFormMeta = async ({
     console.error(error);
     logger.error({
       error: error as Error,
-      eventName: '/api/workflow_api/list_trigger_events fetch error',
+      eventName: 'app-web workflow gateway list_trigger_events fetch error',
     });
     return {
       startNodeFormMeta: [],

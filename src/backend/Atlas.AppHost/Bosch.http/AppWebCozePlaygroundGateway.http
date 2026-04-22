@@ -1,0 +1,44 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+@workspaceId = 1
+
+### playground gateway：空间列表
+POST {{host}}/api/app-web/coze-playground/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 20
+}
+
+### playground gateway：空间详情
+POST {{host}}/api/app-web/coze-playground/space/info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}"
+}
+
+### playground gateway：开放空间列表
+GET {{host}}/api/app-web/coze-playground/open/workspaces?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}

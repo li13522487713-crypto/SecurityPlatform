@@ -24,7 +24,7 @@ public sealed class CozeWorkflowCompatIntegrationTests
 
         await SaveWorkflowAsync(accessToken, csrfToken, workflowId, schema);
 
-        using var canvasRequest = new HttpRequestMessage(HttpMethod.Post, "/api/workflow_api/canvas");
+        using var canvasRequest = new HttpRequestMessage(HttpMethod.Post, "/api/app-web/workflow-sdk/canvas");
         canvasRequest.Headers.Authorization = new("Bearer", accessToken);
         canvasRequest.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         canvasRequest.Headers.Add("X-Project-Id", "1");
@@ -53,7 +53,7 @@ public sealed class CozeWorkflowCompatIntegrationTests
         var workflowId = await CreateWorkflowAsync(accessToken, csrfToken, $"coze_{Guid.NewGuid():N}"[..20]);
         await SaveWorkflowAsync(accessToken, csrfToken, workflowId, BuildCozeNativeSchema("incident"));
 
-        using var runRequest = new HttpRequestMessage(HttpMethod.Post, "/api/workflow_api/test_run");
+        using var runRequest = new HttpRequestMessage(HttpMethod.Post, "/api/app-web/workflow-sdk/test_run");
         runRequest.Headers.Authorization = new("Bearer", accessToken);
         runRequest.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         runRequest.Headers.Add("X-Project-Id", "1");
@@ -72,7 +72,7 @@ public sealed class CozeWorkflowCompatIntegrationTests
         var executionId = runPayload.GetProperty("execute_id").GetString();
         Assert.False(string.IsNullOrWhiteSpace(executionId));
 
-        using var processRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/workflow_api/get_process?workflow_id={workflowId}&execute_id={executionId}");
+        using var processRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/app-web/workflow-sdk/get_process?workflow_id={workflowId}&execute_id={executionId}");
         processRequest.Headers.Authorization = new("Bearer", accessToken);
         processRequest.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         processRequest.Headers.Add("X-Project-Id", "1");
@@ -85,7 +85,7 @@ public sealed class CozeWorkflowCompatIntegrationTests
 
     private async Task<long> CreateWorkflowAsync(string accessToken, string csrfToken, string name)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/workflow_api/create");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/app-web/workflow-sdk/create");
         request.Headers.Authorization = new("Bearer", accessToken);
         request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         request.Headers.Add("X-Project-Id", "1");
@@ -105,7 +105,7 @@ public sealed class CozeWorkflowCompatIntegrationTests
 
     private async Task SaveWorkflowAsync(string accessToken, string csrfToken, long workflowId, string schema)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/workflow_api/save");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/app-web/workflow-sdk/save");
         request.Headers.Authorization = new("Bearer", accessToken);
         request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
         request.Headers.Add("X-Project-Id", "1");

@@ -1,0 +1,545 @@
+using System.Globalization;
+using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.Platform.Abstractions;
+using Atlas.Application.Platform.Models;
+using Atlas.Core.Identity;
+using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Controllers.Ai;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Atlas.AppHost.Controllers;
+
+[ApiController]
+[Route("api/app-web/coze-playground")]
+[Authorize]
+public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
+{
+    private readonly IWorkspacePortalService _workspacePortalService;
+    private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+
+    public AppWebCozePlaygroundGatewayController(
+        IWorkspacePortalService workspacePortalService,
+        ITenantProvider tenantProvider,
+        ICurrentUserAccessor currentUserAccessor)
+    {
+        _workspacePortalService = workspacePortalService;
+        _tenantProvider = tenantProvider;
+        _currentUserAccessor = currentUserAccessor;
+    }
+
+    [HttpPost("space/list")]
+    public async Task<ActionResult<object>> GetSpaceList(
+        [FromBody] CozeGetSpaceListRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var filtered = string.IsNullOrWhiteSpace(request?.search_word)
+            ? workspaces
+            : workspaces.Where(item =>
+                    $"{item.Name} {item.Description ?? string.Empty} {item.AppKey}"
+                        .Contains(request.search_word, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+        var page = request?.page > 0 ? request.page.Value : 1;
+        var size = request?.size > 0 ? request.size.Value : filtered.Count;
+        var skipped = Math.Max(0, (page - 1) * size);
+        var paged = filtered.Skip(skipped).Take(size).ToArray();
+        var botSpaces = paged.Select(MapSpaceItem).ToArray();
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            bot_space_list = botSpaces,
+            recently_used_space_list = botSpaces,
+            has_personal_space = false,
+            total = filtered.Count,
+            has_more = skipped + botSpaces.Length < filtered.Count
+        }));
+    }
+
+    [HttpPost("space/save")]
+    public async Task<ActionResult<object>> SaveSpace(
+        [FromBody] CozeSaveSpaceRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var targetSpaceId = request?.space_id;
+        var matched = !string.IsNullOrWhiteSpace(targetSpaceId)
+            ? workspaces.FirstOrDefault(item => string.Equals(item.Id, targetSpaceId, StringComparison.OrdinalIgnoreCase))
+            : workspaces.FirstOrDefault();
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            id = matched?.Id ?? targetSpaceId ?? string.Empty,
+            check_not_pass = false
+        }));
+    }
+
+    [HttpPost("space/info")]
+    public async Task<ActionResult<object>> GetSpaceInfo(
+        [FromBody] CozeGetSpaceInfoRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            _tenantProvider.GetTenantId(),
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var match = string.IsNullOrWhiteSpace(request?.space_id)
+            ? workspaces.FirstOrDefault()
+            : workspaces.FirstOrDefault(item => string.Equals(item.Id, request.space_id, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new { data = (object?)null }));
+        }
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            data = new
+            {
+                id = match.Id,
+                name = match.Name,
+                description = match.Description ?? string.Empty,
+                icon_url = match.Icon ?? string.Empty,
+                space_type = string.Equals(match.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase) ? 1 : 2,
+                role_type = string.Equals(match.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase) ? 1 : string.Equals(match.RoleCode, "Admin", StringComparison.OrdinalIgnoreCase) ? 2 : 3,
+                space_mode = 0
+            }
+        }));
+    }
+
+    [HttpPost("get_type_list")]
+    public async Task<ActionResult<object>> GetTypeList(
+        [FromBody] CozeGetTypeListRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var queryService = HttpContext.RequestServices.GetService<IModelConfigQueryService>();
+        if (queryService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Success(CozeCompatGatewaySupport.BuildTypeListPayload(Array.Empty<Atlas.Application.AiPlatform.Models.ModelConfigDto>(), request?.model_scene)));
+        }
+
+        var models = await queryService.GetAllEnabledAsync(
+            _tenantProvider.GetTenantId(),
+            workspaceId: null,
+            cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.Success(
+            CozeCompatGatewaySupport.BuildTypeListPayload(models, request?.model_scene)));
+    }
+
+    [HttpGet("marketplace/product/favorite/list")]
+    public ActionResult<object> GetMarketplaceFavoriteList()
+    {
+        return Ok(new
+        {
+            code = 0,
+            message = "success",
+            data = new
+            {
+                favorite_products = Array.Empty<object>(),
+                has_more = false
+            }
+        });
+    }
+
+    [HttpGet("marketplace/product/favorite/list.v2")]
+    public ActionResult<object> GetMarketplaceFavoriteListV2()
+    {
+        return Ok(new
+        {
+            code = 0,
+            message = "success",
+            data = new
+            {
+                favorite_entities = Array.Empty<object>(),
+                cursor_id = string.Empty,
+                has_more = false,
+                entity_user_trigger_config = new Dictionary<string, object>()
+            }
+        });
+    }
+
+    [HttpGet("open/workspaces")]
+    public async Task<ActionResult<object>> OpenSpaceList(
+        [FromQuery(Name = "page_num")] int? pageNum,
+        [FromQuery(Name = "page_size")] int? pageSize,
+        [FromQuery(Name = "enterprise_id")] string? enterpriseId,
+        [FromQuery(Name = "coze_account_id")] string? cozeAccountId,
+        CancellationToken cancellationToken)
+    {
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var filtered = workspaces
+            .Where(item =>
+                (string.IsNullOrWhiteSpace(enterpriseId) || string.Equals(item.OrgId, enterpriseId.Trim(), StringComparison.OrdinalIgnoreCase))
+                && (string.IsNullOrWhiteSpace(cozeAccountId) || string.Equals(item.OrgId, cozeAccountId.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        var normalizedPage = pageNum is > 0 ? pageNum.Value : 1;
+        var normalizedSize = pageSize is > 0 ? Math.Min(pageSize.Value, 50) : 20;
+        var skipped = Math.Max(0, (normalizedPage - 1) * normalizedSize);
+        var pagedItems = filtered
+            .Skip(skipped)
+            .Take(normalizedSize)
+            .Select(CozeCompatGatewaySupport.MapOpenWorkspace)
+            .ToArray();
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            workspaces = pagedItems,
+            total_count = filtered.Length
+        }));
+    }
+
+    [HttpPost("open/workspaces")]
+    public async Task<ActionResult<object>> OpenCreateSpace(
+        [FromBody] CozeOpenCreateSpaceRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        var normalizedName = string.IsNullOrWhiteSpace(request?.Name)
+            ? "未命名工作空间"
+            : request.Name.Trim();
+        var workspaceId = await _workspacePortalService.CreateWorkspaceAsync(
+            tenantId,
+            currentUser.UserId,
+            new WorkspaceCreateRequest(
+                normalizedName,
+                request?.Description?.Trim(),
+                null),
+            cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            id = workspaceId.ToString(CultureInfo.InvariantCulture)
+        }));
+    }
+
+    [HttpGet("open/workspaces/{workspaceId}/members")]
+    public async Task<ActionResult<object>> OpenSpaceMemberList(
+        [FromRoute] string workspaceId,
+        [FromQuery(Name = "page_num")] int? pageNum,
+        [FromQuery(Name = "page_size")] int? pageSize,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("workspace_id is invalid"));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        var members = await _workspacePortalService.GetMembersAsync(
+            tenantId,
+            parsedWorkspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var normalizedPage = pageNum is > 0 ? pageNum.Value : 1;
+        var normalizedSize = pageSize is > 0 ? Math.Min(pageSize.Value, 50) : 20;
+        var skipped = Math.Max(0, (normalizedPage - 1) * normalizedSize);
+        var pagedItems = members
+            .Skip(skipped)
+            .Take(normalizedSize)
+            .Select(CozeCompatGatewaySupport.MapOpenSpaceMember)
+            .ToArray();
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            items = pagedItems,
+            total_count = members.Count
+        }));
+    }
+
+    [HttpPost("open/workspaces/{workspaceId}/members")]
+    public async Task<ActionResult<object>> OpenAddSpaceMember(
+        [FromRoute] string workspaceId,
+        [FromBody] CozeOpenAddSpaceMemberRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("workspace_id is invalid"));
+        }
+
+        var candidateUserId = request?.Users?
+            .Select(item => item.UserId?.Trim())
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+        if (string.IsNullOrWhiteSpace(candidateUserId))
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new
+            {
+                added_success_user_ids = Array.Empty<string>(),
+                invited_success_user_ids = Array.Empty<string>(),
+                not_exist_user_ids = Array.Empty<string>(),
+                already_joined_user_ids = Array.Empty<string>(),
+                already_invited_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        if (!TryParsePositiveId(candidateUserId, out var parsedUserId))
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new
+            {
+                added_success_user_ids = Array.Empty<string>(),
+                invited_success_user_ids = Array.Empty<string>(),
+                not_exist_user_ids = new[] { candidateUserId },
+                already_joined_user_ids = Array.Empty<string>(),
+                already_invited_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        var target = request?.Users?.FirstOrDefault(item => string.Equals(item.UserId, candidateUserId, StringComparison.OrdinalIgnoreCase));
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.AddMemberAsync(
+            tenantId,
+            parsedWorkspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            new WorkspaceMemberCreateRequest(
+                parsedUserId.ToString(CultureInfo.InvariantCulture),
+                CozeCompatGatewaySupport.ToWorkspaceRoleCode(target?.RoleType)),
+            cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            added_success_user_ids = new[] { parsedUserId.ToString(CultureInfo.InvariantCulture) },
+            invited_success_user_ids = Array.Empty<string>(),
+            not_exist_user_ids = Array.Empty<string>(),
+            already_joined_user_ids = Array.Empty<string>(),
+            already_invited_user_ids = Array.Empty<string>()
+        }));
+    }
+
+    [HttpDelete("open/workspaces/{workspaceId}/members")]
+    public async Task<ActionResult<object>> OpenRemoveSpaceMember(
+        [FromRoute] string workspaceId,
+        [FromBody] CozeOpenRemoveSpaceMemberRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("workspace_id is invalid"));
+        }
+
+        var candidateUserId = request?.UserIds?
+            .Select(item => item?.Trim())
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+        if (string.IsNullOrWhiteSpace(candidateUserId))
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new
+            {
+                removed_success_user_ids = Array.Empty<string>(),
+                not_in_workspace_user_ids = Array.Empty<string>(),
+                owner_not_support_remove_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        if (!TryParsePositiveId(candidateUserId, out var parsedUserId))
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new
+            {
+                removed_success_user_ids = Array.Empty<string>(),
+                not_in_workspace_user_ids = new[] { candidateUserId },
+                owner_not_support_remove_user_ids = Array.Empty<string>()
+            }));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.RemoveMemberAsync(
+            tenantId,
+            parsedWorkspaceId,
+            parsedUserId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            removed_success_user_ids = new[] { parsedUserId.ToString(CultureInfo.InvariantCulture) },
+            not_in_workspace_user_ids = Array.Empty<string>(),
+            owner_not_support_remove_user_ids = Array.Empty<string>()
+        }));
+    }
+
+    [HttpPost("open/workspaces/{workspaceId}/members/apply")]
+    public ActionResult<object> OpenApplyJoinSpace(
+        [FromRoute] string workspaceId,
+        [FromBody] CozeOpenApplyJoinSpaceRequest? request)
+    {
+        if (!TryParsePositiveId(workspaceId, out _))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("workspace_id is invalid"));
+        }
+
+        var appliedUserIds = request?.UserIds?
+            .Select(item => item?.Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray()
+            ?? Array.Empty<string>();
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            applied_success_user_ids = appliedUserIds,
+            applied_failed_user_ids = Array.Empty<string>()
+        }));
+    }
+
+    [HttpPut("open/workspaces/{workspaceId}/members/{userId}")]
+    public async Task<ActionResult<object>> OpenUpdateSpaceMember(
+        [FromRoute] string workspaceId,
+        [FromRoute] string userId,
+        [FromBody] CozeOpenUpdateSpaceMemberRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("workspace_id is invalid"));
+        }
+
+        if (!TryParsePositiveId(userId, out var parsedUserId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("user_id is invalid"));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.UpdateMemberRoleAsync(
+            tenantId,
+            parsedWorkspaceId,
+            parsedUserId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            new WorkspaceMemberRoleUpdateRequest(CozeCompatGatewaySupport.ToWorkspaceRoleCode(request?.RoleType)),
+            cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.SuccessWithoutData());
+    }
+
+    [HttpDelete("open/workspaces/{workspaceId}")]
+    public async Task<ActionResult<object>> OpenRemoveSpace(
+        [FromRoute] string workspaceId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(workspaceId, out var parsedWorkspaceId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("workspace_id is invalid"));
+        }
+
+        var (tenantId, currentUser) = ResolveOpenWorkspaceContext();
+        await _workspacePortalService.DeleteWorkspaceAsync(
+            tenantId,
+            parsedWorkspaceId,
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.SuccessWithoutData());
+    }
+
+    [HttpGet("open/bots/{botId}")]
+    public ActionResult<object> OpenGetBotInfo([FromRoute] string botId)
+    {
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            id = botId,
+            bot_id = botId,
+            name = $"bot-{botId}",
+            description = string.Empty,
+            icon_url = string.Empty,
+            publish_status = "draft"
+        }));
+    }
+
+    [HttpGet("open/bots/{botId}/versions")]
+    public ActionResult<object> OpenListBotVersions([FromRoute] string botId)
+    {
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            items = Array.Empty<object>(),
+            has_more = false
+        }));
+    }
+
+    [HttpPost("open/bots/{botId}/collaboration_mode")]
+    public ActionResult<object> OpenSwitchBotDevelopMode(
+        [FromRoute] string botId,
+        [FromBody] CozeOpenSwitchBotDevelopModeRequest? request)
+    {
+        return Ok(CozeCompatGatewaySupport.SuccessWithoutData());
+    }
+
+    [HttpPost("{**path}")]
+    public ActionResult<object> PostFallback([FromRoute] string? path)
+    {
+        return Ok(CozeCompatGatewaySupport.Success(CozeCompatGatewaySupport.BuildPlaygroundFallbackData(path)));
+    }
+
+    [HttpGet("{**path}")]
+    public ActionResult<object> GetFallback([FromRoute] string? path)
+    {
+        return Ok(CozeCompatGatewaySupport.Success(CozeCompatGatewaySupport.BuildPlaygroundFallbackData(path)));
+    }
+
+    private (TenantId TenantId, CurrentUserInfo CurrentUser) ResolveOpenWorkspaceContext()
+    {
+        return (_tenantProvider.GetTenantId(), _currentUserAccessor.GetCurrentUserOrThrow());
+    }
+
+    private static bool TryParsePositiveId(string? raw, out long value)
+    {
+        if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+        {
+            value = 0;
+            return false;
+        }
+
+        return value > 0;
+    }
+
+    private static object MapSpaceItem(WorkspaceListItem item)
+    {
+        var roleType = string.Equals(item.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : string.Equals(item.RoleCode, "Admin", StringComparison.OrdinalIgnoreCase)
+                ? 2
+                : 3;
+
+        return new
+        {
+            id = item.Id,
+            name = item.Name,
+            description = item.Description,
+            icon_url = item.Icon ?? string.Empty,
+            role_type = roleType,
+            space_type = 1,
+            space_mode = 0,
+            hide_operation = false
+        };
+    }
+}

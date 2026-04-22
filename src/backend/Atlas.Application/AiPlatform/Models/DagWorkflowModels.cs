@@ -262,7 +262,7 @@ public sealed record WorkflowVariableTreeDto(
 
 /// <summary>
 /// 节点执行历史快照（含输入、输出、上下文变量、错误信息），
-/// 用于 Coze /api/workflow_api/get_node_execute_history。
+/// 用于 Coze workflow gateway 的 get_node_execute_history 响应。
 /// </summary>
 public sealed record WorkflowNodeExecutionHistoryDto(
     string WorkflowId,
