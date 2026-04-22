@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @atlas/lowcode-studio-react exec tsc --noEmit)",
+      "Bash(pnpm exec *)"
+    ]
+  }
+}

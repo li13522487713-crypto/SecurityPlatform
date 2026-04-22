@@ -17,6 +17,7 @@ export { getLocale, setLocale, t, type Locale } from "./i18n";
 export type {
   LowcodeStudioAuth,
   LowcodeStudioHostConfig,
+  LowcodeWorkflowEditorProps,
   ProjectIdeBootstrapApi,
   LowcodeValidationApi,
   LowcodePublishApi,

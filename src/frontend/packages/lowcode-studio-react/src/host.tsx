@@ -56,6 +56,13 @@ export interface LowcodeCollabConfig {
   reconnectDelaysMs?: number[];
 }
 
+export interface LowcodeWorkflowEditorProps {
+  appId: string;
+  workflowId: string;
+  workspaceId?: string;
+  workspaceLabel?: string;
+}
+
 export interface LowcodeStudioHostConfig {
   api: LowcodeApi;
   auth: LowcodeStudioAuth;
@@ -65,6 +72,11 @@ export interface LowcodeStudioHostConfig {
   assetApi?: LowcodeAssetApi;
   dispatchApi?: LowcodeDispatchApi;
   collabConfig?: LowcodeCollabConfig;
+  /**
+   * 业务逻辑模式下渲染 DAG 工作流编辑器。
+   * 由宿主（通常是 app-web）注入，避免 Studio 壳层直接依赖 @coze-workflow 运行时。
+   */
+  renderWorkflowEditor?: (props: LowcodeWorkflowEditorProps) => ReactNode;
 }
 
 function readStorageValue(key: string): string {

@@ -12,13 +12,17 @@ import { create } from 'zustand';
 export interface StudioSelectionState {
   selectedComponentId: string | null;
   currentPageCode: string | null;
+  selectedWorkflowId: string | null;
   setSelectedComponentId: (id: string | null) => void;
   setCurrentPageCode: (code: string | null) => void;
+  setSelectedWorkflowId: (id: string | null) => void;
 }
 
 export const useStudioSelection = create<StudioSelectionState>((set) => ({
   selectedComponentId: null,
   currentPageCode: null,
+  selectedWorkflowId: null,
   setSelectedComponentId: (id) => set({ selectedComponentId: id }),
-  setCurrentPageCode: (code) => set({ currentPageCode: code })
+  setCurrentPageCode: (code) => set({ currentPageCode: code }),
+  setSelectedWorkflowId: (id) => set({ selectedWorkflowId: id })
 }));

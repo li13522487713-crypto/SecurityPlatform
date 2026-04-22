@@ -11,6 +11,8 @@ import {
   type RuntimeTrace,
   type LowcodeStudioHostConfig
 } from "@atlas/lowcode-studio-react/services";
+import { createElement } from "react";
+import { LowcodeWorkflowEmbed } from "./workflow-embed";
 import {
   getAccessToken,
   getAuthProfile,
@@ -101,6 +103,7 @@ export function createAppWebLowcodeStudioHost(): LowcodeStudioHostConfig {
       hubUrl: "/hubs/lowcode-collab",
       reconnectDelaysMs: [0, 1000, 3000, 5000]
     },
+    renderWorkflowEditor: (props) => createElement(LowcodeWorkflowEmbed, props),
     auth: {
       accessTokenFactory: () => getAccessToken() ?? "",
       tenantIdFactory: () => getTenantId() ?? DEFAULT_TENANT_ID,

@@ -5,6 +5,8 @@ import { LeftPanel } from '../panels/left-panel';
 import { RightInspector } from '../panels/right-inspector';
 import { TopToolbar } from '../panels/top-toolbar';
 import { CanvasViewport } from '../panels/canvas-viewport';
+import { WorkflowLeftPanel } from '../panels/workflow-left-panel';
+import { WorkflowCanvas } from '../panels/workflow-canvas';
 import { ShortcutPanel } from '../panels/shortcut-panel';
 import { useStudioCommands } from '../hooks/use-studio-commands';
 import { useDraftAutosave } from '../hooks/use-draft-autosave';
@@ -41,7 +43,7 @@ export interface LowcodeStudioAppProps {
   host?: LowcodeStudioHostConfig;
 }
 
-export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale, host }) => {
+export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale, host, workspaceId, workspaceLabel }) => {
   const [topMode, setTopMode] = useState<'business' | 'ui'>('ui');
 
   useEffect(() => {
@@ -64,27 +66,38 @@ export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, local
           <Header>
             <TopToolbar appId={appId} mode={topMode} onModeChange={setTopMode} />
           </Header>
-          <Layout>
-            <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
-              <LeftPanel appId={appId} />
-            </Sider>
-            <Content>
-              <CanvasViewport appId={appId} />
-            </Content>
-            <Sider style={{ width: 320, background: '#fff', borderLeft: '1px solid #eee' }}>
-              <Tabs type="line" defaultActiveKey="property">
-                <TabPane tab={t('lowcode_studio.layout.right.property')} itemKey="property">
-                  <RightInspector appId={appId} kind="property" />
-                </TabPane>
-                <TabPane tab={t('lowcode_studio.layout.right.style')} itemKey="style">
-                  <RightInspector appId={appId} kind="style" />
-                </TabPane>
-                <TabPane tab={t('lowcode_studio.layout.right.events')} itemKey="events">
-                  <RightInspector appId={appId} kind="events" />
-                </TabPane>
-              </Tabs>
-            </Sider>
-          </Layout>
+          {topMode === 'ui' ? (
+            <Layout>
+              <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
+                <LeftPanel appId={appId} />
+              </Sider>
+              <Content>
+                <CanvasViewport appId={appId} />
+              </Content>
+              <Sider style={{ width: 320, background: '#fff', borderLeft: '1px solid #eee' }}>
+                <Tabs type="line" defaultActiveKey="property">
+                  <TabPane tab={t('lowcode_studio.layout.right.property')} itemKey="property">
+                    <RightInspector appId={appId} kind="property" />
+                  </TabPane>
+                  <TabPane tab={t('lowcode_studio.layout.right.style')} itemKey="style">
+                    <RightInspector appId={appId} kind="style" />
+                  </TabPane>
+                  <TabPane tab={t('lowcode_studio.layout.right.events')} itemKey="events">
+                    <RightInspector appId={appId} kind="events" />
+                  </TabPane>
+                </Tabs>
+              </Sider>
+            </Layout>
+          ) : (
+            <Layout>
+              <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
+                <WorkflowLeftPanel appId={appId} />
+              </Sider>
+              <Content>
+                <WorkflowCanvas appId={appId} workspaceId={workspaceId} workspaceLabel={workspaceLabel} />
+              </Content>
+            </Layout>
+          )}
           <ShortcutPanel />
         </Layout>
       </QueryClientProvider>
