@@ -9,6 +9,8 @@ import {
   type ProjectIdePublishRequest,
   type ProjectIdePublishResult,
   type ProjectIdeValidationResult,
+  runtimeSessionApi,
+  type RuntimeSessionInfo,
   type RuntimeDispatchResponse,
   type RuntimeTrace
 } from './services/api-core';
@@ -56,6 +58,15 @@ export interface LowcodeCollabConfig {
   reconnectDelaysMs?: number[];
 }
 
+export interface LowcodeRuntimeSessionApi {
+  list: () => Promise<RuntimeSessionInfo[]>;
+  create: (request?: { title?: string }) => Promise<{ id: string }>;
+  clear: (sessionId: string) => Promise<unknown>;
+  pin: (sessionId: string, request: { pinned: boolean }) => Promise<unknown>;
+  archive: (sessionId: string, request: { archived: boolean }) => Promise<unknown>;
+  switchTo: (sessionId: string) => Promise<RuntimeSessionInfo>;
+}
+
 export interface LowcodeWorkflowEditorProps {
   appId: string;
   workflowId: string;
@@ -78,7 +89,9 @@ export interface LowcodeStudioHostConfig {
   publishApi?: LowcodePublishApi;
   assetApi?: LowcodeAssetApi;
   dispatchApi?: LowcodeDispatchApi;
+  runtimeSessions?: LowcodeRuntimeSessionApi;
   collabConfig?: LowcodeCollabConfig;
+  openPluginDetail?: (pluginId: string | number) => void;
   /**
    * 业务逻辑模式下渲染 DAG 工作流编辑器。
    * 由宿主（通常是 app-web）注入，避免 Studio 壳层直接依赖 @coze-workflow 运行时。
@@ -104,7 +117,8 @@ const defaultHostConfig: LowcodeStudioHostConfig = {
     accessTokenFactory: () => readStorageValue('atlas_access_token'),
     tenantIdFactory: () => readStorageValue('atlas_tenant_id') || '00000000-0000-0000-0000-000000000001',
     userIdFactory: () => readStorageValue('atlas_user_id') || 'me'
-  }
+  },
+  runtimeSessions: runtimeSessionApi
 };
 
 const LowcodeStudioHostContext = createContext<LowcodeStudioHostConfig>(defaultHostConfig);

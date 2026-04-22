@@ -83,7 +83,7 @@ export function AppEditorRoute() {
 
 export function AppPublishRoute() {
   const { projectId = "" } = useParams<{ projectId: string }>();
-  return <LowcodeStudioRoute projectId={projectId} />;
+  return <LowcodeStudioRoute projectId={projectId} routeMode="publish" />;
 }
 
 export function CanonicalLowcodeStudioRoute() {
@@ -91,11 +91,11 @@ export function CanonicalLowcodeStudioRoute() {
   return <LowcodeStudioRoute projectId={id} />;
 }
 
-function LowcodeStudioRoute({ projectId }: { projectId: string }) {
+function LowcodeStudioRoute({ projectId, routeMode }: { projectId: string; routeMode?: "editor" | "publish" }) {
   const { locale } = useAppI18n();
   const navigate = useNavigate();
   const workspace = useWorkspaceContext();
-  const lowcodeHost = useMemo(() => createAppWebLowcodeStudioHost(), []);
+  const lowcodeHost = useMemo(() => createAppWebLowcodeStudioHost(workspace.appKey), [workspace.appKey]);
 
   return (
     <Suspense fallback={<EditorLoading />}>
@@ -105,6 +105,7 @@ function LowcodeStudioRoute({ projectId }: { projectId: string }) {
         locale={locale}
         workspaceId={workspace.id}
         workspaceLabel={workspace.name || workspace.appKey}
+        routeMode={routeMode}
         onBack={() => navigate(workspaceProjectsPath(workspace.id))}
       />
     </Suspense>

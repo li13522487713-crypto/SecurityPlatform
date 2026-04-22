@@ -1,5 +1,6 @@
 import {
   createLowcodeApi,
+  createRuntimeSessionApi,
   type LowCodeAssetDescriptor,
   type ProjectIdeBootstrap,
   type ProjectIdeGraph,
@@ -12,6 +13,7 @@ import {
   type LowcodeStudioHostConfig
 } from "@atlas/lowcode-studio-react/services";
 import { createElement } from "react";
+import { studioPluginDetailPath } from "@atlas/app-shell-shared";
 import { LowcodeWorkflowEmbed } from "./workflow-embed";
 import { createWorkflow } from "../../services/api-workflow";
 import {
@@ -54,7 +56,7 @@ async function requestJson<T>(path: string, method: string, body?: unknown): Pro
   return response.data;
 }
 
-export function createAppWebLowcodeStudioHost(): LowcodeStudioHostConfig {
+export function createAppWebLowcodeStudioHost(appKey: string): LowcodeStudioHostConfig {
   return {
     api: appWebLowcodeApi,
     bootstrapApi: {
@@ -100,9 +102,15 @@ export function createAppWebLowcodeStudioHost(): LowcodeStudioHostConfig {
         return requestJson<RuntimeTrace[]>(`/api/runtime/traces${suffix}`, "GET");
       }
     },
+    runtimeSessions: createRuntimeSessionApi((method, path, body) => requestJson(path, method, body)),
     collabConfig: {
       hubUrl: "/hubs/lowcode-collab",
       reconnectDelaysMs: [0, 1000, 3000, 5000]
+    },
+    openPluginDetail: (pluginId) => {
+      if (typeof window !== "undefined") {
+        window.location.assign(studioPluginDetailPath(appKey, pluginId));
+      }
     },
     renderWorkflowEditor: (props) => createElement(LowcodeWorkflowEmbed, props),
     createWorkflow: async ({ appId, name, description, workspaceId }) => {

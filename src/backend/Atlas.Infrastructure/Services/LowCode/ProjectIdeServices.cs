@@ -526,6 +526,9 @@ public sealed class ProjectIdeDependencyGraphService : IProjectIdeDependencyGrap
             resolvedReferences.Add(resolved);
         }
 
+        var boundPluginReferences = await ResolveBoundPluginReferencesAsync(tenantId, appId, cancellationToken);
+        resolvedReferences.AddRange(boundPluginReferences);
+
         var groups = resolvedReferences
             .GroupBy(reference => reference.ResourceType, StringComparer.OrdinalIgnoreCase)
             .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
@@ -542,6 +545,79 @@ public sealed class ProjectIdeDependencyGraphService : IProjectIdeDependencyGrap
             Groups: groups,
             TotalReferences: resolvedReferences.Count,
             MissingReferences: resolvedReferences.Count(reference => !reference.Exists));
+    }
+
+    private async Task<IReadOnlyList<ProjectIdeReferenceDto>> ResolveBoundPluginReferencesAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken)
+    {
+        var bindings = await _db.Queryable<AiAppResourceBinding>()
+            .Where(item =>
+                item.TenantIdValue == tenantId.Value
+                && item.AppId == appId
+                && item.ResourceType == "plugin")
+            .ToListAsync(cancellationToken);
+        if (bindings.Count == 0)
+        {
+            return [];
+        }
+
+        var resourceIds = bindings.Select(item => item.ResourceId).Distinct().ToArray();
+        var lowCodePluginsTask = _db.Queryable<LowCodePluginDefinition>()
+            .Where(item => item.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(resourceIds, item.Id))
+            .ToListAsync(cancellationToken);
+        var aiPluginsTask = _db.Queryable<AiPlugin>()
+            .Where(item => item.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(resourceIds, item.Id))
+            .ToListAsync(cancellationToken);
+
+        await Task.WhenAll(lowCodePluginsTask, aiPluginsTask);
+
+        var lowCodePlugins = (await lowCodePluginsTask).ToDictionary(item => item.Id);
+        var aiPlugins = (await aiPluginsTask).ToDictionary(item => item.Id);
+
+        return bindings.Select(binding =>
+        {
+            var referencePath = $"/bindings/plugins/{binding.Id}";
+            if (lowCodePlugins.TryGetValue(binding.ResourceId, out var lowCodePlugin))
+            {
+                return new ProjectIdeReferenceDto(
+                    ResourceType: "plugin",
+                    ResourceId: lowCodePlugin.PluginId,
+                    DisplayName: lowCodePlugin.Name,
+                    ResolvedVersion: lowCodePlugin.LatestVersion,
+                    Status: "ready",
+                    Exists: true,
+                    ReferencePath: referencePath,
+                    PageId: null,
+                    ComponentId: null);
+            }
+
+            if (aiPlugins.TryGetValue(binding.ResourceId, out var aiPlugin))
+            {
+                return new ProjectIdeReferenceDto(
+                    ResourceType: "plugin",
+                    ResourceId: $"ai:{aiPlugin.Id}",
+                    DisplayName: aiPlugin.Name,
+                    ResolvedVersion: aiPlugin.PublishedVersion > 0 ? $"v{aiPlugin.PublishedVersion}" : null,
+                    Status: aiPlugin.Status.ToString().ToLowerInvariant(),
+                    Exists: true,
+                    ReferencePath: referencePath,
+                    PageId: null,
+                    ComponentId: null);
+            }
+
+            return new ProjectIdeReferenceDto(
+                ResourceType: "plugin",
+                ResourceId: binding.ResourceId.ToString(),
+                DisplayName: null,
+                ResolvedVersion: null,
+                Status: "missing",
+                Exists: false,
+                ReferencePath: referencePath,
+                PageId: null,
+                ComponentId: null);
+        }).ToList();
     }
 
     private async Task<string> BuildProjectedSchemaJsonAsync(TenantId tenantId, AppDefinition app, CancellationToken cancellationToken)

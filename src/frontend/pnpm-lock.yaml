@@ -23924,6 +23924,12 @@ importers:
       '@coze-workflow/variable':
         specifier: workspace:*
         version: link:../variable
+      '@douyinfe/semi-icons':
+        specifier: ^2.82.0
+        version: 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram-adapter/common':
         specifier: workspace:*
         version: link:../../common/flowgram-adapter/common

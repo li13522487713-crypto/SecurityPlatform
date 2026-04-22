@@ -29,10 +29,15 @@ describe("createAppWebLowcodeStudioHost", () => {
     getAccessTokenMock.mockReturnValue("token-1");
     getTenantIdMock.mockReturnValue("tenant-1");
     getAuthProfileMock.mockReturnValue({ id: "user-1" });
+    vi.stubGlobal("window", {
+      location: {
+        assign: vi.fn()
+      }
+    });
   });
 
   it("auth factories 复用 app-web 现有鉴权存储", () => {
-    const host = createAppWebLowcodeStudioHost();
+    const host = createAppWebLowcodeStudioHost("atlas-app");
 
     expect(host.auth.accessTokenFactory()).toBe("token-1");
     expect(host.auth.tenantIdFactory()).toBe("tenant-1");
@@ -48,7 +53,7 @@ describe("createAppWebLowcodeStudioHost", () => {
       }
     });
 
-    const host = createAppWebLowcodeStudioHost();
+    const host = createAppWebLowcodeStudioHost("atlas-app");
     const result = await host.api.components.registry("web");
 
     expect(result).toEqual({ components: [], overrides: [] });
@@ -56,5 +61,13 @@ describe("createAppWebLowcodeStudioHost", () => {
       "/lowcode/components/registry?renderer=web",
       expect.objectContaining({ method: "GET", body: undefined })
     );
+  });
+
+  it("宿主可打开插件详情页", () => {
+    const host = createAppWebLowcodeStudioHost("atlas-app");
+
+    host.openPluginDetail?.(12);
+
+    expect(window.location.assign).toHaveBeenCalledWith("/apps/atlas-app/studio/plugins/12");
   });
 });

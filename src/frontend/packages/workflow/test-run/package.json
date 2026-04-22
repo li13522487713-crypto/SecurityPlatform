@@ -55,6 +55,8 @@
     "@coze-workflow/components": "workspace:*",
     "@coze-workflow/nodes": "workspace:*",
     "@coze-workflow/variable": "workspace:*",
+    "@douyinfe/semi-icons": "^2.82.0",
+    "@douyinfe/semi-ui": "^2.82.0",
     "@flowgram-adapter/common": "workspace:*",
     "@flowgram-adapter/free-layout-editor": "workspace:*",
     "@formily/core": "^2.3.0",

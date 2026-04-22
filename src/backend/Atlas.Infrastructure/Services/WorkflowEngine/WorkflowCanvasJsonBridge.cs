@@ -51,7 +51,10 @@ public static class WorkflowCanvasJsonBridge
 
         if (!TryGetProperty(root, "connections", out var connectionsElement) || connectionsElement.ValueKind != JsonValueKind.Array)
         {
-            return false;
+            if (!TryGetProperty(root, "edges", out connectionsElement) || connectionsElement.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
         }
 
         var nodes = new List<NodeSchema>();

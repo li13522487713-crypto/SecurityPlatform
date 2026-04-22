@@ -12,6 +12,7 @@ import { useStudioCommands } from '../hooks/use-studio-commands';
 import { useDraftAutosave } from '../hooks/use-draft-autosave';
 import { setLocale, t, type Locale } from '../i18n';
 import { LowcodeStudioHostProvider, type LowcodeStudioHostConfig } from '../host';
+import { PublishPage } from '../panels/publish-page';
 
 const { Header, Sider, Content } = Layout;
 
@@ -41,9 +42,10 @@ export interface LowcodeStudioAppProps {
   workspaceLabel?: string;
   onBack?: () => void;
   host?: LowcodeStudioHostConfig;
+  routeMode?: 'editor' | 'publish';
 }
 
-export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale, host, workspaceId, workspaceLabel }) => {
+export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, locale, host, workspaceId, workspaceLabel, routeMode = 'editor', onBack }) => {
   useEffect(() => {
     if (locale) {
       setLocale(locale);
@@ -54,7 +56,7 @@ export const LowcodeStudioApp: React.FC<LowcodeStudioAppProps> = ({ appId, local
 
   return (
     <LowcodeStudioHostProvider host={host}>
-      <LowcodeStudioShell appId={appId} workspaceId={workspaceId} workspaceLabel={workspaceLabel} />
+      <LowcodeStudioShell appId={appId} workspaceId={workspaceId} workspaceLabel={workspaceLabel} routeMode={routeMode} onBack={onBack} />
     </LowcodeStudioHostProvider>
   );
 };
@@ -63,9 +65,11 @@ interface LowcodeStudioShellProps {
   appId: string;
   workspaceId?: string;
   workspaceLabel?: string;
+  routeMode: 'editor' | 'publish';
+  onBack?: () => void;
 }
 
-function LowcodeStudioShell({ appId, workspaceId, workspaceLabel }: LowcodeStudioShellProps) {
+function LowcodeStudioShell({ appId, workspaceId, workspaceLabel, routeMode, onBack }: LowcodeStudioShellProps) {
   const [topMode, setTopMode] = useState<'business' | 'ui'>('business');
 
   useStudioCommands({ appId });
@@ -75,10 +79,13 @@ function LowcodeStudioShell({ appId, workspaceId, workspaceLabel }: LowcodeStudi
   return (
     <>
       <QueryClientProvider client={studioQueryClient}>
-        <Layout style={{ height: '100vh' }}>
-          <Header>
-            <TopToolbar appId={appId} mode={topMode} onModeChange={setTopMode} />
-          </Header>
+        {routeMode === 'publish' ? (
+          <PublishPage appId={appId} onBack={onBack} />
+        ) : (
+          <Layout style={{ height: '100vh' }}>
+            <Header>
+              <TopToolbar appId={appId} mode={topMode} onModeChange={setTopMode} />
+            </Header>
           {topMode === 'ui' ? (
             <Layout>
               <Sider style={{ width: 280, background: '#f7f7f9', borderRight: '1px solid #eee' }}>
@@ -113,6 +120,7 @@ function LowcodeStudioShell({ appId, workspaceId, workspaceLabel }: LowcodeStudi
           )}
           <ShortcutPanel />
         </Layout>
+        )}
       </QueryClientProvider>
     </>
   );

@@ -1,14 +1,26 @@
 export {
   createLowcodeApi,
+  createRuntimeSessionApi,
   getLocale,
   lowcodeApi,
+  runtimeSessionApi,
   setLocale,
   t,
   type AppListItem,
+  type AppVariable,
+  type AppVariableUpdateRequest,
+  type AppDraftLockInfo,
+  type AppDraftLockResult,
   type Locale,
   type LowcodeApi,
   type LowcodeRequest,
+  type LowcodeRuntimeSessionApi,
   type LowcodeStudioAuth,
-  type LowcodeStudioHostConfig
+  type LowcodeStudioHostConfig,
+  type ResourceBinding,
+  type RuntimeSessionInfo,
+  type RuntimeSessionCreateRequest,
+  type RuntimeSessionPinRequest,
+  type RuntimeSessionArchiveRequest
 } from "./services-exports";
 export { LowcodeStudioApp, type LowcodeStudioAppProps } from "./app/studio-app";

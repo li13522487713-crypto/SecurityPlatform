@@ -1,8 +1,18 @@
 export type {
   AppListItem,
+  AppVariable,
+  AppVariableUpdateRequest,
+  AppDraftLockInfo,
+  AppDraftLockResult,
+  ResourceBinding,
   LowCodeAssetDescriptor,
   LowcodeApi,
   LowcodeRequest,
+  RuntimeSessionInfo,
+  RuntimeSessionCreateRequest,
+  RuntimeSessionPinRequest,
+  RuntimeSessionArchiveRequest,
+  RuntimeRequest,
   ProjectIdeBootstrap,
   ProjectIdeGraph,
   ProjectIdePublishPreview,
@@ -12,7 +22,7 @@ export type {
   RuntimeDispatchResponse,
   RuntimeTrace
 } from "./services/api-core";
-export { createLowcodeApi, lowcodeApi } from "./services/api-core";
+export { createLowcodeApi, createRuntimeSessionApi, lowcodeApi, runtimeSessionApi } from "./services/api-core";
 export { getLocale, setLocale, t, type Locale } from "./i18n";
 export type {
   LowcodeStudioAuth,
@@ -24,5 +34,6 @@ export type {
   LowcodePublishApi,
   LowcodeAssetApi,
   LowcodeDispatchApi,
-  LowcodeCollabConfig
+  LowcodeCollabConfig,
+  LowcodeRuntimeSessionApi
 } from "./host";

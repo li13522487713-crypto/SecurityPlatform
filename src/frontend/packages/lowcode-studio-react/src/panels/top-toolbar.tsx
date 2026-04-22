@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Space, RadioGroup, Radio, Modal, Form, Toast } from '@douyinfe/semi-ui';
-import { lowcodeAppPreviewPath } from '@atlas/app-shell-shared';
+import { Button, Space, RadioGroup, Radio, Modal, Form, Toast, Typography, Dropdown } from '@douyinfe/semi-ui';
+import { IconEdit, IconMore, IconPlayCircle, IconSave, IconCode } from '@douyinfe/semi-icons';
+import { lowcodeAppPreviewPath, appPublishPath } from '@atlas/app-shell-shared';
 import { t } from '../i18n';
 import { VersionDrawer } from './version-drawer';
-import { PublishDrawer } from './publish-drawer';
 import { DebugDrawer } from './debug-drawer';
 import { FaqDrawer } from './faq-drawer';
 import { CollabDrawer } from './collab-drawer';
@@ -22,7 +22,6 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
   const qc = useQueryClient();
   const { api, auth } = useLowcodeStudioHost();
   const [versionOpen, setVersionOpen] = useState(false);
-  const [publishOpen, setPublishOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
@@ -41,24 +40,49 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
   });
 
   return (
-    <Space style={{ width: '100%', padding: '0 16px', height: 56, alignItems: 'center', justifyContent: 'space-between' }}>
-      <Space>
-        <strong>{t('lowcode_studio.app.title')}</strong>
-        <span style={{ color: '#999' }}>#{appId}</span>
-        <RadioGroup type="button" value={mode} onChange={(e) => onModeChange(e.target.value as 'business' | 'ui')}>
-          <Radio value="business">{t('lowcode_studio.toolbar.modeBusinessLogic')}</Radio>
-          <Radio value="ui">{t('lowcode_studio.toolbar.modeUserInterface')}</Radio>
+    <header style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', backgroundColor: '#fff', borderBottom: '1px solid var(--semi-color-border)' }}>
+      {/* Left side */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 6, background: 'linear-gradient(135deg, #FF9A44 0%, #FC6076 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
+          T
+        </div>
+        <Typography.Title heading={5} style={{ margin: 0 }}>测试工作流系统</Typography.Title>
+        <Button icon={<IconEdit />} theme="borderless" type="tertiary" size="small" />
+      </div>
+
+      {/* Middle */}
+      <div>
+        <RadioGroup
+          type="button"
+          value={mode}
+          onChange={(e) => onModeChange(e.target.value as 'business' | 'ui')}
+          style={{ backgroundColor: 'var(--semi-color-fill-0)', borderRadius: 6, padding: 2 }}
+        >
+          <Radio value="business" style={{ borderRadius: 4, padding: '4px 24px', fontWeight: mode === 'business' ? 600 : 400 }}>{t('lowcode_studio.toolbar.modeBusinessLogic')}</Radio>
+          <Radio value="ui" style={{ borderRadius: 4, padding: '4px 24px', fontWeight: mode === 'ui' ? 600 : 400 }}>{t('lowcode_studio.toolbar.modeUserInterface')}</Radio>
         </RadioGroup>
-      </Space>
-      <Space>
-        <Button onClick={() => nav(lowcodeAppPreviewPath(appId))}>{t('lowcode_studio.toolbar.preview')}</Button>
-        <Button onClick={() => setSnapshotOpen(true)}>{t('lowcode_studio.toolbar.save')}</Button>
-        <Button onClick={() => setDebugOpen(true)}>{t('lowcode_studio.toolbar.debug')}</Button>
-        <Button onClick={() => setVersionOpen(true)}>{t('lowcode_studio.toolbar.versions')}</Button>
-        <Button onClick={() => setFaqOpen(true)}>FAQ</Button>
-        <Button onClick={() => setCollabOpen(true)}>{t('lowcode_studio.toolbar.collab')}</Button>
-        <Button type="primary" onClick={() => setPublishOpen(true)}>{t('lowcode_studio.toolbar.publish')}</Button>
-      </Space>
+      </div>
+
+      {/* Right side */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Button icon={<IconPlayCircle />} theme="light" type="tertiary" onClick={() => nav(lowcodeAppPreviewPath(appId))}>{t('lowcode_studio.toolbar.preview')}</Button>
+        <Button icon={<IconCode />} theme="light" type="tertiary" onClick={() => setDebugOpen(true)}>{t('lowcode_studio.toolbar.debug')}</Button>
+        <Button icon={<IconSave />} theme="light" type="tertiary" onClick={() => setSnapshotOpen(true)}>{t('lowcode_studio.toolbar.save')}</Button>
+        
+        <Button type="primary" theme="solid" onClick={() => nav(appPublishPath(appId))} style={{ marginLeft: 8 }}>{t('lowcode_studio.toolbar.publish')}</Button>
+        
+        <Dropdown
+          render={
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={() => setVersionOpen(true)}>{t('lowcode_studio.toolbar.versions')}</Dropdown.Item>
+              <Dropdown.Item onClick={() => setCollabOpen(true)}>{t('lowcode_studio.toolbar.collab')}</Dropdown.Item>
+              <Dropdown.Item onClick={() => setFaqOpen(true)}>FAQ</Dropdown.Item>
+            </Dropdown.Menu>
+          }
+        >
+          <Button icon={<IconMore />} theme="borderless" type="tertiary" />
+        </Dropdown>
+      </div>
 
       <Modal title={t('lowcode_studio.toolbar.save')} visible={snapshotOpen} onCancel={() => setSnapshotOpen(false)} footer={null}>
         <Form
@@ -77,10 +101,9 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ appId, mode, onModeChang
       </Modal>
 
       <VersionDrawer appId={appId} visible={versionOpen} onClose={() => setVersionOpen(false)} />
-      <PublishDrawer appId={appId} visible={publishOpen} onClose={() => setPublishOpen(false)} />
       <DebugDrawer appId={appId} visible={debugOpen} onClose={() => setDebugOpen(false)} />
       <FaqDrawer visible={faqOpen} onClose={() => setFaqOpen(false)} />
       <CollabDrawer appId={appId} userId={userId} visible={collabOpen} onClose={() => setCollabOpen(false)} />
-    </Space>
+    </header>
   );
 };

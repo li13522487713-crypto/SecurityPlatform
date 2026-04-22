@@ -77,6 +77,18 @@ export interface ResourceCatalog {
   total: number;
 }
 
+export interface ResourceBinding {
+  id: number;
+  appId: number;
+  resourceType: string;
+  resourceId: number;
+  role: string;
+  displayOrder: number;
+  configJson: string;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
 export interface ComponentMetaWire {
   type: string;
   displayName: string;
@@ -136,6 +148,16 @@ export interface AppVariable {
   isReadOnly: boolean;
   isPersisted: boolean;
   defaultValueJson: string;
+  description?: string;
+}
+
+export interface AppVariableUpdateRequest {
+  displayName: string;
+  valueType: string;
+  isReadOnly: boolean;
+  isPersisted: boolean;
+  defaultValueJson?: string;
+  validationJson?: string;
   description?: string;
 }
 
@@ -337,6 +359,61 @@ export interface AppDraftLockResult {
   lock?: AppDraftLockInfo | null;
 }
 
+export interface RuntimeSessionInfo {
+  id: string;
+  title?: string | null;
+  pinned: boolean;
+  archived: boolean;
+  updatedAt: string;
+}
+
+export interface RuntimeSessionCreateRequest {
+  title?: string;
+}
+
+export interface RuntimeSessionPinRequest {
+  pinned: boolean;
+}
+
+export interface RuntimeSessionArchiveRequest {
+  archived: boolean;
+}
+
+export type RuntimeRequest = <T>(method: string, path: string, body?: JsonValue) => Promise<T>;
+
+async function requestRuntime<T>(method: string, path: string, body?: JsonValue): Promise<T> {
+  const tenantId = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_tenant_id') : null) ?? '00000000-0000-0000-0000-000000000001';
+  const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('atlas_access_token') : null) ?? '';
+  const res = await fetch(path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Tenant-Id': tenantId,
+      Authorization: token ? `Bearer ${token}` : ''
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: 'include'
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`API ${method} ${path} 失败 ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as ApiResponse<T>;
+  if (!json.success) throw new Error(`${json.code}: ${json.message}`);
+  return json.data;
+}
+
+export function createRuntimeSessionApi(requestImpl: RuntimeRequest) {
+  return {
+    list: () => requestImpl<RuntimeSessionInfo[]>('GET', '/api/runtime/sessions'),
+    create: (request?: RuntimeSessionCreateRequest) => requestImpl<{ id: string }>('POST', '/api/runtime/sessions', (request ?? {}) as never),
+    clear: (sessionId: string) => requestImpl<unknown>('POST', `/api/runtime/sessions/${encodeURIComponent(sessionId)}/clear`),
+    pin: (sessionId: string, request: RuntimeSessionPinRequest) => requestImpl<unknown>('POST', `/api/runtime/sessions/${encodeURIComponent(sessionId)}/pin`, request as never),
+    archive: (sessionId: string, request: RuntimeSessionArchiveRequest) => requestImpl<unknown>('POST', `/api/runtime/sessions/${encodeURIComponent(sessionId)}/archive`, request as never),
+    switchTo: (sessionId: string) => requestImpl<RuntimeSessionInfo>('POST', `/api/runtime/sessions/${encodeURIComponent(sessionId)}:switch`)
+  };
+}
+
 export function createLowcodeApi(requestImpl: LowcodeRequest) {
   return {
   apps: {
@@ -368,17 +445,26 @@ export function createLowcodeApi(requestImpl: LowcodeRequest) {
     list: (appId: string, scope?: string) => requestImpl<AppVariable[]>('GET', `/apps/${appId}/variables${scope ? `?scope=${scope}` : ''}`),
     create: (appId: string, body: AppVariable & { isReadOnly?: boolean; isPersisted?: boolean }) =>
       requestImpl<{ id: string }>('POST', `/apps/${appId}/variables`, body as never),
+    update: (appId: string, variableId: string, body: AppVariableUpdateRequest) =>
+      requestImpl<unknown>('PUT', `/apps/${appId}/variables/${variableId}`, body as never),
     delete: (appId: string, variableId: string) => requestImpl<unknown>('DELETE', `/apps/${appId}/variables/${variableId}`)
   },
   resources: {
-    search: (appId: string, params: { types?: string; keyword?: string; pageIndex?: number; pageSize?: number } = {}) => {
+    search: (appId: string, params: { types?: string; keyword?: string; pageIndex?: number; pageSize?: number; boundOnly?: boolean } = {}) => {
       const sp = new URLSearchParams();
       if (params.types) sp.set('types', params.types);
       if (params.keyword) sp.set('keyword', params.keyword);
+      if (params.boundOnly) sp.set('boundOnly', 'true');
       sp.set('pageIndex', String(params.pageIndex ?? 1));
       sp.set('pageSize', String(params.pageSize ?? 20));
       return requestImpl<ResourceCatalog>('GET', `/apps/${appId}/resources?${sp}`);
-    }
+    },
+    listBindings: (appId: string, resourceType?: string) =>
+      requestImpl<ResourceBinding[]>('GET', `/apps/${appId}/resources/bindings${resourceType ? `?resourceType=${encodeURIComponent(resourceType)}` : ''}`),
+    bind: (appId: string, body: { resourceType: string; resourceId: number; role?: string; displayOrder?: number; configJson?: string }) =>
+      requestImpl<{ id?: string; Id?: string }>('POST', `/apps/${appId}/resources/bindings`, body as never),
+    unbind: (appId: string, resourceType: string, resourceId: number) =>
+      requestImpl<unknown>('DELETE', `/apps/${appId}/resources/bindings/${encodeURIComponent(resourceType)}/${resourceId}`)
   },
   templates: {
     search: (params: { keyword?: string; kind?: string; shareScope?: string; industryTag?: string; pageIndex?: number; pageSize?: number } = {}) => {
@@ -426,3 +512,4 @@ export function createLowcodeApi(requestImpl: LowcodeRequest) {
 export type LowcodeApi = ReturnType<typeof createLowcodeApi>;
 
 export const lowcodeApi = createLowcodeApi(request);
+export const runtimeSessionApi = createRuntimeSessionApi(requestRuntime);
