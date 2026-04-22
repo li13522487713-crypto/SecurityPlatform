@@ -50,7 +50,12 @@
 | foundation / account | `@coze-foundation/account-adapter` | passport | `UserUpdateProfile` | `POST /api/user/update_profile` | 无 | `name`, `description`, `locale` | `code`, `msg` | OK | 是 | 是 | 是 | 否 |
 | developer / bot list | `@coze-arch/bot-api` | DeveloperApi | `GetDraftBotList` | `POST /api/draftbot/get_draft_bot_list` | 无 | `page`, `size`, `space_id`, `name` | `total`, `list[]`, `has_more` | OK | 是 | 是 | 是 | 部分 |
 | developer / bot list | `@coze-arch/bot-api` | DeveloperApi | `GetDraftBotDisplayInfo` | `POST /api/draftbot/get_display_info` | `bot_id` | `space_id` | `bot_id`, `name`, `publish_status` | OK | 是 | 是 | 是 | 部分 |
+| developer / bot action | `@coze-arch/bot-api` | DeveloperApi | `DeleteDraftBot` | `POST /api/draftbot/delete` | `bot_id`, `space_id` | 无 | `code`, `msg`, `data` | OK | 是 | 是 | 是 | 否 |
+| developer / bot action | `@coze-arch/bot-api` | DeveloperApi | `DuplicateDraftBot` | `POST /api/draftbot/duplicate` | `bot_id`, `space_id` | 无 | `data.bot_id`, `data.name`, `data.user_info` | OK | 是 | 是 | 是 | 否 |
 | developer / upload | `@coze-arch/bot-api` | DeveloperApi | `UploadBotFile` | `POST /api/bot/upload_file` | 无 | 文件/上下文参数 | `file_id`, `file_url` | Partial | 部分 | 部分 | 是 | 否 |
+| library | `@coze-arch/bot-api` | PluginDevelopApi | `LibraryResourceList` | `POST /api/plugin_api/library_resource_list` | `space_id` | `name`, `res_type_filter`, `publish_status_filter`, `size`, `cursor` | `resource_list[]`, `cursor`, `has_more` | Partial | 是 | 部分 | 是 | 否 |
+| library | `@coze-arch/bot-api` | PluginDevelopApi | `DelPlugin` | `POST /api/plugin_api/del_plugin` | `plugin_id` | 无 | `code`, `msg` | OK | 是 | 是 | 是 | 否 |
+| library | `@coze-arch/bot-api` | PlaygroundApi | `DeletePromptResource` | `POST /api/playground_api/delete_prompt_resource` | `prompt_resource_id` | 无 | `code`, `msg` | OK | 是 | 是 | 是 | 否 |
 
 ## 第二批及以后
 

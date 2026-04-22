@@ -1,5 +1,6 @@
 using System.Globalization;
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Identity;
@@ -168,6 +169,27 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
 
         return Ok(CozeCompatGatewaySupport.Success(
             CozeCompatGatewaySupport.BuildTypeListPayload(models, request?.model_scene)));
+    }
+
+    [HttpPost("delete_prompt_resource")]
+    [HttpPost("/api/playground_api/delete_prompt_resource")]
+    public async Task<ActionResult<object>> DeletePromptResource(
+        [FromBody] CozeDeletePromptResourceRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.prompt_resource_id, out var promptId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("prompt_resource_id is invalid"));
+        }
+
+        var promptService = HttpContext.RequestServices.GetService<IAiPromptService>();
+        if (promptService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.SuccessWithoutData());
+        }
+
+        await promptService.DeleteAsync(_tenantProvider.GetTenantId(), promptId, cancellationToken);
+        return Ok(CozeCompatGatewaySupport.SuccessWithoutData());
     }
 
     [HttpGet("marketplace/product/favorite/list")]

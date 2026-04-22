@@ -1,5 +1,6 @@
 using System.Globalization;
 using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
@@ -182,6 +183,65 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         }));
     }
 
+    [HttpPost("draftbot/delete")]
+    [HttpPost("/api/draftbot/delete")]
+    public async Task<ActionResult<object>> DeleteDraftBot(
+        [FromBody] CozeGetDraftBotDisplayInfoRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var teamAgentService = HttpContext.RequestServices.GetService<ITeamAgentService>();
+        if (teamAgentService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new { }));
+        }
+
+        await teamAgentService.DeleteAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        return Ok(CozeCompatGatewaySupport.Success(new { }));
+    }
+
+    [HttpPost("draftbot/duplicate")]
+    [HttpPost("/api/draftbot/duplicate")]
+    public async Task<ActionResult<object>> DuplicateDraftBot(
+        [FromBody] CozeGetDraftBotDisplayInfoRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var teamAgentService = HttpContext.RequestServices.GetService<ITeamAgentService>();
+        if (teamAgentService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new
+            {
+                bot_id = string.Empty,
+                name = string.Empty,
+                user_info = BuildCreatorInfo(currentUser)
+            }));
+        }
+
+        var duplicatedId = await teamAgentService.DuplicateAsync(
+            _tenantProvider.GetTenantId(),
+            currentUser.UserId,
+            botId,
+            cancellationToken);
+        var duplicated = await teamAgentService.GetByIdAsync(_tenantProvider.GetTenantId(), duplicatedId, cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            bot_id = duplicatedId.ToString(CultureInfo.InvariantCulture),
+            name = duplicated?.Name ?? string.Empty,
+            user_info = BuildCreatorInfo(currentUser)
+        }));
+    }
+
     [HttpPost("bot/upload_file")]
     [HttpPost("/api/bot/upload_file")]
     public ActionResult<object> UploadBotFile()
@@ -255,6 +315,18 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         }
 
         return value > 0;
+    }
+
+    private static object BuildCreatorInfo(CurrentUserInfo currentUser)
+    {
+        return new
+        {
+            id = currentUser.UserId.ToString(CultureInfo.InvariantCulture),
+            name = string.IsNullOrWhiteSpace(currentUser.DisplayName) ? currentUser.Username : currentUser.DisplayName,
+            avatar_url = string.Empty,
+            user_unique_name = currentUser.Username,
+            user_label = new { }
+        };
     }
 
     private static object MapSpaceItem(Atlas.Application.Platform.Models.WorkspaceListItem item)

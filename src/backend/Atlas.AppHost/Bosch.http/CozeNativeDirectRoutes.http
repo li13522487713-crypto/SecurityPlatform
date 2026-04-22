@@ -60,6 +60,29 @@ X-Tenant-Id: {{tenantId}}
   "size": 10
 }
 
+### Coze 原生 developer：draftbot duplicate
+POST {{host}}/api/draftbot/duplicate
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1"
+}
+
+### Coze 原生 plugin library：resource list
+POST {{host}}/api/plugin_api/library_resource_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "size": 15,
+  "res_type_filter": [2]
+}
+
 ### Coze 原生 workspace openapi：list
 GET {{host}}/v1/workspaces?page_num=1&page_size=20
 Authorization: Bearer {{token}}

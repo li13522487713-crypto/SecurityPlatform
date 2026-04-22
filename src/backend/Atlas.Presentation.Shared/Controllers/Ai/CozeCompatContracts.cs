@@ -272,3 +272,5 @@ public sealed record CozeGetDraftBotDisplayInfoRequest(
     string? space_id);
 
 public sealed record CozeGetSpaceInfoRequest(string? space_id);
+
+public sealed record CozeDeletePromptResourceRequest(string? prompt_resource_id);
