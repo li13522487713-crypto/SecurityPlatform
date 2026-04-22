@@ -1,4 +1,4 @@
-export { workflowApi } from "../../../../../packages/arch/bot-api/src/workflow-api";
+export { workflowApi } from "./workflow-api";
 export { DeveloperApi } from "../../../../../packages/arch/bot-api/src/developer-api";
 export { MultimediaApi } from "../../../../../packages/arch/bot-api/src/multimedia-api";
 export { PluginDevelopApi } from "../../../../../packages/arch/bot-api/src/plugin-develop";

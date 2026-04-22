@@ -15,9 +15,9 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
 {
-    private readonly IWorkflowMetaRepository _metaRepo;
-    private readonly IWorkflowDraftRepository _draftRepo;
-    private readonly IWorkflowVersionRepository _versionRepo;
+    private readonly ICozeWorkflowMetaRepository _metaRepo;
+    private readonly ICozeWorkflowDraftRepository _draftRepo;
+    private readonly ICozeWorkflowVersionRepository _versionRepo;
     private readonly IWorkflowExecutionRepository _executionRepo;
     private readonly IWorkflowNodeExecutionRepository _nodeExecutionRepo;
     private readonly DagExecutor _dagExecutor;
@@ -25,9 +25,9 @@ public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
     private readonly IAppContextAccessor _appContextAccessor;
 
     public CozeWorkflowExecutionService(
-        IWorkflowMetaRepository metaRepo,
-        IWorkflowDraftRepository draftRepo,
-        IWorkflowVersionRepository versionRepo,
+        ICozeWorkflowMetaRepository metaRepo,
+        ICozeWorkflowDraftRepository draftRepo,
+        ICozeWorkflowVersionRepository versionRepo,
         IWorkflowExecutionRepository executionRepo,
         IWorkflowNodeExecutionRepository nodeExecutionRepo,
         DagExecutor dagExecutor,
@@ -97,7 +97,7 @@ public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, execution.WorkflowId, cancellationToken)
             ?? throw new BusinessException("Coze 工作流草稿不存在。", ErrorCodes.NotFound);
 
-        var canvas = ParseCanvasOrThrow(draft.CanvasJson);
+        var canvas = ParseCanvasOrThrow(draft.SchemaJson);
 
         var resumedInputs = VariableResolver.ParseVariableDictionary(execution.InputsJson);
         var nodeExecutions = await _nodeExecutionRepo.ListByExecutionIdAsync(tenantId, executionId, cancellationToken);
@@ -197,14 +197,14 @@ public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
                 throw new BusinessException("指定的 Coze 工作流版本不存在。", ErrorCodes.NotFound);
             }
 
-            return (version.CanvasJson, version.VersionNumber);
+            return (version.SchemaJson, version.VersionNumber);
         }
 
         if (string.Equals(source, "draft", StringComparison.OrdinalIgnoreCase))
         {
             var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken)
                 ?? throw new BusinessException("Coze 工作流草稿不存在。", ErrorCodes.NotFound);
-            return (draft.CanvasJson, 0);
+            return (draft.SchemaJson, 0);
         }
 
         var latestVersion = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
@@ -213,7 +213,7 @@ public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
             throw new BusinessException("Coze 工作流尚未发布，无法按 published 方式运行。", ErrorCodes.ValidationError);
         }
 
-        return (latestVersion.CanvasJson, latestVersion.VersionNumber);
+        return (latestVersion.SchemaJson, latestVersion.VersionNumber);
     }
 
     private static Atlas.Domain.AiPlatform.ValueObjects.CanvasSchema ParseCanvasOrThrow(string schemaJson)

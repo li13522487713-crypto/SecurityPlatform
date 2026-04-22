@@ -24,7 +24,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IAiAppService _aiAppService;
-    private readonly IDagWorkflowCommandService _workflowCommandService;
+    private readonly ICozeWorkflowCommandService _workflowCommandService;
     private readonly WorkspaceRepository _workspaceRepository;
     private readonly WorkspaceRoleRepository _workspaceRoleRepository;
     private readonly WorkspaceMemberRepository _workspaceMemberRepository;
@@ -35,7 +35,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
         ISqlSugarClient db,
         IIdGeneratorAccessor idGeneratorAccessor,
         IAiAppService aiAppService,
-        IDagWorkflowCommandService workflowCommandService,
+        ICozeWorkflowCommandService workflowCommandService,
         WorkspaceRepository workspaceRepository,
         WorkspaceRoleRepository workspaceRoleRepository,
         WorkspaceMemberRepository workspaceMemberRepository,
@@ -96,7 +96,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
             .GroupBy(x => x.WorkspaceId)
             .Select(x => new { WorkspaceId = x.WorkspaceId!.Value, Count = SqlFunc.AggregateCount(x.Id) })
             .ToListAsync(cancellationToken);
-        var workflowCountsTask = _db.Queryable<WorkflowMeta>()
+        var workflowCountsTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.WorkspaceId.HasValue && SqlFunc.ContainsArray(workspaceIds, x.WorkspaceId!.Value))
             .GroupBy(x => x.WorkspaceId)
             .Select(x => new { WorkspaceId = x.WorkspaceId!.Value, Count = SqlFunc.AggregateCount(x.Id) })
@@ -368,7 +368,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
         var workflowId = await _workflowCommandService.CreateAsync(
             tenantId,
             userId,
-            new DagWorkflowCreateRequest(
+            new CozeWorkflowCreateCommand(
                 string.IsNullOrWhiteSpace(request.Name) ? "新建应用工作流" : request.Name.Trim(),
                 request.Description?.Trim(),
                 WorkflowMode.Standard,
@@ -451,7 +451,7 @@ public sealed class WorkspacePortalService : IWorkspacePortalService
 
         if (string.IsNullOrEmpty(normalizedType) || normalizedType == "workflow" || normalizedType == "chatflow")
         {
-            var workflows = await _db.Queryable<WorkflowMeta>()
+            var workflows = await _db.Queryable<CozeWorkflowMeta>()
                 .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.WorkspaceId == workspaceId)
                 .WhereIF(!string.IsNullOrWhiteSpace(keyword), x => x.Name.Contains(keyword!) || (x.Description != null && x.Description.Contains(keyword!)))
                 .OrderBy(x => x.UpdatedAt, OrderByType.Desc)

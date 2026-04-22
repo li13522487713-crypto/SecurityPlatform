@@ -30,14 +30,14 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
     private readonly ISqlSugarClient _db;
     private readonly IAiAppService _aiAppService;
     private readonly IAgentCommandService _agentCommandService;
-    private readonly IDagWorkflowCommandService _workflowCommandService;
+    private readonly ICozeWorkflowCommandService _workflowCommandService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public WorkspaceIdeService(
         ISqlSugarClient db,
         IAiAppService aiAppService,
         IAgentCommandService agentCommandService,
-        IDagWorkflowCommandService workflowCommandService,
+        ICozeWorkflowCommandService workflowCommandService,
         IIdGeneratorAccessor idGeneratorAccessor)
     {
         _db = db;
@@ -58,7 +58,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var appCountTask = _db.Queryable<AiApp>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .CountAsync(cancellationToken);
-        var workflowCountTask = _db.Queryable<WorkflowMeta>()
+        var workflowCountTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.Mode == WorkflowMode.Standard)
             .CountAsync(cancellationToken);
         var enabledModelCountTask = _db.Queryable<ModelConfig>()
@@ -105,10 +105,10 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var agentCountTask = _db.Queryable<Agent>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .CountAsync(cancellationToken);
-        var workflowCountTask = _db.Queryable<WorkflowMeta>()
+        var workflowCountTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.Mode == WorkflowMode.Standard)
             .CountAsync(cancellationToken);
-        var chatflowCountTask = _db.Queryable<WorkflowMeta>()
+        var chatflowCountTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && x.Mode == WorkflowMode.ChatFlow)
             .CountAsync(cancellationToken);
         var pluginCountTask = _db.Queryable<AiPlugin>()
@@ -269,7 +269,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var workflowId = await _workflowCommandService.CreateAsync(
             tenantId,
             userId,
-            new DagWorkflowCreateRequest(
+            new CozeWorkflowCreateCommand(
                 workflowName,
                 request.Description?.Trim() ?? normalizedName,
                 WorkflowMode.Standard,
@@ -510,7 +510,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         var appsTask = _db.Queryable<AiApp>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .ToListAsync(cancellationToken);
-        var workflowsTask = _db.Queryable<WorkflowMeta>()
+        var workflowsTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted)
             .ToListAsync(cancellationToken);
         var pluginsTask = _db.Queryable<AiPlugin>()
@@ -857,7 +857,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .Take(Math.Max(top, 8))
             .ToListAsync(cancellationToken);
-        var workflowsTask = _db.Queryable<WorkflowMeta>()
+        var workflowsTask = _db.Queryable<CozeWorkflowMeta>()
             .Where(x =>
                 x.TenantIdValue == tenantId.Value
                 && !x.IsDeleted
@@ -964,8 +964,8 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
                 .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(agentIds, x.Id))
                 .ToListAsync(cancellationToken);
         var workflowsTask = workflowIds.Length == 0
-            ? Task.FromResult(new List<WorkflowMeta>())
-            : _db.Queryable<WorkflowMeta>()
+            ? Task.FromResult(new List<CozeWorkflowMeta>())
+            : _db.Queryable<CozeWorkflowMeta>()
                 .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted && SqlFunc.ContainsArray(workflowIds, x.Id))
                 .ToListAsync(cancellationToken);
         var pluginsTask = pluginIds.Length == 0
@@ -1734,7 +1734,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
         IReadOnlyDictionary<string, AiRecentEdit> recentByKey,
         CancellationToken cancellationToken)
     {
-        var entities = await _db.Queryable<WorkflowMeta>()
+        var entities = await _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && !x.IsDeleted)
             .WhereIF(!string.IsNullOrWhiteSpace(keyword), x => x.Name.Contains(keyword!) || x.Description!.Contains(keyword!))
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)

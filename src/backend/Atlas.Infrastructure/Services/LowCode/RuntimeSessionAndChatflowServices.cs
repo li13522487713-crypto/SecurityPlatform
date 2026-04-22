@@ -102,11 +102,11 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
     private readonly ILowCodeSessionRepository _sessionRepo;
     private readonly ILowCodeMessageLogRepository _messageLogRepo;
     private readonly IRuntimeMessageLogService _messageLog;
-    private readonly IDagWorkflowExecutionService _engine;
+    private readonly ICozeWorkflowExecutionService _engine;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
 
-    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, ILowCodeMessageLogRepository messageLogRepo, IRuntimeMessageLogService messageLog, IDagWorkflowExecutionService engine, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
+    public RuntimeChatflowService(ILowCodeSessionRepository sessionRepo, ILowCodeMessageLogRepository messageLogRepo, IRuntimeMessageLogService messageLog, ICozeWorkflowExecutionService engine, IIdGeneratorAccessor idGen, IAuditWriter auditWriter)
     {
         _sessionRepo = sessionRepo;
         _messageLogRepo = messageLogRepo;
@@ -123,8 +123,8 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
         await _messageLog.RecordAsync(tenantId, "chatflow", "user_input", sessionId, request.ChatflowId, null, null,
             JsonSerializer.Serialize(new { text = request.Input, chatflowId = request.ChatflowId, context = request.Context }), cancellationToken);
 
-        // M11 收尾：若 chatflowId 是 long（DAG 工作流 ID），桥接到 IDagWorkflowExecutionService.StreamRunAsync 真实流式；
-        // 否则走 mock pipeline（用于无后端 chatflow 时的本地调试）。
+        // chatflowId 若是 long，则直接桥接到 Coze workflow 执行服务；
+        // 当前先以同步执行结果组装 SSE，后续再补真正流式。
         var seq = 0;
         var bridged = false;
         var hadFinal = false;
@@ -136,12 +136,16 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
                 sessionId,
                 context = request.Context
             });
-            DagWorkflowRunRequest runReq = new(inputsJson, source: "lowcode-chatflow");
-            IAsyncEnumerable<SseEvent>? stream = null;
             string? startError = null;
+            CozeWorkflowRunResult? runResult = null;
             try
             {
-                stream = _engine.StreamRunAsync(tenantId, workflowId, currentUserId, runReq, cancellationToken);
+                runResult = await _engine.SyncRunAsync(
+                    tenantId,
+                    workflowId,
+                    currentUserId,
+                    new CozeWorkflowRunCommand(inputsJson, "draft"),
+                    cancellationToken);
             }
             catch (Exception ex)
             {
@@ -153,20 +157,37 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
                 yield return Sse(new { kind = "error", message = $"启动 chatflow 引擎失败：{startError}", recoverable = false, seq });
                 await _messageLog.RecordAsync(tenantId, "chatflow", "error", sessionId, request.ChatflowId, null, null, JsonSerializer.Serialize(new { message = startError }), cancellationToken);
             }
-            if (stream is not null)
+            if (runResult is not null)
             {
                 bridged = true;
-                await foreach (var evt in stream.WithCancellation(cancellationToken))
+                if (!string.IsNullOrWhiteSpace(runResult.OutputsJson))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var (kind, payload) = MapEngineEventToChunk(evt, ++seq);
-                    yield return payload;
+                    seq++;
+                    yield return Sse(new
+                    {
+                        kind = "message",
+                        content = runResult.OutputsJson,
+                        markdown = true,
+                        seq
+                    });
                     LowCodeOtelInstrumentation.ChatflowStreamChunk.Add(1,
                         new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
                         new KeyValuePair<string, object?>("lowcode.chatflow_id", request.ChatflowId),
-                        new KeyValuePair<string, object?>("chunk.kind", kind));
-                    if (kind == "final") hadFinal = true;
+                        new KeyValuePair<string, object?>("chunk.kind", "message"));
                 }
+
+                seq++;
+                yield return Sse(new
+                {
+                    kind = "final",
+                    outputs = SafeParseObject(runResult.OutputsJson ?? string.Empty),
+                    seq
+                });
+                LowCodeOtelInstrumentation.ChatflowStreamChunk.Add(1,
+                    new KeyValuePair<string, object?>("tenant.id", tenantId.Value.ToString()),
+                    new KeyValuePair<string, object?>("lowcode.chatflow_id", request.ChatflowId),
+                    new KeyValuePair<string, object?>("chunk.kind", "final"));
+                hadFinal = true;
             }
         }
 
@@ -202,7 +223,7 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
     }
 
     /// <summary>
-    /// 把 IDagWorkflowExecutionService 的 SseEvent (event/data) 协议转为前端 ChatChunk 4 类（tool_call/message/error/final）。
+    /// 保留兼容的事件映射工具，后续若恢复真正流式可继续复用。
     /// </summary>
     private static (string Kind, string Payload) MapEngineEventToChunk(SseEvent evt, int seq)
     {
@@ -336,7 +357,7 @@ public sealed class RuntimeChatflowService : IRuntimeChatflowService
 
     private static IReadOnlyList<string> SplitTokens(string input)
     {
-        // 简化：按字符分；真实接入 LLM 流式 tokens 由 IDagWorkflowExecutionService.StreamRunAsync 提供。
+        // 简化：按字符分；后续如需恢复真正流式，可直接接 Coze workflow 执行事件流。
         if (string.IsNullOrEmpty(input)) return new[] { "..." };
         var tokens = new List<string>(input.Length);
         foreach (var c in input) tokens.Add(c.ToString());

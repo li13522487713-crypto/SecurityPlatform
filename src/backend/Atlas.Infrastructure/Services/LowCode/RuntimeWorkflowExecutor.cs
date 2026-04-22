@@ -20,12 +20,12 @@ namespace Atlas.Infrastructure.Services.LowCode;
 /// <summary>
 /// 运行时工作流执行服务实现（M09 S09-1 / S09-2 / S09-4）。
 ///
-/// 桥接 IDagWorkflowExecutionService（Coze DAG 引擎），并增强：
+/// 桥接 ICozeWorkflowExecutionService（Coze 工作流执行引擎），并增强：
 ///  - 弹性策略：超时 / 重试 / 熔断 / 降级（按工作流粒度隔离）
 ///  - 异步任务：SQLite + Hangfire 持久化（M09 + M19 落地，支持取消 / webhook 回调 / 进度查询）
 ///  - 批量执行：同步循环 invoke + 失败策略；大批量经 Hangfire 分片（M19 S19-2）
 ///
-/// 注：所有 workflowId 接受字符串（Coze 上游约定），内部转 long 调用 IDagWorkflowExecutionService。
+/// 注：所有 workflowId 接受字符串（Coze 上游约定），内部转 long 调用 ICozeWorkflowExecutionService。
 /// </summary>
 public sealed class RuntimeWorkflowExecutor : IRuntimeWorkflowExecutor
 {
@@ -36,7 +36,7 @@ public sealed class RuntimeWorkflowExecutor : IRuntimeWorkflowExecutor
     private static readonly Dictionary<string, CircuitState> Circuits = new();
     private static readonly object CircuitsSync = new();
 
-    private readonly IDagWorkflowExecutionService _engine;
+    private readonly ICozeWorkflowExecutionService _engine;
     private readonly IRuntimeWorkflowAsyncJobRepository _jobRepo;
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
@@ -44,7 +44,7 @@ public sealed class RuntimeWorkflowExecutor : IRuntimeWorkflowExecutor
     private readonly ILogger<RuntimeWorkflowExecutor> _logger;
 
     public RuntimeWorkflowExecutor(
-        IDagWorkflowExecutionService engine,
+        ICozeWorkflowExecutionService engine,
         IRuntimeWorkflowAsyncJobRepository jobRepo,
         IIdGeneratorAccessor idGen,
         IAuditWriter auditWriter,
@@ -177,11 +177,11 @@ public sealed class RuntimeWorkflowExecutor : IRuntimeWorkflowExecutor
     {
         if (!long.TryParse(request.WorkflowId, out var workflowIdLong))
         {
-            throw new BusinessException(ErrorCodes.ValidationError, $"workflowId 必须为长整型字符串（DAG 引擎约定）：{request.WorkflowId}");
+            throw new BusinessException(ErrorCodes.ValidationError, $"workflowId 必须为长整型字符串（Coze 工作流约定）：{request.WorkflowId}");
         }
         var inputsJson = request.Inputs is null ? null : JsonSerializer.Serialize(request.Inputs);
         var stopwatch = Stopwatch.StartNew();
-        var run = await _engine.SyncRunAsync(tenantId, workflowIdLong, currentUserId, new DagWorkflowRunRequest(inputsJson, source: "lowcode-runtime"), cancellationToken);
+        var run = await _engine.SyncRunAsync(tenantId, workflowIdLong, currentUserId, new CozeWorkflowRunCommand(inputsJson, "draft"), cancellationToken);
         stopwatch.Stop();
 
         Dictionary<string, JsonElement>? outputs = null;

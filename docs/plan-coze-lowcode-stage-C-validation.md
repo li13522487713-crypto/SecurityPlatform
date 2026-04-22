@@ -52,7 +52,7 @@
 - **作用域隔离**（PLAN §1.3 #3）：set_variable 在 dispatch 中再做 scope 守门，写入 system / component / event / workflow.outputs / chatflow.outputs 直接抛 `scope_violation`。
 - **API 双前缀严守**：M14 端点双套校准完成（设计态 v1：diff/rollback；运行时：archive/rollback）。
 - **资源引用治理**（PLAN §M14 S14-3）：`IResourceReferenceGuardService` 拒绝删除被引用资源；`ReindexForAppAsync` 替换语义 + 单 SQL 批量。
-- **Coze 兼容层**：list_spans / chatflow stream 已通过 RuntimeTraceService / RuntimeChatflowService 替换为 OK-via-runtime；chatflow 真实流式已桥接到 IDagWorkflowExecutionService.StreamRunAsync（chatflowId 是 long 时），SseEvent → ChatChunk 4 类自动映射；非 long chatflowId 走 mock pipeline 兜底。
+- **Coze 兼容层**：list_spans / chatflow stream 已通过 RuntimeTraceService / RuntimeChatflowService 替换为 OK-via-runtime；chatflow 当前已桥接到 Coze workflow 执行服务（chatflowId 是 long 时走真实执行），不再依赖旧 Dag 主线。
 
 ## 进入阶段 D
 - M15 lowcode-runtime-mini + lowcode-mini-host（5187 + Taro 微信/抖音/H5）

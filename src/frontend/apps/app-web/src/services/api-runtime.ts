@@ -2,47 +2,25 @@ import type { ApiResponse } from "@atlas/shared-react-core";
 import type { RuntimeMenuResponse } from "../types/api";
 import type { RuntimePageSchema } from "../types/runtime-page-schema";
 import type { RuntimeManifest, RuntimeExecution, RuntimeAuditEvent } from "../runtime/release/runtime-release-types";
-import { isDirectRuntimeMode, requestApi, resolveAppHostPrefix } from "./api-core";
+import { requestApi } from "./api-core";
 export { requestApi } from "./api-core";
 
-function resolveAppKeyFromPath(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const appRouteMatch = window.location.pathname.match(/^\/apps\/([^/]+)/);
-  return appRouteMatch?.[1] ? decodeURIComponent(appRouteMatch[1]) : null;
-}
-
-function resolveRuntimeAppKey(inputAppKey?: string): string | null {
-  const normalized = inputAppKey?.trim();
-  return normalized && normalized.length > 0 ? normalized : resolveAppKeyFromPath();
-}
-
 export async function getRuntimeMenu(appKey: string): Promise<RuntimeMenuResponse> {
-  const requestPath = `${resolveAppHostPrefix(appKey)}/api/v1/runtime/apps/${encodeURIComponent(appKey)}/menu`;
+  const requestPath = `/api/v1/runtime/apps/${encodeURIComponent(appKey)}/menu`;
   const response = await requestApi<ApiResponse<RuntimeMenuResponse>>(
     requestPath
   );
   return response.data ?? { appKey, items: [] };
 }
 
-export function buildRuntimeRecordsUrl(pageKey: string, appKey?: string): string {
+export function buildRuntimeRecordsUrl(pageKey: string): string {
   const encodedPageKey = encodeURIComponent(pageKey);
-  const runtimeAppKey = resolveRuntimeAppKey(appKey);
-  if (isDirectRuntimeMode() || !runtimeAppKey) {
-    return `/api/app/runtime/pages/${encodedPageKey}/records`;
-  }
-
-  return `${resolveAppHostPrefix(runtimeAppKey)}/api/app/runtime/pages/${encodedPageKey}/records`;
+  return `/api/app/runtime/pages/${encodedPageKey}/records`;
 }
 
-export async function getRuntimePageSchema(pageKey: string, appKey?: string): Promise<RuntimePageSchema> {
+export async function getRuntimePageSchema(pageKey: string): Promise<RuntimePageSchema> {
   const encodedPageKey = encodeURIComponent(pageKey);
-  const runtimeAppKey = resolveRuntimeAppKey(appKey);
-  const requestPath = isDirectRuntimeMode() || !runtimeAppKey
-    ? `/api/app/runtime/pages/${encodedPageKey}/schema`
-    : `${resolveAppHostPrefix(runtimeAppKey)}/api/app/runtime/pages/${encodedPageKey}/schema`;
+  const requestPath = `/api/app/runtime/pages/${encodedPageKey}/schema`;
 
   const response = await requestApi<ApiResponse<RuntimePageSchema>>(
     requestPath
@@ -77,10 +55,9 @@ export async function createRuntimeExecution(
     releaseVersion?: number;
   },
 ): Promise<RuntimeExecution | null> {
-  const prefix = isDirectRuntimeMode() ? "" : resolveAppHostPrefix(appKey);
   try {
     const resp = await requestApi<ApiResponse<RuntimeExecution>>(
-      `${prefix}/api/app/runtime/executions`,
+      `/api/app/runtime/executions`,
       {
         method: "POST",
         body: JSON.stringify({
@@ -103,10 +80,9 @@ export async function reportRuntimeEvents(
 ): Promise<void> {
   if (events.length === 0) return;
 
-  const prefix = isDirectRuntimeMode() ? "" : resolveAppHostPrefix(appKey);
   try {
     await requestApi<ApiResponse<unknown>>(
-      `${prefix}/api/app/runtime/audit/events`,
+      `/api/app/runtime/audit/events`,
       {
         method: "POST",
         body: JSON.stringify({ events }),

@@ -12,7 +12,6 @@ import {
   IconGlobe,
   IconLink,
   IconFile,
-  IconServer,
   IconPlus
 } from "@douyinfe/semi-icons";
 import type { CozeNavSection } from "@atlas/coze-shell-react";
@@ -56,7 +55,6 @@ function getNavIcon(key: string, glyph: string) {
     case "community": return <IconGlobe />;
     case "open-api": return <IconLink />;
     case "docs": return <IconFile />;
-    case "platform": return <IconServer />;
     default: return <span className="app-nav-glyph" aria-hidden="true">{glyph}</span>;
   }
 }
@@ -102,10 +100,6 @@ export function WorkspaceShellLayout() {
     return <LoadingPage />;
   }
 
-  if (!bootstrap.platformReady) {
-    return <Navigate to="/platform-not-ready" replace />;
-  }
-
   if (!auth.isAuthenticated) {
     return <Navigate to={signPath(location.pathname + location.search)} replace />;
   }
@@ -120,7 +114,7 @@ export function WorkspaceShellLayout() {
       <WorkspaceProvider workspaceId={workspaceId}>
         <PermissionProvider>
           <RememberWorkspace />
-          <ShellChrome variant="workspace" />
+          <ShellChrome />
         </PermissionProvider>
       </WorkspaceProvider>
     </OrganizationProvider>
@@ -128,25 +122,20 @@ export function WorkspaceShellLayout() {
 }
 
 /**
- * 平台域/个人域路由壳子（`/market/*`、`/community/*`、`/open/*`、`/docs`、`/platform/general`、`/me/*`）。
+ * 非工作空间路由壳子（`/market/*`、`/community/*`、`/open/*`、`/docs`、`/me/*`）。
  *
  * - 不强制 URL 中存在 workspaceId
- * - 从 localStorage 的“上次访问的工作空间”读取，无则跳 `/select-workspace`
- * - 工作空间域 6 项菜单仍渲染并指向最近访问空间
+ * - 从 localStorage 的”上次访问的工作空间”读取，无则跳 `/select-workspace`
  */
 export function PlatformShellLayout() {
   const auth = useAuth();
   const bootstrap = useBootstrap();
   const location = useLocation();
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(() => readLastWorkspaceId());
+  const selectedWorkspaceId = readLastWorkspaceId();
   const tenantId = getTenantId() ?? "";
 
   if (bootstrap.loading || auth.loading) {
     return <LoadingPage />;
-  }
-
-  if (!bootstrap.platformReady) {
-    return <Navigate to="/platform-not-ready" replace />;
   }
 
   if (!auth.isAuthenticated) {
@@ -162,7 +151,7 @@ export function PlatformShellLayout() {
       <WorkspaceProvider workspaceId={selectedWorkspaceId}>
         <PermissionProvider>
           <RememberWorkspace />
-          <ShellChrome variant="platform" onSelectWorkspace={setSelectedWorkspaceId} />
+          <ShellChrome />
         </PermissionProvider>
       </WorkspaceProvider>
     </OrganizationProvider>
@@ -179,12 +168,7 @@ function RememberWorkspace() {
   return null;
 }
 
-interface ShellChromeProps {
-  variant: "workspace" | "platform";
-  onSelectWorkspace?: (workspaceId: string) => void;
-}
-
-function ShellChrome({ variant, onSelectWorkspace }: ShellChromeProps) {
+function ShellChrome() {
   const { t, locale, setLocale } = useAppI18n();
   const auth = useAuth();
   const navigate = useNavigate();
@@ -223,15 +207,10 @@ function ShellChrome({ variant, onSelectWorkspace }: ShellChromeProps) {
     }
 
     rememberLastWorkspaceId(targetWorkspaceId);
-    if (variant === "platform") {
-      onSelectWorkspace?.(targetWorkspaceId);
-      return;
-    }
-
     navigate(buildWorkspaceSwitchPath(activePath, targetWorkspaceId));
   };
 
-  if (variant === "workspace" && workspace.loading) {
+  if (workspace.loading) {
     return <LoadingPage />;
   }
 
@@ -304,9 +283,6 @@ function resolveHeaderTitle(pathname: string, t: (key: AppMessageKey) => string)
   }
   if (pathname.startsWith("/docs")) {
     return t("cozeMenuDocs");
-  }
-  if (pathname.startsWith("/platform")) {
-    return t("cozeMenuPlatform");
   }
   if (pathname.includes("/home")) {
     return t("cozeMenuHome");

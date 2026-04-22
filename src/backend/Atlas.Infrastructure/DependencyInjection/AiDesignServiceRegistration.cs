@@ -64,6 +64,9 @@ public static class AiDesignServiceRegistration
         services.AddScoped<AiWorkspaceRepository>();
         services.AddScoped<AiShortcutCommandRepository>();
         services.AddScoped<AiBotPopupInfoRepository>();
+        services.AddScoped<CozeWorkflowMetaRepository>();
+        services.AddScoped<CozeWorkflowDraftRepository>();
+        services.AddScoped<CozeWorkflowVersionRepository>();
         services.AddScoped<AgentTeamRepository>();
         services.AddScoped<SubAgentRepository>();
         services.AddScoped<OrchestrationNodeRepository>();
@@ -115,6 +118,9 @@ public static class AiDesignServiceRegistration
         services.AddSingleton<AiWorkflowDslBuilder>();
 
         services.AddScoped<ICanvasValidator, CanvasValidator>();
+        services.AddScoped<ICozeWorkflowMetaRepository>(sp => sp.GetRequiredService<CozeWorkflowMetaRepository>());
+        services.AddScoped<ICozeWorkflowDraftRepository>(sp => sp.GetRequiredService<CozeWorkflowDraftRepository>());
+        services.AddScoped<ICozeWorkflowVersionRepository>(sp => sp.GetRequiredService<CozeWorkflowVersionRepository>());
         services.AddScoped<ICozeWorkflowPlanCompiler, CozeWorkflowPlanCompiler>();
         services.AddScoped<ICozeWorkflowCommandService, CozeWorkflowCommandService>();
         services.AddScoped<ICozeWorkflowQueryService, CozeWorkflowQueryService>();
@@ -127,8 +133,6 @@ public static class AiDesignServiceRegistration
         services.AddTransient<HttpRequesterStep>();
         services.AddTransient<OutputEmitterStep>();
 
-        services.AddScoped<IDagWorkflowCommandService, DagWorkflowCommandService>();
-        services.AddScoped<IDagWorkflowQueryService, DagWorkflowQueryService>();
         services.AddScoped<WorkflowCompatServices>();
         services.AddScoped<IWorkflowTraceService>(sp => sp.GetRequiredService<WorkflowCompatServices>());
         services.AddScoped<IWorkflowCollaboratorService>(sp => sp.GetRequiredService<WorkflowCompatServices>());

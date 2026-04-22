@@ -4,7 +4,6 @@ import {
   marketPluginsPath,
   marketTemplatesPath,
   openApiPath,
-  platformGeneralPath,
   workspaceEvaluationsPath,
   workspaceHomePath,
   workspaceProjectsPath,
@@ -138,13 +137,6 @@ export const MENU_GROUPS: MenuGroupConfig[] = [
         buildPath: () => docsPath(),
         testIdSuffix: "docs"
       },
-      {
-        key: "platform",
-        labelKey: "cozeMenuPlatform",
-        iconGlyph: "通",
-        buildPath: () => platformGeneralPath(),
-        testIdSuffix: "platform"
-      }
     ]
   }
 ];

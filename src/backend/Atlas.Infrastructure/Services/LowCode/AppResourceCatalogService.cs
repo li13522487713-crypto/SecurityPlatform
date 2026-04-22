@@ -71,7 +71,7 @@ public sealed class AppResourceCatalogService : IAppResourceCatalogService
 
     private async Task<IReadOnlyList<AppResourceItem>> QueryWorkflowsAsync(TenantId tenantId, string? keyword, int pageIndex, int pageSize, bool includeChat, CancellationToken cancellationToken)
     {
-        var q = _db.Queryable<WorkflowMeta>()
+        var q = _db.Queryable<CozeWorkflowMeta>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.IsDeleted == false);
         q = includeChat
             ? q.Where(x => x.Mode == WorkflowMode.ChatFlow)

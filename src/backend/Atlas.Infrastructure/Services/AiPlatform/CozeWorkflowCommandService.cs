@@ -8,7 +8,6 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
-using Atlas.Infrastructure.Services.WorkflowEngine;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -93,16 +92,16 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
             }
         });
 
-    private readonly IWorkflowMetaRepository _metaRepo;
-    private readonly IWorkflowDraftRepository _draftRepo;
-    private readonly IWorkflowVersionRepository _versionRepo;
+    private readonly ICozeWorkflowMetaRepository _metaRepo;
+    private readonly ICozeWorkflowDraftRepository _draftRepo;
+    private readonly ICozeWorkflowVersionRepository _versionRepo;
     private readonly ICanvasValidator _canvasValidator;
     private readonly IIdGeneratorAccessor _idGenerator;
 
     public CozeWorkflowCommandService(
-        IWorkflowMetaRepository metaRepo,
-        IWorkflowDraftRepository draftRepo,
-        IWorkflowVersionRepository versionRepo,
+        ICozeWorkflowMetaRepository metaRepo,
+        ICozeWorkflowDraftRepository draftRepo,
+        ICozeWorkflowVersionRepository versionRepo,
         ICanvasValidator canvasValidator,
         IIdGeneratorAccessor idGenerator)
     {
@@ -120,7 +119,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         CancellationToken cancellationToken)
     {
         var metaId = _idGenerator.NextId();
-        var meta = new WorkflowMeta(
+        var meta = new CozeWorkflowMeta(
             tenantId,
             request.Name.Trim(),
             request.Description?.Trim(),
@@ -130,7 +129,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
             request.WorkspaceId);
         await _metaRepo.AddAsync(meta, cancellationToken);
 
-        var draft = new WorkflowDraft(tenantId, metaId, WorkflowStarterSchemaJson, _idGenerator.NextId());
+        var draft = new CozeWorkflowDraft(tenantId, metaId, WorkflowStarterSchemaJson, _idGenerator.NextId());
         await _draftRepo.AddAsync(draft, cancellationToken);
         return metaId;
     }
@@ -177,8 +176,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("Coze 工作流草稿不存在。", ErrorCodes.NotFound);
 
-        var normalizedCanvasJson = WorkflowCanvasJsonBridge.NormalizeToBackendCanvasJson(draft.CanvasJson);
-        var canvasValidation = _canvasValidator.ValidateCanvas(normalizedCanvasJson);
+        var canvasValidation = _canvasValidator.ValidateCanvas(draft.SchemaJson);
         if (!canvasValidation.IsValid)
         {
             var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));
@@ -186,11 +184,11 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         }
 
         var newVersionNumber = meta.LatestVersionNumber + 1;
-        var version = new WorkflowVersion(
+        var version = new CozeWorkflowVersion(
             tenantId,
             meta.Id,
             newVersionNumber,
-            draft.CanvasJson,
+            draft.SchemaJson,
             request.ChangeLog,
             userId,
             _idGenerator.NextId());
@@ -216,7 +214,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken);
 
         var newMetaId = _idGenerator.NextId();
-        var newMeta = new WorkflowMeta(
+        var newMeta = new CozeWorkflowMeta(
             tenantId,
             $"{meta.Name}-副本",
             meta.Description,
@@ -226,10 +224,10 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
             meta.WorkspaceId);
         await _metaRepo.AddAsync(newMeta, cancellationToken);
 
-        var newDraft = new WorkflowDraft(
+        var newDraft = new CozeWorkflowDraft(
             tenantId,
             newMetaId,
-            draft?.CanvasJson ?? WorkflowStarterSchemaJson,
+            draft?.SchemaJson ?? WorkflowStarterSchemaJson,
             _idGenerator.NextId());
         await _draftRepo.AddAsync(newDraft, cancellationToken);
 

@@ -84,7 +84,7 @@
 ## 5. 已知简化与延后项（两轮收尾后剩余）
 
 > 第一轮收尾批次（2026-04）：
-> - ✅ **M11 chatflow 真实流式**：RuntimeChatflowService 桥接 `IDagWorkflowExecutionService.StreamRunAsync`，SseEvent → ChatChunk 4 类自动映射；非 long chatflowId 回退 mock。
+> - ✅ **M11 chatflow 运行链**：RuntimeChatflowService 已桥接到 Coze workflow 执行服务；非 long chatflowId 返回明确错误，不再依赖旧 Dag 主线。
 > - ✅ **M16 Yjs 离线快照**：`LowCodeCollabSnapshotJob` Hangfire 每 10 分钟落 `AppVersionArchive(systemSnapshot=true)` + 自动 Cache.Clear。
 > - ✅ **M19 异步/批量 Hangfire**：`RuntimeWorkflowBackgroundJob` 接管 fire-and-forget 与同步循环；进度通过 `RuntimeWorkflowAsyncJob.UpdateProgress` 定期回写。
 > - ✅ **M13 OTel 全链路**：`LowCodeOtelInstrumentation` 暴露 ActivitySource 'lowcode.runtime' + Meter 5 项指标，AppHost 已 AddSource/AddMeter。

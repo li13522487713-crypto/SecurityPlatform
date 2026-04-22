@@ -4,11 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm exec rsbuild dev --host 0.0.0.0 --env-mode platform",
-    "dev:platform": "pnpm exec rsbuild dev --host 0.0.0.0 --env-mode platform",
-    "dev:direct": "pnpm exec rsbuild dev --host 0.0.0.0 --env-mode direct",
-    "build": "pnpm exec rsbuild build --env-mode platform",
-    "build:platform": "pnpm exec rsbuild build --env-mode platform",
+    "dev": "pnpm exec rsbuild dev --host 0.0.0.0 --env-mode direct",
+    "build": "pnpm exec rsbuild build --env-mode direct",
     "preview": "pnpm exec rsbuild preview",
     "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,tsx}\""
   },

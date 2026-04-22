@@ -124,7 +124,7 @@ public sealed class CozeWorkflowCompatIntegrationTests
 
     private static string BuildCozeNativeSchema(string entryVarName)
     {
-        return $$"""
+        return """
         {
           "nodes": [
             {
@@ -133,7 +133,7 @@ public sealed class CozeWorkflowCompatIntegrationTests
               "meta": { "position": { "x": 120, "y": 80 } },
               "data": {
                 "nodeMeta": { "title": "开始" },
-                "outputs": [{ "name": "{{entryVarName}}", "type": "string", "required": true }]
+                "outputs": [{ "name": "__ENTRY_VAR__", "type": "string", "required": true }]
               }
             },
             {
@@ -144,8 +144,8 @@ public sealed class CozeWorkflowCompatIntegrationTests
                 "nodeMeta": { "title": "代码执行" },
                 "inputs": {
                   "language": "javascript",
-                  "code": "function main(args){ return { result: args.params.{{entryVarName}} }; }",
-                  "inputParameters": [{ "name": "{{entryVarName}}" }]
+                  "code": "function main(args){ return { result: args.params.__ENTRY_VAR__ }; }",
+                  "inputParameters": [{ "name": "__ENTRY_VAR__" }]
                 },
                 "outputs": [{ "name": "result", "type": "string" }]
               }
@@ -173,6 +173,6 @@ public sealed class CozeWorkflowCompatIntegrationTests
             { "sourceNodeID": "code_1", "targetNodeID": "exit_1" }
           ]
         }
-        """;
+        """.Replace("__ENTRY_VAR__", entryVarName, StringComparison.Ordinal);
     }
 }

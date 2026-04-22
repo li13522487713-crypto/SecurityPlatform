@@ -31,12 +31,12 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
 {
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
-    private readonly IDagWorkflowExecutionService _workflowExecutionService;
+    private readonly ICozeWorkflowExecutionService _workflowExecutionService;
 
     public RuntimeExecutionCommandService(
         ISqlSugarClient db,
         Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory,
-        IDagWorkflowExecutionService workflowExecutionService)
+        ICozeWorkflowExecutionService workflowExecutionService)
     {
         _mainDb = db;
         _appDbScopeFactory = appDbScopeFactory;
@@ -45,7 +45,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
 
     public RuntimeExecutionCommandService(
         ISqlSugarClient db,
-        IDagWorkflowExecutionService workflowExecutionService)
+        ICozeWorkflowExecutionService workflowExecutionService)
         : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db), workflowExecutionService)
     {
     }
@@ -89,11 +89,11 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
                 null);
         }
 
-        var runResult = await _workflowExecutionService.AsyncRunAsync(
+        var runResult = await _workflowExecutionService.SyncRunAsync(
             tenantId,
             execution.WorkflowId,
             operatorUserId,
-            new DagWorkflowRunRequest(execution.InputsJson),
+            new CozeWorkflowRunCommand(execution.InputsJson, "draft"),
             cancellationToken);
         await WriteAuditAsync(
             tenantId,
@@ -105,8 +105,8 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
         return new RuntimeExecutionOperationResult(
             "retry",
             executionId.ToString(),
-            runResult.Status?.ToString() ?? ExecutionStatus.Pending.ToString(),
-            "已发起重试执行。",
+            runResult.Status?.ToString() ?? ExecutionStatus.Completed.ToString(),
+            "已完成重试执行。",
             runResult.ExecutionId);
     }
 
@@ -127,7 +127,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
                 null);
         }
 
-        await _workflowExecutionService.ResumeAsync(tenantId, executionId, cancellationToken);
+        await _workflowExecutionService.ResumeAsync(tenantId, executionId, data: null, cancellationToken);
         await WriteAuditAsync(tenantId, operatorUserId, "runtime.execution.resume", $"RuntimeExecution:{executionId}", cancellationToken);
         return new RuntimeExecutionOperationResult("resume", executionId.ToString(), ExecutionStatus.Running.ToString(), "执行已恢复。", null);
     }
@@ -145,7 +145,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
             throw new InvalidOperationException("NodeKey 不能为空。");
         }
 
-        var debugRequest = new DagWorkflowNodeDebugRequest(request.NodeKey.Trim(), request.InputsJson ?? execution.InputsJson);
+        var debugRequest = new CozeWorkflowNodeDebugCommand(request.NodeKey.Trim(), request.InputsJson ?? execution.InputsJson, "draft");
         var debugResult = await _workflowExecutionService.DebugNodeAsync(
             tenantId,
             execution.WorkflowId,

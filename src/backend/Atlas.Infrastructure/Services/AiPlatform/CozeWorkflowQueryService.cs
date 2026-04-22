@@ -15,24 +15,22 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class CozeWorkflowQueryService : ICozeWorkflowQueryService
 {
-    private readonly IWorkflowMetaRepository _metaRepo;
-    private readonly IWorkflowDraftRepository _draftRepo;
-    private readonly IWorkflowVersionRepository _versionRepo;
+    private readonly ICozeWorkflowMetaRepository _metaRepo;
+    private readonly ICozeWorkflowDraftRepository _draftRepo;
+    private readonly ICozeWorkflowVersionRepository _versionRepo;
     private readonly IWorkflowExecutionRepository _executionRepo;
     private readonly IWorkflowNodeExecutionRepository _nodeExecutionRepo;
     private readonly ISqlSugarClient _db;
     private readonly NodeExecutorRegistry _registry;
-    private readonly IDagWorkflowQueryService _dagWorkflowQueryService;
 
     public CozeWorkflowQueryService(
-        IWorkflowMetaRepository metaRepo,
-        IWorkflowDraftRepository draftRepo,
-        IWorkflowVersionRepository versionRepo,
+        ICozeWorkflowMetaRepository metaRepo,
+        ICozeWorkflowDraftRepository draftRepo,
+        ICozeWorkflowVersionRepository versionRepo,
         IWorkflowExecutionRepository executionRepo,
         IWorkflowNodeExecutionRepository nodeExecutionRepo,
         ISqlSugarClient db,
-        NodeExecutorRegistry registry,
-        IDagWorkflowQueryService dagWorkflowQueryService)
+        NodeExecutorRegistry registry)
     {
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
@@ -41,7 +39,6 @@ public sealed class CozeWorkflowQueryService : ICozeWorkflowQueryService
         _nodeExecutionRepo = nodeExecutionRepo;
         _db = db;
         _registry = registry;
-        _dagWorkflowQueryService = dagWorkflowQueryService;
     }
 
     public async Task<PagedResult<CozeWorkflowListItem>> ListAsync(
@@ -87,7 +84,7 @@ public sealed class CozeWorkflowQueryService : ICozeWorkflowQueryService
 
         if (string.Equals(source, "published", StringComparison.OrdinalIgnoreCase) || versionId.HasValue)
         {
-            WorkflowVersion? version = null;
+            CozeWorkflowVersion? version = null;
             if (versionId.HasValue)
             {
                 version = await _versionRepo.FindByIdAsync(tenantId, versionId.Value, cancellationToken);
@@ -221,7 +218,7 @@ public sealed class CozeWorkflowQueryService : ICozeWorkflowQueryService
             return null;
         }
 
-        WorkflowVersion? version = null;
+        CozeWorkflowVersion? version = null;
         if (executionId is { } execId and > 0)
         {
             var execution = await _executionRepo.FindByIdAsync(tenantId, execId, cancellationToken);
@@ -254,7 +251,7 @@ public sealed class CozeWorkflowQueryService : ICozeWorkflowQueryService
 
         if (version is null)
         {
-            version = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
+                version = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
         }
 
         if (version is not null)
@@ -365,50 +362,32 @@ public sealed class CozeWorkflowQueryService : ICozeWorkflowQueryService
         long workflowId,
         CancellationToken cancellationToken)
     {
-        return MapDependenciesAsync(tenantId, workflowId, cancellationToken);
+        return Task.FromResult<CozeWorkflowReferenceDto?>(new CozeWorkflowReferenceDto(
+            workflowId,
+            Array.Empty<DagWorkflowDependencyItemDto>(),
+            Array.Empty<DagWorkflowDependencyItemDto>(),
+            Array.Empty<DagWorkflowDependencyItemDto>(),
+            Array.Empty<DagWorkflowDependencyItemDto>(),
+            Array.Empty<DagWorkflowDependencyItemDto>(),
+            Array.Empty<DagWorkflowDependencyItemDto>()));
     }
 
-    private async Task<CozeWorkflowReferenceDto?> MapDependenciesAsync(
-        TenantId tenantId,
-        long workflowId,
-        CancellationToken cancellationToken)
-    {
-        var dependencies = await _dagWorkflowQueryService.GetDependenciesAsync(tenantId, workflowId, cancellationToken);
-        if (dependencies is null)
-        {
-            return null;
-        }
-
-        var resolvedWorkflowId = long.TryParse(dependencies.WorkflowId, out var parsedWorkflowId)
-            ? parsedWorkflowId
-            : workflowId;
-
-        return new CozeWorkflowReferenceDto(
-            resolvedWorkflowId,
-            dependencies.SubWorkflows,
-            dependencies.Plugins,
-            dependencies.KnowledgeBases,
-            dependencies.Databases,
-            dependencies.Variables,
-            dependencies.Conversations);
-    }
-
-    private static CozeWorkflowListItem MapListItem(WorkflowMeta meta)
+    private static CozeWorkflowListItem MapListItem(CozeWorkflowMeta meta)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
             meta.LatestVersionNumber, meta.CreatorId, meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
 
-    private static CozeWorkflowDetailDto MapDetail(WorkflowMeta meta, WorkflowDraft? draft)
+    private static CozeWorkflowDetailDto MapDetail(CozeWorkflowMeta meta, CozeWorkflowDraft? draft)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
-            meta.LatestVersionNumber, meta.CreatorId, draft?.CanvasJson ?? "{}", draft?.CommitId,
+            meta.LatestVersionNumber, meta.CreatorId, draft?.SchemaJson ?? "{}", draft?.CommitId,
             meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
 
-    private static CozeWorkflowDetailDto MapDetail(WorkflowMeta meta, WorkflowVersion version)
+    private static CozeWorkflowDetailDto MapDetail(CozeWorkflowMeta meta, CozeWorkflowVersion version)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
-            meta.LatestVersionNumber, meta.CreatorId, version.CanvasJson, null,
+            meta.LatestVersionNumber, meta.CreatorId, version.SchemaJson, null,
             meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);
 
-    private static CozeWorkflowVersionDto MapVersion(WorkflowVersion version)
-        => new(version.Id, version.WorkflowId, version.VersionNumber, version.ChangeLog, version.CanvasJson, version.PublishedAt, version.PublishedByUserId);
+    private static CozeWorkflowVersionDto MapVersion(CozeWorkflowVersion version)
+        => new(version.Id, version.WorkflowId, version.VersionNumber, version.ChangeLog, version.SchemaJson, version.PublishedAt, version.PublishedByUserId);
 
     private static CozeWorkflowExecutionDto MapExecution(WorkflowExecution execution, IReadOnlyList<WorkflowNodeExecution> nodes)
         => new(execution.Id, execution.WorkflowId, execution.VersionNumber, execution.Status,

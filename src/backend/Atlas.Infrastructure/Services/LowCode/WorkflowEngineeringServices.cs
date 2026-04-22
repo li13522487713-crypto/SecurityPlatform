@@ -321,13 +321,13 @@ public sealed class WorkflowCompositionService : IWorkflowCompositionService
 {
     private readonly IIdGeneratorAccessor _idGen;
     private readonly IAuditWriter _auditWriter;
-    private readonly IDagWorkflowQueryService _workflowQuery;
+    private readonly ICozeWorkflowQueryService _workflowQuery;
     private readonly ILogger<WorkflowCompositionService> _logger;
 
     public WorkflowCompositionService(
         IIdGeneratorAccessor idGen,
         IAuditWriter auditWriter,
-        IDagWorkflowQueryService workflowQuery,
+        ICozeWorkflowQueryService workflowQuery,
         ILogger<WorkflowCompositionService> logger)
     {
         _idGen = idGen;
@@ -347,7 +347,7 @@ public sealed class WorkflowCompositionService : IWorkflowCompositionService
         if (detail is null)
             throw new BusinessException(ErrorCodes.NotFound, $"工作流不存在：{workflowIdLong}");
 
-        var (inferredInputs, inferredOutputs) = WorkflowCompositionTopologyAnalyzer.Analyze(detail.CanvasJson, request.SelectedNodeKeys);
+        var (inferredInputs, inferredOutputs) = WorkflowCompositionTopologyAnalyzer.Analyze(detail.SchemaJson, request.SelectedNodeKeys);
 
         var subId = $"swf_{_idGen.NextId()}";
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.workflow.compose", "success", $"wf:{request.WorkflowId}:nodes:{request.SelectedNodeKeys.Count}:sub:{subId}:inputs:{inferredInputs.Count}:outputs:{inferredOutputs.Count}", null, null), cancellationToken);

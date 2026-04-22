@@ -180,7 +180,7 @@ import { HomePage } from "./pages/home-page";
 import { LoginPage } from "./pages/login-page";
 import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
-import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
+import { AppSetupPage } from "./pages/status-page";
 import { SetupConsolePage } from "./pages/setup-console";
 import { WorkspaceShellLayout, PlatformShellLayout, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
@@ -207,7 +207,6 @@ import { MarketPluginsPage } from "./pages/market-plugins-page";
 import { CommunityWorksPage } from "./pages/community-works-page";
 import { OpenApiPage } from "./pages/open-api-page";
 import { DocsPage } from "./pages/docs-page";
-import { PlatformGeneralPage } from "./pages/platform-general-page";
 import { MeProfilePage } from "./pages/me-profile-page";
 import { MeSettingsPage } from "./pages/me-settings-page";
 import { MeNotificationsPage } from "./pages/me-notifications-page";
@@ -1856,10 +1855,6 @@ function AppShellRoute() {
     return <Navigate to={`${replacePathAppKey(location.pathname, bootstrap.appKey)}${location.search}`} replace />;
   }
 
-  if (!bootstrap.platformReady) {
-    return <Navigate to="/platform-not-ready" replace />;
-  }
-
   if (!bootstrap.appReady) {
     return <Navigate to="/app-setup" replace />;
   }
@@ -2462,10 +2457,6 @@ function RootEntryRoute() {
     return <LoadingPage />;
   }
 
-  if (!bootstrap.platformReady) {
-    return <Navigate to="/platform-not-ready" replace />;
-  }
-
   if (!bootstrap.appReady) {
     return <Navigate to="/app-setup" replace />;
   }
@@ -2784,10 +2775,6 @@ function WorkspaceShellInner() {
   }
 
   const workspaceHomeRoute = orgWorkspaceHomePath(organization, workspace.id);
-
-  if (!bootstrap.platformReady) {
-    return <Navigate to="/platform-not-ready" replace />;
-  }
 
   if (!bootstrap.appReady) {
     return <Navigate to="/app-setup" replace />;
@@ -3374,12 +3361,6 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />
   },
   {
-    path: "/platform-not-ready",
-    element: <PlatformNotReadyPage />,
-    handle: STATUS_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />
-  },
-  {
     path: "/app-setup",
     element: <AppSetupPage />,
     handle: STATUS_ROUTE_HANDLE,
@@ -3485,16 +3466,6 @@ export const appRoutes = [
     children: [
       { index: true, element: <DocsPage /> },
       { path: ":slug", element: <DocsPage /> }
-    ]
-  },
-  {
-    path: "/platform",
-    element: <PlatformShellLayout />,
-    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />,
-    children: [
-      { index: true, element: <Navigate to="general" replace /> },
-      { path: "general", element: <PlatformGeneralPage /> }
     ]
   },
   {

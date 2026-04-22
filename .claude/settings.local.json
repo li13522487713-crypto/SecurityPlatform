@@ -7,7 +7,10 @@
       "Bash(xargs cat *)",
       "Bash(find /d/Code/Web_SaaS_Backend/SecurityPlatform/src/frontend -name \"package.json\" -path \"*lowcode-studio-react*\" -exec cat {} \\\\;)",
       "Bash(pnpm --filter @atlas/app-web exec tsc --noEmit)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(pnpm run *)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const data = fs.readFileSync\\('src/app/layouts/workspace-shell.tsx'\\); const lines = data.toString\\(\\).split\\('\\\\n'\\); console.log\\(JSON.stringify\\(lines[134]\\)\\)\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const data = fs.readFileSync\\('src/app/layouts/workspace-shell.tsx'\\); const lines = data.toString\\(\\).split\\('\\\\n'\\); const line = lines[134]; for\\(let i=30;i<42;i++\\) { console.log\\(i, line.charCodeAt\\(i\\), line[i]\\); }\")"
     ]
   }
 }

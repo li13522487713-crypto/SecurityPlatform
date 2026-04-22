@@ -87,94 +87,10 @@ function formatBooleanFlag(value: boolean | undefined): string {
   return value ? "true" : "false";
 }
 
-export function PlatformNotReadyPage() {
-  const { t } = useAppI18n();
-  const { loading, platformReady, appReady, refresh } = useBootstrap();
-  const [checking, setChecking] = useState(false);
-
-  useEffect(() => {
-    if (platformReady) {
-      return undefined;
-    }
-
-    let active = true;
-    let timer: number | null = null;
-
-    const schedule = () => {
-      timer = window.setTimeout(async () => {
-        if (!active) {
-          return;
-        }
-
-        setChecking(true);
-        try {
-          await refresh();
-        } finally {
-          if (active) {
-            setChecking(false);
-            schedule();
-          }
-        }
-      }, 2000);
-    };
-
-    schedule();
-
-    return () => {
-      active = false;
-      if (timer !== null) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, [platformReady, refresh]);
-
-  if (!loading && platformReady) {
-    return <Navigate to={appReady ? "/" : "/app-setup"} replace />;
-  }
-
-  return (
-    <PageShell centered maxWidth={520}>
-      <ResultCard
-        status="warning"
-        title={t("platformNotReadyTitle")}
-        description={t("platformNotReadyDesc")}
-        actions={
-          <>
-            <Button
-              type="primary"
-              theme="solid"
-              onClick={() => {
-                window.location.href = "/app-setup";
-              }}
-            >
-              {t("platformNotReadyGoToAppSetup")}
-            </Button>
-            <Button
-              type="tertiary"
-              theme="light"
-              loading={checking}
-              onClick={async () => {
-                setChecking(true);
-                try {
-                  await refresh();
-                } finally {
-                  setChecking(false);
-                }
-              }}
-            >
-              {checking ? t("setupTesting") : t("platformNotReadyRetry")}
-            </Button>
-          </>
-        }
-      />
-    </PageShell>
-  );
-}
-
 export function AppSetupPage() {
   const navigate = useNavigate();
   const { locale, t } = useAppI18n();
-  const { loading, platformReady, appReady } = useBootstrap();
+  const { loading, appReady } = useBootstrap();
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
   const [drivers, setDrivers] = useState<DriverDefinition[]>([]);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -406,17 +322,6 @@ export function AppSetupPage() {
         <LocaleSwitchButton />
       </div>
       <FormCard title={t("appSetupTitle")} subtitle={t("appSetupSubtitle")}>
-        {!loading && !platformReady ? (
-          <div style={{ marginBottom: 16 }}>
-            <InfoBanner
-              variant="warning"
-              compact
-              title={t("platformNotReadyTitle")}
-              description={t("platformNotReadyDesc")}
-            />
-          </div>
-        ) : null}
-
         <StepsBar steps={stepsConfig} current={currentStep} />
 
         {currentStep === 0 ? (

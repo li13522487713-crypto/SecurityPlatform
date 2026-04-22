@@ -256,7 +256,7 @@ public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService
 
         if (workflowIds.Count == 0) return;
 
-        var drafts = await _db.Queryable<Atlas.Domain.AiPlatform.Entities.WorkflowDraft>()
+        var drafts = await _db.Queryable<Atlas.Domain.AiPlatform.Entities.CozeWorkflowDraft>()
             .Where(d => d.TenantIdValue == tenantId.Value && workflowIds.Contains(d.WorkflowId))
             .ToListAsync(cancellationToken);
 
@@ -264,11 +264,11 @@ public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService
 
         foreach (var draft in drafts)
         {
-            if (string.IsNullOrWhiteSpace(draft.CanvasJson) || draft.CanvasJson == "{}") continue;
+            if (string.IsNullOrWhiteSpace(draft.SchemaJson) || draft.SchemaJson == "{}") continue;
 
             try
             {
-                using var doc = System.Text.Json.JsonDocument.Parse(draft.CanvasJson);
+                using var doc = System.Text.Json.JsonDocument.Parse(draft.SchemaJson);
                 if (doc.RootElement.TryGetProperty("nodes", out var nodesEl) && nodesEl.ValueKind == System.Text.Json.JsonValueKind.Array)
                 {
                     foreach (var nodeEl in nodesEl.EnumerateArray())
@@ -889,7 +889,7 @@ public sealed class ProjectIdeDependencyGraphService : IProjectIdeDependencyGrap
                 }
 
                 var expectedMode = reference.ResourceType == "chatflow" ? WorkflowMode.ChatFlow : WorkflowMode.Standard;
-                var workflow = await _db.Queryable<WorkflowMeta>()
+                var workflow = await _db.Queryable<CozeWorkflowMeta>()
                     .Where(item => item.TenantIdValue == tenantId.Value && item.Id == workflowId && item.IsDeleted == false && item.Mode == expectedMode)
                     .FirstAsync(cancellationToken);
                 if (workflow is null)

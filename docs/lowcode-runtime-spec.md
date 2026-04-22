@@ -50,7 +50,7 @@
 ## §7 RuntimeChatflowsController + Sessions + 中断 / 恢复 / 插入（M11）
 
 - SSE 4 类帧：`tool_call` / `message` / `error` / `final`，每帧含递增 seq
-- `chatflowId` 是 long → 桥接到 IDagWorkflowExecutionService.StreamRunAsync 真实流式
+- `chatflowId` 是 long → 桥接到 Coze workflow 执行服务；当前先以真实执行结果组装 SSE，后续再补真正流式
 - Pause / Resume / Inject：会话状态机；Resume 自动按消息日志最近一条 user_input + 后续 inject 重发完整 SSE 流
 - Sessions：list / create / pin / archive / clear-messages
 

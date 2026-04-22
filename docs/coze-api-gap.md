@@ -6,7 +6,7 @@
 > 本文件维护"前端调用 → 后端真实实现"的对应关系，是 M2 的唯一权威来源；任何端点状态变更需同步更新本表与 `docs/contracts.md` 的兼容层章节。
 >
 > 状态分级：
-> - **OK**：真实实现，行为与 Atlas Dag 工作流服务（`IDagWorkflow*Service`）一致。
+> - **OK**：真实实现，行为与当前 Coze workflow 服务（`ICozeWorkflow*Service`）一致。
 > - **OK-Compat**：真实实现，但部分字段为占位/与上游字面对齐（标 `space_id`、`plugin_id` 等不区分场景）。
 > - **Fallback**：保留 catch-all/默认值返回，结构与上游兼容但不连后端语义；前端可正常拿到 `code:0` 但不会承载真实业务数据。
 > - **Missing**：完全缺失，未来需要补齐。
@@ -33,7 +33,7 @@
 | `NodePanelSearch` | POST `/node_panel_search` | OK（M1）| 节点目录关键字搜索；命中节点放在 `data.resource_workflow.workflow_list`。 |
 | `GetLLMNodeFCSettingsMerged` | POST `/llm_fc_setting_merged` | Fallback | 仍走 `BuildWorkflowFallbackData("operate_list")` 路径默认值。后续 M3+ 联动 `IPluginRegistryService` 与 `WorkflowFCItem`。 |
 | `GetLLMNodeFCSettingDetail` | POST `/llm_fc_setting_detail` | Fallback | 同上。 |
-| `WorkFlowTestRun` | POST `/test_run` | OK | 走 `IDagWorkflowExecutionService.SyncRunAsync`。 |
+| `WorkFlowTestRun` | POST `/test_run` | OK | 走 `ICozeWorkflowExecutionService.SyncRunAsync`。 |
 | `WorkFlowTestResume` | POST `/test_resume` | OK | 走 `ResumeAsync`。 |
 | `CancelWorkFlow` | POST `/cancel` | OK | 走 `CancelAsync`。 |
 | `GetWorkFlowProcess` | GET `/get_process` | OK | 节点输入/输出 + `errorLevel`。 |
@@ -69,7 +69,7 @@
 | `OpenAPIStreamRunFlow` | POST `/v1/workflow/stream_run` | Fallback | 同上。 |
 | `OpenAPIStreamResumeFlow` | POST `/v1/workflow/stream_resume` | Fallback | 同上。 |
 | `OpenAPIGetWorkflowRunHistory` | GET `/v1/workflow/get_run_history` | Fallback | M5 实现。 |
-| `OpenAPIChatFlowRun` | POST `/v1/workflows/chat` | **OK-via-runtime** | M11 已落地 `/api/runtime/chatflows/{id}:invoke`（SSE 4 类事件 + 中断/恢复/插入 + 多会话）。**M11 收尾（2026-04）已桥接 IDagWorkflowExecutionService.StreamRunAsync**：当 chatflowId 是合法 long（DAG 工作流 ID）时走真实流式；引擎事件按 (event,data) → ChatChunk(tool_call/message/error/final) 自动映射；非 long 时回退 mock pipeline 用于无 LLM 调试。 |
+| `OpenAPIChatFlowRun` | POST `/v1/workflows/chat` | **OK-via-runtime** | M11 已落地 `/api/runtime/chatflows/{id}:invoke`（SSE 4 类事件 + 中断/恢复/插入 + 多会话）。当前运行时已桥接到 Coze workflow 执行服务；chatflowId 是合法 long 时走真实执行，非 long 时返回明确错误，不再使用 mock pipeline。 |
 | `OpenAPIGetWorkflowInfo` | GET `/v1/workflows/{id}` | Fallback | M5 实现。 |
 | `OpenAPICreateConversation` | POST `/v1/workflow/conversation/create` | Fallback | M3 ChatFlow 一并完成。 |
 
@@ -98,15 +98,15 @@
 
 | Method | HTTP | 说明 |
 |---|---|---|
-| `BatchDeleteWorkflow` | POST `/api/workflow_api/batch_delete` | 接入 `IDagWorkflowCommandService.DeleteAsync`，循环外预查存在性，单次事务内连串 `DeleteAsync`。返回 `deleted` 与 `not_found_workflow_ids`。 |
-| `GetDeleteStrategy` | POST `/api/workflow_api/delete_strategy` | 通过 `IDagWorkflowQueryService.GetDependenciesAsync` 判断是否被引用：被引用返回 `strategy=1`（提示），否则 `strategy=0`（直接删）。 |
+| `BatchDeleteWorkflow` | POST `/api/workflow_api/batch_delete` | 接入 `ICozeWorkflowCommandService.DeleteAsync`，循环外预查存在性，单次事务内连串 `DeleteAsync`。返回 `deleted` 与 `not_found_workflow_ids`。 |
+| `GetDeleteStrategy` | POST `/api/workflow_api/delete_strategy` | 通过 `ICozeWorkflowQueryService.GetDependenciesAsync` 判断是否被引用：被引用返回 `strategy=1`（提示），否则 `strategy=0`（直接删）。 |
 | `CopyWkTemplateApi` | POST `/api/workflow_api/copy_wk_template` | 对每个 workflow_id 逐个调 `CopyAsync`（在循环外做 ID 解析），返回 `copy_workflow_id_map`。 |
 | `GetExampleWorkFlowList` | POST `/api/workflow_api/example_workflow_list` | Atlas 当前不维护"示例工作流"概念，返回空 `workflow_list` + `total=0`，结构对齐上游，便于前端模板抽屉不报错。 |
-| `GetApiDetail` | GET `/api/workflow_api/apiDetail` | 通过 `IDagWorkflowQueryService.GetDependenciesAsync` 反查插件 API；命中返回 `api`/`plugin` 结构占位（后续 M4 节点 schema 对齐时补真实字段）。 |
+| `GetApiDetail` | GET `/api/workflow_api/apiDetail` | 通过 `ICozeWorkflowQueryService.GetDependenciesAsync` 反查插件 API；命中返回 `api`/`plugin` 结构占位（后续 M4 节点 schema 对齐时补真实字段）。 |
 | `GetWorkflowUploadAuthToken` | POST `/api/workflow_api/upload/auth_token` | 接入 `IFileStorageService` 真实生成 16 位令牌 + 1 小时 TTL；`scene` 字段透传给响应。 |
 | `SignImageURL` | POST `/api/workflow_api/sign_image_url` | 接入 `IFileStorageService` 生成签名访问链接；URI 为空时返回空字符串。 |
 | `ListPublishWorkflow` | POST `/api/workflow_api/list_publish_workflow` | 走 `ListPublishedAsync`，按 `name` 关键字过滤；分页字段映射 `cursor_id`（=下一页号字符串）+ `has_more`。 |
-| `GetNodeAsyncExecuteHistory` | POST `/api/workflow_api/get_async_sub_process` | 通过 `IDagWorkflowQueryService.GetExecutionProcessAsync` 查执行实例；当 `parent_node_id` 命中子流程节点时返回该节点对应的子执行映射；否则返回空数组。 |
+| `GetNodeAsyncExecuteHistory` | POST `/api/workflow_api/get_async_sub_process` | 通过 `ICozeWorkflowQueryService.GetExecutionProcessAsync` 查执行实例；当 `parent_node_id` 命中子流程节点时返回该节点对应的子执行映射；否则返回空数组。 |
 
 > 上述 9 个端点全部落地为真实实现（替换 fallback），具体代码见 `CozeWorkflowCompatControllerBase` 中的对应 `[HttpPost]` / `[HttpGet]` Action。
 

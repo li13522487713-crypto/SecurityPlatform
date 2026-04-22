@@ -3,7 +3,6 @@ import { createRequire } from "node:module";
 import { defineConfig } from "@coze-arch/rsbuild-config";
 
 const require = createRequire(import.meta.url);
-const mode = process.env.VITE_APP_RUNTIME_MODE ?? process.env.ENV_MODE ?? "direct";
 const isDevelopment = process.env.NODE_ENV !== "production";
 const appWebPort = Number(process.env.VITE_APP_WEB_PORT || "5181");
 const apiBase = process.env.VITE_API_BASE?.trim();
@@ -77,8 +76,7 @@ export default defineConfig({
         ws: true,
       },
       {
-        // `api/v2/workflows`：v2 为 REST API 版本前缀（后端 `DagWorkflowController`），非产品「V2」语义
-        context: ["/api/v2/workflows", "/api", "/v1"],
+        context: ["/api", "/v1"],
         target: appHostTarget,
         secure: false,
         changeOrigin: true,
@@ -112,9 +110,7 @@ export default defineConfig({
       "@coze-foundation/foundation-sdk": require.resolve("@atlas/foundation-bridge"),
       "react-router-dom": require.resolve("react-router-dom"),
     },
-    define: {
-      "process.env.ENV_MODE": JSON.stringify(mode),
-    },
+    define: {},
     decorators: {
       version: "legacy",
     },

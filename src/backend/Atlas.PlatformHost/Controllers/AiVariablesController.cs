@@ -17,20 +17,17 @@ namespace Atlas.PlatformHost.Controllers;
 public sealed class AiVariablesController : ControllerBase
 {
     private readonly IAiVariableService _service;
-    private readonly IDagWorkflowQueryService _workflowQueryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly IValidator<AiVariableCreateRequest> _createValidator;
     private readonly IValidator<AiVariableUpdateRequest> _updateValidator;
 
     public AiVariablesController(
         IAiVariableService service,
-        IDagWorkflowQueryService workflowQueryService,
         ITenantProvider tenantProvider,
         IValidator<AiVariableCreateRequest> createValidator,
         IValidator<AiVariableUpdateRequest> updateValidator)
     {
         _service = service;
-        _workflowQueryService = workflowQueryService;
         _tenantProvider = tenantProvider;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
@@ -112,24 +109,5 @@ public sealed class AiVariablesController : ControllerBase
     {
         var result = await _service.GetSystemVariableDefinitionsAsync(cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<AiSystemVariableDefinition>>.Ok(result, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 工作流级变量树：返回当前节点上游可见的全局/系统/节点输出变量，供节点配置面板与 Prompt 编辑器消费。
-    /// </summary>
-    [HttpGet("workflows/{workflowId:long}/variable-tree")]
-    [Authorize(Policy = PermissionPolicies.AiVariableView)]
-    public async Task<ActionResult<ApiResponse<WorkflowVariableTreeDto>>> GetWorkflowVariableTree(
-        long workflowId,
-        [FromQuery] string? nodeKey,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var result = await _workflowQueryService.GetVariableTreeAsync(
-            tenantId,
-            workflowId,
-            nodeKey,
-            cancellationToken);
-        return Ok(ApiResponse<WorkflowVariableTreeDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 }

@@ -23,8 +23,8 @@ public sealed class AiAppsController : ControllerBase
     private const string ResourceType = "app";
 
     private readonly IAiAppService _aiAppService;
-    private readonly IDagWorkflowExecutionService _workflowExecutionService;
-    private readonly IDagWorkflowQueryService _workflowQueryService;
+    private readonly ICozeWorkflowExecutionService _workflowExecutionService;
+    private readonly ICozeWorkflowQueryService _workflowQueryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IResourceWriteGate _writeGate;
@@ -35,8 +35,8 @@ public sealed class AiAppsController : ControllerBase
 
     public AiAppsController(
         IAiAppService aiAppService,
-        IDagWorkflowExecutionService workflowExecutionService,
-        IDagWorkflowQueryService workflowQueryService,
+        ICozeWorkflowExecutionService workflowExecutionService,
+        ICozeWorkflowQueryService workflowQueryService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IResourceWriteGate writeGate,
@@ -310,7 +310,7 @@ public sealed class AiAppsController : ControllerBase
             tenantId,
             workflowId.Value,
             userId,
-            new DagWorkflowRunRequest(JsonSerializer.Serialize(inputs), "draft"),
+            new CozeWorkflowRunCommand(JsonSerializer.Serialize(inputs), "draft"),
             cancellationToken);
 
         AiAppPreviewTrace? trace = null;
