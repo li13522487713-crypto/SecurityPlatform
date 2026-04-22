@@ -171,6 +171,159 @@ export interface PublishArtifact {
   updatedAt: string;
 }
 
+export interface ProjectIdeReference {
+  resourceType: string;
+  resourceId: string;
+  displayName?: string;
+  resolvedVersion?: string | null;
+  status?: string | null;
+  exists: boolean;
+  referencePath: string;
+  pageId?: string | null;
+  componentId?: string | null;
+}
+
+export interface ProjectIdeReferenceGroup {
+  resourceType: string;
+  references: ProjectIdeReference[];
+}
+
+export interface ProjectIdeGraph {
+  appId: string;
+  code: string;
+  projectedSchemaJson: string;
+  projectionDrift: boolean;
+  resourceSnapshotJson: string;
+  groups: ProjectIdeReferenceGroup[];
+  totalReferences: number;
+  missingReferences: number;
+}
+
+export interface ProjectIdePublishPreview {
+  appId: string;
+  suggestedVersionLabel: string;
+  resourceSnapshotJson: string;
+  missingReferences: number;
+  warnings: string[];
+}
+
+export interface ProjectIdeBootstrap {
+  appId: string;
+  app: AppListItem;
+  draft: { appId: string; schemaVersion: string; schemaJson: string; updatedAt: string; updatedBy?: string | null };
+  projectedSchemaJson: string;
+  projectionDrift: boolean;
+  graph: ProjectIdeGraph;
+  componentRegistry: ComponentRegistry;
+  resourceCatalog: ResourceCatalog;
+  templates: AppTemplate[];
+  versions: Array<{ id: string; appId: string; versionLabel: string; note?: string; isSystemSnapshot: boolean; createdByUserId: number; createdAt: string }>;
+  artifacts: PublishArtifact[];
+  draftLock?: {
+    appId: number;
+    ownerUserId: number;
+    sessionId: string;
+    acquiredAt: string;
+    lastRenewedAt: string;
+  } | null;
+  publishPreview: ProjectIdePublishPreview;
+}
+
+export interface ProjectIdeValidationIssue {
+  severity: 'error' | 'warning' | string;
+  code: string;
+  message: string;
+  referencePath?: string | null;
+  pageId?: string | null;
+  componentId?: string | null;
+  resourceType?: string | null;
+  resourceId?: string | null;
+}
+
+export interface ProjectIdeValidationResult {
+  isValid: boolean;
+  issues: ProjectIdeValidationIssue[];
+  graph: ProjectIdeGraph;
+}
+
+export interface ProjectIdePublishRequest {
+  kind: 'hosted' | 'embedded-sdk' | 'preview';
+  versionId?: string;
+  versionLabel?: string;
+  note?: string;
+  rendererMatrixJson?: string;
+}
+
+export interface ProjectIdePublishResult {
+  appId: string;
+  versionId: string;
+  resourceSnapshotJson: string;
+  artifact: PublishArtifact;
+  graph: ProjectIdeGraph;
+}
+
+export interface LowCodeAssetDescriptor {
+  fileHandle: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+  uploadedAt?: string | null;
+  eTag?: string | null;
+}
+
+export interface RuntimeDispatchStatePatch {
+  scope: string;
+  path: string;
+  op: string;
+  value?: JsonValue;
+  componentId?: string | null;
+}
+
+export interface RuntimeDispatchMessage {
+  kind: string;
+  text: string;
+}
+
+export interface RuntimeDispatchError {
+  kind: string;
+  message: string;
+  stack?: string | null;
+}
+
+export interface RuntimeDispatchResponse {
+  traceId: string;
+  outputs?: Record<string, JsonValue>;
+  statePatches?: RuntimeDispatchStatePatch[];
+  messages?: RuntimeDispatchMessage[];
+  errors?: RuntimeDispatchError[];
+}
+
+export interface RuntimeTraceSpan {
+  spanId: string;
+  parentSpanId?: string | null;
+  name: string;
+  status: string;
+  attributes?: JsonValue;
+  errorMessage?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+}
+
+export interface RuntimeTrace {
+  traceId: string;
+  appId: string;
+  pageId?: string | null;
+  componentId?: string | null;
+  eventName?: string | null;
+  status: string;
+  errorKind?: string | null;
+  userId: string;
+  startedAt: string;
+  endedAt?: string | null;
+  spans: RuntimeTraceSpan[];
+}
+
 export function createLowcodeApi(requestImpl: LowcodeRequest) {
   return {
   apps: {

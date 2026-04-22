@@ -1,7 +1,16 @@
 import {
   createLowcodeApi,
+  type LowCodeAssetDescriptor,
+  type ProjectIdeBootstrap,
+  type ProjectIdeGraph,
+  type ProjectIdePublishPreview,
+  type ProjectIdePublishRequest,
+  type ProjectIdePublishResult,
+  type ProjectIdeValidationResult,
+  type RuntimeDispatchResponse,
+  type RuntimeTrace,
   type LowcodeStudioHostConfig
-} from "@atlas/lowcode-studio-react";
+} from "@atlas/lowcode-studio-react/services";
 import {
   getAccessToken,
   getAuthProfile,
@@ -31,9 +40,67 @@ const appWebLowcodeApi = createLowcodeApi(async <T>(method: string, path: string
   return response.data;
 });
 
+async function requestJson<T>(path: string, method: string, body?: unknown): Promise<T> {
+  const response = await requestApi<ApiResponse<T>>(path, {
+    method,
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  if (!response.success) {
+    throw new Error(response.message || response.code || `请求失败: ${method} ${path}`);
+  }
+  return response.data;
+}
+
 export function createAppWebLowcodeStudioHost(): LowcodeStudioHostConfig {
   return {
     api: appWebLowcodeApi,
+    bootstrapApi: {
+      getBootstrap: (appId: string) => requestJson<ProjectIdeBootstrap>(`/project-ide/apps/${encodeURIComponent(appId)}/bootstrap`, "GET"),
+      getGraph: (appId: string) => requestJson<ProjectIdeGraph>(`/project-ide/apps/${encodeURIComponent(appId)}/graph`, "GET")
+    },
+    validationApi: {
+      validate: (appId: string, schemaJson?: string) =>
+        requestJson<ProjectIdeValidationResult>(`/project-ide/apps/${encodeURIComponent(appId)}/validate`, "POST", { schemaJson })
+    },
+    publishApi: {
+      listArtifacts: async (appId: string) => {
+        const bootstrap = await requestJson<ProjectIdeBootstrap>(`/project-ide/apps/${encodeURIComponent(appId)}/bootstrap`, "GET");
+        return bootstrap.artifacts ?? [];
+      },
+      getPreview: (appId: string) =>
+        requestJson<ProjectIdePublishPreview>(`/project-ide/apps/${encodeURIComponent(appId)}/publish-preview`, "GET"),
+      publish: (appId: string, request: ProjectIdePublishRequest) =>
+        requestJson<ProjectIdePublishResult>(`/project-ide/apps/${encodeURIComponent(appId)}/publish`, "POST", request)
+    },
+    assetApi: {
+      prepareUpload: (request) =>
+        requestJson(`/lowcode/assets/upload-session`, "POST", request),
+      getAsset: (id: string) =>
+        requestJson<LowCodeAssetDescriptor>(`/lowcode/assets/${encodeURIComponent(id)}`, "GET"),
+      deleteAsset: async (id: string) => {
+        await requestJson(`/lowcode/assets/${encodeURIComponent(id)}`, "DELETE");
+      }
+    },
+    dispatchApi: {
+      dispatch: (request) =>
+        requestJson<RuntimeDispatchResponse>(`/api/runtime/dispatch`, "POST", request),
+      getTrace: (traceId: string) =>
+        requestJson<RuntimeTrace>(`/api/runtime/traces/${encodeURIComponent(traceId)}`, "GET"),
+      queryTraces: (query) => {
+        const params = new URLSearchParams();
+        Object.entries(query ?? {}).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && String(value).trim().length > 0) {
+            params.set(key, String(value));
+          }
+        });
+        const suffix = params.size > 0 ? `?${params.toString()}` : "";
+        return requestJson<RuntimeTrace[]>(`/api/runtime/traces${suffix}`, "GET");
+      }
+    },
+    collabConfig: {
+      hubUrl: "/hubs/lowcode-collab",
+      reconnectDelaysMs: [0, 1000, 3000, 5000]
+    },
     auth: {
       accessTokenFactory: () => getAccessToken() ?? "",
       tenantIdFactory: () => getTenantId() ?? DEFAULT_TENANT_ID,

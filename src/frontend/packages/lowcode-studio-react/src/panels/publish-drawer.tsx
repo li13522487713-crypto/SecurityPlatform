@@ -20,11 +20,22 @@ const RENDERER_OPTIONS = [
  */
 export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose: () => void }> = ({ appId, visible, onClose }) => {
   const [renderers, setRenderers] = useState<string[]>(['web']);
-  const { api } = useLowcodeStudioHost();
+  const { api, publishApi } = useLowcodeStudioHost();
+
+  const previewQuery = useQuery({
+    queryKey: ['project-ide-publish-preview', appId],
+    queryFn: () => publishApi?.getPreview(appId),
+    enabled: visible && Boolean(publishApi)
+  });
 
   const artifactsQuery = useQuery({
     queryKey: ['lowcode-artifacts', appId],
-    queryFn: () => api.publish.list(appId),
+    queryFn: async () => {
+      if (publishApi) {
+        return publishApi.listArtifacts(appId);
+      }
+      return api.publish.list(appId);
+    },
     enabled: visible
   });
 
@@ -34,11 +45,20 @@ export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose:
       const matrix = kind === 'preview'
         ? { web: true }
         : Object.fromEntries((renderers.length > 0 ? renderers : ['web']).map((r) => [r, true]));
+      if (publishApi) {
+        return publishApi.publish(appId, {
+          kind,
+          versionLabel: previewQuery.data?.suggestedVersionLabel,
+          rendererMatrixJson: JSON.stringify(matrix)
+        });
+      }
       return api.publish.publish(appId, kind, { rendererMatrixJson: JSON.stringify(matrix) });
     },
-    onSuccess: (a: PublishArtifact) => {
-      Toast.success(`发布成功（${a.kind}）`);
+    onSuccess: (payload: PublishArtifact | { artifact: PublishArtifact }) => {
+      const artifact = 'artifact' in payload ? payload.artifact : payload;
+      Toast.success(`发布成功（${artifact.kind}）`);
       artifactsQuery.refetch();
+      previewQuery.refetch();
     },
     onError: (e: Error) => Toast.error(e.message)
   });
@@ -69,6 +89,15 @@ export const PublishDrawer: React.FC<{ appId: string; visible: boolean; onClose:
         <Button loading={publishMut.isPending} onClick={() => publishMut.mutate('embedded-sdk')}>发布 Embedded SDK</Button>
         <Button loading={publishMut.isPending} onClick={() => publishMut.mutate('preview')}>构建 Preview</Button>
       </Space>
+      {publishApi && previewQuery.data?.warnings && previewQuery.data.warnings.length > 0 && (
+        <div style={{ marginBottom: 16, padding: 12, borderRadius: 6, background: '#fffbe6', border: '1px solid #ffe58f' }}>
+          {previewQuery.data.warnings.map((warning) => (
+            <Typography.Paragraph key={warning} style={{ margin: 0, fontSize: 12, color: '#8c6d1f' }}>
+              {warning}
+            </Typography.Paragraph>
+          ))}
+        </div>
+      )}
 
       <Typography.Title heading={6}>已发布产物</Typography.Title>
       {artifactsQuery.isLoading ? <Spin /> : (

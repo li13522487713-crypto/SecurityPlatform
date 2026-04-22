@@ -42,6 +42,9 @@ public static class LowCodeServiceRegistration
         services.AddScoped<IAppDefinitionQueryService, AppDefinitionQueryService>();
         services.AddScoped<IAppDefinitionCommandService, AppDefinitionCommandService>();
         services.AddScoped<IAppDraftLockService, AppDraftLockService>();
+        services.AddScoped<IProjectIdeBootstrapService, ProjectIdeBootstrapService>();
+        services.AddScoped<IProjectIdeDependencyGraphService, ProjectIdeDependencyGraphService>();
+        services.AddScoped<IProjectIdePublishOrchestrator, ProjectIdePublishOrchestrator>();
         services.AddScoped<IAppComponentOverrideRepository, AppComponentOverrideRepository>();
         services.AddScoped<ILowCodeComponentManifestService, LowCodeComponentManifestService>();
 
