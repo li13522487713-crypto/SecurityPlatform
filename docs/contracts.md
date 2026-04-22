@@ -196,12 +196,19 @@ Tenant
   - `POST /api/playground_api/space/list`
   - `POST /api/playground_api/space/save`
   - `POST /api/playground_api/space/info`
+  - `POST /api/playground_api/draftbot/get_draft_bot_info`
+  - `POST /api/playground_api/report_user_behavior`
   - `POST /api/playground_api/get_type_list`
   - `POST /api/space/list`
   - `POST /api/space/info`
   - `POST /api/bot/get_type_list`
+  - `POST /api/draftbot/create`
+  - `POST /api/draftbot/get_bot_info`
   - `POST /api/draftbot/get_draft_bot_list`
   - `POST /api/draftbot/get_display_info`
+  - `POST /api/draftbot/update`
+  - `POST /api/draftbot/delete`
+  - `POST /api/draftbot/duplicate`
   - `POST /api/bot/upload_file`
   - `GET/POST/PUT/DELETE /v1/workspaces*`
   - `GET/POST /v1/bots*`

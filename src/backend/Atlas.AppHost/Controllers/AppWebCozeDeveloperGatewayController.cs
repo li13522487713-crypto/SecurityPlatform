@@ -431,6 +431,61 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         }));
     }
 
+    [HttpPost("draftbot/publish/connector/list")]
+    [HttpPost("/api/draftbot/publish/connector/list")]
+    public ActionResult<object> PublishConnectorList(
+        [FromBody] CozeDraftBotPublishConnectorListRequest? request)
+    {
+        var botId = request?.bot_id ?? string.Empty;
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            publish_connector_list = new object[]
+            {
+                new
+                {
+                    id = "1001",
+                    name = "Web SDK",
+                    icon = string.Empty,
+                    desc = "Atlas Web SDK publish channel",
+                    share_link = string.Empty,
+                    config_status = 1,
+                    last_publish_time = "0",
+                    bind_type = 5,
+                    bind_info = new Dictionary<string, string>(),
+                    bind_id = string.Empty,
+                    is_last_published = true,
+                    connector_status = 0,
+                    privacy_policy = string.Empty,
+                    user_agreement = string.Empty,
+                    allow_punish = 0,
+                    not_allow_reason = string.Empty,
+                    config_status_toast = string.Empty,
+                    brand_id = "1001",
+                    support_monetization = false
+                }
+            },
+            submit_bot_market_option = new
+            {
+                can_open_source = true
+            },
+            connector_brand_info_map = new Dictionary<string, object>
+            {
+                ["1001"] = new
+                {
+                    id = "1001",
+                    name = "Web SDK",
+                    icon = string.Empty
+                }
+            },
+            publish_tips = new
+            {
+                cost_tips = string.IsNullOrWhiteSpace(botId) ? string.Empty : "Compat publish tips"
+            }
+        });
+    }
+
     [HttpPost("bot/upload_file")]
     [HttpPost("/api/bot/upload_file")]
     public ActionResult<object> UploadBotFile()
@@ -610,3 +665,8 @@ public sealed record CozeDraftBotWorkInfoCompat(
     string? tools,
     string? dataset,
     string? workflow);
+
+public sealed record CozeDraftBotPublishConnectorListRequest(
+    string? space_id,
+    string? bot_id,
+    string? commit_version);

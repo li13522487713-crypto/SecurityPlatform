@@ -98,6 +98,7 @@ import { BootstrapProvider, useBootstrap } from "./bootstrap-context";
 import { AppI18nProvider, useAppI18n } from "./i18n";
 import { OrganizationProvider, useOptionalOrganizationContext } from "./organization-context";
 import {
+  type AppRouteHandle,
   EXPLORE_ROUTE_HANDLE,
   ROOT_ROUTE_HANDLE,
   SETUP_CONSOLE_ROUTE_HANDLE,
@@ -406,6 +407,8 @@ const loadExploreModule = () => import("@atlas/module-explore-react");
 const loadStudioModule = () => import("@atlas/module-studio-react");
 const loadCozeWorkspaceDevelopModule = () => import("@coze-studio/workspace-adapter/develop");
 const loadCozeWorkspaceLibraryModule = () => import("@coze-studio/workspace-adapter/library");
+const loadCozeAgentEditorModule = () => import("@coze-agent-ide/entry-adapter");
+const loadCozeAgentPublishModule = () => import("@coze-agent-ide/agent-publish");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
 
 
@@ -450,7 +453,10 @@ const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider
 const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
 const CozeWorkspaceDevelopPage = lazyNamed(loadCozeWorkspaceDevelopModule, "Develop");
 const CozeWorkspaceLibraryPage = lazyNamed(loadCozeWorkspaceLibraryModule, "LibraryPage");
+const CozeBotEditorPage = lazyNamed(loadCozeAgentEditorModule, "BotEditor");
+const CozeAgentPublishPage = lazyNamed(loadCozeAgentPublishModule, "AgentPublishPage");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
+const CozeAgentLayout = React.lazy(() => import("@coze-agent-ide/layout-adapter"));
 
 function readLibraryMockFlag(): boolean {
   try {
@@ -3359,6 +3365,105 @@ function FatalErrorPage() {
   );
 }
 
+function SpaceCompatLayout() {
+  const { space_id = "" } = useParams<{ space_id: string }>();
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
+  const location = useLocation();
+
+  if (bootstrap.loading || auth.loading) {
+    return <LoadingPage />;
+  }
+
+  if (!auth.isAuthenticated) {
+    return <Navigate to={signPath(location.pathname + location.search)} replace />;
+  }
+
+  if (!space_id) {
+    return <Navigate to={selectWorkspacePath()} replace />;
+  }
+
+  const tenantId = getTenantId() ?? "";
+  return (
+    <OrganizationProvider orgId={tenantId}>
+      <WorkspaceProvider workspaceId={space_id}>
+        <PermissionProvider>
+          <RememberWorkspace />
+          <Outlet />
+        </PermissionProvider>
+      </WorkspaceProvider>
+    </OrganizationProvider>
+  );
+}
+
+function SpaceProjectAliasRoute() {
+  const { id = "" } = useParams();
+  return <Navigate to={lowcodeAppStudioPath(id)} replace />;
+}
+
+function SpaceBotAnalysisAliasRoute() {
+  const { space_id = "", bot_id = "" } = useParams<{ space_id: string; bot_id: string }>();
+  return <Navigate to={`/space/${encodeURIComponent(space_id)}/bot/${encodeURIComponent(bot_id)}/publish`} replace />;
+}
+
+function SpaceAgentPublishManageAliasRoute() {
+  const { space_id = "", bot_id = "" } = useParams<{ space_id: string; bot_id: string }>();
+  const location = useLocation();
+  const query = location.search ?? "";
+  return <Navigate to={`/space/${encodeURIComponent(space_id)}/bot/${encodeURIComponent(bot_id)}/publish${query}`} replace />;
+}
+
+function SpaceAgentEditorRoute() {
+  return (
+    <Suspense fallback={<PageShell loading testId="coze-agent-editor-loading" />}>
+      <CozeBotEditorPage />
+    </Suspense>
+  );
+}
+
+function SpaceAgentPublishRoute() {
+  return (
+    <Suspense fallback={<PageShell loading testId="coze-agent-publish-loading" />}>
+      <CozeAgentPublishPage />
+    </Suspense>
+  );
+}
+
+function SpacePluginDetailRoute() {
+  const { id = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(workspace.appKey);
+  return (
+    <PluginDetailPage
+      api={studioApi}
+      locale={locale}
+      pluginId={Number(id)}
+      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
+      onOpenExplore={() => navigate("/explore/plugin")}
+    />
+  );
+}
+
+function SpaceDatabaseDetailRoute() {
+  const { id = "" } = useParams();
+  const orgId = useResolvedOrgId();
+  const workspace = useWorkspaceContext();
+  const { locale } = useAppI18n();
+  const navigate = useNavigate();
+  const { studioApi } = useAppApis(workspace.appKey);
+  return (
+    <DatabaseDetailPage
+      api={studioApi}
+      locale={locale}
+      databaseId={Number(id)}
+      onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
+    />
+  );
+}
+
 export const appRoutes = [
   {
     path: "/",
@@ -3389,6 +3494,50 @@ export const appRoutes = [
     element: <LoginPage />,
     handle: SIGN_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/space/:space_id",
+    element: <SpaceCompatLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [
+      { index: true, element: <Navigate to="develop" replace /> },
+      { path: "develop", element: <DevelopRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "library", element: <WorkspaceLibraryRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "project-ide/:id", element: <SpaceProjectAliasRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "plugin/:id", element: <SpacePluginDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "plugin/:id/tool/:toolId", element: <WorkspacePluginToolRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge/:id", element: <WorkspaceKnowledgeDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge/:id/upload", element: <WorkspaceKnowledgeUploadRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "database/:id", element: <SpaceDatabaseDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "publish/agent/:bot_id", element: <SpaceAgentPublishManageAliasRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      {
+        path: "bot/:bot_id",
+        element: (
+          <Suspense fallback={<PageShell loading testId="coze-agent-layout-loading" />}>
+            <CozeAgentLayout />
+          </Suspense>
+        ),
+        handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+        children: [
+          {
+            index: true,
+            element: <SpaceAgentEditorRoute />,
+            handle: { ...WORKSPACE_DEVELOP_ROUTE_HANDLE, requireBotEditorInit: true, pageName: "bot", hasHeader: true } as AppRouteHandle
+          },
+          {
+            path: "publish",
+            element: <SpaceAgentPublishRoute />,
+            handle: { ...WORKSPACE_DEVELOP_ROUTE_HANDLE, requireBotEditorInit: false, pageName: "publish", hasHeader: true } as AppRouteHandle
+          },
+          {
+            path: "analysis",
+            element: <SpaceBotAnalysisAliasRoute />,
+            handle: WORKSPACE_DEVELOP_ROUTE_HANDLE
+          }
+        ]
+      }
+    ]
   },
   {
     path: "/select-workspace",

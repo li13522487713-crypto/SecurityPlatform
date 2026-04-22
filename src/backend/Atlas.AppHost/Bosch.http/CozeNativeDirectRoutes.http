@@ -71,6 +71,53 @@ X-Tenant-Id: {{tenantId}}
   "bot_id": "1"
 }
 
+### Coze 原生 developer：draftbot create
+POST {{host}}/api/draftbot/create
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "name": "Compat Agent",
+  "description": "created from compat route",
+  "work_info": {
+    "prompt": "You are a helpful assistant."
+  }
+}
+
+### Coze 原生 developer：draftbot get_bot_info
+POST {{host}}/api/draftbot/get_bot_info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1"
+}
+
+### Coze 原生 developer：publish connector list
+POST {{host}}/api/draftbot/publish/connector/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}",
+  "bot_id": "1"
+}
+
+### Coze 原生 playground：draftbot get_draft_bot_info
+POST {{host}}/api/playground_api/draftbot/get_draft_bot_info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1"
+}
+
 ### Coze 原生 plugin library：resource list
 POST {{host}}/api/plugin_api/library_resource_list
 Content-Type: {{contentType}}
