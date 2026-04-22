@@ -153,6 +153,16 @@ public sealed class AppVariableCommandService : IAppVariableCommandService
     {
         var v = await _repo.FindByIdAsync(tenantId, appId, id, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, $"变量不存在：{id}");
+            
+        if (!string.Equals(v.Code, request.Code, StringComparison.Ordinal))
+        {
+            if (await _repo.ExistsCodeAsync(tenantId, appId, request.Code, excludeId: id, cancellationToken))
+            {
+                throw new BusinessException(ErrorCodes.Conflict, $"变量编码已存在：{request.Code}");
+            }
+            v.RenameCode(request.Code);
+        }
+
         v.Update(request.DisplayName, request.ValueType, request.IsReadOnly, request.IsPersisted, request.DefaultValueJson, request.ValidationJson, request.Description);
         await _repo.UpdateAsync(v, cancellationToken);
         await _auditWriter.WriteAsync(new AuditRecord(tenantId, currentUserId.ToString(), "lowcode.variable.update", "success", $"app:{appId}:var:{id}", null, null), cancellationToken);

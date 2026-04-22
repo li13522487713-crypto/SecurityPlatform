@@ -31,6 +31,7 @@ interface VariableFormValues {
 
 interface VariableUpdateFormValues {
   id: string;
+  code: string;
   displayName: string;
   valueType: string;
   isReadOnly: boolean;
@@ -115,19 +116,25 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
   });
 
   const updateVariableMut = useMutation({
-    mutationFn: (vals: VariableUpdateFormValues) =>
-      api.variables.update(appId, vals.id, {
-        displayName: vals.displayName,
-        valueType: vals.valueType,
-        isReadOnly: vals.isReadOnly,
-        isPersisted: vals.isPersisted,
-        defaultValueJson: vals.defaultValueJson || 'null',
-        description: vals.description
-      }),
+    mutationFn: (vals: VariableUpdateFormValues) => {
+      const { id, ...rest } = vals;
+      return api.variables.update(appId, id, rest);
+    },
     onSuccess: async () => {
-      Toast.success(t('lowcode_studio.common.updated'));
       setEditingVariable(null);
+      Toast.success(t('lowcode_studio.common.success'));
       await qc.invalidateQueries({ queryKey: ['lowcode-variables', appId] });
+      // Rename is handled in backend, trigger validation to check for obsolete references
+      host?.validationApi?.validate(appId).then((res) => {
+        const issues = res.Issues || (res as any).issues || [];
+        const obsoleteIssues = issues.filter((i: any) => i.Code === 'obsolete_variable_reference' || i.code === 'obsolete_variable_reference');
+        if (obsoleteIssues.length > 0) {
+          Toast.warning({
+            content: obsoleteIssues[0].Message || obsoleteIssues[0].message,
+            duration: 5
+          });
+        }
+      }).catch(() => {});
     },
     onError: (error: Error) => Toast.error(error.message)
   });
@@ -394,6 +401,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
           <Form
             key={editingVariable.id}
             initValues={{
+              code: editingVariable.code,
               displayName: editingVariable.displayName,
               valueType: editingVariable.valueType,
               isReadOnly: editingVariable.isReadOnly,
@@ -403,7 +411,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
             }}
             onSubmit={(vals) => updateVariableMut.mutate({ id: editingVariable.id, ...(vals as Omit<VariableUpdateFormValues, 'id'>) })}
           >
-            <Banner type="info" description={`${editingVariable.code} · ${editingVariable.scope}`} closeIcon={null} />
+            <Form.Input field="code" label={t('lowcode_studio.app.code')} rules={[{ required: true, pattern: /^[a-zA-Z][a-zA-Z0-9_-]{0,127}$/ }]} />
             <Form.Input field="displayName" label={t('lowcode_studio.app.displayName')} rules={[{ required: true }]} />
             <Form.Input field="valueType" label={t('lowcode_studio.variables.valueType')} rules={[{ required: true }]} />
             <Form.Switch field="isReadOnly" label={t('lowcode_studio.variables.readOnly')} />

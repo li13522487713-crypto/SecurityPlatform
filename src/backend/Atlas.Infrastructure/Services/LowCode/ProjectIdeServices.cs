@@ -24,6 +24,7 @@ public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService
     private readonly ILowCodeComponentManifestService _componentManifest;
     private readonly IAppPublishService _publishService;
     private readonly IProjectIdeDependencyGraphService _dependencyGraphService;
+    private readonly ISqlSugarClient _db;
 
     public ProjectIdeBootstrapService(
         IAppDefinitionQueryService appQuery,
@@ -32,7 +33,8 @@ public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService
         IAppDraftLockService draftLockService,
         ILowCodeComponentManifestService componentManifest,
         IAppPublishService publishService,
-        IProjectIdeDependencyGraphService dependencyGraphService)
+        IProjectIdeDependencyGraphService dependencyGraphService,
+        ISqlSugarClient db)
     {
         _appQuery = appQuery;
         _resourceCatalog = resourceCatalog;
@@ -41,6 +43,7 @@ public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService
         _componentManifest = componentManifest;
         _publishService = publishService;
         _dependencyGraphService = dependencyGraphService;
+        _db = db;
     }
 
     public async Task<ProjectIdeBootstrapDto?> GetBootstrapAsync(TenantId tenantId, long appId, CancellationToken cancellationToken)
@@ -218,10 +221,92 @@ public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService
                 ResourceId: null));
         }
 
+        // Scan workflows for residual renamed variables
+        await ScanWorkflowVariablesAsync(tenantId, appId, issues, cancellationToken);
+
         return new ProjectIdeValidationResultDto(
             IsValid: issues.All(issue => !string.Equals(issue.Severity, "error", StringComparison.OrdinalIgnoreCase)),
             Issues: issues,
             Graph: graph);
+    }
+
+    private async Task ScanWorkflowVariablesAsync(TenantId tenantId, long appId, List<ProjectIdeValidationIssueDto> issues, CancellationToken cancellationToken)
+    {
+        var variables = await _db.Queryable<Atlas.Domain.LowCode.Entities.AppVariable>()
+            .Where(v => v.TenantIdValue == tenantId.Value && v.AppId == appId)
+            .ToListAsync(cancellationToken);
+
+        var currentCodes = new HashSet<string>(variables.Select(v => v.Code), StringComparer.Ordinal);
+        var oldToNewMap = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var v in variables)
+        {
+            if (!string.IsNullOrWhiteSpace(v.PreviousCode) && !currentCodes.Contains(v.PreviousCode))
+            {
+                oldToNewMap[v.PreviousCode] = v.Code;
+            }
+        }
+
+        if (oldToNewMap.Count == 0) return;
+
+        var workflowIds = await _db.Queryable<Atlas.Domain.AiPlatform.Entities.AiAppResourceBinding>()
+            .Where(b => b.TenantIdValue == tenantId.Value && b.AppId == appId && b.ResourceType == "workflow")
+            .Select(b => b.ResourceId)
+            .ToListAsync(cancellationToken);
+
+        if (workflowIds.Count == 0) return;
+
+        var drafts = await _db.Queryable<Atlas.Domain.AiPlatform.Entities.WorkflowDraft>()
+            .Where(d => d.TenantIdValue == tenantId.Value && workflowIds.Contains(d.WorkflowId))
+            .ToListAsync(cancellationToken);
+
+        var regex = new System.Text.RegularExpressions.Regex(@"\$\{\s*(app|system)\.([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        foreach (var draft in drafts)
+        {
+            if (string.IsNullOrWhiteSpace(draft.CanvasJson) || draft.CanvasJson == "{}") continue;
+
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(draft.CanvasJson);
+                if (doc.RootElement.TryGetProperty("nodes", out var nodesEl) && nodesEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var nodeEl in nodesEl.EnumerateArray())
+                    {
+                        var nodeStr = nodeEl.ToString();
+                        var matches = regex.Matches(nodeStr);
+                        if (matches.Count == 0) continue;
+
+                        var nodeId = nodeEl.TryGetProperty("id", out var idEl) && idEl.ValueKind == System.Text.Json.JsonValueKind.String ? idEl.GetString() : null;
+
+                        foreach (System.Text.RegularExpressions.Match match in matches)
+                        {
+                            var code = match.Groups[2].Value;
+                            if (oldToNewMap.TryGetValue(code, out var newCode))
+                            {
+                                issues.Add(new ProjectIdeValidationIssueDto(
+                                    Severity: "warning",
+                                    Code: "obsolete_variable_reference",
+                                    Message: $"检测到引用的变量 [{code}] 已重命名为 [{newCode}]，建议在节点中更新表达式以免执行失败。",
+                                    ReferencePath: null,
+                                    PageId: null,
+                                    ComponentId: null,
+                                    ResourceType: "workflow",
+                                    ResourceId: draft.WorkflowId.ToString(),
+                                    WorkflowId: draft.WorkflowId.ToString(),
+                                    NodeId: nodeId,
+                                    Expression: match.Value,
+                                    ReplacementSuggestion: "${app." + newCode + "}"));
+                            }
+                        }
+                    }
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // ignore parsing errors of draft
+            }
+        }
     }
 
     public async Task<ProjectIdePublishPreviewDto?> GetPublishPreviewAsync(TenantId tenantId, long appId, string? schemaJsonOverride, CancellationToken cancellationToken)
@@ -250,6 +335,16 @@ public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService
             if (unpublished.Length > 0)
             {
                 warnings.Add($"以下资源尚未发布，当前无法冻结版本：{string.Join(", ", unpublished)}");
+            }
+        }
+
+        var issues = new List<ProjectIdeValidationIssueDto>();
+        await ScanWorkflowVariablesAsync(tenantId, appId, issues, cancellationToken);
+        foreach (var issue in issues)
+        {
+            if (issue.Code == "obsolete_variable_reference")
+            {
+                warnings.Add(issue.Message);
             }
         }
 

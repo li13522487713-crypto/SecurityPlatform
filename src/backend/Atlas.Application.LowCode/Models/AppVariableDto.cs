@@ -13,6 +13,7 @@ public sealed record AppVariableDto(
     string DefaultValueJson,
     string? ValidationJson,
     string? Description,
+    string? PreviousCode,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -29,6 +30,7 @@ public sealed record AppVariableCreateRequest(
 
 /// <summary>更新变量请求。</summary>
 public sealed record AppVariableUpdateRequest(
+    string Code,
     string DisplayName,
     string ValueType,
     bool IsReadOnly,

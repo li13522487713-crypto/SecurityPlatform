@@ -152,6 +152,7 @@ export interface AppVariable {
 }
 
 export interface AppVariableUpdateRequest {
+  code: string;
   displayName: string;
   valueType: string;
   isReadOnly: boolean;
@@ -260,6 +261,10 @@ export interface ProjectIdeValidationIssue {
   componentId?: string | null;
   resourceType?: string | null;
   resourceId?: string | null;
+  workflowId?: string | null;
+  nodeId?: string | null;
+  expression?: string | null;
+  replacementSuggestion?: string | null;
 }
 
 export interface ProjectIdeValidationResult {

@@ -57,7 +57,11 @@ public sealed record ProjectIdeValidationIssueDto(
     string? PageId,
     string? ComponentId,
     string? ResourceType,
-    string? ResourceId);
+    string? ResourceId,
+    string? WorkflowId = null,
+    string? NodeId = null,
+    string? Expression = null,
+    string? ReplacementSuggestion = null);
 
 public sealed record ProjectIdePublishRequest(
     string Kind,

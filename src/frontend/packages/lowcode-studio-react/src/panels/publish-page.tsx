@@ -19,6 +19,12 @@ export const PublishPage: React.FC<{ appId: string; onBack?: () => void }> = ({ 
     enabled: Boolean(publishApi)
   });
 
+  const validationQuery = useQuery({
+    queryKey: ['project-ide-validation', appId],
+    queryFn: () => host?.validationApi?.validate(appId),
+    enabled: Boolean(host?.validationApi)
+  });
+
   const publishMut = useMutation({
     mutationFn: (vals: any) => {
       const matrix = { web: true }; // Simplified for mock
@@ -62,6 +68,31 @@ export const PublishPage: React.FC<{ appId: string; onBack?: () => void }> = ({ 
             onClose={() => setShowBanner(false)}
             style={{ justifyContent: 'center' }}
           />
+        )}
+        
+        {previewQuery.data?.warnings && previewQuery.data.warnings.length > 0 && (
+          <div style={{ maxWidth: 840, margin: '24px auto 0 auto' }}>
+            {previewQuery.data.warnings.map((w, idx) => (
+              <Banner key={idx} type="warning" description={w} style={{ marginBottom: 8, borderRadius: 8 }} closeIcon={null} />
+            ))}
+            {validationQuery.data?.issues?.filter((i: any) => i.code === 'obsolete_variable_reference' || i.Code === 'obsolete_variable_reference').map((issue: any, idx) => (
+              <Banner 
+                key={`val-${idx}`} 
+                type="warning" 
+                title="存在变量旧引用风险"
+                description={
+                  <Space vertical align="start" spacing={4}>
+                    <Typography.Text>{issue.message || issue.Message}</Typography.Text>
+                    <Typography.Text type="tertiary" style={{ fontSize: 12 }}>
+                      建议在工作流 {issue.workflowId || issue.WorkflowId} 的节点 {issue.nodeId || issue.NodeId} 中将 {issue.expression || issue.Expression} 替换为 {issue.replacementSuggestion || issue.ReplacementSuggestion}
+                    </Typography.Text>
+                  </Space>
+                }
+                style={{ marginBottom: 8, borderRadius: 8 }} 
+                closeIcon={null} 
+              />
+            ))}
+          </div>
         )}
 
         <div style={{ maxWidth: 840, margin: '24px auto', paddingBottom: 60 }}>
