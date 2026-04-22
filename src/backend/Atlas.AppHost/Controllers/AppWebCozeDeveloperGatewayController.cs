@@ -183,6 +183,195 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         }));
     }
 
+    [HttpPost("draftbot/create")]
+    [HttpPost("/api/draftbot/create")]
+    public async Task<ActionResult<object>> CreateDraftBot(
+        [FromBody] CozeDraftBotCreateCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var agentCommandService = HttpContext.RequestServices.GetService<IAgentCommandService>();
+        if (agentCommandService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("agent service unavailable"));
+        }
+
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var workspaceId = TryParsePositiveId(request?.space_id, out var parsedWorkspaceId)
+            ? parsedWorkspaceId
+            : (long?)null;
+
+        var createRequest = new AgentCreateRequest(
+            string.IsNullOrWhiteSpace(request?.name) ? "未命名智能体" : request!.name!,
+            request?.description,
+            request?.icon_uri,
+            SystemPrompt: request?.work_info?.prompt,
+            PersonaMarkdown: null,
+            Goals: null,
+            ReplyLogic: null,
+            OutputFormat: null,
+            Constraints: null,
+            OpeningMessage: null,
+            PresetQuestions: Array.Empty<string>(),
+            KnowledgeBindings: Array.Empty<AgentKnowledgeBindingInput>(),
+            DatabaseBindings: Array.Empty<AgentDatabaseBindingInput>(),
+            VariableBindings: Array.Empty<AgentVariableBindingInput>(),
+            KnowledgeBaseIds: Array.Empty<long>(),
+            DatabaseBindingIds: Array.Empty<long>(),
+            VariableBindingIds: Array.Empty<long>(),
+            ModelConfigId: null,
+            ModelName: null,
+            Temperature: null,
+            MaxTokens: null,
+            DefaultWorkflowId: null,
+            DefaultWorkflowName: null,
+            EnableMemory: false,
+            EnableShortTermMemory: false,
+            EnableLongTermMemory: false,
+            LongTermMemoryTopK: null,
+            WorkspaceId: workspaceId);
+
+        var id = await agentCommandService.CreateAsync(
+            _tenantProvider.GetTenantId(),
+            currentUser.UserId,
+            createRequest,
+            cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            bot_id = id.ToString(CultureInfo.InvariantCulture),
+            check_not_pass = false,
+            check_not_pass_msg = string.Empty
+        }));
+    }
+
+    [HttpPost("draftbot/get_bot_info")]
+    [HttpPost("/api/draftbot/get_bot_info")]
+    public async Task<ActionResult<object>> GetDraftBotInfo(
+        [FromBody] CozeGetDraftBotInfoCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        if (queryService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("agent query service unavailable"));
+        }
+
+        var detail = await queryService.GetByIdAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (detail is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        return Ok(CozeCompatGatewaySupport.Success(BuildDraftBotInfoPayload(detail, request?.space_id)));
+    }
+
+    [HttpPost("draftbot/update")]
+    [HttpPost("/api/draftbot/update")]
+    public async Task<ActionResult<object>> UpdateDraftBot(
+        [FromBody] CozeUpdateDraftBotCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        var commandService = HttpContext.RequestServices.GetService<IAgentCommandService>();
+        if (queryService is null || commandService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("agent service unavailable"));
+        }
+
+        var existing = await queryService.GetByIdAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (existing is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        var workspaceId = TryParsePositiveId(request?.space_id, out var parsedWorkspaceId)
+            ? parsedWorkspaceId
+            : existing.WorkspaceId;
+
+        var updateRequest = new AgentUpdateRequest(
+            string.IsNullOrWhiteSpace(request?.name) ? existing.Name : request!.name!,
+            request?.description ?? existing.Description,
+            request?.icon_uri ?? existing.AvatarUrl,
+            request?.work_info?.prompt ?? existing.SystemPrompt,
+            existing.PersonaMarkdown,
+            existing.Goals,
+            existing.ReplyLogic,
+            existing.OutputFormat,
+            existing.Constraints,
+            existing.OpeningMessage,
+            existing.PresetQuestions ?? Array.Empty<string>(),
+            existing.KnowledgeBindings?.Select(binding => new AgentKnowledgeBindingInput(
+                binding.KnowledgeBaseId,
+                binding.IsEnabled,
+                binding.InvokeMode,
+                binding.TopK,
+                binding.ScoreThreshold,
+                binding.EnabledContentTypes,
+                binding.RewriteQueryTemplate)).ToArray() ?? Array.Empty<AgentKnowledgeBindingInput>(),
+            existing.DatabaseBindings?.Select(binding => new AgentDatabaseBindingInput(
+                binding.DatabaseId,
+                binding.Alias,
+                binding.AccessMode,
+                binding.TableAllowlist,
+                binding.IsDefault)).ToArray() ?? Array.Empty<AgentDatabaseBindingInput>(),
+            existing.VariableBindings?.Select(binding => new AgentVariableBindingInput(
+                binding.VariableId,
+                binding.Alias,
+                binding.IsRequired,
+                binding.DefaultValueOverride)).ToArray() ?? Array.Empty<AgentVariableBindingInput>(),
+            existing.DatabaseBindingIds ?? Array.Empty<long>(),
+            existing.VariableBindingIds ?? Array.Empty<long>(),
+            existing.ModelConfigId,
+            existing.ModelName,
+            existing.Temperature,
+            existing.MaxTokens,
+            existing.DefaultWorkflowId,
+            existing.DefaultWorkflowName,
+            existing.EnableMemory,
+            existing.EnableShortTermMemory,
+            existing.EnableLongTermMemory,
+            existing.LongTermMemoryTopK,
+            existing.KnowledgeBaseIds ?? Array.Empty<long>(),
+            existing.PluginBindings?.Select(binding => new AgentPluginBindingInput(
+                binding.PluginId,
+                binding.SortOrder,
+                binding.IsEnabled,
+                binding.ToolConfigJson,
+                binding.ToolBindings?.Select(tool => new AgentPluginToolBindingInput(
+                    tool.ApiId,
+                    tool.IsEnabled,
+                    tool.TimeoutSeconds,
+                    tool.FailurePolicy,
+                    tool.ParameterBindings.Select(param => new AgentPluginParameterBindingInput(
+                        param.ParameterName,
+                        param.ValueSource,
+                        param.LiteralValue,
+                        param.VariableKey)).ToArray())).ToArray() ?? Array.Empty<AgentPluginToolBindingInput>()))
+                .ToArray() ?? Array.Empty<AgentPluginBindingInput>(),
+            workspaceId);
+
+        await commandService.UpdateAsync(_tenantProvider.GetTenantId(), botId, updateRequest, cancellationToken);
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            has_change = true,
+            check_not_pass = false,
+            branch = "PersonalDraft",
+            same_with_online = false,
+            check_not_pass_msg = string.Empty
+        }));
+    }
+
     [HttpPost("draftbot/delete")]
     [HttpPost("/api/draftbot/delete")]
     public async Task<ActionResult<object>> DeleteDraftBot(
@@ -329,6 +518,43 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         };
     }
 
+    private static object BuildDraftBotInfoPayload(AgentDetail detail, string? spaceId)
+    {
+        return new
+        {
+            id = detail.Id.ToString(CultureInfo.InvariantCulture),
+            name = detail.Name,
+            description = detail.Description ?? string.Empty,
+            icon_uri = detail.AvatarUrl ?? string.Empty,
+            icon_url = detail.AvatarUrl ?? string.Empty,
+            visibility = 0,
+            has_published = detail.PublishVersion > 0 ? 1 : 0,
+            create_time = CozeCompatGatewaySupport.ToUnixMilliseconds(detail.CreatedAt).ToString(CultureInfo.InvariantCulture),
+            update_time = detail.UpdatedAt is null
+                ? CozeCompatGatewaySupport.ToUnixMilliseconds(detail.CreatedAt).ToString(CultureInfo.InvariantCulture)
+                : CozeCompatGatewaySupport.ToUnixMilliseconds(detail.UpdatedAt.Value).ToString(CultureInfo.InvariantCulture),
+            creator_id = detail.CreatorId.ToString(CultureInfo.InvariantCulture),
+            space_id = spaceId ?? detail.WorkspaceId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            work_info = new
+            {
+                prompt = detail.SystemPrompt ?? string.Empty,
+                tools = string.Empty,
+                dataset = string.Empty,
+                workflow = string.Empty
+            },
+            connectors = Array.Empty<object>(),
+            bot_mode = 0,
+            agents = Array.Empty<object>(),
+            canvas_data = string.Empty,
+            version = detail.PublishVersion.ToString(CultureInfo.InvariantCulture),
+            bot_tag_info = Array.Empty<object>(),
+            branch = "PersonalDraft",
+            commit_version = detail.PublishVersion.ToString(CultureInfo.InvariantCulture),
+            commit_time = detail.UpdatedAt?.ToString("O", CultureInfo.InvariantCulture),
+            publish_time = detail.PublishedAt?.ToString("O", CultureInfo.InvariantCulture)
+        };
+    }
+
     private static object MapSpaceItem(Atlas.Application.Platform.Models.WorkspaceListItem item)
     {
         var roleType = string.Equals(item.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase)
@@ -350,3 +576,37 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         };
     }
 }
+
+public sealed record CozeDraftBotCreateCompatRequest(
+    string? space_id,
+    string? name,
+    string? description,
+    string? icon_uri,
+    string? create_from,
+    string? app_id,
+    int? business_type,
+    string? folder_id,
+    CozeDraftBotWorkInfoCompat? work_info);
+
+public sealed record CozeGetDraftBotInfoCompatRequest(
+    string? space_id,
+    string? bot_id,
+    string? version,
+    string? source,
+    int? botMode,
+    string? commit_version);
+
+public sealed record CozeUpdateDraftBotCompatRequest(
+    string? space_id,
+    string? bot_id,
+    CozeDraftBotWorkInfoCompat? work_info,
+    string? name,
+    string? description,
+    string? icon_uri,
+    string? commit_version);
+
+public sealed record CozeDraftBotWorkInfoCompat(
+    string? prompt,
+    string? tools,
+    string? dataset,
+    string? workflow);

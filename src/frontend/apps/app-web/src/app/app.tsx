@@ -404,6 +404,8 @@ const loadLibraryModule = () => import("@atlas/library-module-react");
 const loadAdminModule = () => import("@atlas/module-admin-react");
 const loadExploreModule = () => import("@atlas/module-explore-react");
 const loadStudioModule = () => import("@atlas/module-studio-react");
+const loadCozeWorkspaceDevelopModule = () => import("@coze-studio/workspace-adapter/develop");
+const loadCozeWorkspaceLibraryModule = () => import("@coze-studio/workspace-adapter/library");
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
 
 
@@ -446,6 +448,8 @@ const ResourceReferenceCard = lazyNamed(loadStudioModule, "ResourceReferenceCard
 const StudioWorkspacePage = lazyNamed(loadStudioModule, "StudioWorkspacePage");
 const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
 const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
+const CozeWorkspaceDevelopPage = lazyNamed(loadCozeWorkspaceDevelopModule, "Develop");
+const CozeWorkspaceLibraryPage = lazyNamed(loadCozeWorkspaceLibraryModule, "LibraryPage");
 const CozeWorkflowPage = lazyNamed(loadCozeWorkflowPlaygroundModule, "WorkflowPage");
 
 function readLibraryMockFlag(): boolean {
@@ -2046,7 +2050,12 @@ function KnowledgeUploadRoute() {
 }
 
 function DevelopRoute() {
-  return <WorkspaceStudioRoute defaultFocus="overview" />;
+  const workspace = useWorkspaceContext();
+  return (
+    <Suspense fallback={<PageShell loading testId="coze-workspace-develop-loading" />}>
+      <CozeWorkspaceDevelopPage spaceId={workspace.id} />
+    </Suspense>
+  );
 }
 
 function DashboardRoute() {
@@ -2931,14 +2940,11 @@ function WorkspaceShellInner() {
 
 function WorkspaceLibraryRoute() {
   const workspace = useWorkspaceContext();
-  const navigate = useNavigate();
-  const { locale } = useAppI18n();
-  const workspaceLibraryApi = useMemo<LibraryKnowledgeApi>(() => ({
-    ...libraryApi,
-    createKnowledgeBase: request => createKnowledgeBase({ ...request, workspaceId: Number(workspace.id) }),
-    updateKnowledgeBase: (knowledgeBaseId, request) => updateKnowledgeBase(knowledgeBaseId, { ...request, workspaceId: Number(workspace.id) })
-  }), [workspace.id]);
-  return <LibraryPage api={workspaceLibraryApi} locale={locale} appKey={workspace.appKey} spaceId={workspace.id} onNavigate={navigate} />;
+  return (
+    <Suspense fallback={<PageShell loading testId="coze-workspace-library-loading" />}>
+      <CozeWorkspaceLibraryPage spaceId={workspace.id} />
+    </Suspense>
+  );
 }
 
 function WorkspaceKnowledgeDetailRoute() {

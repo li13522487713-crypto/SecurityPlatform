@@ -192,6 +192,78 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
         return Ok(CozeCompatGatewaySupport.SuccessWithoutData());
     }
 
+    [HttpPost("draftbot/get_draft_bot_info")]
+    [HttpPost("/api/playground_api/draftbot/get_draft_bot_info")]
+    public async Task<ActionResult<object>> GetDraftBotInfoAgw(
+        [FromBody] CozeGetDraftBotInfoCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        if (queryService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("agent query service unavailable"));
+        }
+
+        var detail = await queryService.GetByIdAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (detail is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            bot_info = new
+            {
+                bot_id = detail.Id.ToString(CultureInfo.InvariantCulture),
+                name = detail.Name,
+                description = detail.Description ?? string.Empty,
+                icon_uri = detail.AvatarUrl ?? string.Empty,
+                icon_url = detail.AvatarUrl ?? string.Empty,
+                creator_id = detail.CreatorId.ToString(CultureInfo.InvariantCulture),
+                create_time = CozeCompatGatewaySupport.ToUnixMilliseconds(detail.CreatedAt).ToString(CultureInfo.InvariantCulture),
+                update_time = detail.UpdatedAt is null
+                    ? CozeCompatGatewaySupport.ToUnixMilliseconds(detail.CreatedAt).ToString(CultureInfo.InvariantCulture)
+                    : CozeCompatGatewaySupport.ToUnixMilliseconds(detail.UpdatedAt.Value).ToString(CultureInfo.InvariantCulture),
+                prompt_info = new
+                {
+                    prompt = detail.SystemPrompt ?? string.Empty
+                },
+                business_type = 0,
+                bot_mode = 0
+            },
+            bot_option_data = new
+            {
+                plugin_api_detail_map = new Dictionary<string, object>()
+            },
+            has_unpublished_change = false,
+            in_collaboration = false,
+            same_with_online = detail.PublishVersion > 0,
+            editable = true,
+            deletable = true,
+            has_publish = detail.PublishVersion > 0,
+            space_id = request?.space_id ?? detail.WorkspaceId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+            connectors = Array.Empty<object>(),
+            branch = "PersonalDraft",
+            commit_version = detail.PublishVersion.ToString(CultureInfo.InvariantCulture)
+        }));
+    }
+
+    [HttpPost("report_user_behavior")]
+    [HttpPost("/api/playground_api/report_user_behavior")]
+    public ActionResult<object> ReportUserBehavior([FromBody] object? _request)
+    {
+        return Ok(new
+        {
+            code = 0,
+            msg = "success"
+        });
+    }
+
     [HttpGet("marketplace/product/favorite/list")]
     public ActionResult<object> GetMarketplaceFavoriteList()
     {
