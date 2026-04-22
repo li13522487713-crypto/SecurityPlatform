@@ -1,0 +1,100 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+@workflowId = 1
+@workspaceId = 1
+
+### app-web workflow gateway：创建工作流
+# @name createWorkflow
+POST {{host}}/api/app-web/workflow-sdk/create
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "AppWeb Gateway Workflow",
+  "desc": "gateway smoke",
+  "space_id": "{{workspaceId}}",
+  "flow_mode": 0
+}
+
+###
+@createdWorkflowId = {{createWorkflow.response.body.data.workflow_id}}
+
+### app-web workflow gateway：工作流列表
+POST {{host}}/api/app-web/workflow-sdk/workflow_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 10,
+  "space_id": "{{workspaceId}}"
+}
+
+### app-web workflow gateway：读取画布
+POST {{host}}/api/app-web/workflow-sdk/canvas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{createdWorkflowId}}",
+  "space_id": "{{workspaceId}}"
+}
+
+### app-web workflow gateway：保存草稿
+POST {{host}}/api/app-web/workflow-sdk/save
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{createdWorkflowId}}",
+  "space_id": "{{workspaceId}}",
+  "schema": "{\"nodes\":[],\"edges\":[]}",
+  "submit_commit_id": "gateway-draft"
+}
+
+### app-web workflow gateway：发布
+POST {{host}}/api/app-web/workflow-sdk/publish
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{createdWorkflowId}}",
+  "space_id": "{{workspaceId}}",
+  "commit_id": "gateway-commit",
+  "version_description": "gateway publish"
+}
+
+### app-web workflow gateway：试运行
+POST {{host}}/api/app-web/workflow-sdk/test_run
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{createdWorkflowId}}",
+  "space_id": "{{workspaceId}}",
+  "input": {
+    "message": "gateway smoke"
+  }
+}
+

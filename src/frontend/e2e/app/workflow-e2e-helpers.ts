@@ -117,7 +117,7 @@ async function createWorkflowViaApi(
   name: string
 ): Promise<string> {
   const accessToken = await getAppAccessToken(request);
-  const response = await request.post(`${appApiBase}/api/workflow_api/create`, {
+  const response = await request.post(`${appApiBase}/api/app-web/workflow-sdk/create`, {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,

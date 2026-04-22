@@ -38,8 +38,8 @@
 - 核心 REST：`api/v2/workflows`（创建、详情、列表、保存草稿、更新元数据、发布、版本、依赖、版本 diff、运行、节点调试 等）
 - developer 兜底（注意大小写）：`/api/workflowV2/{**path}`（`DeveloperWorkflowV2PostFallback` / `DeveloperWorkflowV2GetFallback`）
 - 能力路由：`/apps/{appId}/workflow-v2`（见 `CapabilityRegistryTests`）
-- proxy：`src/frontend/apps/app-web/rsbuild.config.ts` 的 `proxy.context` 含 `"/api/v2/workflows"`
-- 拼接 URL：`WorkspaceIdeService` `$"/api/v2/workflows/{id}/run"`、`LowCodeActionsController` `$"{baseUrl}/api/v2/workflows/{request.WorkflowDefinitionId}/start"`
+- 当前状态更新：`/api/v2/workflows*` 已在现行代码中删除，`rsbuild.config.ts` 与 `WorkspaceIdeService` 也已不再指向该路由
+- 当前主链路：编辑态 `api/app-web/workflow-sdk/*`，运行态 `api/runtime/workflows/{id}:invoke*`
 - 工具：`scripts/export-workflow-golden-sample.ps1`（金样本导出脚本）
 
 ### 2.5 测试
@@ -69,7 +69,7 @@
 - `docs/contracts.md`（多个章节：Workflow V2 API、`WorkflowV2DependencyDto` 等）
 - `docs/coze-api-gap.md`（多处 `IWorkflowV2*`、`WorkflowV2CommandService`、`workflow_v2` 开关描述）
 - `docs/coze-workflow-migration.md`（`workflowV2Api`）
-- `docs/workflow-editor-validation-matrix.md`（`/api/v2/workflows/node-types` 等）
+- `docs/workflow-editor-validation-matrix.md`（现已改标为历史 v2 契约说明）
 - `docs/plan-coze-atlas-round2.md`（列举 `WorkflowV2Controller`）
 - `AGENTS.md`（「Workflow V2（Coze 复刻）补充约束」）
 - `CLAUDE.md`（「Workflow V2 (Coze Parity) Update」）

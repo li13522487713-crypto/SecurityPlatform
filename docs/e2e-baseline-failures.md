@@ -45,13 +45,13 @@
 | 67 | `e2e/app/workflow-publish.spec.ts:5` | 同 #63 | 同 #63 | 同 #63 |
 | 68 | `e2e/app/workflow-run.spec.ts:30` | 同 #63 | 同 #63 | 同 #63 |
 | 71 | `e2e/app/workflow-complete-flow.spec.ts:22` | 同 #63 | 同 #63 | 同 #63 |
-| 72 | `e2e/app/workflow-v2-acceptance.spec.ts:268` | POST `/api/v2/workflows` 返回 500 | 后端 DAG workflow 创建端点错误 | 修复 DagWorkflowController.CreateAsync |
+| 72 | `e2e/app/workflow-v2-acceptance.spec.ts:268` | POST `/api/v2/workflows` 返回 500 | 历史 v2 工作流端点已退场 | 改写用例到 `api/app-web/workflow-sdk/create` 或直接移除旧 spec |
 
 ## 4. 独立专项立项建议
 
 **专项一：后端缺失的真实控制器**
 - ReportsController + DashboardsController + 对应 Service / DTO / xUnit / .http
-- DagWorkflowController 创建端点修复
+- 历史 DagWorkflowController 不再补修，相关用例统一迁移到新 gateway
 
 **专项二：Coze 工作流编辑器 testId 同步**
 - 在 `packages/workflow/playground` 节点头部 / 标题栏 / canvas 位置补齐 `workflow.detail.title.{save-draft,duplicate,canvas-json,run-inputs,...}` testId

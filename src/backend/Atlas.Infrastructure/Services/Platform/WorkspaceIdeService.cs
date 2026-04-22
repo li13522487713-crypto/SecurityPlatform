@@ -592,7 +592,7 @@ public sealed class WorkspaceIdeService : IWorkspaceIdeService
                 draftVersion,
                 workflow.PublishedAt,
                 ResolvePublishStatus(currentVersion, hasDraft),
-                $"/api/v2/workflows/{workflow.Id.ToString(CultureInfo.InvariantCulture)}/run",
+                $"/api/runtime/workflows/{workflow.Id.ToString(CultureInfo.InvariantCulture)}:invoke",
                 null);
         }));
 

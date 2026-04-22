@@ -14,7 +14,7 @@
 - 引擎入口：当前统一桥接到 Coze workflow 执行服务；配置中带有 `orchestration=agentic` 时改写为 LLM tool calling 协议。
 - Studio 隐藏中间链路，仅暴露 LLM 节点 + Tool 池配置。
 - 执行轨迹仍落 `RuntimeTrace`（M13），便于调试。
-- 切换器：`POST /api/v2/workflows/orchestration/plan` → `OrchestrationPlan`。
+- 历史 `POST /api/v2/workflows/orchestration/plan` 草案已下线；当前通过内部 `IDualOrchestrationEngine.Plan(...)` 与 Coze workflow 主链路协同完成编排切换。
 
 ### 1.3 统一切换 API
 - `IDualOrchestrationEngine.Plan(canvasJson, mode, tools)` → `OrchestrationPlan { mode, canvasJson, tools, metadataJson }`。

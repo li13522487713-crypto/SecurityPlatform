@@ -76,10 +76,10 @@
 - `publish/{appId}/artifacts`（M17）
 - `plugins/{id}:invoke`（M18）
 
-### 工作流（AppHost 5002 / `/api/v2/workflows/*`，M19/M20）
-- 现有 DagWorkflowController（CRUD/run/test/spans/...）
-- `generate / {id}/batch / {id}/compose / {id}/decompose / quota`（M19）
-- `orchestration/plan`（M20）
+### 工作流（历史 M19/M20 资产，现已退场）
+- 旧 `DagWorkflowController` / `/api/v2/workflows/*` 已在当前代码库中下线
+- 当前编辑态主链路为 `api/app-web/workflow-sdk/*`
+- 当前运行态主链路为 `api/runtime/workflows/{id}:invoke*`
 
 ## 5. 已知简化与延后项（两轮收尾后剩余）
 

@@ -6,8 +6,8 @@
   - `app-web` 主路径编辑入口以 `@coze-workflow/playground-adapter` 为准
   - `workflow-editor-react` 仅作为迁移期遗留实现保留，不再是默认主入口
 - 本矩阵用于前端工作流编辑器校验覆盖清单，单一事实源依赖后端：
-  - `GET /api/v2/workflows/node-types`（端口 + Schema）
-  - `GET /api/v2/workflows/node-templates`（默认值）
+  - `POST /api/app-web/workflow-sdk/node_type`（端口 + Schema）
+  - `POST /api/app-web/workflow-sdk/node_template_list`（默认值）
   - `GET /api/v1/model-configs/enabled`（模型目录）
 - 校验分层：
   - 第 1 层：Schema 字段校验
@@ -116,8 +116,9 @@
 
 ## 附录：M19 父级工程能力验证矩阵
 
-> 范围：M19 工作流父级工程能力（AI 生成 / 批量 / 异步 / 封装解散 / 配额）。
-> 与 `Atlas.AppHost.Controllers.DagWorkflowEngineeringController` 完全对应。
+> 历史说明：本附录记录的是早期 M19 `v2` 工程能力设计稿。
+> 当前仓库已移除 `DagWorkflowEngineeringController` 与 `DagWorkflowAsyncController`，`/api/v2/workflows/*` 不再是有效工作流主链路。
+> 运行时保留的可执行入口为 `api/runtime/workflows/{id}:invoke`、`api/runtime/workflows/{id}:invoke-async`、`api/runtime/workflows/{id}:invoke-batch`。
 
 | # | 端点 | 校验点 |
 | - | --- | --- |

@@ -41,9 +41,10 @@
 
 ## 当前兼容策略
 
-- 原生 Coze Workflow Host 通过 `/api/workflow_api/*` 与 Atlas 对接：
-  - 前端不再通过 Atlas workflow editor provider/shim 伪装主编辑能力
-  - 后端兼容层统一转发到 `/api/v2/workflows*` 与现有服务
+- 当前 `app-web` 主编辑链路已改为通过本地 shim 直连 `/api/app-web/workflow-sdk/*`：
+  - 前端继续使用 Coze Workflow Host / Coze SDK
+  - `/api/workflow_api/*` 仅保留历史兼容，不再转发到 `/api/v2/workflows*`
+  - 旧 `/api/v2/workflows*` 已下线
 
 ## 后续建议
 

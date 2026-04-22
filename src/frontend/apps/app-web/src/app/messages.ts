@@ -712,6 +712,7 @@ const zhCN = {
 
   cozeCommonRefresh: "刷新",
   cozeCommonRetry: "重试",
+  cozeCommonAction: "操作",
   cozeCommonComingSoon: "即将上线",
   cozeCommonViewAll: "查看更多",
   cozeCommonGoBack: "返回",
@@ -1956,6 +1957,7 @@ const enUS: typeof zhCN = {
 
   cozeCommonRefresh: "Refresh",
   cozeCommonRetry: "Retry",
+  cozeCommonAction: "Actions",
   cozeCommonComingSoon: "Coming soon",
   cozeCommonViewAll: "View all",
   cozeCommonGoBack: "Back",

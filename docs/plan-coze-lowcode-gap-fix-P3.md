@@ -97,8 +97,8 @@ dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Int
 3. **P3-3 提示词编辑器**：assistant 工作台 `persona-tab` / `reply-logic-tab` 引入 Monaco Jinja 高亮 + @ 引用菜单 + 模板库选择器（接 LowCodePromptTemplatesController 已存在）。
 4. **P3-4 LowCodePlugin 评分 + OpenAPI 导入**：`LowCodePluginRating` 实体 + 端点 + Studio UI；OpenAPI 导入复用 `AiPluginsController` 的 `OpenApiImportService`。
 5. **P3-4 LowCodePlugin Invoke 真实调用**：现有 `PromptTemplateAndPluginServices.cs` `InvokeAsync` 仍为回声 + 计量；改为复用 `IPluginRegistry.ExecuteAsync` 与工作流 N10 共享调用链。
-6. **P3-5 playground 6 个工程能力前端入口**：在 `workflow/playground` 增加按钮 + 调 `/api/v2/workflows/generate|batch|async|compose|decompose|quota`（后端 5 端点已存在，前端入口待补）+ FAQ 面板。
-7. **P3-6 Async webhook 真实签名 + Atlas Alert 同步**：`DagWorkflowAsyncController` webhook 接收端加 HMAC 签名校验（与 M12 trigger webhook 复用 whs_ 方案）；`WorkflowQuotaService` 接 Atlas Alert 模块（80% 预警 / 超额告警）；`EnsureWithinQuotaAsync` 扩展 MaxNodesPerWorkflow + QPS 维度。
+6. **P3-5 playground 6 个工程能力前端入口**：历史草案，原计划接 `/api/v2/workflows/generate|batch|async|compose|decompose|quota`；当前仓库已下线该组 v2 工程能力入口，不再继续补前端按钮。
+7. **P3-6 Async webhook 真实签名 + Atlas Alert 同步**：历史草案，原依赖 `DagWorkflowAsyncController`；当前异步执行统一收敛到 `api/runtime/workflows/{id}:invoke-async` 与 `api/runtime/async-jobs/*`。
 8. **P3-7 真实 LLM tool calling 循环**：当前 `DualOrchestrationEngine.ExecuteAsync` 在协议层守门后返回占位响应；接 Microsoft.Extensions.AI ChatTool 协议时只需替换内部循环（契约不变）。
 
 ## 5. 进入 P4
