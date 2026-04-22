@@ -15,6 +15,7 @@ using Atlas.Infrastructure.Services;
 using Atlas.Infrastructure.Services.WorkflowEngine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -233,8 +234,11 @@ public sealed class DagWorkflowExecutionService : IDagWorkflowExecutionService
 
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, execution.WorkflowId, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
-        var canvas = DagExecutor.ParseCanvas(draft.CanvasJson)
-            ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
+        var canvas = ParseCanvasOrThrow(
+            draft.CanvasJson,
+            execution.WorkflowId,
+            "draft-resume",
+            ErrorCodes.ValidationError);
 
         var nodeExecutions = await _nodeExecutionRepo.ListByExecutionIdAsync(tenantId, executionId, cancellationToken);
         var preCompletedNodeKeys = nodeExecutions
@@ -304,8 +308,11 @@ public sealed class DagWorkflowExecutionService : IDagWorkflowExecutionService
             request.Source ?? "draft",
             request.VersionId,
             cancellationToken);
-        var fullCanvas = DagExecutor.ParseCanvas(resolvedCanvas.CanvasJson)
-            ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
+        var fullCanvas = ParseCanvasOrThrow(
+            resolvedCanvas.CanvasJson,
+            workflowId,
+            $"debug:{request.Source ?? "draft"}",
+            ErrorCodes.ValidationError);
 
         // 构建仅包含目标节点的最小运行子图，避免合成 Entry/Exit 影响单节点语义。
         var targetNode = fullCanvas.Nodes.FirstOrDefault(n =>
@@ -457,8 +464,11 @@ public sealed class DagWorkflowExecutionService : IDagWorkflowExecutionService
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
 
         var resolvedCanvas = await ResolveWorkflowCanvasAsync(tenantId, meta.Id, request.Source, null, cancellationToken);
-        var canvas = DagExecutor.ParseCanvas(resolvedCanvas.CanvasJson)
-            ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
+        var canvas = ParseCanvasOrThrow(
+            resolvedCanvas.CanvasJson,
+            workflowId,
+            request.Source ?? "published",
+            ErrorCodes.ValidationError);
 
         var inputs = MergeWithCanvasGlobals(canvas, ParseInputs(request.InputsJson));
         var appId = _appContextAccessor.ResolveAppId();
@@ -558,6 +568,78 @@ public sealed class DagWorkflowExecutionService : IDagWorkflowExecutionService
         }
 
         return merged;
+    }
+
+    private Domain.AiPlatform.ValueObjects.CanvasSchema ParseCanvasOrThrow(
+        string canvasJson,
+        long workflowId,
+        string source,
+        string errorCode)
+    {
+        var canvas = DagExecutor.ParseCanvas(canvasJson);
+        if (canvas is not null)
+        {
+            return canvas;
+        }
+
+        _logger.LogWarning(
+            "Workflow canvas parse failed. WorkflowId={WorkflowId} Source={Source} Summary={Summary}",
+            workflowId,
+            source,
+            SummarizeCanvasJson(canvasJson));
+
+        throw new BusinessException("画布 JSON 无效。", errorCode);
+    }
+
+    private static string SummarizeCanvasJson(string? canvasJson)
+    {
+        if (string.IsNullOrWhiteSpace(canvasJson))
+        {
+            return "empty";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(canvasJson);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return $"root={root.ValueKind}";
+            }
+
+            var topKeys = root.EnumerateObject().Select(x => x.Name).ToArray();
+            var builder = new StringBuilder();
+            builder.Append("topKeys=[").Append(string.Join(",", topKeys)).Append(']');
+
+            if (TryGetNested(root, out var firstNode, "nodes", 0) && firstNode.ValueKind == JsonValueKind.Object)
+            {
+                var firstNodeKeys = firstNode.EnumerateObject().Select(x => x.Name).ToArray();
+                builder.Append("; firstNodeKeys=[").Append(string.Join(",", firstNodeKeys)).Append(']');
+            }
+
+            return builder.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"invalid-json:{ex.Message}";
+        }
+    }
+
+    private static bool TryGetNested(JsonElement root, out JsonElement value, string arrayName, int index)
+    {
+        value = default;
+        if (!root.TryGetProperty(arrayName, out var arrayElement) || arrayElement.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        if (arrayElement.GetArrayLength() <= index)
+        {
+            return false;
+        }
+
+        value = arrayElement[index];
+        return true;
     }
 
     private async Task RunWithScopeAsync(

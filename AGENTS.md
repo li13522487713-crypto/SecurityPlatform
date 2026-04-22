@@ -63,10 +63,9 @@ pnpm run format                 # 格式化所有项目
 `Atlas.WebApp` 已删除（2026-04-05），不再支持 Legacy 启动与构建命令。
 
 ### API 测试
-- 使用宿主对应的 `.http` 文件：
-  - `src/backend/Atlas.PlatformHost/Bosch.http/`
-  - `src/backend/Atlas.AppHost/Bosch.http/`
-- 每个新增或修改的接口需在对应 Host 下创建或更新 `.http` 文件
+- 当前开发与验收默认使用 `AppHost` 的 `.http` 文件：`src/backend/Atlas.AppHost/Bosch.http/`
+- `src/backend/Atlas.PlatformHost/Bosch.http/` 仅保留历史兼容资产；除非明确维护历史接口，否则不要再作为新增/修改接口的主契约入口
+- 每个新增或修改的接口需优先在 `AppHost` 下创建或更新 `.http` 文件；若确有历史兼容需求，再同步补充 `PlatformHost`
 
 ## 编码规范
 

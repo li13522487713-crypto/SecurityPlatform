@@ -56,6 +56,33 @@ X-Tenant-Id: {{tenantId}}
   }
 }
 
+### 原生 Coze 兼容：保存 Coze 原生 schema（id/meta/data + edges.sourceNodeID）
+POST {{host}}/api/workflow_api/save
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow",
+  "schema": "{\"nodes\":[{\"id\":\"entry_1\",\"type\":1,\"meta\":{\"position\":{\"x\":120,\"y\":80}},\"data\":{\"nodeMeta\":{\"title\":\"开始\"},\"outputs\":[{\"name\":\"incident\",\"type\":\"string\",\"required\":true}]}},{\"id\":\"code_1\",\"type\":5,\"meta\":{\"position\":{\"x\":360,\"y\":80}},\"data\":{\"nodeMeta\":{\"title\":\"代码执行\"},\"inputs\":{\"language\":\"javascript\",\"code\":\"function main(args){ return { result: args.params.incident }; }\",\"inputParameters\":[{\"name\":\"incident\"}]},\"outputs\":[{\"name\":\"result\",\"type\":\"string\"}]}},{\"id\":\"exit_1\",\"type\":2,\"meta\":{\"position\":{\"x\":660,\"y\":80}},\"data\":{\"nodeMeta\":{\"title\":\"结束\"},\"inputs\":{\"terminatePlan\":\"returnVariables\",\"inputParameters\":[{\"name\":\"result\",\"input\":{\"value\":{\"content\":\"{{code_1.result}}\"}}}]}}}],\"edges\":[{\"sourceNodeID\":\"entry_1\",\"targetNodeID\":\"code_1\"},{\"sourceNodeID\":\"code_1\",\"targetNodeID\":\"exit_1\"}]}",
+  "submit_commit_id": "coze-native-draft"
+}
+
+### 原生 Coze 兼容：试运行 Coze 原生 schema 保存后的草稿
+POST {{host}}/api/workflow_api/test_run
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "{{workflowId}}",
+  "space_id": "atlas-workflow",
+  "input": {
+    "incident": "coze native compat smoke"
+  }
+}
+
 ### 原生 Coze 兼容：查询运行结果
 GET {{host}}/api/workflow_api/get_process?workflow_id={{workflowId}}&execute_id={{executionId}}
 Authorization: Bearer {{token}}

@@ -260,6 +260,68 @@ public sealed class WorkflowCanvasValidatorTests
         Assert.Empty(result.Errors);
     }
 
+    [Fact]
+    public void ValidateCanvas_ShouldRejectCozeNativeCanvasPayload()
+    {
+        const string json = """
+            {
+              "nodes": [
+                {
+                  "id": "entry_1",
+                  "type": 1,
+                  "meta": { "position": { "x": 120, "y": 80 } },
+                  "data": {
+                    "nodeMeta": { "title": "开始" },
+                    "outputs": [{ "name": "incident", "type": "string", "required": true }]
+                  }
+                },
+                {
+                  "id": "code_1",
+                  "type": 5,
+                  "meta": { "position": { "x": 360, "y": 80 } },
+                  "data": {
+                    "nodeMeta": { "title": "代码执行" },
+                    "inputs": {
+                      "language": "javascript",
+                      "code": "function main(args){ return { result: args.params.incident }; }",
+                      "inputParameters": [{ "name": "incident" }]
+                    },
+                    "outputs": [{ "name": "result", "type": "string" }]
+                  }
+                },
+                {
+                  "id": "exit_1",
+                  "type": 2,
+                  "meta": { "position": { "x": 660, "y": 80 } },
+                  "data": {
+                    "nodeMeta": { "title": "结束" },
+                    "inputs": {
+                      "terminatePlan": "returnVariables",
+                      "inputParameters": [
+                        {
+                          "name": "result",
+                          "input": {
+                            "value": { "content": "{{code_1.result}}" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "edges": [
+                { "sourceNodeID": "entry_1", "targetNodeID": "code_1" },
+                { "sourceNodeID": "code_1", "targetNodeID": "exit_1" }
+              ]
+            }
+            """;
+
+        var result = _validator.ValidateCanvas(json);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Code == "CANVAS_PARSE_FAILED");
+    }
+
     private static NodeSchema BuildNode(string key, WorkflowNodeType nodeType)
     {
         return new NodeSchema(

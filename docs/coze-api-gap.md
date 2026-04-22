@@ -1,7 +1,7 @@
 # Coze workflow_api 兼容层缺口表（M2）
 
 > 对照基准：`e:/codeding/coze-studio/idl/workflow/workflow_svc.thrift`、`workflow.thrift`、`trace.thrift`。
-> Atlas 实现：`src/backend/Atlas.Presentation.Shared/Controllers/Ai/CozeWorkflowCompatControllerBase.cs`，由 `Atlas.AppHost/Controllers/CozeWorkflowCompatController.cs` 与 `Atlas.PlatformHost/Controllers/CozeWorkflowCompatController.cs` 共同挂载到 `/api/workflow_api/*` 等路由族。
+> Atlas 实现：`src/backend/Atlas.Presentation.Shared/Controllers/Ai/CozeWorkflowCompatControllerBase.cs`，当前由 `Atlas.AppHost/Controllers/CozeWorkflowCompatController.cs` 作为唯一有效宿主挂载到 `/api/workflow_api/*` 等路由族；`Atlas.PlatformHost/Controllers/CozeWorkflowCompatController.cs` 仅保留历史兼容实现参考。
 >
 > 本文件维护"前端调用 → 后端真实实现"的对应关系，是 M2 的唯一权威来源；任何端点状态变更需同步更新本表与 `docs/contracts.md` 的兼容层章节。
 >
@@ -16,7 +16,7 @@
 | Thrift Method | HTTP | Atlas 状态 | 说明 |
 |---|---|---|---|
 | `CreateWorkflow` | POST `/create` | OK | `DagWorkflowCommandService.CreateAsync`；`flow_mode=3` 映射 ChatFlow。 |
-| `SaveWorkflow` | POST `/save` | OK | 自动 HtmlDecode + `NormalizeCanvasJsonForCoze`。 |
+| `SaveWorkflow` | POST `/save` | OK | 自动 HtmlDecode + 后端标准画布归一化（Coze 原生 `id/meta/data + edges` 也会落成 Atlas 标准 `key/config/layout + connections`）。 |
 | `UpdateWorkflowMeta` | POST `/update_meta` | OK | `flow_mode` 字段忽略（后端单独维护 mode）。 |
 | `DeleteWorkflow` | POST `/delete` | OK | `action` 字段忽略，软删除走 `DeleteAsync`。 |
 | `BatchDeleteWorkflow` | POST `/batch_delete` | **M2 待补 → 已补**（见下文 §4） |

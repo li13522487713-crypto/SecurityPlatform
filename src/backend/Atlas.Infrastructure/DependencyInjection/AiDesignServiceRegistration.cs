@@ -115,6 +115,10 @@ public static class AiDesignServiceRegistration
         services.AddSingleton<AiWorkflowDslBuilder>();
 
         services.AddScoped<ICanvasValidator, CanvasValidator>();
+        services.AddScoped<ICozeWorkflowPlanCompiler, CozeWorkflowPlanCompiler>();
+        services.AddScoped<ICozeWorkflowCommandService, CozeWorkflowCommandService>();
+        services.AddScoped<ICozeWorkflowQueryService, CozeWorkflowQueryService>();
+        services.AddScoped<ICozeWorkflowExecutionService, CozeWorkflowExecutionService>();
         services.AddTransient<LlmStep>();
         services.AddTransient<PluginStep>();
         services.AddTransient<CodeRunnerStep>();

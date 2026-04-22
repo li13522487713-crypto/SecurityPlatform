@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Net;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
@@ -36,18 +35,18 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         "Ltm"
     };
 
-    private readonly IDagWorkflowCommandService _commandService;
-    private readonly IDagWorkflowQueryService _queryService;
-    private readonly IDagWorkflowExecutionService _executionService;
+    private readonly ICozeWorkflowCommandService _commandService;
+    private readonly ICozeWorkflowQueryService _queryService;
+    private readonly ICozeWorkflowExecutionService _executionService;
     private readonly ICanvasValidator _canvasValidator;
     private readonly IWorkspacePortalService _workspacePortalService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     protected CozeWorkflowCompatControllerBase(
-        IDagWorkflowCommandService commandService,
-        IDagWorkflowQueryService queryService,
-        IDagWorkflowExecutionService executionService,
+        ICozeWorkflowCommandService commandService,
+        ICozeWorkflowQueryService queryService,
+        ICozeWorkflowExecutionService executionService,
         ICanvasValidator canvasValidator,
         IWorkspacePortalService workspacePortalService,
         ITenantProvider tenantProvider,
@@ -203,7 +202,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
                 create_time = ToUnixMilliseconds(result.CreatedAt),
                 update_time = ToUnixMilliseconds(result.UpdatedAt),
                 space_id = request.space_id ?? string.Empty,
-                schema_json = NormalizeCanvasJsonForCoze(result.CanvasJson),
+                schema_json = result.SchemaJson,
                 flow_mode = ToCozeWorkflowMode(result.Mode),
                 workflow_version = result.LatestVersionNumber.ToString()
             },
@@ -237,10 +236,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             return Ok(Fail("workflow_id is required"));
         }
 
-        // 落库前必须把 Coze playground 的字符串数字 type 反向归一为 Atlas WorkflowNodeType 整型，
-        // 否则 DagExecutor.ParseCanvas 在 SaveDraft 之后的 Run/DebugNode 路径上会找不到执行器（风险 3）。
-        var schema = NormalizeCanvasJsonFromCoze(request.schema);
-        var saveRequest = new DagWorkflowSaveDraftRequest(schema, request.submit_commit_id);
+        var saveRequest = new CozeWorkflowSaveDraftCommand(request.schema ?? "{}", request.submit_commit_id);
         await _commandService.SaveDraftAsync(_tenantProvider.GetTenantId(), workflowId, saveRequest, cancellationToken);
         await TryWriteAuditAsync("save_draft", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
@@ -270,7 +266,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _tenantProvider.GetTenantId(),
             workflowId,
             userId,
-            new DagWorkflowPublishRequest(request.version_description),
+            new CozeWorkflowPublishCommand(request.version_description),
             cancellationToken);
         await TryWriteAuditAsync("publish", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
@@ -386,7 +382,12 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             return Ok(Fail("workflow_id is required"));
         }
 
-        var result = _canvasValidator.ValidateCanvas(request.schema);
+        var compileResult = _commandService is not null
+            ? HttpContext.RequestServices.GetRequiredService<ICozeWorkflowPlanCompiler>().Compile(request.schema)
+            : new CozeWorkflowCompileResult(false, null, [new CanvasValidationIssue("COZE_COMPILER_UNAVAILABLE", "Coze 编译器不可用。")]);
+        var result = !compileResult.IsSuccess || compileResult.Canvas is null
+            ? new CanvasValidationResult(false, compileResult.Errors)
+            : _canvasValidator.ValidateCanvas(JsonSerializer.Serialize(compileResult.Canvas));
 
         return Ok(Success((result.Errors ?? Array.Empty<CanvasValidationIssue>())
             .Select(error => new
@@ -420,7 +421,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         if (string.IsNullOrWhiteSpace(schema) && hasWorkflowId)
         {
             var detail = await _queryService.GetAsync(_tenantProvider.GetTenantId(), workflowId, cancellationToken);
-            schema = NormalizeIncomingSchema(detail?.CanvasJson);
+            schema = NormalizeIncomingSchema(detail?.SchemaJson);
         }
 
         if (string.IsNullOrWhiteSpace(schema))
@@ -428,11 +429,10 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             return Ok(Success(Array.Empty<object>()));
         }
 
-        // 同样需要把 Coze 字符串数字 type 还原为 Atlas WorkflowNodeType 整型（风险 3），
-        // 否则 ICanvasValidator 反序列化 schema 时无法识别节点类型，会误报"未知节点"。
-        schema = NormalizeCanvasJsonFromCoze(schema);
-
-        var result = _canvasValidator.ValidateCanvas(schema);
+        var compileResult = HttpContext.RequestServices.GetRequiredService<ICozeWorkflowPlanCompiler>().Compile(schema);
+        var result = !compileResult.IsSuccess || compileResult.Canvas is null
+            ? new CanvasValidationResult(false, compileResult.Errors)
+            : _canvasValidator.ValidateCanvas(JsonSerializer.Serialize(compileResult.Canvas));
         var errors = (result.Errors ?? Array.Empty<CanvasValidationIssue>())
             .Select(error => new
             {
@@ -552,7 +552,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             name = snapshot.Name,
             describe = snapshot.Description ?? string.Empty,
             url = string.Empty,
-            schema = NormalizeCanvasJsonForCoze(snapshot.SchemaJson),
+            schema = snapshot.SchemaJson,
             flow_mode = 0,
             workflow_id = snapshot.WorkflowId,
             commit_id = snapshot.CommitId ?? string.Empty,
@@ -656,7 +656,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _tenantProvider.GetTenantId(),
             workflowId,
             _currentUserAccessor.GetCurrentUserOrThrow().UserId,
-            new DagWorkflowRunRequest(inputsJson, "draft"),
+            new CozeWorkflowRunCommand(inputsJson, "draft"),
             cancellationToken);
         await TryWriteAuditAsync("test_run", workflowId.ToString(CultureInfo.InvariantCulture), true, cancellationToken);
 
@@ -727,7 +727,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         await _executionService.ResumeAsync(
             _tenantProvider.GetTenantId(),
             executionId,
-            new DagWorkflowResumeRequest(request.data, null),
+            request.data,
             cancellationToken);
 
         return Ok(SuccessWithoutData());
@@ -769,7 +769,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
             _tenantProvider.GetTenantId(),
             workflowId,
             _currentUserAccessor.GetCurrentUserOrThrow().UserId,
-            new DagWorkflowNodeDebugRequest(
+            new CozeWorkflowNodeDebugCommand(
                 request.node_id,
                 request.input is null ? null : JsonSerializer.Serialize(request.input, JsonOptions),
                 "draft"),
@@ -899,7 +899,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         var workflowId = await _commandService.CreateAsync(
             _tenantProvider.GetTenantId(),
             creatorId,
-            new DagWorkflowCreateRequest(name, request.desc, mode, workspaceId),
+            new CozeWorkflowCreateCommand(name, request.desc, mode, workspaceId),
             cancellationToken);
 
         return Ok(Success(new
@@ -1078,7 +1078,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
                 space_id = request.space_id ?? string.Empty,
                 flow_mode = ToCozeWorkflowMode(detail.Mode),
                 status = ToCozeWorkflowStatus(detail.Status),
-                schema_json = NormalizeCanvasJsonForCoze(detail.CanvasJson),
+                schema_json = detail.SchemaJson,
                 workflow_version = detail.LatestVersionNumber.ToString(CultureInfo.InvariantCulture)
             },
             operation_info = new
@@ -1104,7 +1104,7 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
         await _commandService.UpdateMetaAsync(
             _tenantProvider.GetTenantId(),
             workflowId,
-            new DagWorkflowUpdateMetaRequest(name, request.desc),
+            new CozeWorkflowUpdateMetaCommand(name, request.desc),
             cancellationToken);
 
         return Ok(SuccessWithoutData());
@@ -2468,141 +2468,10 @@ public abstract class CozeWorkflowCompatControllerBase : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(canvasJson))
         {
-            return "{\"nodes\":[],\"connections\":[]}";
+            return "{\"nodes\":[],\"edges\":[]}";
         }
 
-        var decodedCanvasJson = DecodeHtmlEntities(canvasJson);
-
-        try
-        {
-            var rootNode = JsonNode.Parse(decodedCanvasJson);
-            if (rootNode is not JsonObject canvasObject)
-            {
-                return decodedCanvasJson;
-            }
-
-            NormalizeCanvasNodeTypesToCozeStringId(canvasObject);
-            return canvasObject.ToJsonString(JsonOptions);
-        }
-        catch
-        {
-            return decodedCanvasJson;
-        }
-    }
-
-    /// <summary>
-    /// 反向归一化：把前端 Coze playground 保存回来的画布中节点的 <c>type</c> 字段
-    /// （字符串数字 ID 如 <c>"3"</c>、字符串枚举名 <c>"Llm"</c>）统一规整为
-    /// Atlas <see cref="WorkflowNodeType"/> 的整型值，避免 <c>WorkflowCanvasJsonBridge</c> 反序列化时
-    /// 因为类型形态不一致导致 <c>DagExecutor</c> 找不到执行器。
-    /// </summary>
-    private static string NormalizeCanvasJsonFromCoze(string? canvasJson)
-    {
-        if (string.IsNullOrWhiteSpace(canvasJson))
-        {
-            return "{\"nodes\":[],\"connections\":[]}";
-        }
-
-        var decodedCanvasJson = DecodeHtmlEntities(canvasJson);
-
-        try
-        {
-            var rootNode = JsonNode.Parse(decodedCanvasJson);
-            if (rootNode is not JsonObject canvasObject)
-            {
-                return decodedCanvasJson;
-            }
-
-            NormalizeCanvasNodeTypesToAtlasInt(canvasObject);
-            return canvasObject.ToJsonString(JsonOptions);
-        }
-        catch
-        {
-            return decodedCanvasJson;
-        }
-    }
-
-    private static void NormalizeCanvasNodeTypesToCozeStringId(JsonObject canvasObject)
-    {
-        if (canvasObject["nodes"] is not JsonArray nodes)
-        {
-            return;
-        }
-
-        foreach (var node in nodes)
-        {
-            if (node is not JsonObject nodeObject)
-            {
-                continue;
-            }
-
-            if (nodeObject["type"] is JsonValue typeValue)
-            {
-                if (typeValue.TryGetValue<int>(out var intType))
-                {
-                    nodeObject["type"] = intType.ToString(CultureInfo.InvariantCulture);
-                }
-                else if (typeValue.TryGetValue<long>(out var longType))
-                {
-                    nodeObject["type"] = longType.ToString(CultureInfo.InvariantCulture);
-                }
-            }
-
-            if (nodeObject["childCanvas"] is JsonObject childCanvasObject)
-            {
-                NormalizeCanvasNodeTypesToCozeStringId(childCanvasObject);
-            }
-        }
-    }
-
-    private static void NormalizeCanvasNodeTypesToAtlasInt(JsonObject canvasObject)
-    {
-        if (canvasObject["nodes"] is not JsonArray nodes)
-        {
-            return;
-        }
-
-        foreach (var node in nodes)
-        {
-            if (node is not JsonObject nodeObject)
-            {
-                continue;
-            }
-
-            if (nodeObject["type"] is JsonValue typeValue)
-            {
-                if (typeValue.TryGetValue<int>(out _))
-                {
-                    // 已经是整型，无需归一化。
-                }
-                else if (typeValue.TryGetValue<long>(out var longType))
-                {
-                    nodeObject["type"] = (int)longType;
-                }
-                else if (typeValue.TryGetValue<string>(out var textType))
-                {
-                    var trimmed = textType?.Trim();
-                    if (!string.IsNullOrEmpty(trimmed))
-                    {
-                        if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt)
-                            && Enum.IsDefined(typeof(WorkflowNodeType), parsedInt))
-                        {
-                            nodeObject["type"] = parsedInt;
-                        }
-                        else if (Enum.TryParse<WorkflowNodeType>(trimmed, true, out var parsedEnum)
-                            && Enum.IsDefined(typeof(WorkflowNodeType), parsedEnum))
-                        {
-                            nodeObject["type"] = (int)parsedEnum;
-                        }
-                    }
-                }
-            }
-
-            if (nodeObject["childCanvas"] is JsonObject childCanvasObject)
-            {
-                NormalizeCanvasNodeTypesToAtlasInt(childCanvasObject);
-            }
-        }
+        return DecodeHtmlEntities(canvasJson);
     }
 
     private static string ToCozeNodeTypeCode(string nodeTypeKey)

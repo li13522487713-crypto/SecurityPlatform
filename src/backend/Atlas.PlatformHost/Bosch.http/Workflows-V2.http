@@ -245,6 +245,16 @@ X-Tenant-Id: {{tenantId}}
   "canvasJson": "{\"nodes\":[{\"key\":\"entry_1\",\"type\":1,\"label\":\"开始\",\"config\":{},\"layout\":{\"x\":100,\"y\":100,\"width\":120,\"height\":60}},{\"key\":\"exit_1\",\"type\":2,\"label\":\"结束\",\"config\":{},\"layout\":{\"x\":360,\"y\":100,\"width\":120,\"height\":60}}],\"connections\":[{\"sourceNodeKey\":\"entry_1\",\"sourcePort\":\"output\",\"targetNodeKey\":\"exit_1\",\"targetPort\":\"input\",\"condition\":null}]}"
 }
 
+### ── Validate Coze Native Canvas JSON ──
+POST {{host}}/api/v2/workflows/{{workflowId}}/validate
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "canvasJson": "{\"nodes\":[{\"id\":\"entry_1\",\"type\":1,\"meta\":{\"position\":{\"x\":120,\"y\":80}},\"data\":{\"nodeMeta\":{\"title\":\"开始\"},\"outputs\":[{\"name\":\"incident\",\"type\":\"string\",\"required\":true}]}},{\"id\":\"code_1\",\"type\":5,\"meta\":{\"position\":{\"x\":360,\"y\":80}},\"data\":{\"nodeMeta\":{\"title\":\"代码执行\"},\"inputs\":{\"language\":\"javascript\",\"code\":\"function main(args){ return { result: args.params.incident }; }\",\"inputParameters\":[{\"name\":\"incident\"}]},\"outputs\":[{\"name\":\"result\",\"type\":\"string\"}]}},{\"id\":\"exit_1\",\"type\":2,\"meta\":{\"position\":{\"x\":660,\"y\":80}},\"data\":{\"nodeMeta\":{\"title\":\"结束\"},\"inputs\":{\"terminatePlan\":\"returnVariables\",\"inputParameters\":[{\"name\":\"result\",\"input\":{\"value\":{\"content\":\"{{code_1.result}}\"}}}]}}}],\"edges\":[{\"sourceNodeID\":\"entry_1\",\"targetNodeID\":\"code_1\"},{\"sourceNodeID\":\"code_1\",\"targetNodeID\":\"exit_1\"}]}"
+}
+
 ### ═══════════════════════════════════════════════
 ### Node Types
 ### ═══════════════════════════════════════════════

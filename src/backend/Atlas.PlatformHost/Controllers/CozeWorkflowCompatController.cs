@@ -12,9 +12,9 @@ namespace Atlas.PlatformHost.Controllers;
 public sealed class CozeWorkflowCompatController : CozeWorkflowCompatControllerBase
 {
     public CozeWorkflowCompatController(
-        IDagWorkflowCommandService commandService,
-        IDagWorkflowQueryService queryService,
-        IDagWorkflowExecutionService executionService,
+        ICozeWorkflowCommandService commandService,
+        ICozeWorkflowQueryService queryService,
+        ICozeWorkflowExecutionService executionService,
         ICanvasValidator canvasValidator,
         IWorkspacePortalService workspacePortalService,
         ITenantProvider tenantProvider,
