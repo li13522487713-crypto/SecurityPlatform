@@ -30,6 +30,7 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
     }
 
     [HttpPost("space/list")]
+    [HttpPost("/api/space/list")]
     public async Task<ActionResult<object>> SpaceList(
         [FromBody] CozeGetSpaceListRequest? request,
         CancellationToken cancellationToken)
@@ -66,6 +67,7 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
     }
 
     [HttpPost("bot/get_type_list")]
+    [HttpPost("/api/bot/get_type_list")]
     public async Task<ActionResult<object>> GetTypeList(
         [FromBody] CozeGetTypeListRequest? request,
         CancellationToken cancellationToken)
@@ -86,6 +88,7 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
     }
 
     [HttpPost("draftbot/get_draft_bot_list")]
+    [HttpPost("/api/draftbot/get_draft_bot_list")]
     public async Task<ActionResult<object>> GetDraftBotList(
         [FromBody] CozeGetDraftBotListRequest? request,
         CancellationToken cancellationToken)
@@ -136,6 +139,7 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
     }
 
     [HttpPost("draftbot/get_display_info")]
+    [HttpPost("/api/draftbot/get_display_info")]
     public async Task<ActionResult<object>> GetDraftBotDisplayInfo(
         [FromBody] CozeGetDraftBotDisplayInfoRequest? request,
         CancellationToken cancellationToken)
@@ -179,12 +183,54 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
     }
 
     [HttpPost("bot/upload_file")]
+    [HttpPost("/api/bot/upload_file")]
     public ActionResult<object> UploadBotFile()
     {
         return Ok(CozeCompatGatewaySupport.Success(new
         {
             file_id = Guid.NewGuid().ToString("N"),
             file_url = string.Empty
+        }));
+    }
+
+    [HttpPost("space/info")]
+    [HttpPost("/api/space/info")]
+    public async Task<ActionResult<object>> GetSpaceInfo(
+        [FromBody] CozeGetSpaceInfoRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var workspaces = await _workspacePortalService.ListWorkspacesAsync(
+            _tenantProvider.GetTenantId(),
+            currentUser.UserId,
+            currentUser.IsPlatformAdmin,
+            cancellationToken);
+
+        var match = string.IsNullOrWhiteSpace(request?.space_id)
+            ? workspaces.FirstOrDefault()
+            : workspaces.FirstOrDefault(item => string.Equals(item.Id, request.space_id, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Success(new { data = (object?)null }));
+        }
+
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            data = new
+            {
+                id = match.Id,
+                name = match.Name,
+                description = match.Description ?? string.Empty,
+                icon_url = match.Icon ?? string.Empty,
+                space_type = 1,
+                role_type = string.Equals(match.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase)
+                    ? 1
+                    : string.Equals(match.RoleCode, "Admin", StringComparison.OrdinalIgnoreCase)
+                        ? 2
+                        : 3,
+                space_mode = 0
+            }
         }));
     }
 

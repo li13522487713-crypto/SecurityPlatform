@@ -38,14 +38,6 @@ vi.mock("./i18n", () => ({
   }),
 }));
 
-vi.mock("./auth-context", () => ({
-  useOptionalAuth: () => null,
-}));
-
-vi.mock("@atlas/foundation-bridge", () => ({
-  setAtlasFoundationHost: vi.fn(),
-}));
-
 vi.mock("./startup-kernel", () => ({
   useAppStartup: () => startupState,
 }));

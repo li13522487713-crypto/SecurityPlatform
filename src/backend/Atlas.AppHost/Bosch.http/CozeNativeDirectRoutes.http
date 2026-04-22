@@ -1,0 +1,79 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 登录
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+@workspaceId = 1
+
+### Coze 原生 playground：space list
+POST {{host}}/api/playground_api/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 20
+}
+
+### Coze 原生 playground：space info
+POST {{host}}/api/playground_api/space/info
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "space_id": "{{workspaceId}}"
+}
+
+### Coze 原生 developer：space list
+POST {{host}}/api/space/list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 20
+}
+
+### Coze 原生 developer：draftbot list
+POST {{host}}/api/draftbot/get_draft_bot_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "page": 1,
+  "size": 10
+}
+
+### Coze 原生 workspace openapi：list
+GET {{host}}/v1/workspaces?page_num=1&page_size=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 passport：account info
+POST {{host}}/api/passport/account/info/v2/
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{}
+
+### Coze 原生 passport：logout
+GET {{host}}/api/passport/web/logout/?next=/
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}

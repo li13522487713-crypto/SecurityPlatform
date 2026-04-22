@@ -18,8 +18,8 @@
 - `WorkflowV2Validators.cs`：`WorkflowV2CreateRequestValidator` / `WorkflowV2SaveDraftRequestValidator` / `WorkflowV2UpdateMetaRequestValidator` / `WorkflowV2PublishRequestValidator` / `WorkflowV2RunRequestValidator` / `WorkflowV2NodeDebugRequestValidator` / `WorkflowWorkbenchExecuteRequestValidator`
 - 文件名含 `WorkflowV2` 但内部类型不含：`IWorkflowV2Repositories.cs`、`WorkflowV2Enums.cs`
 - 私有方法名：`AppMigrationService.PurgeTenantWorkflowV2InAppAsync`
-- 兼容层基类：`Atlas.Presentation.Shared.Controllers.Ai.CozeWorkflowCompatControllerBase`（聚合大量 `WorkflowV2*` DTO）
-- 兼容层薄封装：PlatformHost 与 AppHost 各自的 `CozeWorkflowCompatController.cs`
+- 历史兼容层基类：`Atlas.Presentation.Shared.Controllers.Ai.CozeWorkflowCompatControllerBase`（现已删除，相关 DTO 已拆出共享 contracts）
+- 历史兼容层薄封装：PlatformHost 与 AppHost 的 `CozeWorkflowCompatController.cs`（现已删除）
 
 ### 2.2 引用方但类名本身不含 `WorkflowV2`
 
@@ -78,7 +78,7 @@
 
 - `src/backend/Atlas.PlatformHost/Bosch.http/Workflows-V2.http`
 - `src/backend/Atlas.AppHost/Bosch.http/Workflows-V2.http`
-- `src/backend/Atlas.PlatformHost/Bosch.http/CozeWorkflowCompat.http`（兼容层 `/api/workflow_api/*`）
+- 历史 compat `.http`：`src/backend/Atlas.PlatformHost/Bosch.http/CozeWorkflowCompat.http`（现已删除）
 
 ### 2.10 数据库 / Hangfire / 持久化
 

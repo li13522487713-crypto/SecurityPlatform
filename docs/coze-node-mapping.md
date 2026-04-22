@@ -2,7 +2,7 @@
 
 > 上游基准：`e:/codeding/coze-studio/frontend/packages/workflow/base/src/types/node-type.ts` 的 `StandardNodeType`（字符串数字 ID `"1"`~`"59"`）。
 > Atlas 基准：`Atlas.Domain.AiPlatform.Enums.WorkflowNodeType`（C# 枚举，整数值与上游 `NodeType` 对齐）。
-> 兼容层路由 `/api/workflow_api/node_type` 会通过 `ToCozeNodeTypeCode` 把 Atlas 枚举转成 Coze 字符串数字 ID 给前端节点面板。
+> 当前 app-web workflow gateway 的 `node_type` 路由会通过 `ToCozeNodeTypeCode` 把 Atlas 枚举转成 Coze 字符串数字 ID 给前端节点面板。
 >
 > 本表是 M4 的唯一权威节点对照，节点新增/废弃必须同步更新本文件、`BuiltInWorkflowNodeDeclarations`、`NodeExecutorRegistry._executorTypes`、`AiRuntimeServiceRegistration` 中的 DI 行。
 

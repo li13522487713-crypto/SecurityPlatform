@@ -4,6 +4,7 @@
 > 基线仓库：`Atlas.SecurityPlatform`（本 worktree）。  
 > 衔接文档：[plan-coze-lowcode-FINAL-report.md](plan-coze-lowcode-FINAL-report.md)（M01–M20 低代码已完工）、[plan-coze-atlas-round2.md](plan-coze-atlas-round2.md)（AiPlatform 落仓骨架）。  
 > **执行视图**：本路线图的里程碑被拆为 16 个 session × 43 case 调度，详见 [plan-coze-governance-sessions.md](plan-coze-governance-sessions.md)。
+> 注：本文多处提到的 `CozeWorkflowCompatControllerBase`、`/api/workflow_api/*`、`/api/playground_api/*` 属于历史分析基线；当前运行期主链已切到 app-web gateway。
 
 本文档只做 **Gap 调研矩阵 + 可执行路线图**，不替代 [contracts.md](contracts.md) 与低代码系列 spec。
 
@@ -26,7 +27,7 @@
 | Assistant 非 Workflow 别名，独立产品壳 | **部分实现** | `Agent` + `TeamAgent` 双轨；前端 `AgentWorkbench`、`DevelopPage` 与 Workflow 画布分路由 | [Agent.cs](src/backend/Atlas.Domain/AiPlatform/Entities/Agent.cs)、[TeamAgentEntities.cs](src/backend/Atlas.Domain/AiPlatform/Entities/TeamAgentEntities.cs)、[module-studio-react assistant](src/frontend/packages/module-studio-react/src/assistant/) |
 | 创建入口：低代码 / AI 创建 / 模板 | **部分实现** | 手动 `POST api/v1/agents`、`POST api/v1/ai-assistants`；`TeamAgent` 模板 `from-template` | [AgentsController.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentsController.cs)、[AiAssistantsController.cs](src/backend/Atlas.PlatformHost/Controllers/AiAssistantsController.cs)、[TeamAgentsController.cs](src/backend/Atlas.PlatformHost/Controllers/TeamAgentsController.cs) |
 | 技能装配（插件/工作流/知识库/数据库/记忆等） | **部分实现** |多表绑定：`AgentPluginBinding`、`AgentKnowledgeLink`、`AgentWorkflowBinding`（含 Skill 角色）、`AgentDatabaseBinding`、`AgentVariableBinding` 等 | [AgentBindings.cs](src/backend/Atlas.Domain/AiPlatform/Entities/Agent/AgentBindings.cs)、[agent-workbench.tsx](src/frontend/packages/module-studio-react/src/assistant/agent-workbench.tsx) |
-| 触发器、卡片与 Assistant 强绑定 | **缺失/旁路** | 触发器多在 Workflow/兼容层；未见 `AgentTrigger`/`AgentCard` 一等实体 | [CozeWorkflowCompatControllerBase.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/CozeWorkflowCompatControllerBase.cs) |
+| 触发器、卡片与 Assistant 强绑定 | **缺失/旁路** | 触发器多在 Workflow / app-web gateway；未见 `AgentTrigger`/`AgentCard` 一等实体 | 历史基线原指向 `CozeWorkflowCompatControllerBase`，当前已切到 app-web gateway |
 | 发布渠道（飞书/微信/Web SDK 等） | **部分实现** | `WorkspacePublishChannel` 类型字符串；`AgentPublication` 嵌入发布；抖音/豆包未见域对齐 | [WorkspacePublishChannel.cs](src/backend/Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs)、[AgentPublication.cs](src/backend/Atlas.Domain/AiPlatform/Entities/AgentPublication.cs)、[WorkspacePublishChannelsController.cs](src/backend/Atlas.PlatformHost/Controllers/WorkspacePublishChannelsController.cs) |
 | Assistant 调试台（提示词/技能/渠道一体） | **部分实现** | `AgentChatController` 对话/流式；`AgentDebugPanel`；无统一「渠道回包」联调 API | [AgentChatController.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentChatController.cs) |
 | 独立前端域包 `assistant-*` | **缺失** | 能力落在 `@atlas/module-studio-react` | [module-studio-react/package.json](src/frontend/packages/module-studio-react/package.json) |
@@ -45,7 +46,7 @@
 | 租户内应用实例 | **已实现** | `TenantApplication`（`AppInstanceId` / `AppKey`等）与工作空间、资源 IDE 入口绑定 | [ProductizationEntities.cs](src/backend/Atlas.Domain/Platform/Entities/ProductizationEntities.cs)（`TenantApplication`） |
 | 应用成员 | **已实现** | `AppMember` + `TenantAppMembersV2Controller` + Command/Query 服务 | [AppMembershipEntities.cs](src/backend/Atlas.Domain/Platform/Entities/AppMembershipEntities.cs)、[TenantAppMembersV2Controller.cs](src/backend/Atlas.Presentation.Shared/Controllers/TenantAppV2/TenantAppMembersV2Controller.cs)、[TenantAppMembershipServices.cs](src/backend/Atlas.Infrastructure/Services/Platform/TenantAppMembershipServices.cs) |
 | 组织内部门/岗位（应用组织） | **已实现（应用维）** | `TenantAppOrganizationController` 等 | [TenantAppOrganizationController.cs](src/backend/Atlas.Presentation.Shared/Controllers/TenantAppV2/TenantAppOrganizationController.cs) |
-| 跨组织/空间迁移 | **缺失** | 兼容层多为 fallback | [CozeWorkflowCompatControllerBase.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/CozeWorkflowCompatControllerBase.cs) |
+| 跨组织/空间迁移 | **缺失** | 当前 gateway 长尾仍有 fallback | 历史基线原指向 `CozeWorkflowCompatControllerBase`，当前已切到 app-web gateway |
 
 **差距小结**：**缺与 Coze 对齐的独立「组织」主数据层**；当前更接近 **租户 → 应用实例 → 工作空间 → 成员**。
 

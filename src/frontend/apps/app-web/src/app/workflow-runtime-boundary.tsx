@@ -1,10 +1,8 @@
 ﻿import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { I18nProvider } from "../../../../packages/arch/i18n/src/i18n-provider";
 import { I18n, initI18nInstance } from "../../../../packages/arch/i18n/src/raw";
-import { setAtlasFoundationHost } from "@atlas/foundation-bridge";
 import { useAppI18n } from "./i18n";
 import type { AppLocale } from "./messages";
-import { useOptionalAuth } from "./auth-context";
 import { useBootstrap } from "./bootstrap-context";
 import { useAppStartup } from "./startup-kernel";
 import { useOptionalWorkspaceContext } from "./workspace-context";
@@ -128,53 +126,8 @@ export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
   const startup = useAppStartup();
   const workspace = useOptionalWorkspaceContext();
   const organization = useOptionalOrganizationContext();
-  // 单测场景下可能没有 AuthProvider，使用可选读取避免破坏 hooks 顺序。
-  const auth = useOptionalAuth();
   const [cozeReady, setCozeReady] = useState(false);
   const cozeLocale = toCozeLocale(locale);
-
-  // 在 cozelib 初始化前把 Atlas 用户 / 空间 / 主题 / 登录态注入桥接层，
-  // 防止编辑器内任何 useUserInfo / useSpace 取到 null 造成整页崩溃。
-  useEffect(() => {
-    const profile = auth?.profile;
-    const workspaceId = workspace?.id ?? bootstrap.spaceId;
-    const workspaceName = workspace?.name ?? "Atlas Workspace";
-    setAtlasFoundationHost({
-      organization: organization
-        ? {
-            orgId: organization.orgId,
-            orgName: organization.orgName ?? null,
-            orgType: organization.orgType ?? null
-          }
-        : null,
-      user: profile
-        ? {
-            id: profile.id,
-            username: profile.username,
-            displayName: profile.displayName ?? profile.username,
-            email: profile.email ?? null,
-            avatarUrl: profile.avatarUrl ?? null
-          }
-        : null,
-      workspace: workspaceId
-        ? {
-            id: workspaceId,
-            name: workspaceName,
-            ownerUserId: profile?.id ?? null,
-            iconUrl: workspace?.iconUrl ?? null,
-            createTime: workspace?.createTime ?? null,
-            roleType: workspace?.roleType ?? null
-          }
-        : null,
-      session: profile
-        ? {
-            isAuthenticated: Boolean(auth?.isAuthenticated),
-            tokenExpiresAt: auth?.tokenExpiresAt ?? null
-          }
-        : null,
-      theme: { mode: "light" }
-    });
-  }, [auth, bootstrap.spaceId, organization, workspace]);
 
   useEffect(() => {
     if (cozeReady) {

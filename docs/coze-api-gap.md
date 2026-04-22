@@ -9,6 +9,8 @@
 >
 > 本文件维护"前端调用 → 后端真实实现"的对应关系，是 M2 的唯一权威来源；任何端点状态变更需同步更新本表与 `docs/contracts.md` 的兼容层章节。
 >
+> 自 2026-04-23 起，工作流之外的原生 developer / playground / passport / workspace 直连覆盖以 [`docs/coze-interface-coverage-matrix.md`](coze-interface-coverage-matrix.md) 为权威清单；本文件聚焦 `workflow_api` 缺口，不再单独承载所有 Coze 路由面。
+>
 > 状态分级：
 > - **OK**：真实实现，行为与当前 Coze workflow 服务（`ICozeWorkflow*Service`）一致。
 > - **OK-Compat**：真实实现，但部分字段为占位/与上游字面对齐（标 `space_id`、`plugin_id` 等不区分场景）。
