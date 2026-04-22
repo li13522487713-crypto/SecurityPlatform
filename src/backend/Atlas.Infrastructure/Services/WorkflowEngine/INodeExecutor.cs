@@ -148,21 +148,43 @@ public sealed class NodeExecutionContext
 
     public string GetConfigString(string key, string defaultValue = "")
     {
+        if (Variables.TryGetValue(key, out var val))
+        {
+            var text = VariableResolver.ToDisplayText(val);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return System.Net.WebUtility.HtmlDecode(text);
+            }
+        }
         return VariableResolver.GetConfigString(Node.Config, key, defaultValue);
     }
 
     public int GetConfigInt32(string key, int defaultValue = 0)
     {
+        if (Variables.TryGetValue(key, out var val))
+        {
+            if (val.ValueKind == JsonValueKind.Number && val.TryGetInt32(out var intVal)) return intVal;
+            if (int.TryParse(VariableResolver.ToDisplayText(val), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
+        }
         return VariableResolver.GetConfigInt32(Node.Config, key, defaultValue);
     }
 
     public long GetConfigInt64(string key, long defaultValue = 0L)
     {
+        if (Variables.TryGetValue(key, out var val))
+        {
+            if (val.ValueKind == JsonValueKind.Number && val.TryGetInt64(out var longVal)) return longVal;
+            if (long.TryParse(VariableResolver.ToDisplayText(val), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
+        }
         return VariableResolver.GetConfigInt64(Node.Config, key, defaultValue);
     }
 
     public bool GetConfigBoolean(string key, bool defaultValue = false)
     {
+        if (Variables.TryGetValue(key, out var val))
+        {
+            if (VariableResolver.TryGetBoolean(val, out var boolVal)) return boolVal;
+        }
         return VariableResolver.GetConfigBoolean(Node.Config, key, defaultValue);
     }
 

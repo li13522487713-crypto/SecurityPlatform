@@ -13,6 +13,29 @@ public sealed class SelectorNodeExecutor : INodeExecutor
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
         var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+
+        if (context.Node.Config.TryGetValue("inputs", out var inputsVal) &&
+            inputsVal.ValueKind == JsonValueKind.Object &&
+            inputsVal.TryGetProperty("branches", out var branchesArr) &&
+            branchesArr.ValueKind == JsonValueKind.Array)
+        {
+            int branchIndex = 0;
+            foreach (var branch in branchesArr.EnumerateArray())
+            {
+                if (EvaluateBranch(branch, context))
+                {
+                    var portId = branchIndex == 0 ? "true" : $"true_{branchIndex}";
+                    outputs["selected_branch"] = VariableResolver.CreateStringElement(portId);
+                    outputs["selector_result"] = VariableResolver.CreateStringElement(portId);
+                    return Task.FromResult(new NodeExecutionResult(true, outputs));
+                }
+                branchIndex++;
+            }
+            outputs["selected_branch"] = VariableResolver.CreateStringElement("false");
+            outputs["selector_result"] = VariableResolver.CreateStringElement("false");
+            return Task.FromResult(new NodeExecutionResult(true, outputs));
+        }
+
         var condition = context.GetConfigString("condition");
         if (string.IsNullOrWhiteSpace(condition))
         {
@@ -21,9 +44,136 @@ public sealed class SelectorNodeExecutor : INodeExecutor
 
         var result = context.EvaluateCondition(condition);
         outputs["selector_result"] = JsonSerializer.SerializeToElement(result);
-        outputs["selected_branch"] = VariableResolver.CreateStringElement(result ? "true_branch" : "false_branch");
+        outputs["selected_branch"] = VariableResolver.CreateStringElement(result ? "true" : "false");
 
         return Task.FromResult(new NodeExecutionResult(true, outputs));
+    }
+
+    private static bool EvaluateBranch(JsonElement branch, NodeExecutionContext context)
+    {
+        if (!branch.TryGetProperty("condition", out var condObj) || condObj.ValueKind != JsonValueKind.Object)
+            return false;
+
+        int logic = 2; 
+        if (condObj.TryGetProperty("logic", out var logicProp) && logicProp.ValueKind == JsonValueKind.Number)
+        {
+            logic = logicProp.GetInt32();
+        }
+
+        if (!condObj.TryGetProperty("conditions", out var conditions) || conditions.ValueKind != JsonValueKind.Array)
+            return false;
+
+        bool result = logic == 2; 
+
+        foreach (var item in conditions.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            bool itemResult = EvaluateConditionItem(item, context);
+            if (logic == 2) 
+            {
+                result = result && itemResult;
+                if (!result) break; 
+            }
+            else 
+            {
+                result = result || itemResult;
+                if (result) break; 
+            }
+        }
+        return result;
+    }
+
+    private static bool EvaluateConditionItem(JsonElement item, NodeExecutionContext context)
+    {
+        int op = 1;
+        if (item.TryGetProperty("operator", out var opProp) && opProp.ValueKind == JsonValueKind.Number)
+        {
+            op = opProp.GetInt32();
+        }
+
+        var leftVal = GetValueExpressionResult(item, "left", context);
+        var rightVal = GetValueExpressionResult(item, "right", context);
+
+        return CompareValues(leftVal, op, rightVal);
+    }
+
+    private static JsonElement? GetValueExpressionResult(JsonElement item, string propertyName, NodeExecutionContext context)
+    {
+        if (!item.TryGetProperty(propertyName, out var exprObj) || exprObj.ValueKind != JsonValueKind.Object)
+            return null;
+
+        if (!exprObj.TryGetProperty("type", out var typeProp) || typeProp.ValueKind != JsonValueKind.String)
+            return null;
+
+        string type = typeProp.GetString() ?? "";
+        if (type == "ref")
+        {
+            if (exprObj.TryGetProperty("content", out var contentObj) &&
+                contentObj.ValueKind == JsonValueKind.Object &&
+                contentObj.TryGetProperty("keyPath", out var keyPathArr) &&
+                keyPathArr.ValueKind == JsonValueKind.Array)
+            {
+                var paths = new List<string>();
+                foreach (var k in keyPathArr.EnumerateArray())
+                {
+                    var part = k.ValueKind == JsonValueKind.String ? k.GetString() : k.GetRawText();
+                    if (!string.IsNullOrWhiteSpace(part)) paths.Add(part);
+                }
+
+                string fullPath = string.Join(".", paths);
+                if (context.Variables.TryGetValue(fullPath, out var val))
+                    return val;
+            }
+        }
+        else if (type == "literal")
+        {
+            if (exprObj.TryGetProperty("content", out var contentProp))
+            {
+                if (contentProp.ValueKind == JsonValueKind.String)
+                {
+                    string rawString = contentProp.GetString() ?? "";
+                    if (rawString.Contains("{{"))
+                    {
+                        var evaluated = context.EvaluateExpression(rawString);
+                        return evaluated;
+                    }
+                }
+                return contentProp;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool CompareValues(JsonElement? left, int op, JsonElement? right)
+    {
+        var leftStr = left.HasValue ? VariableResolver.ToDisplayText(left.Value) : string.Empty;
+        var rightStr = right.HasValue ? VariableResolver.ToDisplayText(right.Value) : string.Empty;
+
+        bool isLeftNum = double.TryParse(leftStr, out double leftNum);
+        bool isRightNum = double.TryParse(rightStr, out double rightNum);
+
+        return op switch
+        {
+            1 => string.Equals(leftStr, rightStr, StringComparison.OrdinalIgnoreCase), // Equal
+            2 => !string.Equals(leftStr, rightStr, StringComparison.OrdinalIgnoreCase), // NotEqual
+            3 => leftStr.Length > rightStr.Length, // LengthGt
+            4 => leftStr.Length >= rightStr.Length, // LengthGtEqual
+            5 => leftStr.Length < rightStr.Length, // LengthLt
+            6 => leftStr.Length <= rightStr.Length, // LengthLtEqual
+            7 => leftStr.Contains(rightStr, StringComparison.OrdinalIgnoreCase), // Contains
+            8 => !leftStr.Contains(rightStr, StringComparison.OrdinalIgnoreCase), // NotContains
+            9 => string.IsNullOrWhiteSpace(leftStr), // Null
+            10 => !string.IsNullOrWhiteSpace(leftStr), // NotNull
+            11 => string.Equals(leftStr, "true", StringComparison.OrdinalIgnoreCase), // True
+            12 => string.Equals(leftStr, "false", StringComparison.OrdinalIgnoreCase), // False
+            13 => isLeftNum && isRightNum && leftNum > rightNum, // Gt
+            14 => isLeftNum && isRightNum && leftNum >= rightNum, // GtEqual
+            15 => isLeftNum && isRightNum && leftNum < rightNum, // Lt
+            16 => isLeftNum && isRightNum && leftNum <= rightNum, // LtEqual
+            _ => false
+        };
     }
 
     private static string BuildConditionExpressionFromStructuredConfig(

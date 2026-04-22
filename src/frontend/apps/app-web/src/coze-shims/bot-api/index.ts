@@ -16,4 +16,5 @@ export {
   addGlobalRequestInterceptor,
   removeGlobalRequestInterceptor,
   addGlobalResponseInterceptor,
+  setBotApiUnauthorizedHandler,
 } from "../../../../../packages/arch/bot-http/src/index";

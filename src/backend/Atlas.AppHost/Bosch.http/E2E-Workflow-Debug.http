@@ -1,0 +1,55 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@contentType = application/json
+
+### 1. 登录获取 Token
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: {{contentType}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.data.accessToken}}
+
+### 2. 创建一个测试工作流
+# @name createWorkflow
+POST {{host}}/api/v2/workflows
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "E2E API Test Workflow (Code + Loop)",
+  "description": "Automated test from AppHost",
+  "mode": 1
+}
+
+###
+@workflowId = {{createWorkflow.response.body.data.id}}
+
+### 3. 保存画布草稿 (包含 Start -> Code -> End)
+PUT {{host}}/api/v2/workflows/{{workflowId}}/draft
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "commitId": "e2e-test-1",
+  "canvasJson": "{\"nodes\":[{\"key\":\"start\",\"type\":0,\"config\":{\"entryVariable\":\"input\"}},{\"key\":\"code_1\",\"type\":11,\"config\":{\"language\":\"javascript\",\"code\":\"async function main({ params }) { return { msg: 'Hello ' + params.name, ts: new Date().toISOString() }; }\",\"inputs\":{\"inputParameters\":[{\"name\":\"name\"}]},\"outputKey\":\"code_output\"}},{\"key\":\"end\",\"type\":1,\"config\":{\"exitTemplate\":\"{{code_output}}\"}}],\"edges\":[{\"source\":\"start\",\"target\":\"code_1\"},{\"source\":\"code_1\",\"target\":\"end\"}],\"globals\":[]}"
+}
+
+### 4. 运行工作流
+POST {{host}}/api/v2/workflows/{{workflowId}}/run
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "inputsJson": "{\"name\": \"Atlas Admin\"}",
+  "source": "api_test"
+}

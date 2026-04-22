@@ -156,12 +156,32 @@ public sealed class SubWorkflowNodeExecutor : INodeExecutor
             return new Dictionary<string, JsonElement>(context.Variables, StringComparer.OrdinalIgnoreCase);
         }
 
+        var mapped = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+
+        if (context.Node.Config.TryGetValue("inputs", out var inputsRaw) && inputsRaw.ValueKind == JsonValueKind.Object)
+        {
+            if (inputsRaw.TryGetProperty("inputParameters", out var ip) && ip.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var param in ip.EnumerateArray())
+                {
+                    if (param.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                    {
+                        var name = n.GetString() ?? "";
+                        if (context.Variables.TryGetValue(name, out var val))
+                        {
+                            mapped[name] = val.Clone();
+                        }
+                    }
+                }
+                return mapped;
+            }
+        }
+
         var inputsVariablePath = context.GetConfigString("inputsVariable");
         if (!string.IsNullOrWhiteSpace(inputsVariablePath) &&
             context.TryResolveVariable(inputsVariablePath, out var inputPayload) &&
             inputPayload.ValueKind == JsonValueKind.Object)
         {
-            var mapped = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
             foreach (var property in inputPayload.EnumerateObject())
             {
                 mapped[property.Name] = property.Value.Clone();
@@ -170,6 +190,6 @@ public sealed class SubWorkflowNodeExecutor : INodeExecutor
             return mapped;
         }
 
-        return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        return mapped;
     }
 }

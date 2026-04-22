@@ -886,7 +886,12 @@ public sealed class DagExecutor
 
             // 每轮迭代从入口快照 + 当前循环控制变量重建作用域，隔离迭代间副作用。
             var iterationScope = new Dictionary<string, JsonElement>(loopEntrySnapshot, StringComparer.OrdinalIgnoreCase);
-            foreach (var loopControlKey in new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" })
+            var loopControlKeys = variables.Keys
+                .Where(k => k.StartsWith($"{loopNodeKey}.locals.", StringComparison.OrdinalIgnoreCase) || 
+                            new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" }.Contains(k, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var loopControlKey in loopControlKeys)
             {
                 if (variables.TryGetValue(loopControlKey, out var ctrlVal))
                 {
@@ -945,7 +950,7 @@ public sealed class DagExecutor
             }
 
             // 迭代执行完毕后，将本轮控制变量同步回父作用域。
-            foreach (var loopControlKey in new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" })
+            foreach (var loopControlKey in loopControlKeys)
             {
                 if (iterationScope.TryGetValue(loopControlKey, out var ctrlVal))
                 {
@@ -1024,34 +1029,75 @@ public sealed class DagExecutor
             return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, EmptyOutputs);
         }
 
-        var concurrentSize = Math.Clamp(VariableResolver.GetConfigInt32(batchNode.Config, "concurrentSize", 4), 1, 64);
-        var batchSize = Math.Clamp(VariableResolver.GetConfigInt32(batchNode.Config, "batchSize", 1), 1, 10_000);
-        var inputArrayPath = VariableResolver.GetConfigString(batchNode.Config, "inputArrayPath");
-        var itemVariable = VariableResolver.GetConfigString(batchNode.Config, "itemVariable", "batch_item");
-        var itemIndexVariable = VariableResolver.GetConfigString(batchNode.Config, "itemIndexVariable", "batch_item_index");
-        var outputKey = VariableResolver.GetConfigString(batchNode.Config, "outputKey", "batch_results");
-        // RT-18: 错误容忍策略：fail_fast（默认）立即终止；best_effort 收集错误继续处理其余项。
+        int concurrentSize = 4;
+        int batchSize = 1;
+        if (batchNode.Config.TryGetValue("inputs", out var inputsRaw) && inputsRaw.ValueKind == JsonValueKind.Object)
+        {
+            if (inputsRaw.TryGetProperty("concurrentSize", out var concExpr))
+                concurrentSize = Math.Clamp(ExtractValueExpressionInt32(concExpr) ?? 4, 1, 64);
+            if (inputsRaw.TryGetProperty("batchSize", out var batchExpr))
+                batchSize = Math.Clamp(ExtractValueExpressionInt32(batchExpr) ?? 1, 1, 10_000);
+        }
+
+        string inputParamName = "input";
+        if (inputsRaw.ValueKind == JsonValueKind.Object && 
+            inputsRaw.TryGetProperty("inputParameters", out var inputParams) && 
+            inputParams.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var ip in inputParams.EnumerateArray())
+            {
+                if (ip.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                {
+                    inputParamName = n.GetString() ?? "input";
+                    break;
+                }
+            }
+        }
+
         var errorTolerance = VariableResolver.GetConfigString(batchNode.Config, "errorTolerance", "fail_fast")
             .Trim().ToLowerInvariant();
         var isBestEffort = errorTolerance == "best_effort";
 
-        var items = ResolveBatchItems(variables, inputArrayPath);
-        var aggregatedResults = new List<JsonElement>();
+        IReadOnlyList<JsonElement> items = Array.Empty<JsonElement>();
+        if (variables.TryGetValue(inputParamName, out var arrayVar))
+        {
+            if (arrayVar.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<JsonElement>();
+                foreach (var element in arrayVar.EnumerateArray()) list.Add(element);
+                items = list;
+            }
+            else if (arrayVar.ValueKind == JsonValueKind.String)
+            {
+                try {
+                    var parsed = JsonSerializer.Deserialize<JsonElement>(arrayVar.GetString() ?? "[]");
+                    if (parsed.ValueKind == JsonValueKind.Array)
+                    {
+                        var list = new List<JsonElement>();
+                        foreach (var element in parsed.EnumerateArray()) list.Add(element);
+                        items = list;
+                    }
+                } catch {}
+            }
+        }
+
+        var iterationVariableSnapshots = new List<Dictionary<string, JsonElement>>();
         var batchErrors = new List<string>();
         var semaphore = new SemaphoreSlim(concurrentSize);
         var currentIndex = 0;
 
-        foreach (var chunk in Chunk(items, batchSize))
+        foreach (var chunk in items.Chunk(batchSize))
         {
             var tasks = chunk.Select(async item =>
             {
                 await semaphore.WaitAsync(cancellationToken);
                 try
                 {
+                    int index = Interlocked.Increment(ref currentIndex) - 1;
                     var localVariables = new Dictionary<string, JsonElement>(variables, StringComparer.OrdinalIgnoreCase)
                     {
-                        [itemVariable] = item,
-                        [itemIndexVariable] = JsonSerializer.SerializeToElement(Interlocked.Increment(ref currentIndex) - 1)
+                        [$"{batchNodeKey}.locals.{inputParamName}"] = item,
+                        [$"{batchNodeKey}.locals.index"] = JsonSerializer.SerializeToElement(index)
                     };
 
                     var fragmentResult = await ExecuteCanvasFragmentAsync(
@@ -1063,7 +1109,8 @@ public sealed class DagExecutor
                         localVariables,
                         eventChannel,
                         cancellationToken);
-                    return fragmentResult;
+                    
+                    return (Result: fragmentResult, IterationVariables: localVariables);
                 }
                 finally
                 {
@@ -1074,23 +1121,23 @@ public sealed class DagExecutor
             var chunkResults = await Task.WhenAll(tasks);
             foreach (var chunkResult in chunkResults)
             {
-                if (!chunkResult.Success)
+                if (!chunkResult.Result.Success)
                 {
                     if (!isBestEffort)
                     {
-                        return chunkResult;
+                        return chunkResult.Result;
                     }
 
                     lock (batchErrors)
                     {
-                        batchErrors.Add(chunkResult.ErrorMessage ?? "批处理子任务失败");
+                        batchErrors.Add(chunkResult.Result.ErrorMessage ?? "批处理子任务失败");
                     }
                 }
                 else
                 {
-                    lock (aggregatedResults)
+                    lock (iterationVariableSnapshots)
                     {
-                        aggregatedResults.Add(JsonSerializer.SerializeToElement(chunkResult.Outputs));
+                        iterationVariableSnapshots.Add(chunkResult.IterationVariables);
                     }
                 }
             }
@@ -1102,18 +1149,57 @@ public sealed class DagExecutor
                 $"批处理失败（{batchErrors.Count} 项）: {batchErrors[0]}", InterruptType.None);
         }
 
-        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        
+        if (batchNode.Config.TryGetValue("outputs", out var outputsArr) && outputsArr.ValueKind == JsonValueKind.Array)
         {
-            [outputKey] = JsonSerializer.SerializeToElement(aggregatedResults),
-            ["batch_completed"] = JsonSerializer.SerializeToElement(true),
-            ["batch_error_count"] = JsonSerializer.SerializeToElement(batchErrors.Count)
-        };
+            foreach (var op in outputsArr.EnumerateArray())
+            {
+                if (!op.TryGetProperty("name", out var n) || n.ValueKind != JsonValueKind.String) continue;
+                string outName = n.GetString() ?? "";
+                
+                if (!op.TryGetProperty("input", out var inProp) || inProp.ValueKind != JsonValueKind.Object) continue;
+                if (!inProp.TryGetProperty("type", out var typeProp) || typeProp.ValueKind != JsonValueKind.String) continue;
+                
+                string type = typeProp.GetString() ?? "";
+                if (type == "ref" && inProp.TryGetProperty("content", out var contentObj) &&
+                    contentObj.TryGetProperty("keyPath", out var keyPathArr) && keyPathArr.ValueKind == JsonValueKind.Array)
+                {
+                    var pathSegments = keyPathArr.EnumerateArray().Select(x => x.ValueKind == JsonValueKind.String ? x.GetString() : x.GetRawText()).Where(x => !string.IsNullOrWhiteSpace(x));
+                    var refPath = string.Join(".", pathSegments);
+                    
+                    var aggregatedValues = new List<JsonElement>();
+                    foreach (var iterationVars in iterationVariableSnapshots)
+                    {
+                        if (VariableResolver.TryResolvePath(iterationVars, refPath, out var val))
+                        {
+                            aggregatedValues.Add(val);
+                        }
+                    }
+                    outputs[outName] = JsonSerializer.SerializeToElement(aggregatedValues);
+                }
+            }
+        }
+
+        outputs["batch_completed"] = JsonSerializer.SerializeToElement(true);
+        outputs["batch_error_count"] = JsonSerializer.SerializeToElement(batchErrors.Count);
         if (batchErrors.Count > 0)
         {
             outputs["batch_errors"] = JsonSerializer.SerializeToElement(batchErrors);
         }
 
         return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, outputs);
+    }
+
+    private static int? ExtractValueExpressionInt32(JsonElement expr)
+    {
+        if (expr.ValueKind != JsonValueKind.Object) return null;
+        if (!expr.TryGetProperty("type", out var typeProp) || typeProp.ValueKind != JsonValueKind.String) return null;
+        if (typeProp.GetString() != "literal") return null;
+        if (!expr.TryGetProperty("content", out var contentProp)) return null;
+        if (contentProp.ValueKind == JsonValueKind.Number && contentProp.TryGetInt32(out var i)) return i;
+        if (contentProp.ValueKind == JsonValueKind.String && int.TryParse(contentProp.GetString(), out var i2)) return i2;
+        return null;
     }
 
     private async Task<NodeRunResult> ExecuteCanvasFragmentAsync(

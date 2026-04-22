@@ -1,6 +1,7 @@
 import { createApiClient } from "@atlas/shared-react-core/api";
 import type { RequestOptions } from "@atlas/shared-react-core/api";
 import { signPath } from "@atlas/app-shell-shared";
+import { setBotApiUnauthorizedHandler } from "@coze-arch/bot-api";
 import { clearAuthStorage } from "@atlas/shared-react-core/utils";
 
 export type AppRuntimeMode = "platform" | "direct";
@@ -74,6 +75,7 @@ export function isDirectRuntimeMode(): boolean {
 
 export function setUnauthorizedHandler(handler: (() => void | Promise<void>) | null) {
   unauthorizedHandler = handler;
+  setBotApiUnauthorizedHandler(handler ?? forceLogout);
 }
 
 export function rememberConfiguredAppKey(appKey?: string | null) {
@@ -113,6 +115,8 @@ async function forceLogout() {
     window.location.assign(signPath());
   }
 }
+
+setBotApiUnauthorizedHandler(forceLogout);
 
 export type { RequestOptions };
 

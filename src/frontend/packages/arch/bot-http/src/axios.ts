@@ -29,6 +29,10 @@ interface UnauthorizedResponse {
   msg: string;
 }
 
+interface AuthProfileLike {
+  tenantId?: string;
+}
+
 export enum ErrorCodes {
   NOT_LOGIN = 700012006,
   COUNTRY_RESTRICTED = 700012015,
@@ -37,6 +41,7 @@ export enum ErrorCodes {
 }
 
 export const axiosInstance = axios.create();
+let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 
 const HTTP_STATUS_COE_UNAUTHORIZED = 401;
 
@@ -44,6 +49,172 @@ type ResponseInterceptorOnFulfilled = (res: AxiosResponse) => AxiosResponse;
 const customInterceptors = {
   response: new Set<ResponseInterceptorOnFulfilled>(),
 };
+
+const AUTH_STORAGE_PREFIX = 'atlas';
+const ACCESS_TOKEN_KEY = `${AUTH_STORAGE_PREFIX}_access_token`;
+const REFRESH_TOKEN_KEY = `${AUTH_STORAGE_PREFIX}_refresh_token`;
+const TENANT_ID_KEY = `${AUTH_STORAGE_PREFIX}_tenant_id`;
+const PROFILE_KEY = `${AUTH_STORAGE_PREFIX}_auth_profile`;
+
+function getSafeStorage(kind: 'localStorage' | 'sessionStorage'): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window[kind];
+  } catch {
+    return null;
+  }
+}
+
+function safeGetItem(kind: 'localStorage' | 'sessionStorage', key: string) {
+  const storage = getSafeStorage(kind);
+  if (!storage) {
+    return null;
+  }
+
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(kind: 'localStorage' | 'sessionStorage', key: string, value: string) {
+  const storage = getSafeStorage(kind);
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Ignore storage write failures to avoid blocking requests.
+  }
+}
+
+function safeRemoveItem(kind: 'localStorage' | 'sessionStorage', key: string) {
+  const storage = getSafeStorage(kind);
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(key);
+  } catch {
+    // Ignore storage cleanup failures to avoid masking the original auth error.
+  }
+}
+
+function getAccessToken() {
+  return safeGetItem('sessionStorage', ACCESS_TOKEN_KEY) ?? safeGetItem('localStorage', ACCESS_TOKEN_KEY);
+}
+
+function getTenantId() {
+  return safeGetItem('localStorage', TENANT_ID_KEY);
+}
+
+function setTenantId(tenantId: string) {
+  safeSetItem('localStorage', TENANT_ID_KEY, tenantId);
+}
+
+function getAuthProfile(): AuthProfileLike | null {
+  const raw = safeGetItem('sessionStorage', PROFILE_KEY) ?? safeGetItem('localStorage', PROFILE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as AuthProfileLike;
+  } catch {
+    safeRemoveItem('sessionStorage', PROFILE_KEY);
+    safeRemoveItem('localStorage', PROFILE_KEY);
+    return null;
+  }
+}
+
+function clearAuthStorage() {
+  safeRemoveItem('sessionStorage', ACCESS_TOKEN_KEY);
+  safeRemoveItem('sessionStorage', PROFILE_KEY);
+  safeRemoveItem('localStorage', ACCESS_TOKEN_KEY);
+  safeRemoveItem('localStorage', REFRESH_TOKEN_KEY);
+  safeRemoveItem('localStorage', TENANT_ID_KEY);
+  safeRemoveItem('localStorage', PROFILE_KEY);
+}
+
+function getClientContextHeaders() {
+  const userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent.toLowerCase();
+  const platform = userAgent.includes('android')
+    ? 'Android'
+    : userAgent.includes('iphone') || userAgent.includes('ipad') || userAgent.includes('ipod')
+      ? 'iOS'
+      : 'Web';
+  const agent = userAgent.includes('edg/')
+    ? 'Edge'
+    : userAgent.includes('chrome/') && !userAgent.includes('edg/')
+      ? 'Chrome'
+      : userAgent.includes('firefox/')
+        ? 'Firefox'
+        : userAgent.includes('safari/') && !userAgent.includes('chrome/')
+          ? 'Safari'
+          : 'Other';
+
+  return {
+    'X-Client-Type': 'WebH5',
+    'X-Client-Platform': platform,
+    'X-Client-Channel': 'Browser',
+    'X-Client-Agent': agent,
+  };
+}
+
+function setHeaderValue(headers: NonNullable<typeof axiosInstance.defaults.headers>, key: string, value: string) {
+  if (typeof headers.set === 'function') {
+    headers.set(key, value);
+    return;
+  }
+
+  headers[key] = value;
+}
+
+function getHeaderValue(headers: NonNullable<typeof axiosInstance.defaults.headers>, key: string) {
+  if (typeof headers.get === 'function') {
+    return headers.get(key);
+  }
+
+  return headers[key];
+}
+
+function resolveTenantId() {
+  const token = getAccessToken();
+  let tenantId = getTenantId();
+  if (!tenantId && token) {
+    const profileTenantId = getAuthProfile()?.tenantId?.trim();
+    if (profileTenantId) {
+      tenantId = profileTenantId;
+      setTenantId(profileTenantId);
+    }
+  }
+
+  return tenantId;
+}
+
+async function handleUnauthorized(error: unknown) {
+  clearAuthStorage();
+
+  if (unauthorizedHandler) {
+    await unauthorizedHandler();
+    return;
+  }
+
+  if (isAxiosError(error) && typeof error.response?.data === 'object') {
+    const unauthorizedData = error.response.data as UnauthorizedResponse;
+    const redirectUri = unauthorizedData?.data?.redirect_uri;
+    if (redirectUri) {
+      redirect(redirectUri);
+    }
+  }
+}
 
 axiosInstance.interceptors.response.use(
   response => {
@@ -107,14 +278,7 @@ axiosInstance.interceptors.response.use(
     if (isAxiosError(error)) {
       reportHttpError(ReportEventNames.NetworkError, error);
       if (error.response?.status === HTTP_STATUS_COE_UNAUTHORIZED) {
-        // 401 Identity Expired & No Identity
-        if (typeof error.response.data === 'object') {
-          const unauthorizedData = error.response.data as UnauthorizedResponse;
-          const redirectUri = unauthorizedData?.data?.redirect_uri;
-          if (redirectUri) {
-            redirect(redirectUri);
-          }
-        }
+        void handleUnauthorized(error);
       }
     }
 
@@ -123,26 +287,32 @@ axiosInstance.interceptors.response.use(
 );
 
 axiosInstance.interceptors.request.use(config => {
-  const setHeader = (key: string, value: string) => {
-    if (typeof config.headers.set === 'function') {
-      config.headers.set(key, value);
-    } else {
-      config.headers[key] = value;
+  config.withCredentials ??= true;
+  const authToken = getAccessToken();
+  const tenantId = resolveTenantId();
+
+  if (authToken && !getHeaderValue(config.headers, 'authorization')) {
+    setHeaderValue(config.headers, 'Authorization', `Bearer ${authToken}`);
+  }
+
+  if (tenantId && !getHeaderValue(config.headers, 'x-tenant-id')) {
+    setHeaderValue(config.headers, 'X-Tenant-Id', tenantId);
+  }
+
+  const clientHeaders = getClientContextHeaders();
+  (Object.entries(clientHeaders) as [string, string][]).forEach(([key, value]) => {
+    if (value && !getHeaderValue(config.headers, key)) {
+      setHeaderValue(config.headers, key, value);
     }
-  };
-  const getHeader = (key: string) => {
-    if (typeof config.headers.get === 'function') {
-      return config.headers.get(key);
-    }
-    return config.headers[key];
-  };
-  setHeader('x-requested-with', 'XMLHttpRequest');
+  });
+
+  setHeaderValue(config.headers, 'x-requested-with', 'XMLHttpRequest');
   if (
     ['post', 'get'].includes(config.method?.toLowerCase() ?? '') &&
-    !getHeader('content-type')
+    !getHeaderValue(config.headers, 'content-type')
   ) {
     // The new CSRF protection requires all post/get requests to have this header.
-    setHeader('content-type', 'application/json');
+    setHeaderValue(config.headers, 'content-type', 'application/json');
     if (!config.data) {
       // Axios will automatically clear the content-type when the data is empty, so you need to set an empty object
       config.data = {};
@@ -184,4 +354,10 @@ export const addGlobalResponseInterceptor = (
   return () => {
     customInterceptors.response.delete(onFulfilled);
   };
+};
+
+export const setBotApiUnauthorizedHandler = (
+  handler: (() => void | Promise<void>) | null,
+) => {
+  unauthorizedHandler = handler;
 };

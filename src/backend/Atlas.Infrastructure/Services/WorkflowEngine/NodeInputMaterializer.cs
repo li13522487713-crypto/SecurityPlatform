@@ -56,6 +56,8 @@ internal static partial class NodeInputMaterializer
             return new NodeInputMaterializationResult(preparedVariables, snapshot);
         }
 
+        ProcessCozeInputs(node.Config, runtimeVariables, preparedVariables, snapshot, ref hasExplicitMappings);
+
         foreach (var path in ExtractReferencedVariablePaths(node))
         {
             if (!TryResolveMappingValue(runtimeVariables, path, out var resolved))
@@ -185,6 +187,26 @@ internal static partial class NodeInputMaterializer
                 break;
             }
         }
+        
+        if (value.ValueKind == JsonValueKind.Object &&
+            value.TryGetProperty("type", out var typeProp) &&
+            typeProp.ValueKind == JsonValueKind.String &&
+            string.Equals(typeProp.GetString(), "ref", StringComparison.OrdinalIgnoreCase) &&
+            value.TryGetProperty("content", out var contentProp) &&
+            contentProp.ValueKind == JsonValueKind.Object &&
+            contentProp.TryGetProperty("keyPath", out var keyPathProp) &&
+            keyPathProp.ValueKind == JsonValueKind.Array)
+        {
+            var pathSegments = keyPathProp.EnumerateArray()
+                .Where(x => x.ValueKind == JsonValueKind.String)
+                .Select(x => x.GetString())
+                .Where(x => !string.IsNullOrWhiteSpace(x));
+            var refPath = string.Join(".", pathSegments);
+            if (!string.IsNullOrWhiteSpace(refPath))
+            {
+                paths.Add(NormalizePath(refPath));
+            }
+        }
     }
 
     private static bool TryResolveMappingValue(
@@ -228,6 +250,91 @@ internal static partial class NodeInputMaterializer
         }
 
         return value.Trim();
+    }
+
+    private static void ProcessCozeInputs(
+        IReadOnlyDictionary<string, JsonElement> config,
+        IReadOnlyDictionary<string, JsonElement> runtimeVariables,
+        Dictionary<string, JsonElement> preparedVariables,
+        Dictionary<string, JsonElement> snapshot,
+        ref bool hasMappings)
+    {
+        if (config.TryGetValue("inputs", out var inputsRaw) && inputsRaw.ValueKind == JsonValueKind.Object)
+        {
+            ProcessCozeValueExpressions(inputsRaw, runtimeVariables, preparedVariables, snapshot, ref hasMappings);
+        }
+    }
+
+    private static void ProcessCozeValueExpressions(
+        JsonElement element,
+        IReadOnlyDictionary<string, JsonElement> runtimeVariables,
+        Dictionary<string, JsonElement> preparedVariables,
+        Dictionary<string, JsonElement> snapshot,
+        ref bool hasMappings)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                ProcessCozeValueExpressions(item, runtimeVariables, preparedVariables, snapshot, ref hasMappings);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (element.TryGetProperty("name", out var nameProp) &&
+                nameProp.ValueKind == JsonValueKind.String &&
+                element.TryGetProperty("input", out var inputProp) &&
+                inputProp.ValueKind == JsonValueKind.Object &&
+                inputProp.TryGetProperty("type", out var typeProp) &&
+                typeProp.ValueKind == JsonValueKind.String)
+            {
+                var name = nameProp.GetString()?.Trim();
+                var type = typeProp.GetString()?.Trim().ToLowerInvariant();
+                inputProp.TryGetProperty("content", out var contentProp);
+
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    JsonElement resolvedValue = default;
+                    bool resolved = false;
+
+                    if (type == "ref" && contentProp.ValueKind == JsonValueKind.Object &&
+                        contentProp.TryGetProperty("keyPath", out var keyPathProp) &&
+                        keyPathProp.ValueKind == JsonValueKind.Array)
+                    {
+                        var pathSegments = keyPathProp.EnumerateArray()
+                            .Where(x => x.ValueKind == JsonValueKind.String)
+                            .Select(x => x.GetString())
+                            .Where(x => !string.IsNullOrWhiteSpace(x));
+                        var refPath = string.Join(".", pathSegments);
+                        resolved = TryResolveMappingValue(runtimeVariables, refPath, out resolvedValue);
+                    }
+                    else if (type == "literal" || type == "object_ref")
+                    {
+                        if (contentProp.ValueKind == JsonValueKind.String)
+                        {
+                            resolvedValue = VariableResolver.ParseLiteralOrTemplate(contentProp.GetString() ?? string.Empty, runtimeVariables);
+                        }
+                        else if (contentProp.ValueKind != JsonValueKind.Undefined && contentProp.ValueKind != JsonValueKind.Null)
+                        {
+                            resolvedValue = contentProp.Clone();
+                        }
+                        resolved = true;
+                    }
+
+                    if (resolved)
+                    {
+                        preparedVariables[name] = resolvedValue.Clone();
+                        snapshot[name] = resolvedValue.Clone();
+                        hasMappings = true;
+                    }
+                }
+            }
+
+            foreach (var property in element.EnumerateObject())
+            {
+                ProcessCozeValueExpressions(property.Value, runtimeVariables, preparedVariables, snapshot, ref hasMappings);
+            }
+        }
     }
 
     [GeneratedRegex(@"\{\{\s*(?<path>[^{}]+?)\s*\}\}", RegexOptions.Compiled)]

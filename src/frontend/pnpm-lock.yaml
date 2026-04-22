@@ -8120,6 +8120,9 @@ importers:
 
   packages/arch/bot-http:
     dependencies:
+      '@atlas/shared-react-core':
+        specifier: workspace:*
+        version: link:../../shared-react-core
       '@coze-arch/logger':
         specifier: workspace:*
         version: link:../logger
