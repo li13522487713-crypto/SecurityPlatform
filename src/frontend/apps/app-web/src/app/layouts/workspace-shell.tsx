@@ -404,7 +404,7 @@ export function SpaceShellLayout() {
   const location = useLocation();
   const { loading, spaceListLoading, spaceList } = useInitSpace(space_id);
 
-  if (bootstrap.loading || auth.loading || loading || spaceListLoading) {
+  if (bootstrap.loading || auth.loading || loading) {
     return <LoadingPage />;
   }
 

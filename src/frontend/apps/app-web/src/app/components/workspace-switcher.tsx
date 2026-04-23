@@ -61,8 +61,10 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
   const [description, setDescription] = useState("");
 
   useEffect(() => {
-    void fetchSpaces().catch(() => undefined);
-  }, [fetchSpaces, workspaceId]);
+    if (!inited) {
+      void fetchSpaces().catch(() => undefined);
+    }
+  }, [fetchSpaces, inited, workspaceId]);
 
   useEffect(() => {
     if (!createVisible) {
