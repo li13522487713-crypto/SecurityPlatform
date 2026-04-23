@@ -182,7 +182,7 @@ import { HomePage } from "./pages/home-page";
 import { LoginPage } from "./pages/login-page";
 import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
-import { AppSetupPage } from "./pages/status-page";
+import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
 import { SetupConsolePage } from "./pages/setup-console";
 import { WorkspaceShellLayout, PlatformShellLayout, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
@@ -1856,7 +1856,7 @@ function AppShellRoute() {
     if (auth.isAuthenticated && !auth.profile && !auth.loading) {
       void auth.ensureProfile();
     }
-  }, [auth]);
+  }, [auth.ensureProfile, auth.isAuthenticated, auth.loading, auth.profile]);
 
   if (bootstrap.loading || auth.loading) {
     return <LoadingPage />;
@@ -2784,7 +2784,7 @@ function WorkspaceShellInner() {
     if (auth.isAuthenticated && !auth.profile && !auth.loading) {
       void auth.ensureProfile();
     }
-  }, [auth]);
+  }, [auth.ensureProfile, auth.isAuthenticated, auth.loading, auth.profile]);
 
   if (bootstrap.loading || auth.loading || workspace.loading) {
     return <LoadingPage />;
@@ -3476,6 +3476,12 @@ export const appRoutes = [
     path: "/",
     element: <HomePage />,
     handle: ROOT_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/platform-not-ready",
+    element: <PlatformNotReadyPage />,
+    handle: STATUS_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {

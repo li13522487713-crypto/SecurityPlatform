@@ -182,7 +182,7 @@ function ShellChrome() {
     if (auth.isAuthenticated && !auth.profile && !auth.loading) {
       void auth.ensureProfile();
     }
-  }, [auth]);
+  }, [auth.ensureProfile, auth.isAuthenticated, auth.loading, auth.profile]);
 
   const navSections = useMemo<CozeNavSection[]>(() => {
     return MENU_GROUPS.map(group => ({

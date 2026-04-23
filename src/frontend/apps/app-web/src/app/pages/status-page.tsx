@@ -14,9 +14,10 @@ import {
   TextArea,
   Typography
 } from "@douyinfe/semi-ui";
-import { appSignPath } from "../app-paths";
+import { selectWorkspacePath, signPath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
+import { useAuth } from "../auth-context";
 import { rememberConfiguredAppKey } from "../../services/api-core";
 import {
   getDrivers,
@@ -36,6 +37,7 @@ import {
   StateBadge,
   StepsBar
 } from "../_shared";
+import { resolveStartupRedirectTarget, STARTUP_ROUTE_PATHS } from "../startup-routing";
 
 const { Title, Text } = Typography;
 
@@ -90,7 +92,8 @@ function formatBooleanFlag(value: boolean | undefined): string {
 export function AppSetupPage() {
   const navigate = useNavigate();
   const { locale, t } = useAppI18n();
-  const { loading, appReady } = useBootstrap();
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
   const [drivers, setDrivers] = useState<DriverDefinition[]>([]);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -182,8 +185,20 @@ export function AppSetupPage() {
     };
   }, []);
 
-  if (!loading && appReady && !completed) {
-    return <Navigate to="/" replace />;
+  if (bootstrap.loading || auth.loading) {
+    return <PageShell loading loadingTip={t("loading")} />;
+  }
+
+  const startupRedirectTarget = !completed
+    ? resolveStartupRedirectTarget({
+        pathname: STARTUP_ROUTE_PATHS.appSetup,
+        bootstrap,
+        auth
+      })
+    : null;
+
+  if (startupRedirectTarget) {
+    return <Navigate to={startupRedirectTarget} replace />;
   }
 
   const setVisualField = (code: string, value: string) => {
@@ -287,6 +302,11 @@ export function AppSetupPage() {
           rememberConfiguredAppKey(response.data.appKey);
         }
         setInitReport(response.data ?? null);
+        try {
+          await bootstrap.refresh();
+        } catch {
+          // setup 已成功时，bootstrap 刷新失败不应覆盖成功结果。
+        }
         setCompleted(true);
         setCurrentStep(4);
         return;
@@ -303,9 +323,13 @@ export function AppSetupPage() {
   };
 
   const enterWorkspace = () => {
-    const resolvedAppKey = initReport?.appKey || adminForm.appKey.trim() || "app-default";
-    rememberConfiguredAppKey(resolvedAppKey);
-    navigate(appSignPath(resolvedAppKey), { replace: true });
+    const target = resolveStartupRedirectTarget({
+      pathname: STARTUP_ROUTE_PATHS.appSetup,
+      bootstrap,
+      auth
+    });
+
+    navigate(target ?? (auth.isAuthenticated ? selectWorkspacePath() : signPath()), { replace: true });
   };
 
   const stepsConfig = [
@@ -958,6 +982,47 @@ export function AppSetupPage() {
           {locale}
         </div>
       </FormCard>
+    </PageShell>
+  );
+}
+
+export function PlatformNotReadyPage() {
+  const { t } = useAppI18n();
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
+
+  if (bootstrap.loading || auth.loading) {
+    return <PageShell loading loadingTip={t("loading")} />;
+  }
+
+  const startupRedirectTarget = resolveStartupRedirectTarget({
+    pathname: STARTUP_ROUTE_PATHS.platformNotReady,
+    bootstrap,
+    auth
+  });
+
+  if (startupRedirectTarget) {
+    return <Navigate to={startupRedirectTarget} replace />;
+  }
+
+  return (
+    <PageShell centered maxWidth={720} testId="platform-not-ready-page">
+      <ResultCard
+        status="warning"
+        title={t("platformNotReadyTitle")}
+        description={t("platformNotReadyDesc")}
+        actions={(
+          <Button
+            type="primary"
+            theme="solid"
+            onClick={() => {
+              void bootstrap.refresh();
+            }}
+          >
+            {t("platformNotReadyRetry")}
+          </Button>
+        )}
+      />
     </PageShell>
   );
 }

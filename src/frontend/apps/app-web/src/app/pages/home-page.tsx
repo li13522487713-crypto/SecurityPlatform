@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { selectWorkspacePath, signPath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useBootstrap } from "../bootstrap-context";
 import { useAuth } from "../auth-context";
 import { PageShell } from "../_shared";
+import { resolveStartupRedirectTarget, STARTUP_ROUTE_PATHS } from "../startup-routing";
 
 /**
  * `/` 入口：纯重定向网关。
@@ -20,40 +19,16 @@ export function HomePage() {
   const { t } = useAppI18n();
   const auth = useAuth();
   const bootstrap = useBootstrap();
-  const [resolving, setResolving] = useState(true);
-  const [target, setTarget] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (bootstrap.loading || auth.loading) {
-      return;
-    }
-    if (!bootstrap.platformReady) {
-      setTarget("/platform-not-ready");
-      setResolving(false);
-      return;
-    }
-    if (!bootstrap.appReady) {
-      setTarget("/app-setup");
-      setResolving(false);
-      return;
-    }
-    if (!auth.isAuthenticated) {
-      setTarget(signPath());
-      setResolving(false);
-      return;
-    }
-
-    setTarget(selectWorkspacePath());
-    setResolving(false);
-  }, [auth.isAuthenticated, auth.loading, bootstrap.appReady, bootstrap.loading, bootstrap.platformReady]);
-
-  if (resolving) {
+  if (bootstrap.loading || auth.loading) {
     return <PageShell loading loadingTip={t("loading")} />;
   }
 
-  if (target) {
-    return <Navigate to={target} replace />;
-  }
+  const target = resolveStartupRedirectTarget({
+    pathname: "/",
+    bootstrap,
+    auth
+  });
 
-  return <Navigate to={selectWorkspacePath()} replace />;
+  return <Navigate to={target ?? STARTUP_ROUTE_PATHS.selectWorkspace} replace />;
 }

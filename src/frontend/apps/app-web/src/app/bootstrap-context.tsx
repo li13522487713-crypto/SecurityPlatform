@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { getAccessToken, getTenantId } from "@atlas/shared-react-core/utils";
-import { getSetupState } from "../services/api-setup";
+import { getSetupState, type SetupStateResponse } from "../services/api-setup";
 import { getConfiguredAppKey, rememberConfiguredAppKey } from "../services/api-core";
 import { resolveAppInstanceId } from "../services/app-instance-context";
 import { getSetupConsoleOverview } from "../services/mock";
@@ -11,8 +11,9 @@ import type {
   WorkspaceSetupStateDto
 } from "../services/api-setup-console";
 
-interface BootstrapState {
+export interface BootstrapState {
   loading: boolean;
+  platformReady: boolean;
   appReady: boolean;
   appKey: string;
   appInstanceId: string | null;
@@ -33,12 +34,16 @@ const BootstrapContext = createContext<BootstrapState | null>(null);
 
 export function BootstrapProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
-  const [appReady, setAppReady] = useState(true);
-  const [appKey, setAppKey] = useState(getConfiguredAppKey());
+  const [setupState, setSetupState] = useState<SetupStateResponse | null>(null);
   const [appInstanceId, setAppInstanceId] = useState<string | null>(null);
-  const [appStatus, setAppStatus] = useState("");
   const [workspaceLabel, setWorkspaceLabel] = useState("Workspace");
   const [setupConsole, setSetupConsole] = useState<SetupConsoleOverviewDto | null>(null);
+  const platformReady = setupState?.platformSetupCompleted === true;
+  const appReady = setupState?.appSetupCompleted === true;
+  const appStatus = String(setupState?.appStatus ?? "").trim();
+  const appKey = String(
+    setupState?.appKey ?? setupState?.configuredAppKey ?? getConfiguredAppKey()
+  ).trim();
 
   const refreshSetupConsole = async () => {
     try {
@@ -56,31 +61,9 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const response = await getSetupState();
-      const nextAppStatus = String(response.data?.appStatus ?? "").trim();
-      const nextAppReady = response.success && response.data?.appSetupCompleted === true;
-      const nextAppKey = String(response.data?.appKey ?? response.data?.configuredAppKey ?? getConfiguredAppKey()).trim();
-
-      setAppStatus(nextAppStatus);
-      setAppReady(nextAppReady);
-      setAppKey(nextAppKey);
-      rememberConfiguredAppKey(nextAppKey);
-
-      const hasAuthContext = Boolean(getAccessToken() && getTenantId());
-
-      if (nextAppReady && nextAppKey && hasAuthContext) {
-        setWorkspaceLabel(nextAppKey);
-        try {
-          const resolvedAppInstanceId = await resolveAppInstanceId(nextAppKey);
-          setAppInstanceId(resolvedAppInstanceId);
-        } catch {
-          setAppInstanceId(null);
-        }
-      } else {
-        setWorkspaceLabel(nextAppKey || "Workspace");
-        setAppInstanceId(null);
-      }
+      setSetupState(response.data ?? null);
     } catch {
-      setAppReady(false);
+      setSetupState(null);
       setAppInstanceId(null);
     } finally {
       setLoading(false);
@@ -92,8 +75,48 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     void refreshSetupConsole();
   }, []);
 
+  useEffect(() => {
+    if (appKey) {
+      rememberConfiguredAppKey(appKey);
+    }
+  }, [appKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const hasAuthContext = Boolean(getAccessToken() && getTenantId());
+
+    const syncWorkspaceContext = async () => {
+      if (appReady && appKey && hasAuthContext) {
+        setWorkspaceLabel(appKey);
+        try {
+          const resolvedAppInstanceId = await resolveAppInstanceId(appKey);
+          if (!cancelled) {
+            setAppInstanceId(resolvedAppInstanceId);
+          }
+        } catch {
+          if (!cancelled) {
+            setAppInstanceId(null);
+          }
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setWorkspaceLabel(appKey || "Workspace");
+        setAppInstanceId(null);
+      }
+    };
+
+    void syncWorkspaceContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appKey, appReady]);
+
   const value = useMemo<BootstrapState>(() => ({
     loading,
+    platformReady,
     appReady,
     appKey,
     appInstanceId,
@@ -110,6 +133,7 @@ export function BootstrapProvider({ children }: { children: ReactNode }) {
     appKey,
     appStatus,
     loading,
+    platformReady,
     appReady,
     setupConsole,
     workspaceLabel

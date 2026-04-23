@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Empty, Form, Spin, Tag, Toast } from "@douyinfe/semi-ui";
+import { Avatar, Button, Empty, Form, Modal, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconClose, IconEdit, IconUser } from "@douyinfe/semi-icons";
 import { useNavigate, useParams } from "react-router-dom";
-import { meSettingsPath, type MeSettingsTab } from "@atlas/app-shell-shared";
+import { meSettingsPath, signPath, type MeSettingsTab } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 import { useAuth } from "../auth-context";
 import {
+  deleteMeAccount,
   getMeGeneralSettings,
   listMeDataSources,
   listMePublishChannels,
@@ -14,6 +15,7 @@ import {
   type MeGeneralSettings,
   type MePublishChannelItem
 } from "../../services/api-me-settings";
+import { getProfileDetail, updateProfile, type UserProfileDetail } from "../../services/api-profile";
 
 const TAB_KEYS: MeSettingsTab[] = ["account", "general", "channels", "datasource"];
 
@@ -87,62 +89,194 @@ export function MeSettingsPage() {
 }
 
 function AccountPanel() {
+  const { t } = useAppI18n();
+  const navigate = useNavigate();
   const auth = useAuth();
   const profile = auth.profile;
-  
+  const [detail, setDetail] = useState<UserProfileDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [values, setValues] = useState<UserProfileDetail>({
+    displayName: "",
+    email: "",
+    phoneNumber: ""
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getProfileDetail()
+      .then(result => {
+        if (cancelled) {
+          return;
+        }
+        setDetail(result);
+        setValues({
+          displayName: result.displayName,
+          email: result.email ?? "",
+          phoneNumber: result.phoneNumber ?? ""
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDetail({
+            displayName: profile?.displayName ?? "",
+            email: "",
+            phoneNumber: ""
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.displayName]);
+
+  const handleSave = async () => {
+    const displayName = values.displayName.trim();
+    if (!displayName) {
+      Toast.warning(t("cozeMeSettingsAccountNicknameRequired"));
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateProfile({
+        displayName,
+        email: values.email?.trim() || undefined,
+        phoneNumber: values.phoneNumber?.trim() || undefined
+      });
+      const nextDetail = {
+        displayName,
+        email: values.email?.trim() || undefined,
+        phoneNumber: values.phoneNumber?.trim() || undefined
+      };
+      setDetail(nextDetail);
+      setEditOpen(false);
+      Toast.success(t("cozeCreateSuccess"));
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozeCreateFailed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = () => {
+    Modal.confirm({
+      title: t("cozeMeSettingsDeleteAccountTitle"),
+      content: t("cozeMeSettingsDeleteAccountMessage"),
+      okText: t("cozeMeProfileDeleteAccount"),
+      okType: "danger",
+      cancelText: t("cozeCommonGoBack"),
+      onOk: async () => {
+        await deleteMeAccount();
+        await auth.logout();
+        navigate(signPath(), { replace: true });
+      }
+    });
+  };
+
+  if (loading || !detail) {
+    return <div className="coze-page__loading"><Spin /></div>;
+  }
+
+  const displayName = detail.displayName || profile?.displayName || "--";
+  const userName = profile?.username || "--";
+  const phoneNumber = detail.phoneNumber || t("cozeMeSettingsAccountEmptyValue");
+  const email = detail.email || t("cozeMeSettingsAccountEmptyValue");
+
   return (
     <div className="flex flex-col w-full max-w-[500px]">
       <div className="mb-[32px]">
-        <div className="size-[80px] rounded-full bg-blue-500 flex items-center justify-center text-white shrink-0">
-          <IconUser style={{ fontSize: 40 }} />
-        </div>
+        <Avatar size="extra-large" color="light-blue">
+          {displayName.slice(0, 1).toUpperCase() || <IconUser />}
+        </Avatar>
       </div>
       
       <div className="flex flex-col gap-[24px]">
         <div className="flex items-center">
-          <div className="w-[100px] text-[#4a5565] text-[14px]">用户名</div>
-          <div className="flex items-center gap-[8px] text-[#1f2329] text-[14px]">
-            <span>{profile?.username || "user8151658094"}</span>
-            <IconEdit size="small" className="text-gray-400 cursor-pointer hover:text-blue-500" />
-          </div>
-        </div>
-        
-        <div className="flex items-center">
-          <div className="w-[100px] text-[#4a5565] text-[14px]">用户昵称</div>
-          <div className="flex items-center gap-[8px] text-[#1f2329] text-[14px]">
-            <span>{profile?.displayName || "RootUser_2103671511"}</span>
-            <IconEdit size="small" className="text-gray-400 cursor-pointer hover:text-blue-500" />
-          </div>
-        </div>
-        
-        <div className="flex items-center">
-          <div className="w-[100px] text-[#4a5565] text-[14px]">火山成员名</div>
+          <div className="w-[100px] text-[#4a5565] text-[14px]">{t("cozeMeSettingsAccountUsernameLabel")}</div>
           <div className="text-[#1f2329] text-[14px]">
-            <span>{profile?.displayName || "RootUser_2103671511"}</span>
+            <span>{userName}</span>
           </div>
         </div>
         
         <div className="flex items-center">
-          <div className="w-[100px] text-[#4a5565] text-[14px]">个性签名</div>
+          <div className="w-[100px] text-[#4a5565] text-[14px]">{t("cozeMeSettingsAccountNicknameLabel")}</div>
           <div className="flex items-center gap-[8px] text-[#1f2329] text-[14px]">
-            <span>这个用户很懒，什么都没有留下</span>
-            <IconEdit size="small" className="text-gray-400 cursor-pointer hover:text-blue-500" />
+            <span>{displayName}</span>
+            <Button
+              theme="borderless"
+              icon={<IconEdit size="small" />}
+              onClick={() => setEditOpen(true)}
+            />
           </div>
         </div>
         
         <div className="flex items-center">
-          <div className="w-[100px] text-[#4a5565] text-[14px]">手机号</div>
-          <div className="text-blue-500 hover:text-blue-600 cursor-pointer text-[14px] font-medium">
-            查看与编辑
+          <div className="w-[100px] text-[#4a5565] text-[14px]">{t("cozeMeSettingsAccountFireUserLabel")}</div>
+          <div className="text-[#1f2329] text-[14px]">
+            <span>{displayName}</span>
+          </div>
+        </div>
+        
+        <div className="flex items-center">
+          <div className="w-[100px] text-[#4a5565] text-[14px]">{t("cozeMeSettingsAccountEmailLabel")}</div>
+          <div className="text-[#1f2329] text-[14px]">
+            <span>{email}</span>
+          </div>
+        </div>
+        
+        <div className="flex items-center">
+          <div className="w-[100px] text-[#4a5565] text-[14px]">{t("cozeMeSettingsAccountPhoneLabel")}</div>
+          <div className="text-[#1f2329] text-[14px]">
+            <span>{phoneNumber}</span>
           </div>
         </div>
       </div>
       
       <div className="mt-[48px]">
-        <button type="button" className="px-[16px] py-[8px] bg-red-50 text-red-500 hover:bg-red-100 rounded-[8px] border-none cursor-pointer text-[14px] font-medium transition-colors">
-          删除账号
-        </button>
+        <Button type="danger" theme="light" onClick={handleDelete}>
+          {t("cozeMeProfileDeleteAccount")}
+        </Button>
       </div>
+
+      <Modal
+        title={t("cozeMeSettingsEditProfileTitle")}
+        visible={editOpen}
+        onCancel={() => setEditOpen(false)}
+        onOk={() => void handleSave()}
+        confirmLoading={saving}
+        okText={t("homeEnter")}
+      >
+        <Form
+          labelPosition="top"
+          labelWidth="100%"
+          initValues={values}
+          onValueChange={next => setValues(next as UserProfileDetail)}
+        >
+          <Form.Input
+            field="displayName"
+            label={t("cozeMeSettingsAccountNicknameLabel")}
+            placeholder={t("cozeMeSettingsAccountNicknameLabel")}
+            required
+          />
+          <Form.Input
+            field="email"
+            label={t("cozeMeSettingsAccountEmailLabel")}
+            placeholder={t("cozeMeSettingsAccountEmailLabel")}
+          />
+          <Form.Input
+            field="phoneNumber"
+            label={t("cozeMeSettingsAccountPhoneLabel")}
+            placeholder={t("cozeMeSettingsAccountPhoneLabel")}
+          />
+        </Form>
+      </Modal>
     </div>
   );
 }

@@ -46,6 +46,10 @@ export function EditorShellLayout() {
     return <Navigate to="/platform-not-ready" replace />;
   }
 
+  if (!bootstrap.appReady) {
+    return <Navigate to="/app-setup" replace />;
+  }
+
   if (!auth.isAuthenticated) {
     return <Navigate to={signPath(location.pathname + location.search)} replace />;
   }
