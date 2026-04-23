@@ -105,6 +105,7 @@ export default defineConfig({
       "@coze-arch/bot-api/intelligence_api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/idl/intelligence_api.ts"),
       "@coze-arch/bot-api/playground_api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/idl/playground_api.ts"),
       "@coze-arch/bot-api/workflow_api$": path.resolve(__dirname, "../../packages/arch/bot-api/src/idl/workflow_api.ts"),
+      "@coze-arch/foundation-sdk$": path.resolve(__dirname, "../../packages/foundation/foundation-sdk/src/index.ts"),
       "@coze-foundation/foundation-sdk$": path.resolve(__dirname, "../../packages/foundation/foundation-sdk/src/index.ts"),
       "@coze-foundation/space-store$": path.resolve(__dirname, "../../packages/foundation/space-store/src/index.ts"),
       "@coze-foundation/space-ui-base$": path.resolve(__dirname, "../../packages/foundation/space-ui-base/src/index.tsx"),

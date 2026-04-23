@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Navigate, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Avatar, Button, Divider, Space, Typography } from "@coze-arch/coze-design";
 import { WorkspaceSubMenu, type IWorkspaceListItem } from "@coze-foundation/space-ui-base";
@@ -19,6 +19,9 @@ import {
   workspaceSettingsPublishPath,
   workspaceTasksPath
 } from "@atlas/app-shell-shared";
+import { I18nProvider } from "../../../../../packages/arch/i18n/src/i18n-provider";
+import { I18n, initI18nInstance } from "../../../../../packages/arch/i18n/src/raw";
+import { toCozeLocale } from "../workflow-runtime-boundary";
 import { useAuth } from "../auth-context";
 import { useBootstrap } from "../bootstrap-context";
 import { useAppI18n } from "../i18n";
@@ -441,11 +444,33 @@ function SpaceShellChrome() {
     ...buildPlatformLinks(t)
   ], [t, workspace.id]);
 
-  if (workspace.loading) {
+  const cozeLocale = toCozeLocale(locale);
+  const [cozeI18nReady, setCozeI18nReady] = useState(false);
+
+  useEffect(() => {
+    if (cozeI18nReady) {
+      I18n.setLang(cozeLocale);
+      return;
+    }
+    let cancelled = false;
+    void initI18nInstance({ language: cozeLocale })
+      .then(() => {
+        I18n.setLang(cozeLocale);
+        if (!cancelled) setCozeI18nReady(true);
+      })
+      .catch(() => {
+        I18n.setLang(cozeLocale);
+        if (!cancelled) setCozeI18nReady(true);
+      });
+    return () => { cancelled = true; };
+  }, [cozeLocale, cozeI18nReady]);
+
+  if (workspace.loading || !cozeI18nReady) {
     return <LoadingPage />;
   }
 
   return (
+    <I18nProvider i18n={I18n}>
     <NativeShellFrame
       activePath={`${location.pathname}${location.search}`}
       headerTitle={resolveShellHeaderTitle(location.pathname, t)}
@@ -470,6 +495,7 @@ function SpaceShellChrome() {
     >
       <Outlet />
     </NativeShellFrame>
+    </I18nProvider>
   );
 }
 
