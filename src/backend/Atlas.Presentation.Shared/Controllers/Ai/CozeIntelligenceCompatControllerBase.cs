@@ -204,7 +204,7 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
     {
         if (!long.TryParse(request.project_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var botId) || botId <= 0)
         {
-            return Ok(Success(data: null));
+            return Ok(Fail("project_id is invalid"));
         }
 
         var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
@@ -219,14 +219,23 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
             return Ok(Success(data: null));
         }
 
-        var recordId = BuildPublishRecordId(detail.Id, detail.PublishVersion);
+        var publicationService = HttpContext.RequestServices.GetService<IAgentPublicationService>();
+        var publications = publicationService is null
+            ? Array.Empty<AgentPublicationListItem>()
+            : await publicationService.GetByAgentAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        var targetPublication = ResolveTargetPublication(publications, detail.Id, detail.PublishVersion, request.publish_record_id);
+        var recordId = targetPublication is null
+            ? BuildPublishRecordId(detail.Id, detail.PublishVersion)
+            : BuildPublishRecordId(detail.Id, targetPublication.Version);
+
         if (!string.IsNullOrWhiteSpace(request.publish_record_id)
-            && !string.Equals(request.publish_record_id, recordId, StringComparison.OrdinalIgnoreCase))
+            && !string.Equals(request.publish_record_id, recordId, StringComparison.OrdinalIgnoreCase)
+            && targetPublication is null)
         {
             return Ok(Success(data: null));
         }
 
-        return Ok(Success(BuildPublishRecordDetailPayload(detail)));
+        return Ok(Success(BuildPublishRecordDetailPayload(detail, targetPublication)));
     }
 
     [HttpPost("/api/intelligence_api/publish/publish_record_list")]
@@ -252,9 +261,191 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
             return Ok(Success(Array.Empty<object>()));
         }
 
-        return Ok(Success(new[]
+        var publicationService = HttpContext.RequestServices.GetService<IAgentPublicationService>();
+        if (publicationService is null)
         {
-            BuildPublishRecordDetailPayload(detail)
+            return Ok(Success(new[]
+            {
+                BuildPublishRecordDetailPayload(detail)
+            }));
+        }
+
+        var publications = await publicationService.GetByAgentAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (publications.Count == 0)
+        {
+            return Ok(Success(new[]
+            {
+                BuildPublishRecordDetailPayload(detail)
+            }));
+        }
+
+        var items = publications
+            .OrderByDescending(item => item.Version)
+            .Select(item => BuildPublishRecordDetailPayload(detail, item))
+            .ToArray();
+        return Ok(Success(items));
+    }
+
+    [HttpPost("/api/intelligence_api/publish/trigger_list")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetPublishTriggerList(
+        [FromBody] CozeGetPublishTriggerListRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(request.project_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var botId) || botId <= 0)
+        {
+            return Ok(Success(new
+            {
+                trigger_list = Array.Empty<object>(),
+                total = 0
+            }));
+        }
+
+        var triggerService = HttpContext.RequestServices.GetService<IAgentTriggerService>();
+        if (triggerService is null)
+        {
+            return Ok(Success(new
+            {
+                trigger_list = Array.Empty<object>(),
+                total = 0
+            }));
+        }
+
+        var triggers = await triggerService.ListAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        var items = triggers.Select(item => new
+        {
+            trigger_id = item.Id,
+            project_id = item.AgentId,
+            name = item.Name,
+            trigger_type = item.TriggerType,
+            config_json = item.ConfigJson,
+            enabled = item.IsEnabled,
+            created_at = item.CreatedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+            updated_at = item.UpdatedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
+        }).ToArray();
+
+        return Ok(Success(new
+        {
+            trigger_list = items,
+            total = items.Length
+        }));
+    }
+
+    [HttpPost("/api/intelligence_api/publish/trigger_create")]
+    [Authorize]
+    public async Task<ActionResult<object>> CreatePublishTrigger(
+        [FromBody] CozeCreatePublishTriggerRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(request.project_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var botId) || botId <= 0)
+        {
+            return Ok(Fail("project_id is invalid"));
+        }
+
+        var triggerService = HttpContext.RequestServices.GetService<IAgentTriggerService>();
+        if (triggerService is null)
+        {
+            return Ok(Fail("trigger service unavailable"));
+        }
+
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var createRequest = new AgentTriggerUpsertRequest(
+            string.IsNullOrWhiteSpace(request.name) ? "Untitled Trigger" : request.name.Trim(),
+            string.IsNullOrWhiteSpace(request.trigger_type) ? "schedule" : request.trigger_type.Trim(),
+            string.IsNullOrWhiteSpace(request.config_json) ? "{}" : request.config_json,
+            request.enabled ?? true);
+
+        var created = await triggerService.CreateAsync(
+            _tenantProvider.GetTenantId(),
+            botId,
+            currentUser.UserId,
+            createRequest,
+            cancellationToken);
+
+        return Ok(Success(new
+        {
+            trigger = new
+            {
+                trigger_id = created.Id,
+                project_id = created.AgentId,
+                name = created.Name,
+                trigger_type = created.TriggerType,
+                config_json = created.ConfigJson,
+                enabled = created.IsEnabled,
+                created_at = created.CreatedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+                updated_at = created.UpdatedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
+            }
+        }));
+    }
+
+    [HttpPost("/api/intelligence_api/publish/trigger_update")]
+    [Authorize]
+    public async Task<ActionResult<object>> UpdatePublishTrigger(
+        [FromBody] CozeUpdatePublishTriggerRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseAgentAndTriggerIds(request.project_id, request.trigger_id, out var botId, out var triggerId))
+        {
+            return Ok(Fail("project_id or trigger_id is invalid"));
+        }
+
+        var triggerService = HttpContext.RequestServices.GetService<IAgentTriggerService>();
+        if (triggerService is null)
+        {
+            return Ok(SuccessWithoutData());
+        }
+
+        var triggers = await triggerService.ListAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        var existing = triggers.FirstOrDefault(item => string.Equals(item.Id, request.trigger_id, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return Ok(Fail("trigger not found"));
+        }
+
+        var mergedRequest = new AgentTriggerUpsertRequest(
+            string.IsNullOrWhiteSpace(request.name) ? existing.Name : request.name.Trim(),
+            string.IsNullOrWhiteSpace(request.trigger_type) ? existing.TriggerType : request.trigger_type.Trim(),
+            string.IsNullOrWhiteSpace(request.config_json) ? existing.ConfigJson : request.config_json,
+            request.enabled ?? existing.IsEnabled);
+
+        await triggerService.UpdateAsync(_tenantProvider.GetTenantId(), botId, triggerId, mergedRequest, cancellationToken);
+
+        return Ok(Success(new
+        {
+            trigger = new
+            {
+                trigger_id = existing.Id,
+                project_id = existing.AgentId,
+                name = mergedRequest.Name,
+                trigger_type = mergedRequest.TriggerType,
+                config_json = mergedRequest.ConfigJson,
+                enabled = mergedRequest.IsEnabled
+            }
+        }));
+    }
+
+    [HttpPost("/api/intelligence_api/publish/trigger_delete")]
+    [Authorize]
+    public async Task<ActionResult<object>> DeletePublishTrigger(
+        [FromBody] CozeDeletePublishTriggerRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseAgentAndTriggerIds(request.project_id, request.trigger_id, out var botId, out var triggerId))
+        {
+            return Ok(Fail("project_id or trigger_id is invalid"));
+        }
+
+        var triggerService = HttpContext.RequestServices.GetService<IAgentTriggerService>();
+        if (triggerService is null)
+        {
+            return Ok(SuccessWithoutData());
+        }
+
+        await triggerService.DeleteAsync(_tenantProvider.GetTenantId(), botId, triggerId, cancellationToken);
+        return Ok(Success(new
+        {
+            trigger_id = request.trigger_id,
+            deleted = true
         }));
     }
 
@@ -406,16 +597,16 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
         };
     }
 
-    private static object BuildPublishRecordDetailPayload(AgentDetail detail)
+    private static object BuildPublishRecordDetailPayload(AgentDetail detail, AgentPublicationListItem? publication = null)
     {
-        var publishTime = detail.PublishedAt ?? detail.UpdatedAt ?? detail.CreatedAt;
+        var publishTime = publication?.CreatedAt ?? detail.PublishedAt ?? detail.UpdatedAt ?? detail.CreatedAt;
         var connectorPublishResult = BuildConnectorPublishResults(detail);
         return new
         {
-            publish_record_id = BuildPublishRecordId(detail.Id, detail.PublishVersion),
-            version_number = $"v{detail.PublishVersion}",
+            publish_record_id = BuildPublishRecordId(detail.Id, publication?.Version ?? detail.PublishVersion),
+            version_number = $"v{publication?.Version ?? detail.PublishVersion}",
             publish_status = 5,
-            publish_status_msg = string.Empty,
+            publish_status_msg = publication?.ReleaseNote ?? string.Empty,
             connector_publish_result = connectorPublishResult,
             publish_status_detail = new
             {
@@ -599,6 +790,44 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
     private static string BuildPublishRecordId(long botId, int publishVersion)
         => $"bot-{botId.ToString(CultureInfo.InvariantCulture)}-v{publishVersion.ToString(CultureInfo.InvariantCulture)}";
 
+    private static AgentPublicationListItem? ResolveTargetPublication(
+        IReadOnlyList<AgentPublicationListItem> publications,
+        long botId,
+        int fallbackVersion,
+        string? publishRecordId)
+    {
+        if (publications.Count == 0)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(publishRecordId))
+        {
+            return publications
+                .OrderByDescending(item => item.IsActive)
+                .ThenByDescending(item => item.Version)
+                .FirstOrDefault();
+        }
+
+        return publications.FirstOrDefault(item =>
+            string.Equals(
+                BuildPublishRecordId(botId, item.Version),
+                publishRecordId,
+                StringComparison.OrdinalIgnoreCase))
+            ?? publications.FirstOrDefault(item => item.Version == fallbackVersion);
+    }
+
+    private static bool TryParseAgentAndTriggerIds(
+        string? projectId,
+        string? triggerId,
+        out long botId,
+        out long parsedTriggerId)
+    {
+        var botOk = long.TryParse(projectId, NumberStyles.Integer, CultureInfo.InvariantCulture, out botId) && botId > 0;
+        var triggerOk = long.TryParse(triggerId, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedTriggerId) && parsedTriggerId > 0;
+        return botOk && triggerOk;
+    }
+
     protected static object Success(object? data)
     {
         return new
@@ -615,6 +844,15 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
         {
             code = 0,
             msg = "success"
+        };
+    }
+
+    protected static object Fail(string message)
+    {
+        return new
+        {
+            code = 1,
+            msg = message
         };
     }
 }
@@ -657,6 +895,27 @@ public sealed record CozeGetPublishRecordDetailRequest(
     string? publish_record_id);
 
 public sealed record CozeGetPublishRecordListRequest(string project_id);
+
+public sealed record CozeGetPublishTriggerListRequest(string project_id);
+
+public sealed record CozeCreatePublishTriggerRequest(
+    string project_id,
+    string? name,
+    string? trigger_type,
+    string? config_json,
+    bool? enabled);
+
+public sealed record CozeUpdatePublishTriggerRequest(
+    string project_id,
+    string trigger_id,
+    string? name,
+    string? trigger_type,
+    string? config_json,
+    bool? enabled);
+
+public sealed record CozeDeletePublishTriggerRequest(
+    string project_id,
+    string trigger_id);
 
 public sealed record CozeDraftProjectCreateRequest(
     string? space_id,

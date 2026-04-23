@@ -216,6 +216,53 @@ X-Tenant-Id: {{tenantId}}
   "project_id": "1"
 }
 
+### Coze 原生 intelligence：publish trigger list
+POST {{host}}/api/intelligence_api/publish/trigger_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1"
+}
+
+### Coze 原生 intelligence：publish trigger create
+POST {{host}}/api/intelligence_api/publish/trigger_create
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "name": "Morning digest",
+  "trigger_type": "schedule",
+  "config_json": "{\"cron\":\"0 8 * * *\"}",
+  "enabled": true
+}
+
+### Coze 原生 intelligence：publish trigger update
+POST {{host}}/api/intelligence_api/publish/trigger_update
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "trigger_id": "701",
+  "enabled": false
+}
+
+### Coze 原生 intelligence：publish trigger delete
+POST {{host}}/api/intelligence_api/publish/trigger_delete
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "trigger_id": "701"
+}
+
 ### Coze 原生 playground：move draftbot preview
 POST {{host}}/api/playground_api/move_draft_bot
 Content-Type: {{contentType}}

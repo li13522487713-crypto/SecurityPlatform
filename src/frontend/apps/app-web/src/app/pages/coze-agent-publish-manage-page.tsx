@@ -1,12 +1,20 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Banner, Card, Empty, Select, Spin, Tabs, Tag, Typography } from "@douyinfe/semi-ui";
+import { Banner, Button, Card, Empty, Select, Spin, Switch, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { intelligenceApi } from "@coze-arch/bot-api";
 import {
   type PublishRecordDetail
 } from "@coze-arch/bot-api/intelligence_api";
 import { useAppI18n } from "../i18n";
+import {
+  createCozePublishTrigger,
+  deleteCozePublishTrigger,
+  getCozePublishTriggerList,
+  type CozePublishTriggerItem,
+  updateCozePublishTrigger
+} from "../../services/api-coze-publish-manage";
+import { buildDefaultTriggerFormValues, normalizeTriggerConfigJson } from "./coze-trigger-form-helpers";
 import {
   formatPublishTime,
   getConnectorStatusKey,
@@ -25,6 +33,9 @@ export function CozeAgentPublishManagePage() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [records, setRecords] = useState<PublishRecordDetail[]>([]);
   const [currentRecord, setCurrentRecord] = useState<PublishRecordDetail>();
+  const [triggers, setTriggers] = useState<CozePublishTriggerItem[]>([]);
+  const [triggerLoadFailed, setTriggerLoadFailed] = useState(false);
+  const [triggerActionKey, setTriggerActionKey] = useState("");
 
   const recordIdFromQuery = searchParams.get("recordId")?.trim() ?? "";
   const activeTab = normalizePublishManageTab(searchParams.get("tab"));
@@ -91,6 +102,37 @@ export function CozeAgentPublishManagePage() {
     };
   }, [botId, recordIdFromQuery]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTriggers() {
+      if (!botId) {
+        setTriggers([]);
+        setTriggerLoadFailed(false);
+        return;
+      }
+
+      try {
+        const nextTriggers = await getCozePublishTriggerList(botId);
+        if (!cancelled) {
+          setTriggers(nextTriggers);
+          setTriggerLoadFailed(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setTriggers([]);
+          setTriggerLoadFailed(true);
+        }
+      }
+    }
+
+    void loadTriggers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [botId]);
+
   const connectorSummary = useMemo(
     () => summarizeConnectors(currentRecord?.connector_publish_result),
     [currentRecord?.connector_publish_result]
@@ -126,6 +168,127 @@ export function CozeAgentPublishManagePage() {
       nextParams.delete("recordId");
     }
     setSearchParams(nextParams, { replace: true });
+  };
+
+  const refreshTriggers = async () => {
+    if (!botId) {
+      setTriggers([]);
+      return;
+    }
+
+    const nextTriggers = await getCozePublishTriggerList(botId);
+    setTriggers(nextTriggers);
+    setTriggerLoadFailed(false);
+  };
+
+  const handleToggleTrigger = async (trigger: CozePublishTriggerItem, enabled: boolean) => {
+    try {
+      setTriggerActionKey(`toggle:${trigger.trigger_id}`);
+      await updateCozePublishTrigger({
+        projectId: botId,
+        triggerId: trigger.trigger_id,
+        name: trigger.name,
+        triggerType: trigger.trigger_type,
+        configJson: trigger.config_json,
+        enabled
+      });
+      await refreshTriggers();
+      Toast.success(t("cozePublishManageTriggerEnableSuccess"));
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozePublishManageLoadFailed"));
+    } finally {
+      setTriggerActionKey("");
+    }
+  };
+
+  const handleDeleteTrigger = async (trigger: CozePublishTriggerItem) => {
+    try {
+      setTriggerActionKey(`delete:${trigger.trigger_id}`);
+      await deleteCozePublishTrigger(botId, trigger.trigger_id);
+      await refreshTriggers();
+      Toast.success(t("cozePublishManageTriggerDeleteSuccess"));
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozePublishManageLoadFailed"));
+    } finally {
+      setTriggerActionKey("");
+    }
+  };
+
+  const handleSubmitTrigger = async (
+    values: { name: string; triggerType: string; configJson: string; enabled: boolean },
+    editingTrigger?: CozePublishTriggerItem | null
+  ) => {
+    try {
+      setTriggerActionKey(editingTrigger ? `edit:${editingTrigger.trigger_id}` : "create");
+      if (editingTrigger) {
+        await updateCozePublishTrigger({
+          projectId: botId,
+          triggerId: editingTrigger.trigger_id,
+          name: values.name,
+          triggerType: values.triggerType,
+          configJson: values.configJson,
+          enabled: values.enabled
+        });
+        Toast.success(t("cozePublishManageTriggerUpdateSuccess"));
+      } else {
+        await createCozePublishTrigger({
+          projectId: botId,
+          name: values.name,
+          triggerType: values.triggerType,
+          configJson: values.configJson,
+          enabled: values.enabled
+        });
+        Toast.success(t("cozePublishManageTriggerCreateSuccess"));
+      }
+      await refreshTriggers();
+    } catch (error) {
+      Toast.error((error as Error).message || t("cozePublishManageLoadFailed"));
+    } finally {
+      setTriggerActionKey("");
+    }
+  };
+
+  const openCreateTrigger = async () => {
+    const defaults = buildDefaultTriggerFormValues();
+    const name = typeof window !== "undefined"
+      ? window.prompt(t("cozePublishManageTriggerName"), defaults.name)
+      : defaults.name;
+    if (!name || !name.trim()) {
+      return;
+    }
+    const triggerType = typeof window !== "undefined"
+      ? window.prompt(t("cozePublishManageTriggerType"), defaults.triggerType)
+      : defaults.triggerType;
+    const configJson = typeof window !== "undefined"
+      ? window.prompt(t("cozePublishManageTriggerConfig"), defaults.configJson)
+      : defaults.configJson;
+    await handleSubmitTrigger({
+      name: name.trim(),
+      triggerType: (triggerType || defaults.triggerType).trim(),
+      configJson: normalizeTriggerConfigJson(configJson || defaults.configJson),
+      enabled: defaults.enabled
+    });
+  };
+
+  const openEditTrigger = async (trigger: CozePublishTriggerItem) => {
+    const name = typeof window !== "undefined"
+      ? window.prompt(t("cozePublishManageTriggerName"), trigger.name)
+      : trigger.name;
+    if (!name || !name.trim()) {
+      return;
+    }
+    const triggerType = typeof window !== "undefined"
+      ? window.prompt(t("cozePublishManageTriggerType"), trigger.trigger_type || "schedule")
+      : trigger.trigger_type;
+    const configJson = typeof window !== "undefined"
+      ? window.prompt(t("cozePublishManageTriggerConfig"), normalizeTriggerConfigJson(trigger.config_json))
+      : trigger.config_json;
+    await handleSubmitTrigger({
+      name: name.trim(),
+      triggerType: (triggerType || trigger.trigger_type || "schedule").trim(),
+      configJson: normalizeTriggerConfigJson(configJson || trigger.config_json),
+      enabled: trigger.enabled
+    }, trigger);
   };
 
   return (
@@ -214,6 +377,55 @@ export function CozeAgentPublishManagePage() {
 
               <Tabs.TabPane tab={t("cozePublishManageTabLogs")} itemKey="logs">
                 <div style={{ display: "grid", gap: 12 }}>
+                  <Card bodyStyle={{ padding: 16 }}>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <Text strong>{t("cozePublishManageHistory")}</Text>
+                      {records.map(record => {
+                        const recordStatusKey = getPublishStatusKey(record.publish_status);
+                        const recordStatus = recordStatusKey
+                          ? {
+                              color:
+                                recordStatusKey === "cozePublishManageStatusSuccess"
+                                  ? ("green" as const)
+                                  : recordStatusKey === "cozePublishManageStatusFailed"
+                                    ? ("red" as const)
+                                    : ("orange" as const),
+                              label: t(recordStatusKey)
+                            }
+                          : { color: "grey" as const, label: "-" };
+                        const publishTime = formatPublishTime((record as PublishRecordDetail & { publish_time?: string }).publish_time);
+                        return (
+                          <div
+                            key={record.publish_record_id ?? record.version_number ?? publishTime}
+                            style={{
+                              display: "grid",
+                              gap: 8,
+                              padding: 12,
+                              borderRadius: 12,
+                              border: "1px solid var(--semi-color-border)"
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                              <Text strong>{record.version_number ?? "-"}</Text>
+                              <Tag color={recordStatus.color}>{recordStatus.label}</Tag>
+                            </div>
+                            <div>
+                              <Text type="tertiary">{t("cozePublishManagePublishedAt")}</Text>
+                              <div style={{ marginTop: 4 }}>
+                                <Text>{publishTime}</Text>
+                              </div>
+                            </div>
+                            <div>
+                              <Text type="tertiary">{t("cozePublishManageReleaseNote")}</Text>
+                              <div style={{ marginTop: 4 }}>
+                                <Text>{record.publish_status_msg || "-"}</Text>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
                   {connectors.length === 0 ? (
                     <Card bodyStyle={{ padding: 24 }}>
                       <Empty description={t("cozePublishManageNoRecord")} />
@@ -263,24 +475,69 @@ export function CozeAgentPublishManagePage() {
               <Tabs.TabPane tab={t("cozePublishManageTabTriggers")} itemKey="triggers">
                 <div style={{ display: "grid", gap: 12 }}>
                   <Banner type="info" fullMode={false} bordered description={t("cozePublishManageTriggerHint")} />
-                  {connectors.length === 0 ? (
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <Button
+                      theme="solid"
+                      onClick={() => { void openCreateTrigger(); }}
+                      disabled={triggerActionKey.length > 0}
+                    >
+                      {t("cozePublishManageTriggerCreateAction")}
+                    </Button>
+                  </div>
+                  {triggerLoadFailed ? (
+                    <Banner type="danger" fullMode={false} bordered description={t("cozePublishManageLoadFailed")} />
+                  ) : null}
+                  {triggers.length === 0 ? (
                     <Card bodyStyle={{ padding: 24 }}>
-                      <Empty description={t("cozePublishManageNoRecord")} />
+                      <Empty description={t("cozePublishManageNoTriggers")} />
                     </Card>
                   ) : (
-                    connectors.map(connector => (
+                    triggers.map(trigger => (
                       <Card
-                        key={`${connector.connector_id ?? "connector"}-${connector.connector_name ?? "unknown"}-trigger`}
+                        key={trigger.trigger_id}
                         bodyStyle={{ padding: 16 }}
                       >
-                        <div style={{ display: "grid", gap: 8 }}>
-                          <Text strong>{connector.connector_name ?? connector.connector_id ?? "-"}</Text>
+                        <div style={{ display: "grid", gap: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+                            <Text strong>{trigger.name}</Text>
+                            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                              <Switch
+                                checked={trigger.enabled}
+                                disabled={triggerActionKey.length > 0}
+                                onChange={next => {
+                                  void handleToggleTrigger(trigger, next);
+                                }}
+                              />
+                              <Button
+                                theme="borderless"
+                                disabled={triggerActionKey.length > 0}
+                                onClick={() => { void openEditTrigger(trigger); }}
+                              >
+                                {t("cozePublishManageTriggerEditAction")}
+                              </Button>
+                              <Button
+                                type="danger"
+                                theme="borderless"
+                                loading={triggerActionKey === `delete:${trigger.trigger_id}`}
+                                disabled={triggerActionKey.length > 0}
+                                onClick={() => {
+                                  void handleDeleteTrigger(trigger);
+                                }}
+                              >
+                                {t("cozePublishManageTriggerDeleteAction")}
+                              </Button>
+                            </div>
+                          </div>
                           <div>
-                            <Text type="tertiary">{t("cozePublishManageShareLink")}</Text>
+                            <Text type="tertiary">{t("cozePublishManageTriggerType")}</Text>
                             <div style={{ marginTop: 4 }}>
-                              <Text link={{ href: connector.share_link ?? "", target: "_blank" }}>
-                                {connector.share_link || "-"}
-                              </Text>
+                              <Text>{trigger.trigger_type || "-"}</Text>
+                            </div>
+                          </div>
+                          <div>
+                            <Text type="tertiary">{t("cozePublishManageUpdatedAt")}</Text>
+                            <div style={{ marginTop: 4 }}>
+                              <Text>{formatPublishTime(trigger.updated_at)}</Text>
                             </div>
                           </div>
                         </div>

@@ -162,6 +162,7 @@ public sealed class CozeNativeAgentCompatControllerTests
     public async Task GetPublishRecordDetail_ShouldReturnPublishedRecord()
     {
         var queryService = Substitute.For<IAgentQueryService>();
+        var publicationService = Substitute.For<IAgentPublicationService>();
         queryService.GetByIdAsync(TestTenant, 101, Arg.Any<CancellationToken>())
             .Returns(new AgentDetail(
                 101,
@@ -201,10 +202,15 @@ public sealed class CozeNativeAgentCompatControllerTests
                 Array.Empty<AgentPluginBindingItem>(),
                 "{\"connectors\":{\"2001\":{\"ConfigStatus\":1,\"ConnectorStatus\":0,\"IsLastPublished\":true,\"ShareLink\":\"https://example.test/publish/102\",\"Detail\":{\"endpoint_url\":\"https://example.test\"}}}}",
                 1));
+        publicationService.GetByAgentAsync(TestTenant, 101, Arg.Any<CancellationToken>())
+            .Returns([
+                new AgentPublicationListItem(9001, 101, 3, true, "embed", DateTime.UtcNow.AddHours(1), "release-note", 1, DateTime.UtcNow, DateTime.UtcNow, null)
+            ]);
 
         var controller = BuildIntelligenceController(services =>
         {
             services.AddSingleton(queryService);
+            services.AddSingleton(publicationService);
         });
 
         var result = await controller.GetPublishRecordDetail(
@@ -223,6 +229,7 @@ public sealed class CozeNativeAgentCompatControllerTests
     public async Task GetPublishRecordList_ShouldReturnLatestPublishedRecord()
     {
         var queryService = Substitute.For<IAgentQueryService>();
+        var publicationService = Substitute.For<IAgentPublicationService>();
         queryService.GetByIdAsync(TestTenant, 102, Arg.Any<CancellationToken>())
             .Returns(new AgentDetail(
                 102,
@@ -262,10 +269,16 @@ public sealed class CozeNativeAgentCompatControllerTests
                 Array.Empty<AgentPluginBindingItem>(),
                 null,
                 1));
+        publicationService.GetByAgentAsync(TestTenant, 102, Arg.Any<CancellationToken>())
+            .Returns([
+                new AgentPublicationListItem(9101, 102, 2, true, "embed-2", DateTime.UtcNow.AddHours(1), "current release", 1, DateTime.UtcNow, DateTime.UtcNow, null),
+                new AgentPublicationListItem(9100, 102, 1, false, "embed-1", DateTime.UtcNow.AddHours(1), "previous release", 1, DateTime.UtcNow.AddDays(-1), DateTime.UtcNow.AddDays(-1), DateTime.UtcNow)
+            ]);
 
         var controller = BuildIntelligenceController(services =>
         {
             services.AddSingleton(queryService);
+            services.AddSingleton(publicationService);
         });
 
         var result = await controller.GetPublishRecordList(
@@ -275,7 +288,160 @@ public sealed class CozeNativeAgentCompatControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var payload = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("\"version_number\":\"v2\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"version_number\":\"v1\"", payload, StringComparison.Ordinal);
         Assert.Contains("\"publish_record_id\":\"bot-102-v2\"", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetPublishTriggerList_ShouldReturnAgentTriggers()
+    {
+        var triggerService = Substitute.For<IAgentTriggerService>();
+        triggerService.ListAsync(TestTenant, 103, Arg.Any<CancellationToken>())
+            .Returns([
+                new AgentTriggerDto("701", "103", "Morning digest", "schedule", "{\"cron\":\"0 8 * * *\"}", true, DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(-1)),
+                new AgentTriggerDto("702", "103", "Webhook order", "webhook", "{\"path\":\"/hook/order\"}", false, DateTimeOffset.UtcNow.AddDays(-3), DateTimeOffset.UtcNow.AddHours(-2))
+            ]);
+
+        var controller = BuildIntelligenceController(services =>
+        {
+            services.AddSingleton(triggerService);
+        });
+
+        var result = await controller.GetPublishTriggerList(
+            new CozeGetPublishTriggerListRequest("103"),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"Morning digest\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"trigger_type\":\"schedule\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"total\":2", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UpdatePublishTrigger_ShouldForwardMergedPayload()
+    {
+        var triggerService = Substitute.For<IAgentTriggerService>();
+        triggerService.ListAsync(TestTenant, 103, Arg.Any<CancellationToken>())
+            .Returns([
+                new AgentTriggerDto("701", "103", "Morning digest", "schedule", "{\"cron\":\"0 8 * * *\"}", true, DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(-1))
+            ]);
+
+        var controller = BuildIntelligenceController(services =>
+        {
+            services.AddSingleton(triggerService);
+        });
+
+        var result = await controller.UpdatePublishTrigger(
+            new CozeUpdatePublishTriggerRequest("103", "701", null, null, null, false),
+            CancellationToken.None);
+
+        await triggerService.Received(1).UpdateAsync(
+            TestTenant,
+            103,
+            701,
+            Arg.Is<AgentTriggerUpsertRequest>(item =>
+                item.Name == "Morning digest"
+                && item.TriggerType == "schedule"
+                && item.ConfigJson == "{\"cron\":\"0 8 * * *\"}"
+                && item.IsEnabled == false),
+            Arg.Any<CancellationToken>());
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"trigger_id\":\"701\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"enabled\":false", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreatePublishTrigger_ShouldReturnCreatedTrigger()
+    {
+        var triggerService = Substitute.For<IAgentTriggerService>();
+        triggerService.CreateAsync(TestTenant, 103, 1, Arg.Any<AgentTriggerUpsertRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new AgentTriggerDto("703", "103", "Evening digest", "schedule", "{\"cron\":\"0 20 * * *\"}", true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+
+        var controller = BuildIntelligenceController(services =>
+        {
+            services.AddSingleton(triggerService);
+        });
+
+        var result = await controller.CreatePublishTrigger(
+            new CozeCreatePublishTriggerRequest("103", "Evening digest", "schedule", "{\"cron\":\"0 20 * * *\"}", true),
+            CancellationToken.None);
+
+        await triggerService.Received(1).CreateAsync(
+            TestTenant,
+            103,
+            1,
+            Arg.Is<AgentTriggerUpsertRequest>(item =>
+                item.Name == "Evening digest"
+                && item.TriggerType == "schedule"
+                && item.ConfigJson == "{\"cron\":\"0 20 * * *\"}"
+                && item.IsEnabled),
+            Arg.Any<CancellationToken>());
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"trigger_id\":\"703\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"Evening digest\"", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeletePublishTrigger_ShouldReturnDeletedFlag()
+    {
+        var triggerService = Substitute.For<IAgentTriggerService>();
+
+        var controller = BuildIntelligenceController(services =>
+        {
+            services.AddSingleton(triggerService);
+        });
+
+        var result = await controller.DeletePublishTrigger(
+            new CozeDeletePublishTriggerRequest("103", "701"),
+            CancellationToken.None);
+
+        await triggerService.Received(1).DeleteAsync(TestTenant, 103, 701, Arg.Any<CancellationToken>());
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"deleted\":true", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreatePublishTrigger_ShouldFailForInvalidProjectId()
+    {
+        var controller = BuildIntelligenceController(_ => { });
+
+        var result = await controller.CreatePublishTrigger(
+            new CozeCreatePublishTriggerRequest("0", "Bad trigger", "schedule", "{}", true),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"code\":1", payload, StringComparison.Ordinal);
+        Assert.Contains("\"project_id is invalid\"", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UpdatePublishTrigger_ShouldFailWhenTriggerMissing()
+    {
+        var triggerService = Substitute.For<IAgentTriggerService>();
+        triggerService.ListAsync(TestTenant, 103, Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<AgentTriggerDto>());
+
+        var controller = BuildIntelligenceController(services =>
+        {
+            services.AddSingleton(triggerService);
+        });
+
+        var result = await controller.UpdatePublishTrigger(
+            new CozeUpdatePublishTriggerRequest("103", "701", null, null, null, false),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"code\":1", payload, StringComparison.Ordinal);
+        Assert.Contains("\"trigger not found\"", payload, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -34,7 +34,11 @@
 - 发布管理入口显隐当前由 `POST /api/intelligence_api/search/get_publish_intelligence_list` 决定，`@coze-studio/publish-manage-hooks` 会用它判断 `analysis / logs / triggers` 菜单是否可进入。
 - 当前 `/space/:space_id/bot/:bot_id/analysis` 已不再回退到发布首页，而是重定向到 `/space/:space_id/bot/:bot_id/publish?tab=analysis`，保持原生 publish-manage 语义。
 - 当前 `app-web` 已在宿主侧为 `/space/:space_id/bot/:bot_id/publish?tab=analysis|logs|triggers` 提供发布管理承载页，页面直接消费 `@coze-arch/bot-api` 的 `GetPublishRecordDetail / GetPublishRecordList`，不再回退到 Atlas facade。
-- `POST /api/intelligence_api/publish/publish_record_detail` 与 `POST /api/intelligence_api/publish/publish_record_list` 已为 bot 发布管理提供最小真实实现：当前返回最近一次已发布版本和当前可用渠道结果，历史多版本与细粒度 trigger/logs 仍属后续补齐项，因此在覆盖矩阵中保持 `Partial`。
+- `POST /api/intelligence_api/publish/publish_record_detail` 与 `POST /api/intelligence_api/publish/publish_record_list` 已为 bot 发布管理提供最小真实实现：当前返回最近一次已发布版本，并优先从智能体 `PublishedConnectorConfigJson` 解析真实已发布渠道结果；历史多版本与细粒度 trigger/logs 仍属后续补齐项，因此在覆盖矩阵中保持 `Partial`。
+- `POST /api/intelligence_api/publish/trigger_list` 已接入 `IAgentTriggerService`，当前触发器页签展示真实 `AgentTrigger` 列表（名称、类型、启用状态、更新时间），不再使用静态占位数据。
+- `POST /api/intelligence_api/publish/trigger_create` 已接入 `IAgentTriggerService.CreateAsync`，当前宿主页签支持创建最小 trigger（名称、类型、配置 JSON、启用状态）。
+- `POST /api/intelligence_api/publish/trigger_update` 与 `POST /api/intelligence_api/publish/trigger_delete` 已接入 `IAgentTriggerService.UpdateAsync / DeleteAsync`，当前宿主页签支持真实启停与删除动作，仍未开放触发器创建/编辑表单。
+- 上述 trigger 路由当前对无效 `project_id / trigger_id` 或缺失 trigger 返回 `code=1` + 明确 `msg`，不再把参数错误伪装成成功。
 
 ### Coze 原生智能体空间迁移链
 
