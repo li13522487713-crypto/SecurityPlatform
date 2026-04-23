@@ -276,6 +276,10 @@ axiosInstance.interceptors.response.use(
   },
   error => {
     if (isAxiosError(error)) {
+      if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+        return Promise.reject(error);
+      }
+
       reportHttpError(ReportEventNames.NetworkError, error);
       if (error.response?.status === HTTP_STATUS_COE_UNAUTHORIZED) {
         void handleUnauthorized(error);

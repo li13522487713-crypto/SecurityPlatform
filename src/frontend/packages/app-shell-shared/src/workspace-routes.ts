@@ -1,7 +1,7 @@
 /**
  * Coze 平台 PRD（07-前端路由表与菜单权限表）路径辅助函数。
  *
- * 注意：这一组函数是“工作空间为唯一维度”的扁平路由（/workspace/:workspaceId/...）。
+ * 注意：这一组函数是“工作空间为唯一维度”的扁平路由（/space/:workspaceId/...）。
  * 旧的 /org/:orgId/workspaces/:workspaceId/... 与 /apps/:appKey/... 仍由 ./routes.ts 提供，
  * 仅用于兼容跳转，不再用于菜单与新页面。
  */
@@ -26,11 +26,15 @@ function encodeSegment(value: string | number): string {
 }
 
 export function selectWorkspacePath(): string {
-  return "/console";
+  return "/space";
 }
 
 export function workspaceRootPath(workspaceId: string): string {
-  return `/workspace/${encodeSegment(workspaceId)}`;
+  return `/space/${encodeSegment(workspaceId)}`;
+}
+
+export function workspaceDevelopRootPath(workspaceId: string): string {
+  return `${workspaceRootPath(workspaceId)}/develop`;
 }
 
 export function workspaceHomePath(workspaceId: string): string {
@@ -97,14 +101,14 @@ export function buildWorkspaceSwitchPath(pathWithSearch: string, workspaceId: st
   const { pathname, search } = splitPathAndQuery(pathWithSearch);
   const decodedWorkspaceId = encodeSegment(workspaceId);
 
-  if (!pathname.startsWith("/workspace/")) {
+  if (!pathname.startsWith("/space/")) {
     return `${pathname}${search}`;
   }
 
   const detailFallbacks: Array<[RegExp, string]> = [
-    [/^\/workspace\/[^/]+\/projects\/folder\/[^/]+$/u, workspaceProjectsPath(workspaceId)],
-    [/^\/workspace\/[^/]+\/tasks\/[^/]+$/u, workspaceTasksPath(workspaceId)],
-    [/^\/workspace\/[^/]+\/evaluations\/[^/]+$/u, workspaceEvaluationsPath(workspaceId)]
+    [/^\/space\/[^/]+\/projects\/folder\/[^/]+$/u, workspaceProjectsPath(workspaceId)],
+    [/^\/space\/[^/]+\/tasks\/[^/]+$/u, workspaceTasksPath(workspaceId)],
+    [/^\/space\/[^/]+\/evaluations\/[^/]+$/u, workspaceEvaluationsPath(workspaceId)]
   ];
 
   for (const [pattern, fallbackPath] of detailFallbacks) {
@@ -113,7 +117,7 @@ export function buildWorkspaceSwitchPath(pathWithSearch: string, workspaceId: st
     }
   }
 
-  return pathname.replace(/^\/workspace\/[^/]+/u, `/workspace/${decodedWorkspaceId}`) + search;
+  return pathname.replace(/^\/space\/[^/]+/u, `/space/${decodedWorkspaceId}`) + search;
 }
 
 export function marketTemplatesPath(): string {

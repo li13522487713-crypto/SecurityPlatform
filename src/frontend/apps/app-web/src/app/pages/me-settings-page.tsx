@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Button, Empty, Form, Modal, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Avatar, Button, Empty, Form, Modal, Spin, Tag, Toast } from "@douyinfe/semi-ui";
 import { IconClose, IconEdit, IconUser } from "@douyinfe/semi-icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { meSettingsPath, signPath, type MeSettingsTab } from "@atlas/app-shell-shared";

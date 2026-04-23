@@ -5,14 +5,14 @@ describe("login-entry-helpers", () => {
   it("prefers last workspace when still accessible", () => {
     expect(resolveWorkspaceEntryTarget(["100", "200"], "200")).toEqual({
       workspaceId: "200",
-      target: "/workspace/200/home"
+      target: "/space/200/develop"
     });
   });
 
   it("falls back to the first workspace when no recent match exists", () => {
     expect(resolveWorkspaceEntryTarget(["100", "200"], "300")).toEqual({
       workspaceId: "100",
-      target: "/workspace/100/home"
+      target: "/space/100/develop"
     });
   });
 

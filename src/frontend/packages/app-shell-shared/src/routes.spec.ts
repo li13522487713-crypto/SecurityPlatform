@@ -19,6 +19,7 @@ import {
   orgWorkspaceAppWorkflowPath,
   signPath
 } from "./routes";
+import { workspaceDevelopRootPath } from "./workspace-routes";
 
 describe("organization workspace routes", () => {
   it("builds sign path with redirect", () => {
@@ -26,28 +27,29 @@ describe("organization workspace routes", () => {
   });
 
   it("builds workspace list and develop paths", () => {
-    expect(orgWorkspacesPath("tenant-1")).toBe("/console");
-    expect(orgWorkspaceHomePath("tenant-1", "100")).toBe("/workspace/100/home");
-    expect(orgWorkspaceDashboardPath("tenant-1", "100")).toBe("/workspace/100/home");
-    expect(orgWorkspaceDevelopPath("tenant-1", "100")).toBe("/workspace/100/develop");
-    expect(orgWorkspaceChatPath("tenant-1", "100")).toBe("/workspace/100/develop/chat");
-    expect(orgWorkspaceModelConfigsPath("tenant-1", "100")).toBe("/workspace/100/develop/model-configs");
-    expect(orgWorkspaceAssistantToolsPath("tenant-1", "100")).toBe("/workspace/100/develop/assistant-tools");
-    expect(orgWorkspacePublishCenterPath("tenant-1", "100")).toBe("/workspace/100/develop/publish-center");
-    expect(orgWorkspaceDataPath("tenant-1", "100")).toBe("/workspace/100/library/data");
-    expect(orgWorkspaceVariablesPath("tenant-1", "100")).toBe("/workspace/100/library/variables");
-    expect(orgWorkspaceManagePath("tenant-1", "100")).toBe("/workspace/100/manage");
-    expect(orgWorkspaceManagePath("tenant-1", "100", "users")).toBe("/workspace/100/manage/users");
-    expect(orgWorkspaceSettingsPath("tenant-1", "100")).toBe("/workspace/100/settings");
-    expect(orgWorkspaceSettingsPath("tenant-1", "100", "members")).toBe("/workspace/100/settings/members");
+    expect(orgWorkspacesPath("tenant-1")).toBe("/space");
+    expect(orgWorkspaceHomePath("tenant-1", "100")).toBe("/space/100/home");
+    expect(orgWorkspaceDashboardPath("tenant-1", "100")).toBe("/space/100/home");
+    expect(orgWorkspaceDevelopPath("tenant-1", "100")).toBe("/space/100/develop");
+    expect(orgWorkspaceChatPath("tenant-1", "100")).toBe("/space/100/develop/chat");
+    expect(orgWorkspaceModelConfigsPath("tenant-1", "100")).toBe("/space/100/develop/model-configs");
+    expect(orgWorkspaceAssistantToolsPath("tenant-1", "100")).toBe("/space/100/develop/assistant-tools");
+    expect(orgWorkspacePublishCenterPath("tenant-1", "100")).toBe("/space/100/develop/publish-center");
+    expect(orgWorkspaceDataPath("tenant-1", "100")).toBe("/space/100/library/data");
+    expect(orgWorkspaceVariablesPath("tenant-1", "100")).toBe("/space/100/library/variables");
+    expect(orgWorkspaceManagePath("tenant-1", "100")).toBe("/space/100/manage");
+    expect(orgWorkspaceManagePath("tenant-1", "100", "users")).toBe("/space/100/manage/users");
+    expect(orgWorkspaceSettingsPath("tenant-1", "100")).toBe("/space/100/settings");
+    expect(orgWorkspaceSettingsPath("tenant-1", "100", "members")).toBe("/space/100/settings/members");
+    expect(workspaceDevelopRootPath("100")).toBe("/space/100/develop");
   });
 
   it("builds deep resource paths", () => {
-    expect(orgWorkspaceAppDetailPath("tenant-1", "100", "200")).toBe("/workspace/100/apps/200");
-    expect(orgWorkspaceAgentDetailPath("tenant-1", "100", "300")).toBe("/workspace/100/agents/300");
-    expect(orgWorkspaceWorkflowsPath("tenant-1", "100")).toBe("/workspace/100/workflows");
-    expect(orgWorkspaceChatflowsPath("tenant-1", "100")).toBe("/workspace/100/chatflows");
-    expect(orgWorkspaceAppWorkflowPath("tenant-1", "100", "200", "400")).toBe("/workspace/100/apps/200/workflows/400");
+    expect(orgWorkspaceAppDetailPath("tenant-1", "100", "200")).toBe("/space/100/apps/200");
+    expect(orgWorkspaceAgentDetailPath("tenant-1", "100", "300")).toBe("/space/100/agents/300");
+    expect(orgWorkspaceWorkflowsPath("tenant-1", "100")).toBe("/space/100/workflows");
+    expect(orgWorkspaceChatflowsPath("tenant-1", "100")).toBe("/space/100/chatflows");
+    expect(orgWorkspaceAppWorkflowPath("tenant-1", "100", "200", "400")).toBe("/space/100/apps/200/workflows/400");
   });
 });
 
@@ -96,17 +98,17 @@ describe("lowcode routes (M07 C07-11)", () => {
 
 describe("workspace switch path", () => {
   it("保留工作区菜单路径与查询参数", () => {
-    expect(buildWorkspaceSwitchPath("/workspace/100/resources/knowledge?keyword=demo", "200"))
-      .toBe("/workspace/200/resources/knowledge?keyword=demo");
+    expect(buildWorkspaceSwitchPath("/space/100/resources/knowledge?keyword=demo", "200"))
+      .toBe("/space/200/resources/knowledge?keyword=demo");
   });
 
   it("详情型路径会自动降级到菜单根路径", () => {
-    expect(buildWorkspaceSwitchPath("/workspace/100/projects/folder/f-1", "200"))
-      .toBe("/workspace/200/projects");
-    expect(buildWorkspaceSwitchPath("/workspace/100/tasks/t-1?tab=detail", "200"))
-      .toBe("/workspace/200/tasks");
-    expect(buildWorkspaceSwitchPath("/workspace/100/evaluations/e-1", "200"))
-      .toBe("/workspace/200/evaluations");
+    expect(buildWorkspaceSwitchPath("/space/100/projects/folder/f-1", "200"))
+      .toBe("/space/200/projects");
+    expect(buildWorkspaceSwitchPath("/space/100/tasks/t-1?tab=detail", "200"))
+      .toBe("/space/200/tasks");
+    expect(buildWorkspaceSwitchPath("/space/100/evaluations/e-1", "200"))
+      .toBe("/space/200/evaluations");
   });
 
   it("非工作区路径保持不变", () => {

@@ -38,6 +38,19 @@ X-Tenant-Id: {{tenantId}}
   "space_id": "{{workspaceId}}"
 }
 
+### Coze 原生 playground：space save
+POST {{host}}/api/playground_api/space/save
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "Compat Workspace {{$timestamp}}",
+  "description": "created from compat playground route",
+  "icon_uri": "",
+  "space_type": 2
+}
+
 ### Coze 原生 developer：space list
 POST {{host}}/api/space/list
 Content-Type: {{contentType}}
@@ -356,6 +369,17 @@ X-Tenant-Id: {{tenantId}}
 GET {{host}}/v1/workspaces?page_num=1&page_size=20
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 workspace openapi：create
+POST {{host}}/v1/workspaces
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "Open Workspace {{$timestamp}}",
+  "description": "created from open workspace compat route"
+}
 
 ### Coze 原生 passport：account info
 POST {{host}}/api/passport/account/info/v2/

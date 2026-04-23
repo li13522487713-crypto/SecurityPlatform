@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { Avatar, Button, Input, Modal, Spin, Tag, TextArea, Toast, Typography } from "@coze-arch/coze-design";
+import { Button, Empty, Input, Modal, Spin, TextArea, Toast, Typography } from "@coze-arch/coze-design";
+import { IconCozIllusAdd } from "@coze-arch/coze-design/illustrations";
 import { type SaveSpaceRet, SpaceType } from "@coze-arch/bot-api/playground_api";
 import type { BotSpace } from "@coze-arch/bot-api/developer_api";
 import { useSpaceStore } from "@coze-foundation/space-store-adapter";
-import { rememberLastWorkspaceId } from "../layouts/workspace-shell";
+import { readLastWorkspaceId, rememberLastWorkspaceId } from "../layouts/workspace-shell";
 import { useAppI18n } from "../i18n";
 
 const NAME_MAX = 128;
@@ -27,19 +28,6 @@ interface SpaceStoreSnapshot {
 interface NormalizedWorkspaceItem extends BotSpace {
   id: string;
   name: string;
-  role_type?: number;
-}
-
-function roleLabel(roleType?: number): string {
-  if (roleType === 1) {
-    return "Owner";
-  }
-
-  if (roleType === 2) {
-    return "Admin";
-  }
-
-  return "Member";
 }
 
 export function CozeWorkspaceConsolePage() {
@@ -61,14 +49,13 @@ export function CozeWorkspaceConsolePage() {
       createSpace: state.createSpace
     }))
   );
-  const [keyword, setKeyword] = useState("");
   const [createVisible, setCreateVisible] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
   useEffect(() => {
-    void fetchSpaces(true);
+    void fetchSpaces().catch(() => undefined);
   }, [fetchSpaces]);
 
   useEffect(() => {
@@ -94,18 +81,6 @@ export function CozeWorkspaceConsolePage() {
       .filter((item): item is NormalizedWorkspaceItem => item.id.length > 0),
     [spaceList]
   );
-  const filteredSpaces = useMemo(() => {
-    const normalizedKeyword = keyword.trim().toLowerCase();
-    if (!normalizedKeyword) {
-      return visibleSpaces;
-    }
-
-    return visibleSpaces.filter((item) =>
-      [item.name, item.description]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(normalizedKeyword))
-    );
-  }, [keyword, visibleSpaces]);
 
   const openWorkspace = (workspaceId: string) => {
     rememberLastWorkspaceId(workspaceId);
@@ -142,6 +117,19 @@ export function CozeWorkspaceConsolePage() {
     }
   };
 
+  const fallbackWorkspaceId = useMemo(() => {
+    const rememberedWorkspaceId = readLastWorkspaceId();
+    if (rememberedWorkspaceId && visibleSpaces.some((item) => item.id === rememberedWorkspaceId)) {
+      return rememberedWorkspaceId;
+    }
+
+    return visibleSpaces[0]?.id ?? "";
+  }, [visibleSpaces]);
+
+  if (!isLoading && fallbackWorkspaceId) {
+    return <Navigate to={`/space/${encodeURIComponent(fallbackWorkspaceId)}/develop`} replace />;
+  }
+
   return (
     <>
       <div
@@ -150,44 +138,9 @@ export function CozeWorkspaceConsolePage() {
           display: "flex",
           flexDirection: "column",
           gap: 20,
-          padding: "8px 4px 24px"
+          padding: "24px 12px 24px"
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 16,
-            flexWrap: "wrap"
-          }}
-        >
-          <div>
-            <Typography.Title heading={4} style={{ margin: 0 }}>
-              {t("workspaceListTitle")}
-            </Typography.Title>
-            <Typography.Text type="secondary" style={{ display: "block", marginTop: 8 }}>
-              {t("workspaceListSubtitle")}
-            </Typography.Text>
-          </div>
-          <Button
-            type="primary"
-            theme="solid"
-            color="brand"
-            onClick={() => setCreateVisible(true)}
-            data-testid="workspace-create-btn"
-          >
-            {t("workspaceListCreate")}
-          </Button>
-        </div>
-
-        <Input
-          value={keyword}
-          onChange={(value: string) => setKeyword(String(value ?? ""))}
-          placeholder={t("workspaceListSearchPlaceholder")}
-          style={{ maxWidth: 360 }}
-        />
-
         {isLoading ? (
           <div
             style={{
@@ -199,105 +152,36 @@ export function CozeWorkspaceConsolePage() {
           >
             <Spin spinning size="large" />
           </div>
-        ) : filteredSpaces.length === 0 ? (
+        ) : (
           <div
+            data-testid="workspace-empty-state"
             style={{
-              minHeight: 280,
+              minHeight: 420,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
               gap: 16,
-              borderRadius: 20,
-              border: "1px solid rgba(28, 31, 35, 0.08)",
-              background: "#fff"
+              borderRadius: 24,
+              background: "#fff",
+              border: "1px solid rgba(28, 31, 35, 0.08)"
             }}
           >
-            <Typography.Title heading={5} style={{ margin: 0 }}>
-              {keyword ? t("workspaceListRecommendEmpty") : t("workspaceListEmpty")}
-            </Typography.Title>
-            <Typography.Text type="secondary">
-              {keyword ? t("workspaceListSearchPlaceholder") : t("workspaceListDescriptionFallback")}
-            </Typography.Text>
-            {!keyword ? (
-              <Button
-                type="primary"
-                theme="solid"
-                color="brand"
-                onClick={() => setCreateVisible(true)}
-              >
-                {t("workspaceListCreate")}
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: 16
-            }}
-          >
-            {filteredSpaces.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                data-testid={`workspace-card-${item.id}`}
-                onClick={() => openWorkspace(item.id)}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 14,
-                  padding: 18,
-                  borderRadius: 20,
-                  border: "1px solid rgba(28, 31, 35, 0.08)",
-                  background: "#fff",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <Avatar shape="square" size="small" src={item.icon_url}>
-                    {item.name}
-                  </Avatar>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <Typography.Text
-                      strong
-                      style={{
-                        display: "block",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap"
-                      }}
-                    >
-                      {item.name}
-                    </Typography.Text>
-                    <Typography.Text
-                      type="secondary"
-                      style={{
-                        display: "block",
-                        marginTop: 4,
-                        minHeight: 20
-                      }}
-                    >
-                      {item.description || t("workspaceListDescriptionFallback")}
-                    </Typography.Text>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Tag color="brand">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
-                  <Tag>{roleLabel(item.role_type)}</Tag>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <Button type="primary" theme="borderless" color="brand">
-                    {t("workspaceListOpen")}
-                  </Button>
-                </div>
-              </button>
-            ))}
+            <Empty
+              image={<IconCozIllusAdd width="160" height="160" />}
+              title={t("workspaceListEmpty")}
+              description={t("workspaceListSubtitle")}
+            />
+            <Button
+              type="primary"
+              theme="solid"
+              color="brand"
+              size="large"
+              onClick={() => setCreateVisible(true)}
+              data-testid="workspace-create-btn"
+            >
+              {t("workspaceListCreate")}
+            </Button>
           </div>
         )}
       </div>

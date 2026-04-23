@@ -5,7 +5,6 @@ import { Avatar, Button, Input, Modal, Select, Spin, Tag, TextArea, Toast, Typog
 import { type SaveSpaceRet, SpaceType } from "@coze-arch/bot-api/playground_api";
 import type { BotSpace } from "@coze-arch/bot-api/developer_api";
 import { useSpaceStore } from "@coze-foundation/space-store-adapter";
-import { selectWorkspacePath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
 
 interface WorkspaceSwitcherProps {
@@ -62,7 +61,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
   const [description, setDescription] = useState("");
 
   useEffect(() => {
-    void fetchSpaces(true);
+    void fetchSpaces().catch(() => undefined);
   }, [fetchSpaces, workspaceId]);
 
   useEffect(() => {
@@ -201,15 +200,6 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
         <div style={{ display: "flex", gap: 8 }}>
           <Button
             type="primary"
-            theme="borderless"
-            color="highlight"
-            style={{ flex: 1 }}
-            onClick={() => navigate(selectWorkspacePath())}
-          >
-            {t("cozeShellWorkspaceSwitcherManageLink")}
-          </Button>
-          <Button
-            type="primary"
             theme="solid"
             color="brand"
             style={{ flex: 1 }}
@@ -266,12 +256,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
               data-testid="create-workspace-desc"
             />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Tag color="brand">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
-            <Typography.Text type="secondary">
-              {t("cozeShellWorkspaceSwitcherManage")}
-            </Typography.Text>
-          </div>
+          <Tag color="brand">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
         </div>
       </Modal>
     </>

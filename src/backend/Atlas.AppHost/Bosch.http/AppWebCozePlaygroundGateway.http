@@ -38,6 +38,17 @@ X-Tenant-Id: {{tenantId}}
   "space_id": "{{workspaceId}}"
 }
 
+### playground gateway：创建空间
+POST {{host}}/api/app-web/coze-playground/space/save
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "Compat Workspace {{$timestamp}}",
+  "description": "created from app-web coze playground gateway"
+}
+
 ### playground gateway：开放空间列表
 GET {{host}}/api/app-web/coze-playground/open/workspaces?page_num=1&page_size=20
 Authorization: Bearer {{token}}

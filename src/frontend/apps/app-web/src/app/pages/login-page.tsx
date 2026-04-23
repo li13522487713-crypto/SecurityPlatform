@@ -323,6 +323,7 @@ export function LoginPage() {
               const nextTarget = resolveWorkspaceEntryTarget(workspaceIds, readLastWorkspaceId());
               if (nextTarget) {
                 rememberLastWorkspaceId(nextTarget.workspaceId);
+                return nextTarget.target;
               }
               return workspaceTarget;
             } catch {

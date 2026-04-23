@@ -75,12 +75,12 @@ export function orgRootPath(orgId: string): string {
 
 export function orgWorkspacesPath(orgId: string): string {
   void orgId;
-  return "/console";
+  return "/space";
 }
 
 export function orgWorkspacePath(orgId: string, workspaceId: string): string {
   void orgId;
-  return `/workspace/${encodeSegment(workspaceId)}`;
+  return `/space/${encodeSegment(workspaceId)}`;
 }
 
 export function orgWorkspaceHomePath(orgId: string, workspaceId: string): string {

@@ -1,6 +1,5 @@
 import ReactDOM from "react-dom/client";
 import "@douyinfe/semi-ui/lib/es/_base/base.css";
-import "@atlas/coze-shell-react/styles.css";
 import "@atlas/library-module-react/styles.css";
 import "@atlas/module-admin-react/styles.css";
 import "@atlas/module-explore-react/styles.css";

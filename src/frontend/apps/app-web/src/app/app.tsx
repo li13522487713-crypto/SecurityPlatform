@@ -7,7 +7,6 @@ import { getTenantId } from "@atlas/shared-react-core/utils";
 import { PageShell, ResultCard } from "./_shared";
 
 const { Title, Text } = Typography;
-import type { CozeNavSection } from "@atlas/coze-shell-react";
 import type { LibraryKnowledgeApi } from "@atlas/library-module-react";
 import {
   createMockLibraryApi,
@@ -185,10 +184,9 @@ import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
 import { SetupConsolePage } from "./pages/setup-console";
-import { WorkspaceShellLayout, PlatformShellLayout, RememberWorkspace, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
+import { PlatformShellLayout, SpaceShellLayout, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
 import { WorkspaceSwitcher } from "./components/workspace-switcher";
-import { GlobalCreateModal } from "./components/global-create-modal";
 import {
   AgentEditorRoute,
   AgentPublishRoute,
@@ -395,7 +393,6 @@ import { setAppInstanceIdToStorage } from "../utils/app-context";
 type WorkflowResourceMode = "workflow" | "chatflow";
 type WorkflowWorkbenchContentMode = "canvas" | "variables" | "session";
 
-const loadCozeShellModule = () => import("@atlas/coze-shell-react");
 const loadLibraryModule = () => import("@atlas/library-module-react");
 const loadAdminModule = () => import("@atlas/module-admin-react");
 const loadExploreModule = () => import("@atlas/module-explore-react");
@@ -407,7 +404,6 @@ const loadCozeAgentPublishModule = () => import("@coze-agent-ide/agent-publish")
 const loadCozeWorkflowPlaygroundModule = () => import("@coze-workflow/playground-adapter");
 
 
-const CozeShell = lazyNamed(loadCozeShellModule, "CozeShell");
 const LibraryPage = lazyNamed(loadLibraryModule, "LibraryPage");
 const KnowledgeDetailPage = lazyNamed(loadLibraryModule, "KnowledgeDetailPage");
 const KnowledgeUploadPage = lazyNamed(loadLibraryModule, "KnowledgeUploadPage");
@@ -539,10 +535,6 @@ const realLibraryApi: LibraryKnowledgeApi = {
 const libraryApi: LibraryKnowledgeApi = readLibraryMockFlag()
   ? createMockLibraryApi({ tickIntervalMs: 800, withFailures: true })
   : realLibraryApi;
-
-function navGlyph(label: string) {
-  return <span className="app-nav-glyph" aria-hidden="true">{label}</span>;
-}
 
 function LoadingPage() {
   return <PageShell loading />;
@@ -1835,12 +1827,9 @@ function ChatflowEditorAliasRedirect() {
 function AppShellRoute() {
   const { appKey = "" } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const bootstrap = useBootstrap();
   const auth = useAuth();
-  const { locale, setLocale, t } = useAppI18n();
   const { studioApi } = useAppApis(appKey);
-  const activeShellPath = `${location.pathname}${location.search}`;
 
   useEffect(() => {
     rememberConfiguredAppKey(appKey);
@@ -1867,158 +1856,13 @@ function AppShellRoute() {
   if (!auth.isAuthenticated) {
     return <Navigate to={appSignPath(appKey, location.pathname + location.search)} replace />;
   }
-  const navSections: CozeNavSection[] = [
-    {
-      key: "workspace",
-      title: t("shellNavWorkspace"),
-      items: [
-        { key: "develop", label: t("shellNavDevelop"), icon: navGlyph("D"), path: workspaceDevelopPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-develop" },
-        { key: "agents", label: t("sidebarAgents"), icon: navGlyph("A"), path: studioAssistantsPath(appKey), testId: "app-sidebar-item-agents" },
-        { key: "workflow", label: t("sidebarWorkflow"), icon: navGlyph("W"), path: workflowListPath(appKey), testId: "app-sidebar-item-workflows" },
-        { key: "library", label: t("sidebarLibrary"), icon: navGlyph("L"), path: studioLibraryPath(appKey), testId: "app-sidebar-item-library" },
-        { key: "plugins", label: t("shellNavPlugins"), icon: navGlyph("PL"), path: studioPluginsPath(appKey), testId: "app-sidebar-item-plugins" },
-        { key: "chat", label: t("sidebarChat"), icon: navGlyph("C"), path: workspaceChatPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-agent-chat" },
-        { key: "model-configs", label: t("sidebarModels"), icon: navGlyph("M"), path: workspaceModelConfigsPath(appKey, bootstrap.spaceId), testId: "app-sidebar-item-model-configs" }
-      ],
-      overflowLabel: t("shellNavMore"),
-      overflowTestId: "app-sidebar-section-more-workspace",
-      overflowItems: [
-        { key: "projects", label: t("shellNavApplications"), icon: navGlyph("APP"), path: studioAppsPath(appKey), testId: "app-sidebar-item-projects" },
-        { key: "chatflow", label: t("shellNavChatflow"), icon: navGlyph("CF"), path: `/apps/${encodeURIComponent(appKey)}/chatflows`, testId: "app-sidebar-item-chatflows" },
-        { key: "assistant", label: t("sidebarAssistant"), icon: navGlyph("AI"), path: studioAssistantToolsPath(appKey), testId: "app-sidebar-item-ai-assistant" },
-        { key: "data", label: t("sidebarData"), icon: navGlyph("DT"), path: studioDataPath(appKey), testId: "app-sidebar-item-data" },
-        { key: "knowledge-bases", label: t("sidebarKnowledge"), icon: navGlyph("KB"), path: studioKnowledgeBasesPath(appKey), testId: "app-sidebar-item-knowledge-bases" },
-        { key: "databases", label: t("shellNavDatabases"), icon: navGlyph("DBX"), path: studioDatabasesPath(appKey), testId: "app-sidebar-item-databases" },
-        { key: "variables", label: t("shellNavVariables"), icon: navGlyph("VAR"), path: studioVariablesPath(appKey), testId: "app-sidebar-item-variables" }
-      ]
-    },
-    {
-      key: "explore",
-      title: t("shellNavExplore"),
-      items: [
-        { key: "plugin", label: t("shellNavPluginStore"), icon: navGlyph("PL"), path: explorePath(appKey, "plugin"), testId: "app-sidebar-item-explore-plugins" },
-        { key: "template", label: t("shellNavTemplateStore"), icon: navGlyph("TP"), path: explorePath(appKey, "template"), testId: "app-sidebar-item-explore-templates" }
-      ]
-    },
-    {
-      key: "admin",
-      title: t("shellNavManagement"),
-      items: [
-        { key: "overview", label: t("sidebarOverview"), icon: navGlyph("OV"), path: adminPath(appKey, "overview"), testId: "app-sidebar-item-organization-overview" },
-        { key: "users", label: t("sidebarUsers"), icon: navGlyph("U"), path: adminPath(appKey, "users"), testId: "app-sidebar-item-users" },
-        { key: "roles", label: t("sidebarRoles"), icon: navGlyph("R"), path: adminPath(appKey, "roles"), testId: "app-sidebar-item-roles" },
-        { key: "departments", label: t("sidebarDepartments"), icon: navGlyph("DP"), path: adminPath(appKey, "departments"), testId: "app-sidebar-item-departments" },
-        { key: "positions", label: t("sidebarPositions"), icon: navGlyph("P"), path: adminPath(appKey, "positions"), testId: "app-sidebar-item-positions" }
-      ],
-      overflowLabel: t("shellNavMore"),
-      overflowTestId: "app-sidebar-section-more-admin",
-      overflowItems: [
-        { key: "approval", label: t("shellNavApproval"), icon: navGlyph("AP"), path: adminPath(appKey, "approval"), testId: "app-sidebar-item-approval" },
-        { key: "reports", label: t("shellNavReports"), icon: navGlyph("RP"), path: adminPath(appKey, "reports"), testId: "app-sidebar-item-reports" },
-        { key: "dashboards", label: t("shellNavDashboards"), icon: navGlyph("DB"), path: adminPath(appKey, "dashboards"), testId: "app-sidebar-item-dashboards" },
-        { key: "visualization", label: t("shellNavVisualization"), icon: navGlyph("VM"), path: adminPath(appKey, "visualization"), testId: "app-sidebar-item-visualization" },
-        { key: "settings", label: t("sidebarSettings"), icon: navGlyph("S"), path: adminPath(appKey, "settings"), testId: "app-sidebar-item-settings" },
-        { key: "profile", label: t("sidebarProfile"), icon: navGlyph("ME"), path: adminPath(appKey, "profile"), testId: "app-sidebar-item-profile" }
-      ]
-    }
-  ];
-
-  const activeNavItem = navSections
-    .flatMap(section => [...section.items, ...(section.overflowItems ?? [])])
-    .find(item => activeShellPath === item.path || activeShellPath.startsWith(`${item.path}/`) || activeShellPath.includes(item.path));
-
-  const primaryKey = activeNavItem?.key ?? "workspace";
-  const workspaceLabel = bootstrap.workspaceLabel || appKey;
-  const withWorkspace = (key: Parameters<typeof t>[0]) => t(key).replace("{workspace}", workspaceLabel);
-
-  const shellHeaderCopyMap: Record<string, { title: string; subtitle: string }> = {
-    develop: { title: t("shellHeaderDevelopTitle"), subtitle: withWorkspace("shellHeaderDevelopSubtitle") },
-    agents: { title: t("shellHeaderAgentsTitle"), subtitle: withWorkspace("shellHeaderAgentsSubtitle") },
-    projects: { title: t("shellHeaderProjectsTitle"), subtitle: withWorkspace("shellHeaderProjectsSubtitle") },
-    workflow: { title: t("shellHeaderWorkflowTitle"), subtitle: withWorkspace("shellHeaderWorkflowSubtitle") },
-    chatflow: { title: t("shellHeaderChatflowTitle"), subtitle: withWorkspace("shellHeaderChatflowSubtitle") },
-    library: { title: t("shellHeaderLibraryTitle"), subtitle: withWorkspace("shellHeaderLibrarySubtitle") },
-    plugins: { title: t("shellHeaderPluginsTitle"), subtitle: withWorkspace("shellHeaderPluginsSubtitle") },
-    chat: { title: t("shellHeaderChatTitle"), subtitle: withWorkspace("shellHeaderChatSubtitle") },
-    "model-configs": { title: t("shellHeaderModelConfigsTitle"), subtitle: withWorkspace("shellHeaderModelConfigsSubtitle") },
-    assistant: { title: t("shellHeaderAssistantTitle"), subtitle: withWorkspace("shellHeaderAssistantSubtitle") },
-    data: { title: t("shellHeaderDataTitle"), subtitle: withWorkspace("shellHeaderDataSubtitle") },
-    "knowledge-bases": { title: t("shellHeaderKnowledgeBasesTitle"), subtitle: withWorkspace("shellHeaderKnowledgeBasesSubtitle") },
-    databases: { title: t("shellHeaderDatabasesTitle"), subtitle: withWorkspace("shellHeaderDatabasesSubtitle") },
-    variables: { title: t("shellHeaderVariablesTitle"), subtitle: withWorkspace("shellHeaderVariablesSubtitle") },
-    overview: { title: t("shellHeaderOverviewTitle"), subtitle: withWorkspace("shellHeaderOverviewSubtitle") },
-    users: { title: t("shellHeaderUsersTitle"), subtitle: withWorkspace("shellHeaderUsersSubtitle") },
-    roles: { title: t("shellHeaderRolesTitle"), subtitle: withWorkspace("shellHeaderRolesSubtitle") },
-    departments: { title: t("shellHeaderDepartmentsTitle"), subtitle: withWorkspace("shellHeaderDepartmentsSubtitle") },
-    positions: { title: t("shellHeaderPositionsTitle"), subtitle: withWorkspace("shellHeaderPositionsSubtitle") },
-    approval: { title: t("shellHeaderApprovalTitle"), subtitle: withWorkspace("shellHeaderApprovalSubtitle") },
-    reports: { title: t("shellHeaderReportsTitle"), subtitle: withWorkspace("shellHeaderReportsSubtitle") },
-    dashboards: { title: t("shellHeaderDashboardsTitle"), subtitle: withWorkspace("shellHeaderDashboardsSubtitle") },
-    visualization: { title: t("shellHeaderVisualizationTitle"), subtitle: withWorkspace("shellHeaderVisualizationSubtitle") },
-    settings: { title: t("shellHeaderSettingsTitle"), subtitle: withWorkspace("shellHeaderSettingsSubtitle") },
-    profile: { title: t("shellHeaderProfileTitle"), subtitle: withWorkspace("shellHeaderProfileSubtitle") },
-    plugin: { title: t("shellHeaderPluginTitle"), subtitle: withWorkspace("shellHeaderPluginSubtitle") },
-    template: { title: t("shellHeaderTemplateTitle"), subtitle: withWorkspace("shellHeaderTemplateSubtitle") }
-  };
-
-  const defaultHeaderCopy = primaryKey === "workspace"
-    ? {
-        title: t("shellHeaderWorkspaceTitle"),
-        subtitle: withWorkspace("shellHeaderWorkspaceSubtitle")
-      }
-    : primaryKey === "explore"
-      ? {
-          title: t("shellHeaderExploreTitle"),
-          subtitle: t("shellHeaderExploreSubtitle")
-        }
-      : {
-          title: t("shellHeaderManagementTitle"),
-          subtitle: t("shellHeaderManagementSubtitle")
-        };
-
-  const shellHeaderCopy = shellHeaderCopyMap[primaryKey] ?? defaultHeaderCopy;
-
-  const isWorkflowWorkbenchRoute =
-    location.pathname.includes("/workflows") ||
-    location.pathname.includes("/chatflows");
-
-  if (isWorkflowWorkbenchRoute) {
-    return (
-      <>
-        <UnauthorizedNavigationBridge />
-        <StudioContextProvider api={studioApi}>
-          <Outlet />
-        </StudioContextProvider>
-      </>
-    );
-  }
 
   return (
     <>
       <UnauthorizedNavigationBridge />
-      <CozeShell
-        appKey={appKey}
-        workspaceLabel={bootstrap.workspaceLabel || appKey}
-        activePath={activeShellPath}
-        navSections={navSections}
-        headerTitle={shellHeaderCopy.title}
-        headerSubtitle={shellHeaderCopy.subtitle}
-        localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
-        userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-        profileLabel={t("sidebarProfile")}
-        logoutLabel={t("logout")}
-        sidebarTop={<WorkspaceSwitcher workspaceId={bootstrap.spaceId} workspaceLabel={bootstrap.workspaceLabel || appKey} />}
-        onNavigate={navigate}
-        onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
-        onOpenProfile={() => navigate(adminPath(appKey, "profile"))}
-        onLogout={() => {
-          void auth.logout().then(() => navigate(appSignPath(appKey), { replace: true }));
-        }}
-      >
-        <StudioContextProvider api={studioApi}>
-          <Outlet />
-        </StudioContextProvider>
-      </CozeShell>
+      <StudioContextProvider api={studioApi}>
+        <Outlet />
+      </StudioContextProvider>
     </>
   );
 }
@@ -2461,262 +2305,11 @@ function ExploreTemplateDetailRoute() {
 function RootEntryRoute() {
   const auth = useAuth();
   const bootstrap = useBootstrap();
-  const tenantId = getTenantId() ?? "";
+  const location = useLocation();
 
   if (bootstrap.loading || auth.loading) {
     return <LoadingPage />;
   }
-
-  if (!bootstrap.appReady) {
-    return <Navigate to="/app-setup" replace />;
-  }
-
-  if (!auth.isAuthenticated || !tenantId) {
-    return <Navigate to={signPath()} replace />;
-  }
-
-  return <Navigate to={orgWorkspacesPath(tenantId)} replace />;
-}
-
-function WorkspaceListRoute() {
-  const orgId = useResolvedOrgId();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const auth = useAuth();
-  const bootstrap = useBootstrap();
-  const { locale, setLocale, t } = useAppI18n();
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<Awaited<ReturnType<typeof getWorkspaces>>>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (!auth.isAuthenticated) {
-        setLoading(false);
-        return;
-      }
-        setLoading(true);
-        try {
-          const result = await getWorkspaces(orgId);
-          if (!cancelled) {
-            setItems(result);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [auth.isAuthenticated, orgId]);
-
-  useEffect(() => {
-    if (items.length === 0) {
-      if (selectedWorkspaceId) {
-        setSelectedWorkspaceId("");
-      }
-      return;
-    }
-
-    const rememberedWorkspaceId = readLastWorkspaceId();
-    const fallbackWorkspaceId =
-      (rememberedWorkspaceId && items.some(item => item.id === rememberedWorkspaceId) ? rememberedWorkspaceId : null) ??
-      items[0]?.id ??
-      "";
-
-    setSelectedWorkspaceId(current =>
-      current && items.some(item => item.id === current) ? current : fallbackWorkspaceId
-    );
-  }, [items, selectedWorkspaceId]);
-
-  if (bootstrap.loading || auth.loading) {
-    return <LoadingPage />;
-  }
-
-  if (!auth.isAuthenticated) {
-    return <Navigate to={signPath()} replace />;
-  }
-
-  const activePath = `${location.pathname}${location.search}`;
-  const currentWorkspace = items.find(item => item.id === selectedWorkspaceId) ?? items[0] ?? null;
-  const workspaceId = currentWorkspace?.id ?? "";
-  const workspaceLabel = currentWorkspace?.name || currentWorkspace?.appKey || t("cozeShellWorkspaceSwitcherTitle");
-
-  const workspaceRoute = (resolver: (resolvedOrgId: string, resolvedWorkspaceId: string) => string) => {
-    if (!workspaceId) {
-      return orgWorkspacesPath(orgId);
-    }
-    return resolver(orgId, workspaceId);
-  };
-
-  const navSections: CozeNavSection[] = [
-    {
-      key: "workspace",
-      title: t("cozeMenuGroupWorkspace"),
-      items: [
-        {
-          key: "home",
-          label: t("cozeMenuHome"),
-          icon: navGlyph("首"),
-          path: workspaceRoute(orgWorkspaceHomePath),
-          testId: "app-sidebar-item-home"
-        },
-        {
-          key: "projects",
-          label: t("cozeMenuProjects"),
-          icon: navGlyph("项"),
-          path: workspaceRoute(orgWorkspaceDevelopPath),
-          testId: "app-sidebar-item-projects"
-        },
-        {
-          key: "resources",
-          label: t("cozeMenuResources"),
-          icon: navGlyph("资"),
-          path: workspaceRoute(orgWorkspaceLibraryPath),
-          testId: "app-sidebar-item-resources"
-        },
-        {
-          key: "tasks",
-          label: t("cozeMenuTasks"),
-          icon: navGlyph("任"),
-          path: workspaceRoute(orgWorkspaceManagePath),
-          testId: "app-sidebar-item-tasks"
-        },
-        {
-          key: "evaluations",
-          label: t("cozeMenuEvaluations"),
-          icon: navGlyph("评"),
-          path: workspaceRoute(orgWorkspacePublishCenterPath),
-          testId: "app-sidebar-item-evaluations"
-        },
-        {
-          key: "settings",
-          label: t("cozeMenuSettings"),
-          icon: navGlyph("配"),
-          path: workspaceRoute(orgWorkspaceSettingsPath),
-          testId: "app-sidebar-item-settings"
-        }
-      ]
-    },
-    {
-      key: "ecosystem",
-      title: t("cozeMenuGroupEcosystem"),
-      items: [
-        {
-          key: "templates",
-          label: t("cozeMenuTemplates"),
-          icon: navGlyph("模"),
-          path: marketTemplatesPath(),
-          testId: "app-sidebar-item-templates"
-        },
-        {
-          key: "plugins",
-          label: t("cozeMenuPlugins"),
-          icon: navGlyph("插"),
-          path: marketPluginsPath(),
-          testId: "app-sidebar-item-plugins"
-        },
-        {
-          key: "community",
-          label: t("cozeMenuCommunity"),
-          icon: navGlyph("社"),
-          path: communityWorksPath(),
-          testId: "app-sidebar-item-community"
-        },
-        {
-          key: "open-api",
-          label: t("cozeMenuOpenApi"),
-          icon: navGlyph("API"),
-          path: openApiPath(),
-          testId: "app-sidebar-item-open-api"
-        }
-      ]
-    }
-  ];
-
-  return (
-    <CozeShell
-      appKey={currentWorkspace?.appKey || "atlas"}
-      workspaceLabel={workspaceLabel}
-      activePath={activePath}
-      navSections={navSections}
-      headerTitle={t("workspaceListTitle")}
-      headerSubtitle={workspaceLabel}
-      localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
-      userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-      profileLabel={t("cozeShellAvatarMenuProfile")}
-      logoutLabel={t("cozeShellAvatarMenuLogout")}
-      sidebarTop={
-        <WorkspaceSwitcher
-          workspaceId={workspaceId}
-          workspaceLabel={workspaceLabel}
-          onSelectWorkspace={(targetWorkspaceId) => {
-            setSelectedWorkspaceId(targetWorkspaceId);
-            rememberLastWorkspaceId(targetWorkspaceId);
-          }}
-        />
-      }
-      onNavigate={path => navigate(path)}
-      onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
-      onOpenProfile={() => navigate(meProfilePath())}
-      onLogout={() => {
-        void auth.logout().then(() => navigate(signPath(), { replace: true }));
-      }}
-    >
-      <OrganizationProvider orgId={orgId}>
-        <CozeWorkspaceConsolePage />
-      </OrganizationProvider>
-    </CozeShell>
-  );
-}
-
-function WorkspaceShellRoute() {
-  const orgId = useResolvedOrgId();
-  const { workspaceId = "" } = useParams();
-
-  return (
-    <OrganizationProvider orgId={orgId}>
-      <WorkspaceProvider orgId={orgId} workspaceId={workspaceId}>
-        <WorkspaceShellInner />
-      </WorkspaceProvider>
-    </OrganizationProvider>
-  );
-}
-
-function WorkspaceShellInner() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const auth = useAuth();
-  const bootstrap = useBootstrap();
-  const { locale, setLocale, t } = useAppI18n();
-  const organization = useResolvedOrgId();
-  const workspace = useWorkspaceContext();
-  const appKey = workspace.appKey;
-  const { studioApi } = useAppApis(appKey);
-
-  useEffect(() => {
-    if (!workspace.loading && appKey) {
-      rememberConfiguredAppKey(appKey);
-      setAppInstanceIdToStorage(appKey, workspace.appInstanceId || null);
-    }
-  }, [appKey, workspace.appInstanceId, workspace.loading]);
-
-  useEffect(() => {
-    if (auth.isAuthenticated && !auth.profile && !auth.loading) {
-      void auth.ensureProfile();
-    }
-  }, [auth.ensureProfile, auth.isAuthenticated, auth.loading, auth.profile]);
-
-  if (bootstrap.loading || auth.loading || workspace.loading) {
-    return <LoadingPage />;
-  }
-
-  const workspaceHomeRoute = orgWorkspaceHomePath(organization, workspace.id);
 
   if (!bootstrap.appReady) {
     return <Navigate to="/app-setup" replace />;
@@ -2726,149 +2319,35 @@ function WorkspaceShellInner() {
     return <Navigate to={signPath(location.pathname + location.search)} replace />;
   }
 
-  const activePath = `${location.pathname}${location.search}`;
-  const navSections: CozeNavSection[] = [
-    {
-      key: "workspace",
-      title: t("cozeMenuGroupWorkspace"),
-      items: [
-        {
-          key: "home",
-          label: t("cozeMenuHome"),
-          icon: navGlyph("首"),
-          path: workspaceHomeRoute,
-          testId: "app-sidebar-item-home"
-        },
-        {
-          key: "projects",
-          label: t("cozeMenuProjects"),
-          icon: navGlyph("项"),
-          path: orgWorkspaceDevelopPath(organization, workspace.id),
-          testId: "app-sidebar-item-projects"
-        },
-        {
-          key: "resources",
-          label: t("cozeMenuResources"),
-          icon: navGlyph("资"),
-          path: orgWorkspaceLibraryPath(organization, workspace.id),
-          testId: "app-sidebar-item-resources"
-        },
-        {
-          key: "tasks",
-          label: t("cozeMenuTasks"),
-          icon: navGlyph("任"),
-          path: orgWorkspaceManagePath(organization, workspace.id),
-          testId: "app-sidebar-item-tasks"
-        },
-        {
-          key: "evaluations",
-          label: t("cozeMenuEvaluations"),
-          icon: navGlyph("评"),
-          path: orgWorkspacePublishCenterPath(organization, workspace.id),
-          testId: "app-sidebar-item-evaluations"
-        },
-        {
-          key: "settings",
-          label: t("cozeMenuSettings"),
-          icon: navGlyph("配"),
-          path: orgWorkspaceSettingsPath(organization, workspace.id),
-          testId: "app-sidebar-item-settings"
-        }
-      ]
-    },
-    {
-      key: "ecosystem",
-      title: t("cozeMenuGroupEcosystem"),
-      items: [
-        {
-          key: "templates",
-          label: t("cozeMenuTemplates"),
-          icon: navGlyph("模"),
-          path: marketTemplatesPath(),
-          testId: "app-sidebar-item-templates"
-        },
-        {
-          key: "plugins",
-          label: t("cozeMenuPlugins"),
-          icon: navGlyph("插"),
-          path: marketPluginsPath(),
-          testId: "app-sidebar-item-plugins"
-        },
-        {
-          key: "community",
-          label: t("cozeMenuCommunity"),
-          icon: navGlyph("社"),
-          path: communityWorksPath(),
-          testId: "app-sidebar-item-community"
-        },
-        {
-          key: "open-api",
-          label: t("cozeMenuOpenApi"),
-          icon: navGlyph("API"),
-          path: openApiPath(),
-          testId: "app-sidebar-item-open-api"
-        }
-      ]
-    }
-  ];
+  return <Navigate to={selectWorkspacePath()} replace />;
+}
 
-  let headerTitle = t("shellNavDevelop");
-  if (location.pathname.includes("/dashboard")) {
-    headerTitle = t("shellNavDashboard");
-  } else if (location.pathname.includes("/develop/chat")) {
-    headerTitle = t("sidebarChat");
-  } else if (location.pathname.includes("/develop/model-configs")) {
-    headerTitle = t("sidebarModels");
-  } else if (location.pathname.includes("/develop/assistant-tools")) {
-    headerTitle = t("sidebarAssistant");
-  } else if (location.pathname.includes("/develop/publish-center")) {
-    headerTitle = t("shellHeaderPublishCenterTitle");
-  } else if (location.pathname.includes("/library/data")) {
-    headerTitle = t("sidebarData");
-  } else if (location.pathname.includes("/library/variables")) {
-    headerTitle = t("shellNavVariables");
-  } else if (location.pathname.includes("/library")) {
-    headerTitle = t("sidebarLibrary");
-  } else if (location.pathname.includes("/manage")) {
-    headerTitle = t("shellHeaderManagementTitle");
-  } else if (location.pathname.includes("/settings/profile")) {
-    headerTitle = t("sidebarProfile");
-  } else if (location.pathname.includes("/settings/system")) {
-    headerTitle = t("shellHeaderSystemSettingsTitle");
-  } else if (location.pathname.includes("/settings")) {
-    headerTitle = t("sidebarSettings");
+function SpaceEntryRoute() {
+  const location = useLocation();
+  const auth = useAuth();
+  const bootstrap = useBootstrap();
+
+  if (bootstrap.loading || auth.loading) {
+    return <LoadingPage />;
   }
-  const headerSubtitle = workspace.name || workspace.appKey;
 
-  return (
-    <>
-      <UnauthorizedNavigationBridge />
-      <CozeShell
-        appKey={workspace.appKey}
-        backPath={orgWorkspacesPath(organization)}
-        workspaceLabel={workspace.name || workspace.appKey}
-        activePath={activePath}
-        navSections={navSections}
-        headerTitle={headerTitle}
-        headerSubtitle={headerSubtitle}
-        localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
-        userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-        profileLabel={t("sidebarProfile")}
-        logoutLabel={t("logout")}
-        sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />}
-        onNavigate={navigate}
-        onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
-        onOpenProfile={() => navigate(orgWorkspaceSettingsPath(organization, workspace.id, "profile"))}
-        onLogout={() => {
-          void auth.logout().then(() => navigate(signPath(), { replace: true }));
-        }}
-      >
-        <StudioContextProvider api={studioApi}>
-          <Outlet />
-        </StudioContextProvider>
-      </CozeShell>
-    </>
-  );
+  if (!auth.isAuthenticated) {
+    return <Navigate to={signPath(location.pathname + location.search)} replace />;
+  }
+
+  return <CozeWorkspaceConsolePage />;
+}
+
+function WorkspaceShellRoute() {
+  return <Navigate to={selectWorkspacePath()} replace />;
+}
+
+function WorkspaceShellInner() {
+  return <Navigate to={selectWorkspacePath()} replace />;
+}
+
+function LegacyConsoleRedirectRoute() {
+  return <Navigate to={selectWorkspacePath()} replace />;
 }
 
 function WorkspaceLibraryRoute() {
@@ -3192,6 +2671,15 @@ function LegacyWorkspaceAppRedirectRoute() {
   return <Navigate to={lowcodeAppStudioPath(id)} replace />;
 }
 
+function LegacyWorkspaceRouteRedirect() {
+  const { workspaceId = "", "*": restPath = "" } = useParams<{ workspaceId: string; "*": string }>();
+  const location = useLocation();
+  const target = restPath
+    ? `/space/${encodeURIComponent(workspaceId)}/${restPath}`
+    : `/space/${encodeURIComponent(workspaceId)}`;
+  return <Navigate to={`${target}${location.search ?? ""}`} replace />;
+}
+
 function WorkspaceAgentDetailRoute() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -3289,37 +2777,6 @@ function FatalErrorPage() {
         </div>
       </Card>
     </PageShell>
-  );
-}
-
-function SpaceCompatLayout() {
-  const { space_id = "" } = useParams<{ space_id: string }>();
-  const auth = useAuth();
-  const bootstrap = useBootstrap();
-  const location = useLocation();
-
-  if (bootstrap.loading || auth.loading) {
-    return <LoadingPage />;
-  }
-
-  if (!auth.isAuthenticated) {
-    return <Navigate to={signPath(location.pathname + location.search)} replace />;
-  }
-
-  if (!space_id) {
-    return <Navigate to={selectWorkspacePath()} replace />;
-  }
-
-  const tenantId = getTenantId() ?? "";
-  return (
-    <OrganizationProvider orgId={tenantId}>
-      <WorkspaceProvider workspaceId={space_id}>
-        <PermissionProvider>
-          <RememberWorkspace />
-          <Outlet />
-        </PermissionProvider>
-      </WorkspaceProvider>
-    </OrganizationProvider>
   );
 }
 
@@ -3435,20 +2892,59 @@ export const appRoutes = [
     errorElement: <FatalErrorPage />
   },
   {
+    path: "/space",
+    element: <SpaceEntryRoute />,
+    handle: WORKSPACE_LIST_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
     path: "/space/:space_id",
-    element: <SpaceCompatLayout />,
+    element: <SpaceShellLayout />,
     handle: WORKSPACE_SHELL_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />,
     children: [
       { index: true, element: <Navigate to="develop" replace /> },
-      { path: "develop", element: <DevelopRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
-      { path: "library", element: <WorkspaceLibraryRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "home", element: <WorkspaceHomePage />, handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE },
+      { path: "develop", element: <DevelopRoute />, handle: { ...WORKSPACE_DEVELOP_ROUTE_HANDLE, subMenuKey: "develop" } as AppRouteHandle },
+      { path: "library", element: <WorkspaceLibraryRoute />, handle: { ...WORKSPACE_LIBRARY_ROUTE_HANDLE, subMenuKey: "library" } as AppRouteHandle },
+      { path: "projects", element: <WorkspaceProjectsPage />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "resources", element: <WorkspaceResourcesPage />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "resources/:type", element: <WorkspaceResourcesPage />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "tasks", element: <WorkspaceTasksPage />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
+      { path: "tasks/:taskId", element: <WorkspaceTasksPage />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
+      { path: "evaluations", element: <WorkspaceEvaluationsPage />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
+      { path: "evaluations/:evaluationId", element: <WorkspaceEvaluationsPage />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
+      { path: "manage", element: <WorkspaceManageRoute />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
+      { path: "manage/:tab", element: <WorkspaceManageRoute />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
+      { path: "settings", element: <Navigate to="publish" replace /> },
+      { path: "settings/publish", element: <WorkspaceSettingsPublishPage />, handle: WORKSPACE_SETTINGS_ROUTE_HANDLE },
+      { path: "settings/publish/:tab", element: <WorkspaceSettingsPublishPage />, handle: WORKSPACE_SETTINGS_ROUTE_HANDLE },
+      { path: "settings/models", element: <WorkspaceSettingsModelsPage />, handle: WORKSPACE_SETTINGS_ROUTE_HANDLE },
+      { path: "settings/:tab", element: <WorkspaceSettingsRoute />, handle: WORKSPACE_SETTINGS_ROUTE_HANDLE },
       { path: "project-ide/:id", element: <SpaceProjectAliasRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
       { path: "plugin/:id", element: <SpacePluginDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "plugin/:id/tool/:toolId", element: <WorkspacePluginToolRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "plugins/:id", element: <SpacePluginDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "plugins/:id/tool/:toolId", element: <WorkspacePluginToolRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "knowledge/:id", element: <WorkspaceKnowledgeDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "knowledge/:id/upload", element: <WorkspaceKnowledgeUploadRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge-bases", element: <WorkspaceLibraryRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge-bases/new", element: <WorkspaceKnowledgeCreateRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge-bases/jobs", element: <WorkspaceKnowledgeJobsCenterRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge-bases/provider-configs", element: <WorkspaceKnowledgeProviderCenterRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge-bases/:id", element: <WorkspaceKnowledgeDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "knowledge-bases/:id/upload", element: <WorkspaceKnowledgeUploadRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "database/:id", element: <SpaceDatabaseDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "databases/:id", element: <SpaceDatabaseDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "apps/:id", element: <LegacyWorkspaceAppRedirectRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "apps/:id/publish", element: <LegacyWorkspaceAppRedirectRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "agents/:id", element: <WorkspaceAgentDetailRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "agents/:id/publish", element: <WorkspaceAgentPublishRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
+      { path: "workflows", element: <WorkspaceWorkflowRedirectRoute />, handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE },
+      { path: "workflows/:workflowId", element: <WorkspaceWorkflowRedirectRoute />, handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE },
+      { path: "chatflows", element: <WorkspaceChatflowRedirectRoute />, handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE },
+      { path: "chatflows/:workflowId", element: <WorkspaceChatflowRedirectRoute />, handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE },
       { path: "publish/agent/:bot_id", element: <SpaceAgentPublishManageAliasRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
       {
         path: "bot/:bot_id",
@@ -3480,39 +2976,21 @@ export const appRoutes = [
   },
   {
     path: "/console",
-    element: <WorkspaceListRoute />,
+    element: <LegacyConsoleRedirectRoute />,
     handle: WORKSPACE_LIST_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {
     path: "/select-workspace",
-    element: <WorkspaceListRoute />,
+    element: <LegacyConsoleRedirectRoute />,
     handle: WORKSPACE_LIST_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },
   {
-    path: "/workspace/:workspaceId",
-    element: <WorkspaceShellLayout />,
+    path: "/workspace/:workspaceId/*",
+    element: <LegacyWorkspaceRouteRedirect />,
     handle: WORKSPACE_SHELL_ROUTE_HANDLE,
-    errorElement: <FatalErrorPage />,
-    children: [
-      { index: true, element: <Navigate to="home" replace /> },
-      { path: "home", element: <WorkspaceHomePage /> },
-      { path: "projects", element: <WorkspaceProjectsPage /> },
-      { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage /> },
-      { path: "resources", element: <WorkspaceResourcesPage /> },
-      { path: "resources/:type", element: <WorkspaceResourcesPage /> },
-      { path: "tasks", element: <WorkspaceTasksPage /> },
-      { path: "tasks/:taskId", element: <WorkspaceTasksPage /> },
-      { path: "evaluations", element: <WorkspaceEvaluationsPage /> },
-      { path: "evaluations/:evaluationId", element: <WorkspaceEvaluationsPage /> },
-      { path: "apps/:id", element: <LegacyWorkspaceAppRedirectRoute /> },
-      { path: "apps/:id/publish", element: <LegacyWorkspaceAppRedirectRoute /> },
-      { path: "settings", element: <Navigate to="publish" replace /> },
-      { path: "settings/publish", element: <WorkspaceSettingsPublishPage /> },
-      { path: "settings/publish/:tab", element: <WorkspaceSettingsPublishPage /> },
-      { path: "settings/models", element: <WorkspaceSettingsModelsPage /> }
-    ]
+    errorElement: <FatalErrorPage />
   },
   {
     path: "/me",

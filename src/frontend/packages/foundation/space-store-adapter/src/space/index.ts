@@ -178,7 +178,20 @@ export const useSpaceStore = create<SpaceStoreState & SpaceStoreAction>()(
           return prePromise;
         }
 
-        let res = await currentPromise;
+        let res: SpaceInfo | undefined;
+        try {
+          res = await currentPromise;
+        } catch {
+          set(
+            {
+              loading: false,
+              inited: true,
+            },
+            false,
+            'fetchSpaces',
+          );
+          return undefined;
+        }
 
         if (!res?.has_personal_space) {
           await get().createSpace({

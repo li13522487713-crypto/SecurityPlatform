@@ -47,9 +47,6 @@ importers:
       '@atlas/app-shell-shared':
         specifier: workspace:*
         version: link:../../packages/app-shell-shared
-      '@atlas/coze-shell-react':
-        specifier: workspace:*
-        version: link:../../packages/coze-shell-react
       '@atlas/external-connectors-react':
         specifier: workspace:*
         version: link:../../packages/external-connectors-react
@@ -95,6 +92,12 @@ importers:
       '@coze-foundation/space-store-adapter':
         specifier: workspace:*
         version: link:../../packages/foundation/space-store-adapter
+      '@coze-foundation/space-ui-adapter':
+        specifier: workspace:*
+        version: link:../../packages/foundation/space-ui-adapter
+      '@coze-foundation/space-ui-base':
+        specifier: workspace:*
+        version: link:../../packages/foundation/space-ui-base
       '@coze-studio/workspace-adapter':
         specifier: workspace:*
         version: link:../../packages/studio/workspace/entry-adapter
@@ -13117,27 +13120,6 @@ importers:
       vitest:
         specifier: ~3.0.5
         version: 3.0.9(@types/debug@4.1.13)(@types/node@25.5.2)(happy-dom@12.10.3)(jiti@2.6.1)(jsdom@29.0.2)(less@4.6.4)(lightningcss@1.32.0)(sass-embedded@1.99.0)(sass@1.99.0)(sugarss@2.0.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
-
-  packages/coze-shell-react:
-    dependencies:
-      '@douyinfe/semi-icons':
-        specifier: ^2.82.0
-        version: 2.94.0(react@18.2.0)
-      '@douyinfe/semi-ui':
-        specifier: ^2.82.0
-        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@types/react':
-        specifier: ^19.2.13
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      react:
-        specifier: 18.2.0
-        version: 18.2.0
-      react-dom:
-        specifier: 18.2.0
-        version: 18.2.0(react@18.2.0)
 
   packages/data/common/e2e:
     devDependencies:
