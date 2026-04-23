@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { Avatar, Button, Input, Modal, Select, Spin, Tag, TextArea, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconPlus, IconUser } from "@douyinfe/semi-icons";
+import { workspaceProjectsPath } from "@atlas/app-shell-shared";
 import { type SaveSpaceRet, SpaceType } from "@coze-arch/bot-api/playground_api";
 import type { BotSpace } from "@coze-arch/bot-api/developer_api";
 import { useSpaceStore } from "@coze-foundation/space-store-adapter";
@@ -110,7 +111,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
       return;
     }
 
-    navigate(`/space/${encodeURIComponent(targetWorkspaceId)}/develop`);
+    navigate(workspaceProjectsPath(targetWorkspaceId));
   };
 
   const handleCreateWorkspace = async () => {
@@ -137,7 +138,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
       setCreateVisible(false);
       selectWorkspace(createdWorkspaceId);
       if (!onSelectWorkspace) {
-        navigate(`/space/${encodeURIComponent(createdWorkspaceId)}/develop`);
+        navigate(workspaceProjectsPath(createdWorkspaceId));
       }
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : t("workspaceListActionFailed"));

@@ -19,14 +19,13 @@ import {
   orgWorkspaceAppWorkflowPath,
   signPath
 } from "./routes";
-import { workspaceDevelopRootPath } from "./workspace-routes";
 
 describe("organization workspace routes", () => {
   it("builds sign path with redirect", () => {
     expect(signPath("/workspaces")).toBe("/sign?redirect=%2Fworkspaces");
   });
 
-  it("builds workspace list and develop paths", () => {
+  it("builds workspace list and workspace paths", () => {
     expect(orgWorkspacesPath("tenant-1")).toBe("/space");
     expect(orgWorkspaceHomePath("tenant-1", "100")).toBe("/space/100/home");
     expect(orgWorkspaceDashboardPath("tenant-1", "100")).toBe("/space/100/home");
@@ -41,7 +40,6 @@ describe("organization workspace routes", () => {
     expect(orgWorkspaceManagePath("tenant-1", "100", "users")).toBe("/space/100/manage/users");
     expect(orgWorkspaceSettingsPath("tenant-1", "100")).toBe("/space/100/settings");
     expect(orgWorkspaceSettingsPath("tenant-1", "100", "members")).toBe("/space/100/settings/members");
-    expect(workspaceDevelopRootPath("100")).toBe("/space/100/develop");
   });
 
   it("builds deep resource paths", () => {

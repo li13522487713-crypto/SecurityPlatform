@@ -120,7 +120,6 @@ function buildAllSpaceLinks(workspaceId: string, t: (key: AppMessageKey) => stri
       testId: "app-sidebar-item-projects",
       activeMatchers: [
         workspaceProjectsPath(workspaceId),
-        `${workspaceRootPath(workspaceId)}/develop`,
         `${workspaceRootPath(workspaceId)}/bot`,
         `${workspaceRootPath(workspaceId)}/publish/agent`
       ]

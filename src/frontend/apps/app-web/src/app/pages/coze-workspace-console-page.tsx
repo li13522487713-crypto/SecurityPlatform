@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { Button, Empty, Input, Modal, Spin, TextArea, Toast, Typography } from "@coze-arch/coze-design";
 import { IconCozIllusAdd } from "@coze-arch/coze-design/illustrations";
+import { workspaceProjectsPath } from "@atlas/app-shell-shared";
 import { type SaveSpaceRet, SpaceType } from "@coze-arch/bot-api/playground_api";
 import type { BotSpace } from "@coze-arch/bot-api/developer_api";
 import { useSpaceStore } from "@coze-foundation/space-store-adapter";
@@ -84,7 +85,7 @@ export function CozeWorkspaceConsolePage() {
 
   const openWorkspace = (workspaceId: string) => {
     rememberLastWorkspaceId(workspaceId);
-    navigate(`/space/${encodeURIComponent(workspaceId)}/develop`);
+    navigate(workspaceProjectsPath(workspaceId));
   };
 
   const handleCreateWorkspace = async () => {
@@ -127,7 +128,7 @@ export function CozeWorkspaceConsolePage() {
   }, [visibleSpaces]);
 
   if (!isLoading && fallbackWorkspaceId) {
-    return <Navigate to={`/space/${encodeURIComponent(fallbackWorkspaceId)}/develop`} replace />;
+    return <Navigate to={workspaceProjectsPath(fallbackWorkspaceId)} replace />;
   }
 
   return (

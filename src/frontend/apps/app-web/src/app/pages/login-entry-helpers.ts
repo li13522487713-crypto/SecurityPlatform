@@ -1,4 +1,4 @@
-import { workspaceDevelopRootPath } from "../app-paths";
+import { workspaceProjectsPath } from "../app-paths";
 
 export interface WorkspaceEntryResolution {
   workspaceId: string;
@@ -12,14 +12,14 @@ export function resolveWorkspaceEntryTarget(
   if (lastWorkspaceId && workspaceIds.includes(lastWorkspaceId)) {
     return {
       workspaceId: lastWorkspaceId,
-      target: workspaceDevelopRootPath(lastWorkspaceId)
+      target: workspaceProjectsPath(lastWorkspaceId)
     };
   }
 
   if (workspaceIds.length > 0) {
     return {
       workspaceId: workspaceIds[0],
-      target: workspaceDevelopRootPath(workspaceIds[0])
+      target: workspaceProjectsPath(workspaceIds[0])
     };
   }
 

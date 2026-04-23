@@ -397,7 +397,6 @@ const loadLibraryModule = () => import("@atlas/library-module-react");
 const loadAdminModule = () => import("@atlas/module-admin-react");
 const loadExploreModule = () => import("@atlas/module-explore-react");
 const loadStudioModule = () => import("@atlas/module-studio-react");
-const loadCozeWorkspaceDevelopModule = () => import("@coze-studio/workspace-adapter/develop");
 const loadCozeWorkspaceLibraryModule = () => import("@coze-studio/workspace-adapter/library");
 const loadCozeAgentEditorModule = () => import("@coze-agent-ide/entry-adapter");
 const loadCozeAgentPublishModule = () => import("@coze-agent-ide/agent-publish");
@@ -442,7 +441,6 @@ const ResourceReferenceCard = lazyNamed(loadStudioModule, "ResourceReferenceCard
 const StudioWorkspacePage = lazyNamed(loadStudioModule, "StudioWorkspacePage");
 const StudioContextProvider = lazyNamed(loadStudioModule, "StudioContextProvider");
 const VariablesPage = lazyNamed(loadStudioModule, "VariablesPage");
-const CozeWorkspaceDevelopPage = lazyNamed(loadCozeWorkspaceDevelopModule, "Develop");
 const CozeWorkspaceLibraryPage = lazyNamed(loadCozeWorkspaceLibraryModule, "LibraryPage");
 const CozeBotEditorPage = lazyNamed(loadCozeAgentEditorModule, "BotEditor");
 const CozeAgentPublishPage = lazyNamed(loadCozeAgentPublishModule, "AgentPublishPage");
@@ -1894,15 +1892,6 @@ function KnowledgeUploadRoute() {
   return <KnowledgeUploadPage api={libraryApi} locale={locale} appKey={appKey} spaceId={spaceId} knowledgeBaseId={Number(id)} initialType={searchParams.get("type")} onNavigate={navigate} />;
 }
 
-function DevelopRoute() {
-  const workspace = useWorkspaceContext();
-  return (
-    <Suspense fallback={<PageShell loading testId="coze-workspace-develop-loading" />}>
-      <CozeWorkspaceDevelopPage spaceId={workspace.id} />
-    </Suspense>
-  );
-}
-
 function DashboardRoute() {
   const orgId = useResolvedOrgId();
   const workspace = useWorkspaceContext();
@@ -1925,8 +1914,8 @@ function DashboardRoute() {
       }}
       onNavigateToModels={() => navigate(orgWorkspaceModelConfigsPath(orgId, workspace.id))}
       onNavigateToPublish={() => navigate(orgWorkspacePublishCenterPath(orgId, workspace.id))}
-      onCreateAgent={() => navigate(`${orgWorkspaceDevelopPath(orgId, workspace.id)}?focus=agents`)}
-      onCreateApp={() => navigate(`${orgWorkspaceDevelopPath(orgId, workspace.id)}?focus=projects`)}
+      onCreateAgent={() => navigate(workspaceProjectsPath(workspace.id))}
+      onCreateApp={() => navigate(workspaceProjectsPath(workspace.id))}
       onCreateWorkflow={() => navigate(`${orgWorkspaceWorkflowsPath(orgId, workspace.id)}?create=1`)}
     />
   );
@@ -2903,9 +2892,8 @@ export const appRoutes = [
     handle: WORKSPACE_SHELL_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />,
     children: [
-      { index: true, element: <Navigate to="develop" replace /> },
+      { index: true, element: <Navigate to="projects" replace /> },
       { path: "home", element: <WorkspaceHomePage />, handle: WORKSPACE_DASHBOARD_ROUTE_HANDLE },
-      { path: "develop", element: <DevelopRoute />, handle: { ...WORKSPACE_DEVELOP_ROUTE_HANDLE, subMenuKey: "develop" } as AppRouteHandle },
       { path: "library", element: <WorkspaceLibraryRoute />, handle: { ...WORKSPACE_LIBRARY_ROUTE_HANDLE, subMenuKey: "library" } as AppRouteHandle },
       { path: "projects", element: <WorkspaceProjectsPage />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
       { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },

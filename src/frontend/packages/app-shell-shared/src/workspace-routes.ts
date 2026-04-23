@@ -33,10 +33,6 @@ export function workspaceRootPath(workspaceId: string): string {
   return `/space/${encodeSegment(workspaceId)}`;
 }
 
-export function workspaceDevelopRootPath(workspaceId: string): string {
-  return `${workspaceRootPath(workspaceId)}/develop`;
-}
-
 export function workspaceHomePath(workspaceId: string): string {
   return `${workspaceRootPath(workspaceId)}/home`;
 }
