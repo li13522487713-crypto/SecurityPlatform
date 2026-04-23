@@ -1,6 +1,6 @@
-﻿import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+﻿import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { I18nProvider } from "../../../../packages/arch/i18n/src/i18n-provider";
-import { I18n, initI18nInstance } from "../../../../packages/arch/i18n/src/raw";
+import { I18n } from "../../../../packages/arch/i18n/src/raw";
 import { useAppI18n } from "./i18n";
 import type { AppLocale } from "./messages";
 import { useBootstrap } from "./bootstrap-context";
@@ -130,37 +130,17 @@ export function WorkflowRuntimeBoundary({
   const bootstrap = useBootstrap();
   const startup = useAppStartup();
   const workspace = useOptionalWorkspaceContext();
-  const [cozeReady, setCozeReady] = useState(false);
   const cozeLocale = toCozeLocale(locale);
   const resolvedSpaceId = typeof spaceId === "string" && spaceId.trim().length > 0
     ? spaceId.trim()
     : (workspace?.id ?? "");
 
+  // locale 变更时只需同步切换语言，initI18nInstance 已在 AppStartupKernel 全局执行一次
   useEffect(() => {
-    if (cozeReady) {
+    if (startup.cozeI18nReady) {
       I18n.setLang(cozeLocale);
-      return;
     }
-
-    let cancelled = false;
-    initI18nInstance({ language: cozeLocale })
-      .then(() => {
-        I18n.setLang(cozeLocale);
-        if (!cancelled) {
-          setCozeReady(true);
-        }
-      })
-      .catch(() => {
-        I18n.setLang(cozeLocale);
-        if (!cancelled) {
-          setCozeReady(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cozeLocale]);
+  }, [cozeLocale, startup.cozeI18nReady]);
 
   if (bootstrap.loading || !startup.bootstrapReady || workspace?.loading) {
     return (
@@ -209,16 +189,11 @@ export function WorkflowRuntimeBoundary({
     );
   }
 
-  if (!startup.spaceReady || !resolvedSpaceId) {
-    return (
-      <WorkflowRuntimeStatusCard
-        title={t("workflowRuntimeUnavailableTitle")}
-        description={t("workflowRuntimeWorkspaceDesc")}
-      />
-    );
-  }
-
-  if (!cozeReady) {
+  // space 检查：对齐 Coze WorkflowPlayground 的行为——space 初始化在 useEffect
+  // 背景进行，画布本身通过 spaceId prop 驱动，不应在外层边界阻塞渲染。
+  // 若 resolvedSpaceId 为空（workspace 尚未就绪），透传 children，
+  // 内层 WorkflowPlayground 会通过 spaceId="" 触发自身加载等待。
+  if (!startup.cozeI18nReady) {
     return (
       <WorkflowRuntimeLoadingPage
         tip={t("workflowRuntimePreparing")}

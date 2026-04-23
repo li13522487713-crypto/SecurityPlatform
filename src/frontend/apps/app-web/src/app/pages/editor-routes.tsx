@@ -112,7 +112,9 @@ function WorkflowEditorBase({ workflowId, mode }: { workflowId: string; mode: "w
           </Button>
         </div>
         <WorkflowRuntimeBoundary spaceId={workspace.id}>
+          {/* key={workflowId} 确保工作流切换时触发干净 remount，清除画布残留状态 */}
           <CozeWorkflowPage
+            key={workflowId}
             workflowId={workflowId}
             spaceId={workspace.id}
             returnUrl={returnUrl}

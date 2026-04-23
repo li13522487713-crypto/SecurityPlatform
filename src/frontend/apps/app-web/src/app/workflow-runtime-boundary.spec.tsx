@@ -13,6 +13,7 @@ const startupState = {
   featureFlagsLoading: false,
   spaceReady: true,
   workflowAllowed: true,
+  cozeI18nReady: true,
   featureFlagsError: null,
   refreshFeatureFlags: vi.fn(async () => undefined),
 };

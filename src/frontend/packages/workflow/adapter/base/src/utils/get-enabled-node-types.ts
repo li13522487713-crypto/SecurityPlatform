@@ -32,7 +32,9 @@ export const getEnabledNodeTypes = (_params: {
     [StandardNodeType.Dataset]: true,
     [StandardNodeType.If]: true,
     [StandardNodeType.SubWorkflow]: true,
-    [StandardNodeType.Database]: true,
+    // StandardNodeType.Database (ID=12) 是 Coze 通用父节点，Atlas 已用
+    // DatabaseQuery/Insert/Update/Delete/CustomSql 5 个细粒度节点替代，禁止启用。
+    // 启用此节点会导致保存 JSON 包含后端枚举缺失的 type=12，试运行时画布解析失败。
     [StandardNodeType.Output]: true,
     [StandardNodeType.Text]: true,
     [StandardNodeType.Question]: true,
@@ -55,7 +57,7 @@ export const getEnabledNodeTypes = (_params: {
     [StandardNodeType.DatabaseQuery]: true,
     [StandardNodeType.DatabaseDelete]: true,
     [StandardNodeType.DatabaseCreate]: true,
-    // [StandardNodeType.JsonParser]: true,
+    [StandardNodeType.JsonParser]: true,
     [StandardNodeType.JsonStringify]: true,
     [StandardNodeType.UpdateConversation]: true,
     [StandardNodeType.DeleteConversation]: true,

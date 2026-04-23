@@ -26,7 +26,12 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             ["If"] = WorkflowNodeType.Selector,
             ["Condition"] = WorkflowNodeType.Selector,
             ["Http"] = WorkflowNodeType.HttpRequester,
-            ["HTTPRequest"] = WorkflowNodeType.HttpRequester
+            ["HTTPRequest"] = WorkflowNodeType.HttpRequester,
+            // Coze 通用 Database 父节点（ID=12）：Atlas 已用 5 个细粒度 Database 节点替代，
+            // 此处降级为 Comment（无执行副作用），使画布至少能完成解析，
+            // 避免因枚举缺失导致整个 Coze-schema 编译路径失败。
+            ["Database"] = WorkflowNodeType.Comment,
+            ["12"] = WorkflowNodeType.Comment,
         };
 
     public CozeWorkflowCompileResult Compile(string? schemaJson)

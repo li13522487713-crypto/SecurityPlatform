@@ -20,6 +20,19 @@
   - Coze registry / form-meta / node-test 行为
   - Atlas adapter 与模型目录映射行为
 
+## Coze 通用 Database(ID=12) 节点处理策略（P5-3 修正）
+
+> **根因**：Coze 开源前端 `StandardNodeType.Database = "12"` 是一个通用父节点占位符，在 `get-enabled-node-types.ts` 中曾被错误启用。该 ID 在 Atlas `WorkflowNodeType` 枚举中没有对应成员，导致：
+> - 画布中添加 Database(12) 节点后保存成功（raw JSON string）
+> - 试运行时后端解析 `type=12` → `Enum.IsDefined = false` → 整个 canvas 解析失败 → 报"有未连接的节点"
+>
+> **修复措施**：
+> 1. **前端**：`get-enabled-node-types.ts` 移除 `StandardNodeType.Database`，Atlas 已用 `DatabaseQuery/Insert/Update/Delete/CustomSql` 5 个细粒度节点替代，禁止用户添加通用 Database 父节点。
+> 2. **后端 Bridge**：`WorkflowCanvasJsonBridge.TryConvertCanvas` 改为软失败——节点类型不可识别时 `continue` 跳过，同步过滤指向被跳过节点的孤儿连线，不中止整个画布解析。
+> 3. **后端 Compiler**：`CozeWorkflowPlanCompiler.CozeNodeTypeAliases` 补充 `Database(12)` → `Comment` 降级映射，防止 Coze schema 编译路径同样失败。
+>
+> **前端同步恢复**：`StandardNodeType.JsonParser`（ID=59，对应 `JsonDeserialization`）已从注释中恢复，后端执行器完整支持。
+
 ## 全节点覆盖矩阵（49+，P5-2 修正：含 P0-2/P0-3 新增 20 节点）
 
 > P0-2 + P0-3 修复后：M12 触发器 3 节点（TriggerUpsert/Read/Delete）+ M20 17 个新节点（Variable / ImageGenerate / Imageflow / ImageReference / ImageCanvas / SceneVariable / SceneChat / LtmUpstream / MemoryRead/Write/Delete / ImageGeneration / Canvas / ImagePlugin / VideoGeneration / VideoToAudio / VideoFrameExtraction）全部已注册执行器。校验语义同基础类节点（Schema 校验 / 端口校验 / 业务规则校验三层）；详见 `docs/coze-node-mapping.md` §1。

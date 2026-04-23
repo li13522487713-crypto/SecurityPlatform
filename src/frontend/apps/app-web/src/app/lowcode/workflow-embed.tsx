@@ -19,7 +19,9 @@ export function LowcodeWorkflowEmbed({ workflowId, workspaceId }: LowcodeWorkflo
     <Suspense fallback={<div style={{ padding: 24, color: "#64748b" }}>加载工作流编辑器…</div>}>
       <div className="coze-workflow-editor-frame" style={{ height: "100%", width: "100%" }}>
         <WorkflowRuntimeBoundary spaceId={workspaceId}>
+          {/* key={workflowId} 确保工作流切换时触发干净 remount，清除画布残留状态 */}
           <CozeWorkflowPage
+            key={workflowId}
             workflowId={workflowId}
             spaceId={workspaceId ?? ""}
             mode="workflow"

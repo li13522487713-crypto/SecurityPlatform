@@ -62,22 +62,46 @@ public static class WorkflowCanvasJsonBridge
         }
 
         var nodes = new List<NodeSchema>();
+        var skippedNodeKeys = new List<string>();
         foreach (var nodeElement in nodesElement.EnumerateArray())
         {
             if (!TryConvertNode(nodeElement, out var node))
             {
-                return false;
+                // 软失败：跳过无法识别类型的节点（如 Coze 通用 Database=12 父节点，
+                // Atlas 已用 5 个细粒度 Database 节点替代），不中止整个画布解析。
+                // 孤儿连线将由 CanvasValidator 在后续校验中报告。
+                var skippedKey = TryGetString(nodeElement, "key") ?? "(unknown)";
+                var skippedType = nodeElement.TryGetProperty("type", out var tp) ? tp.ToString() : "(unknown)";
+                skippedNodeKeys.Add($"key={skippedKey},type={skippedType}");
+                continue;
             }
 
             nodes.Add(node);
         }
 
+        if (skippedNodeKeys.Count > 0)
+        {
+            // 使用 Debug 级别记录，避免在正常降级场景下产生 Error 告警
+            System.Diagnostics.Debug.WriteLine(
+                $"[WorkflowCanvasJsonBridge] Skipped {skippedNodeKeys.Count} unrecognized node(s): {string.Join("; ", skippedNodeKeys)}");
+        }
+
         var connections = new List<ConnectionSchema>();
+        var nodeKeySet = new HashSet<string>(nodes.Select(n => n.Key), StringComparer.OrdinalIgnoreCase);
         foreach (var connectionElement in connectionsElement.EnumerateArray())
         {
             if (!TryConvertConnection(connectionElement, out var connection))
             {
-                return false;
+                // 软失败：跳过格式非法的连线，不中止整个画布解析
+                continue;
+            }
+
+            // 跳过指向已被软失败跳过的节点的孤儿连线，避免执行器引用不存在的节点
+            if (!nodeKeySet.Contains(connection.SourceNodeKey) || !nodeKeySet.Contains(connection.TargetNodeKey))
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[WorkflowCanvasJsonBridge] Skipped orphan connection: {connection.SourceNodeKey} -> {connection.TargetNodeKey}");
+                continue;
             }
 
             connections.Add(connection);
