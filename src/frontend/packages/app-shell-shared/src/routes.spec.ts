@@ -26,7 +26,7 @@ describe("organization workspace routes", () => {
   });
 
   it("builds workspace list and develop paths", () => {
-    expect(orgWorkspacesPath("tenant-1")).toBe("/select-workspace");
+    expect(orgWorkspacesPath("tenant-1")).toBe("/console");
     expect(orgWorkspaceHomePath("tenant-1", "100")).toBe("/workspace/100/home");
     expect(orgWorkspaceDashboardPath("tenant-1", "100")).toBe("/workspace/100/home");
     expect(orgWorkspaceDevelopPath("tenant-1", "100")).toBe("/workspace/100/develop");

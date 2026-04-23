@@ -212,7 +212,6 @@ import { DocsPage } from "./pages/docs-page";
 import { MeProfilePage } from "./pages/me-profile-page";
 import { MeSettingsPage } from "./pages/me-settings-page";
 import { MeNotificationsPage } from "./pages/me-notifications-page";
-import { SelectWorkspacePage } from "./pages/select-workspace-page";
 import {
   backupNow,
   getDatabaseInfo,
@@ -3553,8 +3552,8 @@ export const appRoutes = [
     ]
   },
   {
-    path: "/select-workspace",
-    element: <SelectWorkspacePage />,
+    path: "/console",
+    element: <WorkspaceListRoute />,
     handle: WORKSPACE_LIST_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />
   },

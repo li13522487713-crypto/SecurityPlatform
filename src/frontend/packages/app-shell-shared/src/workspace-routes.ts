@@ -26,7 +26,7 @@ function encodeSegment(value: string | number): string {
 }
 
 export function selectWorkspacePath(): string {
-  return "/select-workspace";
+  return "/console";
 }
 
 export function workspaceRootPath(workspaceId: string): string {

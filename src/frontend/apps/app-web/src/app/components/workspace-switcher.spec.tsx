@@ -57,7 +57,7 @@ vi.mock("@atlas/shared-react-core/utils", () => ({
 }));
 
 vi.mock("@atlas/app-shell-shared", () => ({
-  selectWorkspacePath: () => "/select-workspace",
+  selectWorkspacePath: () => "/console",
   workspaceHomePath: (workspaceId: string) => `/workspace/${workspaceId}/home`
 }));
 

@@ -125,7 +125,7 @@ export function WorkspaceShellLayout() {
  * 非工作空间路由壳子（`/market/*`、`/community/*`、`/open/*`、`/docs`、`/me/*`）。
  *
  * - 不强制 URL 中存在 workspaceId
- * - 从 localStorage 的”上次访问的工作空间”读取，无则跳 `/select-workspace`
+ * - 从 localStorage 的”上次访问的工作空间”读取，无则跳 `/console`
  */
 export function PlatformShellLayout() {
   const auth = useAuth();

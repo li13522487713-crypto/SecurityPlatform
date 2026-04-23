@@ -262,7 +262,6 @@ export function LoginPage() {
 
   const redirectTarget = searchParams.get("redirect");
   const workspaceTarget = selectWorkspacePath();
-
   if (auth.isAuthenticated) {
     const nextTarget =
       typeof redirectTarget === "string" && redirectTarget.startsWith("/")
@@ -322,10 +321,10 @@ export function LoginPage() {
               const workspaces = await getWorkspaces(tenantId);
               const workspaceIds = workspaces.map(item => item.id).filter(Boolean);
               const nextTarget = resolveWorkspaceEntryTarget(workspaceIds, readLastWorkspaceId());
-              if (workspaceIds.length === 1) {
-                rememberLastWorkspaceId(workspaceIds[0]);
+              if (nextTarget) {
+                rememberLastWorkspaceId(nextTarget.workspaceId);
               }
-              return nextTarget;
+              return workspaceTarget;
             } catch {
               return workspaceTarget;
             }

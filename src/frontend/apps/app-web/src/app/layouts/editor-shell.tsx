@@ -28,7 +28,7 @@ function LoadingPage() {
  * - 仍然挂 OrganizationProvider + WorkspaceProvider + PermissionProvider，
  *   因为内核组件（BotIdePage / CozeWorkflowPage / Lowcode 跳转壳）依赖这些上下文。
  *
- * workspaceId 来源：localStorage `atlas_last_workspace_id`，无则跳 `/select-workspace`。
+ * workspaceId 来源：localStorage `atlas_last_workspace_id`，无则跳 `/console`。
  * 第三阶段后端补齐"按对象 ID 反查 workspaceId"接口后，再做 URL → workspace 校正。
  */
 export function EditorShellLayout() {

@@ -75,7 +75,7 @@ export function orgRootPath(orgId: string): string {
 
 export function orgWorkspacesPath(orgId: string): string {
   void orgId;
-  return "/select-workspace";
+  return "/console";
 }
 
 export function orgWorkspacePath(orgId: string, workspaceId: string): string {

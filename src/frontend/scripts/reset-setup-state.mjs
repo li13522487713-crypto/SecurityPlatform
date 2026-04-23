@@ -10,7 +10,7 @@ const frontendProbeUrls = [
   process.env.PLAYWRIGHT_APP_BASE_URL?.trim(),
   "http://127.0.0.1:5181",
   "http://127.0.0.1:5182"
-].filter((value): value is string => Boolean(value));
+].filter(Boolean);
 
 const cleanupTargets = [
   "src/backend/Atlas.PlatformHost/setup-state.json",

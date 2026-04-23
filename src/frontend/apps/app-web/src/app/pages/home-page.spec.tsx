@@ -42,7 +42,7 @@ function renderHomePage() {
         <Route path="/platform-not-ready" element={<div data-testid="platform-page">platform</div>} />
         <Route path="/app-setup" element={<div data-testid="app-setup-page">app-setup</div>} />
         <Route path="/sign" element={<div data-testid="sign-page">sign</div>} />
-        <Route path="/select-workspace" element={<div data-testid="workspace-page">workspace</div>} />
+        <Route path="/console" element={<div data-testid="console-page">console</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -90,11 +90,11 @@ describe("HomePage", () => {
     });
   });
 
-  it("已登录时跳到 select-workspace", async () => {
+  it("已登录时跳到控制台入口", async () => {
     authState.isAuthenticated = true;
     renderHomePage();
     await waitFor(() => {
-      expect(screen.getByTestId("workspace-page").textContent).toBe("workspace");
+      expect(screen.getByTestId("console-page").textContent).toBe("console");
     });
   });
 });

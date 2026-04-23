@@ -356,7 +356,6 @@ async function cleanupOnce() {
 async function startServices() {
   spawnService(appHostService);
   await waitForUrl(appHostService.url, 180_000, appHostService.name);
-  await ensurePlatformSetupState();
   await ensureAppSetupState();
   await restartService(appHostService);
 
@@ -369,7 +368,6 @@ async function ensureServiceAvailable(service, options = {}) {
   if (await isUrlReady(service.url)) {
     log(`检测到现有 ${service.name} 服务，直接复用: ${service.url}`);
     if (!skipSetup) {
-      await ensurePlatformSetupState();
       await ensureAppSetupState();
     }
     return;
@@ -398,7 +396,6 @@ async function ensureServiceAvailable(service, options = {}) {
 
     spawnService(service);
     await waitForUrl(service.url, 180_000, service.name);
-    await ensurePlatformSetupState();
     await ensureAppSetupState();
     return;
   }

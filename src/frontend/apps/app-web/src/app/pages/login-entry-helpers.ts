@@ -1,13 +1,27 @@
-import { selectWorkspacePath, workspaceHomePath } from "../app-paths";
+import { workspaceHomePath } from "../app-paths";
 
-export function resolveWorkspaceEntryTarget(workspaceIds: string[], lastWorkspaceId: string | null): string {
+export interface WorkspaceEntryResolution {
+  workspaceId: string;
+  target: string;
+}
+
+export function resolveWorkspaceEntryTarget(
+  workspaceIds: string[],
+  lastWorkspaceId: string | null
+): WorkspaceEntryResolution | null {
   if (lastWorkspaceId && workspaceIds.includes(lastWorkspaceId)) {
-    return workspaceHomePath(lastWorkspaceId);
+    return {
+      workspaceId: lastWorkspaceId,
+      target: workspaceHomePath(lastWorkspaceId)
+    };
   }
 
-  if (workspaceIds.length === 1) {
-    return workspaceHomePath(workspaceIds[0]);
+  if (workspaceIds.length > 0) {
+    return {
+      workspaceId: workspaceIds[0],
+      target: workspaceHomePath(workspaceIds[0])
+    };
   }
 
-  return selectWorkspacePath();
+  return null;
 }

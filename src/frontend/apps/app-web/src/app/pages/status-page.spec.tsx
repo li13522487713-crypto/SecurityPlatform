@@ -107,7 +107,7 @@ function renderStatusPage(path: "/app-setup" | "/platform-not-ready") {
         <Route path="/app-setup" element={<AppSetupPage />} />
         <Route path="/platform-not-ready" element={<PlatformNotReadyPage />} />
         <Route path="/sign" element={<div data-testid="sign-page">sign</div>} />
-        <Route path="/select-workspace" element={<div data-testid="workspace-page">workspace</div>} />
+        <Route path="/console" element={<div data-testid="workspace-page">workspace</div>} />
       </Routes>
     </MemoryRouter>
   );
