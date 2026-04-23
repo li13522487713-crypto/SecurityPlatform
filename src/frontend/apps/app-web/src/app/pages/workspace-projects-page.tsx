@@ -170,7 +170,7 @@ export function WorkspaceProjectsPage() {
       const status = statusFilter === "all" ? undefined : statusFilter;
       const keyword = normalizedKeyword || undefined;
 
-      const [agentResult, appResult, folderResult] = await Promise.all([
+      const [agentResult, workspaceIdeAppResult, lowcodeAppResult, folderResult] = await Promise.all([
         loadAgents
           ? getWorkspaceIdeResources({
             pageIndex: 1,
@@ -183,15 +183,42 @@ export function WorkspaceProjectsPage() {
           })
           : Promise.resolve({ items: [] as WorkspaceIdeResourceCardDto[], pageIndex: 1, pageSize: 120, total: 0 }),
         loadApps
+          ? getWorkspaceIdeResources({
+            pageIndex: 1,
+            pageSize: 120,
+            keyword,
+            resourceType: "app",
+            status,
+            workspaceId: workspace.id
+          })
+          : Promise.resolve({ items: [] as WorkspaceIdeResourceCardDto[], pageIndex: 1, pageSize: 120, total: 0 }),
+        loadApps
           ? lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status, workspaceId: workspace.id })
-          : Promise.resolve({ items: [], pageIndex: 1, pageSize: 120, total: 0 }),
+          : Promise.resolve({ items: [] as Array<{ id: string; name: string; description?: string; status: string; updatedAt: string }>, pageIndex: 1, pageSize: 120, total: 0 }),
         listFolders(workspace.id, { pageIndex: 1, pageSize: 200 })
       ]);
 
-      const lowcodeCapabilities = lowcodeGateway.getCapabilities();
+      const workspaceIdeAppMap = new Map(
+        workspaceIdeAppResult.items
+          .filter(isAppResourceCard)
+          .map(item => [item.resourceId, item] as const)
+      );
+
+      const mergedAppResources = lowcodeAppResult.items.map(item => {
+        const ideCard = workspaceIdeAppMap.get(item.id);
+        return ideCard ? mapAppResourceCard(ideCard) : mapLowcodeAppCard(item);
+      });
+
+      for (const item of workspaceIdeAppResult.items.filter(isAppResourceCard)) {
+        if (lowcodeAppResult.items.some(app => app.id === item.resourceId)) {
+          continue;
+        }
+        mergedAppResources.push(mapAppResourceCard(item));
+      }
+
       const nextResources = [
         ...agentResult.items.filter(isAgentResourceCard).map(mapAgentResourceCard),
-        ...appResult.items.map(item => mapLowcodeAppCard(item, lowcodeCapabilities))
+        ...mergedAppResources
       ].sort((left, right) => {
         const leftTime = Date.parse(left.lastEditedAt || left.updatedAt);
         const rightTime = Date.parse(right.lastEditedAt || right.updatedAt);
@@ -783,9 +810,22 @@ function mapAgentResourceCard(item: WorkspaceIdeResourceCardDto & { resourceType
   };
 }
 
+function isAppResourceCard(item: WorkspaceIdeResourceCardDto): item is WorkspaceIdeResourceCardDto & { resourceType: "app" } {
+  return item.resourceType === "app";
+}
+
+function mapAppResourceCard(item: WorkspaceIdeResourceCardDto & { resourceType: "app" }): ProjectsResourceCard {
+  return {
+    ...item,
+    source: "lowcode",
+    capabilities: {
+      ...lowcodeGatewayStaticCapabilities
+    }
+  };
+}
+
 function mapLowcodeAppCard(
-  item: { id: string; name: string; description?: string; status: string; updatedAt: string },
-  capabilities: ProjectsResourceCapabilities
+  item: { id: string; name: string; description?: string; status: string; updatedAt: string }
 ): ProjectsResourceCard {
   return {
     source: "lowcode",
@@ -805,9 +845,25 @@ function mapLowcodeAppCard(
     folderId: undefined,
     ownerDisplayName: undefined,
     lastEditedByDisplayName: undefined,
-    capabilities
+    capabilities: {
+      canFavorite: false,
+      canDuplicate: false,
+      canMove: false,
+      canMigrate: false,
+      canCopyToWorkspace: false,
+      canDelete: true
+    }
   };
 }
+
+const lowcodeGatewayStaticCapabilities: ProjectsResourceCapabilities = {
+  canFavorite: true,
+  canDuplicate: true,
+  canMove: true,
+  canMigrate: false,
+  canCopyToWorkspace: true,
+  canDelete: true
+};
 
 function renderCardTags(item: ProjectsResourceCard, t: (key: AppMessageKey) => string) {
   if (item.resourceType === "agent") {

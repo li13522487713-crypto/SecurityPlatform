@@ -45,11 +45,11 @@ export interface LowcodeProjectAppGatewayOptions {
 }
 
 const LOWCODE_APP_CAPABILITIES: ProjectAppCapabilities = {
-  canFavorite: false,
-  canDuplicate: false,
-  canMove: false,
+  canFavorite: true,
+  canDuplicate: true,
+  canMove: true,
   canMigrate: false,
-  canCopyToWorkspace: false,
+  canCopyToWorkspace: true,
   canDelete: true
 };
 

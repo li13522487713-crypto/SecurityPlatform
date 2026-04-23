@@ -6,7 +6,6 @@ import type { AppLocale } from "./messages";
 import { useBootstrap } from "./bootstrap-context";
 import { useAppStartup } from "./startup-kernel";
 import { useOptionalWorkspaceContext } from "./workspace-context";
-import { useOptionalOrganizationContext } from "./organization-context";
 
 /**
  * 注意：本文件刻意不引入 `@douyinfe/semi-ui` 组件。
@@ -120,14 +119,22 @@ export function toCozeLocale(locale: AppLocale | string | null | undefined): "en
   return "en";
 }
 
-export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
+export function WorkflowRuntimeBoundary({
+  children,
+  spaceId
+}: {
+  children: ReactNode;
+  spaceId?: string;
+}) {
   const { locale, t } = useAppI18n();
   const bootstrap = useBootstrap();
   const startup = useAppStartup();
   const workspace = useOptionalWorkspaceContext();
-  const organization = useOptionalOrganizationContext();
   const [cozeReady, setCozeReady] = useState(false);
   const cozeLocale = toCozeLocale(locale);
+  const resolvedSpaceId = typeof spaceId === "string" && spaceId.trim().length > 0
+    ? spaceId.trim()
+    : (workspace?.id ?? "");
 
   useEffect(() => {
     if (cozeReady) {
@@ -202,7 +209,7 @@ export function WorkflowRuntimeBoundary({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!startup.spaceReady || !workspace?.id || !workspace.appKey || !organization?.orgId) {
+  if (!startup.spaceReady || !resolvedSpaceId) {
     return (
       <WorkflowRuntimeStatusCard
         title={t("workflowRuntimeUnavailableTitle")}

@@ -2121,7 +2121,7 @@ function WorkspaceWorkflowWorkbenchRoute({
   }
 
   return (
-    <WorkflowRuntimeBoundary>
+    <WorkflowRuntimeBoundary spaceId={workspace.id}>
       <CozeWorkflowPage
         workflowId={selectedWorkflowId}
         mode={mode}

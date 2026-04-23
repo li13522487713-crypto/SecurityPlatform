@@ -60,9 +60,21 @@ export function GlobalCreateModal({ visible, workspaceId, onClose }: GlobalCreat
               <Typography.Text type="tertiary" className="coze-create-card__desc">
                 {t("cozeCreateChooseAgentDesc")}
               </Typography.Text>
-              <Button theme="solid" type="primary" block style={{ marginTop: 16, borderRadius: 8 }}>
-                + {t("cozeCreateChooseAgent")}
-              </Button>
+              <div
+                aria-hidden
+                className="semi-button semi-button-primary semi-button-block"
+                style={{
+                  marginTop: 16,
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 32,
+                  pointerEvents: "none"
+                }}
+              >
+                <span className="semi-button-content">+ {t("cozeCreateChooseAgent")}</span>
+              </div>
             </div>
           </button>
           <button
@@ -103,9 +115,21 @@ export function GlobalCreateModal({ visible, workspaceId, onClose }: GlobalCreat
               <Typography.Text type="tertiary" className="coze-create-card__desc">
                 {t("cozeCreateChooseAppDesc")}
               </Typography.Text>
-              <Button theme="solid" type="primary" block style={{ marginTop: 16, borderRadius: 8 }}>
-                + 低代码搭建
-              </Button>
+              <div
+                aria-hidden
+                className="semi-button semi-button-primary semi-button-block"
+                style={{
+                  marginTop: 16,
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 32,
+                  pointerEvents: "none"
+                }}
+              >
+                <span className="semi-button-content">+ 低代码搭建</span>
+              </div>
             </div>
           </button>
         </div>

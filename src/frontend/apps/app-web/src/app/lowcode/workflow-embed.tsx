@@ -18,7 +18,7 @@ export function LowcodeWorkflowEmbed({ workflowId, workspaceId }: LowcodeWorkflo
   return (
     <Suspense fallback={<div style={{ padding: 24, color: "#64748b" }}>加载工作流编辑器…</div>}>
       <div className="coze-workflow-editor-frame" style={{ height: "100%", width: "100%" }}>
-        <WorkflowRuntimeBoundary>
+        <WorkflowRuntimeBoundary spaceId={workspaceId}>
           <CozeWorkflowPage
             workflowId={workflowId}
             spaceId={workspaceId ?? ""}

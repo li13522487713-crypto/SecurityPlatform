@@ -111,7 +111,7 @@ function WorkflowEditorBase({ workflowId, mode }: { workflowId: string; mode: "w
             {t("cozeTestsetDrawerTitle")}
           </Button>
         </div>
-        <WorkflowRuntimeBoundary>
+        <WorkflowRuntimeBoundary spaceId={workspace.id}>
           <CozeWorkflowPage
             workflowId={workflowId}
             spaceId={workspace.id}
