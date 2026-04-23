@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import { createAiAssistantInWorkspace } from "../../services/api-ai-assistant";
 import { agentEditorPath } from "@atlas/app-shell-shared";
+import { notifyWorkspaceResourceCreated } from "../workspace-resource-events";
 
 interface CreateAgentModalProps {
   visible: boolean;
@@ -54,6 +55,12 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
         },
         workspaceId
       );
+      notifyWorkspaceResourceCreated({
+        workspaceId,
+        resourceType: "agent",
+        resourceId: agentId,
+        resourceName: trimmed
+      });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(agentId);
       onClose();
@@ -83,6 +90,12 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
         },
         workspaceId
       );
+      notifyWorkspaceResourceCreated({
+        workspaceId,
+        resourceType: "agent",
+        resourceId: agentId,
+        resourceName: trimmed.slice(0, 40)
+      });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(agentId);
       onClose();

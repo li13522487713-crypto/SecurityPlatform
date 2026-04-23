@@ -6,7 +6,7 @@ import {
   deleteOpenApiKey,
   listOpenApiKeys,
   type OpenApiKeyItem
-} from "../../services/mock";
+} from "../../services/api-open-api-keys";
 
 export function OpenApiPage() {
   const { t } = useAppI18n();

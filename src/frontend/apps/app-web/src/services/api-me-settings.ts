@@ -1,15 +1,5 @@
 import type { ApiResponse } from "@atlas/shared-react-core/types";
-import { requestApi } from "../api-core";
-
-/**
- * 个人设置（PRD 03 头像入口）。已切换为真实 REST：
- *   Atlas.PlatformHost/Controllers/MeSettingsController.cs
- *   Atlas.Infrastructure/Services/Coze/InMemoryMeSettingsService.cs
- *
- * - General settings 用 ConcurrentDictionary 暂存（进程内）。
- * - Publish channels / Data sources 当前返回内置常量。
- * - DELETE /me/account 仅清空当前用户偏好，不真正删除账号。
- */
+import { requestApi } from "./api-core";
 
 export interface MeGeneralSettings {
   locale: "zh-CN" | "en-US";

@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
-import { Button, Empty, Spin, Typography } from "@douyinfe/semi-ui";
+import { Button, Empty, Input, Spin, Typography } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import {
   listTemplateCategories,
   type MarketCategorySummary
-} from "../../services/mock";
+} from "../../services/api-market-summary";
 
 export function MarketTemplatesPage() {
   const { t } = useAppI18n();
   const navigate = useNavigate();
   const [items, setItems] = useState<MarketCategorySummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [keyword, setKeyword] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listTemplateCategories({ pageIndex: 1, pageSize: 20 })
+    listTemplateCategories({ pageIndex: 1, pageSize: 20, keyword: keyword.trim() || undefined })
       .then(result => {
         if (!cancelled) {
           setItems(result.items);
@@ -35,7 +36,7 @@ export function MarketTemplatesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [keyword]);
 
   return (
     <div className="coze-page" data-testid="coze-market-templates-page">
@@ -43,6 +44,16 @@ export function MarketTemplatesPage() {
         <Typography.Title heading={3} style={{ margin: 0 }}>{t("cozeMarketTemplatesTitle")}</Typography.Title>
         <Typography.Text type="tertiary">{t("cozeMarketTemplatesSubtitle")}</Typography.Text>
       </header>
+
+      <section className="coze-page__toolbar">
+        <Input
+          value={keyword}
+          onChange={value => setKeyword(value)}
+          placeholder={t("cozeProjectsSearchPlaceholder")}
+          showClear
+          style={{ width: 320 }}
+        />
+      </section>
 
       <section className="coze-page__body">
         {loading ? (

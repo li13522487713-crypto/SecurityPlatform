@@ -1359,11 +1359,11 @@ DTO：
 | 后台 Controller | 替代的前端 mock 文件 |
 |---|---|
 | `HomeContentController` | `services/api-home-content.ts` |
-| `CommunityController` | `services/mock/api-community.mock.ts` |
+| `CommunityController` | `services/api-community.ts` |
 | `PlatformGeneralController` | `services/mock/api-platform-general.mock.ts` 中 `listPlatformNotices` / `getPlatformBranding` |
-| `MarketSummaryController` | `services/mock/api-templates-market.mock.ts` |
-| `MeSettingsController` | `services/mock/api-me-settings.mock.ts`（除 `deleteMeAccount` 外）|
-| `WorkspaceFoldersController` | `services/mock/api-folders.mock.ts` |
+| `MarketSummaryController` | `services/api-market-summary.ts` |
+| `MeSettingsController` | `services/api-me-settings.ts` |
+| `WorkspaceFoldersController` | `services/api-folders.ts` |
 | `WorkspacePublishChannelsController` | `services/api-publish-channels.ts` |
 
 ## Coze 平台第三阶段 API（M2：工作空间维度持久化对象）

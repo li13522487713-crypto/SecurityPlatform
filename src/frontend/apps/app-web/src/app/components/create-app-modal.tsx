@@ -3,6 +3,7 @@ import { Form, Modal, Toast } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import { createLowcodeProjectAppGateway } from "../gateways/project-app-gateway";
+import { notifyWorkspaceResourceCreated } from "../workspace-resource-events";
 
 interface CreateAppModalProps {
   visible: boolean;
@@ -36,6 +37,12 @@ export function CreateAppModal({ visible, workspaceId, onClose, onCreated }: Cre
         description: values.description?.trim() || undefined,
         workspaceId,
         locale
+      });
+      notifyWorkspaceResourceCreated({
+        workspaceId,
+        resourceType: "app",
+        resourceId: result.appId,
+        resourceName: trimmed
       });
       Toast.success(t("cozeCreateSuccess"));
       onCreated?.(result.appId);

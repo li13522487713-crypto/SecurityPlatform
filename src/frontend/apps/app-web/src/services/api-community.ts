@@ -1,10 +1,8 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { requestApi, toQuery } from "../api-core";
+import { requestApi, toQuery } from "./api-core";
 
 /**
- * 作品社区（PRD 02-7.9）。已切换为真实 REST：
- *   Atlas.PlatformHost/Controllers/CommunityController.cs
- *   Atlas.Infrastructure/Services/Coze/InMemoryCommunityService.cs
+ * 作品社区真实服务。
  */
 
 export interface CommunityWorkItem {

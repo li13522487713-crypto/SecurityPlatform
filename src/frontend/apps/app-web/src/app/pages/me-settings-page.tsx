@@ -13,7 +13,7 @@ import {
   type MeDataSourceItem,
   type MeGeneralSettings,
   type MePublishChannelItem
-} from "../../services/mock";
+} from "../../services/api-me-settings";
 
 const TAB_KEYS: MeSettingsTab[] = ["account", "general", "channels", "datasource"];
 

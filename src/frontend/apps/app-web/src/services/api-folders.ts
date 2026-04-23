@@ -1,11 +1,11 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { requestApi, toQuery } from "../api-core";
+import { requestApi, toQuery } from "./api-core";
 
 /**
- * 项目开发-文件夹（PRD 03-5.4）。已切换为真实 REST：
- *   Atlas.PlatformHost/Controllers/WorkspaceFoldersController.cs
- *   Atlas.Infrastructure/Services/Coze/WorkspaceFolderService.cs
- *   Atlas.Domain/AiPlatform/Entities/WorkspaceFolder.cs
+ * 项目开发-文件夹真实服务。
+ *
+ * 2026-04 起项目开发页直接走 AppHost 的
+ * `/api/v1/workspaces/{workspaceId}/folders*` 路由，不再通过 mock 命名文件兜底。
  */
 
 export interface FolderListItem {

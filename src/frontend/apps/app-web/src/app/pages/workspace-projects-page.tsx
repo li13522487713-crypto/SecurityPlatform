@@ -12,6 +12,10 @@ import { useAppI18n } from "../i18n";
 import type { AppMessageKey } from "../messages";
 import { useAuth } from "../auth-context";
 import { useWorkspaceContext } from "../workspace-context";
+import {
+  consumeWorkspaceResourceCreated,
+  subscribeWorkspaceResourceCreated
+} from "../workspace-resource-events";
 import { CreateFolderModal } from "../components/create-folder-modal";
 import { GlobalCreateModal } from "../components/global-create-modal";
 import {
@@ -24,7 +28,7 @@ import {
   type WorkspaceIdeResourceCardDto
 } from "../../services/api-workspace-ide";
 import { getWorkspaces, type WorkspaceSummaryDto } from "../../services/api-org-workspaces";
-import { createFolder, listFolders, moveItemToFolder, type FolderListItem } from "../../services/mock";
+import { createFolder, listFolders, moveItemToFolder, type FolderListItem } from "../../services/api-folders";
 import { createLowcodeProjectAppGateway } from "../gateways/project-app-gateway";
 
 type ProjectsResourceTypeFilter = "all" | "agent" | "app";
@@ -112,6 +116,7 @@ export function WorkspaceProjectsPage() {
   const [workspaceDialog, setWorkspaceDialog] = useState<WorkspaceDialogState | null>(null);
   const [workspaceOptions, setWorkspaceOptions] = useState<WorkspaceSummaryDto[]>([]);
   const [workspaceOptionsLoading, setWorkspaceOptionsLoading] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const normalizedKeyword = keyword.trim();
   const projectsRootPath = workspaceProjectsPath(workspace.id);
@@ -205,7 +210,23 @@ export function WorkspaceProjectsPage() {
 
   useEffect(() => {
     void loadData();
-  }, [workspace.id, normalizedKeyword, resourceTypeFilter, statusFilter, folderId, lowcodeGateway]);
+  }, [workspace.id, normalizedKeyword, resourceTypeFilter, statusFilter, folderId, lowcodeGateway, refreshVersion]);
+
+  useEffect(() => {
+    if (!workspace.id) {
+      return;
+    }
+    const pendingItems = consumeWorkspaceResourceCreated(workspace.id);
+    if (pendingItems.length > 0) {
+      setRefreshVersion(value => value + 1);
+    }
+    return subscribeWorkspaceResourceCreated(detail => {
+      if (detail.workspaceId !== workspace.id) {
+        return;
+      }
+      setRefreshVersion(value => value + 1);
+    });
+  }, [workspace.id]);
 
   const ensureWorkspaceOptions = async () => {
     const orgId = workspace.orgId || getTenantId() || "";

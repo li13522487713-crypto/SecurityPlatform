@@ -1,12 +1,8 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { requestApi, toQuery } from "../api-core";
+import { requestApi, toQuery } from "./api-core";
 
 /**
- * 模板/插件商店分类摘要（PRD 02-7.7、7.8）。已切换为真实 REST：
- *   Atlas.PlatformHost/Controllers/MarketSummaryController.cs
- *   Atlas.Infrastructure/Services/Coze/InMemoryMarketSummaryService.cs
- *
- * 完整模板/插件搜索仍走 TemplatesController / AiMarketplaceController。
+ * 模板/插件商店分类摘要真实服务。
  */
 
 export interface MarketCategorySummary {
