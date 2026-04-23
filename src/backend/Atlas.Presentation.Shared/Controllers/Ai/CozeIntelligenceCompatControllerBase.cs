@@ -51,13 +51,82 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
     {
         await EnsureWorkspaceAccessibleAsync(request.space_id, cancellationToken);
 
-        // Atlas 当前尚未提供完整的 Coze intelligence 域模型。
-        // 这里先返回稳定空列表，消除前端 404，并保持现有列表页/选择器可继续工作。
+        var wantBots = request.types is null || request.types.Length == 0 || request.types.Contains(1);
+        if (!wantBots)
+        {
+            return Ok(Success(new
+            {
+                intelligences = Array.Empty<object>(),
+                total = 0,
+                has_more = false,
+                next_cursor_id = string.Empty
+            }));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        if (queryService is null)
+        {
+            return Ok(Success(new
+            {
+                intelligences = Array.Empty<object>(),
+                total = 0,
+                has_more = false,
+                next_cursor_id = string.Empty
+            }));
+        }
+
+        var workspaceId = long.TryParse(request.space_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedWorkspaceId)
+            ? parsedWorkspaceId
+            : (long?)null;
+        var pageSize = request.size is > 0 ? Math.Min((int)request.size, 100) : 20;
+        var paged = await queryService.GetPagedAsync(
+            _tenantProvider.GetTenantId(),
+            request.name,
+            status: null,
+            workspaceId,
+            pageIndex: 1,
+            pageSize: pageSize,
+            cancellationToken);
+
+        var hasPublishedFilter = request.has_published;
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var items = paged.Items
+            .Where(item => hasPublishedFilter is null
+                || (hasPublishedFilter.Value ? item.PublishVersion > 0 : item.PublishVersion == 0))
+            .Select(item => (object)new
+            {
+                intelligence_type = 1,
+                basic_info = new
+                {
+                    id = item.Id.ToString(CultureInfo.InvariantCulture),
+                    name = item.Name,
+                    description = item.Description ?? string.Empty,
+                    icon_uri = item.AvatarUrl ?? string.Empty,
+                    icon_url = item.AvatarUrl ?? string.Empty,
+                    space_id = request.space_id,
+                    owner_id = currentUser.UserId.ToString(CultureInfo.InvariantCulture),
+                    create_time = CozeCompatGatewaySupport.ToUnixMilliseconds(item.CreatedAt).ToString(CultureInfo.InvariantCulture),
+                    update_time = CozeCompatGatewaySupport.ToUnixMilliseconds(item.CreatedAt).ToString(CultureInfo.InvariantCulture),
+                    status = 1
+                },
+                publish_info = new
+                {
+                    publish_time = item.PublishVersion > 0
+                        ? CozeCompatGatewaySupport.ToUnixMilliseconds(item.CreatedAt).ToString(CultureInfo.InvariantCulture)
+                        : string.Empty,
+                    has_published = item.PublishVersion > 0,
+                    connectors = Array.Empty<object>()
+                },
+                user_info = BuildUserInfo(currentUser),
+                audit_data = BuildAuditData()
+            })
+            .ToArray();
+
         return Ok(Success(new
         {
-            intelligences = Array.Empty<object>(),
-            total = 0,
-            has_more = false,
+            intelligences = items,
+            total = paged.Total,
+            has_more = paged.Total > pageSize,
             next_cursor_id = string.Empty
         }));
     }

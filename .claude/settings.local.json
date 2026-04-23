@@ -10,7 +10,10 @@
       "Bash(npx tsc *)",
       "Bash(pnpm run *)",
       "Bash(node -e \"const fs = require\\('fs'\\); const data = fs.readFileSync\\('src/app/layouts/workspace-shell.tsx'\\); const lines = data.toString\\(\\).split\\('\\\\n'\\); console.log\\(JSON.stringify\\(lines[134]\\)\\)\")",
-      "Bash(node -e \"const fs = require\\('fs'\\); const data = fs.readFileSync\\('src/app/layouts/workspace-shell.tsx'\\); const lines = data.toString\\(\\).split\\('\\\\n'\\); const line = lines[134]; for\\(let i=30;i<42;i++\\) { console.log\\(i, line.charCodeAt\\(i\\), line[i]\\); }\")"
+      "Bash(node -e \"const fs = require\\('fs'\\); const data = fs.readFileSync\\('src/app/layouts/workspace-shell.tsx'\\); const lines = data.toString\\(\\).split\\('\\\\n'\\); const line = lines[134]; for\\(let i=30;i<42;i++\\) { console.log\\(i, line.charCodeAt\\(i\\), line[i]\\); }\")",
+      "Bash(find \"D:\\\\Code\\\\Web_SaaS_Backend\\\\SecurityPlatform/src/frontend/apps/app-web/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"setLang\\\\|changeLanguage\" {} \\\\;)",
+      "Bash(find /d/Code/Web_SaaS_Backend/SecurityPlatform/src/frontend/packages/studio/workspace -name \"package.json\" -exec grep -l \"workspace-adapter\" {} \\\\;)",
+      "Bash(dotnet build *)"
     ]
   }
 }

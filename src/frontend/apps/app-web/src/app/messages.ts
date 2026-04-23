@@ -1304,6 +1304,8 @@ const zhCN = {
   connector_oauthCallback_externalUserPrefix: "外部用户：",
   connector_oauthCallback_alreadyBoundLocalUserPrefix: "已绑定本地用户",
   connector_oauthCallback_needBindingHint: "需要管理员或本人完成绑定后才能登录。",
+
+  backToWorkspace: "返回工作空间",
 };
 
 const enUS: typeof zhCN = {
@@ -2610,6 +2612,8 @@ const enUS: typeof zhCN = {
   connector_oauthCallback_externalUserPrefix: "External user:",
   connector_oauthCallback_alreadyBoundLocalUserPrefix: "Already bound to local user",
   connector_oauthCallback_needBindingHint: "Manual binding by an admin or yourself is required before sign-in.",
+
+  backToWorkspace: "Back to Workspace",
 };
 export const APP_MESSAGES = {
   "zh-CN": zhCN,

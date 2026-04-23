@@ -26,9 +26,9 @@ export {
 } from '@coze-studio/project-entity-base';
 import { type ReactNode } from 'react';
 
+import { useCreateAgent } from '@coze-studio/entity-adapter';
 import { type DraftProjectCopyRequest } from '@coze-arch/idl/intelligence_api';
 import {
-  useCreateProjectModalBase,
   useUpdateProjectModalBase,
   useCopyProjectModalBase,
   type ProjectFormValues,
@@ -44,7 +44,20 @@ export const useCreateProjectModal = (
 ): {
   modalContextHolder: ReactNode;
   createProject: () => void;
-} => useCreateProjectModalBase(params);
+} => {
+  const { modal, startEdit } = useCreateAgent({
+    showSpace: params.selectSpace,
+    onBefore: params.onBeforeCreateBot,
+    onError: params.onCreateBotError,
+    onSuccess: params.onCreateBotSuccess,
+    spaceId: params.initialSpaceId,
+    bizCreateFrom: params.bizCreateFrom,
+  });
+  return {
+    modalContextHolder: modal as ReactNode,
+    createProject: startEdit,
+  };
+};
 
 export const useUpdateProjectModal = (params: {
   onSuccess?: (param: UpdateProjectSuccessCallbackParam) => void;

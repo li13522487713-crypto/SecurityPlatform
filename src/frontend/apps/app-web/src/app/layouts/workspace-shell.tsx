@@ -283,6 +283,7 @@ function NativeShellFrame({
   headerTitle,
   headerSubtitle,
   localeLabel,
+  logoutLabel,
   userName,
   sidebarTop,
   sidebarPrimary,
@@ -297,6 +298,7 @@ function NativeShellFrame({
   headerTitle: string;
   headerSubtitle?: string;
   localeLabel: string;
+  logoutLabel: string;
   userName: string;
   sidebarTop?: ReactNode;
   sidebarPrimary?: ReactNode;
@@ -389,7 +391,7 @@ function NativeShellFrame({
               </Button>
             ) : null}
             <Button theme="borderless" color="secondary" onClick={onLogout}>
-              退出登录
+              {logoutLabel}
             </Button>
           </Space>
         </header>
@@ -439,10 +441,7 @@ function SpaceShellChrome() {
   const location = useLocation();
   const workspace = useWorkspaceContext();
   const currentSubMenu = deriveSpaceSubMenu(location.pathname, workspace.id);
-  const sidebarSecondary = useMemo(() => [
-    ...buildSpaceLinks(workspace.id, t),
-    ...buildPlatformLinks(t)
-  ], [t, workspace.id]);
+  const sidebarSecondary = useMemo(() => buildSpaceLinks(workspace.id, t), [t, workspace.id]);
 
   const cozeLocale = toCozeLocale(locale);
   const [cozeI18nReady, setCozeI18nReady] = useState(false);
@@ -470,12 +469,13 @@ function SpaceShellChrome() {
   }
 
   return (
-    <I18nProvider i18n={I18n}>
+    <I18nProvider key={cozeLocale} i18n={I18n}>
     <NativeShellFrame
       activePath={`${location.pathname}${location.search}`}
       headerTitle={resolveShellHeaderTitle(location.pathname, t)}
       headerSubtitle={workspace.name || workspace.appKey}
       localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
+      logoutLabel={t("logout")}
       userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
       sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />}
       sidebarPrimary={(
@@ -548,6 +548,7 @@ function PlatformShellChrome() {
       headerTitle={resolveShellHeaderTitle(location.pathname, t)}
       headerSubtitle={workspace.name || workspace.appKey}
       localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
+      logoutLabel={t("logout")}
       userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
       sidebarTop={(
         <Space vertical spacing={8} style={{ width: "100%" }}>
@@ -559,7 +560,7 @@ function PlatformShellChrome() {
             onClick={() => navigate(`${workspaceRootPath(workspace.id)}/develop`)}
             data-testid="app-sidebar-item-current-workspace"
           >
-            返回工作空间
+            {t("backToWorkspace")}
           </Button>
         </Space>
       )}
