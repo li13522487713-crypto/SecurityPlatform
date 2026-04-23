@@ -43,6 +43,7 @@
     <Project Path="src/backend/Atlas.WorkflowCore/Atlas.WorkflowCore.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Atlas.AppHost.Tests/Atlas.AppHost.Tests.csproj" />
     <Project Path="tests/Atlas.SecurityPlatform.Tests/Atlas.SecurityPlatform.Tests.csproj" />
     <Project Path="tests/Atlas.WorkflowCore.Tests/Atlas.WorkflowCore.Tests.csproj" />
   </Folder>

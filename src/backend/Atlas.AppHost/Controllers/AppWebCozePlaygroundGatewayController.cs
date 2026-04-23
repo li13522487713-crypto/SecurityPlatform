@@ -3,6 +3,7 @@ using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
+using Atlas.Application.System.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Controllers.Ai;
@@ -261,6 +262,273 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
         {
             code = 0,
             msg = "success"
+        });
+    }
+
+    [HttpPost("get_imagex_url")]
+    [HttpPost("/api/playground_api/get_imagex_url")]
+    public async Task<ActionResult<object>> GetImagexShortUrl(
+        [FromBody] CozeGetImagexShortUrlCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var fileStorageService = HttpContext.RequestServices.GetService<IFileStorageService>();
+        if (fileStorageService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("file storage service unavailable"));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var urlInfo = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var uri in request?.uris ?? Array.Empty<string>())
+        {
+            if (string.IsNullOrWhiteSpace(uri))
+            {
+                continue;
+            }
+
+            if (TryParseAtlasFileUri(uri, out var fileId))
+            {
+                var signedUrl = await fileStorageService.GenerateSignedUrlAsync(
+                    tenantId,
+                    fileId,
+                    expiresInSeconds: 600,
+                    cancellationToken);
+                urlInfo[uri] = new
+                {
+                    url = signedUrl.Url,
+                    review_status = true
+                };
+                continue;
+            }
+
+            urlInfo[uri] = new
+            {
+                url = uri,
+                review_status = Uri.TryCreate(uri, UriKind.Absolute, out _)
+            };
+        }
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            data = new
+            {
+                url_info = urlInfo
+            }
+        });
+    }
+
+    [HttpPost("draftbot/generate_store_category")]
+    [HttpPost("/api/playground_api/draftbot/generate_store_category")]
+    public async Task<ActionResult<object>> GenerateStoreCategory(
+        [FromBody] CozeGenerateStoreCategoryCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var marketplaceService = HttpContext.RequestServices.GetService<IAiMarketplaceService>();
+        if (marketplaceService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("marketplace service unavailable"));
+        }
+
+        var categories = await marketplaceService.GetCategoriesAsync(_tenantProvider.GetTenantId(), cancellationToken);
+        var selectedCategory = SelectDefaultMarketplaceCategory(categories, request);
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            data = new
+            {
+                category_id = selectedCategory?.Id.ToString(CultureInfo.InvariantCulture) ?? string.Empty
+            }
+        });
+    }
+
+    [HttpGet("draftbot/get_user_query_collect_option")]
+    [HttpGet("/api/playground_api/draftbot/get_user_query_collect_option")]
+    public ActionResult<object> GetUserQueryCollectOption()
+    {
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            data = new
+            {
+                support_connectors = new object[]
+                {
+                    new
+                    {
+                        id = "1001",
+                        name = "Web SDK",
+                        icon = string.Empty,
+                        connector_status = 0,
+                        share_link = string.Empty
+                    },
+                    new
+                    {
+                        id = "3001",
+                        name = "OAuth Demo",
+                        icon = string.Empty,
+                        connector_status = 0,
+                        share_link = string.Empty
+                    }
+                },
+                private_policy_template = "/open/policy/bot/{bot_id}"
+            }
+        });
+    }
+
+    [HttpPost("draftbot/generate_user_query_collect_policy")]
+    [HttpPost("/api/playground_api/draftbot/generate_user_query_collect_policy")]
+    public ActionResult<object> GenerateUserQueryCollectPolicy(
+        [FromBody] CozeGenerateUserQueryCollectPolicyCompatRequest? request)
+    {
+        var botId = string.IsNullOrWhiteSpace(request?.bot_id) ? "0" : request!.bot_id!;
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            data = new
+            {
+                policy_link = $"/open/policy/bot/{Uri.EscapeDataString(botId)}?developer_name={Uri.EscapeDataString(request?.developer_name ?? string.Empty)}"
+            }
+        });
+    }
+
+    [HttpPost("move_draft_bot")]
+    [HttpPost("/api/playground_api/move_draft_bot")]
+    public async Task<ActionResult<object>> MoveDraftBot(
+        [FromBody] CozeMoveDraftBotCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParsePositiveId(request?.bot_id, out var botId))
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot_id is required"));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        var commandService = HttpContext.RequestServices.GetService<IAgentCommandService>();
+        if (queryService is null || commandService is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("agent service unavailable"));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await queryService.GetByIdAsync(tenantId, botId, cancellationToken);
+        if (detail is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("bot not found"));
+        }
+
+        var targetSpaceId = TryParsePositiveId(request?.target_spaceId, out var parsedTargetSpaceId)
+            ? parsedTargetSpaceId
+            : detail.WorkspaceId ?? 0;
+        var fromSpaceId = TryParsePositiveId(request?.from_spaceId, out var parsedFromSpaceId)
+            ? parsedFromSpaceId
+            : detail.WorkspaceId ?? 0;
+        var moveAction = request?.move_action ?? 0;
+        var asyncTask = BuildMoveDraftBotAsyncTaskPayload(botId, fromSpaceId, targetSpaceId);
+
+        if (moveAction is 3 or 4)
+        {
+            return Ok(new
+            {
+                bot_status = 1,
+                async_task = asyncTask,
+                forbid_move = false
+            });
+        }
+
+        if (moveAction == 5)
+        {
+            return Ok(new
+            {
+                bot_status = 1,
+                async_task = asyncTask,
+                forbid_move = false
+            });
+        }
+
+        if (targetSpaceId <= 0)
+        {
+            return Ok(new
+            {
+                bot_status = 3,
+                async_task = asyncTask,
+                forbid_move = true
+            });
+        }
+
+        var updateRequest = new AgentUpdateRequest(
+            detail.Name,
+            detail.Description,
+            detail.AvatarUrl,
+            detail.SystemPrompt,
+            detail.PersonaMarkdown,
+            detail.Goals,
+            detail.ReplyLogic,
+            detail.OutputFormat,
+            detail.Constraints,
+            detail.OpeningMessage,
+            detail.PresetQuestions ?? Array.Empty<string>(),
+            detail.KnowledgeBindings?.Select(binding => new AgentKnowledgeBindingInput(
+                binding.KnowledgeBaseId,
+                binding.IsEnabled,
+                binding.InvokeMode,
+                binding.TopK,
+                binding.ScoreThreshold,
+                binding.EnabledContentTypes,
+                binding.RewriteQueryTemplate)).ToArray() ?? Array.Empty<AgentKnowledgeBindingInput>(),
+            detail.DatabaseBindings?.Select(binding => new AgentDatabaseBindingInput(
+                binding.DatabaseId,
+                binding.Alias,
+                binding.AccessMode,
+                binding.TableAllowlist,
+                binding.IsDefault)).ToArray() ?? Array.Empty<AgentDatabaseBindingInput>(),
+            detail.VariableBindings?.Select(binding => new AgentVariableBindingInput(
+                binding.VariableId,
+                binding.Alias,
+                binding.IsRequired,
+                binding.DefaultValueOverride)).ToArray() ?? Array.Empty<AgentVariableBindingInput>(),
+            detail.DatabaseBindingIds ?? Array.Empty<long>(),
+            detail.VariableBindingIds ?? Array.Empty<long>(),
+            detail.ModelConfigId,
+            detail.ModelName,
+            detail.Temperature,
+            detail.MaxTokens,
+            detail.DefaultWorkflowId,
+            detail.DefaultWorkflowName,
+            detail.EnableMemory,
+            detail.EnableShortTermMemory,
+            detail.EnableLongTermMemory,
+            detail.LongTermMemoryTopK,
+            detail.KnowledgeBaseIds ?? Array.Empty<long>(),
+            detail.PluginBindings?.Select(binding => new AgentPluginBindingInput(
+                binding.PluginId,
+                binding.SortOrder,
+                binding.IsEnabled,
+                binding.ToolConfigJson,
+                binding.ToolBindings?.Select(tool => new AgentPluginToolBindingInput(
+                    tool.ApiId,
+                    tool.IsEnabled,
+                    tool.TimeoutSeconds,
+                    tool.FailurePolicy,
+                    tool.ParameterBindings.Select(param => new AgentPluginParameterBindingInput(
+                        param.ParameterName,
+                        param.ValueSource,
+                        param.LiteralValue,
+                        param.VariableKey)).ToArray())).ToArray() ?? Array.Empty<AgentPluginToolBindingInput>()))
+                .ToArray() ?? Array.Empty<AgentPluginBindingInput>(),
+            targetSpaceId);
+
+        await commandService.UpdateAsync(tenantId, botId, updateRequest, cancellationToken);
+
+        return Ok(new
+        {
+            bot_status = 1,
+            async_task = asyncTask,
+            forbid_move = false
         });
     }
 
@@ -650,6 +918,58 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
         return value > 0;
     }
 
+    private static bool TryParseAtlasFileUri(string? raw, out long fileId)
+    {
+        fileId = 0;
+        const string prefix = "atlas-file:";
+        if (string.IsNullOrWhiteSpace(raw) || !raw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return long.TryParse(
+                   raw[prefix.Length..],
+                   NumberStyles.Integer,
+                   CultureInfo.InvariantCulture,
+                   out fileId)
+               && fileId > 0;
+    }
+
+    private static AiProductCategoryItem? SelectDefaultMarketplaceCategory(
+        IReadOnlyList<AiProductCategoryItem> categories,
+        CozeGenerateStoreCategoryCompatRequest? request)
+    {
+        if (categories.Count == 0)
+        {
+            return null;
+        }
+
+        var keywords = $"{request?.bot_name} {request?.bot_description} {request?.prompt}";
+        var matched = categories.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(item.Name)
+            && keywords.Contains(item.Name, StringComparison.OrdinalIgnoreCase));
+        return matched ?? categories
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Id)
+            .FirstOrDefault();
+    }
+
+    private static object BuildMoveDraftBotAsyncTaskPayload(long botId, long fromSpaceId, long targetSpaceId)
+    {
+        return new
+        {
+            transfer_resource_plugin_list = Array.Empty<object>(),
+            transfer_resource_workflow_list = Array.Empty<object>(),
+            transfer_resource_knowledge_list = Array.Empty<object>(),
+            task_info = new
+            {
+                TargetSpaceId = targetSpaceId.ToString(CultureInfo.InvariantCulture),
+                OriSpaceId = fromSpaceId.ToString(CultureInfo.InvariantCulture),
+                BotIds = new[] { botId.ToString(CultureInfo.InvariantCulture) }
+            }
+        };
+    }
+
     private static object MapSpaceItem(WorkspaceListItem item)
     {
         var roleType = string.Equals(item.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase)
@@ -671,3 +991,23 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
         };
     }
 }
+
+public sealed record CozeMoveDraftBotCompatRequest(
+    string? bot_id,
+    string? target_spaceId,
+    string? from_spaceId,
+    int? move_action);
+
+public sealed record CozeGenerateStoreCategoryCompatRequest(
+    string? bot_name,
+    string? bot_description,
+    string? prompt);
+
+public sealed record CozeGenerateUserQueryCollectPolicyCompatRequest(
+    string? bot_id,
+    string? developer_name,
+    string? contact_information);
+
+public sealed record CozeGetImagexShortUrlCompatRequest(
+    IReadOnlyList<string>? uris,
+    int? scene);

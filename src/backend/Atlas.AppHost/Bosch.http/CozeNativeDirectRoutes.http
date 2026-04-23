@@ -137,6 +137,21 @@ X-Tenant-Id: {{tenantId}}
   "agent_type": 0
 }
 
+### Coze 原生 developer：connector auth state
+GET {{host}}/api/user/auth/connector_state?connector_id=3001
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 developer：cancel user auth
+POST {{host}}/api/user/auth/cancel
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "connector_id": "3001"
+}
+
 ### Coze 原生 developer：publish draftbot
 POST {{host}}/api/draftbot/publish
 Content-Type: {{contentType}}
@@ -166,6 +181,104 @@ X-Tenant-Id: {{tenantId}}
 
 {
   "bot_id": "1"
+}
+
+### Coze 原生 intelligence：publish intelligence list
+POST {{host}}/api/intelligence_api/search/get_publish_intelligence_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "intelligence_type": 1,
+  "space_id": "{{workspaceId}}",
+  "size": 20,
+  "intelligence_ids": ["1"]
+}
+
+### Coze 原生 intelligence：publish record detail
+POST {{host}}/api/intelligence_api/publish/publish_record_detail
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1"
+}
+
+### Coze 原生 intelligence：publish record list
+POST {{host}}/api/intelligence_api/publish/publish_record_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1"
+}
+
+### Coze 原生 playground：move draftbot preview
+POST {{host}}/api/playground_api/move_draft_bot
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1",
+  "from_spaceId": "{{workspaceId}}",
+  "target_spaceId": "2",
+  "move_action": 3
+}
+
+### Coze 原生 playground：move draftbot
+POST {{host}}/api/playground_api/move_draft_bot
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1",
+  "from_spaceId": "{{workspaceId}}",
+  "target_spaceId": "2",
+  "move_action": 0
+}
+
+### Coze 原生 playground：generate store category
+POST {{host}}/api/playground_api/draftbot/generate_store_category
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_name": "Compat Agent",
+  "bot_description": "Agent for workflow and knowledge automation",
+  "prompt": "Help users automate knowledge and workflow tasks."
+}
+
+### Coze 原生 playground：get user query collect option
+GET {{host}}/api/playground_api/draftbot/get_user_query_collect_option
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### Coze 原生 playground：generate user query collect policy
+POST {{host}}/api/playground_api/draftbot/generate_user_query_collect_policy
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bot_id": "1",
+  "developer_name": "Atlas Admin",
+  "contact_information": "admin@example.com"
+}
+
+### Coze 原生 playground：get imagex url
+POST {{host}}/api/playground_api/get_imagex_url
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "uris": ["atlas-file:1"]
 }
 
 ### Coze 原生 plugin library：resource list

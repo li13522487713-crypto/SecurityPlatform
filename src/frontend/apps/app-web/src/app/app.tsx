@@ -118,6 +118,7 @@ import {
 import { AppStartupKernel } from "./startup-kernel";
 import { WorkflowRuntimeBoundary } from "./workflow-runtime-boundary";
 import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
+import { CozeAgentPublishManagePage } from "./pages/coze-agent-publish-manage-page";
 import { APP_PERMISSIONS } from "../constants/permissions";
 import {
   getConfiguredAppKey,
@@ -3403,7 +3404,7 @@ function SpaceProjectAliasRoute() {
 
 function SpaceBotAnalysisAliasRoute() {
   const { space_id = "", bot_id = "" } = useParams<{ space_id: string; bot_id: string }>();
-  return <Navigate to={`/space/${encodeURIComponent(space_id)}/bot/${encodeURIComponent(bot_id)}/publish`} replace />;
+  return <Navigate to={`/space/${encodeURIComponent(space_id)}/bot/${encodeURIComponent(bot_id)}/publish?tab=analysis`} replace />;
 }
 
 function SpaceAgentPublishManageAliasRoute() {
@@ -3422,6 +3423,12 @@ function SpaceAgentEditorRoute() {
 }
 
 function SpaceAgentPublishRoute() {
+  const [searchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab");
+  if (activeTab === "analysis" || activeTab === "logs" || activeTab === "triggers") {
+    return <CozeAgentPublishManagePage />;
+  }
+
   return (
     <Suspense fallback={<PageShell loading testId="coze-agent-publish-loading" />}>
       <CozeAgentPublishPage />

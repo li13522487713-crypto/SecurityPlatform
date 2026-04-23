@@ -753,6 +753,15 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
                 continue;
             }
 
+            if (definition.RequiresUserAuth && connectorState.AuthStatus != 1)
+            {
+                publishResult[connectorId] = BuildPublishResultPayload(
+                    connector: BuildPublishResultConnectorPayload(definition, connectorState, request?.space_id, request?.bot_id),
+                    status: 2,
+                    message: "connector is not authorized");
+                continue;
+            }
+
             connectorState.LastPublishedAt = now.ToUnixTimeMilliseconds();
             connectorState.LastPublishId = request?.publish_id;
             connectorState.LastCommitVersion = request?.commit_version;
@@ -790,6 +799,81 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
                 hit_manual_check = false,
                 publish_monetization_result = false
             }
+        });
+    }
+
+    [HttpGet("user/auth/connector_state")]
+    [HttpGet("/api/user/auth/connector_state")]
+    public ActionResult<object> GetConnectorAuthState([FromQuery] string? connector_id)
+    {
+        var definition = GetSupportedConnector(connector_id);
+        if (definition is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("connector_id is invalid"));
+        }
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            data = new
+            {
+                state = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["connector_id"] = definition.Id,
+                    ["origin"] = "publish",
+                    ["issued_at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
+                }
+            }
+        });
+    }
+
+    [HttpPost("user/auth/cancel")]
+    [HttpPost("/api/user/auth/cancel")]
+    public async Task<ActionResult<object>> CancelUserAuth(
+        [FromBody] CozeCancelUserAuthCompatRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var definition = GetSupportedConnector(request?.connector_id);
+        if (definition is null)
+        {
+            return Ok(CozeCompatGatewaySupport.Fail("connector_id is invalid"));
+        }
+
+        var repository = HttpContext.RequestServices.GetService<AgentRepository>();
+        if (repository is null)
+        {
+            return Ok(CozeCompatGatewaySupport.SuccessWithoutData());
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var paged = await repository.GetPagedAsync(
+            tenantId,
+            keyword: null,
+            status: null,
+            workspaceId: null,
+            pageIndex: 1,
+            pageSize: 500,
+            cancellationToken);
+
+        foreach (var agent in paged.Items)
+        {
+            var document = ParseConnectorStateDocument(agent.PublishedConnectorConfigJson);
+            if (!document.Connectors.TryGetValue(definition.Id, out var connectorState))
+            {
+                continue;
+            }
+
+            connectorState.AuthStatus = 2;
+            connectorState.AuthState = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            connectorState.ConfigStatus = definition.RequiresBinding ? connectorState.ConfigStatus : 2;
+            await PersistAgentConnectorStateAsync(agent, document, cancellationToken);
+        }
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success"
         });
     }
 
@@ -910,7 +994,20 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
                 new("endpoint_url", "Endpoint URL", true),
                 new("api_key", "API Key", false),
                 new("share_link", "Share Link", false)
-            ])
+            ]),
+        new(
+            "3001",
+            "OAuth Demo",
+            string.Empty,
+            "OAuth based publish channel",
+            BindType: 2,
+            DefaultConfiguredStatus: 2,
+            BrandId: null,
+            RequiresBinding: false,
+            ConfigureTitle: "OAuth Demo",
+            ConfigureDescription: "Authorize this connector before publishing.",
+            SchemaFields: Array.Empty<CozeCompatConnectorSchemaField>(),
+            RequiresUserAuth: true)
     ];
 
     private static CozeCompatConnectorDefinition? GetSupportedConnector(string? connectorId)
@@ -1049,6 +1146,17 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
             bind_type = definition.BindType,
             bind_info = connectorState.Detail,
             bind_id = connectorState.BindId ?? string.Empty,
+            auth_status = connectorState.AuthStatus,
+            auth_login_info = definition.RequiresUserAuth
+                ? new
+                {
+                    app_id = definition.Id,
+                    response_type = "code",
+                    authorize_url = $"/sign?connector_id={Uri.EscapeDataString(definition.Id)}",
+                    scope = "bot.publish",
+                    client_id = definition.Id
+                }
+                : null,
             is_last_published = connectorState.IsLastPublished,
             connector_status = connectorState.ConnectorStatus,
             privacy_policy = string.Empty,
@@ -1257,7 +1365,8 @@ public sealed record CozeCompatConnectorDefinition(
     bool RequiresBinding,
     string ConfigureTitle,
     string ConfigureDescription,
-    IReadOnlyList<CozeCompatConnectorSchemaField> SchemaFields);
+    IReadOnlyList<CozeCompatConnectorSchemaField> SchemaFields,
+    bool RequiresUserAuth = false);
 
 public sealed record CozeCompatConnectorSchemaField(
     string Name,
@@ -1294,4 +1403,11 @@ public sealed class CozeCompatConnectorItemState
     public int ConnectorStatus { get; set; }
 
     public bool IsLastPublished { get; set; } = true;
+
+    public int AuthStatus { get; set; } = 2;
+
+    public Dictionary<string, string> AuthState { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 }
+
+public sealed record CozeCancelUserAuthCompatRequest(string? connector_id);

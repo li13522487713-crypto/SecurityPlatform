@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Text.Json;
+using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Identity;
@@ -10,9 +13,16 @@ namespace Atlas.Presentation.Shared.Controllers.Ai;
 
 public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
 {
-    private readonly IWorkspacePortalService _workspacePortalService;
-    private readonly ITenantProvider _tenantProvider;
-    private readonly ICurrentUserAccessor _currentUserAccessor;
+    private static readonly IReadOnlyDictionary<string, string> PublishConnectorNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1001"] = "Web SDK",
+            ["2001"] = "Generic Endpoint",
+            ["3001"] = "OAuth Demo"
+        };
+    protected readonly IWorkspacePortalService _workspacePortalService;
+    protected readonly ITenantProvider _tenantProvider;
+    protected readonly ICurrentUserAccessor _currentUserAccessor;
 
     protected CozeIntelligenceCompatControllerBase(
         IWorkspacePortalService workspacePortalService,
@@ -90,6 +100,161 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
                 connectors = Array.Empty<object>()
             },
             owner_info = BuildUserInfo(currentUser)
+        }));
+    }
+
+    [HttpPost("/api/intelligence_api/search/get_publish_intelligence_list")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetPublishIntelligenceList(
+        [FromBody] CozeGetPublishIntelligenceListRequest request,
+        CancellationToken cancellationToken)
+    {
+        await EnsureWorkspaceAccessibleAsync(request.space_id, cancellationToken);
+
+        if (request.intelligence_type != 1)
+        {
+            return Ok(Success(new
+            {
+                intelligences = Array.Empty<object>(),
+                total = 0,
+                has_more = false,
+                next_cursor_id = string.Empty
+            }));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        if (queryService is null)
+        {
+            return Ok(Success(new
+            {
+                intelligences = Array.Empty<object>(),
+                total = 0,
+                has_more = false,
+                next_cursor_id = string.Empty
+            }));
+        }
+
+        var workspaceId = long.TryParse(request.space_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedWorkspaceId)
+            ? parsedWorkspaceId
+            : (long?)null;
+        var pageSize = request.size > 0 ? Math.Min((int)request.size, 50) : 20;
+        var paged = await queryService.GetPagedAsync(
+            _tenantProvider.GetTenantId(),
+            request.name,
+            status: null,
+            workspaceId,
+            pageIndex: 1,
+            pageSize: pageSize,
+            cancellationToken);
+
+        var idFilter = request.intelligence_ids?
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var publishItems = paged.Items
+            .Where(item => item.PublishVersion > 0)
+            .Where(item => idFilter is null || idFilter.Count == 0 || idFilter.Contains(item.Id.ToString(CultureInfo.InvariantCulture)))
+            .Select(item => new
+            {
+                basic_info = new
+                {
+                    id = item.Id.ToString(CultureInfo.InvariantCulture),
+                    name = item.Name,
+                    description = item.Description ?? string.Empty,
+                    icon_uri = item.AvatarUrl ?? string.Empty,
+                    icon_url = item.AvatarUrl ?? string.Empty,
+                    space_id = request.space_id,
+                    owner_id = string.Empty,
+                    create_time = CozeCompatGatewaySupport.ToUnixMilliseconds(item.CreatedAt).ToString(CultureInfo.InvariantCulture),
+                    update_time = CozeCompatGatewaySupport.ToUnixMilliseconds(item.CreatedAt).ToString(CultureInfo.InvariantCulture),
+                    status = 1,
+                    publish_time = item.PublishVersion.ToString(CultureInfo.InvariantCulture)
+                },
+                user_info = BuildUserInfo(_currentUserAccessor.GetCurrentUserOrThrow()),
+                connectors = new object[]
+                {
+                    new
+                    {
+                        id = "1001",
+                        name = "Web SDK",
+                        icon = string.Empty,
+                        connector_status = 0,
+                        share_link = $"/space/{Uri.EscapeDataString(request.space_id)}/bot/{item.Id.ToString(CultureInfo.InvariantCulture)}"
+                    }
+                },
+                total_token = "0",
+                permission_type = 3,
+                trigger = false
+            })
+            .ToArray();
+
+        return Ok(Success(new
+        {
+            intelligences = publishItems,
+            total = publishItems.Length,
+            has_more = false,
+            next_cursor_id = string.Empty
+        }));
+    }
+
+    [HttpPost("/api/intelligence_api/publish/publish_record_detail")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetPublishRecordDetail(
+        [FromBody] CozeGetPublishRecordDetailRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(request.project_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var botId) || botId <= 0)
+        {
+            return Ok(Success(data: null));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        if (queryService is null)
+        {
+            return Ok(Success(data: null));
+        }
+
+        var detail = await queryService.GetByIdAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (detail is null || detail.PublishVersion <= 0)
+        {
+            return Ok(Success(data: null));
+        }
+
+        var recordId = BuildPublishRecordId(detail.Id, detail.PublishVersion);
+        if (!string.IsNullOrWhiteSpace(request.publish_record_id)
+            && !string.Equals(request.publish_record_id, recordId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(Success(data: null));
+        }
+
+        return Ok(Success(BuildPublishRecordDetailPayload(detail)));
+    }
+
+    [HttpPost("/api/intelligence_api/publish/publish_record_list")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetPublishRecordList(
+        [FromBody] CozeGetPublishRecordListRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(request.project_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var botId) || botId <= 0)
+        {
+            return Ok(Success(Array.Empty<object>()));
+        }
+
+        var queryService = HttpContext.RequestServices.GetService<IAgentQueryService>();
+        if (queryService is null)
+        {
+            return Ok(Success(Array.Empty<object>()));
+        }
+
+        var detail = await queryService.GetByIdAsync(_tenantProvider.GetTenantId(), botId, cancellationToken);
+        if (detail is null || detail.PublishVersion <= 0)
+        {
+            return Ok(Success(Array.Empty<object>()));
+        }
+
+        return Ok(Success(new[]
+        {
+            BuildPublishRecordDetailPayload(detail)
         }));
     }
 
@@ -241,6 +406,199 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
         };
     }
 
+    private static object BuildPublishRecordDetailPayload(AgentDetail detail)
+    {
+        var publishTime = detail.PublishedAt ?? detail.UpdatedAt ?? detail.CreatedAt;
+        var connectorPublishResult = BuildConnectorPublishResults(detail);
+        return new
+        {
+            publish_record_id = BuildPublishRecordId(detail.Id, detail.PublishVersion),
+            version_number = $"v{detail.PublishVersion}",
+            publish_status = 5,
+            publish_status_msg = string.Empty,
+            connector_publish_result = connectorPublishResult,
+            publish_status_detail = new
+            {
+                pack_failed_detail = Array.Empty<object>()
+            },
+            publish_time = CozeCompatGatewaySupport.ToUnixMilliseconds(publishTime).ToString(CultureInfo.InvariantCulture)
+        };
+    }
+
+    private static object[] BuildConnectorPublishResults(AgentDetail detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail.PublishedConnectorConfigJson))
+        {
+            return [BuildDefaultConnectorPublishResult(detail)];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(detail.PublishedConnectorConfigJson);
+            if (!document.RootElement.TryGetProperty("connectors", out var connectorsElement)
+                || connectorsElement.ValueKind != JsonValueKind.Object)
+            {
+                return [BuildDefaultConnectorPublishResult(detail)];
+            }
+
+            var results = new List<object>();
+            foreach (var connectorProperty in connectorsElement.EnumerateObject())
+            {
+                var connectorId = connectorProperty.Name;
+                var connectorState = connectorProperty.Value;
+                if (connectorState.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var configStatus = TryGetInt32(connectorState, "ConfigStatus");
+                var connectorStatus = TryGetInt32(connectorState, "ConnectorStatus");
+                var isLastPublished = TryGetBoolean(connectorState, "IsLastPublished", defaultValue: true);
+                var shareLink = TryGetString(connectorState, "ShareLink");
+                var bindInfo = TryGetStringDictionary(connectorState, "Detail");
+
+                if (!isLastPublished
+                    && string.IsNullOrWhiteSpace(shareLink)
+                    && bindInfo.Count == 0
+                    && configStatus <= 0
+                    && connectorStatus <= 0)
+                {
+                    continue;
+                }
+
+                results.Add(new
+                {
+                    connector_id = connectorId,
+                    connector_name = ResolveConnectorName(connectorId),
+                    connector_icon_url = string.Empty,
+                    connector_publish_status = MapConnectorPublishStatus(configStatus, connectorStatus, isLastPublished),
+                    connector_publish_status_msg = string.Empty,
+                    share_link = string.IsNullOrWhiteSpace(shareLink)
+                        ? BuildDefaultConnectorShareLink(detail, connectorId)
+                        : shareLink,
+                    download_link = string.Empty,
+                    connector_publish_config = new
+                    {
+                        selected_workflows = Array.Empty<object>()
+                    },
+                    connector_bind_info = bindInfo
+                });
+            }
+
+            return results.Count > 0 ? results.ToArray() : [BuildDefaultConnectorPublishResult(detail)];
+        }
+        catch
+        {
+            return [BuildDefaultConnectorPublishResult(detail)];
+        }
+    }
+
+    private static object BuildDefaultConnectorPublishResult(AgentDetail detail)
+        => new
+        {
+            connector_id = "1001",
+            connector_name = ResolveConnectorName("1001"),
+            connector_icon_url = string.Empty,
+            connector_publish_status = 2,
+            connector_publish_status_msg = string.Empty,
+            share_link = BuildDefaultConnectorShareLink(detail, "1001"),
+            download_link = string.Empty,
+            connector_publish_config = new
+            {
+                selected_workflows = Array.Empty<object>()
+            },
+            connector_bind_info = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        };
+
+    private static string BuildDefaultConnectorShareLink(AgentDetail detail, string connectorId)
+    {
+        if (!string.Equals(connectorId, "1001", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return detail.WorkspaceId.HasValue
+            ? $"/space/{detail.WorkspaceId.Value.ToString(CultureInfo.InvariantCulture)}/bot/{detail.Id.ToString(CultureInfo.InvariantCulture)}"
+            : string.Empty;
+    }
+
+    private static string ResolveConnectorName(string connectorId)
+        => PublishConnectorNames.TryGetValue(connectorId, out var name) ? name : connectorId;
+
+    private static int MapConnectorPublishStatus(int configStatus, int connectorStatus, bool isLastPublished)
+    {
+        if (connectorStatus == 1)
+        {
+            return 1;
+        }
+
+        if (connectorStatus == 2)
+        {
+            return 4;
+        }
+
+        if (configStatus is 2 or 5)
+        {
+            return 3;
+        }
+
+        return isLastPublished ? 2 : 0;
+    }
+
+    private static int TryGetInt32(JsonElement element, string propertyName)
+    {
+        if (element.TryGetProperty(propertyName, out var property)
+            && property.ValueKind == JsonValueKind.Number
+            && property.TryGetInt32(out var value))
+        {
+            return value;
+        }
+
+        return 0;
+    }
+
+    private static bool TryGetBoolean(JsonElement element, string propertyName, bool defaultValue)
+    {
+        if (element.TryGetProperty(propertyName, out var property)
+            && (property.ValueKind == JsonValueKind.True || property.ValueKind == JsonValueKind.False))
+        {
+            return property.GetBoolean();
+        }
+
+        return defaultValue;
+    }
+
+    private static string? TryGetString(JsonElement element, string propertyName)
+    {
+        if (element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String)
+        {
+            return property.GetString();
+        }
+
+        return null;
+    }
+
+    private static Dictionary<string, string> TryGetStringDictionary(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.Object)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in property.EnumerateObject())
+        {
+            result[item.Name] = item.Value.ValueKind == JsonValueKind.String
+                ? item.Value.GetString() ?? string.Empty
+                : item.Value.ToString();
+        }
+
+        return result;
+    }
+
+    private static string BuildPublishRecordId(long botId, int publishVersion)
+        => $"bot-{botId.ToString(CultureInfo.InvariantCulture)}-v{publishVersion.ToString(CultureInfo.InvariantCulture)}";
+
     protected static object Success(object? data)
     {
         return new
@@ -282,6 +640,23 @@ public sealed record CozeGetDraftIntelligenceInfoRequest(
     string? intelligence_id,
     int? intelligence_type,
     string? version);
+
+public sealed record CozeGetPublishIntelligenceListRequest(
+    int intelligence_type,
+    string space_id,
+    string? owner_id,
+    string? name,
+    int? order_last_publish_time,
+    int? order_total_token,
+    long size,
+    string? cursor_id,
+    IReadOnlyList<string>? intelligence_ids);
+
+public sealed record CozeGetPublishRecordDetailRequest(
+    string project_id,
+    string? publish_record_id);
+
+public sealed record CozeGetPublishRecordListRequest(string project_id);
 
 public sealed record CozeDraftProjectCreateRequest(
     string? space_id,

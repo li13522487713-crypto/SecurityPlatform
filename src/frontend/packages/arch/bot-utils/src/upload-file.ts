@@ -20,6 +20,8 @@ import {
   getUploader as initUploader,
   type CozeUploader,
   type Config as BytedUploaderConfig,
+  createLocalUploader,
+  shouldUseAtlasLocalUpload,
 } from '@coze-studio/uploader-adapter';
 import { type developer_api } from '@coze-arch/bot-api/developer_api';
 import { DeveloperApi, workflowApi } from '@coze-arch/bot-api';
@@ -123,6 +125,36 @@ export function upLoadFile({
     // eslint-disable-next-line complexity
     (async function () {
       try {
+        if (shouldUseAtlasLocalUpload()) {
+          const uploader = createLocalUploader();
+          getUploader?.(uploader);
+          uploader.on('complete', inform => {
+            const { uploadResult } = inform as unknown as Inform;
+            resolve(uploadResult.Uri ?? '');
+          });
+          uploader.on('error', inform => {
+            const { extra } = inform as unknown as Inform;
+            reject(extra);
+          });
+          uploader.on('progress', inform => {
+            const { percent } = inform as unknown as Inform;
+            getProgress?.(percent || 0);
+          });
+          const fileKey = uploader.addFile({
+            file,
+            stsToken: {
+              CurrentTime: '',
+              ExpiredTime: '',
+              SessionToken: '',
+              AccessKeyId: '',
+              SecretAccessKey: '',
+            },
+            type: fileType,
+          });
+          uploader.start(fileKey);
+          return;
+        }
+
         let serviceId, uploadHost, stsToken, schema;
         if (config) {
           const data = await config.getAuthToken();

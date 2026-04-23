@@ -23,7 +23,68 @@
   - `POST /api/draftbot/bind/save_connector_config`
   - `POST /api/draftbot/bind/connector`
   - `POST /api/draftbot/unbind/connector`
+  - `GET /api/user/auth/connector_state`
+  - `POST /api/user/auth/cancel`
 - 以上路由当前由 `Atlas.AppHost.Controllers.AppWebCozeDeveloperGatewayController` 提供兼容实现，并把渠道配置持久化到 `Atlas.Domain.AiPlatform.Entities.Agent.PublishedConnectorConfigJson`，作为原生 Coze 发布主链的唯一后端落点。
+- 当前 publish 列表已支持三类原生渠道：
+  - `Web SDK`
+  - `Generic Endpoint`
+  - `OAuth Demo`
+- 其中 `OAuth Demo` 通过同一份 connector 状态文档持久化授权状态；撤销授权会把当前 workspace 下对应 connector 的 `AuthStatus` 重置为未授权。
+- 发布管理入口显隐当前由 `POST /api/intelligence_api/search/get_publish_intelligence_list` 决定，`@coze-studio/publish-manage-hooks` 会用它判断 `analysis / logs / triggers` 菜单是否可进入。
+- 当前 `/space/:space_id/bot/:bot_id/analysis` 已不再回退到发布首页，而是重定向到 `/space/:space_id/bot/:bot_id/publish?tab=analysis`，保持原生 publish-manage 语义。
+- 当前 `app-web` 已在宿主侧为 `/space/:space_id/bot/:bot_id/publish?tab=analysis|logs|triggers` 提供发布管理承载页，页面直接消费 `@coze-arch/bot-api` 的 `GetPublishRecordDetail / GetPublishRecordList`，不再回退到 Atlas facade。
+- `POST /api/intelligence_api/publish/publish_record_detail` 与 `POST /api/intelligence_api/publish/publish_record_list` 已为 bot 发布管理提供最小真实实现：当前返回最近一次已发布版本和当前可用渠道结果，历史多版本与细粒度 trigger/logs 仍属后续补齐项，因此在覆盖矩阵中保持 `Partial`。
+
+### Coze 原生智能体空间迁移链
+
+- `@coze-agent-ide/space-bot` 的 bot 移动弹窗当前直接调用 `POST /api/playground_api/move_draft_bot`。
+- `Atlas.AppHost.Controllers.AppWebCozePlaygroundGatewayController` 已提供该路由的最小闭环实现：
+  - `Preview / ViewTask / CancelTask` 返回同型 `async_task` 结构；
+  - `Move / ForcedMove / RetryMove` 会把目标 `Agent` 的 `WorkspaceId` 真实更新到目标空间。
+- 当前这一链路的资源迁移明细仍是最小实现，`transfer_resource_plugin_list / workflow_list / knowledge_list` 先返回空列表；在补齐真实依赖迁移前，该端点在覆盖矩阵中维持 `Partial`。
+
+### Coze 原生 Store 发布辅助链
+
+- `@coze-agent-ide/agent-publish` 的 store 发布配置会调用 `POST /api/playground_api/draftbot/generate_store_category` 自动生成默认分类。
+- 当前该端点已接到真实 `IAiMarketplaceService.GetCategoriesAsync(...)`：
+  - 优先按 `bot_name / bot_description / prompt` 命中已有分类名称；
+  - 未命中时按 `SortOrder` 选择第一条启用分类。
+- 该链路不再回落到 Atlas 私有 facade；分类返回值必须来自真实市场分类表，保证前端 `ProductApi.PublicGetProductCategoryList` 下拉可直接消费。
+
+### Coze 原生 Query Collect 辅助链
+
+- `@coze-agent-ide/space-bot` 当前直接调用：
+  - `GET /api/playground_api/draftbot/get_user_query_collect_option`
+  - `POST /api/playground_api/draftbot/generate_user_query_collect_policy`
+- 当前由 `Atlas.AppHost.Controllers.AppWebCozePlaygroundGatewayController` 提供最小可用实现：
+  - `get_user_query_collect_option` 返回可消费的 `support_connectors[]` 与 `private_policy_template`
+  - `generate_user_query_collect_policy` 返回同型 `policy_link`
+- 该链路当前用于保证原生 bot 设置页不因 query collect 辅助接口缺失而中断；后续若要接真实政策文档生成服务，再在此路由上升级，不新增 Atlas 私有中转路径。
+
+### Coze 原生上传链当前状态
+
+- `@coze-agent-ide/space-bot` / `@coze-agent-ide/onboarding` 当前真实依赖：
+  - `POST /api/playground/upload/auth_token`
+  - `POST /api/playground_api/get_imagex_url`
+- 当前仓库内已确认存在的是 Atlas 自有文件服务体系：
+  - `api/v1/files/*`
+  - `IFileStorageService`
+  - `IFileObjectStore`
+- 但前端上传库 `@coze-studio/uploader-adapter` 当前消费的是 Coze/ImageX 风格 STS 字段：
+  - `service_id`
+  - `upload_host`
+  - `auth.access_key_id`
+  - `auth.secret_access_key`
+  - `auth.session_token`
+- 当前已落地的最快闭环方案是：
+  - 前端通用上传工具优先走 Atlas 本地文件服务 `api/v1/files`
+  - 上传成功后把文件标识编码为 `atlas-file:{id}`
+  - `POST /api/playground_api/get_imagex_url` 再把 `atlas-file:{id}` 解析为签名下载 URL
+- 因此上传链当前状态是：
+  - `get_imagex_url` 已补齐
+  - `upload/auth_token` 仍保留 `Missing`
+- 在未把本地文件服务完全接入所有原生上传入口前，禁止把整条上传链标记为 `OK`。
 
 ## Assistant 域命名映射
 

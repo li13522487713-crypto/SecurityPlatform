@@ -19,6 +19,8 @@ import {
   getUploader as initUploader,
   type CozeUploader,
   type EventPayloadMaps,
+  createLocalUploader,
+  shouldUseAtlasLocalUpload,
 } from '@coze-studio/uploader-adapter';
 import { type GetUploadAuthTokenData } from '@coze-arch/bot-api/developer_api';
 import { DeveloperApi } from '@coze-arch/bot-api';
@@ -117,48 +119,12 @@ export function uploadFileV2({
       }
     };
 
-    const upload = (authToken: GetUploadAuthTokenData) => {
-      const { service_id, upload_host, auth, schema } =
-        authToken as GetUploadAuthTokenData & { schema?: string };
-
-      const uploader = initUploader(
-        {
-          schema,
-          useFileExtension: true,
-          // Solve the error problem:
-          userId,
-          appId: APP_ID,
-          // cp-disable-next-line
-          imageHost: `https://${upload_host}`, //imageX upload required
-          imageConfig: {
-            serviceId: service_id || '', // The service id applied for in the video cloud.
-          },
-          objectConfig: {
-            serviceId: service_id || '',
-          },
-          imageFallbackHost: IMAGE_FALLBACK_HOST,
-          region: BYTE_UPLOADER_REGION,
-          uploadTimeout: timeout,
-        },
-        IS_OVERSEA,
-      );
+    const bindUploader = (
+      uploader: UploaderInstance,
+      fileAndKeyList: (FileItem & { fileKey: string })[],
+    ) => {
       bytedUploader = uploader;
       onUploaderReady?.(uploader);
-
-      const fileAndKeyList = fileItemList.map(({ file, fileType }) => {
-        const fileKey = uploader.addFile({
-          file,
-          stsToken: {
-            CurrentTime: auth?.current_time || '',
-            ExpiredTime: auth?.expired_time || '',
-            SessionToken: auth?.session_token || '',
-            AccessKeyId: auth?.access_key_id || '',
-            SecretAccessKey: auth?.secret_access_key || '',
-          },
-          type: fileType, // Upload file type, three optional values: video (video or audio, default), image (picture), object (normal file)
-        });
-        return { file, fileType, fileKey };
-      });
 
       onStartUpload?.(fileAndKeyList);
       fileAndKeyList.forEach(fileAndKey => {
@@ -188,7 +154,70 @@ export function uploadFileV2({
       });
     };
 
+    const upload = (authToken: GetUploadAuthTokenData) => {
+      const { service_id, upload_host, auth, schema } =
+        authToken as GetUploadAuthTokenData & { schema?: string };
+
+      const uploader = initUploader(
+        {
+          schema,
+          useFileExtension: true,
+          userId,
+          appId: APP_ID,
+          imageHost: `https://${upload_host}`,
+          imageConfig: {
+            serviceId: service_id || '',
+          },
+          objectConfig: {
+            serviceId: service_id || '',
+          },
+          imageFallbackHost: IMAGE_FALLBACK_HOST,
+          region: BYTE_UPLOADER_REGION,
+          uploadTimeout: timeout,
+        },
+        IS_OVERSEA,
+      );
+
+      const fileAndKeyList = fileItemList.map(({ file, fileType }) => {
+        const fileKey = uploader.addFile({
+          file,
+          stsToken: {
+            CurrentTime: auth?.current_time || '',
+            ExpiredTime: auth?.expired_time || '',
+            SessionToken: auth?.session_token || '',
+            AccessKeyId: auth?.access_key_id || '',
+            SecretAccessKey: auth?.secret_access_key || '',
+          },
+          type: fileType,
+        });
+        return { file, fileType, fileKey };
+      });
+
+      bindUploader(uploader, fileAndKeyList);
+    };
+
     const start = async () => {
+      if (shouldUseAtlasLocalUpload()) {
+        const uploader = createLocalUploader();
+        const fileAndKeyList = fileItemList.map(({ file, fileType }) => ({
+          file,
+          fileType,
+          fileKey: uploader.addFile({
+            file,
+            stsToken: {
+              CurrentTime: '',
+              ExpiredTime: '',
+              SessionToken: '',
+              AccessKeyId: '',
+              SecretAccessKey: '',
+            },
+            type: fileType,
+          }),
+        }));
+        bindUploader(uploader, fileAndKeyList);
+        return;
+      }
+
       const [authData] = await Promise.all([getToken()]);
       if (stopped) {
         return;

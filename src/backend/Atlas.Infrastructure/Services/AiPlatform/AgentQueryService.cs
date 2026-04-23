@@ -101,6 +101,7 @@ public sealed class AgentQueryService : IAgentQueryService
                 binding.IsEnabled,
                 binding.ToolConfigJson,
                 ParsePluginToolBindings(binding.ToolConfigJson))).ToArray(),
+            entity.PublishedConnectorConfigJson,
             entity.WorkspaceId);
     }
 

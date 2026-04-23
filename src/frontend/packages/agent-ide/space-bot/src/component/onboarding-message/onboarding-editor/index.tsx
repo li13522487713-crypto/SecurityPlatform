@@ -41,7 +41,6 @@ import { InsertTemplateToolItem } from './plugins/insert-template/tool-item';
 import { InsertTemplate } from './plugins/insert-template';
 import { sliceEditor } from './method/slice-editor';
 import { initEditorByPrologue } from './method/init-editor';
-import { getUploadToken } from './method/get-upload-token';
 import { getImageUrl } from './method/get-image-url';
 import { useModalEditorSubmit } from './hooks/use-modal-editor-submit';
 import { useInitEditor } from './hooks/use-init-editor';
@@ -165,7 +164,6 @@ const InnerEditor = forwardRef<OnboardingEditorAction, OnboardingEditorProps>(
               onExpand={props?.onExpand}
               plainText={props.plainText}
               className={styles['onboarding-editor']}
-              getUploadToken={getUploadToken}
               getImgURL={getImageUrl}
               registerPlugins={(plugins, { editor }) =>
                 plugins.concat([

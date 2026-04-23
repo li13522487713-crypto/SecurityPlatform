@@ -46,6 +46,7 @@ public sealed record AgentDetail(
     int LongTermMemoryTopK,
     IReadOnlyList<long>? KnowledgeBaseIds,
     IReadOnlyList<AgentPluginBindingItem>? PluginBindings,
+    string? PublishedConnectorConfigJson = null,
     long? WorkspaceId = null);
 
 public sealed record AgentCreateRequest(
