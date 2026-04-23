@@ -29,6 +29,12 @@ public interface IAppDefinitionRepository
         string? status,
         string? workspaceId,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<long, string>> LoadFolderIdsAsync(
+        TenantId tenantId,
+        string workspaceId,
+        IReadOnlyCollection<long> appIds,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>页面仓储抽象（M01）。</summary>

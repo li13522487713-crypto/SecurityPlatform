@@ -28,6 +28,7 @@ export interface LowcodeAppListItemDto {
   currentVersionId?: string | null;
   createdAt: string;
   updatedAt: string;
+  folderId?: string | null;
 }
 
 export interface LowcodeAppListQuery {
@@ -36,6 +37,7 @@ export interface LowcodeAppListQuery {
   pageIndex?: number;
   pageSize?: number;
   workspaceId?: string;
+  folderId?: string;
 }
 
 export interface LowcodeAppCreateRequest {
@@ -57,6 +59,35 @@ interface LowcodeAppCreateResponseData {
   id: string;
 }
 
+export interface LowcodeAppDetailDto {
+  id: string;
+  code: string;
+  displayName: string;
+  description?: string;
+  schemaVersion: string;
+  targetTypes: string;
+  defaultLocale: string;
+  theme?: {
+    primaryColor?: string;
+    borderRadius?: number;
+    darkMode?: "never" | "always" | "auto";
+    cssVariables?: Record<string, string>;
+  } | null;
+  status: string;
+  currentVersionId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  workspaceId?: string | null;
+}
+
+export interface LowcodeAppDraftDto {
+  appId: string;
+  schemaVersion: string;
+  schemaJson: string;
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+
 export async function getLowcodeAppsPaged(query?: LowcodeAppListQuery): Promise<PagedResult<LowcodeAppListItemDto>> {
   const params = new URLSearchParams({
     pageIndex: String(query?.pageIndex ?? 1),
@@ -73,6 +104,10 @@ export async function getLowcodeAppsPaged(query?: LowcodeAppListQuery): Promise<
 
   if (query?.workspaceId) {
     params.set("workspaceId", query.workspaceId);
+  }
+
+  if (query?.folderId) {
+    params.set("folderId", query.folderId);
   }
 
   const response = await requestApi<ApiResponse<PagedResult<LowcodeAppListItemDto>>>(`/lowcode/apps?${params.toString()}`);
@@ -93,6 +128,33 @@ export async function createLowcodeApp(request: LowcodeAppCreateRequest): Promis
     throw new Error(response.message || "创建低代码应用失败");
   }
   return appId;
+}
+
+export async function getLowcodeAppById(appId: string): Promise<LowcodeAppDetailDto> {
+  const response = await requestApi<ApiResponse<LowcodeAppDetailDto>>(`/lowcode/apps/${encodeURIComponent(appId)}`);
+  if (!response.data) {
+    throw new Error(response.message || "获取低代码应用详情失败");
+  }
+  return response.data;
+}
+
+export async function getLowcodeAppDraft(appId: string): Promise<LowcodeAppDraftDto> {
+  const response = await requestApi<ApiResponse<LowcodeAppDraftDto>>(`/lowcode/apps/${encodeURIComponent(appId)}/draft`);
+  if (!response.data) {
+    throw new Error(response.message || "获取低代码应用草稿失败");
+  }
+  return response.data;
+}
+
+export async function replaceLowcodeAppDraft(appId: string, schemaJson: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/lowcode/apps/${encodeURIComponent(appId)}/draft`, {
+    method: "POST",
+    body: JSON.stringify({ schemaJson })
+  });
+
+  if (!response.success) {
+    throw new Error(response.message || "保存低代码应用草稿失败");
+  }
 }
 
 export async function deleteLowcodeApp(appId: string): Promise<void> {

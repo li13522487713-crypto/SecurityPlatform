@@ -26,7 +26,8 @@ public sealed class LowCodeMappingProfile : Profile
             .ForCtorParam("CurrentVersionId", opt => opt.MapFrom(src => src.CurrentVersionId.HasValue && src.CurrentVersionId.Value > 0 ? src.CurrentVersionId : null))
             .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAt))
             .ForCtorParam("UpdatedAt", opt => opt.MapFrom(src => src.UpdatedAt))
-            .ForCtorParam("WorkspaceId", opt => opt.MapFrom(src => src.WorkspaceId));
+            .ForCtorParam("WorkspaceId", opt => opt.MapFrom(src => src.WorkspaceId))
+            .ForCtorParam("FolderId", opt => opt.MapFrom(_ => (string?)null));
 
         CreateMap<AppDefinition, AppDefinitionDetail>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()))

@@ -90,7 +90,7 @@ const AGENT_CARD_CAPABILITIES: ProjectsResourceCapabilities = {
 };
 
 export function WorkspaceProjectsPage() {
-  const { t } = useAppI18n();
+  const { t, locale } = useAppI18n();
   const auth = useAuth();
   const workspace = useWorkspaceContext();
   const { folderId } = useParams<{ folderId?: string }>();
@@ -166,7 +166,7 @@ export function WorkspaceProjectsPage() {
     setLoading(true);
     try {
       const loadAgents = resourceTypeFilter !== "app";
-      const loadApps = resourceTypeFilter !== "agent" && !folderId;
+      const loadApps = resourceTypeFilter !== "agent";
       const status = statusFilter === "all" ? undefined : statusFilter;
       const keyword = normalizedKeyword || undefined;
 
@@ -189,12 +189,13 @@ export function WorkspaceProjectsPage() {
             keyword,
             resourceType: "app",
             status,
+            folderId: folderId || undefined,
             workspaceId: workspace.id
           })
           : Promise.resolve({ items: [] as WorkspaceIdeResourceCardDto[], pageIndex: 1, pageSize: 120, total: 0 }),
         loadApps
-          ? lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status, workspaceId: workspace.id })
-          : Promise.resolve({ items: [] as Array<{ id: string; name: string; description?: string; status: string; updatedAt: string }>, pageIndex: 1, pageSize: 120, total: 0 }),
+          ? lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status, workspaceId: workspace.id, folderId: folderId || undefined })
+          : Promise.resolve({ items: [] as Array<{ id: string; name: string; description?: string; status: string; updatedAt: string; folderId?: string }>, pageIndex: 1, pageSize: 120, total: 0 }),
         listFolders(workspace.id, { pageIndex: 1, pageSize: 200 })
       ]);
 
@@ -317,10 +318,27 @@ export function WorkspaceProjectsPage() {
     const actionKey = `${item.resourceType}-${item.resourceId}-duplicate`;
     setActionLoadingKey(actionKey);
     try {
-      await duplicateWorkspaceIdeResource(item.resourceType, item.resourceId, {
-        workspaceId: workspace.id,
-        folderId: folderId || item.folderId
-      });
+      if (item.source === "lowcode") {
+        const result = await lowcodeGateway.duplicate(item.resourceId, {
+          name: item.name,
+          description: item.description,
+          workspaceId: workspace.id,
+          locale
+        });
+
+        const targetFolderId = folderId || item.folderId;
+        if (targetFolderId) {
+          await moveItemToFolder(workspace.id, targetFolderId, {
+            itemType: item.resourceType,
+            itemId: result.appId
+          });
+        }
+      } else {
+        await duplicateWorkspaceIdeResource(item.resourceType, item.resourceId, {
+          workspaceId: workspace.id,
+          folderId: folderId || item.folderId
+        });
+      }
       Toast.success(t("cozeProjectsMenuDuplicateSuccess"));
       await loadData();
     } catch (error) {
@@ -401,6 +419,15 @@ export function WorkspaceProjectsPage() {
           targetWorkspaceId: workspaceDialog.selectedWorkspaceId
         });
         Toast.success(t("cozeProjectsMenuMigrateSuccess"));
+      } else if (workspaceDialog.resource.source === "lowcode") {
+        await lowcodeGateway.copyToWorkspace(workspaceDialog.resource.resourceId, {
+          name: workspaceDialog.resource.name,
+          description: workspaceDialog.resource.description,
+          workspaceId: workspace.id,
+          targetWorkspaceId: workspaceDialog.selectedWorkspaceId,
+          locale
+        });
+        Toast.success(t("cozeProjectsMenuCopyWorkspaceSuccess"));
       } else {
         await copyWorkspaceIdeResourceToWorkspace(workspaceDialog.resource.resourceType, workspaceDialog.resource.resourceId, {
           sourceWorkspaceId: workspace.id,
@@ -817,7 +844,7 @@ function isAppResourceCard(item: WorkspaceIdeResourceCardDto): item is Workspace
 function mapAppResourceCard(item: WorkspaceIdeResourceCardDto & { resourceType: "app" }): ProjectsResourceCard {
   return {
     ...item,
-    source: "lowcode",
+    source: "workspace-ide",
     capabilities: {
       ...lowcodeGatewayStaticCapabilities
     }
@@ -825,7 +852,7 @@ function mapAppResourceCard(item: WorkspaceIdeResourceCardDto & { resourceType: 
 }
 
 function mapLowcodeAppCard(
-  item: { id: string; name: string; description?: string; status: string; updatedAt: string }
+  item: { id: string; name: string; description?: string; status: string; updatedAt: string; folderId?: string }
 ): ProjectsResourceCard {
   return {
     source: "lowcode",
@@ -842,15 +869,15 @@ function mapLowcodeAppCard(
     entryRoute: "",
     badge: "lowcode",
     linkedWorkflowId: undefined,
-    folderId: undefined,
+    folderId: item.folderId,
     ownerDisplayName: undefined,
     lastEditedByDisplayName: undefined,
     capabilities: {
       canFavorite: false,
-      canDuplicate: false,
-      canMove: false,
+      canDuplicate: true,
+      canMove: true,
       canMigrate: false,
-      canCopyToWorkspace: false,
+      canCopyToWorkspace: true,
       canDelete: true
     }
   };

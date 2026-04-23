@@ -1,5 +1,6 @@
 using Atlas.Application.LowCode.Repositories;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Microsoft.Data.Sqlite;
 using SqlSugar;
@@ -102,6 +103,34 @@ public sealed class AppDefinitionRepository : IAppDefinitionRepository
         var list = await q.OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
         return (list, total);
+    }
+
+    public async Task<IReadOnlyDictionary<long, string>> LoadFolderIdsAsync(
+        TenantId tenantId,
+        string workspaceId,
+        IReadOnlyCollection<long> appIds,
+        CancellationToken cancellationToken)
+    {
+        if (appIds.Count == 0)
+        {
+            return new Dictionary<long, string>();
+        }
+
+        var idTexts = appIds.Select(id => id.ToString()).ToArray();
+        var rows = await _db.Queryable<WorkspaceFolderItem>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.WorkspaceId == workspaceId
+                && x.ItemType == "app"
+                && SqlFunc.ContainsArray(idTexts, x.ItemId))
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Where(row => long.TryParse(row.ItemId, out _))
+            .GroupBy(row => row.ItemId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => long.Parse(group.Key),
+                group => group.First().FolderId.ToString());
     }
 
     private static bool IsLegacyCurrentVersionNotNullConstraint(SqliteException ex)

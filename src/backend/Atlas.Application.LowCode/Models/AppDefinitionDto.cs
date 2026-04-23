@@ -13,7 +13,8 @@ public sealed record AppDefinitionListItem(
     long? CurrentVersionId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    string? WorkspaceId = null);
+    string? WorkspaceId = null,
+    string? FolderId = null);
 
 /// <summary>应用详情（含主题，但不含 schema 完整 JSON——schema 通过专用端点拉取以避免过大列表负载）。</summary>
 public sealed record AppDefinitionDetail(

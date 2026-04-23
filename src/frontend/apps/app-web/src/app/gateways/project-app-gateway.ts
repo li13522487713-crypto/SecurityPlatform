@@ -2,7 +2,10 @@ import type { PagedResult } from "@atlas/shared-react-core/types";
 import {
   createLowcodeApp,
   deleteLowcodeApp,
+  getLowcodeAppById,
+  getLowcodeAppDraft,
   getLowcodeAppsPaged,
+  replaceLowcodeAppDraft,
   type LowcodeAppListQuery
 } from "../../services/api-lowcode-apps";
 import { navigateToLowcodeStudio } from "../navigation/lowcode-studio-navigator";
@@ -22,6 +25,7 @@ export interface ProjectAppCard {
   description?: string;
   status: string;
   updatedAt: string;
+  folderId?: string;
 }
 
 export interface ProjectAppCreateRequest {
@@ -34,6 +38,8 @@ export interface ProjectAppCreateRequest {
 export interface ProjectAppGateway {
   list: (query?: LowcodeAppListQuery) => Promise<PagedResult<ProjectAppCard>>;
   create: (request: ProjectAppCreateRequest) => Promise<{ appId: string }>;
+  duplicate: (appId: string, request: ProjectAppCreateRequest) => Promise<{ appId: string }>;
+  copyToWorkspace: (appId: string, request: ProjectAppCreateRequest & { targetWorkspaceId: string }) => Promise<{ appId: string }>;
   delete: (appId: string) => Promise<void>;
   open: (appId: string) => void;
   getCapabilities: () => ProjectAppCapabilities;
@@ -72,9 +78,39 @@ function buildAppCode(name: string): string {
   return `${prefix}-${suffix}`.replace(/^-+|-+$/g, "").replace(/-{2,}/g, "-");
 }
 
+function buildDuplicateName(name: string): string {
+  const trimmed = name.trim();
+  return trimmed.endsWith("副本") ? trimmed : `${trimmed} 副本`;
+}
+
 export function createLowcodeProjectAppGateway(options?: LowcodeProjectAppGatewayOptions): ProjectAppGateway {
   const canDelete = options?.canDelete ?? true;
   const navigate = options?.navigate;
+
+  const cloneLowcodeApp = async (
+    appId: string,
+    request: ProjectAppCreateRequest & { targetWorkspaceId?: string }
+  ) => {
+    const [detail, draft] = await Promise.all([
+      getLowcodeAppById(appId),
+      getLowcodeAppDraft(appId)
+    ]);
+
+    const displayName = request.name.trim() || buildDuplicateName(detail.displayName);
+    const nextWorkspaceId = request.targetWorkspaceId ?? request.workspaceId ?? detail.workspaceId ?? undefined;
+    const newAppId = await createLowcodeApp({
+      code: buildAppCode(displayName),
+      displayName,
+      description: request.description?.trim() || detail.description || undefined,
+      targetTypes: detail.targetTypes,
+      defaultLocale: normalizeLocale(request.locale ?? detail.defaultLocale),
+      workspaceId: nextWorkspaceId,
+      theme: detail.theme ?? null
+    });
+
+    await replaceLowcodeAppDraft(newAppId, draft.schemaJson);
+    return { appId: newAppId };
+  };
 
   return {
     async list(query) {
@@ -86,7 +122,8 @@ export function createLowcodeProjectAppGateway(options?: LowcodeProjectAppGatewa
           name: item.displayName,
           description: item.description,
           status: item.status,
-          updatedAt: item.updatedAt
+          updatedAt: item.updatedAt,
+          folderId: item.folderId ?? undefined
         }))
       };
     },
@@ -102,6 +139,18 @@ export function createLowcodeProjectAppGateway(options?: LowcodeProjectAppGatewa
         theme: null
       });
       return { appId };
+    },
+    duplicate(appId, request) {
+      return cloneLowcodeApp(appId, {
+        ...request,
+        name: buildDuplicateName(request.name)
+      });
+    },
+    copyToWorkspace(appId, request) {
+      return cloneLowcodeApp(appId, {
+        ...request,
+        targetWorkspaceId: request.targetWorkspaceId
+      });
     },
     delete: deleteLowcodeApp,
     open(appId) {
