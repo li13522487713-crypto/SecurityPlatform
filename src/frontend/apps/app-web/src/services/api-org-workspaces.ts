@@ -144,6 +144,26 @@ export interface WorkspaceAppInstanceDto {
   updatedAt: string;
 }
 
+interface CozeCompatResponse<T> {
+  code?: number | string;
+  msg?: string;
+  data?: T;
+}
+
+interface CozeSpaceListPayload {
+  bot_space_list?: Array<{
+    id?: string;
+    name?: string;
+    description?: string;
+    icon_url?: string;
+    role_type?: number;
+  }>;
+}
+
+interface CozeSaveSpacePayload {
+  id?: string | number | null;
+}
+
 function base(orgId: string): string {
   return `/organizations/${encodeURIComponent(orgId)}/workspaces`;
 }
@@ -169,11 +189,41 @@ function normalizeWorkspaceDetail(item: WorkspaceDetailDto): WorkspaceDetailDto 
 }
 
 export async function getWorkspaces(orgId: string): Promise<WorkspaceSummaryDto[]> {
-  const response = await requestApi<ApiResponse<WorkspaceSummaryDto[]>>(base(orgId));
-  if (!response.data) {
-    throw new Error(response.message || "获取工作空间列表失败");
+  void orgId;
+  // 工作空间选择/切换入口优先对齐 Coze playground 的空间接口，避免继续耦合 Atlas 自研组织工作空间列表。
+  const response = await requestApi<CozeCompatResponse<CozeSpaceListPayload>>("/api/playground_api/space/list", {
+    method: "POST",
+    body: JSON.stringify({
+      page: 1,
+      size: 100
+    })
+  });
+  if (Number(response.code ?? 0) !== 0) {
+    throw new Error(response.msg || "获取工作空间列表失败");
   }
-  return response.data.map(normalizeWorkspaceSummary);
+
+  return (response.data?.bot_space_list ?? []).map(item =>
+    normalizeWorkspaceSummary({
+      id: String(item.id ?? "").trim(),
+      orgId: "",
+      name: String(item.name ?? "").trim(),
+      description: item.description ? String(item.description).trim() : undefined,
+      icon: item.icon_url ? String(item.icon_url).trim() : undefined,
+      appInstanceId: "",
+      appKey: "",
+      roleCode:
+        item.role_type === 1
+          ? "Owner"
+          : item.role_type === 2
+            ? "Admin"
+            : "Member",
+      appCount: 0,
+      agentCount: 0,
+      workflowCount: 0,
+      createdAt: "",
+      lastVisitedAt: undefined
+    })
+  ).filter(item => item.id);
 }
 
 export async function getWorkspaceById(orgId: string, workspaceId: string): Promise<WorkspaceDetailDto> {
@@ -203,16 +253,24 @@ export async function getWorkspaceByAppKey(orgId: string, appKey: string): Promi
 }
 
 export async function createWorkspace(orgId: string, request: WorkspaceCreateRequest): Promise<string> {
-  const response = await requestApi<ApiResponse<{ id?: string | number | null; Id?: string | number | null }>>(
-    base(orgId),
+  void orgId;
+  const response = await requestApi<CozeCompatResponse<CozeSaveSpacePayload>>(
+    "/api/playground_api/space/save",
     {
       method: "POST",
-      body: JSON.stringify(request)
+      body: JSON.stringify({
+        name: request.name,
+        description: request.description
+      })
     }
   );
+  if (Number(response.code ?? 0) !== 0) {
+    throw new Error(response.msg || "创建工作空间失败");
+  }
+
   const workspaceId = extractResourceId(response.data);
   if (!workspaceId) {
-    throw new Error(response.message || "创建工作空间失败");
+    throw new Error(response.msg || "创建工作空间失败");
   }
   return workspaceId;
 }

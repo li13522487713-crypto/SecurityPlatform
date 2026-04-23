@@ -63,7 +63,11 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
         {
             bot_space_list = botSpaces,
             recently_used_space_list = botSpaces,
-            has_personal_space = false,
+            // Atlas 当前只有团队工作空间模型；对接 Coze space-store 时显式声明“已存在个人空间能力”
+            // 以避免前端 store 因 `has_personal_space=false` 而自动补建 Personal 空间。
+            has_personal_space = true,
+            team_space_num = filtered.Count,
+            max_team_space_num = 999,
             total = filtered.Count,
             has_more = skipped + botSpaces.Length < filtered.Count
         }));
@@ -144,7 +148,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
                 name = match.Name,
                 description = match.Description ?? string.Empty,
                 icon_url = match.Icon ?? string.Empty,
-                space_type = string.Equals(match.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase) ? 1 : 2,
+                space_type = 2,
                 role_type = string.Equals(match.RoleCode, "Owner", StringComparison.OrdinalIgnoreCase) ? 1 : string.Equals(match.RoleCode, "Admin", StringComparison.OrdinalIgnoreCase) ? 2 : 3,
                 space_mode = 0
             }
@@ -985,7 +989,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
             description = item.Description,
             icon_url = item.Icon ?? string.Empty,
             role_type = roleType,
-            space_type = 1,
+            space_type = 2,
             space_mode = 0,
             hide_operation = false
         };

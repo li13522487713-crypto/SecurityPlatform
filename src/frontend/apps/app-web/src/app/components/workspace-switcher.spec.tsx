@@ -1,30 +1,71 @@
 // @vitest-environment jsdom
 
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { act } from "react-dom/test-utils";
 import ReactDOM from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 const {
-  getWorkspacesMock,
+  createSpaceMock,
+  fetchSpacesMock,
   navigateMock
 } = vi.hoisted(() => ({
-  getWorkspacesMock: vi.fn(),
+  createSpaceMock: vi.fn(),
+  fetchSpacesMock: vi.fn(),
   navigateMock: vi.fn()
 }));
 
-vi.mock("@douyinfe/semi-ui", () => ({
-  Dropdown: ({ children, render }: { children: ReactNode; render: ReactNode }) => (
+vi.mock("@coze-arch/coze-design", () => {
+  const Select = ({
+    children,
+    onChange
+  }: {
+    children?: ReactNode;
+    onChange?: (value: string) => void;
+  }) => (
     <div>
-      {children}
-      {render}
+      {Array.isArray(children)
+        ? children.map((child) =>
+            isValidElement(child)
+              ? cloneElement(child as ReactElement<{ onChange?: (value: string) => void }>, { onChange })
+              : child
+          )
+        : isValidElement(children)
+          ? cloneElement(children as ReactElement<{ onChange?: (value: string) => void }>, { onChange })
+          : children}
     </div>
-  ),
-  Input: ({
+  );
+  Select.Option = ({
+    children,
     value,
     onChange,
-    placeholder
+    ...rest
+  }: {
+    children?: ReactNode;
+    value: string;
+    onChange?: (value: string) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid={(rest as { "data-testid"?: string })["data-testid"]}
+      onClick={() => onChange?.(value)}
+    >
+      {children}
+    </button>
+  );
+
+  return {
+    Avatar: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+    Button: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
+      <button type="button" onClick={onClick}>
+        {children}
+      </button>
+    ),
+    Input: ({
+      value,
+      onChange,
+      placeholder
   }: {
     value?: string;
     onChange?: (value: string) => void;
@@ -37,23 +78,35 @@ vi.mock("@douyinfe/semi-ui", () => ({
       onChange={(event) => onChange?.(event.target.value)}
     />
   ),
-  Spin: () => <div data-testid="mock-spin">loading</div>,
-  Tag: ({ children }: { children?: ReactNode }) => <span>{children}</span>
-}));
-
-vi.mock("@douyinfe/semi-icons", () => ({
-  IconChevronDown: () => <span>v</span>,
-  IconPlus: () => <span>+</span>,
-  IconSearch: () => <span>s</span>,
-  IconArrowUp: () => <span>u</span>
-}));
+    Modal: ({ children, visible }: { children?: ReactNode; visible?: boolean }) => visible ? <div>{children}</div> : null,
+    Select,
+    Spin: () => <div data-testid="mock-spin">loading</div>,
+    Tag: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+    TextArea: ({
+      value,
+      onChange
+    }: {
+      value?: string;
+      onChange?: (value: string) => void;
+    }) => (
+      <textarea
+        value={value ?? ""}
+        onChange={(event) => onChange?.(event.target.value)}
+      />
+    ),
+    Toast: {
+      warning: vi.fn(),
+      success: vi.fn(),
+      error: vi.fn()
+    },
+    Typography: {
+      Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>
+    }
+  };
+});
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => navigateMock
-}));
-
-vi.mock("@atlas/shared-react-core/utils", () => ({
-  getTenantId: () => "tenant-1"
 }));
 
 vi.mock("@atlas/app-shell-shared", () => ({
@@ -61,8 +114,20 @@ vi.mock("@atlas/app-shell-shared", () => ({
   workspaceHomePath: (workspaceId: string) => `/workspace/${workspaceId}/home`
 }));
 
-vi.mock("../../services/api-org-workspaces", () => ({
-  getWorkspaces: getWorkspacesMock
+vi.mock("@coze-foundation/space-store-adapter", () => ({
+  useSpaceStore: (selector?: (state: Record<string, unknown>) => unknown) => {
+    const state = {
+      spaceList: [
+        { id: "ws-1", name: "空间一", icon_url: "", hide_operation: false },
+        { id: "ws-2", name: "空间二", icon_url: "", hide_operation: false }
+      ],
+      loading: false,
+      inited: true,
+      fetchSpaces: fetchSpacesMock,
+      createSpace: createSpaceMock
+    };
+    return selector ? selector(state) : state;
+  }
 }));
 
 vi.mock("../i18n", () => ({
@@ -71,17 +136,11 @@ vi.mock("../i18n", () => ({
   })
 }));
 
-vi.mock("./create-workspace-modal", () => ({
-  CreateWorkspaceModal: () => null
-}));
-
 describe("WorkspaceSwitcher", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getWorkspacesMock.mockResolvedValue([
-      { id: "ws-1", name: "空间一", appKey: "space-one" },
-      { id: "ws-2", name: "空间二", appKey: "space-two" }
-    ]);
+    fetchSpacesMock.mockResolvedValue(undefined);
+    createSpaceMock.mockResolvedValue({ id: "ws-3" });
   });
 
   it("点选工作空间时优先走 onSelectWorkspace，而不是默认跳首页", async () => {

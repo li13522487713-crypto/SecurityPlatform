@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { Dropdown, Input, Spin, Tag } from "@douyinfe/semi-ui";
-import { IconChevronDown, IconPlus, IconSearch, IconArrowUp } from "@douyinfe/semi-icons";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getTenantId } from "@atlas/shared-react-core/utils";
-import { selectWorkspacePath, workspaceHomePath } from "@atlas/app-shell-shared";
-import {
-  getWorkspaces,
-  type WorkspaceSummaryDto
-} from "../../services/api-org-workspaces";
+import { useShallow } from "zustand/react/shallow";
+import { Avatar, Button, Input, Modal, Select, Spin, Tag, TextArea, Toast, Typography } from "@coze-arch/coze-design";
+import { type SaveSpaceRet, SpaceType } from "@coze-arch/bot-api/playground_api";
+import type { BotSpace } from "@coze-arch/bot-api/developer_api";
+import { useSpaceStore } from "@coze-foundation/space-store-adapter";
+import { selectWorkspacePath } from "@atlas/app-shell-shared";
 import { useAppI18n } from "../i18n";
-import { CreateWorkspaceModal } from "./create-workspace-modal";
 
 interface WorkspaceSwitcherProps {
   workspaceId: string;
@@ -17,68 +14,93 @@ interface WorkspaceSwitcherProps {
   onSelectWorkspace?: (workspaceId: string) => void;
 }
 
-// Helper to generate a consistent color based on string
-function getAvatarColor(name: string) {
-  const colors = ["#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#ec4899", "#14b8a6"];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
+const NAME_MAX = 128;
+const DESC_MAX = 1024;
+
+interface SpaceStoreSnapshot {
+  spaceList: BotSpace[];
+  loading: false | Promise<unknown>;
+  inited?: boolean;
+  fetchSpaces: (force?: boolean) => Promise<unknown>;
+  createSpace: (request: {
+    name: string;
+    description: string;
+    icon_uri: string;
+    space_type: SpaceType;
+  }) => Promise<SaveSpaceRet | undefined>;
+}
+
+interface NormalizedWorkspaceItem extends BotSpace {
+  id: string;
+  name: string;
+  role_type?: number;
 }
 
 export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspace }: WorkspaceSwitcherProps) {
   const { t } = useAppI18n();
   const navigate = useNavigate();
-  const [workspaces, setWorkspaces] = useState<WorkspaceSummaryDto[]>([]);
-  const [loading, setLoading] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const {
+    spaceList,
+    loading,
+    inited,
+    fetchSpaces,
+    createSpace
+  } = useSpaceStore(
+    useShallow((state: SpaceStoreSnapshot) => ({
+      spaceList: state.spaceList,
+      loading: state.loading,
+      inited: state.inited,
+      fetchSpaces: state.fetchSpaces,
+      createSpace: state.createSpace
+    }))
+  );
   const [keyword, setKeyword] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createVisible, setCreateVisible] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-    const orgId = getTenantId();
-    if (!orgId) {
-      return () => {
-        cancelled = true;
-      };
+    void fetchSpaces(true);
+  }, [fetchSpaces, workspaceId]);
+
+  useEffect(() => {
+    if (!createVisible) {
+      return;
     }
-    setLoading(true);
-    getWorkspaces(orgId)
-      .then(list => {
-        if (!cancelled) {
-          setWorkspaces(list);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setWorkspaces([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId]);
+
+    setName("");
+    setDescription("");
+    const timer = window.setTimeout(() => nameRef.current?.focus(), 80);
+    return () => window.clearTimeout(timer);
+  }, [createVisible]);
 
   const filtered = useMemo(() => {
-    if (!keyword.trim()) {
-      return workspaces;
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    const visibleSpaces = spaceList
+      .filter((item) => !item.hide_operation)
+      .map((item) => ({
+        ...item,
+        id: String(item.id ?? "").trim(),
+        name: String(item.name ?? item.id ?? "").trim()
+      }))
+      .filter((item): item is NormalizedWorkspaceItem => item.id.length > 0);
+    if (!normalizedKeyword) {
+      return visibleSpaces;
     }
-    const lower = keyword.trim().toLowerCase();
-    return workspaces.filter(item => item.name?.toLowerCase().includes(lower) || item.appKey.toLowerCase().includes(lower));
-  }, [keyword, workspaces]);
+
+    return visibleSpaces.filter((item) =>
+      [item.name, item.description]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(normalizedKeyword))
+    );
+  }, [keyword, spaceList]);
 
   const currentWorkspace = useMemo(
-    () => workspaces.find(item => item.id === workspaceId) ?? null,
-    [workspaceId, workspaces]
+    () => filtered.find((item) => item.id === workspaceId) ?? spaceList.find((item) => item.id === workspaceId) ?? null,
+    [filtered, spaceList, workspaceId]
   );
-
-  const openCreateWorkspace = () => setCreateOpen(true);
 
   const selectWorkspace = (targetWorkspaceId: string) => {
     if (onSelectWorkspace) {
@@ -86,137 +108,172 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
       return;
     }
 
-    navigate(workspaceHomePath(targetWorkspaceId));
+    navigate(`/space/${encodeURIComponent(targetWorkspaceId)}/develop`);
   };
 
-  const renderAvatar = (name: string, size: "small" | "large" = "small") => {
-    const isPersonal = name.includes("个人空间") || name.toLowerCase() === "personal";
-    if (isPersonal) {
-      return (
-        <div className={`bg-blue-100 rounded-full flex items-center justify-center shrink-0 ${size === "large" ? "size-[32px]" : "size-[24px]"}`}>
-          <IconArrowUp className="text-blue-500" size={size === "large" ? "default" : "small"} />
-        </div>
-      );
+  const handleCreateWorkspace = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      Toast.warning(t("workspaceListNamePlaceholder"));
+      return;
     }
-    return (
-      <div 
-        className={`rounded-full flex items-center justify-center shrink-0 text-white font-bold ${size === "large" ? "size-[32px] text-[14px]" : "size-[24px] text-[12px]"}`}
-        style={{ backgroundColor: getAvatarColor(name) }}
-      >
-        {name.slice(0, 1).toUpperCase()}
-      </div>
-    );
+
+    setCreating(true);
+    try {
+      const result = await createSpace({
+        name: trimmedName,
+        description: description.trim(),
+        icon_uri: "",
+        space_type: SpaceType.Team
+      });
+      const createdWorkspaceId = String(result?.id ?? "").trim();
+      if (!createdWorkspaceId) {
+        throw new Error(t("workspaceListActionFailed"));
+      }
+
+      Toast.success(t("workspaceListCreatedSuccess"));
+      setCreateVisible(false);
+      selectWorkspace(createdWorkspaceId);
+      if (!onSelectWorkspace) {
+        navigate(`/space/${encodeURIComponent(createdWorkspaceId)}/develop`);
+      }
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : t("workspaceListActionFailed"));
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
     <>
-      <Dropdown
-        trigger="click"
-        position="bottomLeft"
-        render={(
-          <div className="w-[280px] bg-white rounded-[16px] shadow-[0_4px_24px_rgba(0,0,0,0.1)] p-[12px] flex flex-col gap-[12px]" data-testid="coze-workspace-switcher-panel">
-            <div className="flex items-center justify-between">
-              <span className="text-[#1f2329] text-[14px] font-medium">{t("cozeShellWorkspaceSwitcherManage")}</span>
-              <button
-                type="button"
-                className="text-blue-500 hover:text-blue-600 text-[12px] bg-transparent border-none cursor-pointer p-0 font-medium"
-                onClick={() => navigate(selectWorkspacePath())}
-              >
-                {t("cozeShellWorkspaceSwitcherManageLink")}
-              </button>
-            </div>
-
-            {currentWorkspace ? (
-              <div
-                className="bg-[#eff6ff] border border-blue-200 rounded-[12px] p-[12px] flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors"
-                onClick={() => selectWorkspace(currentWorkspace.id)}
-              >
-                <div className="flex items-center gap-[10px]">
-                  {renderAvatar(currentWorkspace.name || currentWorkspace.appKey, "large")}
-                  <div className="flex flex-col gap-[2px]">
-                    <span className="text-[#1f2329] text-[14px] font-medium leading-none">
-                      {currentWorkspace.name || currentWorkspace.appKey}
-                    </span>
-                    <span className="bg-[#e5e6eb] text-[#4a5565] text-[10px] px-[6px] py-[2px] rounded-[4px] self-start leading-none mt-[2px]">
-                      所有者
-                    </span>
-                  </div>
-                </div>
-                <span className="text-blue-500 font-bold text-[14px]">✓</span>
-              </div>
-            ) : null}
-
-            <Input
-              value={keyword}
-              onChange={value => setKeyword(value)}
-              placeholder={t("cozeShellWorkspaceSwitcherSearch")}
-              prefix={<IconSearch className="text-gray-400 ml-[4px]" />}
-              className="!bg-gray-50 !border-transparent !rounded-[8px] hover:!bg-gray-100 focus-within:!bg-white focus-within:!border-blue-500 h-[32px]"
-              showClear
-            />
-
-            <div className="flex flex-col gap-[2px] max-h-[220px] overflow-y-auto mt-[-4px]">
-              {loading ? (
-                <div className="p-[16px] text-center"><Spin size="small" /></div>
-              ) : filtered.length === 0 ? (
-                <div className="p-[16px] text-center text-gray-400 text-[12px]">{t("cozeShellWorkspaceSwitcherEmpty")}</div>
-              ) : (
-                filtered.map(item => {
-                  const isActive = item.id === workspaceId;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`flex items-center justify-between w-full p-[8px] rounded-[8px] border-none cursor-pointer transition-colors ${isActive ? "bg-[#eff6ff]" : "bg-transparent hover:bg-gray-50"}`}
-                      onClick={() => selectWorkspace(item.id)}
-                      data-testid={`coze-workspace-switcher-item-${item.id}`}
-                    >
-                      <div className="flex items-center gap-[10px]">
-                        {renderAvatar(item.name || item.appKey, "small")}
-                        <span className={`text-[13px] ${isActive ? "text-blue-600 font-medium" : "text-[#1f2329]"}`}>
-                          {item.name || item.appKey}
-                        </span>
-                      </div>
-                      {isActive ? <span className="text-blue-500 font-bold text-[14px]">✓</span> : null}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="border-t border-[#f3f4f6] mx-[-12px] mt-[4px] mb-[-12px] pt-[4px] pb-[4px] px-[8px]">
-              <button
-                type="button"
-                className="flex items-center gap-[8px] w-full p-[8px] rounded-[8px] border-none bg-transparent cursor-pointer hover:bg-gray-50 transition-colors text-[#4a5565]"
-                onClick={openCreateWorkspace}
-              >
-                <IconPlus className="text-gray-400" size="small" />
-                <span className="text-[13px] font-medium">{t("cozeShellWorkspaceSwitcherCreateTeam")}</span>
-                <Tag size="small" color="orange" className="!bg-orange-50 !text-orange-500 !border-orange-200 ml-auto">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
-              </button>
-            </div>
-          </div>
-        )}
+      <div
+        data-testid="coze-workspace-switcher-panel"
+        style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}
       >
-        <button
-          type="button"
-          className="flex items-center justify-between w-full bg-white border border-[#e5e6eb] rounded-[12px] px-[12px] py-[8px] hover:border-blue-500 transition-colors cursor-pointer outline-none"
-          data-testid="coze-workspace-switcher-trigger"
-        >
-          <div className="flex items-center gap-[8px]">
-            {renderAvatar(workspaceLabel || t("cozeShellWorkspaceSwitcherTitle"), "small")}
-            <span className="text-[#1f2329] text-[14px] font-medium truncate max-w-[120px]">
-              {workspaceLabel || t("cozeShellWorkspaceSwitcherTitle")}
-            </span>
-          </div>
-          <IconChevronDown className="text-gray-400" size="small" />
-        </button>
-      </Dropdown>
+        <div data-testid="coze-workspace-switcher-trigger">
+          <Select
+            filter
+            size="small"
+            value={workspaceId || currentWorkspace?.id}
+            optionList={[]}
+            onSearch={(value: string) => setKeyword(String(value ?? ""))}
+            onChange={(value: string | number | unknown[] | Record<string, unknown> | undefined) => {
+              const nextWorkspaceId = String(value ?? "").trim();
+              if (nextWorkspaceId) {
+                selectWorkspace(nextWorkspaceId);
+              }
+            }}
+            emptyContent={Boolean(loading) || !inited ? <Spin spinning size="small" /> : t("cozeShellWorkspaceSwitcherEmpty")}
+            placeholder={t("cozeShellWorkspaceSwitcherTitle")}
+            renderSelectedItem={(optionNode: { icon_url?: string; name?: string } | undefined) => (
+              optionNode ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Avatar shape="square" size="extra-extra-small" src={optionNode.icon_url}>
+                    {optionNode.name}
+                  </Avatar>
+                  <span>{optionNode.name}</span>
+                </div>
+              ) : (
+                <span>{workspaceLabel || t("cozeShellWorkspaceSwitcherTitle")}</span>
+              )
+            )}
+          >
+            {filtered.map((item) => (
+              <Select.Option
+                value={item.id}
+                key={item.id}
+                {...item}
+                data-testid={`coze-workspace-switcher-item-${item.id}`}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+                  <Avatar shape="square" size="extra-small" src={item.icon_url}>
+                    {item.name}
+                  </Avatar>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.name}
+                  </span>
+                </div>
+              </Select.Option>
+            ))}
+          </Select>
+        </div>
 
-      <CreateWorkspaceModal
-        visible={createOpen}
-        onClose={() => setCreateOpen(false)}
-      />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button
+            type="primary"
+            theme="borderless"
+            color="highlight"
+            style={{ flex: 1 }}
+            onClick={() => navigate(selectWorkspacePath())}
+          >
+            {t("cozeShellWorkspaceSwitcherManageLink")}
+          </Button>
+          <Button
+            type="primary"
+            theme="solid"
+            color="brand"
+            style={{ flex: 1 }}
+            onClick={() => setCreateVisible(true)}
+          >
+            {t("cozeShellWorkspaceSwitcherCreateTeam")}
+          </Button>
+        </div>
+      </div>
+
+      <Modal
+        title={t("workspaceListCreateDialogTitle")}
+        visible={createVisible}
+        onCancel={() => {
+          if (!creating) {
+            setCreateVisible(false);
+          }
+        }}
+        onOk={() => {
+          void handleCreateWorkspace();
+        }}
+        okText={creating ? t("loading") : t("workspaceListCreate")}
+        cancelText={t("cancel")}
+        okButtonProps={{
+          loading: creating,
+          disabled: creating || !name.trim()
+        }}
+        data-testid="create-workspace-modal"
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+              {t("workspaceListCreateNameLabel")}
+            </Typography.Text>
+            <Input
+              ref={nameRef}
+              value={name}
+              onChange={(value: string) => setName(String(value ?? ""))}
+              maxLength={NAME_MAX}
+              placeholder={t("workspaceListNamePlaceholder")}
+              data-testid="create-workspace-name"
+            />
+          </div>
+          <div>
+            <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+              {t("workspaceListCreateDescriptionLabel")}
+            </Typography.Text>
+            <TextArea
+              value={description}
+              onChange={(value: string) => setDescription(String(value ?? ""))}
+              maxCount={DESC_MAX}
+              rows={4}
+              placeholder={t("workspaceListDescriptionPlaceholder")}
+              data-testid="create-workspace-desc"
+            />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Tag color="brand">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
+            <Typography.Text type="secondary">
+              {t("cozeShellWorkspaceSwitcherManage")}
+            </Typography.Text>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

@@ -53,9 +53,6 @@ importers:
       '@atlas/external-connectors-react':
         specifier: workspace:*
         version: link:../../packages/external-connectors-react
-      '@atlas/foundation-bridge':
-        specifier: workspace:*
-        version: link:../../packages/atlas-foundation-bridge
       '@atlas/library-module-react':
         specifier: workspace:*
         version: link:../../packages/library-module-react
@@ -74,9 +71,30 @@ importers:
       '@atlas/shared-react-core':
         specifier: workspace:*
         version: link:../../packages/shared-react-core
+      '@coze-agent-ide/agent-publish':
+        specifier: workspace:*
+        version: link:../../packages/agent-ide/agent-publish
+      '@coze-agent-ide/entry-adapter':
+        specifier: workspace:*
+        version: link:../../packages/agent-ide/entry-adapter
+      '@coze-agent-ide/layout-adapter':
+        specifier: workspace:*
+        version: link:../../packages/agent-ide/layout-adapter
+      '@coze-arch/bot-api':
+        specifier: workspace:*
+        version: link:../../packages/arch/bot-api
+      '@coze-arch/bot-space-api':
+        specifier: workspace:*
+        version: link:../../packages/arch/bot-space-api
+      '@coze-arch/coze-design':
+        specifier: 0.0.6-alpha.346d77
+        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-foundation/foundation-sdk':
         specifier: workspace:*
         version: link:../../packages/foundation/foundation-sdk
+      '@coze-foundation/space-store-adapter':
+        specifier: workspace:*
+        version: link:../../packages/foundation/space-store-adapter
       '@coze-studio/workspace-adapter':
         specifier: workspace:*
         version: link:../../packages/studio/workspace/entry-adapter
@@ -119,6 +137,9 @@ importers:
       scheduler:
         specifier: ^0.23.2
         version: 0.23.2
+      zustand:
+        specifier: ^4.4.7
+        version: 4.5.7(@types/react@18.2.37)(immer@10.2.0)(react@18.2.0)
     devDependencies:
       '@coze-arch/bot-env':
         specifier: workspace:*
@@ -8120,9 +8141,6 @@ importers:
 
   packages/arch/bot-http:
     dependencies:
-      '@atlas/shared-react-core':
-        specifier: workspace:*
-        version: link:../../shared-react-core
       '@coze-arch/logger':
         specifier: workspace:*
         version: link:../logger
@@ -9341,12 +9359,6 @@ importers:
       vitest:
         specifier: ~3.0.5
         version: 3.0.9(@types/debug@4.1.13)(@types/node@25.5.2)(happy-dom@12.10.3)(jiti@2.6.1)(jsdom@29.0.2)(less@4.6.4)(lightningcss@1.32.0)(sass-embedded@1.99.0)(sass@1.99.0)(sugarss@2.0.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
-
-  packages/atlas-foundation-bridge:
-    dependencies:
-      '@atlas/shared-react-core':
-        specifier: workspace:*
-        version: link:../shared-react-core
 
   packages/canvas-x6: {}
 

@@ -97,6 +97,7 @@ import { AuthProvider, useAuth } from "./auth-context";
 import { BootstrapProvider, useBootstrap } from "./bootstrap-context";
 import { AppI18nProvider, useAppI18n } from "./i18n";
 import { OrganizationProvider, useOptionalOrganizationContext } from "./organization-context";
+import { PermissionProvider } from "./permission-context";
 import {
   type AppRouteHandle,
   EXPLORE_ROUTE_HANDLE,
@@ -184,7 +185,7 @@ import { EntryGatewayPage } from "./pages/entry-gateway-page";
 import { ForbiddenPage } from "./pages/forbidden-page";
 import { AppSetupPage, PlatformNotReadyPage } from "./pages/status-page";
 import { SetupConsolePage } from "./pages/setup-console";
-import { WorkspaceShellLayout, PlatformShellLayout, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
+import { WorkspaceShellLayout, PlatformShellLayout, RememberWorkspace, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
 import { WorkspaceSwitcher } from "./components/workspace-switcher";
 import { GlobalCreateModal } from "./components/global-create-modal";
@@ -202,6 +203,7 @@ import { WorkspaceProjectsPage } from "./pages/workspace-projects-page";
 import { WorkspaceResourcesPage } from "./pages/workspace-resources-page";
 import { WorkspaceTasksPage } from "./pages/workspace-tasks-page";
 import { WorkspaceEvaluationsPage } from "./pages/workspace-evaluations-page";
+import { CozeWorkspaceConsolePage } from "./pages/coze-workspace-console-page";
 import { WorkspaceSettingsPublishPage } from "./pages/workspace-settings-publish-page";
 import { WorkspaceSettingsModelsPage } from "./pages/workspace-settings-models-page";
 import { MarketTemplatesPage } from "./pages/market-templates-page";
@@ -375,25 +377,18 @@ import {
 } from "../services/api-workflow";
 import {
   addWorkspaceMember,
-  createWorkspace,
-  createWorkspaceAppInstance,
-  deleteWorkspace,
   getWorkspaceByAppKey,
   getWorkspaceMembers,
   getWorkspaceResourcePermissions,
   getWorkspaceResources,
   getWorkspaces,
   removeWorkspaceMember,
-  type WorkspaceCreateRequest,
   type WorkspaceMemberDto,
   type WorkspaceResourceCardDto,
   type WorkspaceRolePermissionDto,
-  type WorkspaceUpdateRequest,
-  updateWorkspace,
   updateWorkspaceMemberRole,
   updateWorkspaceResourcePermissions
 } from "../services/api-org-workspaces";
-import { OrganizationWorkspacesPage } from "./pages/organization-workspaces-page";
 import { WorkspaceSettingsPage } from "./pages/workspace-settings-page";
 import { setAppInstanceIdToStorage } from "../utils/app-context";
 
@@ -2491,27 +2486,8 @@ function WorkspaceListRoute() {
   const bootstrap = useBootstrap();
   const { locale, setLocale, t } = useAppI18n();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deletingWorkspaceId, setDeletingWorkspaceId] = useState<string | null>(null);
-  const [keyword, setKeyword] = useState("");
   const [items, setItems] = useState<Awaited<ReturnType<typeof getWorkspaces>>>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
-
-  const loadWorkspaces = async () => {
-    if (!auth.isAuthenticated) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await getWorkspaces(orgId);
-      setItems(result);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -2570,10 +2546,6 @@ function WorkspaceListRoute() {
   const currentWorkspace = items.find(item => item.id === selectedWorkspaceId) ?? items[0] ?? null;
   const workspaceId = currentWorkspace?.id ?? "";
   const workspaceLabel = currentWorkspace?.name || currentWorkspace?.appKey || t("cozeShellWorkspaceSwitcherTitle");
-
-  if (!loading && workspaceId) {
-    return <Navigate to={orgWorkspaceHomePath(orgId, workspaceId)} replace />;
-  }
 
   const workspaceRoute = (resolver: (resolvedOrgId: string, resolvedWorkspaceId: string) => string) => {
     if (!workspaceId) {
@@ -2697,52 +2669,7 @@ function WorkspaceListRoute() {
       }}
     >
       <OrganizationProvider orgId={orgId}>
-        <OrganizationWorkspacesPage
-          loading={loading}
-          canManage={auth.hasPermission(APP_PERMISSIONS.APPS_UPDATE)}
-          saving={saving}
-          deletingWorkspaceId={deletingWorkspaceId}
-          keyword={keyword}
-          items={items}
-          activeWorkspaceId={workspaceId}
-          activeWorkspaceLabel={workspaceLabel}
-          onKeywordChange={setKeyword}
-          onOpenWorkspace={targetWorkspaceId => navigate(orgWorkspaceHomePath(orgId, targetWorkspaceId))}
-          onCreateWorkspace={async (request: WorkspaceCreateRequest) => {
-            setSaving(true);
-            try {
-              const targetWorkspaceId = await createWorkspace(orgId, request);
-              await loadWorkspaces();
-              navigate(orgWorkspaceHomePath(orgId, targetWorkspaceId), { replace: true });
-              return targetWorkspaceId;
-            } finally {
-              setSaving(false);
-            }
-          }}
-          onUpdateWorkspace={async (targetWorkspaceId: string, request: WorkspaceUpdateRequest) => {
-            setSaving(true);
-            try {
-              await updateWorkspace(orgId, targetWorkspaceId, request);
-              await loadWorkspaces();
-            } finally {
-              setSaving(false);
-            }
-          }}
-          onDeleteWorkspace={async (targetWorkspaceId: string) => {
-            setDeletingWorkspaceId(targetWorkspaceId);
-            try {
-              await deleteWorkspace(orgId, targetWorkspaceId);
-              await loadWorkspaces();
-            } finally {
-              setDeletingWorkspaceId(null);
-            }
-          }}
-          onCreateAppInstance={async (targetWorkspaceId, request) => {
-            const result = await createWorkspaceAppInstance(orgId, targetWorkspaceId, request);
-            await loadWorkspaces();
-            return result;
-          }}
-        />
+        <CozeWorkspaceConsolePage />
       </OrganizationProvider>
     </CozeShell>
   );
@@ -3553,6 +3480,12 @@ export const appRoutes = [
   },
   {
     path: "/console",
+    element: <WorkspaceListRoute />,
+    handle: WORKSPACE_LIST_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />
+  },
+  {
+    path: "/select-workspace",
     element: <WorkspaceListRoute />,
     handle: WORKSPACE_LIST_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />

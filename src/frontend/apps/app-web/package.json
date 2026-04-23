@@ -24,7 +24,9 @@
     "@coze-agent-ide/layout-adapter": "workspace:*",
     "@coze-arch/bot-api": "workspace:*",
     "@coze-arch/bot-space-api": "workspace:*",
+    "@coze-arch/coze-design": "0.0.6-alpha.346d77",
     "@coze-foundation/foundation-sdk": "workspace:*",
+    "@coze-foundation/space-store-adapter": "workspace:*",
     "@coze-studio/workspace-adapter": "workspace:*",
     "@coze-workflow/playground-adapter": "workspace:*",
     "@remix-run/router": "^1.23.2",
@@ -38,7 +40,8 @@
     "react-dom": "^18.2.0",
     "react-router": "^6.30.1",
     "react-router-dom": "^6.30.1",
-    "scheduler": "^0.23.2"
+    "scheduler": "^0.23.2",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@coze-arch/bot-env": "workspace:*",
