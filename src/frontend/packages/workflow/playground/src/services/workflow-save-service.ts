@@ -328,23 +328,21 @@ export class WorkflowSaveService {
         // this.loadGlobalVariables(),
       ]);
 
-      await this.loadGlobalVariables(workflowJSON);
-
-      await this.modelsService.load();
-
-      try {
-        await this.triggerService.load();
-      } catch (e) {
-        logger.error({
-          message: 'workflow trigger service load failed',
-          error: e instanceof Error ? e : new Error(String(e)),
-          meta: {
-            workflowId,
-            spaceId,
-            from: workflowFrom,
-          },
-        });
-      }
+      await Promise.all([
+        this.loadGlobalVariables(workflowJSON),
+        this.modelsService.load(),
+        this.triggerService.load().catch(e => {
+          logger.error({
+            message: 'workflow trigger service load failed',
+            error: e instanceof Error ? e : new Error(String(e)),
+            meta: {
+              workflowId,
+              spaceId,
+              from: workflowFrom,
+            },
+          });
+        }),
+      ]);
 
       // Load large model context
       this.context.models = this.modelsService.getModels() as Model[];
@@ -555,9 +553,11 @@ export class WorkflowSaveService {
     if (entity instanceof FlowNodeEntity) {
       isAssociateChange = associatedNodes.some(node => node.id === entity.id);
     } else if (entity instanceof WorkflowLineEntity) {
-      isAssociateChange = associatedNodes.some(
-        node => node.id === entity.from.id,
-      );
+      if (entity.from) {
+        isAssociateChange = associatedNodes.some(
+          node => node.id === entity.from.id,
+        );
+      }
     }
     return isAssociateChange;
   }

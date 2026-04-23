@@ -107,6 +107,9 @@ function useWorkflowNode(node: FlowNodeEntity) {
       .getData<FlowNodeErrorData>(FlowNodeErrorData)
       .onDataChange(() => updateWorkflowNode());
 
+    // Avoid missing an early initialized event; sync current form state once.
+    updateWorkflowNode();
+
     return () => {
       dataChangeDisposer?.dispose();
       initialDisposer?.dispose();

@@ -224,10 +224,11 @@ export class WorkflowGlobalStateEntity extends ConfigEntity<WorkflowGlobalState>
       );
     }
 
-    // Load workflow tcc configuration
-    await Promise.all([this.setSpaceInfo()]);
-
-    const workflowInfo = await this.queryWorkflowDetail(workflowId, spaceId);
+    // Load workflow detail and space info in parallel to reduce first-screen latency.
+    const [workflowInfo] = await Promise.all([
+      this.queryWorkflowDetail(workflowId, spaceId),
+      this.setSpaceInfo(),
+    ]);
     const autoSaveTime = getAutoSaveTime(workflowInfo?.update_time);
 
     /** Determine whether the process is in preview state, from the official process, component configuration read-only readonly, non-vcs mode is not the creator's process, vcs mode has no collaborator permission, and the process is in preview state */

@@ -93,6 +93,22 @@ export class WorkflowDocumentWithFormat extends WorkflowDocument {
     return super.createWorkflowNode(json, isClone, parentId);
   }
 
+  /**
+   * Safely get associated nodes during transitional document states.
+   * Base implementation assumes start/end nodes always exist.
+   */
+  getAssociatedNodes(): WorkflowNodeEntity[] {
+    const allNodes = this.getAllNodes();
+    const hasStartNode = allNodes.some(node => node.isStart);
+    const hasEndNode = allNodes.some(node => node.isNodeEnd);
+
+    if (!hasStartNode || !hasEndNode) {
+      return [];
+    }
+
+    return super.getAssociatedNodes();
+  }
+
   toNodeJSON(node: WorkflowNodeEntity): WorkflowNodeJSON {
     const json = super.toNodeJSON(node);
     // format
