@@ -929,6 +929,20 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         }));
     }
 
+    [HttpPost("developer/get_icon")]
+    [HttpPost("/api/developer/get_icon")]
+    public ActionResult<object> GetIcon()
+    {
+        // Returns a minimal stub so the Coze SDK bot-creation dialog can render
+        // an icon section without a network error. Real icon management is not
+        // required at this stage.
+        return Ok(CozeCompatGatewaySupport.Success(new
+        {
+            icon_url = string.Empty,
+            icon_list = Array.Empty<object>()
+        }));
+    }
+
     [HttpPost("{**path}")]
     public ActionResult<object> PostFallback([FromRoute] string? path)
     {

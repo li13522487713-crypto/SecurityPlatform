@@ -46,15 +46,31 @@ export async function getAppInstanceIdByAppKey(appKey: string): Promise<string |
     return null;
   }
 
-  const query = new URLSearchParams({
-    pageIndex: "1",
-    pageSize: "1",
-    appKey: normalized
-  });
-  const response = await requestApi<ApiResponse<PagedResult<ApplicationCatalogListItemDto>>>(
-    `/api/v2/application-catalogs?${query.toString()}`
-  );
-  const first = response.data?.items?.[0];
-  const id = first?.id?.trim();
-  return id && id.length > 0 ? id : null;
+  // This endpoint only exists on PlatformHost. In direct mode (AppHost only),
+  // skip the request entirely to avoid browser-level 404 network errors.
+  try {
+    const runtimeMode = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_APP_RUNTIME_MODE;
+    if (runtimeMode === "direct") {
+      return null;
+    }
+  } catch {
+    // Ignore env access failure.
+  }
+
+  try {
+    const query = new URLSearchParams({
+      pageIndex: "1",
+      pageSize: "1",
+      appKey: normalized
+    });
+    const response = await requestApi<ApiResponse<PagedResult<ApplicationCatalogListItemDto>>>(
+      `/api/v2/application-catalogs?${query.toString()}`
+    );
+    const first = response.data?.items?.[0];
+    const id = first?.id?.trim();
+    return id && id.length > 0 ? id : null;
+  } catch {
+    // Endpoint may not exist on current host — gracefully return null.
+    return null;
+  }
 }

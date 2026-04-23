@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Navigate, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Avatar, Button, Divider, Space, Typography } from "@coze-arch/coze-design";
-import { WorkspaceSubMenu, type IWorkspaceListItem } from "@coze-foundation/space-ui-base";
 import { useInitSpace } from "@coze-foundation/space-ui-adapter";
 import { getTenantId } from "@atlas/shared-react-core/utils";
 import {
@@ -19,6 +17,12 @@ import {
   workspaceSettingsPublishPath,
   workspaceTasksPath
 } from "@atlas/app-shell-shared";
+import { Layout, Nav, Avatar, Button, Typography, Space, Divider, Badge, Tag } from "@douyinfe/semi-ui";
+import { 
+  IconHome, IconCode, IconFolder, IconList, IconHistogram, IconSetting, 
+  IconBox, IconPuzzle, IconGlobe, IconLink, IconArticle, 
+  IconChevronDown, IconBell, IconExpand, IconAlertCircle
+} from "@douyinfe/semi-icons";
 import { I18nProvider } from "../../../../../packages/arch/i18n/src/i18n-provider";
 import { I18n, initI18nInstance } from "../../../../../packages/arch/i18n/src/raw";
 import { toCozeLocale } from "../workflow-runtime-boundary";
@@ -40,9 +44,10 @@ const LAST_WORKSPACE_KEY = "atlas_last_workspace_id";
 
 interface ShellLink {
   key: string;
-  label: string;
+  label: ReactNode;
   path: string;
   testId: string;
+  icon?: ReactNode;
   activeMatchers?: string[];
 }
 
@@ -96,80 +101,55 @@ function isActivePath(pathnameWithSearch: string, item: ShellLink): boolean {
   );
 }
 
-function buildSpaceSubMenuItems(t: (key: AppMessageKey) => string): IWorkspaceListItem[] {
-  return [
-    {
-      title: () => t("cozeMenuProjects"),
-      path: "develop",
-      dataTestId: "app-sidebar-item-projects"
-    },
-    {
-      title: () => t("cozeMenuResources"),
-      path: "library",
-      dataTestId: "app-sidebar-item-resources"
-    }
-  ];
-}
-
-function deriveSpaceSubMenu(pathname: string, workspaceId: string): string | undefined {
-  const rootPath = `${workspaceRootPath(workspaceId)}/`;
-  if (!pathname.startsWith(rootPath)) {
-    return undefined;
-  }
-
-  const suffix = pathname.slice(rootPath.length);
-  if (
-    suffix.startsWith("library") ||
-    suffix.startsWith("resources") ||
-    suffix.startsWith("plugin/") ||
-    suffix.startsWith("knowledge/") ||
-    suffix.startsWith("database/") ||
-    suffix.startsWith("knowledge-bases") ||
-    suffix.startsWith("databases")
-  ) {
-    return "library";
-  }
-
-  if (
-    suffix.startsWith("develop") ||
-    suffix.startsWith("bot/") ||
-    suffix.startsWith("publish/agent/") ||
-    suffix.startsWith("project-ide/") ||
-    suffix.startsWith("apps/") ||
-    suffix.startsWith("agents/") ||
-    suffix.startsWith("workflows") ||
-    suffix.startsWith("chatflows")
-  ) {
-    return "develop";
-  }
-
-  return undefined;
-}
-
-function buildSpaceLinks(workspaceId: string, t: (key: AppMessageKey) => string): ShellLink[] {
+function buildAllSpaceLinks(workspaceId: string, t: (key: AppMessageKey) => string): ShellLink[] {
   return [
     {
       key: "home",
       label: t("cozeMenuHome"),
       path: workspaceHomePath(workspaceId),
+      icon: <IconHome />,
       testId: "app-sidebar-item-home"
+    },
+    {
+      key: "develop",
+      label: t("cozeMenuProjects"),
+      path: `${workspaceRootPath(workspaceId)}/develop`,
+      icon: <IconCode />,
+      testId: "app-sidebar-item-projects",
+      activeMatchers: [`${workspaceRootPath(workspaceId)}/develop`, `${workspaceRootPath(workspaceId)}/bot`, `${workspaceRootPath(workspaceId)}/publish/agent`]
+    },
+    {
+      key: "library",
+      label: t("cozeMenuResources"),
+      path: `${workspaceRootPath(workspaceId)}/library`,
+      icon: <IconFolder />,
+      testId: "app-sidebar-item-resources",
+      activeMatchers: [`${workspaceRootPath(workspaceId)}/library`, `${workspaceRootPath(workspaceId)}/plugin`, `${workspaceRootPath(workspaceId)}/knowledge`]
     },
     {
       key: "tasks",
       label: t("cozeMenuTasks"),
       path: workspaceTasksPath(workspaceId),
+      icon: <IconList />,
       testId: "app-sidebar-item-tasks"
     },
     {
       key: "evaluations",
       label: t("cozeMenuEvaluations"),
       path: workspaceEvaluationsPath(workspaceId),
+      icon: <IconHistogram />,
       testId: "app-sidebar-item-evaluations"
     },
     {
       key: "settings",
-      label: t("cozeMenuSettings"),
+      label: (
+        <Space>
+          {t("cozeMenuSettings")}
+          <IconAlertCircle style={{ color: "var(--semi-color-warning)" }} />
+        </Space>
+      ),
       path: workspaceSettingsPublishPath(workspaceId),
+      icon: <IconSetting />,
       testId: "app-sidebar-item-settings",
       activeMatchers: [`${workspaceRootPath(workspaceId)}/settings`]
     }
@@ -182,38 +162,36 @@ function buildPlatformLinks(t: (key: AppMessageKey) => string): ShellLink[] {
       key: "templates",
       label: t("cozeMenuTemplates"),
       path: marketTemplatesPath(),
+      icon: <IconBox />,
       testId: "app-sidebar-item-templates"
     },
     {
       key: "plugins",
       label: t("cozeMenuPlugins"),
       path: marketPluginsPath(),
+      icon: <IconPuzzle />,
       testId: "app-sidebar-item-plugins"
     },
     {
       key: "community",
       label: t("cozeMenuCommunity"),
       path: communityWorksPath(),
+      icon: <IconGlobe />,
       testId: "app-sidebar-item-community"
     },
     {
       key: "open-api",
       label: t("cozeMenuOpenApi"),
       path: openApiPath(),
+      icon: <IconLink />,
       testId: "app-sidebar-item-open-api"
     },
     {
       key: "docs",
       label: t("cozeMenuDocs"),
       path: docsPath(),
+      icon: <IconArticle />,
       testId: "app-sidebar-item-docs"
-    },
-    {
-      key: "me",
-      label: t("cozeMeProfileTitle"),
-      path: meProfilePath(),
-      testId: "app-sidebar-item-profile",
-      activeMatchers: ["/me"]
     }
   ];
 }
@@ -285,9 +263,10 @@ function NativeShellFrame({
   localeLabel,
   logoutLabel,
   userName,
+  workspaceName,
   sidebarTop,
-  sidebarPrimary,
-  sidebarSecondary,
+  spaceLinks,
+  platformLinks,
   onNavigate,
   onToggleLocale,
   onOpenProfile,
@@ -300,74 +279,124 @@ function NativeShellFrame({
   localeLabel: string;
   logoutLabel: string;
   userName: string;
+  workspaceName: string;
   sidebarTop?: ReactNode;
-  sidebarPrimary?: ReactNode;
-  sidebarSecondary?: ShellLink[];
+  spaceLinks: ShellLink[];
+  platformLinks: ShellLink[];
   onNavigate: (path: string) => void;
   onToggleLocale: () => void;
   onOpenProfile?: () => void;
   onLogout: () => void;
   children: ReactNode;
 }) {
+  const activeKey = [...spaceLinks, ...platformLinks].find(link => isActivePath(activePath, link))?.key || "";
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f7f8fa" }}>
-      <aside
-        data-testid="app-sidebar"
+    <Layout style={{ minHeight: "100vh", background: "#f7f8fa" }}>
+      <Layout.Sider
         style={{
-          width: 288,
-          borderRight: "1px solid rgba(28,31,35,0.08)",
-          background: "#fff",
-          padding: 16,
+          width: 256,
+          backgroundColor: "#f7f8fa",
+          borderRight: "1px solid var(--semi-color-border)",
           display: "flex",
-          flexDirection: "column",
-          gap: 16
+          flexDirection: "column"
         }}
       >
-        <Space align="center" spacing={8}>
-          <Avatar shape="square" size="small">
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+          <Avatar size="small" shape="square" color="blue" style={{ borderRadius: 8, fontWeight: "bold", background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
             扣
           </Avatar>
-          <Typography.Text strong>扣子</Typography.Text>
-        </Space>
+          <Typography.Title heading={4} style={{ margin: 0, fontWeight: 600 }}>扣子</Typography.Title>
+        </div>
 
-        {sidebarTop ? <div>{sidebarTop}</div> : null}
-        {sidebarPrimary ? <div style={{ minHeight: 0, flex: 1 }}>{sidebarPrimary}</div> : null}
+        <div style={{ padding: "0 16px 16px 16px" }}>
+          {sidebarTop}
+        </div>
 
-        {sidebarSecondary && sidebarSecondary.length > 0 ? (
-          <>
-            <Divider />
-            <Space vertical spacing={6}>
-              {sidebarSecondary.map((item) => {
-                const active = isActivePath(activePath, item);
-                return (
-                  <Button
-                    key={item.key}
-                    block
-                    theme={active ? "solid" : "borderless"}
-                    color={active ? "brand" : "secondary"}
-                    onClick={() => onNavigate(item.path)}
-                    data-testid={item.testId}
-                    style={{ justifyContent: "flex-start" }}
-                  >
-                    {item.label}
-                  </Button>
-                );
-              })}
+        <div style={{ flex: 1, overflow: "auto" }}>
+          <Nav
+            mode="vertical"
+            style={{ width: "100%", borderRight: "none", backgroundColor: "transparent", padding: "0 8px" }}
+            selectedKeys={[activeKey]}
+            onSelect={(data) => {
+              const link = [...spaceLinks, ...platformLinks].find(l => l.key === data.itemKey);
+              if (link) onNavigate(link.path);
+            }}
+          >
+            {spaceLinks.map(link => (
+              <Nav.Item 
+                key={link.key} 
+                itemKey={link.key} 
+                text={link.label} 
+                icon={link.icon} 
+                style={{ borderRadius: 8, height: 40, marginTop: 2, marginBottom: 2, fontWeight: activeKey === link.key ? 600 : 400 }}
+              />
+            ))}
+          </Nav>
+          
+          <div style={{ padding: "8px 16px" }}>
+            <Divider style={{ margin: 0 }} />
+          </div>
+
+          <Nav
+            mode="vertical"
+            style={{ width: "100%", borderRight: "none", backgroundColor: "transparent", padding: "0 8px" }}
+            selectedKeys={[activeKey]}
+            onSelect={(data) => {
+              const link = [...spaceLinks, ...platformLinks].find(l => l.key === data.itemKey);
+              if (link) onNavigate(link.path);
+            }}
+          >
+            {platformLinks.map(link => (
+              <Nav.Item 
+                key={link.key} 
+                itemKey={link.key} 
+                text={link.label} 
+                icon={link.icon} 
+                style={{ borderRadius: 8, height: 40, marginTop: 2, marginBottom: 2, fontWeight: activeKey === link.key ? 600 : 400 }}
+              />
+            ))}
+          </Nav>
+        </div>
+
+        <div style={{ padding: "16px" }}>
+          <div style={{ backgroundColor: "#fff", padding: "16px", borderRadius: 8, border: "1px solid var(--semi-color-border)", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <Typography.Text style={{ color: "#1c1f23" }}>总积分: 500</Typography.Text>
+              <Tag color="blue" size="small" shape="square" style={{ backgroundColor: "#e8eaff", color: "#3d4df4", border: "none" }}>专业版</Tag>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Typography.Text type="secondary" size="small">2200-01-01 到期</Typography.Text>
+              <IconChevronDown size="small" style={{ transform: "rotate(-90deg)", color: "#1c1f23" }} />
+            </div>
+          </div>
+          
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={onOpenProfile}>
+              <Avatar size="small" color="blue" style={{ width: 28, height: 28, fontSize: 14 }}>
+                {userName.charAt(0).toUpperCase()}
+              </Avatar>
+              <Typography.Text style={{ width: 80, fontWeight: 500 }} ellipsis={{ showTooltip: true }}>{userName}</Typography.Text>
+            </div>
+            <Space spacing={16}>
+              <IconExpand style={{ cursor: "pointer", color: "var(--semi-color-text-2)" }} />
+              <Badge count={39} overflowCount={99} type="danger">
+                <IconBell style={{ cursor: "pointer", color: "var(--semi-color-text-2)" }} />
+              </Badge>
             </Space>
-          </>
-        ) : null}
-      </aside>
+          </div>
+        </div>
+      </Layout.Sider>
 
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <header
+      <Layout style={{ backgroundColor: "#fff" }}>
+        <Layout.Header
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            gap: 16,
             padding: "16px 24px",
-            borderBottom: "1px solid rgba(28,31,35,0.08)",
-            background: "#fff"
+            borderBottom: "1px solid var(--semi-color-border)",
+            backgroundColor: "#fff"
           }}
         >
           <div style={{ minWidth: 0 }}>
@@ -382,23 +411,19 @@ function NativeShellFrame({
           </div>
 
           <Space align="center" spacing={8}>
-            <Button theme="borderless" color="highlight" onClick={onToggleLocale} data-testid="app-shell-toggle-locale">
+            <Button theme="borderless" onClick={onToggleLocale} data-testid="app-shell-toggle-locale">
               {localeLabel}
             </Button>
-            {onOpenProfile ? (
-              <Button theme="borderless" onClick={onOpenProfile}>
-                {userName}
-              </Button>
-            ) : null}
             <Button theme="borderless" color="secondary" onClick={onLogout}>
               {logoutLabel}
             </Button>
           </Space>
-        </header>
-
-        <main style={{ flex: 1, minWidth: 0, padding: 24, overflow: "auto" }}>{children}</main>
-      </div>
-    </div>
+        </Layout.Header>
+        <Layout.Content style={{ padding: 24, overflow: "auto" }}>
+          {children}
+        </Layout.Content>
+      </Layout>
+    </Layout>
   );
 }
 
@@ -440,8 +465,8 @@ function SpaceShellChrome() {
   const navigate = useNavigate();
   const location = useLocation();
   const workspace = useWorkspaceContext();
-  const currentSubMenu = deriveSpaceSubMenu(location.pathname, workspace.id);
-  const sidebarSecondary = useMemo(() => buildSpaceLinks(workspace.id, t), [t, workspace.id]);
+  const spaceLinks = useMemo(() => buildAllSpaceLinks(workspace.id, t), [t, workspace.id]);
+  const platformLinks = useMemo(() => buildPlatformLinks(t), [t]);
 
   const cozeLocale = toCozeLocale(locale);
   const [cozeI18nReady, setCozeI18nReady] = useState(false);
@@ -477,15 +502,10 @@ function SpaceShellChrome() {
       localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
       logoutLabel={t("logout")}
       userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+      workspaceName={workspace.name || workspace.appKey || "个人空间"}
       sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />}
-      sidebarPrimary={(
-        <WorkspaceSubMenu
-          header={<div />}
-          menus={buildSpaceSubMenuItems(t)}
-          currentSubMenu={currentSubMenu}
-        />
-      )}
-      sidebarSecondary={sidebarSecondary}
+      spaceLinks={spaceLinks}
+      platformLinks={platformLinks}
       onNavigate={navigate}
       onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
       onOpenProfile={() => navigate(meProfilePath())}
@@ -536,7 +556,8 @@ function PlatformShellChrome() {
   const navigate = useNavigate();
   const location = useLocation();
   const workspace = useWorkspaceContext();
-  const sidebarSecondary = useMemo(() => buildPlatformLinks(t), [t]);
+  const spaceLinks = useMemo(() => buildAllSpaceLinks(workspace.id, t), [t, workspace.id]);
+  const platformLinks = useMemo(() => buildPlatformLinks(t), [t]);
 
   if (workspace.loading) {
     return <LoadingPage />;
@@ -550,21 +571,10 @@ function PlatformShellChrome() {
       localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
       logoutLabel={t("logout")}
       userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
-      sidebarTop={(
-        <Space vertical spacing={8} style={{ width: "100%" }}>
-          <WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />
-          <Button
-            block
-            theme="solid"
-            color="brand"
-            onClick={() => navigate(`${workspaceRootPath(workspace.id)}/develop`)}
-            data-testid="app-sidebar-item-current-workspace"
-          >
-            {t("backToWorkspace")}
-          </Button>
-        </Space>
-      )}
-      sidebarSecondary={sidebarSecondary}
+      workspaceName={workspace.name || workspace.appKey || "个人空间"}
+      sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />}
+      spaceLinks={spaceLinks}
+      platformLinks={platformLinks}
       onNavigate={navigate}
       onToggleLocale={() => setLocale(locale === "zh-CN" ? "en-US" : "zh-CN")}
       onOpenProfile={() => navigate(meProfilePath())}

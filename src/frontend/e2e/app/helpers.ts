@@ -299,9 +299,7 @@ export async function ensurePlatformSetup(request: APIRequestContext) {
 }
 
 export async function ensureAppSetup(request: APIRequestContext): Promise<string> {
-  if (usesPlatformControlPlane) {
-    await ensurePlatformSetup(request);
-  }
+  void usesPlatformControlPlane;
 
   const stateResp = await request.get(`${appApiBase}/api/v1/setup/state`);
   const statePayload = await stateResp.json();
@@ -432,6 +430,14 @@ export async function loginApp(
   await page.getByTestId("app-login-username").fill(defaultUsername);
   await page.waitForTimeout(gazeShiftDelay());
   await page.getByTestId("app-login-password").fill(password);
+  const agreementCheckbox = page.locator('[data-testid="app-login-page"] input[type="checkbox"]').first();
+  const agreementVisible = await agreementCheckbox.isVisible().catch(() => false);
+  if (agreementVisible) {
+    const agreed = await agreementCheckbox.isChecked().catch(() => false);
+    if (!agreed) {
+      await agreementCheckbox.check({ force: true });
+    }
+  }
   await page.waitForTimeout(thinkingPause());
   await page.getByTestId("app-login-submit").click();
 

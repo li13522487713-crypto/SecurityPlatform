@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import ReactDOM from 'react-dom';
+import { createRoot, type Root } from 'react-dom/client';
 import React from 'react';
 
 import { IconCozCrossFill } from '@coze-arch/coze-design/icons';
 
 let overlayContainer: HTMLDivElement | null = null;
+let overlayRoot: Root | null = null;
 
 interface OverlayProps {
   onClose?: VoidFunction;
@@ -60,6 +61,7 @@ const Overlay = ({ onClose, children, withMask }: OverlayProps) => (
 const createOverlayContainer = () => {
   overlayContainer = document.createElement('div');
   document.body.appendChild(overlayContainer);
+  overlayRoot = createRoot(overlayContainer);
 };
 
 const show = (params: {
@@ -67,17 +69,21 @@ const show = (params: {
   withMask?: boolean;
 }) => {
   const { content, withMask = true } = params;
-  if (!overlayContainer) {
+  if (!overlayContainer || !overlayRoot) {
     createOverlayContainer();
   }
 
   const close = () => {
-    overlayContainer && ReactDOM.unmountComponentAtNode(overlayContainer);
+    overlayRoot?.unmount();
+    if (overlayContainer) {
+      overlayContainer.remove();
+    }
+    overlayContainer = null;
+    overlayRoot = null;
   };
 
-  ReactDOM.render(
+  overlayRoot!.render(
     <Overlay onClose={close} children={content?.(close)} withMask={withMask} />,
-    overlayContainer,
   );
 
   return close;

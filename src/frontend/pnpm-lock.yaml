@@ -21572,6 +21572,9 @@ importers:
       '@coze-arch/idl':
         specifier: workspace:*
         version: link:../../../arch/idl
+      '@coze-studio/entity-adapter':
+        specifier: workspace:*
+        version: link:../../entity-adapter
       '@coze-studio/project-entity-base':
         specifier: workspace:*
         version: link:../project-entity-base

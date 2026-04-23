@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { Avatar, Button, Input, Modal, Select, Spin, Tag, TextArea, Toast, Typography } from "@coze-arch/coze-design";
+import { Avatar, Button, Input, Modal, Select, Spin, Tag, TextArea, Toast, Typography } from "@douyinfe/semi-ui";
+import { IconPlus, IconUser } from "@douyinfe/semi-icons";
 import { type SaveSpaceRet, SpaceType } from "@coze-arch/bot-api/playground_api";
 import type { BotSpace } from "@coze-arch/bot-api/developer_api";
 import { useSpaceStore } from "@coze-foundation/space-store-adapter";
@@ -154,9 +155,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
         <div data-testid="coze-workspace-switcher-trigger">
           <Select
             filter
-            size="small"
             value={workspaceId || currentWorkspace?.id}
-            optionList={[]}
             onSearch={(value: string) => setKeyword(String(value ?? ""))}
             onChange={(value: string | number | unknown[] | Record<string, unknown> | undefined) => {
               const nextWorkspaceId = String(value ?? "").trim();
@@ -164,31 +163,32 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
                 selectWorkspace(nextWorkspaceId);
               }
             }}
-            emptyContent={Boolean(loading) || !inited ? <Spin spinning size="small" /> : t("cozeShellWorkspaceSwitcherEmpty")}
+            emptyContent={Boolean(loading) || !inited ? <Spin spinning size="small" /> : <div style={{ padding: 12 }}>{t("cozeShellWorkspaceSwitcherEmpty")}</div>}
             placeholder={t("cozeShellWorkspaceSwitcherTitle")}
-            renderSelectedItem={(optionNode: { icon_url?: string; name?: string } | undefined) => (
-              optionNode ? (
+            style={{ width: "100%", backgroundColor: "#fff", borderRadius: 8, border: "1px solid var(--semi-color-border)", height: 40 }}
+            renderSelectedItem={() => {
+              const selectedItem = filtered.find(item => item.id === (workspaceId || currentWorkspace?.id));
+              const displayName = selectedItem?.name || workspaceLabel || t("cozeShellWorkspaceSwitcherTitle");
+              return (
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Avatar shape="square" size="extra-extra-small" src={optionNode.icon_url}>
-                    {optionNode.name}
+                  <Avatar shape="square" size="extra-small" style={{ backgroundColor: "#3d4df4", color: "#fff", width: 20, height: 20, borderRadius: 4, fontSize: 12 }}>
+                    <IconUser size="small" />
                   </Avatar>
-                  <span>{optionNode.name}</span>
+                  <span style={{ fontWeight: 600, color: "#1c1f23" }}>{displayName}</span>
                 </div>
-              ) : (
-                <span>{workspaceLabel || t("cozeShellWorkspaceSwitcherTitle")}</span>
-              )
-            )}
+              );
+            }}
           >
             {filtered.map((item) => (
               <Select.Option
                 value={item.id}
                 key={item.id}
-                {...item}
+                label={item.name}
                 data-testid={`coze-workspace-switcher-item-${item.id}`}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
-                  <Avatar shape="square" size="extra-small" src={item.icon_url}>
-                    {item.name}
+                  <Avatar shape="square" size="extra-small" src={item.icon_url} style={{ width: 20, height: 20, borderRadius: 4, fontSize: 12 }}>
+                    {item.name?.charAt(0)}
                   </Avatar>
                   <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.name}
@@ -201,13 +201,12 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
 
         <div style={{ display: "flex", gap: 8 }}>
           <Button
-            type="primary"
-            theme="solid"
-            color="brand"
-            style={{ flex: 1 }}
+            icon={<IconPlus />}
+            theme="light"
+            style={{ flex: 1, justifyContent: "center", backgroundColor: "#eef0f5", color: "#1c1f23", fontWeight: 600, borderRadius: 8 }}
             onClick={() => setCreateVisible(true)}
           >
-            {t("cozeShellWorkspaceSwitcherCreateTeam")}
+            创建
           </Button>
         </div>
       </div>
@@ -258,7 +257,7 @@ export function WorkspaceSwitcher({ workspaceId, workspaceLabel, onSelectWorkspa
               data-testid="create-workspace-desc"
             />
           </div>
-          <Tag color="brand">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
+          <Tag color="blue">{t("cozeShellWorkspaceSwitcherCreateTeamBadge")}</Tag>
         </div>
       </Modal>
     </>
