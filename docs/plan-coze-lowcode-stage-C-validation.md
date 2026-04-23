@@ -1,10 +1,12 @@
 # 阶段 C 验证报告（M09-M14 适配器与运营）
 
+> 注：`lowcode-session-adapter`、`lowcode-trigger-adapter`、`lowcode-webview-policy-adapter` 为阶段 C 时期的前端占位包，已在后续仓库清理中删除；下述内容保留运行时能力与当时阶段结果的历史说明。
+
 ## 范围
 - M09 lowcode-workflow-adapter + RuntimeWorkflowsController + RuntimeAsyncJobsController + 弹性 / 双哲学
 - M10 lowcode-asset-adapter + RuntimeFilesController + LowCodeAssetGcJob（Hangfire）
-- M11 chatflow + session 适配器 + RuntimeChatflowsController + RuntimeSessionsController + RuntimeMessageLogService
-- M12 trigger + webview-policy 适配器 + RuntimeTriggersController + RuntimeWebviewDomainsController + DAG 节点 34/35/36
+- M11 chatflow + session 运行时能力 + RuntimeChatflowsController + RuntimeSessionsController + RuntimeMessageLogService
+- M12 trigger + webview-policy 运行时能力 + RuntimeTriggersController + RuntimeWebviewDomainsController + DAG 节点 34/35/36
 - M13 RuntimeEventsController.Dispatch + RuntimeTraceService（6 维）+ lowcode-debug-client + 脱敏中间件 + list_spans → OK
 - M14 LowCodeAppVersionsController（diff/rollback v1）+ RuntimeVersionsController（archive/rollback runtime）+ ResourceReferenceGuard + AppFaq
 
@@ -35,12 +37,9 @@
   - lowcode-workflow-adapter → **13**（5 binding × 2 + mappings + orchestration + resilience）
   - lowcode-asset-adapter → **4**（mime / size / 7 类白名单覆盖）
   - lowcode-chatflow-adapter → **3**（SSE 4 类 + 非法帧 + 多行 data 拼接）
-  - lowcode-session-adapter → 0（纯客户端，不重复测试）
-  - lowcode-trigger-adapter → **2**（CRON 5/6 字段校验）
-  - lowcode-webview-policy-adapter → **3**（精确 / 通配子域 / 非法 URL）
   - lowcode-debug-client → **5**（buildQueryString / buildSpanTree / summarizePhases）
   - lowcode-versioning-client → **3**（groupDiffsByGroup）
-- 阶段 C 累计：**33**；累计总计 **133 + 33 = 166**（阶段 A 75 + 阶段 B 58 + 阶段 C 33）。
+- 当前保留包的阶段 C 累计：**28**；累计总计 **133 + 28 = 161**（阶段 A 75 + 阶段 B 58 + 阶段 C 当前保留包 28）。
 
 ### 文档
 - `docs/lowcode-binding-matrix.md`（M09 完整：10 模式 A + 10 模式 B + loadingTargets/errorTargets 规则）

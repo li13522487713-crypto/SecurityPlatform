@@ -52,7 +52,7 @@ inst.unmount();
 ## 5. 外链白名单（M12 + M17 联动）
 
 - 发布 hosted 类型必须先在 webview-domains 注册并验证（dns_txt / http_file）。
-- runtime 端点 `open_external_link` 由 lowcode-webview-policy-adapter `isAllowed` 校验；未通过的域名直接拒绝跳转。
+- runtime 端点 `open_external_link` 由运行时 webview 域名白名单策略校验；未通过的域名直接拒绝跳转。
 
 ## 6. 三种嵌入示例
 

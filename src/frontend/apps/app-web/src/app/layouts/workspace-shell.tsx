@@ -8,20 +8,22 @@ import {
   marketPluginsPath,
   marketTemplatesPath,
   meProfilePath,
+  meSettingsPath,
   openApiPath,
   selectWorkspacePath,
   signPath,
   workspaceEvaluationsPath,
   workspaceHomePath,
+  workspaceProjectsPath,
   workspaceRootPath,
   workspaceSettingsPublishPath,
   workspaceTasksPath
 } from "@atlas/app-shell-shared";
-import { Layout, Nav, Avatar, Button, Typography, Space, Divider, Badge, Tag } from "@douyinfe/semi-ui";
-import { 
-  IconHome, IconCode, IconFolder, IconList, IconHistogram, IconSetting, 
-  IconBox, IconPuzzle, IconGlobe, IconLink, IconArticle, 
-  IconChevronDown, IconBell, IconExpand, IconAlertCircle
+import { Dropdown, Layout, Nav, Avatar, Button, Typography, Space, Divider, Badge, Tag } from "@douyinfe/semi-ui";
+import {
+  IconHome, IconCode, IconFolder, IconList, IconHistogram, IconSetting,
+  IconBox, IconPuzzle, IconGlobe, IconLink, IconArticle,
+  IconChevronDown, IconBell, IconExpand, IconAlertCircle, IconExit
 } from "@douyinfe/semi-icons";
 import { I18nProvider } from "../../../../../packages/arch/i18n/src/i18n-provider";
 import { I18n, initI18nInstance } from "../../../../../packages/arch/i18n/src/raw";
@@ -113,10 +115,15 @@ function buildAllSpaceLinks(workspaceId: string, t: (key: AppMessageKey) => stri
     {
       key: "develop",
       label: t("cozeMenuProjects"),
-      path: `${workspaceRootPath(workspaceId)}/develop`,
+      path: workspaceProjectsPath(workspaceId),
       icon: <IconCode />,
       testId: "app-sidebar-item-projects",
-      activeMatchers: [`${workspaceRootPath(workspaceId)}/develop`, `${workspaceRootPath(workspaceId)}/bot`, `${workspaceRootPath(workspaceId)}/publish/agent`]
+      activeMatchers: [
+        workspaceProjectsPath(workspaceId),
+        `${workspaceRootPath(workspaceId)}/develop`,
+        `${workspaceRootPath(workspaceId)}/bot`,
+        `${workspaceRootPath(workspaceId)}/publish/agent`
+      ]
     },
     {
       key: "library",
@@ -263,6 +270,7 @@ function NativeShellFrame({
   localeLabel,
   logoutLabel,
   userName,
+  userHandle,
   workspaceName,
   sidebarTop,
   spaceLinks,
@@ -279,6 +287,7 @@ function NativeShellFrame({
   localeLabel: string;
   logoutLabel: string;
   userName: string;
+  userHandle?: string;
   workspaceName: string;
   sidebarTop?: ReactNode;
   spaceLinks: ShellLink[];
@@ -371,20 +380,51 @@ function NativeShellFrame({
             </div>
           </div>
           
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={onOpenProfile}>
-              <Avatar size="small" color="blue" style={{ width: 28, height: 28, fontSize: 14 }}>
-                {userName.charAt(0).toUpperCase()}
-              </Avatar>
-              <Typography.Text style={{ width: 80, fontWeight: 500 }} ellipsis={{ showTooltip: true }}>{userName}</Typography.Text>
+          <Dropdown
+            trigger="click"
+            position="topLeft"
+            render={
+              <Dropdown.Menu style={{ width: 220 }}>
+                <div style={{ padding: "12px 16px 10px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <Avatar color="blue" style={{ width: 40, height: 40, fontSize: 18, flexShrink: 0 }}>
+                    {userName.charAt(0).toUpperCase()}
+                  </Avatar>
+                  <div style={{ minWidth: 0 }}>
+                    <Typography.Text strong ellipsis={{ showTooltip: true }}>{userName}</Typography.Text>
+                    {userHandle ? (
+                      <Typography.Text type="tertiary" size="small" style={{ display: "block" }}>@{userHandle}</Typography.Text>
+                    ) : null}
+                  </div>
+                </div>
+                <Dropdown.Divider />
+                <Dropdown.Item icon={<IconHome />} onClick={() => onNavigate(meProfilePath())}>个人主页</Dropdown.Item>
+                <Dropdown.Item icon={<IconSetting />} onClick={() => onNavigate(meSettingsPath())}>账号设置</Dropdown.Item>
+                <Dropdown.Item icon={<IconArticle />}>
+                  <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                    <span>联系我们</span>
+                    <IconChevronDown style={{ transform: "rotate(-90deg)" }} />
+                  </div>
+                </Dropdown.Item>
+                <Dropdown.Divider />
+                <Dropdown.Item icon={<IconExit />} type="danger" onClick={onLogout}>退出登录</Dropdown.Item>
+              </Dropdown.Menu>
+            }
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px", cursor: "pointer" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Avatar size="small" color="blue" style={{ width: 28, height: 28, fontSize: 14 }}>
+                  {userName.charAt(0).toUpperCase()}
+                </Avatar>
+                <Typography.Text style={{ maxWidth: 80, fontWeight: 500 }} ellipsis={{ showTooltip: true }}>{userName}</Typography.Text>
+              </div>
+              <Space spacing={16}>
+                <IconExpand style={{ color: "var(--semi-color-text-2)" }} />
+                <Badge count={39} overflowCount={99} type="danger">
+                  <IconBell style={{ color: "var(--semi-color-text-2)" }} />
+                </Badge>
+              </Space>
             </div>
-            <Space spacing={16}>
-              <IconExpand style={{ cursor: "pointer", color: "var(--semi-color-text-2)" }} />
-              <Badge count={39} overflowCount={99} type="danger">
-                <IconBell style={{ cursor: "pointer", color: "var(--semi-color-text-2)" }} />
-              </Badge>
-            </Space>
-          </div>
+          </Dropdown>
         </div>
       </Layout.Sider>
 
@@ -502,6 +542,7 @@ function SpaceShellChrome() {
       localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
       logoutLabel={t("logout")}
       userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+      userHandle={auth.profile?.username}
       workspaceName={workspace.name || workspace.appKey || "个人空间"}
       sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />}
       spaceLinks={spaceLinks}
@@ -571,6 +612,7 @@ function PlatformShellChrome() {
       localeLabel={t(locale === "zh-CN" ? "switchToEnglish" : "switchToChinese")}
       logoutLabel={t("logout")}
       userName={auth.profile?.displayName || auth.profile?.username || "Atlas"}
+      userHandle={auth.profile?.username}
       workspaceName={workspace.name || workspace.appKey || "个人空间"}
       sidebarTop={<WorkspaceSwitcher workspaceId={workspace.id} workspaceLabel={workspace.name || workspace.appKey} />}
       spaceLinks={spaceLinks}

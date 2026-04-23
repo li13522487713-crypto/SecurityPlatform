@@ -459,13 +459,12 @@ export function WorkspaceProjectsPage() {
             showClear
             style={{ width: 280, borderRadius: 8 }}
           />
-          <Button 
-            theme="light" 
-            type="tertiary" 
-            icon={<IconPlus />} 
-            onClick={() => setCreateFolderOpen(true)} 
-            data-testid="coze-projects-create-folder"
-            style={{ borderRadius: 8, fontWeight: 500 }}
+          <Button
+            theme="light"
+            type="tertiary"
+            icon={<IconPlus />}
+            style={{ borderRadius: 8 }}
+            onClick={() => setCreateFolderOpen(true)}
           >
             {t("cozeProjectsCreateFolder")}
           </Button>
@@ -473,9 +472,8 @@ export function WorkspaceProjectsPage() {
             theme="solid"
             type="primary"
             icon={<IconPlus />}
-            onClick={() => setGlobalCreateOpen(true)}
-            data-testid="coze-projects-create-project"
             style={{ borderRadius: 8, fontWeight: 500, boxShadow: "0 4px 10px rgba(37,99,235,0.2)" }}
+            onClick={() => setGlobalCreateOpen(true)}
           >
             {t("cozeProjectsCreateProject")}
           </Button>

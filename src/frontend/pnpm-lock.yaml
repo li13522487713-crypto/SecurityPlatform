@@ -9363,8 +9363,6 @@ importers:
         specifier: ~3.0.5
         version: 3.0.9(@types/debug@4.1.13)(@types/node@25.5.2)(happy-dom@12.10.3)(jiti@2.6.1)(jsdom@29.0.2)(less@4.6.4)(lightningcss@1.32.0)(sass-embedded@1.99.0)(sass@1.99.0)(sugarss@2.0.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
-  packages/canvas-x6: {}
-
   packages/common/assets:
     devDependencies:
       '@coze-arch/eslint-config':
@@ -17678,12 +17676,6 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
-  packages/lowcode-plugin-adapter:
-    devDependencies:
-      vitest:
-        specifier: ^4.1.4
-        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
-
   packages/lowcode-property-forms:
     dependencies:
       '@atlas/lowcode-expression':
@@ -17749,16 +17741,6 @@ importers:
       zod:
         specifier: ^3.23.8
         version: 3.25.76
-    devDependencies:
-      vitest:
-        specifier: ^4.1.4
-        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
-
-  packages/lowcode-session-adapter:
-    dependencies:
-      '@atlas/lowcode-chatflow-adapter':
-        specifier: workspace:*
-        version: link:../lowcode-chatflow-adapter
     devDependencies:
       vitest:
         specifier: ^4.1.4
@@ -17840,12 +17822,6 @@ importers:
         specifier: 18.2.15
         version: 18.2.15
 
-  packages/lowcode-trigger-adapter:
-    devDependencies:
-      vitest:
-        specifier: ^4.1.4
-        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
-
   packages/lowcode-versioning-client:
     devDependencies:
       vitest:
@@ -17873,12 +17849,6 @@ importers:
       vitest:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@22.1.0(canvas@2.11.2))(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
-
-  packages/lowcode-webview-policy-adapter:
-    devDependencies:
-      vitest:
-        specifier: ^4.1.4
-        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/lowcode-workflow-adapter:
     dependencies:
@@ -19009,8 +18979,6 @@ importers:
       vitest:
         specifier: ~3.0.5
         version: 3.0.9(@types/debug@4.1.13)(@types/node@18.18.9)(happy-dom@12.10.3)(jiti@2.6.1)(jsdom@22.1.0(canvas@2.11.2))(less@4.6.4)(lightningcss@1.32.0)(sass-embedded@1.99.0)(sass@1.99.0)(sugarss@2.0.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
-
-  packages/query-builder: {}
 
   packages/schema-protocol: {}
 

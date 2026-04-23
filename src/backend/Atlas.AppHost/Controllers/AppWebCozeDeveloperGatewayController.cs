@@ -939,7 +939,10 @@ public sealed class AppWebCozeDeveloperGatewayController : ControllerBase
         return Ok(CozeCompatGatewaySupport.Success(new
         {
             icon_url = string.Empty,
-            icon_list = Array.Empty<object>()
+            icon_list = new[] 
+            { 
+                new { url = "", uri = "" } 
+            }
         }));
     }
 

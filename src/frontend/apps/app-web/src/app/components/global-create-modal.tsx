@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Tag, Typography } from "@douyinfe/semi-ui";
+import { Button, Modal, Tag, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
 import { CreateAgentModal } from "./create-agent-modal";
 import { CreateAppModal } from "./create-app-modal";
@@ -60,6 +60,9 @@ export function GlobalCreateModal({ visible, workspaceId, onClose }: GlobalCreat
               <Typography.Text type="tertiary" className="coze-create-card__desc">
                 {t("cozeCreateChooseAgentDesc")}
               </Typography.Text>
+              <Button theme="solid" type="primary" block style={{ marginTop: 16, borderRadius: 8 }}>
+                + {t("cozeCreateChooseAgent")}
+              </Button>
             </div>
           </button>
           <button
@@ -100,6 +103,9 @@ export function GlobalCreateModal({ visible, workspaceId, onClose }: GlobalCreat
               <Typography.Text type="tertiary" className="coze-create-card__desc">
                 {t("cozeCreateChooseAppDesc")}
               </Typography.Text>
+              <Button theme="solid" type="primary" block style={{ marginTop: 16, borderRadius: 8 }}>
+                + 低代码搭建
+              </Button>
             </div>
           </button>
         </div>

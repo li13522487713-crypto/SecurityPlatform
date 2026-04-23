@@ -1,6 +1,6 @@
 {
   "_comment": "i18n-audit 包级 baseline。每条豁免必须有清晰的 reason，M6 完成时所有用户可见 UI 文案都应已收口（仅保留开发者诊断/错误抛出等非 UI 文案的文件级豁免）。",
-  "_lastUpdated": "2026-04-22",
+  "_lastUpdated": "2026-04-23",
   "_categories": {
     "M2-completed-but-host-no-page-yet": "组件已 i18n 收口，但宿主 app-web 还没接入对应路由/页面，先用 skipLabelsCoverageConsts 豁免；M5/后续宿主开发阶段移除豁免",
     "M3-library-copy-dictionary": "包内 copy.ts 字典文件本身必须保留中文翻译，永久豁免",
@@ -65,8 +65,6 @@
     "atlas-foundation-bridge",
     "app-shell-shared",
     "shared-react-core",
-    "canvas-x6",
-    "query-builder",
     "schema-protocol",
     "lowcode-action-runtime",
     "lowcode-asset-adapter",
@@ -80,16 +78,12 @@
     "lowcode-editor-inspector",
     "lowcode-editor-outline",
     "lowcode-expression",
-    "lowcode-plugin-adapter",
     "lowcode-property-forms",
     "lowcode-runtime-mini",
     "lowcode-runtime-web",
     "lowcode-schema",
-    "lowcode-session-adapter",
-    "lowcode-trigger-adapter",
     "lowcode-versioning-client",
     "lowcode-web-sdk",
-    "lowcode-webview-policy-adapter",
     "lowcode-workflow-adapter"
   ],
   "_pendingUserFacingFiles": {

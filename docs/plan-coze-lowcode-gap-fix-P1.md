@@ -116,7 +116,7 @@ pnpm exec eslint packages/lowcode-components-web/src packages/lowcode-collab-yjs
 8. **P1-4 模板 Tab 四类向导**：当前模板 Tab 只有列表 + 应用；页面/组件组合/模式 ABCD/行业模板四类创建向导待补。
 9. **P1-4 数据 Tab 4 类数据源 UI**：工作流输出 / 数据库快捷查询 / 静态 mock / 共享数据源 4 类独立编辑器待补。
 10. **P1-4 valueType 9 类**：当前 6 项；扩到 9 类对齐 PLAN（含 expression / file / image 细分）。
-11. **P1-5 Studio 顶部"会话管理"抽屉**：AiChat 内已支持完整 SSE+pause/resume/regenerate；但 Studio top-toolbar 还缺会话切换抽屉入口（接 lowcode-session-adapter list/create/switch 已存在）。
+11. **P1-5 Studio 顶部"会话管理"抽屉**：AiChat 内已支持完整 SSE+pause/resume/regenerate；但 Studio top-toolbar 还缺会话切换抽屉入口（后续直接接 runtime sessions 能力）。
 12. **P1-6 Studio 启用 Yjs 协同**：awareness 通道已通；canvas-viewport 还未启用协同模式（即未实例化 YjsSignalRProvider 并切换 IHistoryProvider 为 YjsCollabHistoryProvider）。
 13. **P1-6 5 浏览器并发 E2E**：留 P4 阶段做 Playwright 多 BrowserContext 演示。
 
