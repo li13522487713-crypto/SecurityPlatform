@@ -2,6 +2,8 @@ using System.Text.Json;
 using Atlas.AppHost.Controllers;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.LowCode.Abstractions;
+using Atlas.Application.LowCode.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Identity;
@@ -384,6 +386,58 @@ public sealed class CozeNativeAgentCompatControllerTests
         var payload = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("\"trigger_id\":\"703\"", payload, StringComparison.Ordinal);
         Assert.Contains("\"Evening digest\"", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetPublishLogList_ShouldReturnRuntimeLogs()
+    {
+        var logService = Substitute.For<IRuntimeMessageLogService>();
+        logService.QueryAsync(TestTenant, Arg.Any<RuntimeMessageLogQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new RuntimeMessageLogEntryDto("log-1", "agent", "publish", "session-1", "workflow-1", "103", "trace-1", null, DateTimeOffset.UtcNow),
+                new RuntimeMessageLogEntryDto("log-2", "dispatch", "message", "session-2", null, "103", "trace-2", null, DateTimeOffset.UtcNow.AddMinutes(-5))
+            ]);
+
+        var controller = BuildIntelligenceController(services =>
+        {
+            services.AddSingleton(logService);
+        });
+
+        var result = await controller.GetPublishLogList(
+            new CozeGetPublishLogListRequest("103", null, null, null, null, 1, 20),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.Contains("\"log_id\":\"log-1\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"source\":\"dispatch\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"total\":2", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetPublishLogList_ShouldFilterBySourceAndKind()
+    {
+        var logService = Substitute.For<IRuntimeMessageLogService>();
+        logService.QueryAsync(TestTenant, Arg.Any<RuntimeMessageLogQuery>(), Arg.Any<CancellationToken>())
+            .Returns([
+                new RuntimeMessageLogEntryDto("log-1", "agent", "publish", "session-1", "workflow-1", "103", "trace-1", null, DateTimeOffset.UtcNow),
+                new RuntimeMessageLogEntryDto("log-2", "dispatch", "message", "session-2", null, "103", "trace-2", null, DateTimeOffset.UtcNow.AddMinutes(-5))
+            ]);
+
+        var controller = BuildIntelligenceController(services =>
+        {
+            services.AddSingleton(logService);
+        });
+
+        var result = await controller.GetPublishLogList(
+            new CozeGetPublishLogListRequest("103", null, null, "dispatch", "message", 1, 20),
+            CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = JsonSerializer.Serialize(ok.Value);
+        Assert.DoesNotContain("\"log_id\":\"log-1\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"log_id\":\"log-2\"", payload, StringComparison.Ordinal);
+        Assert.Contains("\"total\":1", payload, StringComparison.Ordinal);
     }
 
     [Fact]

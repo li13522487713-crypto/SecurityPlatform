@@ -39,6 +39,7 @@
 - `POST /api/intelligence_api/publish/trigger_create` 已接入 `IAgentTriggerService.CreateAsync`，当前宿主页签支持创建最小 trigger（名称、类型、配置 JSON、启用状态）。
 - `POST /api/intelligence_api/publish/trigger_update` 与 `POST /api/intelligence_api/publish/trigger_delete` 已接入 `IAgentTriggerService.UpdateAsync / DeleteAsync`，当前宿主页签支持真实启停与删除动作，仍未开放触发器创建/编辑表单。
 - 上述 trigger 路由当前对无效 `project_id / trigger_id` 或缺失 trigger 返回 `code=1` + 明确 `msg`，不再把参数错误伪装成成功。
+- `POST /api/intelligence_api/publish/log_list` 已接入 `IRuntimeMessageLogService.QueryAsync`，当前日志页签展示真实运行日志列表（`source / kind / trace_id / occurred_at`），并与发布历史摘要并列展示。
 
 ### Coze 原生智能体空间迁移链
 

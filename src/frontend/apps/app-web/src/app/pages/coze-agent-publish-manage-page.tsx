@@ -10,6 +10,8 @@ import { useAppI18n } from "../i18n";
 import {
   createCozePublishTrigger,
   deleteCozePublishTrigger,
+  getCozePublishLogList,
+  type CozePublishLogItem,
   getCozePublishTriggerList,
   type CozePublishTriggerItem,
   updateCozePublishTrigger
@@ -22,6 +24,8 @@ import {
   normalizePublishManageTab,
   summarizeConnectors
 } from "./coze-agent-publish-manage-helpers";
+import { buildDefaultPublishLogFilters, normalizePositiveInt } from "./coze-publish-log-helpers";
+import { buildPublishLogPreview, formatPublishLogPayload } from "./coze-publish-log-payload-helpers";
 
 const { Title, Text } = Typography;
 
@@ -34,11 +38,20 @@ export function CozeAgentPublishManagePage() {
   const [records, setRecords] = useState<PublishRecordDetail[]>([]);
   const [currentRecord, setCurrentRecord] = useState<PublishRecordDetail>();
   const [triggers, setTriggers] = useState<CozePublishTriggerItem[]>([]);
+  const [logs, setLogs] = useState<CozePublishLogItem[]>([]);
   const [triggerLoadFailed, setTriggerLoadFailed] = useState(false);
+  const [logLoadFailed, setLogLoadFailed] = useState(false);
   const [triggerActionKey, setTriggerActionKey] = useState("");
+  const [expandedLogId, setExpandedLogId] = useState("");
 
   const recordIdFromQuery = searchParams.get("recordId")?.trim() ?? "";
   const activeTab = normalizePublishManageTab(searchParams.get("tab"));
+  const logFilters = {
+    source: searchParams.get("logSource")?.trim() ?? buildDefaultPublishLogFilters().source,
+    kind: searchParams.get("logKind")?.trim() ?? buildDefaultPublishLogFilters().kind,
+    pageIndex: normalizePositiveInt(searchParams.get("logPage"), buildDefaultPublishLogFilters().pageIndex),
+    pageSize: normalizePositiveInt(searchParams.get("logPageSize"), buildDefaultPublishLogFilters().pageSize)
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +145,67 @@ export function CozeAgentPublishManagePage() {
       cancelled = true;
     };
   }, [botId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLogs() {
+      if (!botId) {
+        setLogs([]);
+        setLogLoadFailed(false);
+        return;
+      }
+
+      try {
+        const nextLogs = await getCozePublishLogList({
+          projectId: botId,
+          source: logFilters.source || undefined,
+          kind: logFilters.kind || undefined,
+          pageIndex: logFilters.pageIndex,
+          pageSize: logFilters.pageSize
+        });
+        if (!cancelled) {
+          setLogs(nextLogs);
+          setLogLoadFailed(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setLogs([]);
+          setLogLoadFailed(true);
+        }
+      }
+    }
+
+    void loadLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [botId, logFilters.kind, logFilters.pageIndex, logFilters.pageSize, logFilters.source]);
+
+  const updateLogFilters = (next: Partial<typeof logFilters>) => {
+    const nextParams = new URLSearchParams(searchParams);
+    const merged = {
+      ...logFilters,
+      ...next
+    };
+
+    if (merged.source) {
+      nextParams.set("logSource", merged.source);
+    } else {
+      nextParams.delete("logSource");
+    }
+
+    if (merged.kind) {
+      nextParams.set("logKind", merged.kind);
+    } else {
+      nextParams.delete("logKind");
+    }
+
+    nextParams.set("logPage", String(merged.pageIndex));
+    nextParams.set("logPageSize", String(merged.pageSize));
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const connectorSummary = useMemo(
     () => summarizeConnectors(currentRecord?.connector_publish_result),
@@ -377,6 +451,9 @@ export function CozeAgentPublishManagePage() {
 
               <Tabs.TabPane tab={t("cozePublishManageTabLogs")} itemKey="logs">
                 <div style={{ display: "grid", gap: 12 }}>
+                  {logLoadFailed ? (
+                    <Banner type="danger" fullMode={false} bordered description={t("cozePublishManageLoadFailed")} />
+                  ) : null}
                   <Card bodyStyle={{ padding: 16 }}>
                     <div style={{ display: "grid", gap: 12 }}>
                       <Text strong>{t("cozePublishManageHistory")}</Text>
@@ -424,6 +501,153 @@ export function CozeAgentPublishManagePage() {
                           </div>
                         );
                       })}
+                    </div>
+                  </Card>
+                  <Card bodyStyle={{ padding: 16 }}>
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <Text strong>{t("cozePublishManageTabLogs")}</Text>
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <Select
+                          style={{ minWidth: 180 }}
+                          placeholder={t("cozePublishManageLogFilterSource")}
+                          value={logFilters.source || undefined}
+                          optionList={[
+                            { label: "agent", value: "agent" },
+                            { label: "dispatch", value: "dispatch" },
+                            { label: "workflow", value: "workflow" }
+                          ]}
+                          onChange={value => {
+                            updateLogFilters({
+                              source: typeof value === "string" ? value : "",
+                              pageIndex: 1
+                            });
+                          }}
+                        />
+                        <Select
+                          style={{ minWidth: 180 }}
+                          placeholder={t("cozePublishManageLogFilterKind")}
+                          value={logFilters.kind || undefined}
+                          optionList={[
+                            { label: "publish", value: "publish" },
+                            { label: "message", value: "message" },
+                            { label: "tool", value: "tool" }
+                          ]}
+                          onChange={value => {
+                            updateLogFilters({
+                              kind: typeof value === "string" ? value : "",
+                              pageIndex: 1
+                            });
+                          }}
+                        />
+                        <Select
+                          style={{ minWidth: 140 }}
+                          placeholder={t("cozePublishManageLogPageSize")}
+                          value={String(logFilters.pageSize)}
+                          optionList={[
+                            { label: "10", value: "10" },
+                            { label: "20", value: "20" },
+                            { label: "50", value: "50" }
+                          ]}
+                          onChange={value => {
+                            updateLogFilters({
+                              pageSize: normalizePositiveInt(typeof value === "string" ? value : String(logFilters.pageSize), 20),
+                              pageIndex: 1
+                            });
+                          }}
+                        />
+                        <Button
+                          disabled={logFilters.pageIndex <= 1}
+                          onClick={() => {
+                            updateLogFilters({
+                              pageIndex: Math.max(1, logFilters.pageIndex - 1)
+                            });
+                          }}
+                        >
+                          {t("cozePublishManageLogPrevPage")}
+                        </Button>
+                        <Button
+                          disabled={logs.length < logFilters.pageSize}
+                          onClick={() => {
+                            updateLogFilters({
+                              pageIndex: logFilters.pageIndex + 1
+                            });
+                          }}
+                        >
+                          {t("cozePublishManageLogNextPage")}
+                        </Button>
+                      </div>
+                      {logs.length === 0 ? (
+                        <Empty description={t("cozePublishManageNoRuntimeLogs")} />
+                      ) : (
+                        logs.map(item => (
+                          <div
+                            key={item.log_id}
+                            style={{
+                              display: "grid",
+                              gap: 8,
+                              padding: 12,
+                              borderRadius: 12,
+                              border: "1px solid var(--semi-color-border)"
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                              <Text strong>{item.log_id}</Text>
+                              <Text type="tertiary">{formatPublishTime(item.occurred_at)}</Text>
+                            </div>
+                            <div>
+                              <Text type="tertiary">{t("cozePublishManageLogSource")}</Text>
+                              <div style={{ marginTop: 4 }}>
+                                <Text>{item.source || "-"}</Text>
+                              </div>
+                            </div>
+                            <div>
+                              <Text type="tertiary">{t("cozePublishManageLogKind")}</Text>
+                              <div style={{ marginTop: 4 }}>
+                                <Text>{item.kind || "-"}</Text>
+                              </div>
+                            </div>
+                            <div>
+                              <Text type="tertiary">Trace</Text>
+                              <div style={{ marginTop: 4 }}>
+                                <Text>{item.trace_id || "-"}</Text>
+                              </div>
+                            </div>
+                            <div>
+                              <Text type="tertiary">{t("cozePublishManageLogPayload")}</Text>
+                              <div style={{ marginTop: 4, display: "grid", gap: 8 }}>
+                                <Text>{buildPublishLogPreview(item.payload)}</Text>
+                                <Button
+                                  theme="borderless"
+                                  style={{ paddingLeft: 0, justifyContent: "flex-start" }}
+                                  onClick={() => {
+                                    setExpandedLogId(current => current === item.log_id ? "" : item.log_id);
+                                  }}
+                                >
+                                  {expandedLogId === item.log_id
+                                    ? t("cozePublishManageLogPayloadHide")
+                                    : t("cozePublishManageLogPayloadView")}
+                                </Button>
+                                {expandedLogId === item.log_id ? (
+                                  <pre
+                                    style={{
+                                      margin: 0,
+                                      padding: 12,
+                                      borderRadius: 12,
+                                      background: "var(--semi-color-fill-0)",
+                                      overflowX: "auto",
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      fontSize: 12
+                                    }}
+                                  >
+                                    {formatPublishLogPayload(item.payload)}
+                                  </pre>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </Card>
                   {connectors.length === 0 ? (

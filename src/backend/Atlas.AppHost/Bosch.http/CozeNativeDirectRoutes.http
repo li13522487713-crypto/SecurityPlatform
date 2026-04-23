@@ -216,6 +216,18 @@ X-Tenant-Id: {{tenantId}}
   "project_id": "1"
 }
 
+### Coze 原生 intelligence：publish log list
+POST {{host}}/api/intelligence_api/publish/log_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "project_id": "1",
+  "page_index": 1,
+  "page_size": 20
+}
+
 ### Coze 原生 intelligence：publish trigger list
 POST {{host}}/api/intelligence_api/publish/trigger_list
 Content-Type: {{contentType}}

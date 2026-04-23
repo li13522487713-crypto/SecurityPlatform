@@ -11,6 +11,18 @@ export interface CozePublishTriggerItem {
   updated_at: string;
 }
 
+export interface CozePublishLogItem {
+  log_id: string;
+  source: string;
+  kind: string;
+  session_id: string;
+  workflow_id: string;
+  project_id: string;
+  trace_id: string;
+  payload?: unknown;
+  occurred_at: string;
+}
+
 interface CozeDataResponse<T> {
   code?: number;
   msg?: string;
@@ -24,6 +36,12 @@ interface CozeTriggerListPayload {
 
 interface CozeTriggerPayload {
   trigger?: CozePublishTriggerItem;
+}
+
+interface CozeLogListPayload {
+  log_list?: CozePublishLogItem[];
+  total?: number;
+  has_more?: boolean;
 }
 
 export async function getCozePublishTriggerList(projectId: string): Promise<CozePublishTriggerItem[]> {
@@ -45,6 +63,37 @@ export async function getCozePublishTriggerList(projectId: string): Promise<Coze
   }
 
   return response.data?.trigger_list ?? [];
+}
+
+export async function getCozePublishLogList(input: {
+  projectId: string;
+  source?: string;
+  kind?: string;
+  pageIndex?: number;
+  pageSize?: number;
+}): Promise<CozePublishLogItem[]> {
+  const response = await requestApi<CozeDataResponse<CozeLogListPayload>>(
+    "/api/intelligence_api/publish/log_list",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        project_id: input.projectId,
+        source: input.source,
+        kind: input.kind,
+        page_index: input.pageIndex ?? 1,
+        page_size: input.pageSize ?? 20
+      })
+    }
+  );
+
+  if (response.code !== 0) {
+    throw new Error(response.msg || "Failed to load publish logs");
+  }
+
+  return response.data?.log_list ?? [];
 }
 
 export async function createCozePublishTrigger(input: {

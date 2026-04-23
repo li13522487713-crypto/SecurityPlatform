@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.LowCode.Abstractions;
+using Atlas.Application.LowCode.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Identity;
@@ -446,6 +448,65 @@ public abstract class CozeIntelligenceCompatControllerBase : ControllerBase
         {
             trigger_id = request.trigger_id,
             deleted = true
+        }));
+    }
+
+    [HttpPost("/api/intelligence_api/publish/log_list")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetPublishLogList(
+        [FromBody] CozeGetPublishLogListRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(request.project_id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var botId) || botId <= 0)
+        {
+            return Ok(Fail("project_id is invalid"));
+        }
+
+        var logService = HttpContext.RequestServices.GetService<IRuntimeMessageLogService>();
+        if (logService is null)
+        {
+            return Ok(Fail("log service unavailable"));
+        }
+
+        var pageIndex = request.page_index > 0 ? request.page_index : 1;
+        var pageSize = request.page_size > 0 ? Math.Min(request.page_size, 100) : 20;
+        var query = new RuntimeMessageLogQuery(
+            SessionId: request.session_id,
+            WorkflowId: request.workflow_id,
+            AgentId: request.project_id,
+            From: null,
+            To: null,
+            PageIndex: pageIndex,
+            PageSize: pageSize);
+        var items = await logService.QueryAsync(_tenantProvider.GetTenantId(), query, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.source))
+        {
+            items = items.Where(item => string.Equals(item.Source, request.source, StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.kind))
+        {
+            items = items.Where(item => string.Equals(item.Kind, request.kind, StringComparison.OrdinalIgnoreCase)).ToArray();
+        }
+
+        var payload = items.Select(item => new
+        {
+            log_id = item.EntryId,
+            source = item.Source,
+            kind = item.Kind,
+            session_id = item.SessionId ?? string.Empty,
+            workflow_id = item.WorkflowId ?? string.Empty,
+            project_id = item.AgentId ?? string.Empty,
+            trace_id = item.TraceId ?? string.Empty,
+            payload = item.Payload,
+            occurred_at = item.OccurredAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
+        }).ToArray();
+
+        return Ok(Success(new
+        {
+            log_list = payload,
+            total = payload.Length,
+            has_more = payload.Length >= pageSize
         }));
     }
 
@@ -916,6 +977,15 @@ public sealed record CozeUpdatePublishTriggerRequest(
 public sealed record CozeDeletePublishTriggerRequest(
     string project_id,
     string trigger_id);
+
+public sealed record CozeGetPublishLogListRequest(
+    string project_id,
+    string? session_id,
+    string? workflow_id,
+    string? source,
+    string? kind,
+    int page_index = 1,
+    int page_size = 20);
 
 public sealed record CozeDraftProjectCreateRequest(
     string? space_id,
