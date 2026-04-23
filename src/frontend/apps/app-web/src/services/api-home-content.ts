@@ -1,14 +1,11 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
-import { requestApi, toQuery } from "../api-core";
+import { requestApi, toQuery } from "./api-core";
 
 /**
- * 工作空间首页内容（PRD 01）。
+ * 工作空间首页内容真实服务。
  *
- * 第三阶段 M1（2026-04）切换为真实 REST 接口，后台实现：
- *   Atlas.PlatformHost/Controllers/HomeContentController.cs
- *   Atlas.Infrastructure/Services/Coze/InMemoryHomeContentService.cs
- *
- * 后端尚为 in-memory 数据源；待 PlatformContent 表落地后无需改前端。
+ * 2026-04 起 `app-web` 首页与工作区列表都直接走 AppHost 的
+ * `/api/v1/workspaces/{workspaceId}/home/*` 路由，不再通过 mock 命名文件兜底。
  */
 
 export interface HomeBannerCta {

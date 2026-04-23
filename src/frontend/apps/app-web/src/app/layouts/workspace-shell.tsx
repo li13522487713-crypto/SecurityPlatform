@@ -36,9 +36,9 @@ import { OrganizationProvider } from "../organization-context";
 import { PermissionProvider } from "../permission-context";
 import { MENU_GROUPS } from "../menu-config";
 import { WorkspaceSwitcher } from "../components/workspace-switcher";
+import { GlobalCreateModal } from "../components/global-create-modal";
 import { PageShell } from "../_shared";
 import type { AppMessageKey } from "../messages";
-import { CreateWorkspaceModal } from "../components/create-workspace-modal";
 
 const LAST_WORKSPACE_KEY = "atlas_last_workspace_id";
 
@@ -254,8 +254,9 @@ function ShellChrome() {
       <Outlet />
     </CozeShell>
 
-    <CreateWorkspaceModal
+    <GlobalCreateModal
       visible={createOpen}
+      workspaceId={workspace.id}
       onClose={() => setCreateOpen(false)}
     />
     </>

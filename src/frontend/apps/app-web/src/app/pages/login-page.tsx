@@ -1,4 +1,4 @@
-import { clearAuthStorage } from "@atlas/shared-react-core/utils";
+import { clearAuthStorage, getTenantId } from "@atlas/shared-react-core/utils";
 import { useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button, Checkbox, Input, Typography } from "@douyinfe/semi-ui";
@@ -7,7 +7,10 @@ import { selectWorkspacePath } from "../app-paths";
 import { useAuth } from "../auth-context";
 import { useAppI18n } from "../i18n";
 import { getLoginCaptcha } from "../../services/api-auth";
+import { getWorkspaces } from "../../services/api-org-workspaces";
+import { readLastWorkspaceId, rememberLastWorkspaceId } from "../layouts/workspace-shell";
 import { InfoBanner, PageShell, PublicRatioFrame, PublicRatioLayout, PublicRatioSplit } from "../_shared";
+import { resolveWorkspaceEntryTarget } from "./login-entry-helpers";
 
 const { Text } = Typography;
 
@@ -307,10 +310,26 @@ export function LoginPage() {
         captchaKey || undefined,
         captchaCode.trim() || undefined
       );
-      const target =
-        typeof redirectTarget === "string" && redirectTarget.startsWith("/")
-          ? redirectTarget
-          : workspaceTarget;
+      const target = typeof redirectTarget === "string" && redirectTarget.startsWith("/")
+        ? redirectTarget
+        : await (async () => {
+            try {
+              const tenantId = getTenantId();
+              if (!tenantId) {
+                return workspaceTarget;
+              }
+
+              const workspaces = await getWorkspaces(tenantId);
+              const workspaceIds = workspaces.map(item => item.id).filter(Boolean);
+              const nextTarget = resolveWorkspaceEntryTarget(workspaceIds, readLastWorkspaceId());
+              if (workspaceIds.length === 1) {
+                rememberLastWorkspaceId(workspaceIds[0]);
+              }
+              return nextTarget;
+            } catch {
+              return workspaceTarget;
+            }
+          })();
       navigate(target, { replace: true });
     } catch (error) {
       setErrorMessage(normalizeLoginError(error, t));

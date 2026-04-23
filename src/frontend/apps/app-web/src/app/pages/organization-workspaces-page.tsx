@@ -40,7 +40,7 @@ import {
   type RecentActivityItem,
   type RecommendedAgentItem,
   type TutorialCard
-} from "../../services/mock";
+} from "../../services/api-home-content";
 import { useAppI18n } from "../i18n";
 
 const { Title, Text } = Typography;

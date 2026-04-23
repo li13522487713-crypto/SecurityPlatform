@@ -15,7 +15,7 @@ import {
   getHomeRecentActivities,
   getHomeRecommendedAgents,
   getHomeTutorials
-} from "../../services/mock";
+} from "../../services/api-home-content";
 import { GlobalCreateModal } from "../components/global-create-modal";
 
 export function WorkspaceHomePage() {

@@ -1358,13 +1358,13 @@ DTO：
 
 | 后台 Controller | 替代的前端 mock 文件 |
 |---|---|
-| `HomeContentController` | `services/mock/api-home-content.mock.ts` |
+| `HomeContentController` | `services/api-home-content.ts` |
 | `CommunityController` | `services/mock/api-community.mock.ts` |
 | `PlatformGeneralController` | `services/mock/api-platform-general.mock.ts` 中 `listPlatformNotices` / `getPlatformBranding` |
 | `MarketSummaryController` | `services/mock/api-templates-market.mock.ts` |
 | `MeSettingsController` | `services/mock/api-me-settings.mock.ts`（除 `deleteMeAccount` 外）|
 | `WorkspaceFoldersController` | `services/mock/api-folders.mock.ts` |
-| `WorkspacePublishChannelsController` | `services/mock/api-publish-channels.mock.ts` |
+| `WorkspacePublishChannelsController` | `services/api-publish-channels.ts` |
 
 ## Coze 平台第三阶段 API（M2：工作空间维度持久化对象）
 
@@ -1555,7 +1555,9 @@ DTO：
 | 后台 Controller | 替代的前端 mock 文件 |
 |---|---|
 | `WorkspaceFoldersController` | `services/mock/api-folders.mock.ts` |
-| `WorkspacePublishChannelsController` | `services/mock/api-publish-channels.mock.ts` |
+| `WorkspacePublishChannelsController` | `services/api-publish-channels.ts` |
+
+> 2026-04-23：上述 `publish-channels` 路由已在 `AppHost` 下承载，`app-web` 的 `WorkspaceSettingsPublishPage` 不再走 `services/mock/api-publish-channels.mock.ts`。
 
 ## Coze 平台第三阶段 API（M3：任务中心 / 评测 / 测试集）
 

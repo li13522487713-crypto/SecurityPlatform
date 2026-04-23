@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Empty, Spin, Table, TabPane, Tabs, Tag, Toast } from "@douyinfe/semi-ui";
+import { Banner, Button, Empty, Spin, Table, TabPane, Tabs, Tag, Toast } from "@douyinfe/semi-ui";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -15,11 +15,11 @@ import { getAiAssistantsPaged } from "../../services/api-ai-assistant";
 import type { AgentListItem } from "../../services/api-agent";
 import { listWorkflows, type WorkflowListItem } from "../../services/api-workflow";
 import {
-  deletePublishChannel,
-  listPublishChannels,
-  reauthPublishChannel,
-  type PublishChannelItem
-} from "../../services/mock";
+  deleteWorkspacePublishChannel,
+  listWorkspacePublishChannelsPage,
+  reauthorizeWorkspacePublishChannel,
+  type WorkspacePublishChannelListItem
+} from "../../services/api-publish-channels";
 import { createLowcodeProjectAppGateway, type ProjectAppCard } from "../gateways/project-app-gateway";
 import { WorkspaceSettingsLayout } from "../layouts/workspace-settings-layout";
 
@@ -241,14 +241,19 @@ function WorkflowsPanel({ onOpenEditor }: { onOpenEditor: (id: string) => void }
 
 function ChannelsPanel({ workspaceId }: { workspaceId: string }) {
   const { t } = useAppI18n();
-  const [items, setItems] = useState<PublishChannelItem[]>([]);
+  const [items, setItems] = useState<WorkspacePublishChannelListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refresh = () => {
     setLoading(true);
-    listPublishChannels(workspaceId, { pageIndex: 1, pageSize: 50 })
+    setLoadFailed(false);
+    listWorkspacePublishChannelsPage(workspaceId, { pageIndex: 1, pageSize: 50 })
       .then(result => setItems(result.items))
-      .catch(() => setItems([]))
+      .catch(() => {
+        setItems([]);
+        setLoadFailed(true);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -262,7 +267,7 @@ function ChannelsPanel({ workspaceId }: { workspaceId: string }) {
     {
       title: t("cozeSettingsPublishColumnStatus"),
       dataIndex: "status",
-      render: (value: PublishChannelItem["status"]) => (
+      render: (value: string | undefined) => (
         <Tag color={value === "active" ? "green" : value === "pending" ? "amber" : "grey"}>
           {value === "active" ? t("cozeSettingsChannelStatusActive") : value === "pending" ? t("cozeSettingsChannelStatusPending") : t("cozeSettingsChannelStatusInactive")}
         </Tag>
@@ -280,7 +285,7 @@ function ChannelsPanel({ workspaceId }: { workspaceId: string }) {
           <Button
             theme="borderless"
             onClick={() => {
-              void reauthPublishChannel(workspaceId, String(record.id)).then(() => {
+              void reauthorizeWorkspacePublishChannel(workspaceId, String(record.id)).then(() => {
                 Toast.success(t("cozeSettingsChannelReauth"));
                 refresh();
               });
@@ -292,7 +297,7 @@ function ChannelsPanel({ workspaceId }: { workspaceId: string }) {
             theme="borderless"
             type="danger"
             onClick={() => {
-              void deletePublishChannel(workspaceId, String(record.id)).then(() => {
+              void deleteWorkspacePublishChannel(workspaceId, String(record.id)).then(() => {
                 Toast.success(t("cozeSettingsChannelDelete"));
                 refresh();
               });
@@ -310,6 +315,15 @@ function ChannelsPanel({ workspaceId }: { workspaceId: string }) {
   }
   return (
     <>
+      {loadFailed ? (
+        <Banner
+          type="danger"
+          bordered
+          fullMode={false}
+          description={t("cozeSettingsPublishChannelsLoadFailed")}
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
       <div className="coze-page__toolbar">
         <Button theme="solid" type="primary" onClick={() => Toast.info(t("cozeCommonComingSoon"))}>
           {t("cozeSettingsChannelAdd")}

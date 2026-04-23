@@ -21,9 +21,10 @@ interface BackendPublishChannel {
   name: string;
   status: string;
   authStatus?: string;
+  description?: string;
+  supportedTargets?: string[];
   lastSyncAt?: string;
   createdAt: string;
-  updatedAt: string;
 }
 
 interface BackendChannelRelease {
@@ -36,10 +37,8 @@ interface BackendChannelRelease {
 }
 
 export async function listWorkspacePublishChannels(workspaceId: string): Promise<PublishChannelListItem[]> {
-  const response = await requestApi<ApiResponse<PagedResult<BackendPublishChannel>>>(
-    `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels?pageIndex=1&pageSize=200`
-  );
-  const items = response.data?.items ?? [];
+  const paged = await listWorkspacePublishChannelsPage(workspaceId, { pageIndex: 1, pageSize: 200 });
+  const items = paged.items;
   return items.map((it) => ({
     id: it.id,
     workspaceId: it.workspaceId,
@@ -49,8 +48,77 @@ export async function listWorkspacePublishChannels(workspaceId: string): Promise
     authStatus: it.authStatus,
     lastSyncAt: it.lastSyncAt,
     createdAt: it.createdAt,
-    updatedAt: it.updatedAt
+    updatedAt: it.createdAt
   }));
+}
+
+export interface WorkspacePublishChannelListItem {
+  id: string;
+  workspaceId: string;
+  type: string;
+  name: string;
+  status: string;
+  authStatus?: string;
+  description?: string;
+  supportedTargets: string[];
+  lastSyncAt?: string;
+  createdAt: string;
+}
+
+export async function listWorkspacePublishChannelsPage(
+  workspaceId: string,
+  input: {
+    pageIndex: number;
+    pageSize: number;
+    keyword?: string;
+  }
+): Promise<PagedResult<WorkspacePublishChannelListItem>> {
+  const params = new URLSearchParams({
+    pageIndex: String(input.pageIndex),
+    pageSize: String(input.pageSize)
+  });
+  if (input.keyword) {
+    params.set("keyword", input.keyword);
+  }
+  const response = await requestApi<ApiResponse<PagedResult<BackendPublishChannel>>>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels?${params.toString()}`
+  );
+  const paged = response.data;
+  return {
+    items: (paged?.items ?? []).map((it) => ({
+      id: it.id,
+      workspaceId: it.workspaceId,
+      type: it.type,
+      name: it.name,
+      status: it.status,
+      authStatus: it.authStatus,
+      description: it.description,
+      supportedTargets: it.supportedTargets ?? [],
+      lastSyncAt: it.lastSyncAt,
+      createdAt: it.createdAt
+    })),
+    total: paged?.total ?? 0,
+    pageIndex: paged?.pageIndex ?? input.pageIndex,
+    pageSize: paged?.pageSize ?? input.pageSize
+  };
+}
+
+export async function reauthorizeWorkspacePublishChannel(workspaceId: string, channelId: string): Promise<void> {
+  await requestApi<ApiResponse<{ success: boolean }>>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels/${encodeURIComponent(channelId)}/reauth`,
+    {
+      method: "POST"
+    }
+  );
+}
+
+export async function deleteWorkspacePublishChannel(workspaceId: string, channelId: string): Promise<void> {
+  await requestApi<ApiResponse<{ success: boolean }>>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels/${encodeURIComponent(channelId)}`,
+    {
+      method: "DELETE"
+    }
+  );
 }
 
 export async function getWorkspaceChannelActiveRelease(

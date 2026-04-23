@@ -13,7 +13,6 @@
  */
 
 export * from "./mock-utils";
-export * from "./api-home-content.mock";
 export * from "./api-folders.mock";
 export * from "./api-tasks.mock";
 export * from "./api-evaluations.mock";
