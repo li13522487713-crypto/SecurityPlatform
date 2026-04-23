@@ -40,4 +40,22 @@ public sealed class EvaluationCaseRepository : RepositoryBase<EvaluationCase>
             .ToListAsync(cancellationToken);
         return rows.ToDictionary(x => x.DatasetId, x => x.Count);
     }
+
+    public async Task<IReadOnlyList<EvaluationCase>> GetByDatasetIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> datasetIds,
+        CancellationToken cancellationToken)
+    {
+        if (datasetIds.Count == 0)
+        {
+            return [];
+        }
+
+        var idArray = datasetIds.Distinct().ToArray();
+        return await Db.Queryable<EvaluationCase>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.DatasetId))
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToListAsync(cancellationToken);
+    }
 }

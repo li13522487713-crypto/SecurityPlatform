@@ -21,7 +21,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
                 new
                 {
                     id = "entry_1",
-                    type = (int)WorkflowNodeType.Entry,
+                    type = ((int)WorkflowNodeType.Entry).ToString(),
                     meta = new
                     {
                         position = new { x = 180, y = 40 }
@@ -46,7 +46,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
                 new
                 {
                     id = "exit_1",
-                    type = (int)WorkflowNodeType.Exit,
+                    type = ((int)WorkflowNodeType.Exit).ToString(),
                     meta = new
                     {
                         position = new { x = 740, y = 40 }

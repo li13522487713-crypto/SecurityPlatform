@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useLayoutEffect, useMemo, useEffect } from 'react';
+import React, { useLayoutEffect, useMemo, useEffect, useRef } from 'react';
 
 import { FlowRendererRegistry } from '@flowgram-adapter/free-layout-editor';
 import {
@@ -31,12 +31,20 @@ export const WorkflowLoader: React.FC = () => {
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const renderRegistry = useService<FlowRendererRegistry>(FlowRendererRegistry);
   const loggerService = useService<LoggerService>(LoggerService);
+  const hasLoadedRef = useRef(false);
   useMemo(() => renderRegistry.init(), [renderRegistry]);
   useLayoutEffect(() => {
+    if (hasLoadedRef.current) {
+      return;
+    }
+    hasLoadedRef.current = true;
     // load data
     doc.load();
     // Destroy data
-    return () => doc.dispose();
+    return () => {
+      hasLoadedRef.current = false;
+      doc.dispose();
+    };
   }, [doc]);
 
   useEffect(() => {

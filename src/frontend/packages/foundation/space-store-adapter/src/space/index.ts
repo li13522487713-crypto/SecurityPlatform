@@ -74,6 +74,10 @@ interface SpaceStoreAction {
 }
 
 const DEFAULT_MAXIMUM_SPACE = 3;
+const ENABLE_ZUSTAND_DEVTOOLS =
+  IS_DEV_MODE &&
+  typeof window !== 'undefined' &&
+  '__REDUX_DEVTOOLS_EXTENSION__' in window;
 
 export const defaultState: SpaceStoreState = {
   space: {},
@@ -234,7 +238,7 @@ export const useSpaceStore = create<SpaceStoreState & SpaceStoreAction>()(
     }),
 
     {
-      enabled: IS_DEV_MODE,
+      enabled: ENABLE_ZUSTAND_DEVTOOLS,
       name: 'botStudio.spaceStore',
     },
   ),

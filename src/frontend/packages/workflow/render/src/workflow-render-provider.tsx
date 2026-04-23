@@ -70,8 +70,8 @@ export const WorkflowRenderProvider = (props: WorkflowRenderProviderProps) => {
       plugins={preset}
       parentContainer={props.parentContainer}
     >
-      <WorkflowLoader />
       {props.children}
+      <WorkflowLoader />
     </PlaygroundReactProvider>
   );
 };

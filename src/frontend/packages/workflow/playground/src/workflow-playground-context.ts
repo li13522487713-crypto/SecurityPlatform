@@ -79,6 +79,7 @@ export interface ImageflowNodesGroup {
 @injectable()
 export class WorkflowPlaygroundContext implements PlaygroundContext {
   protected nodeTemplateMap = new Map<StandardNodeType, NodeTemplate>();
+  protected missingNodeMetaTypeSet = new Set<string>();
   protected pluginApiMap: Record<string, PluginAPINode> = {};
   protected pluginCategoryMap: Record<string, PluginCategory> = {};
   public favoritePlugins: GetUserFavoriteListData | undefined;
@@ -172,22 +173,28 @@ export class WorkflowPlaygroundContext implements PlaygroundContext {
   getNodeTemplateInfoByType = (
     type: StandardNodeType,
   ): NodeTemplateInfo | undefined => {
-    const registry = this.document.getNodeRegister<WorkflowNodeRegistry>(type);
-    if (
-      !registry ||
-      !registry.meta ||
-      registry.meta.nodeDTOType === undefined
-    ) {
-      throw new CustomError(
-        REPORT_EVENTS.parmasValidation,
-        `Unknown NodeMeta by type ${type}`,
-      );
-    }
-    const info = this.nodeTemplateMap.get(
-      registry.meta.nodeDTOType as StandardNodeType,
-    );
+    // Legacy schemas may persist node type as a number (e.g. 1) while registries
+    // key by string enum (e.g. '1'). Normalize before lookup to avoid misses.
+    const normalizedType = String(type) as StandardNodeType;
+    const registry =
+      this.document.getNodeRegister<WorkflowNodeRegistry>(normalizedType);
+    const registryType = registry?.meta?.nodeDTOType;
+    const templateType = String(
+      registryType === undefined ? normalizedType : registryType,
+    ) as StandardNodeType;
+    const info = this.nodeTemplateMap.get(templateType);
 
     if (!info) {
+      if (!this.missingNodeMetaTypeSet.has(normalizedType)) {
+        this.missingNodeMetaTypeSet.add(normalizedType);
+        // eslint-disable-next-line no-console
+        console.warn(
+          new CustomError(
+            REPORT_EVENTS.parmasValidation,
+            `Unknown NodeMeta by type ${type} (normalized: ${normalizedType})`,
+          ),
+        );
+      }
       return;
     }
 

@@ -177,6 +177,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_bold')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {
@@ -196,6 +197,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_italic')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {
@@ -215,6 +217,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_underline')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {
@@ -234,6 +237,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_strikethrough')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {
@@ -255,6 +259,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_bulleted_list')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {
@@ -274,6 +279,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_numbered_list')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {
@@ -293,6 +299,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_quote')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {
@@ -314,6 +321,7 @@ export const CommentToolbar: FC<ICommentToolbar> = props => {
         <Tooltip
           content={I18n.t('workflow_note_hyperlink')}
           mouseEnterDelay={tooltipDelay}
+          mouseLeaveDelay={tooltipDelay}
         >
           <span
             className={classNames(toolItemClass, {

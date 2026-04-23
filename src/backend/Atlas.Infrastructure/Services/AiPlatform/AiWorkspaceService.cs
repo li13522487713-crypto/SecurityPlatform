@@ -10,6 +10,7 @@ using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Infrastructure.Repositories;
 using SqlSugar;
 using System.Text.Json;
+using System.Globalization;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -582,7 +583,7 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 new
                 {
                     key = "entry_1",
-                    type = (int)WorkflowNodeType.Entry,
+                    type = ((int)WorkflowNodeType.Entry).ToString(CultureInfo.InvariantCulture),
                     label = "开始",
                     config = new
                     {
@@ -600,7 +601,7 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 new
                 {
                     key = "exit_1",
-                    type = (int)WorkflowNodeType.Exit,
+                    type = ((int)WorkflowNodeType.Exit).ToString(CultureInfo.InvariantCulture),
                     label = "结束",
                     config = new
                     {

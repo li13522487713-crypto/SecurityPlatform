@@ -98,14 +98,20 @@ const defaultState: AuthStoreState = {
   ) as AuthStoreState['collaboratorsMap'],
 };
 
+const ENABLE_ZUSTAND_DEVTOOLS =
+  IS_DEV_MODE &&
+  typeof window !== 'undefined' &&
+  '__REDUX_DEVTOOLS_EXTENSION__' in window;
+
 export const useAuthStore = create<AuthStoreState & AuthStoreAction>()(
   // eslint-disable-next-line @coze-arch/zustand/devtools-config, max-lines-per-function
-  devtools((set, get) => ({
-    ...defaultState,
-    getCachedCollaborators: resource =>
-      get().collaboratorsMap[resource.type][resource.id],
-    //
-    fetchCollaborators: async ({ spaceId, resource }) => {
+  devtools(
+    (set, get) => ({
+      ...defaultState,
+      getCachedCollaborators: resource =>
+        get().collaboratorsMap[resource.type][resource.id],
+      //
+      fetchCollaborators: async ({ spaceId, resource }) => {
       switch (resource.type) {
         case ResourceType.Bot: {
           const {
@@ -462,6 +468,11 @@ export const useAuthStore = create<AuthStoreState & AuthStoreAction>()(
           },
         },
       }));
+      },
+    }),
+    {
+      enabled: ENABLE_ZUSTAND_DEVTOOLS,
+      name: 'botStudio.authStore',
     },
-  })),
+  ),
 );

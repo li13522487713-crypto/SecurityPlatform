@@ -49,6 +49,28 @@ public sealed record CozeWorkflowNodeDebugRequest(
 
 public sealed record CozeWorkflowReferencesRequest(string workflow_id, string? space_id);
 
+public sealed record CozeDependencyTreeRequest(
+    int type,
+    CozeDependencyLibraryInfo? library_info,
+    CozeDependencyProjectInfo? project_info);
+
+public sealed record CozeDependencyLibraryInfo(
+    string? workflow_id,
+    string? space_id,
+    bool? draft,
+    string? workflow_version);
+
+public sealed record CozeDependencyProjectInfo(
+    string? workflow_id,
+    string? space_id,
+    string? project_id,
+    bool? draft,
+    string? project_version);
+
+public sealed record CozePluginPricingByWorkflowRequest(
+    string? workflow_id,
+    string? space_id);
+
 public sealed record CozeReleasedWorkflowsRequest(
     int? page,
     int? size,

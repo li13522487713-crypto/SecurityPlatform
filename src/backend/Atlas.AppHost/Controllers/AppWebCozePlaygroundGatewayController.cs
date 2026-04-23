@@ -537,6 +537,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpGet("marketplace/product/favorite/list")]
+    [HttpGet("/api/marketplace/product/favorite/list")]
     public ActionResult<object> GetMarketplaceFavoriteList()
     {
         return Ok(new
@@ -552,6 +553,7 @@ public sealed class AppWebCozePlaygroundGatewayController : ControllerBase
     }
 
     [HttpGet("marketplace/product/favorite/list.v2")]
+    [HttpGet("/api/marketplace/product/favorite/list.v2")]
     public ActionResult<object> GetMarketplaceFavoriteListV2()
     {
         return Ok(new

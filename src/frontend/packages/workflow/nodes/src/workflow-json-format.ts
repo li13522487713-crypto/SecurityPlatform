@@ -47,6 +47,8 @@ import {
   type WorkflowNodeRegistry,
 } from './typings';
 
+let hasLoggedLegacyNumericNodeType = false;
+
 /**
  * Transform form data globally, where variable generation logic is primarily handled
  */
@@ -268,6 +270,35 @@ export class WorkflowJSONFormat implements WorkflowJSONFormatContribution {
    * @param document
    */
   formatOnInit(json: WorkflowJSON, document: WorkflowDocument): WorkflowJSON {
+    // Normalize: coerce numeric node types to strings (legacy schemas stored
+    // type as integer). Do it recursively so container nodes (Loop/Batch) with
+    // nested `blocks` are also covered.
+    let coercedCount = 0;
+    const normalizeTypes = (nodes?: WorkflowNodeJSON[]): void => {
+      if (!nodes || !Array.isArray(nodes)) {
+        return;
+      }
+      nodes.forEach(node => {
+        if (typeof node.type === 'number') {
+          coercedCount += 1;
+          node.type = String(node.type);
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const blocks = (node as any).blocks as WorkflowNodeJSON[] | undefined;
+        if (blocks) {
+          normalizeTypes(blocks);
+        }
+      });
+    };
+    normalizeTypes(json.nodes);
+    if (coercedCount > 0 && !hasLoggedLegacyNumericNodeType) {
+      hasLoggedLegacyNumericNodeType = true;
+      // eslint-disable-next-line no-console
+      console.info(
+        `[WorkflowJSONFormat] coerced ${coercedCount} numeric node.type value(s) to string during formatOnInit.`,
+      );
+    }
+
     // Step0: batch compatible processing
     json.nodes.forEach(node => this.transformBatchVariable(node, document));
 

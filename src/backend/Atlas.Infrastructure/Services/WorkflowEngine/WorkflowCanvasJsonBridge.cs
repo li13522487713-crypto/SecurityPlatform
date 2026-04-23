@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using Atlas.Infrastructure.Services.AiPlatform;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AiPlatform.ValueObjects;
@@ -240,7 +241,8 @@ public static class WorkflowCanvasJsonBridge
         return new
         {
             key = node.Key,
-            type = (int)node.Type,
+            // Keep frontend/backend contract stable: node.type is persisted as string.
+            type = ((int)node.Type).ToString(CultureInfo.InvariantCulture),
             label = node.Label,
             config = node.Config,
             layout = new

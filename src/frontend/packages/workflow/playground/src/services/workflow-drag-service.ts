@@ -107,14 +107,15 @@ export class WorkflowCustomDragService extends WorkflowDragService {
   }
   /** end drag */
   public endDrag() {
-    const { isDragging, dragNode } = this.state;
-    if (!isDragging && !dragNode?.type) {
+    const { isDragging, dragNode, dropNode } = this.state;
+    if (!isDragging && !dragNode?.type && !dropNode) {
       return;
     }
     this.isDragging = false;
     this.state.isDragging = false;
     this.state.dragNode = undefined;
     this.state.transforms = undefined;
+    this.setDropNode(undefined);
     this.cardDragEmitter.fire({
       type: 'endDrag',
       nodeType: dragNode?.type,
@@ -130,9 +131,20 @@ export class WorkflowCustomDragService extends WorkflowDragService {
     if (!dragNode?.type) {
       return false;
     }
-    const { allowDrop, dropNode } = this.computeCanDrop(params);
-    this.setDropNode(dropNode);
+    const { allowDrop } = this.computeCanDrop(params);
     return allowDrop;
+  }
+
+  public updateDropTarget(params: {
+    coord: XYCoord;
+    dragNode: WorkflowCustomDragServiceState['dragNode'];
+  }): void {
+    const { dropNode } = this.computeCanDrop(params);
+    this.setDropNode(dropNode);
+  }
+
+  public clearDropNode(): void {
+    this.setDropNode(undefined);
   }
 
   /**
@@ -285,6 +297,9 @@ export class WorkflowCustomDragService extends WorkflowDragService {
   }
   /** Set the current placement node */
   private setDropNode(newDropNode?: WorkflowNodeEntity) {
+    if (this.state.dropNode === newDropNode) {
+      return;
+    }
     this.state.dropNode = newDropNode;
     if (newDropNode) {
       this.selectService.select(newDropNode);

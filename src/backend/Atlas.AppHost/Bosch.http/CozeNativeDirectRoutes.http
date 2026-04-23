@@ -196,6 +196,32 @@ X-Tenant-Id: {{tenantId}}
   "bot_id": "1"
 }
 
+### Coze 原生 workflow：读取画布
+POST {{host}}/api/workflow_api/canvas
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflow_id": "1",
+  "space_id": "{{workspaceId}}"
+}
+
+### Coze 原生 workflow：节点模板列表
+POST {{host}}/api/workflow_api/node_template_list
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "node_types": ["1", "2", "3"]
+}
+
+### Coze 原生 marketplace：收藏列表
+GET {{host}}/api/marketplace/product/favorite/list?entity_type=2&page_num=1&page_size=9&sort_type=2
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
 ### Coze 原生 intelligence：publish intelligence list
 POST {{host}}/api/intelligence_api/search/get_publish_intelligence_list
 Content-Type: {{contentType}}
@@ -363,6 +389,28 @@ X-Tenant-Id: {{tenantId}}
   "space_id": "{{workspaceId}}",
   "size": 15,
   "res_type_filter": [2]
+}
+
+### Coze 原生 debugger：testcase casedata mget
+POST {{host}}/api/devops/debugger/v1/coze/testcase/casedata/mget
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "bizCtx": {
+    "connectorID": "10000",
+    "connectorUID": "admin",
+    "bizSpaceID": "{{workspaceId}}"
+  },
+  "bizComponentSubject": {
+    "componentType": 10008,
+    "parentComponentType": 10002,
+    "componentID": "start-node-1",
+    "parentComponentID": "workflow-1"
+  },
+  "pageLimit": 20,
+  "caseName": ""
 }
 
 ### Coze 原生 workspace openapi：list

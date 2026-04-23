@@ -87,6 +87,7 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     }
 
     [HttpPost("canvas")]
+    [HttpPost("/api/workflow_api/canvas")]
     [Authorize]
     public async Task<ActionResult<object>> GetCanvasInfo(
         [FromBody] CozeGetCanvasInfoRequest request,
@@ -136,6 +137,76 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
             bind_biz_id = string.Empty,
             bind_biz_type = 0,
             workflow_version = result.LatestVersionNumber.ToString()
+        }));
+    }
+
+    [HttpPost("node_template_list")]
+    [HttpPost("/api/workflow_api/node_template_list")]
+    [Authorize]
+    public async Task<ActionResult<object>> NodeTemplateList(
+        [FromBody] CozeNodeTemplateListRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var templates = await _queryService.GetNodeTemplatesAsync(cancellationToken);
+        var nodeTypes = await _queryService.GetNodeTypesAsync(cancellationToken);
+        var metadataMap = nodeTypes.ToDictionary(item => item.Key, StringComparer.OrdinalIgnoreCase);
+        var allowedNodeTypes = ResolveAllowedNodeTypes(request);
+
+        var filteredTemplates = templates
+            .Where(template =>
+            {
+                if (allowedNodeTypes is null)
+                {
+                    return true;
+                }
+
+                var nodeTypeCode = ToCozeNodeTypeCode(template.Key);
+                return allowedNodeTypes.Contains(template.Key) || allowedNodeTypes.Contains(nodeTypeCode);
+            })
+            .Select(template =>
+            {
+                metadataMap.TryGetValue(template.Key, out var metadata);
+                var nodeTypeCode = ToCozeNodeTypeCode(template.Key);
+                var templateType = int.TryParse(nodeTypeCode, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedType)
+                    ? parsedType
+                    : (int?)null;
+
+                return new
+                {
+                    id = template.Key,
+                    type = templateType,
+                    name = template.Name,
+                    desc = metadata?.Description ?? string.Empty,
+                    icon_url = metadata?.UiMeta?.Icon ?? string.Empty,
+                    support_batch = metadata?.UiMeta?.SupportsBatch == true ? 2 : 1,
+                    node_type = nodeTypeCode,
+                    color = metadata?.UiMeta?.Color ?? string.Empty,
+                    commercial_node = false,
+                    plugin_list = Array.Empty<string>(),
+                    volc_res_list = Array.Empty<string>()
+                };
+            })
+            .ToArray();
+
+        var cateList = filteredTemplates
+            .GroupBy(
+                item => metadataMap.TryGetValue(item.id, out var metadata) ? metadata.Category : string.Empty,
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                name = group.Key,
+                node_type_list = group.Select(item => item.node_type).ToArray(),
+                plugin_api_id_list = Array.Empty<string>(),
+                plugin_category_id_list = Array.Empty<string>()
+            })
+            .ToArray();
+
+        return Ok(Success(new
+        {
+            template_list = filteredTemplates,
+            cate_list = cateList,
+            plugin_api_list = Array.Empty<object>(),
+            plugin_category_list = Array.Empty<object>()
         }));
     }
 
@@ -819,7 +890,66 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
         }));
     }
 
+    [HttpPost("dependency_tree")]
+    [HttpPost("/api/workflow_api/dependency_tree")]
+    [Authorize]
+    public async Task<ActionResult<object>> DependencyTree(
+        [FromBody] CozeDependencyTreeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var workflowIdRaw = request.type == 2
+            ? request.project_info?.workflow_id
+            : request.library_info?.workflow_id;
+        if (!TryParseWorkflowId(workflowIdRaw, out var workflowId))
+        {
+            return Ok(Fail("workflow_id is required"));
+        }
+
+        _ = await _queryService.GetDependenciesAsync(_tenantProvider.GetTenantId(), workflowId, cancellationToken);
+
+        var rootId = workflowId.ToString(CultureInfo.InvariantCulture);
+        return Ok(Success(new
+        {
+            root_id = rootId,
+            version = string.Empty,
+            node_list = new object[]
+            {
+                new
+                {
+                    id = rootId,
+                    name = string.Empty,
+                    icon = string.Empty,
+                    is_product = false,
+                    is_root = true,
+                    is_library = request.type != 2,
+                    with_version = false,
+                    workflow_version = string.Empty,
+                    dependency = new
+                    {
+                        start_id = rootId,
+                        sub_workflow_ids = Array.Empty<string>(),
+                        plugin_ids = Array.Empty<string>(),
+                        tools_id_map = new Dictionary<string, string[]>(),
+                        knowledge_list = Array.Empty<object>(),
+                        model_ids = Array.Empty<string>(),
+                        variable_names = Array.Empty<string>(),
+                        table_list = Array.Empty<object>(),
+                        voice_ids = Array.Empty<string>(),
+                        workflow_version = Array.Empty<object>(),
+                        plugin_version = Array.Empty<object>()
+                    },
+                    commit_id = string.Empty,
+                    fdl_commit_id = string.Empty,
+                    flowlang_release_id = string.Empty,
+                    is_chatflow = false
+                }
+            },
+            edge_list = Array.Empty<object>()
+        }));
+    }
+
     [HttpPost("workflow_references")]
+    [HttpPost("/api/workflow_api/workflow_references")]
     [Authorize]
     public async Task<ActionResult<object>> GetWorkflowReferences(
         [FromBody] CozeWorkflowReferencesRequest request,

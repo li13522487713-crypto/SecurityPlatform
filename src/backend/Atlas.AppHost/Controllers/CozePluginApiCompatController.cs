@@ -3,6 +3,7 @@ using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Controllers.Ai;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -80,6 +81,42 @@ public sealed class CozePluginApiCompatController : ControllerBase
         {
             code = 0,
             msg = "success",
+            BaseResp = new { }
+        });
+    }
+
+    [HttpPost("/api/plugin_api/get_plugin_pricing_rules_by_workflow_id")]
+    public ActionResult<object> GetPluginPricingRulesByWorkflowId(
+        [FromBody] CozePluginPricingByWorkflowRequest? request)
+    {
+        if (string.IsNullOrWhiteSpace(request?.workflow_id))
+        {
+            return Ok(new
+            {
+                code = 400,
+                msg = "workflow_id is required",
+                pricing_rules = Array.Empty<object>(),
+                BaseResp = new { }
+            });
+        }
+
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            pricing_rules = Array.Empty<object>(),
+            BaseResp = new { }
+        });
+    }
+
+    [HttpPost("/api/plugin_api/batch_get_plugin_pricing_rules")]
+    public ActionResult<object> BatchGetPluginPricingRules()
+    {
+        return Ok(new
+        {
+            code = 0,
+            msg = "success",
+            pricing_rules = Array.Empty<object>(),
             BaseResp = new { }
         });
     }

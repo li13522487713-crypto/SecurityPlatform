@@ -291,7 +291,9 @@ export class WorkflowSaveService {
    */
   async loadDocument(doc: WorkflowDocument): Promise<void> {
     this.workflowDocument = doc;
-    const { workflowId, getProjectApi } = this.globalState;
+    const { workflowId, getProjectApi, spaceId, playgroundProps } =
+      this.globalState;
+    const workflowFrom = playgroundProps?.from;
 
     const projectApi = getProjectApi();
 
@@ -299,7 +301,19 @@ export class WorkflowSaveService {
 
     try {
       if (!workflowId) {
-        throw Error(I18n.t('workflow_detail_error_interface_initialization'));
+        const initError = new Error(
+          I18n.t('workflow_detail_error_interface_initialization'),
+        );
+        logger.error({
+          message: 'workflow loadDocument missing workflowId',
+          error: initError,
+          meta: {
+            workflowId,
+            spaceId,
+            from: workflowFrom,
+          },
+        });
+        throw initError;
       }
       projectApi?.setWidgetUIState('saving');
       this.hideRenderLayer();
@@ -321,7 +335,15 @@ export class WorkflowSaveService {
       try {
         await this.triggerService.load();
       } catch (e) {
-        logger.error(e.message);
+        logger.error({
+          message: 'workflow trigger service load failed',
+          error: e instanceof Error ? e : new Error(String(e)),
+          meta: {
+            workflowId,
+            spaceId,
+            from: workflowFrom,
+          },
+        });
       }
 
       // Load large model context
@@ -368,13 +390,23 @@ export class WorkflowSaveService {
         },
       });
     } catch (e) {
+      const loadError = e instanceof Error ? e : new Error(String(e));
+      logger.error({
+        message: 'workflow loadDocument failed',
+        error: loadError,
+        meta: {
+          workflowId,
+          spaceId,
+          from: workflowFrom,
+        },
+      });
       this.globalState.updateConfig({
-        loadingError: e.message,
+        loadingError: loadError.message,
         loading: false,
       });
       projectApi?.setWidgetUIState('error');
 
-      throw e;
+      throw loadError;
     } finally {
       this.showRenderLayer();
     }

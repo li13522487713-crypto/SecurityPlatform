@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Atlas.Application.Authorization;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.LowCode.Entities;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.Authorization;
@@ -47,10 +48,7 @@ public sealed class ResourceWorkspaceLookup : IResourceWorkspaceLookup
                     .Where(x => x.TenantIdValue == tenantValue && x.Id == resourceId)
                     .Select(x => x.WorkspaceId)
                     .FirstAsync(cancellationToken),
-                "app" => await _db.Queryable<AiApp>()
-                    .Where(x => x.TenantIdValue == tenantValue && x.Id == resourceId)
-                    .Select(x => x.WorkspaceId)
-                    .FirstAsync(cancellationToken),
+                "app" => await ResolveAppWorkspaceIdAsync(tenantValue, resourceId, cancellationToken),
                 "knowledge" or "knowledge-base" or "kb" => await _db.Queryable<KnowledgeBase>()
                     .Where(x => x.TenantIdValue == tenantValue && x.Id == resourceId)
                     .Select(x => x.WorkspaceId)
@@ -71,5 +69,33 @@ public sealed class ResourceWorkspaceLookup : IResourceWorkspaceLookup
             // 资源不存在或 schema 不一致时返回 null 让 controller 走 fallback skip
             return null;
         }
+    }
+
+    private async Task<long?> ResolveAppWorkspaceIdAsync(
+        Guid tenantValue,
+        long resourceId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var lowcodeWorkspaceId = await _db.Queryable<AppDefinition>()
+                .Where(x => x.TenantIdValue == tenantValue && x.Id == resourceId)
+                .Select(x => x.WorkspaceId)
+                .FirstAsync(cancellationToken);
+
+            if (long.TryParse(lowcodeWorkspaceId, out var parsedLowcodeWorkspaceId) && parsedLowcodeWorkspaceId > 0)
+            {
+                return parsedLowcodeWorkspaceId;
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore and fall through to legacy AiApp lookup.
+        }
+
+        return await _db.Queryable<AiApp>()
+            .Where(x => x.TenantIdValue == tenantValue && x.Id == resourceId)
+            .Select(x => x.WorkspaceId)
+            .FirstAsync(cancellationToken);
     }
 }

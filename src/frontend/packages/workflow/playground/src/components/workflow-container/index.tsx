@@ -21,7 +21,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
+  useLayoutEffect,
   useRef,
   type DragEventHandler,
 } from 'react';
@@ -108,14 +108,14 @@ const WorkflowContainer = forwardRef<
   const fallbackFitViewTriggeredRef = useRef(false);
   const isNodesMount = useNodesMount();
   // Synchronize component properties to globalStatus
-  useMemo(() => {
+  useLayoutEffect(() => {
     const { spaceList, ...playgroundProps } = props;
 
     workflowState.updateConfig({
       playgroundProps,
       spaceList,
     });
-  }, [props]);
+  }, [props, workflowState]);
 
   // Initialization successful
   useEffect(() => {
@@ -243,9 +243,19 @@ const WorkflowContainer = forwardRef<
           json: item.nodeJson,
         },
       }),
+    hover: (item: DragObject, monitor) => {
+      dragService.updateDropTarget({
+        coord: monitor.getSourceClientOffset() ?? { x: 0, y: 0 },
+        dragNode: {
+          type: item.nodeType,
+          json: item.nodeJson,
+        },
+      });
+    },
     drop: (item: DragObject, monitor) => {
       const coord = monitor.getClientOffset() ?? { x: 0, y: 0 };
       addNodeRef.current?.handleAddNode?.(item, coord, true);
+      dragService.clearDropNode();
     },
   }));
 
