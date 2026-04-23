@@ -13,6 +13,7 @@ namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/app-web/workflow-sdk")]
+[Route("api/workflow_api")]
 public sealed class AppWebWorkflowGatewayController : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -87,7 +88,6 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     }
 
     [HttpPost("canvas")]
-    [HttpPost("/api/workflow_api/canvas")]
     [Authorize]
     public async Task<ActionResult<object>> GetCanvasInfo(
         [FromBody] CozeGetCanvasInfoRequest request,
@@ -141,7 +141,6 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     }
 
     [HttpPost("node_template_list")]
-    [HttpPost("/api/workflow_api/node_template_list")]
     [Authorize]
     public async Task<ActionResult<object>> NodeTemplateList(
         [FromBody] CozeNodeTemplateListRequest? request,
@@ -891,7 +890,6 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     }
 
     [HttpPost("dependency_tree")]
-    [HttpPost("/api/workflow_api/dependency_tree")]
     [Authorize]
     public async Task<ActionResult<object>> DependencyTree(
         [FromBody] CozeDependencyTreeRequest request,
@@ -949,7 +947,6 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     }
 
     [HttpPost("workflow_references")]
-    [HttpPost("/api/workflow_api/workflow_references")]
     [Authorize]
     public async Task<ActionResult<object>> GetWorkflowReferences(
         [FromBody] CozeWorkflowReferencesRequest request,

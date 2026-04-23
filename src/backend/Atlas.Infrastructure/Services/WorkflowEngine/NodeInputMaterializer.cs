@@ -226,6 +226,18 @@ internal static partial class NodeInputMaterializer
             return true;
         }
 
+        if (TryResolveNodeFieldAlias(runtimeVariables, normalized, out value))
+        {
+            return true;
+        }
+
+        // Coze 的 block-output 常见形式：{blockID}.{name} 或 block_output_{blockID}.{name}
+        // Atlas 运行态变量优先按字段名扁平存储，这里做兼容降级，避免历史画布字段丢失。
+        if (TryResolveCozeBlockOutputAlias(runtimeVariables, normalized, out value))
+        {
+            return true;
+        }
+
         return VariableResolver.TryResolvePath(runtimeVariables, normalized, out value);
     }
 
@@ -247,6 +259,11 @@ internal static partial class NodeInputMaterializer
         if (value.StartsWith("global.", StringComparison.OrdinalIgnoreCase))
         {
             value = value["global.".Length..];
+        }
+
+        if (value.StartsWith('$'))
+        {
+            value = value.TrimStart('$');
         }
 
         return value.Trim();
@@ -285,28 +302,22 @@ internal static partial class NodeInputMaterializer
                 nameProp.ValueKind == JsonValueKind.String &&
                 element.TryGetProperty("input", out var inputProp) &&
                 inputProp.ValueKind == JsonValueKind.Object &&
-                inputProp.TryGetProperty("type", out var typeProp) &&
-                typeProp.ValueKind == JsonValueKind.String)
+                TryGetCozeValueExpression(inputProp, out var valueType, out var contentProp))
             {
                 var name = nameProp.GetString()?.Trim();
-                var type = typeProp.GetString()?.Trim().ToLowerInvariant();
-                inputProp.TryGetProperty("content", out var contentProp);
+                var type = valueType.Trim().ToLowerInvariant();
 
                 if (!string.IsNullOrWhiteSpace(name))
                 {
                     JsonElement resolvedValue = default;
                     bool resolved = false;
 
-                    if (type == "ref" && contentProp.ValueKind == JsonValueKind.Object &&
-                        contentProp.TryGetProperty("keyPath", out var keyPathProp) &&
-                        keyPathProp.ValueKind == JsonValueKind.Array)
+                    if (type == "ref" && contentProp.ValueKind == JsonValueKind.Object)
                     {
-                        var pathSegments = keyPathProp.EnumerateArray()
-                            .Where(x => x.ValueKind == JsonValueKind.String)
-                            .Select(x => x.GetString())
-                            .Where(x => !string.IsNullOrWhiteSpace(x));
-                        var refPath = string.Join(".", pathSegments);
-                        resolved = TryResolveMappingValue(runtimeVariables, refPath, out resolvedValue);
+                        if (TryResolveRefPathFromContent(contentProp, out var refPath))
+                        {
+                            resolved = TryResolveMappingValue(runtimeVariables, refPath, out resolvedValue);
+                        }
                     }
                     else if (type == "literal" || type == "object_ref")
                     {
@@ -335,6 +346,152 @@ internal static partial class NodeInputMaterializer
                 ProcessCozeValueExpressions(property.Value, runtimeVariables, preparedVariables, snapshot, ref hasMappings);
             }
         }
+    }
+
+    private static bool TryGetCozeValueExpression(
+        JsonElement inputElement,
+        out string valueType,
+        out JsonElement contentElement)
+    {
+        valueType = string.Empty;
+        contentElement = default;
+
+        // 新版结构：input.value.{type,content}
+        if (inputElement.TryGetProperty("value", out var valueElement) &&
+            valueElement.ValueKind == JsonValueKind.Object &&
+            valueElement.TryGetProperty("type", out var nestedTypeProp) &&
+            nestedTypeProp.ValueKind == JsonValueKind.String &&
+            valueElement.TryGetProperty("content", out var nestedContent))
+        {
+            valueType = nestedTypeProp.GetString() ?? string.Empty;
+            contentElement = nestedContent;
+            return !string.IsNullOrWhiteSpace(valueType);
+        }
+
+        // 兼容旧结构：input.{type,content}
+        if (inputElement.TryGetProperty("type", out var typeProp) &&
+            typeProp.ValueKind == JsonValueKind.String &&
+            inputElement.TryGetProperty("content", out var contentProp))
+        {
+            valueType = typeProp.GetString() ?? string.Empty;
+            contentElement = contentProp;
+            return !string.IsNullOrWhiteSpace(valueType);
+        }
+
+        return false;
+    }
+
+    private static bool TryResolveRefPathFromContent(JsonElement contentElement, out string refPath)
+    {
+        refPath = string.Empty;
+        if (contentElement.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        if (contentElement.TryGetProperty("keyPath", out var keyPathProp) &&
+            keyPathProp.ValueKind == JsonValueKind.Array)
+        {
+            var pathSegments = keyPathProp.EnumerateArray()
+                .Where(x => x.ValueKind == JsonValueKind.String)
+                .Select(x => x.GetString())
+                .Where(x => !string.IsNullOrWhiteSpace(x));
+            var joined = string.Join(".", pathSegments);
+            if (!string.IsNullOrWhiteSpace(joined))
+            {
+                refPath = joined;
+                return true;
+            }
+        }
+
+        // Coze 原生结构：content.{blockID,name,source}
+        if (contentElement.TryGetProperty("blockID", out var blockIdProp) &&
+            blockIdProp.ValueKind == JsonValueKind.String &&
+            contentElement.TryGetProperty("name", out var nameProp) &&
+            nameProp.ValueKind == JsonValueKind.String)
+        {
+            var blockId = blockIdProp.GetString()?.Trim();
+            var name = nameProp.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(blockId) && !string.IsNullOrWhiteSpace(name))
+            {
+                refPath = $"{blockId}.{name}";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryResolveCozeBlockOutputAlias(
+        IReadOnlyDictionary<string, JsonElement> runtimeVariables,
+        string normalizedPath,
+        out JsonElement value)
+    {
+        value = default;
+        var separatorIndex = normalizedPath.IndexOf('.');
+        if (separatorIndex <= 0 || separatorIndex >= normalizedPath.Length - 1)
+        {
+            return false;
+        }
+
+        var blockSegment = normalizedPath[..separatorIndex];
+        var fieldSegment = normalizedPath[(separatorIndex + 1)..];
+        if (string.IsNullOrWhiteSpace(fieldSegment))
+        {
+            return false;
+        }
+
+        if (runtimeVariables.TryGetValue(fieldSegment, out value))
+        {
+            return true;
+        }
+
+        if (blockSegment.StartsWith("block_output_", StringComparison.OrdinalIgnoreCase))
+        {
+            var blockId = blockSegment["block_output_".Length..];
+            if (!string.IsNullOrWhiteSpace(blockId))
+            {
+                var candidate = $"{blockId}.{fieldSegment}";
+                if (runtimeVariables.TryGetValue(candidate, out value))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryResolveNodeFieldAlias(
+        IReadOnlyDictionary<string, JsonElement> runtimeVariables,
+        string normalizedPath,
+        out JsonElement value)
+    {
+        value = default;
+        var dotIndex = normalizedPath.IndexOf('.');
+        if (dotIndex <= 0 || dotIndex >= normalizedPath.Length - 1)
+        {
+            return false;
+        }
+
+        var field = normalizedPath[(dotIndex + 1)..];
+        if (runtimeVariables.TryGetValue(field, out value))
+        {
+            return true;
+        }
+
+        const string outputsMarker = ".outputs.";
+        var markerIndex = normalizedPath.IndexOf(outputsMarker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex > 0 && markerIndex + outputsMarker.Length < normalizedPath.Length)
+        {
+            var outputField = normalizedPath[(markerIndex + outputsMarker.Length)..];
+            if (runtimeVariables.TryGetValue(outputField, out value))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [GeneratedRegex(@"\{\{\s*(?<path>[^{}]+?)\s*\}\}", RegexOptions.Compiled)]

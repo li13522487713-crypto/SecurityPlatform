@@ -23,7 +23,12 @@ public interface ICozeWorkflowDraftRepository
 {
     Task<CozeWorkflowDraft?> FindByWorkflowIdAsync(TenantId tenantId, long workflowId, CancellationToken cancellationToken);
     Task AddAsync(CozeWorkflowDraft entity, CancellationToken cancellationToken);
-    Task UpdateAsync(CozeWorkflowDraft entity, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 保存草稿，若 <paramref name="oldCommitId"/> 不为空则加乐观锁 WHERE 条件。
+    /// 当受影响行数为 0 时抛出并发冲突异常。
+    /// </summary>
+    Task UpdateAsync(CozeWorkflowDraft entity, string? oldCommitId, CancellationToken cancellationToken);
 }
 
 public interface ICozeWorkflowVersionRepository

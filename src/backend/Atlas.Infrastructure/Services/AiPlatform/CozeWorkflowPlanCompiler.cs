@@ -78,13 +78,41 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             return false;
         }
 
+        if (!TryCompileCanvas(
+                nodesElement,
+                edgesElement,
+                out canvas,
+                out var compileIssue))
+        {
+            issues.Add(compileIssue);
+            errors = issues;
+            return false;
+        }
+
+        errors = Array.Empty<CanvasValidationIssue>();
+        return true;
+    }
+
+    private static bool TryCompileCanvas(
+        JsonElement nodesElement,
+        JsonElement edgesElement,
+        out CanvasSchema? canvas,
+        out CanvasValidationIssue issue)
+    {
+        canvas = null;
+        issue = default!;
+
+        if (nodesElement.ValueKind != JsonValueKind.Array || edgesElement.ValueKind != JsonValueKind.Array)
+        {
+            issue = new CanvasValidationIssue("COZE_CANVAS_INVALID", "Coze 子画布节点或连线不是数组。");
+            return false;
+        }
+
         var nodes = new List<NodeSchema>();
         foreach (var nodeElement in nodesElement.EnumerateArray())
         {
-            if (!TryConvertNode(nodeElement, out var node, out var issue))
+            if (!TryConvertNode(nodeElement, out var node, out issue))
             {
-                issues.Add(issue);
-                errors = issues;
                 return false;
             }
 
@@ -94,10 +122,8 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
         var connections = new List<ConnectionSchema>();
         foreach (var edgeElement in edgesElement.EnumerateArray())
         {
-            if (!TryConvertEdge(edgeElement, out var connection, out var issue))
+            if (!TryConvertEdge(edgeElement, out var connection, out issue))
             {
-                issues.Add(issue);
-                errors = issues;
                 return false;
             }
 
@@ -105,7 +131,6 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
         }
 
         canvas = new CanvasSchema(nodes, connections, 2, null, null);
-        errors = Array.Empty<CanvasValidationIssue>();
         return true;
     }
 
@@ -142,13 +167,31 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
 
         var config = BuildNodeConfig(element, nodeType, key);
         var layout = BuildNodeLayout(element);
+        CanvasSchema? childCanvas = null;
+        if (TryGetProperty(element, "blocks", out var blocksElement) &&
+            blocksElement.ValueKind == JsonValueKind.Array &&
+            TryGetProperty(element, "edges", out var childEdgesElement) &&
+            childEdgesElement.ValueKind == JsonValueKind.Array &&
+            blocksElement.GetArrayLength() > 0)
+        {
+            if (!TryCompileCanvas(blocksElement, childEdgesElement, out childCanvas, out issue))
+            {
+                issue = issue with
+                {
+                    NodeKey = key,
+                    Message = $"Coze 节点 '{key}' 子画布解析失败：{issue.Message}"
+                };
+                return false;
+            }
+        }
 
         node = new NodeSchema(
             key,
             nodeType,
             label,
             config,
-            layout);
+            layout,
+            childCanvas);
         return true;
     }
 
@@ -184,7 +227,21 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             return false;
         }
 
-        connection = new ConnectionSchema(sourceNodeKey, "output", targetNodeKey, "input", null);
+        var sourcePort = TryGetString(element, "sourcePortID")
+            ?? TryGetString(element, "sourcePort")
+            ?? TryGetString(element, "fromPort")
+            ?? "output";
+        var targetPort = TryGetString(element, "targetPortID")
+            ?? TryGetString(element, "targetPort")
+            ?? TryGetString(element, "toPort")
+            ?? "input";
+
+        connection = new ConnectionSchema(
+            sourceNodeKey,
+            sourcePort,
+            targetNodeKey,
+            targetPort,
+            ResolveEdgeCondition(sourcePort));
         return true;
     }
 
@@ -200,90 +257,91 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             return config;
         }
 
+        var inputMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (TryGetProperty(dataElement, "inputs", out var inputsElement) && inputsElement.ValueKind == JsonValueKind.Object)
         {
             config["inputs"] = inputsElement.Clone();
+            BuildInputMappings(inputsElement, inputMappings);
         }
 
-        switch (nodeType)
+        CozeNodeConfigAdapterRegistry.Adapt(
+            nodeType,
+            new CozeNodeAdaptContext(element, dataElement, nodeKey, inputMappings),
+            config);
+
+        if (inputMappings.Count > 0)
         {
-            case WorkflowNodeType.Entry:
-                if (TryGetProperty(dataElement, "outputs", out var outputsElement) &&
-                    outputsElement.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in outputsElement.EnumerateArray())
-                    {
-                        var outputName = TryGetString(item, "name");
-                        if (!string.IsNullOrWhiteSpace(outputName))
-                        {
-                            config["entryVariable"] = JsonSerializer.SerializeToElement(outputName.Trim());
-                            break;
-                        }
-                    }
-                }
-                break;
-            case WorkflowNodeType.Exit:
-                if (TryGetProperty(dataElement, "inputs", out var exitInputs) && exitInputs.ValueKind == JsonValueKind.Object)
-                {
-                    var terminatePlan = TryGetString(exitInputs, "terminatePlan");
-                    if (!string.IsNullOrWhiteSpace(terminatePlan))
-                    {
-                        config["exitTerminateMode"] = JsonSerializer.SerializeToElement(terminatePlan.Trim());
-                    }
-
-                    if (TryGetProperty(exitInputs, "inputParameters", out var inputParameters) &&
-                        inputParameters.ValueKind == JsonValueKind.Array)
-                    {
-                        var exitTemplate = ExtractFirstExpressionContent(inputParameters);
-                        if (!string.IsNullOrWhiteSpace(exitTemplate))
-                        {
-                            config["exitTemplate"] = JsonSerializer.SerializeToElement(exitTemplate);
-                        }
-                    }
-                }
-                break;
-            case WorkflowNodeType.CodeRunner:
-                if (TryGetProperty(dataElement, "inputs", out var codeInputs) && codeInputs.ValueKind == JsonValueKind.Object)
-                {
-                    if (TryGetProperty(codeInputs, "code", out var codeElement))
-                    {
-                        config["code"] = codeElement.Clone();
-                    }
-
-                    if (TryGetProperty(codeInputs, "language", out var languageElement))
-                    {
-                        config["language"] = languageElement.Clone();
-                    }
-
-                    if (TryGetProperty(codeInputs, "inputParameters", out var inputParameters) &&
-                        inputParameters.ValueKind == JsonValueKind.Array)
-                    {
-                        config["inputParameters"] = inputParameters.Clone();
-                    }
-                }
-
-                if (TryGetProperty(dataElement, "outputs", out var codeOutputs) &&
-                    codeOutputs.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in codeOutputs.EnumerateArray())
-                    {
-                        var outputName = TryGetString(item, "name");
-                        if (!string.IsNullOrWhiteSpace(outputName))
-                        {
-                            config["outputKey"] = JsonSerializer.SerializeToElement(outputName.Trim());
-                            break;
-                        }
-                    }
-                }
-
-                if (!config.ContainsKey("outputKey"))
-                {
-                    config["outputKey"] = JsonSerializer.SerializeToElement($"{nodeKey}_output");
-                }
-                break;
+            config["inputMappings"] = JsonSerializer.SerializeToElement(inputMappings);
         }
 
         return config;
+    }
+
+    private static void BuildInputMappings(JsonElement inputsElement, Dictionary<string, string> mappings)
+    {
+        if (!TryGetProperty(inputsElement, "inputParameters", out var inputParameters) ||
+            inputParameters.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var param in inputParameters.EnumerateArray())
+        {
+            if (!TryTrim(TryGetString(param, "name"), out var field) ||
+                !TryGetProperty(param, "input", out var inputElement) ||
+                inputElement.ValueKind != JsonValueKind.Object ||
+                !TryGetProperty(inputElement, "value", out var valueElement) ||
+                valueElement.ValueKind != JsonValueKind.Object ||
+                !TryTrim(TryGetString(valueElement, "type"), out var valueType))
+            {
+                continue;
+            }
+
+            if (string.Equals(valueType, "ref", StringComparison.OrdinalIgnoreCase) &&
+                TryGetProperty(valueElement, "content", out var contentElement) &&
+                contentElement.ValueKind == JsonValueKind.Object &&
+                TryTrim(TryGetString(contentElement, "blockID"), out var blockId) &&
+                TryTrim(TryGetString(contentElement, "name"), out var name))
+            {
+                mappings[field] = $"{blockId}.{name}";
+            }
+        }
+    }
+
+    private static string? ResolveEdgeCondition(string sourcePort)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePort))
+        {
+            return null;
+        }
+
+        var normalized = sourcePort.Trim().ToLowerInvariant();
+        if (normalized == "true" || normalized.StartsWith("true_", StringComparison.Ordinal))
+        {
+            return "selector_result == true";
+        }
+
+        if (normalized == "false" || normalized.StartsWith("false_", StringComparison.Ordinal))
+        {
+            return "selector_result == false";
+        }
+
+        if (normalized == "default")
+        {
+            return "default";
+        }
+
+        if (normalized == "branch_error")
+        {
+            return "error";
+        }
+
+        if (normalized.StartsWith("branch_", StringComparison.Ordinal))
+        {
+            return normalized;
+        }
+
+        return null;
     }
 
     private static NodeLayout BuildNodeLayout(JsonElement element)
@@ -347,7 +405,7 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
         return CozeNodeTypeAliases.TryGetValue(trimmed, out nodeType);
     }
 
-    private static string? ExtractFirstExpressionContent(JsonElement inputParametersElement)
+    internal static string? ExtractFirstExpressionContent(JsonElement inputParametersElement)
     {
         foreach (var item in inputParametersElement.EnumerateArray())
         {
@@ -440,6 +498,12 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
         }
 
         return value.GetString();
+    }
+
+    private static bool TryTrim(string? value, out string trimmed)
+    {
+        trimmed = value?.Trim() ?? string.Empty;
+        return trimmed.Length > 0;
     }
 
     private static double? TryGetDouble(JsonElement element, string propertyName)

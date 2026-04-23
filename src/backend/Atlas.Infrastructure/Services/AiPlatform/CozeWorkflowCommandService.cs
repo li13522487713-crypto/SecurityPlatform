@@ -146,8 +146,42 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("Coze 工作流草稿不存在。", ErrorCodes.NotFound);
 
-        draft.Save(request.SchemaJson, request.CommitId);
-        await _draftRepo.UpdateAsync(draft, cancellationToken);
+        // Optimistic-lock pre-check: request.CommitId is the OLD commit ID the client observed.
+        // If the client sent a commit ID but it no longer matches the DB value, the draft
+        // has been modified by another session — fail fast before touching the DB.
+        var oldCommitId = request.CommitId;
+        if (!string.IsNullOrWhiteSpace(oldCommitId) &&
+            !string.IsNullOrWhiteSpace(draft.CommitId) &&
+            !string.Equals(oldCommitId, draft.CommitId, StringComparison.Ordinal))
+        {
+            throw new BusinessException(
+                "并发冲突：画布已被其他会话修改，请刷新后重试。",
+                ErrorCodes.Conflict);
+        }
+
+        var schemaJson = string.IsNullOrWhiteSpace(request.SchemaJson) ? "{}" : request.SchemaJson;
+        try
+        {
+            using var _ = JsonDocument.Parse(schemaJson);
+        }
+        catch (JsonException ex)
+        {
+            throw new BusinessException($"Coze 工作流 schema 不是合法 JSON：{ex.Message}", ErrorCodes.ValidationError);
+        }
+
+        var canvasValidation = _canvasValidator.ValidateCanvas(schemaJson);
+        if (!canvasValidation.IsValid)
+        {
+            var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));
+            throw new BusinessException($"Coze 工作流校验失败，无法保存：{validationMessage}", ErrorCodes.ValidationError);
+        }
+
+        // Generate a fresh commit ID so the client can detect subsequent concurrent edits.
+        var newCommitId = _idGenerator.NextId().ToString();
+        draft.Save(schemaJson, newCommitId);
+
+        // Repository also enforces the commit_id constraint at the DB level.
+        await _draftRepo.UpdateAsync(draft, oldCommitId, cancellationToken);
     }
 
     public async Task UpdateMetaAsync(

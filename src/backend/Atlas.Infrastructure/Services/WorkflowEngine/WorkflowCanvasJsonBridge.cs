@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Globalization;
 using Atlas.Infrastructure.Services.AiPlatform;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AiPlatform.ValueObjects;
@@ -41,17 +40,6 @@ public static class WorkflowCanvasJsonBridge
         canvas = null;
         return false;
     }
-
-    public static string NormalizeToBackendCanvasJson(string canvasJson)
-    {
-        if (!TryParseCanvas(canvasJson, out var canvas) || canvas is null)
-        {
-            return canvasJson;
-        }
-
-        return SerializeBackendCanvas(canvas);
-    }
-
     private static bool TryConvertCanvas(JsonElement root, out CanvasSchema? canvas)
     {
         canvas = null;
@@ -207,72 +195,6 @@ public static class WorkflowCanvasJsonBridge
             targetPort,
             string.IsNullOrWhiteSpace(condition) ? null : condition);
         return true;
-    }
-
-    private static string SerializeBackendCanvas(CanvasSchema canvas)
-    {
-        var payload = new
-        {
-            nodes = canvas.Nodes.Select(SerializeNode).ToArray(),
-            connections = canvas.Connections.Select(SerializeConnection).ToArray(),
-            schemaVersion = canvas.SchemaVersion,
-            viewport = canvas.Viewport is null
-                ? null
-                : new
-                {
-                    x = canvas.Viewport.X,
-                    y = canvas.Viewport.Y,
-                    zoom = canvas.Viewport.Zoom
-                },
-            globals = canvas.Globals ?? new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
-        };
-
-        return JsonSerializer.Serialize(payload);
-    }
-
-    private static object SerializeNode(NodeSchema node)
-    {
-        object? childCanvas = null;
-        if (node.ChildCanvas is not null)
-        {
-            childCanvas = JsonDocument.Parse(SerializeBackendCanvas(node.ChildCanvas)).RootElement.Clone();
-        }
-
-        return new
-        {
-            key = node.Key,
-            // Keep frontend/backend contract stable: node.type is persisted as string.
-            type = ((int)node.Type).ToString(CultureInfo.InvariantCulture),
-            label = node.Label,
-            config = node.Config,
-            layout = new
-            {
-                x = node.Layout.X,
-                y = node.Layout.Y,
-                width = node.Layout.Width,
-                height = node.Layout.Height
-            },
-            childCanvas,
-            inputTypes = node.InputTypes,
-            outputTypes = node.OutputTypes,
-            inputSources = node.InputSources,
-            outputSources = node.OutputSources,
-            ports = node.Ports,
-            version = node.Version,
-            debugMeta = node.DebugMeta
-        };
-    }
-
-    private static object SerializeConnection(ConnectionSchema connection)
-    {
-        return new
-        {
-            sourceNodeKey = connection.SourceNodeKey,
-            sourcePort = connection.SourcePort,
-            targetNodeKey = connection.TargetNodeKey,
-            targetPort = connection.TargetPort,
-            condition = connection.Condition
-        };
     }
 
     private static bool TryResolveNodeType(JsonElement element, out WorkflowNodeType nodeType)

@@ -8,6 +8,7 @@ namespace Atlas.Domain.AiPlatform.Entities;
 /// <summary>
 /// Coze 原生工作流元数据：与 Atlas 标准 DAG 工作流完全分离。
 /// </summary>
+[SugarTable("coze_workflow_meta")]
 public sealed class CozeWorkflowMeta : TenantEntity
 {
     public CozeWorkflowMeta() : base(TenantId.Empty)
