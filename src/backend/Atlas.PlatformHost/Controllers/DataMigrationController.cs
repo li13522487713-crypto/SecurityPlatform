@@ -64,12 +64,16 @@ public sealed class DataMigrationController : ControllerBase
     }
 
     [HttpPost("jobs/{jobId}/precheck")]
-    public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Precheck(string jobId, CancellationToken cancellationToken)
-        => RunGuarded<DataMigrationJobDto>(() => _service.PrecheckJobAsync(jobId, cancellationToken), cancellationToken);
+    public Task<ActionResult<ApiResponse<DataMigrationPrecheckResultDto>>> Precheck(string jobId, CancellationToken cancellationToken)
+        => RunGuarded<DataMigrationPrecheckResultDto>(() => _service.PrecheckJobAsync(jobId, cancellationToken), cancellationToken);
 
     [HttpPost("jobs/{jobId}/start")]
     public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Start(string jobId, CancellationToken cancellationToken)
         => RunGuarded<DataMigrationJobDto>(() => _service.StartJobAsync(jobId, cancellationToken), cancellationToken);
+
+    [HttpPost("jobs/{jobId}/cancel")]
+    public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Cancel(string jobId, CancellationToken cancellationToken)
+        => RunGuarded<DataMigrationJobDto>(() => _service.CancelJobAsync(jobId, cancellationToken), cancellationToken);
 
     [HttpGet("jobs/{jobId}/progress")]
     public async Task<ActionResult<ApiResponse<DataMigrationProgressDto>>> GetProgress(string jobId, CancellationToken cancellationToken)

@@ -211,6 +211,14 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.SetupConsole.Abstractions.ISetupConsoleService,
             Atlas.Infrastructure.Services.SetupConsole.SetupConsoleService>();
         // ORM 跨库迁移引擎（M6）
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationPlanner,
+            Atlas.Infrastructure.Services.SetupConsole.DataMigrationPlanner>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationRunner,
+            Atlas.Infrastructure.Services.SetupConsole.DataMigrationRunner>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IMigrationBulkWriter,
+            Atlas.Infrastructure.Services.SetupConsole.SqlSugarMigrationBulkWriter>();
+        services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IMigrationConnectionResolver,
+            Atlas.Infrastructure.Services.SetupConsole.MigrationConnectionResolver>();
         services.AddScoped<Atlas.Application.SetupConsole.Abstractions.IDataMigrationOrmService,
             Atlas.Infrastructure.Services.SetupConsole.OrmDataMigrationService>();
         // 控制台写操作审计（M7） + M10/D5 IP/UA 上下文（per-request scoped）

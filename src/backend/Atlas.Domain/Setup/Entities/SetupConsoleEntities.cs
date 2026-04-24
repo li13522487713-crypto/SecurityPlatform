@@ -349,7 +349,7 @@ public sealed class DataMigrationJob : TenantEntity
 {
     public DataMigrationJob() : base(TenantId.Empty)
     {
-        State = DataMigrationStates.Created;
+        State = DataMigrationStates.Pending;
         Mode = DataMigrationModes.StructurePlusData;
         SourceConnectionString = string.Empty;
         SourceDbType = string.Empty;
@@ -394,7 +394,7 @@ public sealed class DataMigrationJob : TenantEntity
         DateTimeOffset now) : base(tenantId)
     {
         Id = id;
-        State = DataMigrationStates.Created;
+        State = DataMigrationStates.Pending;
         Mode = mode;
         SourceConnectionString = sourceConnectionString;
         SourceDbType = sourceDbType;
@@ -418,6 +418,46 @@ public sealed class DataMigrationJob : TenantEntity
         CreatedBy = createdBy;
         CreatedAt = now;
         UpdatedAt = now;
+    }
+
+    public DataMigrationJob(
+        TenantId tenantId,
+        long id,
+        string mode,
+        string sourceConnectionString,
+        string sourceDbType,
+        string targetConnectionString,
+        string targetDbType,
+        string sourceFingerprint,
+        string targetFingerprint,
+        string moduleScopeJson,
+        long createdBy,
+        DateTimeOffset now) : this(
+        tenantId,
+        id,
+        mode,
+        sourceConnectionString,
+        sourceDbType,
+        targetConnectionString,
+        targetDbType,
+        sourceFingerprint,
+        targetFingerprint,
+        moduleScopeJson,
+        sourceConfigJson: "{}",
+        targetConfigJson: "{}",
+        selectedEntitiesJson: "[]",
+        selectedTablesJson: "[]",
+        excludedEntitiesJson: "[]",
+        excludedTablesJson: "[]",
+        batchSize: 10000,
+        writeMode: DataMigrationWriteModes.InsertOnly,
+        createSchema: true,
+        migrateSystemTables: false,
+        migrateFiles: false,
+        validateAfterCopy: false,
+        createdBy: createdBy,
+        now: now)
+    {
     }
 
     public string State { get; private set; }
@@ -545,6 +585,32 @@ public sealed class DataMigrationJob : TenantEntity
         UpdatedAt = now;
     }
 
+    public void RecordProgress(
+        string currentEntity,
+        int currentBatch,
+        int completedEntities,
+        int failedEntities,
+        long copiedRows,
+        DateTimeOffset now)
+    {
+        var percent = TotalEntities <= 0
+            ? 0m
+            : Math.Round((decimal)completedEntities * 100m / TotalEntities, 2, MidpointRounding.AwayFromZero);
+        RecordProgress(currentEntity, null, currentBatch, completedEntities, failedEntities, copiedRows, percent, now);
+    }
+
+    public void RecordProgress(
+        string currentEntity,
+        int currentBatch,
+        int completedEntities,
+        int failedEntities,
+        long copiedRows,
+        decimal progressPercent,
+        DateTimeOffset now)
+    {
+        RecordProgress(currentEntity, null, currentBatch, completedEntities, failedEntities, copiedRows, progressPercent, now);
+    }
+
     public void MarkFinished(string finalState, DateTimeOffset now)
     {
         State = finalState;
@@ -582,6 +648,23 @@ public sealed class DataMigrationBatch : TenantEntity
         BatchNo = batchNo;
         State = DataMigrationTableStates.Running;
         StartedAt = now;
+    }
+
+    public DataMigrationBatch(
+        TenantId tenantId,
+        long id,
+        long jobId,
+        string entityName,
+        int batchNo,
+        DateTimeOffset now) : this(
+        tenantId,
+        id,
+        jobId,
+        entityName,
+        entityName,
+        batchNo,
+        now)
+    {
     }
 
     public long JobId { get; private set; }

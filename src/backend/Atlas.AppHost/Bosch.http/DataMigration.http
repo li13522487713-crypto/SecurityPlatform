@@ -1,0 +1,116 @@
+@host = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@consoleToken = replace-with-setup-console-token
+@jobId = replace-with-job-id
+@dataSourceId = replace-with-data-source-id
+@aiDatabaseId = replace-with-ai-database-id
+
+### Tenant data source drivers
+GET {{host}}/api/v1/tenant-datasources/drivers
+X-Tenant-Id: {{tenantId}}
+
+### Create MySQL target data source
+POST {{host}}/api/v1/tenant-datasources
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "local-mysql-target",
+  "dbType": "MySql",
+  "mode": "visual",
+  "visualConfig": {
+    "host": "localhost",
+    "port": "3306",
+    "database": "atlas_target",
+    "username": "root",
+    "password": "password"
+  },
+  "ownershipScope": "Platform",
+  "maxPoolSize": 50,
+  "connectionTimeoutSeconds": 15
+}
+
+### Test saved target data source
+POST {{host}}/api/v1/tenant-datasources/{{dataSourceId}}/test
+X-Tenant-Id: {{tenantId}}
+
+### Create AiDatabase migration job
+POST {{host}}/api/v1/setup-console/migration/jobs
+Content-Type: application/json
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "source": {
+    "driverCode": "",
+    "dbType": "",
+    "mode": "CurrentSystemAiDatabase",
+    "aiDatabaseId": {{aiDatabaseId}},
+    "displayName": "source ai database"
+  },
+  "target": {
+    "driverCode": "MySql",
+    "dbType": "MySql",
+    "mode": "SavedDataSource",
+    "dataSourceId": {{dataSourceId}},
+    "displayName": "local-mysql-target"
+  },
+  "mode": "structure-plus-data",
+  "moduleScope": {
+    "categories": ["all"]
+  },
+  "allowReExecute": true,
+  "batchSize": 10000,
+  "writeMode": "InsertOnly",
+  "createSchema": true,
+  "migrateSystemTables": false,
+  "migrateFiles": false,
+  "validateAfterCopy": false
+}
+
+### Precheck migration job
+POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/precheck
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Start migration job
+POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/start
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get migration progress
+GET {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/progress
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Cancel migration job
+POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/cancel
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Validate migration job
+POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/validate
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Cutover after validation
+POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/cutover
+Content-Type: application/json
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "keepSourceReadonlyForDays": 7,
+  "confirmBackup": true,
+  "confirmRestartRequired": true
+}
+
+### Migration logs
+GET {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/logs?pageIndex=1&pageSize=50
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Migration report
+GET {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/report
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}

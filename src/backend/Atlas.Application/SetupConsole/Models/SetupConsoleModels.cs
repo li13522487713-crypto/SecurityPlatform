@@ -193,7 +193,10 @@ public sealed record DataMigrationPrecheckResultDto(
     IReadOnlyList<string> TargetNonEmptyTables,
     IReadOnlyList<string> MissingTargetTables,
     IReadOnlyList<string> Warnings,
-    IReadOnlyList<DataMigrationTableProgressDto> Tables);
+    IReadOnlyList<DataMigrationTableProgressDto> Tables)
+{
+    public string State => Job.State;
+}
 
 public sealed record DataMigrationProgressDto(
     string JobId,

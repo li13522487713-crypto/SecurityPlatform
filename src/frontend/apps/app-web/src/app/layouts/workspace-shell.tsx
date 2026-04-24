@@ -270,13 +270,13 @@ function NativeShellFrame({
   logoutLabel,
   userName,
   userHandle,
-  workspaceName,
+  workspaceName: _workspaceName,
   sidebarTop,
   spaceLinks,
   platformLinks,
   onNavigate,
   onToggleLocale,
-  onOpenProfile,
+  onOpenProfile: _onOpenProfile,
   onLogout,
   children
 }: {
@@ -471,7 +471,7 @@ export function SpaceShellLayout() {
   const auth = useAuth();
   const bootstrap = useBootstrap();
   const location = useLocation();
-  const { loading, spaceListLoading, spaceList } = useInitSpace(space_id);
+  const { loading, spaceListLoading: _spaceListLoading, spaceList } = useInitSpace(space_id);
 
   if (bootstrap.loading || auth.loading || loading) {
     return <LoadingPage />;

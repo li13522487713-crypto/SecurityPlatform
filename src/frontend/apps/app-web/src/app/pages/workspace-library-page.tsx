@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Empty, Input, Select, Spin, Table, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Dropdown, Empty, Input, Modal, Select, Spin, Table, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconSearch,
   IconCode,
@@ -34,6 +34,9 @@ import {
   type LibrarySource
 } from "../../services/api-ai-workspace";
 import type { AppMessageKey } from "../messages";
+import { deleteAiDatabase } from "../../services/api-ai-database";
+import { MigrationWizardDrawer } from "./components/migration-wizard/migration-wizard-drawer";
+import { deleteTenantDataSource } from "../../services/api-tenant-datasource";
 
 type LibraryTabKey =
   | "all"
@@ -180,6 +183,7 @@ export function WorkspaceLibraryPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<LibraryResourceType | null>(null);
+  const [migrationSource, setMigrationSource] = useState<AiWorkspaceLibraryItem | null>(null);
 
   const subTypeOptions = useMemo(() => {
     const all = { value: "all" as const, label: t("cozeLibrarySubTypeAll") };
@@ -303,6 +307,10 @@ export function WorkspaceLibraryPage() {
           navigate(orgWorkspaceKnowledgeBaseDetailPath(workspace.orgId, workspace.id, record.resourceId));
           return;
         case "database":
+          if (record.subType === "datasource") {
+            navigate("/settings/system/datasources");
+            return;
+          }
           navigate(orgWorkspaceDatabaseDetailPath(workspace.orgId, workspace.id, record.resourceId));
           return;
         case "prompt":
@@ -319,6 +327,47 @@ export function WorkspaceLibraryPage() {
     setCreateType(rt);
     setCreateOpen(true);
   }, []);
+
+  const handleDeleteDatabase = useCallback(
+    (record: AiWorkspaceLibraryItem) => {
+      Modal.confirm({
+        title: t("cozeLibraryDeleteDatabaseTitle"),
+        content: t("cozeLibraryDeleteDatabaseContent"),
+        okType: "danger",
+        onOk: async () => {
+          if (record.subType === "datasource") {
+            await deleteTenantDataSource(record.resourceId);
+          } else {
+            await deleteAiDatabase(Number(record.resourceId));
+          }
+          Toast.success(t("cozeLibraryDeleteDatabaseSuccess"));
+          await load();
+        }
+      });
+    },
+    [load, t]
+  );
+
+  const renderActionMenu = useCallback(
+    (record: AiWorkspaceLibraryItem) => (
+      <Dropdown.Menu>
+        <Dropdown.Item onClick={() => handleOpen(record)}>{t("cozeLibraryActionDetail")}</Dropdown.Item>
+        <Dropdown.Item disabled>{t("cozeLibraryActionCopyToSpace")}</Dropdown.Item>
+        {record.resourceType === "database" && record.subType !== "datasource" ? (
+          <Dropdown.Item onClick={() => setMigrationSource(record)}>{t("cozeLibraryActionMigrateDatabase")}</Dropdown.Item>
+        ) : null}
+        <Dropdown.Item disabled>{t("cozeLibraryActionBackup")}</Dropdown.Item>
+        {record.resourceType === "database" ? (
+          <Dropdown.Item type="danger" onClick={() => handleDeleteDatabase(record)}>
+            {t("cozeLibraryActionDelete")}
+          </Dropdown.Item>
+        ) : (
+          <Dropdown.Item disabled>{t("cozeLibraryActionDelete")}</Dropdown.Item>
+        )}
+      </Dropdown.Menu>
+    ),
+    [handleDeleteDatabase, handleOpen, t]
+  );
 
   const columns: ColumnProps<AiWorkspaceLibraryItem>[] = useMemo(
     () => [
@@ -382,10 +431,22 @@ export function WorkspaceLibraryPage() {
         title: "",
         dataIndex: "_action",
         width: 60,
-        render: () => <Button theme="borderless" type="tertiary" icon={<IconChevronDown />} size="small" />
+        render: (_: unknown, record: AiWorkspaceLibraryItem) => (
+          <Dropdown trigger="click" position="bottomRight" render={renderActionMenu(record)}>
+            <Button
+              theme="borderless"
+              type="tertiary"
+              icon={<IconChevronDown />}
+              size="small"
+              onClick={event => {
+                event.stopPropagation();
+              }}
+            />
+          </Dropdown>
+        )
       }
     ],
-    [t, typeLabel]
+    [renderActionMenu, t, typeLabel]
   );
 
   return (
@@ -520,6 +581,12 @@ export function WorkspaceLibraryPage() {
           setCreateType(null);
           void load();
         }}
+      />
+
+      <MigrationWizardDrawer
+        visible={Boolean(migrationSource)}
+        source={migrationSource}
+        onClose={() => setMigrationSource(null)}
       />
     </div>
   );

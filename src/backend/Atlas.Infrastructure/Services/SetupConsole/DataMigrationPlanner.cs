@@ -159,7 +159,7 @@ public sealed class DataMigrationPlanner : IDataMigrationPlanner
             .ToArray();
     }
 
-    private static IReadOnlyList<ResolvedMigrationTable> BuildEntityUnits(
+    private IReadOnlyList<ResolvedMigrationTable> BuildEntityUnits(
         IReadOnlySet<string> scopedEntities,
         IReadOnlySet<string> selectedEntities,
         IReadOnlySet<string> excludedEntities,

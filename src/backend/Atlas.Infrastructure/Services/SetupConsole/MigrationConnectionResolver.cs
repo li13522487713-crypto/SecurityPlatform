@@ -5,6 +5,7 @@ using Atlas.Application.SetupConsole.Abstractions;
 using Atlas.Application.SetupConsole.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.Setup.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
@@ -91,7 +92,8 @@ public sealed class MigrationConnectionResolver : IMigrationConnectionResolver
         var dbType = _db.CurrentConnectionConfig?.DbType.ToString()
             ?? throw new InvalidOperationException("current system database type is unavailable");
 
-        var resolvedDriver = DataSourceDriverRegistry.NormalizeDriverCode(config.DriverCode ?? dbType);
+        var resolvedDriver = DataSourceDriverRegistry.NormalizeDriverCode(
+            string.IsNullOrWhiteSpace(config.DriverCode) ? dbType : config.DriverCode);
         _ = DataSourceDriverRegistry.ResolveDbType(resolvedDriver);
         return new ResolvedMigrationConnection(
             resolvedDriver,

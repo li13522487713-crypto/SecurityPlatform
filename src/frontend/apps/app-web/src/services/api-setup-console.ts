@@ -1,7 +1,6 @@
 import type { ApiResponse } from "@atlas/shared-react-core/types";
 import type {
   DataMigrationMode,
-  DataMigrationState,
   SetupConsoleStep,
   SystemSetupState,
   WorkspaceSetupState
@@ -164,10 +163,13 @@ export interface WorkspaceSeedBundleRequest {
 
 export interface DbConnectionConfig {
   driverCode: string;
-  dbType: "SQLite" | "MySql" | "PostgreSQL" | "SqlServer";
-  mode: "raw" | "visual";
+  dbType: string;
+  mode: "CurrentSystem" | "CurrentSystemAiDatabase" | "SavedDataSource" | "ConnectionString" | "VisualConfig";
   connectionString?: string;
-  visualConfig?: Record<string, string>;
+  visualConfig?: Record<string, string> | null;
+  displayName?: string | null;
+  dataSourceId?: number | null;
+  aiDatabaseId?: number | null;
 }
 
 export interface MigrationTestConnectionRequest {
@@ -188,6 +190,16 @@ export interface DataMigrationJobCreateRequest {
   moduleScope: DataMigrationModuleScope;
   /** 同源/同目标已存在 Completed 任务时，必须显式标记 true 才允许新建。 */
   allowReExecute: boolean;
+  selectedEntities?: string[] | null;
+  selectedTables?: string[] | null;
+  excludedEntities?: string[] | null;
+  excludedTables?: string[] | null;
+  batchSize?: number;
+  writeMode?: "InsertOnly" | "TruncateThenInsert" | "Upsert";
+  createSchema?: boolean;
+  migrateSystemTables?: boolean;
+  migrateFiles?: boolean;
+  validateAfterCopy?: boolean;
 }
 
 export interface DataMigrationModuleScope {
@@ -199,7 +211,7 @@ export interface DataMigrationModuleScope {
 
 export interface DataMigrationJobDto {
   id: string;
-  state: DataMigrationState;
+  state: string;
   mode: DataMigrationMode;
   source: DbConnectionConfig;
   target: DbConnectionConfig;
@@ -213,6 +225,7 @@ export interface DataMigrationJobDto {
   copiedRows: number;
   progressPercent: number;
   currentEntityName: string | null;
+  currentTableName: string | null;
   currentBatchNo: number | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -221,9 +234,22 @@ export interface DataMigrationJobDto {
   updatedAt: string;
 }
 
+export interface DataMigrationPrecheckResultDto {
+  job: DataMigrationJobDto;
+  state: string;
+  tableCount: number;
+  totalRows: number;
+  estimatedBatches: number;
+  unsupportedTables: string[];
+  targetNonEmptyTables: string[];
+  missingTargetTables: string[];
+  warnings: string[];
+  tables: DataMigrationTableProgressDto[];
+}
+
 export interface DataMigrationProgressDto {
   jobId: string;
-  state: DataMigrationState;
+  state: string;
   totalEntities: number;
   completedEntities: number;
   failedEntities: number;
@@ -231,16 +257,40 @@ export interface DataMigrationProgressDto {
   copiedRows: number;
   progressPercent: number;
   currentEntityName: string | null;
+  currentTableName: string | null;
   currentBatchNo: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  elapsedSeconds: number;
   updatedAt: string;
+  tables: DataMigrationTableProgressDto[];
+  recentLogs: DataMigrationLogItemDto[];
   recentBatches: DataMigrationBatchDto[];
+}
+
+export interface DataMigrationTableProgressDto {
+  entityName: string;
+  tableName: string;
+  state: string;
+  sourceRows: number;
+  targetRowsBefore: number;
+  targetRowsAfter: number;
+  copiedRows: number;
+  failedRows: number;
+  batchSize: number;
+  currentBatchNo: number;
+  totalBatchCount: number;
+  progressPercent: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  errorMessage: string | null;
 }
 
 export interface DataMigrationBatchDto {
   batchNo: number;
   entityName: string;
   rowsCopied: number;
-  state: DataMigrationState | "succeeded" | "failed";
+  state: string;
   startedAt: string | null;
   endedAt: string | null;
   checksum: string | null;
@@ -253,12 +303,16 @@ export interface DataMigrationReportDto {
   failedEntities: number;
   rowDiff: ReadonlyArray<{
     entityName: string;
+    tableName: string;
     sourceRowCount: number;
     targetRowCount: number;
     diff: number;
+    state: string;
+    errorMessage?: string | null;
   }>;
   samplingDiff: ReadonlyArray<{
     entityName: string;
+    tableName: string;
     sampledRows: number;
     mismatched: number;
     mismatchedExamples: string[];
@@ -287,6 +341,8 @@ export interface DataMigrationLogPagedResponse {
 export interface DataMigrationCutoverRequest {
   /** 切主后是否保留源库 7 天只读。 */
   keepSourceReadonlyForDays: number;
+  confirmBackup: boolean;
+  confirmRestartRequired: boolean;
 }
 
 // ============================================================================
@@ -404,42 +460,67 @@ export const setupConsoleApi = {
       method: "POST"
     }),
 
-  // M6 后追加：迁移端点尚未实现，调用方仍走 mock。
-  migrationTestConnection: (_request: MigrationTestConnectionRequest): Promise<ApiResponse<MigrationTestConnectionResponse>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  createMigrationJob: (_request: DataMigrationJobCreateRequest): Promise<ApiResponse<DataMigrationJobDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  precheckMigrationJob: (_jobId: string): Promise<ApiResponse<DataMigrationJobDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  startMigrationJob: (_jobId: string): Promise<ApiResponse<DataMigrationJobDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  getMigrationProgress: (_jobId: string): Promise<ApiResponse<DataMigrationProgressDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  validateMigrationJob: (_jobId: string): Promise<ApiResponse<DataMigrationReportDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  cutoverMigrationJob: (_jobId: string, _request: DataMigrationCutoverRequest): Promise<ApiResponse<DataMigrationJobDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  rollbackMigrationJob: (_jobId: string): Promise<ApiResponse<DataMigrationJobDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  retryMigrationJob: (_jobId: string): Promise<ApiResponse<DataMigrationJobDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
-  getMigrationReport: (_jobId: string): Promise<ApiResponse<DataMigrationReportDto>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
-  },
+  migrationTestConnection: (request: MigrationTestConnectionRequest) =>
+    fetchConsoleJson<MigrationTestConnectionResponse>("/api/v1/setup-console/migration/test-connection", {
+      method: "POST",
+      body: JSON.stringify(request)
+    }),
+  createMigrationJob: (request: DataMigrationJobCreateRequest) =>
+    fetchConsoleJson<DataMigrationJobDto>("/api/v1/setup-console/migration/jobs", {
+      method: "POST",
+      body: JSON.stringify(request)
+    }),
+  precheckMigrationJob: (jobId: string) =>
+    fetchConsoleJson<DataMigrationPrecheckResultDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/precheck`, {
+      method: "POST"
+    }),
+  startMigrationJob: (jobId: string) =>
+    fetchConsoleJson<DataMigrationJobDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/start`, {
+      method: "POST"
+    }),
+  cancelMigrationJob: (jobId: string) =>
+    fetchConsoleJson<DataMigrationJobDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/cancel`, {
+      method: "POST"
+    }),
+  getMigrationProgress: (jobId: string) =>
+    fetchConsoleJson<DataMigrationProgressDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/progress`),
+  validateMigrationJob: (jobId: string) =>
+    fetchConsoleJson<DataMigrationReportDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/validate`, {
+      method: "POST"
+    }),
+  cutoverMigrationJob: (jobId: string, request: DataMigrationCutoverRequest) =>
+    fetchConsoleJson<DataMigrationJobDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/cutover`, {
+      method: "POST",
+      body: JSON.stringify(request)
+    }),
+  rollbackMigrationJob: (jobId: string) =>
+    fetchConsoleJson<DataMigrationJobDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/rollback`, {
+      method: "POST"
+    }),
+  retryMigrationJob: (jobId: string) =>
+    fetchConsoleJson<DataMigrationJobDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/retry`, {
+      method: "POST"
+    }),
+  getMigrationReport: (jobId: string) =>
+    fetchConsoleJson<DataMigrationReportDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/report`),
   getMigrationLogs: (
-    _jobId: string,
-    _query?: { level?: "info" | "warn" | "error"; pageIndex?: number; pageSize?: number }
-  ): Promise<ApiResponse<DataMigrationLogPagedResponse>> => {
-    throw new Error("[setup-console] migration endpoints land in M6.");
+    jobId: string,
+    query?: { level?: "info" | "warn" | "error"; pageIndex?: number; pageSize?: number }
+  ) => {
+    const params = new URLSearchParams();
+    if (query?.level) {
+      params.set("level", query.level);
+    }
+    if (query?.pageIndex) {
+      params.set("pageIndex", String(query.pageIndex));
+    }
+    if (query?.pageSize) {
+      params.set("pageSize", String(query.pageSize));
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : "";
+    return fetchConsoleJson<DataMigrationLogPagedResponse>(
+      `/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/logs${suffix}`
+    );
   },
 
   listEntityCatalog: (category?: SetupConsoleCatalogCategoryDto["category"]) => {

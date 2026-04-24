@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Modal, Tag, Typography } from "@douyinfe/semi-ui";
+import { Modal, Tag, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../i18n";
 import { CreateAgentModal } from "./create-agent-modal";
 import { CreateAppModal } from "./create-app-modal";

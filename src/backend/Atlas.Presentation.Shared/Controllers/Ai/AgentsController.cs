@@ -78,7 +78,7 @@ public sealed class AgentsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.AgentCreate)]
+    [Authorize(Policy = PermissionPolicies.AiAppCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] AgentCreateRequest request,
         CancellationToken cancellationToken)
@@ -126,7 +126,7 @@ public sealed class AgentsController : ControllerBase
     }
 
     [HttpPost("{id:long}/duplicate")]
-    [Authorize(Policy = PermissionPolicies.AgentCreate)]
+    [Authorize(Policy = PermissionPolicies.AiAppCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Duplicate(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();

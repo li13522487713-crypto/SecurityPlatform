@@ -7,6 +7,7 @@ using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Options;
 using SqlSugar;
+using System.Text.RegularExpressions;
 using System.Diagnostics;
 
 namespace Atlas.Infrastructure.Services;
@@ -192,13 +193,22 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         return result;
     }
 
-    private static TenantDataSourceDto MapToDto(TenantDataSource entity)
+    private TenantDataSourceDto MapToDto(TenantDataSource entity)
     {
+        var connectionString = _encryptionOptions.Enabled
+            ? TenantDbConnectionFactory.Decrypt(entity.EncryptedConnectionString, _encryptionOptions.Key)
+            : entity.EncryptedConnectionString;
+        var safeInfo = ParseSafeConnectionInfo(entity.DbType, connectionString);
         return new TenantDataSourceDto(
             entity.Id.ToString(),
             entity.TenantIdValue,
             entity.Name,
             entity.DbType,
+            entity.DbType,
+            safeInfo.Host,
+            safeInfo.Port,
+            safeInfo.DatabaseName,
+            safeInfo.MaskedConnectionSummary,
             entity.AppId.HasValue ? TenantDataSourceOwnershipScopes.AppScoped : TenantDataSourceOwnershipScopes.Platform,
             entity.AppId?.ToString(),
             entity.AppId?.ToString(),
@@ -210,6 +220,127 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
+    }
+
+    private static SafeConnectionInfo ParseSafeConnectionInfo(string driverCode, string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return SafeConnectionInfo.Empty;
+        }
+
+        if (string.Equals(driverCode, "SQLite", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(driverCode, "Access", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = ParseConnectionString(connectionString);
+            var dataSource = GetFirst(parts, "Data Source", "DataSource", "Filename", "File Name");
+            var sqliteFileName = string.IsNullOrWhiteSpace(dataSource)
+                ? null
+                : Path.GetFileName(dataSource.Replace("\"", string.Empty));
+            return new SafeConnectionInfo(
+                Host: null,
+                Port: null,
+                DatabaseName: sqliteFileName,
+                MaskedConnectionSummary: sqliteFileName is null ? driverCode : $"{driverCode} / {sqliteFileName}");
+        }
+
+        var tokens = ParseConnectionString(connectionString);
+        var host = GetFirst(tokens, "Server", "Host", "Data Source", "Address", "Addr", "Network Address", "Hostname");
+        host = NormalizeServerHost(host);
+        var portValue = GetFirst(tokens, "Port");
+        var databaseName = GetFirst(tokens, "Database", "Initial Catalog", "Service Name", "SID");
+        int? port = null;
+        if (int.TryParse(portValue, out var parsedPort) && parsedPort > 0)
+        {
+            port = parsedPort;
+        }
+
+        var summary = BuildSafeSummary(driverCode, host, port, databaseName);
+        return new SafeConnectionInfo(host, port, databaseName, summary);
+    }
+
+    private static Dictionary<string, string> ParseConnectionString(string connectionString)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var segment in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var idx = segment.IndexOf('=');
+            if (idx <= 0 || idx >= segment.Length - 1)
+            {
+                continue;
+            }
+
+            var key = segment[..idx].Trim();
+            var value = segment[(idx + 1)..].Trim().Trim('"');
+            if (key.Length == 0)
+            {
+                continue;
+            }
+
+            result[key] = value;
+        }
+
+        return result;
+    }
+
+    private static string? GetFirst(IReadOnlyDictionary<string, string> values, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (values.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeServerHost(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var value = raw.Trim();
+        if (value.Contains('/') && !value.Contains('='))
+        {
+            value = value.Split('/', 2, StringSplitOptions.TrimEntries)[0];
+        }
+
+        if (value.Contains(','))
+        {
+            value = value.Split(',', 2, StringSplitOptions.TrimEntries)[0];
+        }
+
+        if (value.Contains(':') && !Regex.IsMatch(value, @"^\[[^\]]+\](:\d+)?$"))
+        {
+            value = value.Split(':', 2, StringSplitOptions.TrimEntries)[0];
+        }
+
+        return value;
+    }
+
+    private static string BuildSafeSummary(string driverCode, string? host, int? port, string? databaseName)
+    {
+        var segments = new List<string> { driverCode };
+        if (!string.IsNullOrWhiteSpace(host))
+        {
+            segments.Add(port.HasValue ? $"{host}:{port}" : host);
+        }
+
+        if (!string.IsNullOrWhiteSpace(databaseName))
+        {
+            segments.Add(databaseName);
+        }
+
+        return string.Join(" / ", segments);
+    }
+
+    private sealed record SafeConnectionInfo(string? Host, int? Port, string? DatabaseName, string? MaskedConnectionSummary)
+    {
+        public static readonly SafeConnectionInfo Empty = new(null, null, null, null);
     }
 
     private static long? ParseAppId(string? appId)

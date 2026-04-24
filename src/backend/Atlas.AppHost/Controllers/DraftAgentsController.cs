@@ -77,7 +77,7 @@ public sealed class DraftAgentsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.AgentCreate)]
+    [Authorize(Policy = PermissionPolicies.AiAppCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] AgentCreateRequest request,
         CancellationToken cancellationToken)

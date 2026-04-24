@@ -80,15 +80,6 @@ interface WorkspaceDialogState {
   submitting: boolean;
 }
 
-const AGENT_CARD_CAPABILITIES: ProjectsResourceCapabilities = {
-  canFavorite: true,
-  canDuplicate: true,
-  canMove: true,
-  canMigrate: true,
-  canCopyToWorkspace: true,
-  canDelete: true
-};
-
 export function WorkspaceProjectsPage() {
   const { t, locale } = useAppI18n();
   const auth = useAuth();
@@ -804,18 +795,6 @@ export function WorkspaceProjectsPage() {
       </Modal>
     </div>
   );
-}
-
-function isAgentResourceCard(item: WorkspaceIdeResourceCardDto): item is WorkspaceIdeResourceCardDto & { resourceType: "agent" } {
-  return item.resourceType === "agent";
-}
-
-function mapAgentResourceCard(item: WorkspaceIdeResourceCardDto & { resourceType: "agent" }): ProjectsResourceCard {
-  return {
-    ...item,
-    source: "workspace-ide",
-    capabilities: AGENT_CARD_CAPABILITIES
-  };
 }
 
 function isAppResourceCard(item: WorkspaceIdeResourceCardDto): item is WorkspaceIdeResourceCardDto & { resourceType: "app" } {

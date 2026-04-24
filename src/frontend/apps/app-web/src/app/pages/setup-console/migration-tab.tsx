@@ -12,19 +12,6 @@ import {
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useAppI18n } from "../../i18n";
 import { useBootstrap } from "../../bootstrap-context";
-import {
-  createMigrationJob,
-  cutoverMigrationJob,
-  getMigrationLogs,
-  getMigrationProgress,
-  getMigrationReport,
-  precheckMigrationJob,
-  retryMigrationJob,
-  rollbackMigrationJob,
-  startMigrationJob,
-  testMigrationConnection,
-  validateMigrationJob
-} from "../../../services/mock";
 import type {
   DataMigrationJobDto,
   DataMigrationLogItemDto,
@@ -32,6 +19,7 @@ import type {
   DataMigrationReportDto,
   DbConnectionConfig
 } from "../../../services/api-setup-console";
+import { setupConsoleApi } from "../../../services/api-setup-console";
 import type { AppMessageKey } from "../../messages";
 import {
   isMigrationBusy,
@@ -48,6 +36,18 @@ import {
 
 const { Text } = Typography;
 
+const testMigrationConnection = setupConsoleApi.migrationTestConnection;
+const createMigrationJob = setupConsoleApi.createMigrationJob;
+const precheckMigrationJob = setupConsoleApi.precheckMigrationJob;
+const startMigrationJob = setupConsoleApi.startMigrationJob;
+const getMigrationProgress = setupConsoleApi.getMigrationProgress;
+const validateMigrationJob = setupConsoleApi.validateMigrationJob;
+const cutoverMigrationJob = setupConsoleApi.cutoverMigrationJob;
+const rollbackMigrationJob = setupConsoleApi.rollbackMigrationJob;
+const retryMigrationJob = setupConsoleApi.retryMigrationJob;
+const getMigrationReport = setupConsoleApi.getMigrationReport;
+const getMigrationLogs = setupConsoleApi.getMigrationLogs;
+
 interface MigrationTabProps {
   activeMigration: DataMigrationJobDto | null;
   onSnapshotChanged: () => Promise<void>;
@@ -61,14 +61,25 @@ const MIGRATION_MODE_OPTIONS: ReadonlyArray<{ value: DataMigrationMode; labelKey
   { value: "re-execute", labelKey: "setupConsoleMigrationModeReExecute" }
 ];
 
-const MIGRATION_STATE_LABEL_KEY: Record<DataMigrationState, AppMessageKey> = {
+const MIGRATION_STATE_LABEL_KEY: Record<string, AppMessageKey> = {
+  created: "setupConsoleMigrationStateCreated",
   pending: "setupConsoleMigrationStatePending",
   prechecking: "setupConsoleMigrationStatePrechecking",
   ready: "setupConsoleMigrationStateReady",
+  queued: "setupConsoleMigrationStateQueued",
   running: "setupConsoleMigrationStateRunning",
+  cancelling: "setupConsoleMigrationStateCancelling",
+  cancelled: "setupConsoleMigrationStateCancelled",
+  succeeded: "setupConsoleMigrationStateSucceeded",
   validating: "setupConsoleMigrationStateValidating",
+  validation_failed: "setupConsoleMigrationStateValidationFailed",
+  validated: "setupConsoleMigrationStateValidated",
   "cutover-ready": "setupConsoleMigrationStateCutoverReady",
+  cutover_ready: "setupConsoleMigrationStateCutoverReady",
   "cutover-completed": "setupConsoleMigrationStateCutoverCompleted",
+  cutover_completed: "setupConsoleMigrationStateCutoverCompleted",
+  cutover_failed: "setupConsoleMigrationStateCutoverFailed",
+  "cutover-failed": "setupConsoleMigrationStateCutoverFailed",
   failed: "setupConsoleMigrationStateFailed",
   "rolled-back": "setupConsoleMigrationStateRolledBack"
 };
@@ -83,14 +94,14 @@ const DRIVER_OPTIONS: ReadonlyArray<{ code: string; dbType: DbConnectionConfig["
 const INITIAL_SOURCE: DbConnectionConfig = {
   driverCode: "SQLite",
   dbType: "SQLite",
-  mode: "raw",
+  mode: "ConnectionString",
   connectionString: "Data Source=atlas.db"
 };
 
 const INITIAL_TARGET: DbConnectionConfig = {
   driverCode: "MySql",
   dbType: "MySql",
-  mode: "raw",
+  mode: "ConnectionString",
   connectionString: "Server=localhost;Port=3306;Database=atlas;Uid=root;Pwd=password;"
 };
 
@@ -214,7 +225,7 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         }
         const response = await precheckMigrationJob(job.id);
         if (response.success && response.data) {
-          setJob(response.data);
+          setJob(response.data.job);
         }
         await refreshLogsFor(job.id);
       }),
@@ -268,7 +279,11 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         if (!job) {
           return;
         }
-        const response = await cutoverMigrationJob(job.id, { keepSourceReadonlyForDays });
+        const response = await cutoverMigrationJob(job.id, {
+          keepSourceReadonlyForDays,
+          confirmBackup: true,
+          confirmRestartRequired: true
+        });
         if (response.success && response.data) {
           setJob(response.data);
         }
@@ -318,8 +333,8 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
     [guarded, job]
   );
 
-  const jobBusy = useMemo(() => (job ? isMigrationBusy(job.state) : false), [job]);
-  const jobDone = useMemo(() => (job ? isMigrationDone(job.state) : false), [job]);
+  const jobBusy = useMemo(() => (job ? isMigrationBusy(job.state as DataMigrationState) : false), [job]);
+  const jobDone = useMemo(() => (job ? isMigrationDone(job.state as DataMigrationState) : false), [job]);
 
   return (
     <div data-testid="setup-console-migration">
@@ -631,7 +646,7 @@ function ExecuteSection({
             variant={executeStateVariant(jobBusy, jobDone)}
             testId="setup-console-migration-execute-state"
           >
-            {t(MIGRATION_STATE_LABEL_KEY[job.state])}
+            {t(MIGRATION_STATE_LABEL_KEY[job.state] ?? "setupConsoleMigrationStatePending")}
           </StateBadge>
         }
       >

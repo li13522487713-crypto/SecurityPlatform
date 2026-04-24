@@ -7,6 +7,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Repositories;
 using SqlSugar;
 using System.Text.Json;
@@ -264,6 +265,33 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
                 null,
                 null));
 
+        var tenantDataSourcesQuery = _db.Queryable<TenantDataSource>()
+            .Where(x => x.TenantIdValue == tenantId.Value.ToString() && x.IsActive);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            tenantDataSourcesQuery = tenantDataSourcesQuery.Where(x => x.Name.Contains(safeKeyword) || x.DbType.Contains(safeKeyword));
+        }
+
+        var tenantDataSourcesEntities = await tenantDataSourcesQuery
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .OrderBy(x => x.CreatedAt, OrderByType.Desc)
+            .Take(perTypeLimit)
+            .ToListAsync(cancellationToken);
+        var tenantDataSources = tenantDataSourcesEntities
+            .Select(x => new AiLibraryItem(
+                DatabaseResourceType,
+                x.Id,
+                x.Name,
+                $"数据源 / {x.DbType}",
+                (x.UpdatedAt ?? x.CreatedAt).DateTime,
+                "/settings/system/datasources",
+                SourceCustom,
+                "datasource",
+                $"数据源（{x.DbType}）",
+                null,
+                null));
+
         var appsQuery = _db.Queryable<AiApp>()
             .Where(x => x.TenantIdValue == tenantId.Value);
         if (hasKeyword)
@@ -403,6 +431,7 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .Concat(workflows)
             .Concat(knowledgeBases)
             .Concat(databases)
+            .Concat(tenantDataSources)
             .Concat(prompts)
             .Concat(cards)
             .Concat(memories)

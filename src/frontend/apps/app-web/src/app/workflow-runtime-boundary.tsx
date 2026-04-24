@@ -131,9 +131,7 @@ export function WorkflowRuntimeBoundary({
   const startup = useAppStartup();
   const workspace = useOptionalWorkspaceContext();
   const cozeLocale = toCozeLocale(locale);
-  const resolvedSpaceId = typeof spaceId === "string" && spaceId.trim().length > 0
-    ? spaceId.trim()
-    : (workspace?.id ?? "");
+  void spaceId;
 
   // locale 变更时只需同步切换语言，initI18nInstance 已在 AppStartupKernel 全局执行一次
   useEffect(() => {

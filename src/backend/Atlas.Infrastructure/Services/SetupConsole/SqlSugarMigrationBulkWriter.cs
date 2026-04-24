@@ -2,6 +2,7 @@ using System.Data;
 using System.Reflection;
 using Atlas.Application.SetupConsole.Abstractions;
 using Atlas.Application.SetupConsole.Models;
+using Atlas.Domain.Setup.Entities;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
@@ -403,5 +404,5 @@ public sealed class SqlSugarMigrationBulkWriter : IMigrationBulkWriter
     }
 
     private static Exception Unwrap(Exception ex)
-        => ex is TargetInvocationException { InnerException: not null } tie ? tie.InnerException : ex;
+        => ex is TargetInvocationException tie && tie.InnerException is not null ? tie.InnerException : ex;
 }

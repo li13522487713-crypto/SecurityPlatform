@@ -122,7 +122,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
                         item.TableName,
                         batchNo,
                         DateTimeOffset.UtcNow);
-                    batch.MarkSucceeded(writeResult.BatchNoRows, checksum: null, DateTimeOffset.UtcNow);
+                    batch.MarkSucceeded(writeResult.BatchNoRows, checksum: null, now: DateTimeOffset.UtcNow);
                     await _db.Insertable(batch).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
 
                     if (!string.IsNullOrWhiteSpace(writeResult.WarningMessage))
