@@ -61,7 +61,6 @@ export const Interactive = () => {
       trigger="custom"
       content={mousePadTooltip}
       visible={tooltipVisible && !showInteractivePanel}
-      onVisibleChange={setTooltipVisible}
     >
       <div
         className="workflow-toolbar-interactive"

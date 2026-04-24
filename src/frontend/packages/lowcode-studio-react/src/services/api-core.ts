@@ -95,7 +95,8 @@ export interface ResourceBinding {
   id: number;
   appId: number;
   resourceType: string;
-  resourceId: number;
+  /** Snowflake; API may JSON-serialize as string (safe) or number (only safe in ≤2^53-1). */
+  resourceId: string | number;
   role: string;
   displayOrder: number;
   configJson: string;
@@ -482,10 +483,13 @@ export function createLowcodeApi(requestImpl: LowcodeRequest) {
     },
     listBindings: (appId: string, resourceType?: string) =>
       requestImpl<ResourceBinding[]>('GET', `/apps/${appId}/resources/bindings${resourceType ? `?resourceType=${encodeURIComponent(resourceType)}` : ''}`),
-    bind: (appId: string, body: { resourceType: string; resourceId: number; role?: string; displayOrder?: number; configJson?: string }) =>
+    bind: (appId: string, body: { resourceType: string; resourceId: string | number; role?: string; displayOrder?: number; configJson?: string }) =>
       requestImpl<{ id?: string; Id?: string }>('POST', `/apps/${appId}/resources/bindings`, body as never),
-    unbind: (appId: string, resourceType: string, resourceId: number) =>
-      requestImpl<unknown>('DELETE', `/apps/${appId}/resources/bindings/${encodeURIComponent(resourceType)}/${resourceId}`)
+    unbind: (appId: string, resourceType: string, resourceId: string | number) =>
+      requestImpl<unknown>(
+        'DELETE',
+        `/apps/${appId}/resources/bindings/${encodeURIComponent(resourceType)}/${encodeURIComponent(String(resourceId))}`
+      )
   },
   templates: {
     search: (params: { keyword?: string; kind?: string; shareScope?: string; industryTag?: string; pageIndex?: number; pageSize?: number } = {}) => {

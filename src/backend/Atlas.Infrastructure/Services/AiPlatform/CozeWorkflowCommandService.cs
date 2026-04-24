@@ -96,6 +96,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
     private readonly ICozeWorkflowDraftRepository _draftRepo;
     private readonly ICozeWorkflowVersionRepository _versionRepo;
     private readonly ICanvasValidator _canvasValidator;
+    private readonly ICozeWorkflowPlanCompiler _planCompiler;
     private readonly IIdGeneratorAccessor _idGenerator;
 
     public CozeWorkflowCommandService(
@@ -103,12 +104,14 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         ICozeWorkflowDraftRepository draftRepo,
         ICozeWorkflowVersionRepository versionRepo,
         ICanvasValidator canvasValidator,
+        ICozeWorkflowPlanCompiler planCompiler,
         IIdGeneratorAccessor idGenerator)
     {
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
         _versionRepo = versionRepo;
         _canvasValidator = canvasValidator;
+        _planCompiler = planCompiler;
         _idGenerator = idGenerator;
     }
 
@@ -169,13 +172,6 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
             throw new BusinessException($"Coze 工作流 schema 不是合法 JSON：{ex.Message}", ErrorCodes.ValidationError);
         }
 
-        var canvasValidation = _canvasValidator.ValidateCanvas(schemaJson);
-        if (!canvasValidation.IsValid)
-        {
-            var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));
-            throw new BusinessException($"Coze 工作流校验失败，无法保存：{validationMessage}", ErrorCodes.ValidationError);
-        }
-
         // Generate a fresh commit ID so the client can detect subsequent concurrent edits.
         var newCommitId = _idGenerator.NextId().ToString();
         draft.Save(schemaJson, newCommitId);
@@ -210,7 +206,14 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("Coze 工作流草稿不存在。", ErrorCodes.NotFound);
 
-        var canvasValidation = _canvasValidator.ValidateCanvas(draft.SchemaJson);
+        var compileResult = _planCompiler.Compile(draft.SchemaJson);
+        if (!compileResult.IsSuccess || compileResult.Canvas is null)
+        {
+            var compileMessage = string.Join("；", (compileResult.Errors ?? []).Select(x => x.Message));
+            throw new BusinessException($"Coze 工作流画布解析失败，无法发布：{compileMessage}", ErrorCodes.ValidationError);
+        }
+
+        var canvasValidation = _canvasValidator.ValidateCanvas(System.Text.Json.JsonSerializer.Serialize(compileResult.Canvas));
         if (!canvasValidation.IsValid)
         {
             var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));

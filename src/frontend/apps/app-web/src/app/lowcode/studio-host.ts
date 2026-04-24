@@ -129,7 +129,8 @@ export function createAppWebLowcodeStudioHost(appKey: string): LowcodeStudioHost
       await requestJson(
         `/api/v1/lowcode/apps/${encodeURIComponent(appId)}/resources/bindings`,
         "POST",
-        { resourceType: "workflow", resourceId: Number(workflowId) }
+        // Snowflake IDs exceed JS safe integer; send as string — FlexibleLongJsonConverter on the API reads string into long.
+        { resourceType: "workflow", resourceId: String(workflowId) }
       );
       return { workflowId };
     },

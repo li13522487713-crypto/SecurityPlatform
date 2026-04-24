@@ -27,7 +27,7 @@ public sealed record CozePublishWorkflowRequest(
 
 public sealed record CozeNodeTemplateListRequest(string[]? need_types, string[]? node_types);
 
-public sealed record CozeValidateSchemaRequest(string workflow_id, string schema, string? bind_project_id, string? bind_bot_id);
+public sealed record CozeValidateSchemaRequest(string? workflow_id, string? schema, string? bind_project_id, string? bind_bot_id);
 
 public sealed record CozeWorkFlowTestRunRequest(string workflow_id, Dictionary<string, string>? input, string? space_id, string? bot_id, string? commit_id, string? project_id);
 

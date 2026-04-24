@@ -55,7 +55,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
 
   const workflowsQuery = useQuery({
     queryKey: ['lowcode-workflows', appId],
-    queryFn: () => api.resources.search(appId, { types: 'workflow', pageSize: 50 })
+    queryFn: () => api.resources.search(appId, { types: 'workflow', pageSize: 50, boundOnly: true })
   });
 
   const variablesQuery = useQuery({
@@ -149,7 +149,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
   });
 
   const bindPluginMut = useMutation({
-    mutationFn: (resourceId: number) => api.resources.bind(appId, { resourceType: 'plugin', resourceId }),
+    mutationFn: (resourceId: string | number) => api.resources.bind(appId, { resourceType: 'plugin', resourceId }),
     onSuccess: async () => {
       Toast.success(t('lowcode_studio.common.added'));
       await Promise.all([
@@ -162,7 +162,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
   });
 
   const unbindPluginMut = useMutation({
-    mutationFn: (resourceId: number) => api.resources.unbind(appId, 'plugin', resourceId),
+    mutationFn: (resourceId: string | number) => api.resources.unbind(appId, 'plugin', resourceId),
     onSuccess: async () => {
       Toast.success(t('lowcode_studio.plugin.unbound'));
       await Promise.all([
@@ -185,8 +185,10 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
     }));
   }, [boundPluginItems, pluginBindingsQuery.data]);
   const bindablePlugins = useMemo(() => {
-    const boundIds = new Set((pluginBindingsQuery.data ?? []).map((binding) => binding.resourceId));
-    return (pluginSearchQuery.data?.byType.plugin ?? []).filter((item) => /^\d+$/.test(item.id) && !boundIds.has(Number(item.id)));
+    const boundIds = new Set((pluginBindingsQuery.data ?? []).map((binding) => String(binding.resourceId)));
+    return (pluginSearchQuery.data?.byType.plugin ?? []).filter(
+      (item) => /^\d+$/.test(item.id) && !boundIds.has(String(item.id))
+    );
   }, [pluginBindingsQuery.data, pluginSearchQuery.data]);
 
   const ensureDataPanelVisible = () => {
@@ -442,7 +444,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
               renderItem={(plugin) => (
                 <List.Item
                   extra={(
-                    <Button size="small" type="primary" loading={bindPluginMut.isPending} onClick={() => bindPluginMut.mutate(Number(plugin.id))}>
+                    <Button size="small" type="primary" loading={bindPluginMut.isPending} onClick={() => bindPluginMut.mutate(plugin.id)}>
                       {t('lowcode_studio.common.add')}
                     </Button>
                   )}

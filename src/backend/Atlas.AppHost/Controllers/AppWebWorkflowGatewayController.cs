@@ -1011,7 +1011,7 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     [Authorize]
     public ActionResult<object> ValidateSchema([FromBody] CozeValidateSchemaRequest request)
     {
-        var compileResult = _planCompiler.Compile(request.schema);
+        var compileResult = _planCompiler.Compile(request.schema ?? string.Empty);
         var result = !compileResult.IsSuccess || compileResult.Canvas is null
             ? new CanvasValidationResult(false, compileResult.Errors)
             : _canvasValidator.ValidateCanvas(JsonSerializer.Serialize(compileResult.Canvas));
