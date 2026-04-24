@@ -16,6 +16,8 @@ export interface ChannelsListPanelProps {
   loader: (workspaceId: string) => Promise<PublishChannelListItem[]>;
   selectedChannelId?: string | null;
   onSelect: (channel: PublishChannelListItem | null) => void;
+  onLoaded?: (channels: PublishChannelListItem[]) => void;
+  reloadKey?: string | number;
   testId?: string;
 }
 
@@ -36,6 +38,10 @@ function typeLabel(locale: StudioLocale, type: string): string {
       return copy.channelsList.typeFeishu;
     case "wechat-mp":
       return copy.channelsList.typeWechatMp;
+    case "wechat-miniapp":
+      return copy.channelsList.typeWechatMiniapp;
+    case "wechat-cs":
+      return copy.channelsList.typeWechatCs;
     case "wechat":
       return copy.channelsList.typeWechat;
     case "custom":
@@ -66,6 +72,8 @@ export function ChannelsListPanel({
   loader,
   selectedChannelId,
   onSelect,
+  onLoaded,
+  reloadKey,
   testId = "studio-publish-channels-panel"
 }: ChannelsListPanelProps) {
   const copy = getStudioCopy(locale);
@@ -77,7 +85,10 @@ export function ChannelsListPanel({
     setLoading(true);
     void loader(workspaceId)
       .then((list) => {
-        if (!disposed) setItems(list);
+        if (!disposed) {
+          setItems(list);
+          onLoaded?.(list);
+        }
       })
       .catch((e: unknown) => {
         if (!disposed) {
@@ -92,7 +103,7 @@ export function ChannelsListPanel({
       disposed = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loader, workspaceId, locale]);
+  }, [loader, workspaceId, locale, reloadKey]);
 
   const columns: ColumnProps<PublishChannelListItem>[] = useMemo(
     () => [

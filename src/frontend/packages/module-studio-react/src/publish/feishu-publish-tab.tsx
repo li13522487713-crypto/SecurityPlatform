@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
-import { Banner, Button, Card, Form, Space, Spin, Toast, Typography } from "@douyinfe/semi-ui";
+import { Typography } from "@douyinfe/semi-ui";
 import type { StudioLocale } from "../types";
 import { getStudioCopy } from "../copy";
+import {
+  ChannelCredentialFormCard,
+  type ChannelCredentialField,
+  type ChannelCredentialSummaryItem
+} from "./channel-credential-form-card";
 
 /**
  * 治理 M-G02-C8（S3）：飞书渠道凭据 Tab。
@@ -47,159 +51,99 @@ export function FeishuPublishTab({
   testId = "studio-publish-feishu-tab"
 }: FeishuPublishTabProps) {
   const copy = getStudioCopy(locale);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [credential, setCredential] = useState<FeishuCredentialDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
   const baseUrl = `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/publish-channels/${encodeURIComponent(channelId)}/feishu-credential`;
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const dto = await fetcher<FeishuCredentialDto | null>({ url: baseUrl, method: "GET" });
-      setCredential(dto ?? null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "load failed");
-    } finally {
-      setLoading(false);
+  const fields: ReadonlyArray<ChannelCredentialField<FeishuCredentialDto>> = [
+    {
+      field: "appId",
+      label: copy.feishuTab.appIdLabel,
+      required: true,
+      initValue: (credential) => credential?.appId ?? ""
+    },
+    {
+      field: "appSecret",
+      label: copy.feishuTab.formAppSecretLabel,
+      type: "password",
+      required: true
+    },
+    {
+      field: "verificationToken",
+      label: copy.feishuTab.verificationTokenLabel,
+      required: true,
+      initValue: (credential) => credential?.verificationToken ?? ""
+    },
+    {
+      field: "encryptKey",
+      label: copy.feishuTab.formEncryptKeyOptionalLabel,
+      type: "password"
     }
-  }
-
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, channelId]);
-
-  async function handleSubmit(values: Record<string, unknown>) {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const dto = await fetcher<FeishuCredentialDto>({
-        url: baseUrl,
-        method: "PUT",
-        body: {
-          appId: String(values.appId ?? "").trim(),
-          appSecret: String(values.appSecret ?? ""),
-          verificationToken: String(values.verificationToken ?? "").trim(),
-          encryptKey: values.encryptKey ? String(values.encryptKey) : null
-        }
-      });
-      setCredential(dto);
-      Toast.success(copy.feishuTab.credentialSaved);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "save failed";
-      setError(msg);
-      Toast.error(msg);
-    } finally {
-      setSubmitting(false);
+  ];
+  const summaries: ReadonlyArray<ChannelCredentialSummaryItem<FeishuCredentialDto>> = [
+    {
+      key: "appId",
+      render: (credential) => (
+        <Typography.Text type="tertiary" size="small">
+          {copy.feishuTab.appIdLabel}: <strong>{credential.appId}</strong>
+          <span style={{ marginLeft: 8 }}>({credential.appIdMasked})</span>
+        </Typography.Text>
+      )
+    },
+    {
+      key: "verificationToken",
+      render: (credential) => (
+        <Typography.Text type="tertiary" size="small">
+          {copy.feishuTab.verificationTokenLabel}: {credential.verificationToken}
+        </Typography.Text>
+      )
+    },
+    {
+      key: "encryptKey",
+      render: (credential) => (
+        <Typography.Text type="tertiary" size="small">
+          {copy.feishuTab.encryptKeyLabel}: {credential.hasEncryptKey ? copy.feishuTab.encryptKeyConfigured : copy.feishuTab.encryptKeyNotSet}
+        </Typography.Text>
+      )
+    },
+    {
+      key: "refreshCount",
+      render: (credential) => (
+        <Typography.Text type="tertiary" size="small">
+          {copy.feishuTab.refreshCountLabel}: {credential.refreshCount}
+        </Typography.Text>
+      )
+    },
+    {
+      key: "expiresAt",
+      render: (credential) =>
+        credential.tenantAccessTokenExpiresAt ? (
+          <Typography.Text type="tertiary" size="small">
+            {copy.feishuTab.tokenExpiresAtLabel}: {credential.tenantAccessTokenExpiresAt}
+          </Typography.Text>
+        ) : null
     }
-  }
-
-  async function handleDelete() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await fetcher({ url: baseUrl, method: "DELETE" });
-      setCredential(null);
-      Toast.success(copy.feishuTab.credentialCleared);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "delete failed";
-      setError(msg);
-      Toast.error(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  ];
 
   return (
-    <Card data-testid={testId} title={copy.feishuTab.title} bordered>
-      <Typography.Paragraph type="tertiary">{copy.feishuTab.hint}</Typography.Paragraph>
-
-      {error ? (
-        <Banner type="danger" description={error} closeIcon={null} fullMode={false} />
-      ) : null}
-
-      {loading ? (
-        <Spin size="middle" tip={copy.feishuTab.loading} />
-      ) : (
-        <>
-          {credential ? (
-            <Space vertical align="start" spacing={6} style={{ marginBottom: 12, width: "100%" }}>
-              <Typography.Text type="tertiary" size="small">
-                {copy.feishuTab.appIdLabel}: <strong>{credential.appId}</strong>
-                <span style={{ marginLeft: 8 }}>({credential.appIdMasked})</span>
-              </Typography.Text>
-              <Typography.Text type="tertiary" size="small">
-                {copy.feishuTab.verificationTokenLabel}: {credential.verificationToken}
-              </Typography.Text>
-              <Typography.Text type="tertiary" size="small">
-                {copy.feishuTab.encryptKeyLabel}: {credential.hasEncryptKey ? copy.feishuTab.encryptKeyConfigured : copy.feishuTab.encryptKeyNotSet}
-              </Typography.Text>
-              <Typography.Text type="tertiary" size="small">
-                {copy.feishuTab.refreshCountLabel}: {credential.refreshCount}
-              </Typography.Text>
-              {credential.tenantAccessTokenExpiresAt ? (
-                <Typography.Text type="tertiary" size="small">
-                  {copy.feishuTab.tokenExpiresAtLabel}: {credential.tenantAccessTokenExpiresAt}
-                </Typography.Text>
-              ) : null}
-            </Space>
-          ) : null}
-
-          {webhookUrl ? (
-            <Banner
-              type="info"
-              fullMode={false}
-              description={
-                <Typography.Text size="small">
-                  {copy.feishuTab.webhookHint}
-                  <code>{webhookUrl}</code>
-                </Typography.Text>
-              }
-              closeIcon={null}
-            />
-          ) : null}
-
-          <Form layout="vertical" onSubmit={handleSubmit}>
-            <Form.Input
-              field="appId"
-              label={copy.feishuTab.appIdLabel}
-              initValue={credential?.appId ?? ""}
-              rules={[{ required: true, message: "required" }]}
-            />
-            <Form.Input
-              field="appSecret"
-              label={copy.feishuTab.formAppSecretLabel}
-              type="password"
-              rules={[{ required: true, message: "required" }]}
-            />
-            <Form.Input
-              field="verificationToken"
-              label={copy.feishuTab.verificationTokenLabel}
-              initValue={credential?.verificationToken ?? ""}
-              rules={[{ required: true, message: "required" }]}
-            />
-            <Form.Input
-              field="encryptKey"
-              label={copy.feishuTab.formEncryptKeyOptionalLabel}
-              type="password"
-            />
-
-            <Space>
-              <Button type="primary" htmlType="submit" loading={submitting}>
-                {copy.feishuTab.saveCredential}
-              </Button>
-              {credential ? (
-                <Button type="danger" loading={submitting} onClick={handleDelete}>
-                  {copy.feishuTab.clear}
-                </Button>
-              ) : null}
-            </Space>
-          </Form>
-        </>
-      )}
-    </Card>
+    <ChannelCredentialFormCard<FeishuCredentialDto>
+      title={copy.feishuTab.title}
+      hint={copy.feishuTab.hint}
+      loadingText={copy.feishuTab.loading}
+      saveSuccessText={copy.feishuTab.credentialSaved}
+      clearSuccessText={copy.feishuTab.credentialCleared}
+      saveButtonText={copy.feishuTab.saveCredential}
+      clearButtonText={copy.feishuTab.clear}
+      baseUrl={baseUrl}
+      fetcher={fetcher}
+      fields={fields}
+      summaries={summaries}
+      buildSubmitBody={(values) => ({
+        appId: String(values.appId ?? "").trim(),
+        appSecret: String(values.appSecret ?? ""),
+        verificationToken: String(values.verificationToken ?? "").trim(),
+        encryptKey: values.encryptKey ? String(values.encryptKey) : null
+      })}
+      webhookUrl={webhookUrl}
+      webhookHint={copy.feishuTab.webhookHint}
+      testId={testId}
+    />
   );
 }

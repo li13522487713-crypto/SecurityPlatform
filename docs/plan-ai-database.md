@@ -27,6 +27,7 @@
 ## 配置
 
 - 微信开放平台（可选）：`Atlas:Channels:Weixin` 节，见 `WeixinOpenChannelOptions`。
+- 工作区渠道凭据：`workspace settings -> publish -> channels` 已支持在前端配置 `feishu` / `wechat-mp` / `wechat-miniapp` / `wechat-cs` 的 AppId/Secret 类字段，后端统一走 `publish-channels/{channelId}/*-credential` 加密落库。
 - 渠道隔离 / 单用户模式依赖请求头 `X-App-Channel` 与当前用户上下文；详见 `AiDatabaseAccessPolicy`。
 
 ## 验证

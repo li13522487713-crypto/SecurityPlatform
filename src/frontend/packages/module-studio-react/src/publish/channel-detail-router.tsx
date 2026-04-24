@@ -10,6 +10,8 @@ import type {
 import { ApiAccessPanel } from "./api-access-panel";
 import { ChatSdkPanel } from "./chat-sdk-panel";
 import { FeishuPublishTab } from "./feishu-publish-tab";
+import { WechatCsPublishTab } from "./wechat-cs-publish-tab";
+import { WechatMiniappPublishTab } from "./wechat-miniapp-publish-tab";
 import { WechatMpPublishTab } from "./wechat-mp-publish-tab";
 import { formatStudioTemplate, getStudioCopy } from "../copy";
 
@@ -76,7 +78,7 @@ function parseRelease(release: PublishChannelActiveRelease | null, type: string)
     };
     return { raw: release, openApi: meta };
   }
-  if (lower === "feishu" || lower === "wechat-mp" || lower === "lark") {
+  if (lower === "feishu" || lower === "wechat-mp" || lower === "wechat-miniapp" || lower === "wechat-cs" || lower === "lark") {
     const webhookUrl = typeof parsed.webhookUrl === "string" ? parsed.webhookUrl : undefined;
     return { raw: release, webhookUrl };
   }
@@ -158,6 +160,22 @@ export function ChannelDetailRouter({
         />
       ) : lower === "wechat-mp" ? (
         <WechatMpPublishTab
+          workspaceId={workspaceId}
+          channelId={channel.id}
+          locale={locale}
+          fetcher={fetcher}
+          webhookUrl={parsed.webhookUrl}
+        />
+      ) : lower === "wechat-miniapp" ? (
+        <WechatMiniappPublishTab
+          workspaceId={workspaceId}
+          channelId={channel.id}
+          locale={locale}
+          fetcher={fetcher}
+          webhookUrl={parsed.webhookUrl}
+        />
+      ) : lower === "wechat-cs" ? (
+        <WechatCsPublishTab
           workspaceId={workspaceId}
           channelId={channel.id}
           locale={locale}

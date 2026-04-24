@@ -23,6 +23,11 @@ GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels?pageIndex=1&p
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 渠道目录
+GET {{baseUrl}}/api/v1/publish-channels/catalog
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 新增渠道
 # @name createChannel
 POST {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels
@@ -49,3 +54,57 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 飞书凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/feishu-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "appId": "cli_xxxx",
+  "appSecret": "xxxxxxxx",
+  "verificationToken": "vtoken-from-feishu",
+  "encryptKey": null
+}
+
+### 微信公众号凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-mp-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "appId": "wx_xxxx",
+  "appSecret": "xxxxxxxx",
+  "token": "wechat-token-from-platform",
+  "encodingAesKey": null
+}
+
+### 微信小程序凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-miniapp-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "appId": "wxmini_xxxx",
+  "appSecret": "xxxxxxxx",
+  "originalId": "gh_xxxx",
+  "messageToken": "mini-token",
+  "encodingAesKey": null
+}
+
+### 微信客服凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-cs-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "corpId": "ww_xxxx",
+  "secret": "xxxxxxxx",
+  "openKfId": "wkf_xxxx",
+  "token": "kf-token",
+  "encodingAesKey": null
+}

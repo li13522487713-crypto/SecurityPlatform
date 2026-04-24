@@ -162,6 +162,7 @@ pnpm run format
 - 物理存储：`AiDatabasePhysicalTableService` 按租户 + 库 ID 维护 `draft` / `online` 两张表；行数据为 `atlas_data_json` + owner/channel 元数据列。
 - 访问策略：`AiDatabaseAccessPolicy` 实现单用户 `OwnerUserId` 过滤与 `ChannelScope`（完全共享 / 渠道隔离 / 站内共享）；写操作前按 `AiDatabaseChannelConfig` 校验渠道对测试/线上域的开关。
 - 渠道注册表：`Atlas.Infrastructure.Channels.ChannelCatalog` 与 `AiDatabaseChannelCatalog` 保持一致；宿主通过 `AddAtlasInfrastructureChannels` 绑定微信等选项类（敏感凭据走配置/密钥存储）。
+- 渠道凭据入口：工作区设置页 `WorkspaceSettingsPublishPage` 的 `channels` Tab 复用 `module-studio-react` 的 `ChannelsListPanel` / `ChannelDetailRouter`；飞书、微信公众号、微信小程序、微信客服凭据统一走 `/api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/*-credential`，由前端页面可配置并加密落库。
 - 前端：`module-studio-react` 数据库详情页文案走 `copy.ts` 的 `databaseDetail`；资源库创建数据库默认 `SingleUser` + `ChannelIsolated`。
 - 计划与矩阵：见 `docs/plan-ai-database.md`；契约细节以 `docs/contracts.md`「AI 数据库补充契约」为准。
 

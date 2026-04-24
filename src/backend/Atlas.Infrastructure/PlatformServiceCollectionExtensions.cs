@@ -182,6 +182,12 @@ public static class PlatformServiceCollectionExtensions
             Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpApiClient>();
         services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatMpChannelCredentialService,
             Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpChannelCredentialService>();
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WechatMiniappChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatMiniappChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMiniappChannelCredentialService>();
+        services.AddScoped<Atlas.Infrastructure.Repositories.AiPlatform.WechatCsChannelCredentialRepository>();
+        services.AddScoped<Atlas.Application.AiPlatform.Abstractions.Channels.IWechatCsChannelCredentialService,
+            Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatCsChannelCredentialService>();
         services.AddHttpClient(Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat.WechatMpApiClient.HttpClientName, client =>
         {
             client.Timeout = TimeSpan.FromSeconds(15);

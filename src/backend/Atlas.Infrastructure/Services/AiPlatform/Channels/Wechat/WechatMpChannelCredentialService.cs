@@ -7,27 +7,23 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities.Channels;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Repositories.AiPlatform;
+using Atlas.Infrastructure.Services.AiPlatform.Channels;
 using Atlas.Infrastructure.Services.LowCode;
 
 namespace Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat;
 
-public sealed class WechatMpChannelCredentialService : IWechatMpChannelCredentialService
+public sealed class WechatMpChannelCredentialService : WorkspaceChannelCredentialServiceBase, IWechatMpChannelCredentialService
 {
     private readonly WechatMpChannelCredentialRepository _credentialRepository;
-    private readonly WorkspacePublishChannelRepository _channelRepository;
-    private readonly LowCodeCredentialProtector _protector;
-    private readonly IIdGeneratorAccessor _idGenerator;
 
     public WechatMpChannelCredentialService(
         WechatMpChannelCredentialRepository credentialRepository,
         WorkspacePublishChannelRepository channelRepository,
         LowCodeCredentialProtector protector,
         IIdGeneratorAccessor idGenerator)
+        : base(channelRepository, protector, idGenerator)
     {
         _credentialRepository = credentialRepository;
-        _channelRepository = channelRepository;
-        _protector = protector;
-        _idGenerator = idGenerator;
     }
 
     public async Task<WechatMpChannelCredentialDto?> GetAsync(TenantId tenantId, string workspaceId, string channelId, CancellationToken cancellationToken)
@@ -44,8 +40,8 @@ public sealed class WechatMpChannelCredentialService : IWechatMpChannelCredentia
         if (string.IsNullOrWhiteSpace(request.Token)) throw new BusinessException(ErrorCodes.ValidationError, "WechatMpTokenRequired");
 
         var channel = await LoadChannelOrThrowAsync(tenantId, workspaceId, channelId, cancellationToken);
-        var encAppSecret = _protector.Encrypt(request.AppSecret);
-        var encAesKey = string.IsNullOrEmpty(request.EncodingAesKey) ? string.Empty : _protector.Encrypt(request.EncodingAesKey!);
+        var encAppSecret = Protector.Encrypt(request.AppSecret);
+        var encAesKey = EncryptOrEmpty(Protector, request.EncodingAesKey);
 
         var existing = await _credentialRepository.FindByChannelAsync(tenantId, channel.Id, cancellationToken);
         if (existing is null)
@@ -59,7 +55,7 @@ public sealed class WechatMpChannelCredentialService : IWechatMpChannelCredentia
                 request.Token.Trim(),
                 encAesKey,
                 "[]",
-                _idGenerator.NextId());
+                IdGenerator.NextId());
             await _credentialRepository.AddAsync(entity, cancellationToken);
             return ToDto(entity);
         }
@@ -80,20 +76,6 @@ public sealed class WechatMpChannelCredentialService : IWechatMpChannelCredentia
         var existing = await _credentialRepository.FindByChannelAsync(tenantId, channel.Id, cancellationToken);
         if (existing is null) return;
         await _credentialRepository.DeleteAsync(existing, cancellationToken);
-    }
-
-    private async Task<Domain.AiPlatform.Entities.WorkspacePublishChannel> LoadChannelOrThrowAsync(TenantId tenantId, string workspaceId, string channelId, CancellationToken cancellationToken)
-    {
-        if (!long.TryParse(channelId, out var id))
-        {
-            throw new BusinessException(ErrorCodes.NotFound, "ChannelNotFound");
-        }
-        var entity = await _channelRepository.FindAsync(tenantId, workspaceId, id, cancellationToken);
-        if (entity is null)
-        {
-            throw new BusinessException(ErrorCodes.NotFound, "ChannelNotFound");
-        }
-        return entity;
     }
 
     internal static WechatMpChannelCredentialDto ToDto(WechatMpChannelCredential entity)

@@ -228,6 +228,8 @@ public sealed class WorkspacePublishChannelService : IWorkspacePublishChannelSer
         "wechat",
         // 治理 M-G02-C9 (S4)：明确区分微信公众号与早期 "wechat" 占位
         "wechat-mp",
+        "wechat-miniapp",
+        "wechat-cs",
         "feishu",
         "lark",
         "custom"

@@ -126,7 +126,10 @@ public sealed record DbConnectionConfig(
     string DbType,
     string Mode,
     string? ConnectionString,
-    IDictionary<string, string>? VisualConfig);
+    IDictionary<string, string>? VisualConfig,
+    string? DisplayName = null,
+    long? DataSourceId = null,
+    long? AiDatabaseId = null);
 
 public sealed record MigrationTestConnectionRequest(DbConnectionConfig Connection);
 
@@ -145,7 +148,17 @@ public sealed record DataMigrationJobCreateRequest(
     DbConnectionConfig Target,
     string Mode,
     DataMigrationModuleScopeDto ModuleScope,
-    bool AllowReExecute);
+    bool AllowReExecute,
+    IReadOnlyList<string>? SelectedEntities = null,
+    IReadOnlyList<string>? SelectedTables = null,
+    IReadOnlyList<string>? ExcludedEntities = null,
+    IReadOnlyList<string>? ExcludedTables = null,
+    int BatchSize = 10000,
+    string WriteMode = "InsertOnly",
+    bool CreateSchema = true,
+    bool MigrateSystemTables = false,
+    bool MigrateFiles = false,
+    bool ValidateAfterCopy = false);
 
 public sealed record DataMigrationJobDto(
     string Id,
@@ -163,12 +176,24 @@ public sealed record DataMigrationJobDto(
     long CopiedRows,
     decimal ProgressPercent,
     string? CurrentEntityName,
+    string? CurrentTableName,
     int? CurrentBatchNo,
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
     string? ErrorSummary,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
+
+public sealed record DataMigrationPrecheckResultDto(
+    DataMigrationJobDto Job,
+    int TableCount,
+    long TotalRows,
+    int EstimatedBatches,
+    IReadOnlyList<string> UnsupportedTables,
+    IReadOnlyList<string> TargetNonEmptyTables,
+    IReadOnlyList<string> MissingTargetTables,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<DataMigrationTableProgressDto> Tables);
 
 public sealed record DataMigrationProgressDto(
     string JobId,
@@ -180,9 +205,32 @@ public sealed record DataMigrationProgressDto(
     long CopiedRows,
     decimal ProgressPercent,
     string? CurrentEntityName,
+    string? CurrentTableName,
     int? CurrentBatchNo,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? FinishedAt,
+    long ElapsedSeconds,
     DateTimeOffset UpdatedAt,
+    IReadOnlyList<DataMigrationTableProgressDto> Tables,
+    IReadOnlyList<DataMigrationLogItemDto> RecentLogs,
     IReadOnlyList<DataMigrationBatchDto> RecentBatches);
+
+public sealed record DataMigrationTableProgressDto(
+    string EntityName,
+    string TableName,
+    string State,
+    long SourceRows,
+    long TargetRowsBefore,
+    long TargetRowsAfter,
+    long CopiedRows,
+    long FailedRows,
+    int BatchSize,
+    int CurrentBatchNo,
+    int TotalBatchCount,
+    decimal ProgressPercent,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? FinishedAt,
+    string? ErrorMessage);
 
 public sealed record DataMigrationBatchDto(
     int BatchNo,
@@ -205,12 +253,16 @@ public sealed record DataMigrationReportDto(
 
 public sealed record DataMigrationRowDiffDto(
     string EntityName,
+    string TableName,
     long SourceRowCount,
     long TargetRowCount,
-    long Diff);
+    long Diff,
+    string State = "passed",
+    string? ErrorMessage = null);
 
 public sealed record DataMigrationSamplingDiffDto(
     string EntityName,
+    string TableName,
     int SampledRows,
     int Mismatched,
     IReadOnlyList<string> MismatchedExamples);
@@ -230,7 +282,10 @@ public sealed record DataMigrationLogPagedResponse(
     int PageIndex,
     int PageSize);
 
-public sealed record DataMigrationCutoverRequest(int KeepSourceReadonlyForDays = 7);
+public sealed record DataMigrationCutoverRequest(
+    int KeepSourceReadonlyForDays = 7,
+    bool ConfirmBackup = false,
+    bool ConfirmRestartRequired = false);
 
 public sealed record DataMigrationActionResultDto(
     bool Success,

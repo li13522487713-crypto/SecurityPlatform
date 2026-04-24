@@ -885,6 +885,7 @@ public sealed class SetupConsoleService : ISetupConsoleService
             job.CopiedRows,
             job.ProgressPercent,
             job.CurrentEntityName,
+            job.CurrentTableName,
             job.CurrentBatchNo,
             job.StartedAt,
             job.FinishedAt,
@@ -901,6 +902,6 @@ public sealed class SetupConsoleService : ISetupConsoleService
                 connectionString,
                 @"(?i)(password|pwd)\s*=\s*[^;]+",
                 "$1=***");
-        return new DbConnectionConfig(dbType, dbType, "raw", safe, null);
+        return new DbConnectionConfig(dbType, dbType, "raw", safe, null, dbType);
     }
 }

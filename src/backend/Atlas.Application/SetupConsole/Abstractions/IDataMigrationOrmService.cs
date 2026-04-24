@@ -22,7 +22,7 @@ public interface IDataMigrationOrmService
         DataMigrationJobCreateRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<DataMigrationJobDto> PrecheckJobAsync(
+    Task<DataMigrationPrecheckResultDto> PrecheckJobAsync(
         string jobId,
         CancellationToken cancellationToken = default);
 
@@ -31,6 +31,10 @@ public interface IDataMigrationOrmService
         CancellationToken cancellationToken = default);
 
     Task<DataMigrationProgressDto> GetProgressAsync(
+        string jobId,
+        CancellationToken cancellationToken = default);
+
+    Task<DataMigrationJobDto> CancelJobAsync(
         string jobId,
         CancellationToken cancellationToken = default);
 

@@ -1397,6 +1397,7 @@ DTO：
 ### 工作空间发布渠道（PRD 04-4.6）
 
 - `GET /api/v1/workspaces/{workspaceId}/publish-channels?keyword&pageIndex&pageSize` → `ApiResponse<PagedResult<WorkspacePublishChannelDto>>`
+- `GET /api/v1/publish-channels/catalog` → `ApiResponse<PublishChannelCatalogItemDto[]>`
 - `POST /api/v1/workspaces/{workspaceId}/publish-channels` body `WorkspacePublishChannelCreateRequest` → `ApiResponse<{ id, channelId }>`
 - `PATCH /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}` body `WorkspacePublishChannelUpdateRequest` → `ApiResponse<{ success }>`
 - `POST /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/reauth` → `ApiResponse<{ success }>`（标记授权成功并刷新 lastSyncAt）
@@ -1405,14 +1406,17 @@ DTO：
 DTO：
 
 - `WorkspacePublishChannelDto { id, workspaceId, name, type, status, authStatus, description?, supportedTargets[], lastSyncAt?, createdAt }`
+- `PublishChannelCatalogItemDto { channelKey, displayName, publishChannelType?, credentialKind?, allowDraft, allowOnline }`
 - `WorkspacePublishChannelCreateRequest { name (1..64), type, description? (max 512), supportedTargets[]? }`
 - `WorkspacePublishChannelUpdateRequest { name?, description?, status?, supportedTargets[]? }`
 
 枚举校验（Service 内强约束）：
 
-- `type` ∈ `web-sdk | open-api | wechat | feishu | lark | custom`
+- `type` ∈ `web-sdk | open-api | wechat | wechat-mp | wechat-miniapp | wechat-cs | feishu | lark | custom`
 - `status` ∈ `active | inactive | pending`
 - `supportedTargets` ⊂ `agent | app | workflow`（其它值会被静默剔除）
+
+> 2026-04-25：`ChannelCatalog.All` 已作为前端新增渠道弹窗的单一事实来源，`publishChannelType` 与 `WorkspacePublishChannelCreateRequest.type` 对齐；`wechat-mp` / `wechat-miniapp` / `wechat-cs` 不再复用笼统 `wechat` 占位。
 
 ### 治理 M-G02-C2：渠道发布版本与回滚
 
@@ -1547,6 +1551,32 @@ DTO：
 - 发布前必须先 upsert 凭据；缺失返回 `failed` + `WechatMpCredentialMissing`。
 - 拉取 access_token 验证一次（失败记 `failed` + 微信 errcode/errmsg）。
 - 成功后 `publicMetadataJson` 包含 `webhookUrl / appId / appIdMasked / agentId / instructions`。
+
+### 渠道凭据扩展：微信小程序 / 微信客服
+
+> 当前阶段先补齐“工作区设置 -> 发布 -> 渠道”的前端可配置凭据入口与加密落库；后续若接通真实 runtime connector，可继续复用同一批 DTO / Repository / Service / Controller。
+
+**微信小程序凭据 API：**
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-miniapp-credential` → `ApiResponse<WechatMiniappChannelCredentialDto?>`
+- `PUT /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-miniapp-credential` body `WechatMiniappChannelCredentialUpsertRequest` → `ApiResponse<WechatMiniappChannelCredentialDto>`
+- `DELETE /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-miniapp-credential` → `ApiResponse<{ success }>`
+
+DTO：
+
+- `WechatMiniappChannelCredentialDto { id, channelId, workspaceId, appId, appIdMasked, originalId, messageToken, hasEncodingAesKey, accessTokenExpiresAt?, refreshCount, createdAt, updatedAt }`
+- `WechatMiniappChannelCredentialUpsertRequest { appId (1..64), appSecret (1..128), originalId? (max 64), messageToken? (max 64), encodingAesKey? (max 128) }`
+
+**微信客服凭据 API：**
+
+- `GET /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-cs-credential` → `ApiResponse<WechatCsChannelCredentialDto?>`
+- `PUT /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-cs-credential` body `WechatCsChannelCredentialUpsertRequest` → `ApiResponse<WechatCsChannelCredentialDto>`
+- `DELETE /api/v1/workspaces/{workspaceId}/publish-channels/{channelId}/wechat-cs-credential` → `ApiResponse<{ success }>`
+
+DTO：
+
+- `WechatCsChannelCredentialDto { id, channelId, workspaceId, corpId, corpIdMasked, openKfId, token, hasEncodingAesKey, accessTokenExpiresAt?, refreshCount, createdAt, updatedAt }`
+- `WechatCsChannelCredentialUpsertRequest { corpId (1..64), secret (1..128), openKfId (1..64), token? (max 64), encodingAesKey? (max 128) }`
 
 ### 安全与权限（M2）
 

@@ -11,7 +11,8 @@ import { requestApi } from "./api-core";
  *
  * 端点：
  *  - GET /workspaces/{ws}/publish-channels?pageIndex=1&pageSize=200
- *  - GET /workspaces/{ws}/publish-channels/{channelId}/releases?status=active
+ *  - GET /publish-channels/catalog
+ *  - GET /workspaces/{ws}/publish-channels/{channelId}/releases?pageIndex=1&pageSize=20
  */
 
 interface BackendPublishChannel {
@@ -25,6 +26,15 @@ interface BackendPublishChannel {
   supportedTargets?: string[];
   lastSyncAt?: string;
   createdAt: string;
+}
+
+interface BackendPublishChannelCatalogItem {
+  channelKey: string;
+  displayName: string;
+  publishChannelType?: string | null;
+  credentialKind?: string | null;
+  allowDraft: boolean;
+  allowOnline: boolean;
 }
 
 interface BackendChannelRelease {
@@ -63,6 +73,21 @@ export interface WorkspacePublishChannelListItem {
   supportedTargets: string[];
   lastSyncAt?: string;
   createdAt: string;
+}
+
+export interface PublishChannelCatalogItem {
+  channelKey: string;
+  displayName: string;
+  publishChannelType?: string;
+  credentialKind?: string;
+  allowDraft: boolean;
+  allowOnline: boolean;
+}
+
+export interface CreateWorkspacePublishChannelInput {
+  name: string;
+  type: string;
+  supportedTargets: Array<"agent" | "app" | "workflow">;
 }
 
 export async function listWorkspacePublishChannelsPage(
@@ -112,6 +137,25 @@ export async function reauthorizeWorkspacePublishChannel(workspaceId: string, ch
   );
 }
 
+export async function createWorkspacePublishChannel(
+  workspaceId: string,
+  input: CreateWorkspacePublishChannelInput
+): Promise<{ channelId: string }> {
+  const response = await requestApi<ApiResponse<{ id?: string; channelId?: string }>>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+      headers: { "Content-Type": "application/json" }
+    }
+  );
+  const channelId = response.data?.channelId ?? response.data?.id ?? "";
+  if (!channelId) {
+    throw new Error(response.message || "Failed to create channel");
+  }
+  return { channelId };
+}
+
 export async function deleteWorkspacePublishChannel(workspaceId: string, channelId: string): Promise<void> {
   await requestApi<ApiResponse<{ success: boolean }>>(
     `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels/${encodeURIComponent(channelId)}`,
@@ -121,16 +165,28 @@ export async function deleteWorkspacePublishChannel(workspaceId: string, channel
   );
 }
 
+export async function listPublishChannelCatalog(): Promise<PublishChannelCatalogItem[]> {
+  const response = await requestApi<ApiResponse<BackendPublishChannelCatalogItem[]>>("/publish-channels/catalog");
+  return (response.data ?? []).map((item) => ({
+    channelKey: item.channelKey,
+    displayName: item.displayName,
+    publishChannelType: item.publishChannelType ?? undefined,
+    credentialKind: item.credentialKind ?? undefined,
+    allowDraft: item.allowDraft,
+    allowOnline: item.allowOnline
+  }));
+}
+
 export async function getWorkspaceChannelActiveRelease(
   workspaceId: string,
   channelId: string
 ): Promise<PublishChannelActiveRelease | null> {
   try {
-    // 服务端返回 PagedResult；按 status=active 过滤后，取第一条
+    // 服务端当前返回分页列表，这里优先取 status=active 的一条，没有再回退到第一页第一条。
     const response = await requestApi<ApiResponse<PagedResult<BackendChannelRelease>>>(
-      `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels/${encodeURIComponent(channelId)}/releases?status=active&pageIndex=1&pageSize=1`
+      `/workspaces/${encodeURIComponent(workspaceId)}/publish-channels/${encodeURIComponent(channelId)}/releases?pageIndex=1&pageSize=20`
     );
-    const item = response.data?.items?.[0];
+    const item = response.data?.items?.find((entry) => entry.status.toLowerCase() === "active") ?? response.data?.items?.[0];
     if (!item) return null;
     return {
       id: item.id,

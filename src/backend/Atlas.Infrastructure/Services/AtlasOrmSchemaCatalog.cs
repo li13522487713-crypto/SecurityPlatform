@@ -273,6 +273,9 @@ public static class AtlasOrmSchemaCatalog
         typeof(FeishuChannelCredential),
         // 治理 M-G02-C9 (S4): 微信公众号渠道凭据
         typeof(WechatMpChannelCredential),
+        // 渠道凭据扩展：微信小程序 / 微信客服
+        typeof(WechatMiniappChannelCredential),
+        typeof(WechatCsChannelCredential),
         // 治理 M-G05-C1 (S9): 组织实体
         typeof(Organization),
         // 治理 M-G05-C4 (S10): 组织成员
@@ -302,6 +305,7 @@ public static class AtlasOrmSchemaCatalog
         typeof(DataMigrationJob),
         typeof(DataMigrationBatch),
         typeof(DataMigrationCheckpoint),
+        typeof(DataMigrationTableProgress),
         typeof(DataMigrationLog),
         typeof(DataMigrationReport),
         // M8 新增：ConsoleToken 持久化（A3） + 种子 bundle 应用日志（B1）

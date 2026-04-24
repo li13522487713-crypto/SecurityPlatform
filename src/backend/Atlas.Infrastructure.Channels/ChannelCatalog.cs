@@ -20,8 +20,8 @@ public static class ChannelCatalog
         new("coze-store", "扣子商店", null, null),
         new("template", "模板", null, null),
         new("feishu", "飞书", "feishu", "feishu"),
-        new("wechat-miniapp", "微信小程序", "wechat", "wechat-miniapp"),
-        new("wechat-cs", "微信客服", "wechat", "wechat-cs"),
-        new("wechat-mp", "微信公众号", "wechat", "wechat-mp")
+        new("wechat-miniapp", "微信小程序", "wechat-miniapp", "wechat-miniapp"),
+        new("wechat-cs", "微信客服", "wechat-cs", "wechat-cs"),
+        new("wechat-mp", "微信公众号", "wechat-mp", "wechat-mp")
     ];
 }

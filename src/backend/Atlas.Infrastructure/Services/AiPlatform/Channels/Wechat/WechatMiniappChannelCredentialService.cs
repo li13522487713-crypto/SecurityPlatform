@@ -10,14 +10,14 @@ using Atlas.Infrastructure.Repositories.AiPlatform;
 using Atlas.Infrastructure.Services.AiPlatform.Channels;
 using Atlas.Infrastructure.Services.LowCode;
 
-namespace Atlas.Infrastructure.Services.AiPlatform.Channels.Feishu;
+namespace Atlas.Infrastructure.Services.AiPlatform.Channels.Wechat;
 
-public sealed class FeishuChannelCredentialService : WorkspaceChannelCredentialServiceBase, IFeishuChannelCredentialService
+public sealed class WechatMiniappChannelCredentialService : WorkspaceChannelCredentialServiceBase, IWechatMiniappChannelCredentialService
 {
-    private readonly FeishuChannelCredentialRepository _credentialRepository;
+    private readonly WechatMiniappChannelCredentialRepository _credentialRepository;
 
-    public FeishuChannelCredentialService(
-        FeishuChannelCredentialRepository credentialRepository,
+    public WechatMiniappChannelCredentialService(
+        WechatMiniappChannelCredentialRepository credentialRepository,
         WorkspacePublishChannelRepository channelRepository,
         LowCodeCredentialProtector protector,
         IIdGeneratorAccessor idGenerator)
@@ -26,7 +26,7 @@ public sealed class FeishuChannelCredentialService : WorkspaceChannelCredentialS
         _credentialRepository = credentialRepository;
     }
 
-    public async Task<FeishuChannelCredentialDto?> GetAsync(
+    public async Task<WechatMiniappChannelCredentialDto?> GetAsync(
         TenantId tenantId,
         string workspaceId,
         string channelId,
@@ -37,33 +37,34 @@ public sealed class FeishuChannelCredentialService : WorkspaceChannelCredentialS
         return entity is null ? null : ToDto(entity);
     }
 
-    public async Task<FeishuChannelCredentialDto> UpsertAsync(
+    public async Task<WechatMiniappChannelCredentialDto> UpsertAsync(
         TenantId tenantId,
         string workspaceId,
         string channelId,
-        FeishuChannelCredentialUpsertRequest request,
+        WechatMiniappChannelCredentialUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.AppId)) throw new BusinessException(ErrorCodes.ValidationError, "FeishuAppIdRequired");
-        if (string.IsNullOrWhiteSpace(request.AppSecret)) throw new BusinessException(ErrorCodes.ValidationError, "FeishuAppSecretRequired");
-        if (string.IsNullOrWhiteSpace(request.VerificationToken)) throw new BusinessException(ErrorCodes.ValidationError, "FeishuVerificationTokenRequired");
+        if (string.IsNullOrWhiteSpace(request.AppId)) throw new BusinessException(ErrorCodes.ValidationError, "WechatMiniappAppIdRequired");
+        if (string.IsNullOrWhiteSpace(request.AppSecret)) throw new BusinessException(ErrorCodes.ValidationError, "WechatMiniappAppSecretRequired");
 
         var channel = await LoadChannelOrThrowAsync(tenantId, workspaceId, channelId, cancellationToken);
-
         var encAppSecret = Protector.Encrypt(request.AppSecret);
-        var encEncryptKey = EncryptOrEmpty(Protector, request.EncryptKey);
+        var encAesKey = EncryptOrEmpty(Protector, request.EncodingAesKey);
+        var originalId = request.OriginalId?.Trim() ?? string.Empty;
+        var messageToken = request.MessageToken?.Trim() ?? string.Empty;
 
         var existing = await _credentialRepository.FindByChannelAsync(tenantId, channel.Id, cancellationToken);
         if (existing is null)
         {
-            var entity = new FeishuChannelCredential(
+            var entity = new WechatMiniappChannelCredential(
                 tenantId,
                 channel.Id,
                 channel.WorkspaceId,
                 request.AppId.Trim(),
                 encAppSecret,
-                request.VerificationToken.Trim(),
-                encEncryptKey,
+                originalId,
+                messageToken,
+                encAesKey,
                 "[]",
                 IdGenerator.NextId());
             await _credentialRepository.AddAsync(entity, cancellationToken);
@@ -73,8 +74,9 @@ public sealed class FeishuChannelCredentialService : WorkspaceChannelCredentialS
         existing.Update(
             appId: request.AppId.Trim(),
             appSecretEnc: encAppSecret,
-            verificationToken: request.VerificationToken.Trim(),
-            encryptKeyEnc: encEncryptKey,
+            originalId: originalId,
+            messageToken: messageToken,
+            encodingAesKeyEnc: encAesKey,
             agentBindingsJson: existing.AgentBindingsJson);
         await _credentialRepository.UpdateAsync(existing, cancellationToken);
         return ToDto(existing);
@@ -88,22 +90,27 @@ public sealed class FeishuChannelCredentialService : WorkspaceChannelCredentialS
     {
         var channel = await LoadChannelOrThrowAsync(tenantId, workspaceId, channelId, cancellationToken);
         var existing = await _credentialRepository.FindByChannelAsync(tenantId, channel.Id, cancellationToken);
-        if (existing is null) return;
+        if (existing is null)
+        {
+            return;
+        }
+
         await _credentialRepository.DeleteAsync(existing, cancellationToken);
     }
 
-    internal static FeishuChannelCredentialDto ToDto(FeishuChannelCredential entity)
+    internal static WechatMiniappChannelCredentialDto ToDto(WechatMiniappChannelCredential entity)
     {
-        return new FeishuChannelCredentialDto(
+        return new WechatMiniappChannelCredentialDto(
             Id: entity.Id.ToString(),
             ChannelId: entity.ChannelId.ToString(),
             WorkspaceId: entity.WorkspaceId,
             AppId: entity.AppId,
             AppIdMasked: LowCodeCredentialProtector.Mask(entity.AppId),
-            VerificationToken: entity.VerificationToken,
-            HasEncryptKey: !string.IsNullOrEmpty(entity.EncryptKeyEnc),
-            TenantAccessTokenExpiresAt: entity.TenantAccessTokenExpiresAt > DateTime.UnixEpoch
-                ? new DateTimeOffset(DateTime.SpecifyKind(entity.TenantAccessTokenExpiresAt, DateTimeKind.Utc))
+            OriginalId: entity.OriginalId,
+            MessageToken: entity.MessageToken,
+            HasEncodingAesKey: !string.IsNullOrEmpty(entity.EncodingAesKeyEnc),
+            AccessTokenExpiresAt: entity.AccessTokenExpiresAt > DateTime.UnixEpoch
+                ? new DateTimeOffset(DateTime.SpecifyKind(entity.AccessTokenExpiresAt, DateTimeKind.Utc))
                 : null,
             RefreshCount: entity.RefreshCount,
             CreatedAt: new DateTimeOffset(DateTime.SpecifyKind(entity.CreatedAt, DateTimeKind.Utc)),

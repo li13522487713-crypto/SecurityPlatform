@@ -213,6 +213,8 @@ export interface StudioCopy {
     readonly loadFailed: string;
     readonly typeFeishu: string;
     readonly typeWechatMp: string;
+    readonly typeWechatMiniapp: string;
+    readonly typeWechatCs: string;
     readonly typeWechat: string;
     readonly typeCustom: string;
   };
@@ -253,6 +255,69 @@ export interface StudioCopy {
     readonly formEncodingAesKeyOptionalLabel: string;
     readonly saveCredential: string;
     readonly clear: string;
+  };
+  readonly wechatMiniappTab: {
+    readonly title: string;
+    readonly hint: string;
+    readonly credentialSaved: string;
+    readonly credentialCleared: string;
+    readonly loading: string;
+    readonly appIdLabel: string;
+    readonly originalIdLabel: string;
+    readonly messageTokenLabel: string;
+    readonly encodingAesKeyLabel: string;
+    readonly encodingAesKeyConfigured: string;
+    readonly encodingAesKeyNotSet: string;
+    readonly accessTokenRefreshCountLabel: string;
+    readonly accessTokenExpiresAtLabel: string;
+    readonly webhookHint: string;
+    readonly formAppSecretLabel: string;
+    readonly formEncodingAesKeyOptionalLabel: string;
+    readonly saveCredential: string;
+    readonly clear: string;
+  };
+  readonly wechatCsTab: {
+    readonly title: string;
+    readonly hint: string;
+    readonly credentialSaved: string;
+    readonly credentialCleared: string;
+    readonly loading: string;
+    readonly corpIdLabel: string;
+    readonly openKfIdLabel: string;
+    readonly serverTokenLabel: string;
+    readonly encodingAesKeyLabel: string;
+    readonly encodingAesKeyConfigured: string;
+    readonly encodingAesKeyNotSet: string;
+    readonly accessTokenRefreshCountLabel: string;
+    readonly accessTokenExpiresAtLabel: string;
+    readonly webhookHint: string;
+    readonly formSecretLabel: string;
+    readonly formEncodingAesKeyOptionalLabel: string;
+    readonly saveCredential: string;
+    readonly clear: string;
+  };
+  readonly addChannelModal: {
+    readonly title: string;
+    readonly stepChooseType: string;
+    readonly stepBasicInfo: string;
+    readonly loadFailed: string;
+    readonly emptyTitle: string;
+    readonly emptyHint: string;
+    readonly chooseTypeHint: string;
+    readonly selectedTypeLabel: string;
+    readonly credentialKindLabel: string;
+    readonly publishTypeLabel: string;
+    readonly channelNameLabel: string;
+    readonly channelNamePlaceholder: string;
+    readonly channelDescription: string;
+    readonly next: string;
+    readonly back: string;
+    readonly create: string;
+    readonly creating: string;
+    readonly created: string;
+    readonly targetAgent: string;
+    readonly targetApp: string;
+    readonly targetWorkflow: string;
   };
   readonly resourceReference: {
     readonly defaultHeading: string;
@@ -540,6 +605,8 @@ const zhCN: StudioCopy = {
     loadFailed: "加载渠道失败。",
     typeFeishu: "飞书",
     typeWechatMp: "微信公众号",
+    typeWechatMiniapp: "微信小程序",
+    typeWechatCs: "微信客服",
     typeWechat: "企业微信",
     typeCustom: "自定义"
   },
@@ -580,6 +647,69 @@ const zhCN: StudioCopy = {
     formEncodingAesKeyOptionalLabel: "EncodingAesKey（可选）",
     saveCredential: "保存凭据",
     clear: "清除"
+  },
+  wechatMiniappTab: {
+    title: "微信小程序渠道",
+    hint: "在微信小程序管理后台填写 AppId、AppSecret，以及可选的原始 ID、消息 Token 与 EncodingAesKey。",
+    credentialSaved: "微信小程序凭据已保存。",
+    credentialCleared: "微信小程序凭据已清除。",
+    loading: "加载中…",
+    appIdLabel: "App Id",
+    originalIdLabel: "原始 ID",
+    messageTokenLabel: "消息 Token",
+    encodingAesKeyLabel: "EncodingAesKey",
+    encodingAesKeyConfigured: "已配置",
+    encodingAesKeyNotSet: "未设置",
+    accessTokenRefreshCountLabel: "AccessToken 刷新次数",
+    accessTokenExpiresAtLabel: "AccessToken 过期时间",
+    webhookHint: "如需配置回调地址，请在小程序后台填写：",
+    formAppSecretLabel: "App Secret（落库前自动加密）",
+    formEncodingAesKeyOptionalLabel: "EncodingAesKey（可选）",
+    saveCredential: "保存凭据",
+    clear: "清除"
+  },
+  wechatCsTab: {
+    title: "微信客服渠道",
+    hint: "填写微信客服所需的企业 CorpId、Secret、OpenKfId，以及可选的服务器 Token / EncodingAesKey。",
+    credentialSaved: "微信客服凭据已保存。",
+    credentialCleared: "微信客服凭据已清除。",
+    loading: "加载中…",
+    corpIdLabel: "Corp Id",
+    openKfIdLabel: "OpenKf Id",
+    serverTokenLabel: "服务器 Token",
+    encodingAesKeyLabel: "EncodingAesKey",
+    encodingAesKeyConfigured: "已配置",
+    encodingAesKeyNotSet: "未设置",
+    accessTokenRefreshCountLabel: "AccessToken 刷新次数",
+    accessTokenExpiresAtLabel: "AccessToken 过期时间",
+    webhookHint: "如需配置事件回调地址，请填写：",
+    formSecretLabel: "Secret（落库前自动加密）",
+    formEncodingAesKeyOptionalLabel: "EncodingAesKey（可选）",
+    saveCredential: "保存凭据",
+    clear: "清除"
+  },
+  addChannelModal: {
+    title: "新增渠道",
+    stepChooseType: "选择渠道类型",
+    stepBasicInfo: "填写基础信息",
+    loadFailed: "加载渠道目录失败。",
+    emptyTitle: "暂无可用渠道",
+    emptyHint: "当前目录中没有可创建的发布渠道。",
+    chooseTypeHint: "先选择渠道类型，再填写渠道名称并创建空壳渠道。",
+    selectedTypeLabel: "已选类型",
+    credentialKindLabel: "凭据类型",
+    publishTypeLabel: "发布类型",
+    channelNameLabel: "渠道名称",
+    channelNamePlaceholder: "请输入渠道名称",
+    channelDescription: "默认会创建支持智能体、应用、工作流的渠道条目，凭据可在详情面板继续配置。",
+    next: "下一步",
+    back: "上一步",
+    create: "创建渠道",
+    creating: "创建中…",
+    created: "渠道已创建。",
+    targetAgent: "智能体",
+    targetApp: "应用",
+    targetWorkflow: "工作流"
   },
   resourceReference: {
     defaultHeading: "引用本资源的实体",
@@ -866,6 +996,8 @@ const enUS: StudioCopy = {
     loadFailed: "Failed to load channels.",
     typeFeishu: "Feishu (Lark)",
     typeWechatMp: "WeChat MP",
+    typeWechatMiniapp: "WeChat Miniapp",
+    typeWechatCs: "WeChat Customer Service",
     typeWechat: "WeChat",
     typeCustom: "Custom"
   },
@@ -906,6 +1038,69 @@ const enUS: StudioCopy = {
     formEncodingAesKeyOptionalLabel: "EncodingAesKey (optional)",
     saveCredential: "Save credential",
     clear: "Clear"
+  },
+  wechatMiniappTab: {
+    title: "WeChat Miniapp",
+    hint: "Provide AppId, AppSecret, and optional original id / message token / EncodingAesKey from the miniapp console.",
+    credentialSaved: "WeChat Miniapp credential saved.",
+    credentialCleared: "WeChat Miniapp credential cleared.",
+    loading: "Loading…",
+    appIdLabel: "App Id",
+    originalIdLabel: "Original Id",
+    messageTokenLabel: "Message Token",
+    encodingAesKeyLabel: "EncodingAesKey",
+    encodingAesKeyConfigured: "configured",
+    encodingAesKeyNotSet: "not set",
+    accessTokenRefreshCountLabel: "Access token refresh count",
+    accessTokenExpiresAtLabel: "Access token expires at",
+    webhookHint: "Configure the miniapp callback URL: ",
+    formAppSecretLabel: "App Secret",
+    formEncodingAesKeyOptionalLabel: "EncodingAesKey (optional)",
+    saveCredential: "Save credential",
+    clear: "Clear"
+  },
+  wechatCsTab: {
+    title: "WeChat Customer Service",
+    hint: "Provide CorpId, secret, OpenKfId, and optional server token / EncodingAesKey for the customer service channel.",
+    credentialSaved: "WeChat customer service credential saved.",
+    credentialCleared: "WeChat customer service credential cleared.",
+    loading: "Loading…",
+    corpIdLabel: "Corp Id",
+    openKfIdLabel: "OpenKf Id",
+    serverTokenLabel: "Server Token",
+    encodingAesKeyLabel: "EncodingAesKey",
+    encodingAesKeyConfigured: "configured",
+    encodingAesKeyNotSet: "not set",
+    accessTokenRefreshCountLabel: "Access token refresh count",
+    accessTokenExpiresAtLabel: "Access token expires at",
+    webhookHint: "Configure the customer service callback URL: ",
+    formSecretLabel: "Secret",
+    formEncodingAesKeyOptionalLabel: "EncodingAesKey (optional)",
+    saveCredential: "Save credential",
+    clear: "Clear"
+  },
+  addChannelModal: {
+    title: "Add channel",
+    stepChooseType: "Choose channel type",
+    stepBasicInfo: "Basic info",
+    loadFailed: "Failed to load channel catalog.",
+    emptyTitle: "No available channels",
+    emptyHint: "There are no channel definitions available to create.",
+    chooseTypeHint: "Choose a channel type first, then provide a channel name to create the shell.",
+    selectedTypeLabel: "Selected type",
+    credentialKindLabel: "Credential kind",
+    publishTypeLabel: "Publish type",
+    channelNameLabel: "Channel name",
+    channelNamePlaceholder: "Enter a channel name",
+    channelDescription: "The channel will be created with agent / app / workflow targets enabled. Configure credentials from the detail pane next.",
+    next: "Next",
+    back: "Back",
+    create: "Create channel",
+    creating: "Creating…",
+    created: "Channel created.",
+    targetAgent: "Agent",
+    targetApp: "App",
+    targetWorkflow: "Workflow"
   },
   resourceReference: {
     defaultHeading: "Inbound references",

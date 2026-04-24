@@ -196,6 +196,44 @@ GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 微信小程序凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-miniapp-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "appId": "wxmini_xxxx",
+  "appSecret": "xxxxxxxx",
+  "originalId": "gh_xxxx",
+  "messageToken": "mini-token",
+  "encodingAesKey": null
+}
+
+### 微信小程序凭据查询（脱敏返回）
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-miniapp-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 微信客服凭据 upsert
+PUT {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-cs-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "corpId": "ww_xxxx",
+  "secret": "xxxxxxxx",
+  "openKfId": "wkf_xxxx",
+  "token": "kf-token",
+  "encodingAesKey": null
+}
+
+### 微信客服凭据查询（脱敏返回）
+GET {{baseUrl}}/api/v1/workspaces/{{workspaceId}}/publish-channels/{{channelId}}/wechat-cs-credential
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 微信公众号 webhook：服务器地址校验（GET）
 # signature = sha1(sort([token, timestamp, nonce]).join(''))，全部小写 hex
 GET {{baseUrl}}/api/v1/runtime/channels/wechat-mp/{{channelId}}/webhook?signature=REPLACE&timestamp=1700000000&nonce=n-1&echostr=hello

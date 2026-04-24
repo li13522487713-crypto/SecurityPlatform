@@ -804,7 +804,8 @@ export interface PublishCenterItem {
 
 /**
  * 治理 R1-F1：发布渠道列表项（来自 /api/v1/workspaces/{ws}/publish-channels）。
- * type 与后端 WorkspaceChannelType 对齐：web-sdk / open-api / feishu / wechat-mp / wechat / lark / custom。
+ * type 与后端 WorkspaceChannelType 对齐：web-sdk / open-api / feishu / wechat-mp /
+ * wechat-miniapp / wechat-cs / wechat / lark / custom。
  */
 export interface PublishChannelListItem {
   id: string;
