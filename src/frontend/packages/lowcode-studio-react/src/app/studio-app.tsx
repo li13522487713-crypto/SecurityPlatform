@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Layout, Tabs, TabPane, Empty } from '@douyinfe/semi-ui';
+import { Banner, Layout, Tabs, TabPane, Empty } from '@douyinfe/semi-ui';
 import { LeftPanel } from '../panels/left-panel';
 import { RightInspector } from '../panels/right-inspector';
 import { TopToolbar } from '../panels/top-toolbar';
@@ -9,7 +9,7 @@ import { WorkflowLeftPanel } from '../panels/workflow-left-panel';
 import { WorkflowCanvas } from '../panels/workflow-canvas';
 import { ShortcutPanel } from '../panels/shortcut-panel';
 import { useStudioCommands } from '../hooks/use-studio-commands';
-import { useDraftAutosave } from '../hooks/use-draft-autosave';
+import { useDraftEditSession } from '../hooks/use-draft-autosave';
 import { setLocale, t, type Locale } from '../i18n';
 import { LowcodeStudioHostProvider, type LowcodeStudioHostConfig } from '../host';
 import { PublishPage } from '../panels/publish-page';
@@ -76,7 +76,12 @@ function LowcodeStudioShell({ appId, workspaceId, workspaceLabel, routeMode, onB
 
   useStudioCommands({ appId });
   // 这些 hook 必须在宿主 Provider 内执行，才能拿到 app-web 注入的 host.api/auth。
-  useDraftAutosave(appId);
+  const draftSession = useDraftEditSession(appId);
+  const lockWarning = draftSession.status === 'conflict'
+    ? t('lowcode_studio.lock.conflict')
+    : draftSession.status === 'lost'
+      ? t('lowcode_studio.lock.lost')
+      : null;
 
   return (
     <>
@@ -87,6 +92,7 @@ function LowcodeStudioShell({ appId, workspaceId, workspaceLabel, routeMode, onB
           <Layout style={{ height: '100vh' }}>
             <Header>
               <TopToolbar appId={appId} mode={topMode} onModeChange={setTopMode} />
+              {lockWarning ? <Banner type="warning" description={lockWarning} /> : null}
             </Header>
           {topMode === 'ui' ? (
             <Layout>

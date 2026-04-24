@@ -220,7 +220,7 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
             return Ok(Fail("workflow_id is required"));
         }
 
-        await _commandService.SaveDraftAsync(
+        var saveResult = await _commandService.SaveDraftAsync(
             _tenantProvider.GetTenantId(),
             workflowId,
             new CozeWorkflowSaveDraftCommand(request.schema ?? "{}", request.submit_commit_id),
@@ -232,7 +232,10 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
             url = string.Empty,
             status = 2,
             workflow_status = 2,
-            is_version_gray = false
+            is_version_gray = false,
+            submit_commit_id = saveResult.CommitId,
+            draft_commit_id = saveResult.CommitId,
+            workflow_version = saveResult.WorkflowVersion.ToString(CultureInfo.InvariantCulture)
         }));
     }
 

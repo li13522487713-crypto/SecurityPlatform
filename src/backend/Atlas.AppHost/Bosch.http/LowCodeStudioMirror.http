@@ -3,6 +3,7 @@
 @username = admin
 @password = P@ssw0rd!
 @appId = 100
+@draftSessionId = app-web-direct-session
 
 ### Login（先执行获取 token）
 # @name login
@@ -65,7 +66,28 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "sessionId": "app-web-direct-session"
+  "sessionId": "{{draftSessionId}}"
+}
+
+### 续约草稿锁
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/draft-lock/renew
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "sessionId": "{{draftSessionId}}"
+}
+
+### 保存草稿（生产环境需携带 draftSessionId；Development 软容错）
+POST {{baseUrl}}/api/v1/lowcode/apps/{{appId}}/autosave
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "schemaJson": "{\"pages\":[]}",
+  "draftSessionId": "{{draftSessionId}}"
 }
 
 ### 释放草稿锁
@@ -75,5 +97,5 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "sessionId": "app-web-direct-session"
+  "sessionId": "{{draftSessionId}}"
 }

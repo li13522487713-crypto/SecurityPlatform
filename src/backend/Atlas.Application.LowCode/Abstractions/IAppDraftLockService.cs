@@ -17,8 +17,8 @@ public interface IAppDraftLockService
     /// </summary>
     Task<AppDraftLockResult> TryAcquireAsync(TenantId tenantId, long appId, long userId, string sessionId, CancellationToken cancellationToken);
 
-    /// <summary>续约心跳；返回 false 表示锁已被他人夺取。</summary>
-    Task<bool> RenewAsync(TenantId tenantId, long appId, string sessionId, CancellationToken cancellationToken);
+    /// <summary>续约心跳；返回 Lost 表示锁已被他人夺取、过期或不存在。</summary>
+    Task<AppDraftLockResult> RenewAsync(TenantId tenantId, long appId, string sessionId, CancellationToken cancellationToken);
 
     /// <summary>主动释放锁。</summary>
     Task ReleaseAsync(TenantId tenantId, long appId, string sessionId, CancellationToken cancellationToken);
@@ -28,8 +28,24 @@ public interface IAppDraftLockService
 
     /// <summary>查询当前锁状态。</summary>
     Task<AppDraftLockInfo?> GetCurrentAsync(TenantId tenantId, long appId, CancellationToken cancellationToken);
+
+    /// <summary>校验指定编辑会话是否持有当前有效锁。</summary>
+    Task<AppDraftLockValidationResult> ValidateAsync(TenantId tenantId, long appId, string? sessionId, CancellationToken cancellationToken);
 }
 
-public sealed record AppDraftLockResult(bool Acquired, AppDraftLockInfo? Lock);
+public enum AppDraftLockStatus
+{
+    Acquired = 0,
+    Conflict = 1,
+    Recovered = 2,
+    Lost = 3
+}
+
+public sealed record AppDraftLockResult(AppDraftLockStatus Status, AppDraftLockInfo? Lock)
+{
+    public bool Acquired => Status is AppDraftLockStatus.Acquired or AppDraftLockStatus.Recovered;
+}
+
+public sealed record AppDraftLockValidationResult(bool IsValid, AppDraftLockStatus Status, AppDraftLockInfo? Lock);
 
 public sealed record AppDraftLockInfo(long AppId, long OwnerUserId, string SessionId, DateTimeOffset AcquiredAt, DateTimeOffset LastRenewedAt);

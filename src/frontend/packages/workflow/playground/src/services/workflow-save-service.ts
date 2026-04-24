@@ -66,7 +66,7 @@ const START_NODE_ID = '100001';
 const END_NODE_ID = '900001';
 const CHAT_NODE_DEFAULT_ID = '110100';
 const HIGH_DEBOUNCE_TIME = 1000;
-const LOW_DEBOUNCE_TIME = 3000;
+const LOW_DEBOUNCE_TIME = 1500;
 const RELOAD_DELAY_TIME = 500;
 const RENDER_DELAY_TIME = 100;
 
@@ -375,16 +375,18 @@ export class WorkflowSaveService {
         loading: false,
       });
       projectApi?.setWidgetUIState('normal');
-      // Only with permission can it be automatically saved.
+
+      const fitViewStartTime = Date.now();
+      await this.fitView();
+      const fitViewTime = Date.now() - fitViewStartTime;
+
+      // Only with permission can it be automatically saved. Attach after initial fitView
+      // so programmatic viewport calibration is never persisted as a user edit.
       if (!this.globalState.readonly) {
         this.saveOnChangeDisposable = doc.onContentChange(
           this.listenContentChange,
         );
       }
-
-      const fitViewStartTime = Date.now();
-      await this.fitView();
-      const fitViewTime = Date.now() - fitViewStartTime;
 
       const totalTime = Date.now() - loadingStartTime;
 
@@ -654,6 +656,11 @@ export class WorkflowSaveService {
     this.highPrioritySave();
   }, LOW_DEBOUNCE_TIME - HIGH_DEBOUNCE_TIME);
 
+  public flushPendingSave = () => {
+    this.lowPrioritySave.flush();
+    this.highPrioritySave.flush();
+  };
+
   waitSaving = () => {
     if (!this.globalState.config.saving) {
       return;
@@ -694,13 +701,12 @@ export class WorkflowSaveService {
     // preload
     await this.initNodeData((workflowJson?.nodes as WorkflowNodeJSON[]) ?? []);
     await this.workflowDocument.reload(workflowJson, RELOAD_DELAY_TIME);
+    await this.fitView();
     if (!this.globalState.readonly) {
       this.saveOnChangeDisposable = this.workflowDocument.onContentChange(
         this.listenContentChange,
       );
     }
-
-    await this.fitView();
     this.showRenderLayer();
   };
 

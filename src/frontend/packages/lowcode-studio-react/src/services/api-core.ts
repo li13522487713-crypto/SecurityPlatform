@@ -21,6 +21,15 @@ interface ApiResponse<T> {
 
 export type LowcodeRequest = <T>(method: string, path: string, body?: JsonValue) => Promise<T>;
 
+export const LOWCODE_DRAFT_SESSION_STORAGE_PREFIX = 'atlas_lowcode_draft_session:';
+
+export function getStoredDraftSessionId(appId: string): string | undefined {
+  if (typeof sessionStorage === 'undefined') {
+    return undefined;
+  }
+  return sessionStorage.getItem(`${LOWCODE_DRAFT_SESSION_STORAGE_PREFIX}${appId}`) ?? undefined;
+}
+
 export class LowcodeApiError extends Error {
   status: number;
   code?: string;
@@ -376,6 +385,7 @@ export interface AppDraftLockInfo {
 
 export interface AppDraftLockResult {
   acquired: boolean;
+  status?: number | string;
   lock?: AppDraftLockInfo | null;
 }
 
@@ -450,8 +460,10 @@ export function createLowcodeApi(requestImpl: LowcodeRequest) {
     detail: (id: string) => requestImpl<AppListItem>('GET', `/apps/${id}`),
     delete: (id: string) => requestImpl<unknown>('DELETE', `/apps/${id}`),
     getDraft: (id: string) => requestImpl<{ schemaJson: string; schemaVersion: string; updatedAt: string }>('GET', `/apps/${id}/draft`),
-    replaceDraft: (id: string, schemaJson: string) => requestImpl<unknown>('POST', `/apps/${id}/draft`, { schemaJson } as never),
-    autosave: (id: string, schemaJson: string) => requestImpl<unknown>('POST', `/apps/${id}/autosave`, { schemaJson } as never),
+    replaceDraft: (id: string, schemaJson: string, draftSessionId = getStoredDraftSessionId(id)) =>
+      requestImpl<unknown>('POST', `/apps/${id}/draft`, { schemaJson, draftSessionId } as never),
+    autosave: (id: string, schemaJson: string, draftSessionId = getStoredDraftSessionId(id)) =>
+      requestImpl<unknown>('POST', `/apps/${id}/autosave`, { schemaJson, draftSessionId } as never),
     snapshot: (id: string, versionLabel: string, note?: string) =>
       requestImpl<{ versionId: string }>('POST', `/apps/${id}/snapshot`, { versionLabel, note } as never),
     listVersions: (id: string) => requestImpl<Array<{ id: string; appId: string; versionLabel: string; note?: string; isSystemSnapshot: boolean; createdByUserId: number; createdAt: string }>>('GET', `/apps/${id}/versions`),

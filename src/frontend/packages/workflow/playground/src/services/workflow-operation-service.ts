@@ -196,7 +196,23 @@ export class WorkflowOperationService {
     ) {
       set(reqParams, 'save_version', saveVersion.toString());
     }
-    await workflowApi.SaveWorkflow(reqParams);
+    const saveResponse = await workflowApi.SaveWorkflow(reqParams);
+    const nextCommitId = saveResponse.data?.submit_commit_id;
+    if (nextCommitId) {
+      this.globalState.updateConfig({
+        info: {
+          ...this.globalState.info,
+          vcsData: {
+            ...(this.globalState.info.vcsData || {}),
+            submit_commit_id: nextCommitId,
+            draft_commit_id: saveResponse.data?.draft_commit_id || nextCommitId,
+          },
+          workflow_version:
+            saveResponse.data?.workflow_version ||
+            this.globalState.info.workflow_version,
+        },
+      });
+    }
     if (this.globalState.projectId) {
       // In order to solve the problem that the canvas interface gets saveVersion and the long-chain push saveVersion are not synchronized, manually update here
       this.dependencyEntity.addSaveVersion();

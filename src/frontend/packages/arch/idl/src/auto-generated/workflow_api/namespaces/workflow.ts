@@ -3894,6 +3894,9 @@ export interface SaveWorkflowData {
   status?: WorkFlowDevStatus;
   workflow_status?: WorkFlowStatus;
   is_version_gray?: boolean;
+  submit_commit_id?: string;
+  draft_commit_id?: string;
+  workflow_version?: string;
 }
 
 export interface SaveWorkflowRequest {

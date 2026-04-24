@@ -15,6 +15,10 @@ public sealed record CozeWorkflowSaveDraftCommand(
     string SchemaJson,
     string? CommitId);
 
+public sealed record CozeWorkflowSaveDraftResult(
+    string CommitId,
+    int WorkflowVersion);
+
 public sealed record CozeWorkflowUpdateMetaCommand(
     string Name,
     string? Description);

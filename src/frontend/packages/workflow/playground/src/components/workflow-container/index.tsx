@@ -124,6 +124,28 @@ const WorkflowContainer = forwardRef<
     }
   }, [loading, isNodesMount, loadingError, workflowState]);
 
+  useEffect(() => {
+    const flushPendingPositionSave = () => {
+      workflowSaveService.flushPendingSave();
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingPositionSave();
+      }
+    };
+
+    window.addEventListener('pointerup', flushPendingPositionSave);
+    window.addEventListener('beforeunload', flushPendingPositionSave);
+    document.addEventListener('visibilitychange', flushWhenHidden);
+
+    return () => {
+      flushPendingPositionSave();
+      window.removeEventListener('pointerup', flushPendingPositionSave);
+      window.removeEventListener('beforeunload', flushPendingPositionSave);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+    };
+  }, [workflowSaveService]);
+
   // Listen for TTI events, perform data compensation operations, and save drafts
   useDataCompensation(workflowState);
 

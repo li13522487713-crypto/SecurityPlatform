@@ -57,6 +57,7 @@ public sealed class AppDraftReplaceRequestValidator : AbstractValidator<AppDraft
     {
         RuleFor(x => x.SchemaJson).NotEmpty().MaximumLength(2_000_000)
             .WithMessage("schemaJson 不可为空，且单次提交不得超过 2MB（如需更大请走分片上传或拆分页面）");
+        RuleFor(x => x.DraftSessionId).MaximumLength(128);
     }
 }
 
@@ -65,6 +66,7 @@ public sealed class AppDraftAutoSaveRequestValidator : AbstractValidator<AppDraf
     public AppDraftAutoSaveRequestValidator()
     {
         RuleFor(x => x.SchemaJson).NotEmpty().MaximumLength(2_000_000);
+        RuleFor(x => x.DraftSessionId).MaximumLength(128);
     }
 }
 

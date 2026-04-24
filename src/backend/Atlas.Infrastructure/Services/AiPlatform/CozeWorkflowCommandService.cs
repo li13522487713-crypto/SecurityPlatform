@@ -137,7 +137,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
         return metaId;
     }
 
-    public async Task SaveDraftAsync(
+    public async Task<CozeWorkflowSaveDraftResult> SaveDraftAsync(
         TenantId tenantId,
         long id,
         CozeWorkflowSaveDraftCommand request,
@@ -178,6 +178,8 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
 
         // Repository also enforces the commit_id constraint at the DB level.
         await _draftRepo.UpdateAsync(draft, oldCommitId, cancellationToken);
+
+        return new CozeWorkflowSaveDraftResult(newCommitId, meta.LatestVersionNumber);
     }
 
     public async Task UpdateMetaAsync(

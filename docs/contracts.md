@@ -2298,6 +2298,9 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 补充约束：
 - `api/v1/lowcode/apps/{appId}/resources` 与 `api/v1/lowcode/apps/{appId}/resources/bindings/*` 中的 `appId` 表示低代码 `AppDefinition.Id`，不是 `AiApp.Id`。
 - `AiAppResourceBinding` 当前作为共享存储实现同时承载 AI 应用与 lowcode 应用资源绑定；路由语义以调用方所属应用域为准，不代表统一的应用实体类型。
+- 低代码草稿锁为编辑会话租约：`draft-lock/acquire` 返回 `acquired` 与 `status`（`Acquired` / `Conflict` / `Recovered` / `Lost`），`draft-lock/status` 不返回已过期锁。
+- `POST /api/v1/lowcode/apps/{appId}/draft` 与 `POST /api/v1/lowcode/apps/{appId}/autosave` 请求体支持可选 `draftSessionId`；非 Development 环境写入时必须匹配当前有效草稿锁，Development 环境允许缺失或旧会话软容错。
+- `POST /api/app-web/workflow-sdk/save` 成功响应 `data` 返回 `submit_commit_id`、`draft_commit_id`、`workflow_version`；前端后续保存必须使用最新 `submit_commit_id`，避免拖动节点后继续携带旧 commit。
 
 约束：
 

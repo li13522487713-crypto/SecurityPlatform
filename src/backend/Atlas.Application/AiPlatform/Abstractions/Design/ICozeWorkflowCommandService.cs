@@ -7,7 +7,7 @@ public interface ICozeWorkflowCommandService
 {
     Task<long> CreateAsync(TenantId tenantId, long creatorId, CozeWorkflowCreateCommand request, CancellationToken cancellationToken);
 
-    Task SaveDraftAsync(TenantId tenantId, long id, CozeWorkflowSaveDraftCommand request, CancellationToken cancellationToken);
+    Task<CozeWorkflowSaveDraftResult> SaveDraftAsync(TenantId tenantId, long id, CozeWorkflowSaveDraftCommand request, CancellationToken cancellationToken);
 
     Task UpdateMetaAsync(TenantId tenantId, long id, CozeWorkflowUpdateMetaCommand request, CancellationToken cancellationToken);
 

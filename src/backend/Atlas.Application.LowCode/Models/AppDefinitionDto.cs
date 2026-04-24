@@ -59,10 +59,10 @@ public sealed record AppDefinitionUpdateRequest(
     string? WorkspaceId = null);
 
 /// <summary>替换 schema 草稿请求（完整 AppSchema JSON 字符串，由前端 zod 校验后提交）。</summary>
-public sealed record AppDraftReplaceRequest(string SchemaJson);
+public sealed record AppDraftReplaceRequest(string SchemaJson, string? DraftSessionId = null);
 
 /// <summary>草稿快照（autosave）请求 —— 与 <see cref="AppDraftReplaceRequest"/> 同结构，单独命名以便审计区分。</summary>
-public sealed record AppDraftAutoSaveRequest(string SchemaJson);
+public sealed record AppDraftAutoSaveRequest(string SchemaJson, string? DraftSessionId = null);
 
 /// <summary>当前草稿响应（含 schema JSON 与 ETag）。</summary>
 public sealed record AppDraftResponse(

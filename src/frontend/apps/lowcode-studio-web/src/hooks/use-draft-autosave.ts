@@ -14,13 +14,13 @@ import { t } from '../i18n';
  * 避免长时间无操作导致版本与本地状态漂移、锁过期。
  */
 export function useDraftAutosave(appId: string | undefined): void {
-  const sessionIdRef = useRef<string>(`studio-${Math.random().toString(36).slice(2)}-${Date.now()}`);
+  const sessionIdRef = useRef<string | null>(null);
   const lastDraftJsonRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!appId) return;
-    const sessionId = sessionIdRef.current;
-    let cancelled = false;
+    const sessionId = resolveDraftSessionId(appId);
+    sessionIdRef.current = sessionId;
 
     // 启动时尝试获取锁；忽略冲突（多 tab 共存仍可只读）
     void lowcodeApi.draftLock.acquire(appId, sessionId).catch(() => undefined);
@@ -67,8 +67,6 @@ export function useDraftAutosave(appId: string | undefined): void {
       window.clearInterval(renewTimer);
       window.removeEventListener('beforeunload', onBeforeUnload);
       void lowcodeApi.draftLock.release(appId, sessionId).catch(() => undefined);
-      // 防止悬挂引用警告
-      void cancelled;
     };
   }, [appId]);
 }
@@ -97,4 +95,17 @@ export function scheduleAutosave(appId: string, schemaJson: string): void {
       console.warn('[lowcode-studio] autosave failed', err);
     }
   }, 500);
+}
+
+function resolveDraftSessionId(appId: string): string {
+  const storageKey = `atlas_lowcode_draft_session:${appId}`;
+  if (typeof sessionStorage !== 'undefined') {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+  }
+  const next = `studio-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(storageKey, next);
+  }
+  return next;
 }

@@ -34,6 +34,7 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @createdWorkflowId = {{createWorkflow.response.body.data.workflow_id}}
+@createdCommitId = {{createWorkflow.response.body.data.submit_commit_id}}
 
 ### app-web workflow gateway：工作流列表
 POST {{host}}/api/app-web/workflow-sdk/workflow_list
@@ -59,6 +60,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### app-web workflow gateway：保存草稿
+# @name saveWorkflow
 POST {{host}}/api/app-web/workflow-sdk/save
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
@@ -68,8 +70,11 @@ X-Tenant-Id: {{tenantId}}
   "workflow_id": "{{createdWorkflowId}}",
   "space_id": "{{workspaceId}}",
   "schema": "{\"nodes\":[],\"edges\":[]}",
-  "submit_commit_id": "gateway-draft"
+  "submit_commit_id": "{{createdCommitId}}"
 }
+
+###
+@savedCommitId = {{saveWorkflow.response.body.data.submit_commit_id}}
 
 ### app-web workflow gateway：发布
 POST {{host}}/api/app-web/workflow-sdk/publish
@@ -97,4 +102,3 @@ X-Tenant-Id: {{tenantId}}
     "message": "gateway smoke"
   }
 }
-
