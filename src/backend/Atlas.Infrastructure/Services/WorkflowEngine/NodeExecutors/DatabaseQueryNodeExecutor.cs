@@ -1,8 +1,6 @@
 using System.Text.Json;
 using Atlas.Core.Exceptions;
 using Atlas.Domain.AiPlatform.Enums;
-using SqlSugar;
-
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
 /// <summary>
@@ -11,11 +9,12 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 /// </summary>
 public sealed class DatabaseQueryNodeExecutor : INodeExecutor
 {
-    private readonly ISqlSugarClient _db;
-
-    public DatabaseQueryNodeExecutor(ISqlSugarClient db)
+    public DatabaseQueryNodeExecutor()
     {
-        _db = db;
+    }
+
+    public DatabaseQueryNodeExecutor(object? _ignored)
+    {
     }
 
     public WorkflowNodeType NodeType => WorkflowNodeType.DatabaseQuery;
@@ -44,14 +43,11 @@ public sealed class DatabaseQueryNodeExecutor : INodeExecutor
             var maxSqlScanRows = Math.Clamp(context.GetConfigInt32("maxSqlScanRows", 100_000), 100, 500_000);
             var queryFields = AiDatabaseNodeHelper.ResolveFields(context.Node.Config, "queryFields");
             var clauses = AiDatabaseNodeHelper.ResolveClauses(context.Node.Config);
-            var policy = await AiDatabaseNodeHelper.ResolvePolicyAsync(_db, context, databaseId, cancellationToken);
-            var records = await AiDatabaseNodeHelper.LoadRecordsAsync(
-                _db,
-                context.TenantId,
+            var records = await AiDatabaseNodeHelper.LoadRecordItemsAsync(
+                context,
                 databaseId,
                 cancellationToken,
-                policy,
-                sqlTakeLimit: maxSqlScanRows);
+                maxSqlScanRows);
 
             var result = new List<JsonElement>();
             foreach (var record in records)

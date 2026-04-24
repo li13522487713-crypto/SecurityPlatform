@@ -1,5 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -16,7 +18,10 @@ public sealed class AiDatabase : TenantEntity
         TableSchema = "[]";
         OwnerType = AiDatabaseOwnerType.Library;
         QueryMode = AiDatabaseQueryMode.MultiUser;
-        ChannelScope = AiDatabaseChannelScope.Open;
+        ChannelScope = AiDatabaseChannelScope.FullShared;
+        DraftTableName = string.Empty;
+        OnlineTableName = string.Empty;
+        ResourceSource = LibrarySource.Custom;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -29,7 +34,8 @@ public sealed class AiDatabase : TenantEntity
         long id,
         long? workspaceId = null,
         AiDatabaseQueryMode? queryMode = null,
-        AiDatabaseChannelScope? channelScope = null)
+        AiDatabaseChannelScope? channelScope = null,
+        LibrarySource resourceSource = LibrarySource.Custom)
         : base(tenantId)
     {
         Id = id;
@@ -43,7 +49,10 @@ public sealed class AiDatabase : TenantEntity
         SchemaVersion = 1;
         RecordCount = 0;
         QueryMode = queryMode ?? AiDatabaseQueryMode.MultiUser;
-        ChannelScope = channelScope ?? AiDatabaseChannelScope.Open;
+        ChannelScope = channelScope ?? AiDatabaseChannelScope.FullShared;
+        DraftTableName = string.Empty;
+        OnlineTableName = string.Empty;
+        ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -60,10 +69,15 @@ public sealed class AiDatabase : TenantEntity
     public int RecordCount { get; private set; }
     /// <summary>D2：行可见性策略。SingleUser=按 OwnerUserId 过滤；MultiUser=不过滤。</summary>
     public AiDatabaseQueryMode QueryMode { get; private set; }
-    /// <summary>D2：渠道隔离策略。Channel=按 ChannelId 过滤；Open=不过滤。</summary>
+    /// <summary>D2：渠道隔离策略。支持完全共享 / 渠道隔离 / 站内共享。</summary>
     public AiDatabaseChannelScope ChannelScope { get; private set; }
+    public string DraftTableName { get; private set; }
+    public string OnlineTableName { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+
+    [SugarColumn(IsNullable = false)]
+    public LibrarySource ResourceSource { get; private set; }
 
     public void SetQueryMode(AiDatabaseQueryMode queryMode, AiDatabaseChannelScope channelScope)
     {
@@ -72,11 +86,23 @@ public sealed class AiDatabase : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void SetPhysicalTables(string draftTableName, string onlineTableName)
+    {
+        DraftTableName = draftTableName?.Trim() ?? string.Empty;
+        OnlineTableName = onlineTableName?.Trim() ?? string.Empty;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public string GetTableName(AiDatabaseRecordEnvironment environment)
+        => environment == AiDatabaseRecordEnvironment.Online ? OnlineTableName : DraftTableName;
+
     public void Update(
         string name,
         string? description,
         long? botId,
         string tableSchema,
+        AiDatabaseQueryMode? queryMode = null,
+        AiDatabaseChannelScope? channelScope = null,
         AiDatabaseOwnerType? ownerType = null,
         long? ownerId = null,
         long? workspaceId = null)
@@ -91,6 +117,8 @@ public sealed class AiDatabase : TenantEntity
         OwnerType = ownerType ?? (botId.HasValue ? AiDatabaseOwnerType.Agent : OwnerType);
         OwnerId = ownerId ?? botId ?? 0;
         TableSchema = string.IsNullOrWhiteSpace(tableSchema) ? "[]" : tableSchema;
+        QueryMode = queryMode ?? QueryMode;
+        ChannelScope = channelScope ?? ChannelScope;
         SchemaVersion = Math.Max(1, SchemaVersion + 1);
         UpdatedAt = DateTime.UtcNow;
     }
@@ -155,8 +183,16 @@ public enum AiDatabaseQueryMode
 
 public enum AiDatabaseChannelScope
 {
-    /// <summary>不限定 channel；默认。</summary>
-    Open = 0,
-    /// <summary>读写仅限 ChannelId 等于当前 channel 或 NULL。</summary>
-    Channel = 1
+    /// <summary>所有渠道共享数据。</summary>
+    FullShared = 0,
+    /// <summary>严格按当前渠道隔离。</summary>
+    ChannelIsolated = 1,
+    /// <summary>站内渠道共享，其他渠道彼此隔离。</summary>
+    InternalShared = 2
+}
+
+public enum AiDatabaseRecordEnvironment
+{
+    Draft = 1,
+    Online = 2
 }

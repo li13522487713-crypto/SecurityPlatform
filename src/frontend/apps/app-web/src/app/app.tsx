@@ -198,7 +198,7 @@ import {
 } from "./pages/editor-routes";
 import { WorkspaceHomePage } from "./pages/workspace-home-page";
 import { WorkspaceProjectsPage } from "./pages/workspace-projects-page";
-import { WorkspaceResourcesPage } from "./pages/workspace-resources-page";
+import { WorkspaceResourcesRedirect } from "./pages/workspace-resources-redirect";
 import { WorkspaceLibraryPage } from "./pages/workspace-library-page";
 import { WorkspaceTasksPage } from "./pages/workspace-tasks-page";
 import { WorkspaceEvaluationsPage } from "./pages/workspace-evaluations-page";
@@ -318,13 +318,17 @@ import {
   createAiDatabaseRecord,
   downloadAiDatabaseTemplate,
   deleteAiDatabaseRecord,
+  deleteAiDatabaseRecordWithEnvironment,
   getAiDatabasesPaged,
   deleteAiDatabase,
   getAiDatabaseById,
+  getAiDatabaseChannelConfigs,
   getAiDatabaseImportProgress,
   getAiDatabaseRecordsPaged,
   submitAiDatabaseImport,
   updateAiDatabaseRecord,
+  updateAiDatabaseChannelConfigs,
+  updateAiDatabaseMode,
   updateAiDatabase,
   validateAiDatabaseSchema,
   createAiDatabaseRecordsBulk,
@@ -338,6 +342,7 @@ import {
   updateAiVariable
 } from "../services/api-ai-variable";
 import {
+  bindAiAssistantDatabase,
   generateByAiAssistant,
   bindAiAssistantWorkflow,
   createAiAssistant,
@@ -346,6 +351,7 @@ import {
   getAiAssistantPublications,
   publishAiAssistant,
   regenerateAiAssistantEmbedToken,
+  unbindAiAssistantDatabase,
   updateAiAssistant
 } from "../services/api-ai-assistant";
 import {
@@ -1234,19 +1240,28 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
         botId: item.botId
       }));
     },
+    createDatabase: createAiDatabase,
+    updateDatabase: updateAiDatabase,
     getDatabaseDetail: getAiDatabaseById,
     listDatabaseRecords: (id, params) =>
       getAiDatabaseRecordsPaged(id, {
         pageIndex: params?.pageIndex ?? 1,
         pageSize: params?.pageSize ?? 10
-      }),
+      }, params?.environment as never),
     createDatabaseRecord: createAiDatabaseRecord,
     updateDatabaseRecord: updateAiDatabaseRecord,
-    deleteDatabaseRecord: deleteAiDatabaseRecord,
+    deleteDatabaseRecord: (id, recordId, environment) =>
+      environment !== undefined
+        ? deleteAiDatabaseRecordWithEnvironment(id, recordId, environment as never)
+        : deleteAiDatabaseRecord(id, recordId),
     validateDatabaseSchemaDraft: validateAiDatabaseSchema,
-    submitDatabaseImport: submitAiDatabaseImport,
+    submitDatabaseImport: (id, file, environment) =>
+      submitAiDatabaseImport(id, file, environment as never),
     getDatabaseImportProgress: getAiDatabaseImportProgress,
     downloadDatabaseTemplate: downloadAiDatabaseTemplate,
+    getDatabaseChannelConfigs: getAiDatabaseChannelConfigs,
+    updateDatabaseChannelConfigs: updateAiDatabaseChannelConfigs,
+    updateDatabaseMode: updateAiDatabaseMode,
     // D5：批量插入入口（同步 + 异步）。
     bulkCreateDatabaseRecords: createAiDatabaseRecordsBulk,
     submitDatabaseBulkInsertJob: submitAiDatabaseBulkInsertJob,
@@ -1262,6 +1277,8 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
       }));
     },
     bindAgentWorkflow: (agentId, workflowId) => bindAiAssistantWorkflow(agentId, workflowId),
+    bindAgentDatabase: (agentId, request) => bindAiAssistantDatabase(agentId, request),
+    unbindAgentDatabase: (agentId, databaseId) => unbindAiAssistantDatabase(agentId, databaseId),
     runWorkflowTask: async (workflowId, incident) => {
       const response = await requestApi<{
         success: boolean;
@@ -1667,6 +1684,7 @@ function StudioDatabaseDetailRoute() {
       locale={locale}
       databaseId={Number(id)}
       onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
+      onNavigateBack={() => navigate(`${orgWorkspaceLibraryPath(orgId, workspace.id)}?tab=database`)}
     />
   );
 }
@@ -2846,6 +2864,7 @@ function SpaceDatabaseDetailRoute() {
       locale={locale}
       databaseId={Number(id)}
       onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
+      onNavigateBack={() => navigate(`${orgWorkspaceLibraryPath(orgId, workspace.id)}?tab=database`)}
     />
   );
 }
@@ -2904,8 +2923,8 @@ export const appRoutes = [
       { path: "library", element: <WorkspaceLibraryRoute />, handle: { ...WORKSPACE_LIBRARY_ROUTE_HANDLE, subMenuKey: "library" } as AppRouteHandle },
       { path: "projects", element: <WorkspaceProjectsPage />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
       { path: "projects/folder/:folderId", element: <WorkspaceProjectsPage />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
-      { path: "resources", element: <WorkspaceResourcesPage />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
-      { path: "resources/:type", element: <WorkspaceResourcesPage />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "resources", element: <WorkspaceResourcesRedirect />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "resources/:type", element: <WorkspaceResourcesRedirect />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "tasks", element: <WorkspaceTasksPage />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
       { path: "tasks/:taskId", element: <WorkspaceTasksPage />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },
       { path: "evaluations", element: <WorkspaceEvaluationsPage />, handle: WORKSPACE_MANAGE_ROUTE_HANDLE },

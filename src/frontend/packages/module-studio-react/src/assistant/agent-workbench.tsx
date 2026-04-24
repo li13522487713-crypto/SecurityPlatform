@@ -133,6 +133,7 @@ export function AgentWorkbench({
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [publishReleaseNote, setPublishReleaseNote] = useState("");
   const [publishSubmitting, setPublishSubmitting] = useState(false);
+  const [databaseBindingActionId, setDatabaseBindingActionId] = useState<number | null>(null);
 
   function applyConversationId(nextConversationId?: string | null) {
     const normalized = nextConversationId?.trim() ?? "";
@@ -408,6 +409,13 @@ export function AgentWorkbench({
     () => workflowOptions.find(item => item.id === workflowId),
     [workflowId, workflowOptions]
   );
+  const persistedDatabaseIds = useMemo(
+    () => new Set([
+      ...(detail?.databaseBindings ?? []).map(item => item.databaseId),
+      ...(detail?.databaseBindingIds ?? [])
+    ]),
+    [detail]
+  );
   const canChat = Boolean(selectedModel && selectedModel.isEnabled);
   const modelCatalogEmpty = modelConfigs.length === 0;
   const modelNotSelected = !modelCatalogEmpty && (!modelConfigId || !selectedModel);
@@ -585,6 +593,118 @@ export function AgentWorkbench({
         return createDefaultDatabaseBinding(id, id === defaultDatabaseId || (!defaultDatabaseId && index === 0));
       });
     });
+  }
+
+  function syncPersistedDatabaseBindings(nextPersistedBindings: AgentDatabaseBindingInput[]) {
+    const nextPersistedIds = nextPersistedBindings.map(item => item.databaseId);
+    setDetail(current => current ? {
+      ...current,
+      databaseBindings: nextPersistedBindings,
+      databaseBindingIds: nextPersistedIds
+    } : current);
+
+    try {
+      const parsed = persistedDraftSignatureRef.current ? JSON.parse(persistedDraftSignatureRef.current) as Record<string, unknown> : {};
+      persistedDraftSignatureRef.current = JSON.stringify({
+        ...parsed,
+        databaseBindings: nextPersistedBindings,
+        databaseBindingIds: nextPersistedIds
+      });
+    } catch {
+      // persisted signature is always JSON from the current draft request; ignore rare parse failures.
+    }
+  }
+
+  function mergeDatabaseBindingsAfterPersist(
+    currentBindings: AgentDatabaseBindingInput[],
+    nextPersistedBindings: AgentDatabaseBindingInput[],
+    previousPersistedIds: Set<number>,
+    removedDatabaseId?: number
+  ) {
+    const persistedMap = new Map(nextPersistedBindings.map(item => [item.databaseId, item] as const));
+    const seen = new Set<number>();
+    const merged: AgentDatabaseBindingInput[] = [];
+
+    currentBindings.forEach(binding => {
+      if (removedDatabaseId === binding.databaseId) {
+        return;
+      }
+
+      const persistedBinding = persistedMap.get(binding.databaseId);
+      if (persistedBinding) {
+        merged.push({
+          ...binding,
+          isDefault: persistedBinding.isDefault
+        });
+        seen.add(binding.databaseId);
+        return;
+      }
+
+      if (!previousPersistedIds.has(binding.databaseId)) {
+        merged.push(binding);
+        seen.add(binding.databaseId);
+      }
+    });
+
+    nextPersistedBindings.forEach(binding => {
+      if (!seen.has(binding.databaseId)) {
+        merged.push(binding);
+      }
+    });
+
+    return merged;
+  }
+
+  async function handleBindDatabase(binding: AgentDatabaseBindingInput) {
+    if (!api.bindAgentDatabase) {
+      Toast.warning("当前环境未提供数据库绑定接口。");
+      return;
+    }
+
+    if (binding.accessMode === "readwrite" && !readwriteConfirmedRef.current) {
+      const confirmed = window.confirm("当前数据库绑定包含读写权限，继续绑定将允许智能体执行写入动作。是否继续？");
+      if (!confirmed) {
+        return;
+      }
+      readwriteConfirmedRef.current = true;
+    }
+
+    const previousPersistedIds = new Set(persistedDatabaseIds);
+    const databaseName = databaseOptions.find(item => item.id === binding.databaseId)?.name || `DB ${binding.databaseId}`;
+    setDatabaseBindingActionId(binding.databaseId);
+    try {
+      const nextPersistedBindings = await api.bindAgentDatabase(botId, binding);
+      syncPersistedDatabaseBindings(nextPersistedBindings);
+      setSelectedDatabaseIds(current => current.includes(binding.databaseId) ? current : [...current, binding.databaseId]);
+      setDatabaseBindings(current => mergeDatabaseBindingsAfterPersist(current, nextPersistedBindings, previousPersistedIds));
+      Toast.success(`已绑定数据库：${databaseName}`);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "绑定数据库失败。");
+    } finally {
+      setDatabaseBindingActionId(null);
+    }
+  }
+
+  async function handleUnbindDatabase(databaseId: number) {
+    if (!api.unbindAgentDatabase) {
+      Toast.warning("当前环境未提供数据库解绑接口。");
+      return;
+    }
+
+    const previousPersistedIds = new Set(persistedDatabaseIds);
+    const databaseName = databaseOptions.find(item => item.id === databaseId)?.name || `DB ${databaseId}`;
+    setDatabaseBindingActionId(databaseId);
+    try {
+      const nextPersistedBindings = await api.unbindAgentDatabase(botId, databaseId);
+      syncPersistedDatabaseBindings(nextPersistedBindings);
+      setSelectedDatabaseIds(current => current.filter(item => item !== databaseId));
+      setDatabaseBindings(current => mergeDatabaseBindingsAfterPersist(current, nextPersistedBindings, previousPersistedIds, databaseId));
+      Toast.success(`已解绑数据库：${databaseName}`);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : "解绑数据库失败。");
+    } finally {
+      setDatabaseBindingActionId(null);
+    }
   }
 
   function handleVariableSelectionChange(nextVariableIds: number[]) {
@@ -952,6 +1072,10 @@ export function AgentWorkbench({
               handleDatabaseSelectionChange={handleDatabaseSelectionChange}
               databaseBindings={databaseBindings}
               setDatabaseBindings={setDatabaseBindings}
+              persistedDatabaseIds={[...persistedDatabaseIds]}
+              databaseBindingActionId={databaseBindingActionId}
+              handleBindDatabase={handleBindDatabase}
+              handleUnbindDatabase={handleUnbindDatabase}
               selectedVariableIds={selectedVariableIds}
               handleVariableSelectionChange={handleVariableSelectionChange}
               variableBindings={variableBindings}

@@ -68,7 +68,14 @@ public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
             _appContextAccessor.ResolveAppId());
         await _executionRepo.AddAsync(execution, cancellationToken);
 
-        await _dagExecutor.RunAsync(tenantId, execution, canvas, inputs, eventChannel: null, cancellationToken);
+        await _dagExecutor.RunAsync(
+            tenantId,
+            execution,
+            canvas,
+            inputs,
+            eventChannel: null,
+            cancellationToken,
+            userId: userId);
         return new CozeWorkflowRunResult(
             execution.Id.ToString(),
             execution.Status,
@@ -135,7 +142,8 @@ public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
             eventChannel: null,
             cancellationToken,
             workflowCallStack: null,
-            preCompletedNodeKeys);
+            preCompletedNodeKeys,
+            userId: execution.CreatedByUserId);
     }
 
     public async Task<CozeWorkflowRunResult> DebugNodeAsync(
@@ -173,7 +181,14 @@ public sealed class CozeWorkflowExecutionService : ICozeWorkflowExecutionService
             isDebug: true);
         await _executionRepo.AddAsync(execution, cancellationToken);
 
-        await _dagExecutor.RunAsync(tenantId, execution, debugCanvas, inputs, eventChannel: null, cancellationToken);
+        await _dagExecutor.RunAsync(
+            tenantId,
+            execution,
+            debugCanvas,
+            inputs,
+            eventChannel: null,
+            cancellationToken,
+            userId: userId);
         return new CozeWorkflowRunResult(
             execution.Id.ToString(),
             execution.Status,

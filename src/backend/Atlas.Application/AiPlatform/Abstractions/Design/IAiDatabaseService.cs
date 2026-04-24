@@ -1,6 +1,7 @@
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 
 namespace Atlas.Application.AiPlatform.Abstractions;
 
@@ -51,7 +52,10 @@ public interface IAiDatabaseService
         long databaseId,
         int pageIndex,
         int pageSize,
-        CancellationToken cancellationToken);
+        AiDatabaseRecordEnvironment environment,
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        string? channelId = null);
 
     Task<long> CreateRecordAsync(
         TenantId tenantId,
@@ -91,17 +95,39 @@ public interface IAiDatabaseService
         long databaseId,
         long recordId,
         AiDatabaseRecordUpdateRequest request,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        string? channelId = null);
 
     Task DeleteRecordAsync(
         TenantId tenantId,
         long databaseId,
         long recordId,
-        CancellationToken cancellationToken);
+        AiDatabaseRecordEnvironment environment,
+        CancellationToken cancellationToken,
+        long? ownerUserId = null,
+        string? channelId = null);
 
     Task<string> GetSchemaAsync(
         TenantId tenantId,
         long id,
+        CancellationToken cancellationToken);
+
+    Task UpdateModesAsync(
+        TenantId tenantId,
+        long id,
+        AiDatabaseModeUpdateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<AiDatabaseChannelConfigItem>> GetChannelConfigsAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken);
+
+    Task UpdateChannelConfigsAsync(
+        TenantId tenantId,
+        long id,
+        AiDatabaseChannelConfigsUpdateRequest request,
         CancellationToken cancellationToken);
 
     Task<AiDatabaseSchemaValidateResult> ValidateSchemaAsync(

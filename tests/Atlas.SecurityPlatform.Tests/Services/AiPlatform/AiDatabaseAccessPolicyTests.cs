@@ -15,7 +15,7 @@ public sealed class AiDatabaseAccessPolicyTests
         var db = new AiDatabase(Tenant, "demo", null, null, "[]", 1L);
         var policy = AiDatabaseAccessPolicy.For(db, userId: 100, channelId: "web");
         Assert.Null(policy.OwnerUserId);
-        Assert.Null(policy.ChannelId);
+        Assert.Null(policy.CurrentChannelId);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public sealed class AiDatabaseAccessPolicyTests
             "[]",
             2L,
             queryMode: AiDatabaseQueryMode.MultiUser,
-            channelScope: AiDatabaseChannelScope.Channel);
+            channelScope: AiDatabaseChannelScope.ChannelIsolated);
         Assert.Throws<BusinessException>(() => AiDatabaseAccessPolicy.For(db, userId: 1, channelId: null));
         Assert.Throws<BusinessException>(() => AiDatabaseAccessPolicy.For(db, userId: 1, channelId: "   "));
     }
@@ -47,16 +47,16 @@ public sealed class AiDatabaseAccessPolicyTests
         var db = new AiDatabase(
             Tenant, "demo", null, null, "[]", 2L,
             queryMode: AiDatabaseQueryMode.SingleUser,
-            channelScope: AiDatabaseChannelScope.Channel);
+            channelScope: AiDatabaseChannelScope.ChannelIsolated);
         var policy = AiDatabaseAccessPolicy.For(db, userId: 7, channelId: "bot-001");
         Assert.Equal(7, policy.OwnerUserId);
-        Assert.Equal("bot-001", policy.ChannelId);
+        Assert.Equal("bot-001", policy.CurrentChannelId);
     }
 
     [Fact]
     public void IsRecordVisible_ShouldHonorOwnerAndChannel()
     {
-        var policy = new AiDatabaseAccessPolicy(OwnerUserId: 7, ChannelId: "bot-001");
+        var policy = new AiDatabaseAccessPolicy(OwnerUserId: 7, CurrentChannelId: "bot-001", ChannelScope: AiDatabaseChannelScope.ChannelIsolated);
         Assert.True(policy.IsRecordVisible(recordOwnerUserId: 7, recordChannelId: "bot-001"));
         Assert.True(policy.IsRecordVisible(recordOwnerUserId: null, recordChannelId: null), "NULL 旧记录默认对所有人可见");
         Assert.False(policy.IsRecordVisible(recordOwnerUserId: 8, recordChannelId: "bot-001"));

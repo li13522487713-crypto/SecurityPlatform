@@ -1,5 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -13,6 +15,7 @@ public sealed class AiPromptTemplate : TenantEntity
         Category = string.Empty;
         Content = string.Empty;
         TagsJson = "[]";
+        ResourceSource = LibrarySource.Custom;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -24,7 +27,8 @@ public sealed class AiPromptTemplate : TenantEntity
         string content,
         string? tagsJson,
         bool isSystem,
-        long id)
+        long id,
+        LibrarySource resourceSource = LibrarySource.Custom)
         : base(tenantId)
     {
         Id = id;
@@ -34,6 +38,7 @@ public sealed class AiPromptTemplate : TenantEntity
         Content = content;
         TagsJson = string.IsNullOrWhiteSpace(tagsJson) ? "[]" : tagsJson;
         IsSystem = isSystem;
+        ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -46,6 +51,9 @@ public sealed class AiPromptTemplate : TenantEntity
     public bool IsSystem { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
+
+    [SugarColumn(IsNullable = false)]
+    public LibrarySource ResourceSource { get; private set; }
 
     public void Update(
         string name,

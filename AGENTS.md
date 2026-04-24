@@ -156,6 +156,15 @@ pnpm run format
 - Hangfire runner 必须带 `[AutomaticRetry(Attempts=3)]`；失败时 runner 内部 `IncrementAttempts()`，达 MaxAttempts 写 `DeadLetter`。
 - 详情以 `docs/plan-knowledge-platform-v5.md` 与 `docs/contracts.md` 为准。
 
+### AI 数据库（Coze 复刻）
+
+- API 前缀：`api/v1/ai-databases`；详情 DTO 含 `fields[]`、`channelConfigs[]`；记录读写区分 `environment`（Draft=1 / Online=2）。
+- 物理存储：`AiDatabasePhysicalTableService` 按租户 + 库 ID 维护 `draft` / `online` 两张表；行数据为 `atlas_data_json` + owner/channel 元数据列。
+- 访问策略：`AiDatabaseAccessPolicy` 实现单用户 `OwnerUserId` 过滤与 `ChannelScope`（完全共享 / 渠道隔离 / 站内共享）；写操作前按 `AiDatabaseChannelConfig` 校验渠道对测试/线上域的开关。
+- 渠道注册表：`Atlas.Infrastructure.Channels.ChannelCatalog` 与 `AiDatabaseChannelCatalog` 保持一致；宿主通过 `AddAtlasInfrastructureChannels` 绑定微信等选项类（敏感凭据走配置/密钥存储）。
+- 前端：`module-studio-react` 数据库详情页文案走 `copy.ts` 的 `databaseDetail`；资源库创建数据库默认 `SingleUser` + `ChannelIsolated`。
+- 计划与矩阵：见 `docs/plan-ai-database.md`；契约细节以 `docs/contracts.md`「AI 数据库补充契约」为准。
+
 ### 表格个人视图
 
 - 员工、角色、权限、菜单、部门、职位、项目、应用管理页面已接入表格个人视图能力。

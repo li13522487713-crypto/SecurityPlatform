@@ -2,6 +2,7 @@ using Atlas.Application.Plugins.Abstractions;
 using Atlas.Core.Governance;
 using Atlas.Infrastructure.DataScopes.AppRuntime;
 using Atlas.Infrastructure.DataScopes.Platform;
+using Atlas.Infrastructure.Channels.DependencyInjection;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Services.PlatformRuntime;
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,7 @@ public static class PlatformServiceCollectionExtensions
 {
     public static IServiceCollection AddAtlasInfrastructurePlatform(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddAtlasInfrastructureChannels(configuration);
         services.AddLicenseInfrastructure(configuration);
         services.AddPlatformInfrastructure();
         services.AddGovernanceInfrastructure();

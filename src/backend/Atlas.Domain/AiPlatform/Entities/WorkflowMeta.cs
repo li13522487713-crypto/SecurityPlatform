@@ -14,6 +14,7 @@ public sealed class WorkflowMeta : TenantEntity
     public WorkflowMeta() : base(TenantId.Empty)
     {
         Name = string.Empty;
+        ResourceSource = LibrarySource.Custom;
     }
 
     public WorkflowMeta(
@@ -23,7 +24,8 @@ public sealed class WorkflowMeta : TenantEntity
         WorkflowMode mode,
         long creatorId,
         long id,
-        long? workspaceId = null)
+        long? workspaceId = null,
+        LibrarySource resourceSource = LibrarySource.Custom)
         : base(tenantId)
     {
         Id = id;
@@ -34,6 +36,7 @@ public sealed class WorkflowMeta : TenantEntity
         Status = WorkflowLifecycleStatus.Draft;
         LatestVersionNumber = 0;
         CreatorId = creatorId;
+        ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
         IsDeleted = false;
@@ -51,6 +54,10 @@ public sealed class WorkflowMeta : TenantEntity
     [SugarColumn(IsNullable = true)]
     public DateTime? PublishedAt { get; private set; }
     public bool IsDeleted { get; private set; }
+
+    /// <summary>资源库来源（扣子官方 / 自定义）。</summary>
+    [SugarColumn(IsNullable = false)]
+    public LibrarySource ResourceSource { get; private set; }
 
     public void UpdateMeta(string name, string? description)
     {

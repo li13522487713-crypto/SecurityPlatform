@@ -33,6 +33,26 @@ export function workspaceRootPath(workspaceId: string): string {
   return `/space/${encodeSegment(workspaceId)}`;
 }
 
+/** 与 Coze 风格资源库页 `WorkspaceLibraryPage` 的 tab 对齐（用于 `?tab=` 深链） */
+export type WorkspaceLibraryTab =
+  | "all"
+  | "plugin"
+  | "workflow"
+  | "knowledge-base"
+  | "card"
+  | "prompt"
+  | "database"
+  | "voice"
+  | "memory";
+
+export function workspaceLibraryPath(workspaceId: string, tab?: WorkspaceLibraryTab): string {
+  const base = `${workspaceRootPath(workspaceId)}/library`;
+  if (!tab || tab === "all") {
+    return base;
+  }
+  return `${base}?tab=${encodeURIComponent(tab)}`;
+}
+
 export function workspaceHomePath(workspaceId: string): string {
   return `${workspaceRootPath(workspaceId)}/home`;
 }

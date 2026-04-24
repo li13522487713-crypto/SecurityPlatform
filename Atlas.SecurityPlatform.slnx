@@ -34,6 +34,7 @@
     <Project Path="src/backend/Atlas.Infrastructure.ExternalConnectors/Atlas.Infrastructure.ExternalConnectors.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure.LogicFlow/Atlas.Infrastructure.LogicFlow.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure/Atlas.Infrastructure.csproj" />
+    <Project Path="src/backend/Atlas.Infrastructure.Channels/Atlas.Infrastructure.Channels.csproj" />
     <Project Path="src/backend/Atlas.PlatformHost/Atlas.PlatformHost.csproj" />
     <Project Path="src/backend/Atlas.Presentation.Shared/Atlas.Presentation.Shared.csproj" />
     <Project Path="src/backend/Atlas.Sdk.ConnectorPlugins/Atlas.Sdk.ConnectorPlugins.csproj" />

@@ -1,7 +1,5 @@
 using System.Text.Json;
-using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -10,11 +8,12 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 /// </summary>
 public sealed class DatabaseDeleteNodeExecutor : INodeExecutor
 {
-    private readonly ISqlSugarClient _db;
-
-    public DatabaseDeleteNodeExecutor(ISqlSugarClient db)
+    public DatabaseDeleteNodeExecutor()
     {
-        _db = db;
+    }
+
+    public DatabaseDeleteNodeExecutor(object? _ignored)
+    {
     }
 
     public WorkflowNodeType NodeType => WorkflowNodeType.DatabaseDelete;
@@ -37,8 +36,11 @@ public sealed class DatabaseDeleteNodeExecutor : INodeExecutor
             new Dictionary<string, object?> { ["db.id"] = databaseId });
 
         var clauses = AiDatabaseNodeHelper.ResolveClauses(context.Node.Config);
-        var policy = await AiDatabaseNodeHelper.ResolvePolicyAsync(_db, context, databaseId, cancellationToken);
-        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken, policy);
+        var records = await AiDatabaseNodeHelper.LoadRecordItemsAsync(
+            context,
+            databaseId,
+            cancellationToken,
+            500_000);
         var deleteIds = records
             .Where(record =>
             {
@@ -52,12 +54,19 @@ public sealed class DatabaseDeleteNodeExecutor : INodeExecutor
         var affectedRows = 0;
         if (deleteIds.Length > 0)
         {
-            affectedRows = await _db.Deleteable<AiDatabaseRecord>()
-                .Where(x =>
-                    x.TenantIdValue == context.TenantId.Value &&
-                    x.DatabaseId == databaseId &&
-                    SqlFunc.ContainsArray(deleteIds, x.Id))
-                .ExecuteCommandAsync(cancellationToken);
+            var service = AiDatabaseNodeHelper.ResolveDatabaseService(context);
+            foreach (var deleteId in deleteIds)
+            {
+                await service.DeleteRecordAsync(
+                    context.TenantId,
+                    databaseId,
+                    deleteId,
+                    AiDatabaseNodeHelper.ResolveEnvironment(context),
+                    cancellationToken,
+                    context.UserId,
+                    context.ChannelId);
+                affectedRows++;
+            }
         }
 
         outputs["affected_rows"] = JsonSerializer.SerializeToElement(affectedRows);

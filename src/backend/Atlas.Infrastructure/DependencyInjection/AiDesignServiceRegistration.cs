@@ -38,6 +38,8 @@ public static class AiDesignServiceRegistration
         services.AddScoped<KnowledgeDocumentRepository>();
         services.AddScoped<DocumentChunkRepository>();
         services.AddScoped<AiDatabaseRepository>();
+        services.AddScoped<AiDatabaseFieldRepository>();
+        services.AddScoped<AiDatabaseChannelConfigRepository>();
         services.AddScoped<AiDatabaseRecordRepository>();
         services.AddScoped<AiDatabaseImportTaskRepository>();
         services.AddScoped<AiVariableRepository>();
@@ -85,6 +87,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<ITeamAgentPublicationService, TeamAgentPublicationService>();
         services.AddScoped<KnowledgeQuotaPolicy>();
         services.AddScoped<AiDatabaseQuotaPolicy>();
+        services.AddScoped<AiDatabasePhysicalTableService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiAppResourceBindingService, AiAppResourceBindingService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
@@ -104,6 +107,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<IRagFeedbackService, RagFeedbackService>();
         services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         services.AddScoped<IAiWorkspaceService, AiWorkspaceService>();
+        services.AddScoped<IVoiceAssetService, VoiceAssetService>();
         services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();
         services.AddSingleton<BuiltInPluginMetadataProvider>();
         services.AddSingleton<OpenApiProjectRateLimiter>();

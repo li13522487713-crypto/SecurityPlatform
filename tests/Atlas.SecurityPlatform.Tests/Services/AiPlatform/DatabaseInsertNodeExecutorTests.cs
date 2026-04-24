@@ -17,7 +17,7 @@ public sealed class DatabaseInsertNodeExecutorTests
         using var harness = new AiDatabaseTestHarness();
         var db = await harness.SeedDatabaseAsync(
             queryMode: AiDatabaseQueryMode.SingleUser,
-            channelScope: AiDatabaseChannelScope.Channel);
+            channelScope: AiDatabaseChannelScope.ChannelIsolated);
 
         var executor = new DatabaseInsertNodeExecutor(harness.Db, harness.IdGenerator);
         var config = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
@@ -37,8 +37,15 @@ public sealed class DatabaseInsertNodeExecutorTests
         Assert.True(result.Success, result.ErrorMessage);
         Assert.Equal(1, result.Outputs["affected_rows"].GetInt32());
 
-        var rows = await harness.RecordRepository.GetPagedByDatabaseAsync(
-            AiDatabaseTestHarness.Tenant, db.Id, 1, 50, CancellationToken.None);
+        var rows = await harness.Service.GetRecordsAsync(
+            AiDatabaseTestHarness.Tenant,
+            db.Id,
+            1,
+            50,
+            AiDatabaseRecordEnvironment.Draft,
+            CancellationToken.None,
+            ownerUserId: 42,
+            channelId: "agent-x");
         var row = Assert.Single(rows.Items);
         Assert.Equal(42, row.OwnerUserId);
         Assert.Equal("agent-x", row.ChannelId);
@@ -67,11 +74,16 @@ public sealed class DatabaseInsertNodeExecutorTests
         var result = await executor.ExecuteAsync(ctx, CancellationToken.None);
         Assert.True(result.Success, result.ErrorMessage);
 
-        var rows = await harness.RecordRepository.GetPagedByDatabaseAsync(
-            AiDatabaseTestHarness.Tenant, db.Id, 1, 50, CancellationToken.None);
+        var rows = await harness.Service.GetRecordsAsync(
+            AiDatabaseTestHarness.Tenant,
+            db.Id,
+            1,
+            50,
+            AiDatabaseRecordEnvironment.Draft,
+            CancellationToken.None);
         var row = Assert.Single(rows.Items);
         Assert.Null(row.OwnerUserId);
-        Assert.Null(row.ChannelId);
+        Assert.True(string.IsNullOrEmpty(row.ChannelId));
     }
 
     [Fact]

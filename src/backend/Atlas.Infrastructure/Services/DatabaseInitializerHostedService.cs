@@ -11,6 +11,7 @@ using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
@@ -203,6 +204,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureProductizationSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiPluginSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureResourceLibrarySourceColumnsAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkspacePortalSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiMemorySchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAgentPublicationSchemaAsync(db, cancellationToken); migrationCount++;
@@ -279,6 +281,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             using var seedScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, seedTenantId));
             await approvalSeedService.InitializeSeedDataAsync(seedTenantId, cancellationToken);
             await templateSeedDataService.InitializeBuiltInTemplatesAsync(seedTenantId, cancellationToken);
+            await EnsureCozeOfficialLibraryKnowledgeDemoAsync(
+                db,
+                scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>(),
+                seedTenantId,
+                cancellationToken);
         }
 
         if (Guid.TryParse(effectiveBootstrap.TenantId, out var appTenantGuid))
@@ -2038,6 +2045,60 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await AddColumnIfMissingAsync(db, "AiPlugin", "AuthConfigJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiPlugin", "ToolSchemaJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+    }
+
+    private static async Task EnsureResourceLibrarySourceColumnsAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        // LibrarySource.Custom = 2
+        const string def = "INTEGER NOT NULL DEFAULT 2";
+        await AddColumnIfMissingAsync(db, "AiPlugin", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "WorkflowMeta", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "KnowledgeBase", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPromptTemplate", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "AgentCard", "ResourceSource", def, cancellationToken);
+        await AddColumnIfMissingAsync(db, "LongTermMemory", "ResourceLibrarySource", def, cancellationToken);
+    }
+
+    private static async Task EnsureCozeOfficialLibraryKnowledgeDemoAsync(
+        ISqlSugarClient db,
+        IIdGeneratorAccessor idGenerator,
+        TenantId seedTenant,
+        CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("KnowledgeBase", false))
+        {
+            return;
+        }
+
+        var demoRows = new (string Name, string Description)[]
+        {
+            ("【扣子小助手】专业版", "Coze 官方知识库示例"),
+            ("FAQ", "常见问题"),
+            ("FAQ 更新", "更新与变更说明"),
+            ("产品文档", "产品与能力文档")
+        };
+
+        foreach (var row in demoRows)
+        {
+            var count = await db.Queryable<KnowledgeBase>()
+                .Where(x => x.TenantIdValue == seedTenant.Value && x.Name == row.Name)
+                .CountAsync(cancellationToken);
+            if (count > 0)
+            {
+                continue;
+            }
+
+            var entity = new KnowledgeBase(
+                seedTenant,
+                row.Name,
+                row.Description,
+                KnowledgeBaseType.Text,
+                idGenerator.NextId(),
+                null,
+                LibrarySource.Official);
+            await db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+        }
     }
 
     private static async Task EnsureWorkspacePortalSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

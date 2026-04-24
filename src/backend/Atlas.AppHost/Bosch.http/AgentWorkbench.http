@@ -86,6 +86,25 @@ Content-Type: application/json
   "workflowId": {{workflowId}}
 }
 
+### 绑定 Agent 数据库
+POST {{baseUrl}}/api/v1/ai-assistants/{{agentId}}/database-bindings
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "databaseId": 1,
+  "alias": "incident_memory",
+  "accessMode": "readonly",
+  "tableAllowlist": ["incidents", "alerts"],
+  "isDefault": true
+}
+
+### 解绑 Agent 数据库
+DELETE {{baseUrl}}/api/v1/ai-assistants/{{agentId}}/database-bindings/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 执行工作台工作流任务（AppHost 聚合）
 POST {{baseUrl}}/api/v1/workflow-playground/{{workflowId}}/execute
 Authorization: Bearer {{accessToken}}

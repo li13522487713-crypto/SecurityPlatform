@@ -1,8 +1,7 @@
 using System.Text.Json;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Abstractions;
-using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
-using Atlas.Infrastructure.Services.AiPlatform;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -14,14 +13,12 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 public sealed class DatabaseInsertNodeExecutor : INodeExecutor
 {
     private readonly ISqlSugarClient _db;
-    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public DatabaseInsertNodeExecutor(
         ISqlSugarClient db,
         IIdGeneratorAccessor idGeneratorAccessor)
     {
         _db = db;
-        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public WorkflowNodeType NodeType => WorkflowNodeType.DatabaseInsert;
@@ -54,38 +51,28 @@ public sealed class DatabaseInsertNodeExecutor : INodeExecutor
         var policy = await AiDatabaseNodeHelper.ResolvePolicyAsync(_db, context, databaseId, cancellationToken);
         var ownerUserId = injectUserContext ? policy.OwnerUserId ?? context.UserId : null;
         var channelId = injectUserContext ? policy.ChannelId ?? context.ChannelId : null;
-
-        var schemaJson = await AiDatabaseNodeHelper.LoadSchemaAsync(
-            _db,
+        var service = AiDatabaseNodeHelper.ResolveDatabaseService(context);
+        var bulkResult = await service.CreateRecordsBulkAsync(
             context.TenantId,
             databaseId,
+            new AiDatabaseRecordBulkCreateRequest(
+                rowPayloads.Select(x => x.GetRawText()).ToArray(),
+                AiDatabaseNodeHelper.ResolveEnvironment(context)),
             cancellationToken,
-            context.ServiceProvider);
-        var entities = new List<AiDatabaseRecord>(rowPayloads.Count);
-        foreach (var row in rowPayloads)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var coerced = AiDatabaseValueCoercer.Coerce(schemaJson, row.GetRawText());
-            entities.Add(new AiDatabaseRecord(
-                context.TenantId,
-                databaseId,
-                coerced,
-                _idGeneratorAccessor.NextId(),
-                ownerUserId,
-                ownerUserId,
-                channelId));
-        }
+            ownerUserId,
+            ownerUserId,
+            channelId,
+            enforceSyncBulkRowLimit: false);
 
-        await _db.Insertable(entities).ExecuteCommandAsync(cancellationToken);
-        outputs["affected_rows"] = JsonSerializer.SerializeToElement(entities.Count);
-        activity?.SetTag("db.affected_rows", entities.Count);
+        outputs["affected_rows"] = JsonSerializer.SerializeToElement(bulkResult.Succeeded);
+        activity?.SetTag("db.affected_rows", bulkResult.Succeeded);
         await AiNodeObservability.WriteAuditAsync(
             context.ServiceProvider,
             context.TenantId,
             context.UserId,
             "ai_database_node.insert",
             "success",
-            $"db:{databaseId}/rows:{entities.Count}/node:{context.Node.Key}",
+            $"db:{databaseId}/rows:{bulkResult.Succeeded}/node:{context.Node.Key}",
             cancellationToken);
         return new NodeExecutionResult(true, outputs);
     }

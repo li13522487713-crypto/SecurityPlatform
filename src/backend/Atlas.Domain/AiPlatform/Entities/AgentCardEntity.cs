@@ -1,5 +1,6 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Enums;
 using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
@@ -17,6 +18,7 @@ public sealed class AgentCard : TenantEntity
         CardType = "interactive";
         SchemaJson = "{}";
         IsEnabled = false;
+        ResourceSource = LibrarySource.Custom;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -28,7 +30,8 @@ public sealed class AgentCard : TenantEntity
         string schemaJson,
         bool isEnabled,
         long createdBy,
-        long id)
+        long id,
+        LibrarySource resourceSource = LibrarySource.Custom)
         : base(tenantId)
     {
         Id = id;
@@ -38,6 +41,7 @@ public sealed class AgentCard : TenantEntity
         SchemaJson = string.IsNullOrWhiteSpace(schemaJson) ? "{}" : schemaJson;
         IsEnabled = isEnabled;
         CreatedBy = createdBy;
+        ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -57,6 +61,9 @@ public sealed class AgentCard : TenantEntity
     public long CreatedBy { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
+
+    [SugarColumn(IsNullable = false)]
+    public LibrarySource ResourceSource { get; private set; }
 
     public void Update(string name, string cardType, string schemaJson, bool isEnabled)
     {

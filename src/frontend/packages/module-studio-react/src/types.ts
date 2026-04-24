@@ -436,21 +436,74 @@ export interface StudioDatabaseDetail {
   description?: string;
   botId?: number;
   recordCount: number;
+  draftRecordCount?: number;
+  onlineRecordCount?: number;
+  queryMode?: number;
+  channelScope?: number;
+  workspaceId?: number;
+  fields?: StudioDatabaseFieldItem[];
+  channelConfigs?: StudioDatabaseChannelConfigItem[];
   createdAt: string;
   updatedAt?: string;
   tableSchema: string;
+}
+
+export interface StudioDatabaseFieldItem {
+  id?: number;
+  name: string;
+  description?: string;
+  type: string;
+  required: boolean;
+  indexed?: boolean;
+  isSystemField?: boolean;
+  sortOrder?: number;
+}
+
+export interface StudioDatabaseChannelConfigItem {
+  channelKey: string;
+  displayName: string;
+  allowDraft: boolean;
+  allowOnline: boolean;
+  publishChannelType?: string;
+  credentialKind?: string;
+  sortOrder?: number;
 }
 
 export interface StudioDatabaseRecordItem {
   id: number;
   databaseId: number;
   dataJson: string;
+  environment?: number;
+  ownerUserId?: number;
+  creatorUserId?: number;
+  channelId?: string;
   createdAt: string;
   updatedAt?: string;
 }
 
 export interface StudioDatabaseRecordUpsertRequest {
   dataJson: string;
+  environment?: number;
+}
+
+export interface StudioDatabaseUpsertRequest {
+  name: string;
+  description?: string;
+  botId?: number;
+  tableSchema?: string;
+  workspaceId?: number;
+  fields?: StudioDatabaseFieldItem[];
+  queryMode?: number;
+  channelScope?: number;
+}
+
+export interface StudioDatabaseModeUpdateRequest {
+  queryMode: number;
+  channelScope: number;
+}
+
+export interface StudioDatabaseChannelConfigsUpdateRequest {
+  items: StudioDatabaseChannelConfigItem[];
 }
 
 export interface StudioDatabaseSchemaValidationResult {
@@ -470,11 +523,13 @@ export interface StudioDatabaseImportProgress {
   updatedAt?: string;
   /** D5：导入任务来源；0=File（CSV）、1=Inline（异步批量）。 */
   source?: number;
+  environment?: number;
 }
 
 /** D5：批量同步插入请求；rows[] 每项是单条记录的 dataJson。 */
 export interface StudioDatabaseRecordBulkCreateRequest {
   rows: string[];
+  environment?: number;
 }
 
 export interface StudioDatabaseRecordBulkRowResult {
@@ -641,20 +696,30 @@ export interface StudioModuleApi {
   getKnowledgeBase: (id: number) => Promise<StudioKnowledgeBaseDetail>;
   listDatabases: () => Promise<Array<{ id: number; name: string; botId?: number }>>;
   getDatabaseDetail: (id: number) => Promise<StudioDatabaseDetail>;
-  listDatabaseRecords: (id: number, params?: { pageIndex?: number; pageSize?: number }) => Promise<PagedResult<StudioDatabaseRecordItem>>;
+  createDatabase?: (request: StudioDatabaseUpsertRequest) => Promise<number>;
+  updateDatabase?: (id: number, request: StudioDatabaseUpsertRequest) => Promise<void>;
+  listDatabaseRecords: (
+    id: number,
+    params?: { pageIndex?: number; pageSize?: number; environment?: number }
+  ) => Promise<PagedResult<StudioDatabaseRecordItem>>;
   createDatabaseRecord: (id: number, request: StudioDatabaseRecordUpsertRequest) => Promise<number>;
   updateDatabaseRecord: (id: number, recordId: number, request: StudioDatabaseRecordUpsertRequest) => Promise<void>;
-  deleteDatabaseRecord: (id: number, recordId: number) => Promise<void>;
+  deleteDatabaseRecord: (id: number, recordId: number, environment?: number) => Promise<void>;
   validateDatabaseSchemaDraft: (schemaJson: string) => Promise<StudioDatabaseSchemaValidationResult>;
-  submitDatabaseImport: (id: number, file: File) => Promise<number>;
+  submitDatabaseImport: (id: number, file: File, environment?: number) => Promise<number>;
   getDatabaseImportProgress: (id: number) => Promise<StudioDatabaseImportProgress | null>;
   downloadDatabaseTemplate: (id: number) => Promise<void>;
+  getDatabaseChannelConfigs?: (id: number) => Promise<StudioDatabaseChannelConfigItem[]>;
+  updateDatabaseChannelConfigs?: (id: number, request: StudioDatabaseChannelConfigsUpdateRequest) => Promise<void>;
+  updateDatabaseMode?: (id: number, request: StudioDatabaseModeUpdateRequest) => Promise<void>;
   /** D5：同步批量插入；受 MaxBulkInsertRows 限制（默认 1000）。可选——上层未实现时回退到逐条 createDatabaseRecord。 */
   bulkCreateDatabaseRecords?: (id: number, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseRecordBulkCreateResult>;
   /** D5：异步批量插入。可选——上层未实现时不暴露入口。 */
   submitDatabaseBulkInsertJob?: (id: number, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseBulkJobAccepted>;
   listBotVariables: (botId: string) => Promise<Array<{ id: number; key: string; scopeId?: number }>>;
   bindAgentWorkflow: (agentId: string, workflowId?: string) => Promise<WorkflowBinding>;
+  bindAgentDatabase?: (agentId: string, request: AgentDatabaseBindingInput) => Promise<AgentDatabaseBinding[]>;
+  unbindAgentDatabase?: (agentId: string, databaseId: number) => Promise<AgentDatabaseBinding[]>;
   runWorkflowTask: (
     workflowId: string,
     incident: string

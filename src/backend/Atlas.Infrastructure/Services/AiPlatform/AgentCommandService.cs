@@ -265,6 +265,56 @@ public sealed class AgentCommandService : IAgentCommandService
         return workflowBinding;
     }
 
+    public async Task<IReadOnlyList<AgentDatabaseBindingItem>> BindDatabaseAsync(
+        TenantId tenantId,
+        long id,
+        AgentDatabaseBindingInput request,
+        CancellationToken cancellationToken)
+    {
+        var entity = await _agentRepository.FindByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new BusinessException("AgentNotFound", ErrorCodes.NotFound);
+
+        var currentBindings = DeserializeDatabaseBindings(entity.DatabaseBindingsJson)
+            .Where(item => item.DatabaseId != request.DatabaseId)
+            .Select(ToDatabaseBindingInput)
+            .ToArray();
+        var mergedBindings = NormalizeDatabaseBindings(
+            currentBindings.Append(request),
+            request.IsDefault ? request.DatabaseId : null);
+        var validatedBindings = await BuildValidatedDatabaseBindingsAsync(
+            tenantId,
+            id,
+            mergedBindings,
+            compatibilityIds: null,
+            cancellationToken);
+
+        return await SaveDatabaseBindingsAsync(tenantId, entity, validatedBindings, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AgentDatabaseBindingItem>> UnbindDatabaseAsync(
+        TenantId tenantId,
+        long id,
+        long databaseId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await _agentRepository.FindByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new BusinessException("AgentNotFound", ErrorCodes.NotFound);
+
+        var remainingBindings = NormalizeDatabaseBindings(
+            DeserializeDatabaseBindings(entity.DatabaseBindingsJson)
+                .Where(item => item.DatabaseId != databaseId)
+                .Select(ToDatabaseBindingInput),
+            preferredDefaultDatabaseId: null);
+        var validatedBindings = await BuildValidatedDatabaseBindingsAsync(
+            tenantId,
+            id,
+            remainingBindings,
+            compatibilityIds: null,
+            cancellationToken);
+
+        return await SaveDatabaseBindingsAsync(tenantId, entity, validatedBindings, cancellationToken);
+    }
+
     private static string SerializePresetQuestions(IReadOnlyList<string>? presetQuestions)
     {
         var normalized = presetQuestions?
@@ -299,6 +349,103 @@ public sealed class AgentCommandService : IAgentCommandService
         return JsonSerializer.Serialize(normalized, JsonOptions);
     }
 
+    private static IReadOnlyList<AgentDatabaseBindingItem> DeserializeDatabaseBindings(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<AgentDatabaseBindingItem>();
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<AgentDatabaseBindingItem>();
+            }
+
+            var result = new List<AgentDatabaseBindingItem>();
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Number && item.TryGetInt64(out var legacyId) && legacyId > 0)
+                {
+                    result.Add(new AgentDatabaseBindingItem(legacyId, null, "readonly", Array.Empty<string>(), result.Count == 0));
+                    continue;
+                }
+
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var databaseId = TryGetInt64(item, "databaseId");
+                if (databaseId <= 0)
+                {
+                    continue;
+                }
+
+                result.Add(new AgentDatabaseBindingItem(
+                    databaseId,
+                    GetOptionalString(item, "alias"),
+                    NormalizeDatabaseAccessMode(GetOptionalString(item, "accessMode")),
+                    GetStringArray(item, "tableAllowlist"),
+                    TryGetBoolean(item, "isDefault")));
+            }
+
+            return result;
+        }
+        catch
+        {
+            return Array.Empty<AgentDatabaseBindingItem>();
+        }
+    }
+
+    private static AgentDatabaseBindingInput ToDatabaseBindingInput(AgentDatabaseBindingItem item)
+        => new(
+            item.DatabaseId,
+            item.Alias,
+            item.AccessMode,
+            item.TableAllowlist,
+            item.IsDefault);
+
+    private static AgentDatabaseBindingItem ToDatabaseBindingItem(AgentDatabaseBindingInput item)
+        => new(
+            item.DatabaseId,
+            string.IsNullOrWhiteSpace(item.Alias) ? null : item.Alias.Trim(),
+            NormalizeDatabaseAccessMode(item.AccessMode),
+            NormalizeTableAllowlist(item.TableAllowlist),
+            item.IsDefault);
+
+    private static AgentDatabaseBindingInput[] NormalizeDatabaseBindings(
+        IEnumerable<AgentDatabaseBindingInput> items,
+        long? preferredDefaultDatabaseId)
+    {
+        var normalized = items
+            .Where(item => item.DatabaseId > 0)
+            .GroupBy(item => item.DatabaseId)
+            .Select(group => group.First())
+            .Select(item => new AgentDatabaseBindingInput(
+                item.DatabaseId,
+                string.IsNullOrWhiteSpace(item.Alias) ? null : item.Alias.Trim(),
+                NormalizeDatabaseAccessMode(item.AccessMode),
+                NormalizeTableAllowlist(item.TableAllowlist),
+                item.IsDefault))
+            .ToArray();
+
+        if (normalized.Length == 0)
+        {
+            return [];
+        }
+
+        var defaultDatabaseId = preferredDefaultDatabaseId.HasValue && normalized.Any(item => item.DatabaseId == preferredDefaultDatabaseId.Value)
+            ? preferredDefaultDatabaseId.Value
+            : normalized.FirstOrDefault(item => item.IsDefault)?.DatabaseId ?? normalized[0].DatabaseId;
+
+        return normalized
+            .Select(item => item with { IsDefault = item.DatabaseId == defaultDatabaseId })
+            .ToArray();
+    }
+
     private static string SerializeVariableBindings(IReadOnlyList<AgentVariableBindingInput>? items)
     {
         var normalized = items?
@@ -310,6 +457,50 @@ public sealed class AgentCommandService : IAgentCommandService
                 string.IsNullOrWhiteSpace(item.DefaultValueOverride) ? null : item.DefaultValueOverride.Trim()))
             .ToArray() ?? [];
         return JsonSerializer.Serialize(normalized, JsonOptions);
+    }
+
+    private async Task<IReadOnlyList<AgentDatabaseBindingItem>> SaveDatabaseBindingsAsync(
+        TenantId tenantId,
+        Agent entity,
+        IReadOnlyList<AgentDatabaseBindingInput> bindings,
+        CancellationToken cancellationToken)
+    {
+        entity.Update(
+            entity.Name,
+            entity.Description,
+            entity.AvatarUrl,
+            entity.SystemPrompt,
+            entity.PersonaMarkdown,
+            entity.Goals,
+            entity.ReplyLogic,
+            entity.OutputFormat,
+            entity.Constraints,
+            entity.OpeningMessage,
+            entity.PresetQuestionsJson,
+            SerializeDatabaseBindings(bindings),
+            entity.VariableBindingsJson,
+            entity.ModelConfigId,
+            entity.ModelName,
+            entity.Temperature,
+            entity.MaxTokens,
+            entity.DefaultWorkflowId,
+            entity.DefaultWorkflowName,
+            entity.EnableMemory,
+            entity.EnableShortTermMemory,
+            entity.EnableLongTermMemory,
+            entity.LongTermMemoryTopK);
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await _agentRepository.UpdateAsync(entity, cancellationToken);
+            await SyncDatabaseBindingsAsync(
+                tenantId,
+                entity.Id,
+                bindings.Select(item => item.DatabaseId).ToArray(),
+                cancellationToken);
+        }, cancellationToken);
+
+        return bindings.Select(ToDatabaseBindingItem).ToArray();
     }
 
     public async Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
@@ -660,6 +851,38 @@ public sealed class AgentCommandService : IAgentCommandService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray() ?? ["text", "table", "image"];
         return JsonSerializer.Serialize(normalized, JsonOptions);
+    }
+
+    private static string? GetOptionalString(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+            ? string.IsNullOrWhiteSpace(property.GetString()) ? null : property.GetString()!.Trim()
+            : null;
+
+    private static bool TryGetBoolean(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var property) && property.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? property.GetBoolean()
+            : false;
+
+    private static long TryGetInt64(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetInt64(out var result)
+            ? result
+            : 0;
+
+    private static IReadOnlyList<string> GetStringArray(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<string>();
+        }
+
+        return property
+            .EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.String)
+            .Select(item => item.GetString())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static IReadOnlyList<string> NormalizeTableAllowlist(IReadOnlyList<string>? items)

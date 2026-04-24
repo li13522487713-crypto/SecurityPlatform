@@ -1,5 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -23,6 +25,7 @@ public sealed class AiPlugin : TenantEntity
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
         PublishedAt = DateTime.UnixEpoch;
+        ResourceSource = LibrarySource.Custom;
     }
 
     public AiPlugin(
@@ -39,7 +42,8 @@ public sealed class AiPlugin : TenantEntity
         string? toolSchemaJson,
         string? openApiSpecJson,
         long id,
-        long? workspaceId = null)
+        long? workspaceId = null,
+        LibrarySource resourceSource = LibrarySource.Custom)
         : base(tenantId)
     {
         Id = id;
@@ -58,6 +62,7 @@ public sealed class AiPlugin : TenantEntity
         ToolSchemaJson = string.IsNullOrWhiteSpace(toolSchemaJson) ? "{}" : toolSchemaJson;
         OpenApiSpecJson = string.IsNullOrWhiteSpace(openApiSpecJson) ? "{}" : openApiSpecJson;
         Status = AiPluginStatus.Draft;
+        ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
         PublishedAt = DateTime.UnixEpoch;
@@ -84,6 +89,9 @@ public sealed class AiPlugin : TenantEntity
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
     public DateTime? PublishedAt { get; private set; }
+
+    [SugarColumn(IsNullable = false)]
+    public LibrarySource ResourceSource { get; private set; }
 
     public void Update(
         string name,

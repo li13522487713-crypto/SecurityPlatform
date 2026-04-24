@@ -54,11 +54,15 @@ internal sealed class AiDatabaseTestHarness : IDisposable
 
         Db.CodeFirst.InitTables(
             typeof(AiDatabase),
+            typeof(AiDatabaseField),
+            typeof(AiDatabaseChannelConfig),
             typeof(AiDatabaseRecord),
             typeof(AiDatabaseImportTask),
             typeof(AiAppResourceBinding));
 
         DatabaseRepository = new AiDatabaseRepository(Db);
+        FieldRepository = new AiDatabaseFieldRepository(Db);
+        ChannelConfigRepository = new AiDatabaseChannelConfigRepository(Db);
         RecordRepository = new AiDatabaseRecordRepository(Db);
         ImportTaskRepository = new AiDatabaseImportTaskRepository(Db);
         BindingRepository = new AiAppResourceBindingRepository(Db);
@@ -72,9 +76,12 @@ internal sealed class AiDatabaseTestHarness : IDisposable
             NullLogger<AiDatabaseQuotaPolicy>.Instance);
 
         BackgroundWorkQueue = new CapturingBackgroundWorkQueue();
+        PhysicalTableService = new AiDatabasePhysicalTableService(Db, NullLogger<AiDatabasePhysicalTableService>.Instance);
 
         var services = new ServiceCollection();
         services.AddSingleton(DatabaseRepository);
+        services.AddSingleton(FieldRepository);
+        services.AddSingleton(ChannelConfigRepository);
         services.AddSingleton(RecordRepository);
         services.AddSingleton(ImportTaskRepository);
         services.AddSingleton(BindingRepository);
@@ -84,12 +91,16 @@ internal sealed class AiDatabaseTestHarness : IDisposable
         services.AddSingleton(IdGenerator);
         services.AddSingleton<IUnitOfWork>(UnitOfWork);
         services.AddSingleton(NullLogger<AiDatabaseService>.Instance);
+        services.AddSingleton(PhysicalTableService);
         services.AddSingleton<IAiDatabaseService>(sp => new AiDatabaseService(
             DatabaseRepository,
+            FieldRepository,
+            ChannelConfigRepository,
             RecordRepository,
             ImportTaskRepository,
             BindingRepository,
             QuotaPolicy,
+            PhysicalTableService,
             FileStorage,
             BackgroundWorkQueue,
             IdGenerator,
@@ -101,11 +112,14 @@ internal sealed class AiDatabaseTestHarness : IDisposable
 
     public ISqlSugarClient Db { get; }
     public AiDatabaseRepository DatabaseRepository { get; }
+    public AiDatabaseFieldRepository FieldRepository { get; }
+    public AiDatabaseChannelConfigRepository ChannelConfigRepository { get; }
     public AiDatabaseRecordRepository RecordRepository { get; }
     public AiDatabaseImportTaskRepository ImportTaskRepository { get; }
     public AiAppResourceBindingRepository BindingRepository { get; }
     public AiDatabaseQuotaPolicy QuotaPolicy { get; }
     public CapturingBackgroundWorkQueue BackgroundWorkQueue { get; }
+    public AiDatabasePhysicalTableService PhysicalTableService { get; }
     public IIdGeneratorAccessor IdGenerator { get; }
     public IUnitOfWork UnitOfWork { get; }
     public IFileStorageService FileStorage { get; }
@@ -116,7 +130,7 @@ internal sealed class AiDatabaseTestHarness : IDisposable
         string name = "demo",
         string tableSchema = "[{\"name\":\"orderId\",\"type\":\"string\"},{\"name\":\"amount\",\"type\":\"number\"}]",
         AiDatabaseQueryMode queryMode = AiDatabaseQueryMode.MultiUser,
-        AiDatabaseChannelScope channelScope = AiDatabaseChannelScope.Open,
+        AiDatabaseChannelScope channelScope = AiDatabaseChannelScope.FullShared,
         long workspaceId = 1L,
         long botId = 1L)
     {
@@ -132,7 +146,10 @@ internal sealed class AiDatabaseTestHarness : IDisposable
             workspaceId: workspaceId,
             queryMode: queryMode,
             channelScope: channelScope);
+        var names = PhysicalTableService.BuildTableNames(Tenant, entity.Id);
+        entity.SetPhysicalTables(names.DraftTableName, names.OnlineTableName);
         await DatabaseRepository.AddAsync(entity, CancellationToken.None);
+        await PhysicalTableService.EnsureDatabaseTablesAsync(entity, legacyDraftRows: null, CancellationToken.None);
         return entity;
     }
 
@@ -141,7 +158,9 @@ internal sealed class AiDatabaseTestHarness : IDisposable
         WorkflowNodeType type,
         Dictionary<string, System.Text.Json.JsonElement> config,
         long? userId = null,
-        string? channelId = null)
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         var node = new NodeSchema(
             nodeKey,
@@ -159,7 +178,9 @@ internal sealed class AiDatabaseTestHarness : IDisposable
             workflowCallStack: Array.Empty<long>(),
             eventChannel: null,
             userId: userId,
-            channelId: channelId);
+            channelId: channelId,
+            isDebug: isDebug,
+            databaseEnvironment: databaseEnvironment);
     }
 
     public void Dispose()

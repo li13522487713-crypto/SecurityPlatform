@@ -1,21 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button, Empty, Input, Select, Spin, Table, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
 import {
-  Button,
-  Dropdown,
-  Empty,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Select,
-  Spin,
-  Table,
-  Tabs,
-  Toast,
-  Typography
-} from "@douyinfe/semi-ui";
-import {
-  IconPlus,
   IconSearch,
   IconCode,
   IconFolder,
@@ -28,22 +13,27 @@ import {
   IconChevronDown
 } from "@douyinfe/semi-icons";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   chatflowEditorPath,
   orgWorkspaceDatabaseDetailPath,
   orgWorkspaceKnowledgeBaseDetailPath,
   orgWorkspacePluginDetailPath,
-  workflowEditorPath
+  workflowEditorPath,
+  type WorkspaceLibraryTab
 } from "@atlas/app-shell-shared";
+import { useAppI18n } from "../i18n";
 import { useWorkspaceContext } from "../workspace-context";
+import { LibraryCreateDropdown } from "./components/library-create-dropdown";
+import { LibraryCreateModal } from "./components/library-create-modal";
+import { LibraryImportModal } from "./components/library-import-modal";
 import {
   getLibraryPaged,
-  importLibraryItem,
   type AiWorkspaceLibraryItem,
   type LibraryResourceType,
   type LibrarySource
 } from "../../services/api-ai-workspace";
+import type { AppMessageKey } from "../messages";
 
 type LibraryTabKey =
   | "all"
@@ -58,64 +48,26 @@ type LibraryTabKey =
 
 interface TabDef {
   key: LibraryTabKey;
-  label: string;
+  labelKey: AppMessageKey;
   resourceType?: LibraryResourceType;
 }
 
-const TABS: TabDef[] = [
-  { key: "all", label: "全部" },
-  { key: "plugin", label: "插件", resourceType: "plugin" },
-  { key: "workflow", label: "工作流", resourceType: "workflow" },
-  { key: "knowledge-base", label: "知识库", resourceType: "knowledge-base" },
-  { key: "card", label: "卡片", resourceType: "card" },
-  { key: "prompt", label: "提示词", resourceType: "prompt" },
-  { key: "database", label: "数据库", resourceType: "database" },
-  { key: "voice", label: "音色", resourceType: "voice" },
-  { key: "memory", label: "记忆库", resourceType: "memory" }
+const TAB_DEFS: TabDef[] = [
+  { key: "all", labelKey: "cozeLibraryTabAll" },
+  { key: "plugin", labelKey: "cozeLibraryTabPlugin", resourceType: "plugin" },
+  { key: "workflow", labelKey: "cozeLibraryTabWorkflow", resourceType: "workflow" },
+  { key: "knowledge-base", labelKey: "cozeLibraryTabKnowledge", resourceType: "knowledge-base" },
+  { key: "card", labelKey: "cozeLibraryTabCard", resourceType: "card" },
+  { key: "prompt", labelKey: "cozeLibraryTabPrompt", resourceType: "prompt" },
+  { key: "database", labelKey: "cozeLibraryTabDatabase", resourceType: "database" },
+  { key: "voice", labelKey: "cozeLibraryTabVoice", resourceType: "voice" },
+  { key: "memory", labelKey: "cozeLibraryTabMemory", resourceType: "memory" }
 ];
 
-const CREATE_ITEMS: { key: LibraryResourceType; label: string; icon: React.ReactNode }[] = [
-  { key: "plugin", label: "插件", icon: <IconPuzzle /> },
-  { key: "workflow", label: "工作流", icon: <IconCode /> },
-  { key: "knowledge-base", label: "知识库", icon: <IconFolder /> },
-  { key: "card", label: "卡片", icon: <IconBox /> },
-  { key: "prompt", label: "提示词", icon: <IconArticle /> },
-  { key: "database", label: "数据库", icon: <IconList /> },
-  { key: "voice", label: "音色", icon: <IconHistogram /> },
-  { key: "memory", label: "记忆库", icon: <IconLink /> }
-];
+type SubTypeValue = "all" | string;
 
-const IMPORTABLE_TYPES: { value: LibraryResourceType; label: string }[] = [
-  { value: "workflow", label: "工作流" },
-  { value: "plugin", label: "插件" },
-  { value: "knowledge-base", label: "知识库" },
-  { value: "database", label: "数据库" }
-];
-
-const SOURCE_OPTIONS: { value: LibrarySource; label: string }[] = [
-  { value: "all", label: "所有来源" },
-  { value: "official", label: "扣子官方" },
-  { value: "custom", label: "自定义" }
-];
-
-function typeLabelOf(rt: LibraryResourceType): string {
-  const m: Record<LibraryResourceType, string> = {
-    plugin: "插件",
-    workflow: "工作流",
-    "knowledge-base": "扣子知识库",
-    card: "扣子卡片",
-    prompt: "提示词",
-    database: "数据库",
-    voice: "音色",
-    memory: "记忆库",
-    agent: "智能体",
-    app: "应用"
-  };
-  return m[rt] ?? rt;
-}
-
-function iconOf(rt: LibraryResourceType): React.ReactNode {
-  const map: Record<string, React.ReactNode> = {
+function iconOf(rt: LibraryResourceType) {
+  const map: Record<string, ReactNode> = {
     plugin: <IconPuzzle />,
     workflow: <IconCode />,
     "knowledge-base": <IconFolder />,
@@ -123,7 +75,9 @@ function iconOf(rt: LibraryResourceType): React.ReactNode {
     prompt: <IconArticle />,
     database: <IconList />,
     voice: <IconHistogram />,
-    memory: <IconLink />
+    memory: <IconLink />,
+    agent: <IconBox />,
+    app: <IconBox />
   };
   return map[rt] ?? <IconFolder />;
 }
@@ -136,46 +90,211 @@ function formatDate(iso?: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const TAB_KEYS = new Set<string>(TAB_DEFS.map(x => x.key));
+
+function tabFromSearch(query: string | null): LibraryTabKey {
+  if (!query || query === "all") {
+    return "all";
+  }
+  return TAB_KEYS.has(query) ? (query as LibraryTabKey) : "all";
+}
+
+/**
+ * 历史 `?type=<非负整数>`：与 `/space/.../library?type=1`（如技能弹窗开插件资源）等旧链接兼容。
+ * 0–8 与资源库 9 类顺序大致对齐，未识别则忽略。
+ */
+function legacyNumericTypeToTab(raw: string | null): { tab: LibraryTabKey; subType?: SubTypeValue } | null {
+  if (raw == null || raw.trim() === "") {
+    return null;
+  }
+  const n = raw.trim();
+  if (!/^\d+$/u.test(n)) {
+    return null;
+  }
+  const map: Record<string, { tab: LibraryTabKey; subType?: SubTypeValue }> = {
+    "0": { tab: "all" },
+    "1": { tab: "plugin" },
+    "2": { tab: "workflow" },
+    "3": { tab: "knowledge-base" },
+    "4": { tab: "card" },
+    "5": { tab: "prompt" },
+    "6": { tab: "database" },
+    "7": { tab: "voice" },
+    "8": { tab: "memory" }
+  };
+  return map[n] ?? null;
+}
+
+function normalizeSubTypeForTab(tab: LibraryTabKey, raw: string | null): SubTypeValue {
+  if (raw == null || raw === "" || raw === "all") {
+    return "all";
+  }
+  const st = raw;
+  switch (tab) {
+    case "knowledge-base":
+      return ["text", "table", "image"].includes(st) ? st : "all";
+    case "workflow":
+      return ["workflow", "chatflow"].includes(st) ? st : "all";
+    case "plugin":
+      return ["builtin", "custom"].includes(st) ? st : "all";
+    case "database":
+      return st === "table" ? st : "all";
+    case "memory":
+      return st === "long-term" ? st : "all";
+    default:
+      return "all";
+  }
+}
+
+function readLibraryStateFromSearchParams(sp: URLSearchParams): { tab: LibraryTabKey; subType: SubTypeValue } {
+  if (!sp.get("tab") && sp.has("type")) {
+    const mapped = legacyNumericTypeToTab(sp.get("type"));
+    if (mapped) {
+      return {
+        tab: mapped.tab,
+        subType: mapped.subType ?? normalizeSubTypeForTab(mapped.tab, sp.get("subType"))
+      };
+    }
+  }
+  const tab = tabFromSearch(sp.get("tab"));
+  return { tab, subType: normalizeSubTypeForTab(tab, sp.get("subType")) };
+}
+
 export function WorkspaceLibraryPage() {
+  const { t } = useAppI18n();
   const workspace = useWorkspaceContext();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<LibraryTabKey>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<LibraryTabKey>(
+    readLibraryStateFromSearchParams(new URLSearchParams(searchParams.toString())).tab
+  );
   const [source, setSource] = useState<LibrarySource>("all");
+  const [subType, setSubType] = useState<SubTypeValue>(
+    readLibraryStateFromSearchParams(new URLSearchParams(searchParams.toString())).subType
+  );
   const [keyword, setKeyword] = useState("");
   const [items, setItems] = useState<AiWorkspaceLibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [pageIndex, setPageIndex] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createType, setCreateType] = useState<LibraryResourceType | null>(null);
+
+  const subTypeOptions = useMemo(() => {
+    const all = { value: "all" as const, label: t("cozeLibrarySubTypeAll") };
+    const tab = TAB_DEFS.find(x => x.key === activeTab);
+    const rt = tab?.resourceType;
+    if (!rt || activeTab === "all") {
+      return [all];
+    }
+    switch (rt) {
+      case "knowledge-base":
+        return [
+          all,
+          { value: "text", label: t("cozeLibrarySubTypeKbText") },
+          { value: "table", label: t("cozeLibrarySubTypeKbTable") },
+          { value: "image", label: t("cozeLibrarySubTypeKbImage") }
+        ];
+      case "workflow":
+        return [
+          all,
+          { value: "workflow", label: t("cozeLibrarySubTypeWorkflow") },
+          { value: "chatflow", label: t("cozeLibrarySubTypeChatflow") }
+        ];
+      case "plugin":
+        return [
+          all,
+          { value: "builtin", label: t("cozeLibrarySubTypePluginBuiltin") },
+          { value: "custom", label: t("cozeLibrarySubTypePluginCustom") }
+        ];
+      case "database":
+        return [all, { value: "table", label: t("cozeLibraryTabDatabase") }];
+      case "memory":
+        return [all, { value: "long-term", label: t("cozeLibrarySubTypeMemoryLongTerm") }];
+      default:
+        return [all];
+    }
+  }, [activeTab, t]);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(searchParams);
+    if (sp.has("type")) {
+      if (!sp.get("tab")) {
+        const mapped = legacyNumericTypeToTab(sp.get("type"));
+        if (mapped) {
+          if (mapped.tab === "all") {
+            sp.delete("tab");
+          } else {
+            sp.set("tab", mapped.tab);
+          }
+          if (mapped.subType && mapped.subType !== "all") {
+            sp.set("subType", String(mapped.subType));
+          }
+        }
+      }
+      sp.delete("type");
+      setSearchParams(sp, { replace: true });
+      return;
+    }
+    const next = readLibraryStateFromSearchParams(new URLSearchParams(searchParams.toString()));
+    setActiveTab(next.tab);
+    setSubType(next.subType);
+  }, [searchParams, setSearchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const tab = TABS.find(t => t.key === activeTab);
+      const tab = TAB_DEFS.find(x => x.key === activeTab);
+      const st = subType !== "all" ? subType : undefined;
       const result = await getLibraryPaged(
         { pageIndex, pageSize: 20 },
-        { resourceType: tab?.resourceType, source, keyword }
+        { resourceType: tab?.resourceType, source, keyword, subType: st }
       );
       setItems(result.items);
       setTotal(result.total);
     } catch (error) {
-      Toast.error((error as Error).message || "查询失败");
+      Toast.error((error as Error).message || t("cozeLibraryQueryFailed"));
       setItems([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [activeTab, source, keyword, pageIndex]);
+  }, [activeTab, source, keyword, pageIndex, subType, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const typeLabel = useCallback(
+    (rt: LibraryResourceType) => {
+      const m: Record<LibraryResourceType, AppMessageKey> = {
+        plugin: "cozeLibraryTabPlugin",
+        workflow: "cozeLibraryTabWorkflow",
+        "knowledge-base": "cozeLibraryTabKnowledge",
+        card: "cozeLibraryTabCard",
+        prompt: "cozeLibraryTabPrompt",
+        database: "cozeLibraryTabDatabase",
+        voice: "cozeLibraryTabVoice",
+        memory: "cozeLibraryTabMemory",
+        agent: "cozeLibraryTypeAgent",
+        app: "cozeLibraryTypeApp"
+      };
+      const key = m[rt];
+      return key ? t(key) : String(rt);
+    },
+    [t]
+  );
+
   const handleOpen = useCallback(
     (record: AiWorkspaceLibraryItem) => {
       switch (record.resourceType) {
         case "workflow":
-          navigate(workflowEditorPath(String(record.resourceId)));
+          navigate(
+            record.subType === "chatflow"
+              ? chatflowEditorPath(String(record.resourceId))
+              : workflowEditorPath(String(record.resourceId))
+          );
           return;
         case "plugin":
           navigate(orgWorkspacePluginDetailPath(workspace.orgId, workspace.id, record.resourceId));
@@ -190,24 +309,21 @@ export function WorkspaceLibraryPage() {
           navigate("/ai/prompts");
           return;
         default:
-          Toast.info(`${typeLabelOf(record.resourceType)} 详情页即将上线`);
+          Toast.info(`${t("cozeLibraryDetailComingSoon")} (${typeLabel(record.resourceType)})`);
       }
     },
-    [navigate, workspace.id, workspace.orgId]
+    [navigate, t, typeLabel, workspace.id, workspace.orgId]
   );
 
-  const handleCreate = useCallback((rt: LibraryResourceType) => {
-    Modal.info({
-      title: `创建${typeLabelOf(rt)}`,
-      content: `${typeLabelOf(rt)} 的创建表单将在后续版本接入。`,
-      okText: "我知道了"
-    });
+  const handleSelectCreate = useCallback((rt: LibraryResourceType) => {
+    setCreateType(rt);
+    setCreateOpen(true);
   }, []);
 
   const columns: ColumnProps<AiWorkspaceLibraryItem>[] = useMemo(
     () => [
       {
-        title: "资源",
+        title: t("cozeLibraryColumnResource"),
         dataIndex: "name",
         width: "50%",
         render: (_: unknown, record: AiWorkspaceLibraryItem) => (
@@ -247,15 +363,15 @@ export function WorkspaceLibraryPage() {
         )
       },
       {
-        title: "类型",
+        title: t("cozeLibraryColumnType"),
         dataIndex: "resourceType",
         width: 160,
         render: (_: unknown, record: AiWorkspaceLibraryItem) => (
-          <Typography.Text type="tertiary">{record.typeLabel ?? typeLabelOf(record.resourceType)}</Typography.Text>
+          <Typography.Text type="tertiary">{record.typeLabel ?? typeLabel(record.resourceType)}</Typography.Text>
         )
       },
       {
-        title: "编辑时间",
+        title: t("cozeLibraryColumnUpdatedAt"),
         dataIndex: "updatedAt",
         width: 180,
         render: (_: unknown, record: AiWorkspaceLibraryItem) => (
@@ -266,12 +382,10 @@ export function WorkspaceLibraryPage() {
         title: "",
         dataIndex: "_action",
         width: 60,
-        render: () => (
-          <Button theme="borderless" type="tertiary" icon={<IconChevronDown />} size="small" />
-        )
+        render: () => <Button theme="borderless" type="tertiary" icon={<IconChevronDown />} size="small" />
       }
     ],
-    []
+    [t, typeLabel]
   );
 
   return (
@@ -285,15 +399,25 @@ export function WorkspaceLibraryPage() {
           type="button"
           activeKey={activeTab}
           onChange={key => {
-            setActiveTab(key as LibraryTabKey);
+            const next = key as LibraryTabKey;
+            setActiveTab(next);
+            setSubType("all");
             setPageIndex(1);
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete("subType");
+            if (next === "all") {
+              nextParams.delete("tab");
+            } else {
+              nextParams.set("tab", next as WorkspaceLibraryTab);
+            }
+            setSearchParams(nextParams, { replace: true });
           }}
-          tabList={TABS.map(t => ({ itemKey: t.key, tab: t.label }))}
+          tabList={TAB_DEFS.map(x => ({ itemKey: x.key, tab: t(x.labelKey) }))}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Input
             prefix={<IconSearch />}
-            placeholder="搜索资源"
+            placeholder={t("cozeLibrarySearchPlaceholder")}
             value={keyword}
             onChange={v => {
               setKeyword(v);
@@ -302,42 +426,50 @@ export function WorkspaceLibraryPage() {
             showClear
             style={{ width: 240 }}
           />
-          <Button onClick={() => setImportOpen(true)}>导入</Button>
-          <Dropdown
-            trigger="click"
-            position="bottomRight"
-            render={
-              <Dropdown.Menu>
-                {CREATE_ITEMS.map(item => (
-                  <Dropdown.Item key={item.key} icon={item.icon} onClick={() => handleCreate(item.key)}>
-                    {item.label}
-                  </Dropdown.Item>
-                ))}
-              </Dropdown.Menu>
-            }
-          >
-            <Button theme="solid" type="primary" icon={<IconPlus />}>
-              资源
-            </Button>
-          </Dropdown>
+          <Button onClick={() => setImportOpen(true)}>{t("cozeLibraryImport")}</Button>
+          <LibraryCreateDropdown onSelectType={handleSelectCreate} />
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Select
-          value="all"
-          style={{ width: 120 }}
-          optionList={[{ value: "all", label: "全部" }]}
-          disabled
-        />
+        {subTypeOptions.length > 1 ? (
+          <Select
+            value={subType}
+            onChange={v => {
+              const val = v as string;
+              setSubType(val);
+              setPageIndex(1);
+              const nextParams = new URLSearchParams(searchParams);
+              if (val === "all") {
+                nextParams.delete("subType");
+              } else {
+                nextParams.set("subType", val);
+              }
+              setSearchParams(nextParams, { replace: true });
+            }}
+            style={{ minWidth: 120 }}
+            optionList={subTypeOptions}
+          />
+        ) : (
+          <Select
+            value="all"
+            style={{ minWidth: 120 }}
+            optionList={subTypeOptions}
+            disabled
+          />
+        )}
         <Select
           value={source}
           onChange={v => {
             setSource(v as LibrarySource);
             setPageIndex(1);
           }}
-          style={{ width: 140 }}
-          optionList={SOURCE_OPTIONS}
+          style={{ width: 160 }}
+          optionList={[
+            { value: "all", label: t("cozeLibrarySourceAll") },
+            { value: "official", label: t("cozeLibrarySourceOfficial") },
+            { value: "custom", label: t("cozeLibrarySourceCustom") }
+          ]}
         />
       </div>
 
@@ -347,7 +479,7 @@ export function WorkspaceLibraryPage() {
             <Spin />
           </div>
         ) : items.length === 0 ? (
-          <Empty description="暂无资源" style={{ padding: 48 }} />
+          <Empty description={t("cozeLibraryEmpty")} style={{ padding: 48 }} />
         ) : (
           <Table
             columns={columns}
@@ -367,7 +499,7 @@ export function WorkspaceLibraryPage() {
         )}
       </div>
 
-      <ImportLibraryModal
+      <LibraryImportModal
         visible={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={() => {
@@ -375,69 +507,20 @@ export function WorkspaceLibraryPage() {
           void load();
         }}
       />
+
+      <LibraryCreateModal
+        visible={createOpen}
+        createType={createType}
+        onClose={() => {
+          setCreateOpen(false);
+          setCreateType(null);
+        }}
+        onCreated={() => {
+          setCreateOpen(false);
+          setCreateType(null);
+          void load();
+        }}
+      />
     </div>
-  );
-}
-
-interface ImportLibraryModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onImported: () => void;
-}
-
-function ImportLibraryModal({ visible, onClose, onImported }: ImportLibraryModalProps) {
-  const [submitting, setSubmitting] = useState(false);
-  const [resourceType, setResourceType] = useState<LibraryResourceType>("knowledge-base");
-  const [libraryItemId, setLibraryItemId] = useState<number | undefined>(undefined);
-
-  const handleOk = useCallback(async () => {
-    if (!libraryItemId || libraryItemId <= 0) {
-      Toast.warning("请填写资源库条目 ID");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await importLibraryItem({
-        resourceType: resourceType as "workflow" | "plugin" | "knowledge-base" | "database",
-        libraryItemId
-      });
-      Toast.success("已导入资源库条目");
-      onImported();
-    } catch (error) {
-      Toast.error((error as Error).message || "导入失败");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [libraryItemId, onImported, resourceType]);
-
-  return (
-    <Modal
-      visible={visible}
-      title="从资源库导入"
-      onOk={handleOk}
-      onCancel={onClose}
-      confirmLoading={submitting}
-      okText="导入"
-      cancelText="取消"
-    >
-      <Form labelPosition="left" labelWidth={96}>
-        <Form.Slot label="资源类型">
-          <Select
-            value={resourceType}
-            onChange={v => setResourceType(v as LibraryResourceType)}
-            optionList={IMPORTABLE_TYPES}
-            style={{ width: "100%" }}
-          />
-        </Form.Slot>
-        <Form.Slot label="条目 ID">
-          <InputNumber
-            value={libraryItemId}
-            onChange={v => setLibraryItemId(typeof v === "number" ? v : Number(v) || undefined)}
-            style={{ width: "100%" }}
-            placeholder="填写资源库项目 ID"
-          />
-        </Form.Slot>
-      </Form>
-    </Modal>
   );
 }

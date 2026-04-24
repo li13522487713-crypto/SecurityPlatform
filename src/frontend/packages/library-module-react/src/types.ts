@@ -2,7 +2,17 @@ import type { ReactNode } from "react";
 import type { PagedRequest, PagedResult } from "@atlas/shared-react-core/types";
 
 export type SupportedLocale = "zh-CN" | "en-US";
-export type ResourceType = "agent" | "knowledge-base" | "workflow" | "plugin" | "database" | "app" | "prompt";
+export type ResourceType =
+  | "agent"
+  | "knowledge-base"
+  | "workflow"
+  | "plugin"
+  | "database"
+  | "app"
+  | "prompt"
+  | "card"
+  | "voice"
+  | "memory";
 /** Numeric KB type kept for legacy REST: 0=text 1=table 2=image */
 export type KnowledgeBaseType = 0 | 1 | 2;
 export type DocumentProcessingStatus = 0 | 1 | 2 | 3;
@@ -328,6 +338,12 @@ export interface AiLibraryItem {
   updatedAt: string;
   path: string;
   resourceSubType?: string;
+  /** 与后端 `SubType` 对齐的二级类型 slug（如知识库 text/table/image、工作流 workflow/chatflow） */
+  subType?: string | null;
+  typeLabel?: string | null;
+  source?: string;
+  icon?: string | null;
+  iconColor?: string | null;
   status?: string;
   documentCount?: number;
   chunkCount?: number;

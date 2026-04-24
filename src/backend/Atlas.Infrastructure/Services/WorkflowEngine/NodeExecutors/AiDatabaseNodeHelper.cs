@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
+using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -15,6 +17,14 @@ internal sealed record DbClause(string Field, string Operator, string Value, str
 
 internal static class AiDatabaseNodeHelper
 {
+    public static IAiDatabaseService ResolveDatabaseService(NodeExecutionContext context)
+    {
+        return context.ServiceProvider.GetRequiredService<IAiDatabaseService>();
+    }
+
+    public static AiDatabaseRecordEnvironment ResolveEnvironment(NodeExecutionContext context)
+        => context.DatabaseEnvironment;
+
     public static long ResolveDatabaseId(NodeExecutionContext context)
     {
         var id = context.GetConfigInt64("databaseInfoId", 0L);
@@ -24,6 +34,25 @@ internal static class AiDatabaseNodeHelper
         }
 
         return id;
+    }
+
+    public static async Task<List<AiDatabaseRecordListItem>> LoadRecordItemsAsync(
+        NodeExecutionContext context,
+        long databaseId,
+        CancellationToken cancellationToken,
+        int pageSize)
+    {
+        var service = ResolveDatabaseService(context);
+        var result = await service.GetRecordsAsync(
+            context.TenantId,
+            databaseId,
+            1,
+            Math.Clamp(pageSize, 1, 500_000),
+            ResolveEnvironment(context),
+            cancellationToken,
+            context.UserId,
+            context.ChannelId);
+        return result.Items.ToList();
     }
 
     /// <param name="sqlTakeLimit">

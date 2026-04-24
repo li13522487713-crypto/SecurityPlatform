@@ -53,6 +53,8 @@ export interface AiLibraryMutationResult {
 export interface LibraryQueryOptions {
   resourceType?: LibraryResourceType;
   source?: LibrarySource;
+  /** 二级类型，与后端 `subType` 一致；`all` 表示不过滤 */
+  subType?: string;
   keyword?: string;
 }
 
@@ -65,8 +67,12 @@ export async function getLibraryPaged(
     : undefined;
   const source = options.source && options.source !== "all" ? options.source : undefined;
   const keyword = options.keyword && options.keyword.trim().length > 0 ? options.keyword.trim() : undefined;
+  const subType =
+    options.subType && options.subType.trim().length > 0 && options.subType.trim().toLowerCase() !== "all"
+      ? options.subType.trim()
+      : undefined;
 
-  const query = toQuery(request, { resourceType, source, keyword });
+  const query = toQuery(request, { resourceType, source, subType, keyword });
   const response = await requestApi<ApiResponse<AiWorkspaceLibraryResult>>(`/ai-workspaces/library?${query}`);
   if (!response.data) {
     throw new Error(response.message || "查询资源库失败");

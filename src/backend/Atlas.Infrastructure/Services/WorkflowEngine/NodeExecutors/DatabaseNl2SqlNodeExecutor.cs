@@ -130,7 +130,9 @@ public sealed class DatabaseNl2SqlNodeExecutor : INodeExecutor
                 context.WorkflowCallStack,
                 context.EventChannel,
                 context.UserId,
-                context.ChannelId);
+                context.ChannelId,
+                context.IsDebug,
+                context.DatabaseEnvironment);
             var queryResult = await _queryExecutor.ExecuteAsync(queryContext, cancellationToken);
 
             var merged = new Dictionary<string, JsonElement>(queryResult.Outputs, StringComparer.OrdinalIgnoreCase)

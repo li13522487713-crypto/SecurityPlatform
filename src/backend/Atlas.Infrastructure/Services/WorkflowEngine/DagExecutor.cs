@@ -76,6 +76,9 @@ public sealed class DagExecutor
         // RT-20: 执行指标收集。
         var executionSw = Stopwatch.StartNew();
         var executedNodeCount = 0;
+        var databaseEnvironment = execution.IsDebug || execution.VersionNumber == 0
+            ? AiDatabaseRecordEnvironment.Draft
+            : AiDatabaseRecordEnvironment.Online;
 
         var variables = new Dictionary<string, JsonElement>(inputs, StringComparer.OrdinalIgnoreCase);
         var currentCallStack = workflowCallStack is not null && workflowCallStack.Count > 0
@@ -140,7 +143,9 @@ public sealed class DagExecutor
                         eventChannel,
                         cancellationToken,
                         userId,
-                        channelId))
+                        channelId,
+                        execution.IsDebug,
+                        databaseEnvironment))
                     .ToArray();
 
                 // RT-12: 将每个并行任务包装为安全捕获模式，防止单个 OperationCanceledException 导致整层丢失结果。
@@ -254,7 +259,11 @@ public sealed class DagExecutor
                         connectionsBySource,
                         variables,
                         eventChannel,
-                        cancellationToken);
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        execution.IsDebug,
+                        databaseEnvironment);
 
                     if (!loopResult.Success)
                     {
@@ -312,7 +321,11 @@ public sealed class DagExecutor
                         nodeMap,
                         variables,
                         eventChannel,
-                        cancellationToken);
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        execution.IsDebug,
+                        databaseEnvironment);
 
                     if (!batchResult.Success)
                     {
@@ -516,7 +529,9 @@ public sealed class DagExecutor
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken,
         long? userId = null,
-        string? channelId = null)
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         if (!nodeMap.TryGetValue(nodeKey, out var node))
         {
@@ -595,7 +610,9 @@ public sealed class DagExecutor
             workflowCallStack,
             eventChannel,
             userId,
-            channelId);
+            channelId,
+            isDebug,
+            databaseEnvironment);
         var nodeTimeout = ResolveNodeTimeout(node);
         var resolvedNodeTimeout = nodeTimeout ?? TimeSpan.Zero;
         using var timeoutCts = nodeTimeout is null
@@ -848,7 +865,11 @@ public sealed class DagExecutor
         Dictionary<string, List<ConnectionSchema>> connectionsBySource,
         Dictionary<string, JsonElement> variables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         if (!nodeMap.TryGetValue(loopNodeKey, out var loopNode))
         {
@@ -907,7 +928,11 @@ public sealed class DagExecutor
                         connectionsBySource,
                         levelInput,
                         eventChannel,
-                        cancellationToken))
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        isDebug,
+                        databaseEnvironment))
                     .ToArray();
 
                 var bodyResults = await Task.WhenAll(bodyTasks);
@@ -960,7 +985,11 @@ public sealed class DagExecutor
                 connectionsBySource,
                 loopInput,
                 eventChannel,
-                cancellationToken);
+                cancellationToken,
+                userId,
+                channelId,
+                isDebug,
+                databaseEnvironment);
             if (!loopResult.Success)
             {
                 return LoopIterationResult.Failed(loopResult.NodeKey, loopResult.ErrorMessage, loopResult.InterruptType);
@@ -1005,7 +1034,11 @@ public sealed class DagExecutor
         IReadOnlyDictionary<string, NodeSchema> nodeMap,
         Dictionary<string, JsonElement> variables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         if (!nodeMap.TryGetValue(batchNodeKey, out var batchNode))
         {
@@ -1096,7 +1129,11 @@ public sealed class DagExecutor
                         batchNode.ChildCanvas,
                         localVariables,
                         eventChannel,
-                        cancellationToken);
+                        cancellationToken,
+                        userId,
+                        channelId,
+                        isDebug,
+                        databaseEnvironment);
                     
                     return (Result: fragmentResult, IterationVariables: localVariables);
                 }
@@ -1198,7 +1235,11 @@ public sealed class DagExecutor
         CanvasSchema canvas,
         Dictionary<string, JsonElement> variables,
         Channel<SseEvent>? eventChannel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? userId = null,
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         var (nodeMap, topology) = GetOrCompileCanvas(canvas);
         var adjacency = topology.Adjacency;
@@ -1244,7 +1285,11 @@ public sealed class DagExecutor
                     connectionsBySource,
                     levelInput,
                     eventChannel,
-                    cancellationToken))
+                    cancellationToken,
+                    userId,
+                    channelId,
+                    isDebug,
+                    databaseEnvironment))
                 .ToArray();
             var levelResults = await Task.WhenAll(levelTasks);
             var failedNode = levelResults.FirstOrDefault(x => !x.Success);

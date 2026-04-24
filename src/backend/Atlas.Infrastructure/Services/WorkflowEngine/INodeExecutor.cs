@@ -6,6 +6,7 @@ using Atlas.Infrastructure.LogicFlow.Expressions;
 using Microsoft.Extensions.DependencyInjection;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AiPlatform.ValueObjects;
 
@@ -36,7 +37,9 @@ public sealed class NodeExecutionContext
         IReadOnlyList<long> workflowCallStack,
         Channel<SseEvent>? eventChannel,
         long? userId = null,
-        string? channelId = null)
+        string? channelId = null,
+        bool isDebug = false,
+        AiDatabaseRecordEnvironment databaseEnvironment = AiDatabaseRecordEnvironment.Draft)
     {
         Node = node;
         Variables = variables;
@@ -48,6 +51,8 @@ public sealed class NodeExecutionContext
         EventChannel = eventChannel;
         UserId = userId;
         ChannelId = string.IsNullOrWhiteSpace(channelId) ? null : channelId.Trim();
+        IsDebug = isDebug;
+        DatabaseEnvironment = databaseEnvironment;
     }
 
     public NodeSchema Node { get; }
@@ -62,6 +67,10 @@ public sealed class NodeExecutionContext
     public long? UserId { get; }
     /// <summary>D2：执行渠道（agent/chatflow/app/api 等）。</summary>
     public string? ChannelId { get; }
+    /// <summary>当前工作流是否处于 debug 运行。</summary>
+    public bool IsDebug { get; }
+    /// <summary>数据库节点默认读写环境：调试 / 草稿运行走 Draft，发布运行走 Online。</summary>
+    public AiDatabaseRecordEnvironment DatabaseEnvironment { get; }
 
     /// <summary>
     /// 节点级状态访问器（P3-8 修复 PLAN §M20 S20-7）。

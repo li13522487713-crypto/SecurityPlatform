@@ -17,7 +17,17 @@ public sealed class AiDatabaseImportTask : TenantEntity
         long databaseId,
         long fileId,
         long id)
-        : this(tenantId, databaseId, fileId, id, AiDatabaseImportSource.File, payloadJson: null, ownerUserId: null, creatorUserId: null, channelId: null)
+        : this(
+            tenantId,
+            databaseId,
+            fileId,
+            id,
+            AiDatabaseImportSource.File,
+            payloadJson: null,
+            ownerUserId: null,
+            creatorUserId: null,
+            channelId: null,
+            environment: AiDatabaseRecordEnvironment.Draft)
     {
     }
 
@@ -31,7 +41,8 @@ public sealed class AiDatabaseImportTask : TenantEntity
         string? payloadJson,
         long? ownerUserId,
         long? creatorUserId,
-        string? channelId)
+        string? channelId,
+        AiDatabaseRecordEnvironment environment)
         : base(tenantId)
     {
         Id = id;
@@ -42,6 +53,7 @@ public sealed class AiDatabaseImportTask : TenantEntity
         OwnerUserId = ownerUserId;
         CreatorUserId = creatorUserId;
         ChannelId = string.IsNullOrWhiteSpace(channelId) ? null : channelId.Trim();
+        Environment = environment;
         Status = AiDatabaseImportStatus.Pending;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
@@ -59,6 +71,7 @@ public sealed class AiDatabaseImportTask : TenantEntity
     public long? CreatorUserId { get; private set; }
     [SqlSugar.SugarColumn(Length = 64, IsNullable = true)]
     public string? ChannelId { get; private set; }
+    public AiDatabaseRecordEnvironment Environment { get; private set; }
     public AiDatabaseImportStatus Status { get; private set; }
     public int TotalRows { get; private set; }
     public int SucceededRows { get; private set; }

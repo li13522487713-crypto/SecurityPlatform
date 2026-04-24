@@ -2,6 +2,7 @@ using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Exceptions;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Services.AiPlatform;
 
 namespace Atlas.SecurityPlatform.Tests.Services.AiPlatform;
 
@@ -37,8 +38,13 @@ public sealed class AiDatabaseServiceBulkTests
         Assert.Equal(0, result.Failed);
         Assert.All(result.Rows, r => Assert.True(r.Success));
 
-        var rows = await harness.RecordRepository.GetPagedByDatabaseAsync(
-            AiDatabaseTestHarness.Tenant, db.Id, 1, 50, CancellationToken.None);
+        var rows = await harness.Service.GetRecordsAsync(
+            AiDatabaseTestHarness.Tenant,
+            db.Id,
+            1,
+            50,
+            AiDatabaseRecordEnvironment.Draft,
+            CancellationToken.None);
         Assert.Equal(2, rows.Items.Count);
         Assert.All(rows.Items, r =>
         {
@@ -71,8 +77,13 @@ public sealed class AiDatabaseServiceBulkTests
         Assert.Equal(1, failedRow.Index);
         Assert.False(string.IsNullOrWhiteSpace(failedRow.ErrorMessage));
 
-        var rows = await harness.RecordRepository.GetPagedByDatabaseAsync(
-            AiDatabaseTestHarness.Tenant, db.Id, 1, 50, CancellationToken.None);
+        var rows = await harness.Service.GetRecordsAsync(
+            AiDatabaseTestHarness.Tenant,
+            db.Id,
+            1,
+            50,
+            AiDatabaseRecordEnvironment.Draft,
+            CancellationToken.None);
         Assert.Equal(2, rows.Items.Count);
     }
 
@@ -184,8 +195,13 @@ public sealed class AiDatabaseServiceBulkTests
         Assert.Equal(2, task.SucceededRows);
         Assert.Equal(0, task.FailedRows);
 
-        var rows = await harness.RecordRepository.GetPagedByDatabaseAsync(
-            AiDatabaseTestHarness.Tenant, db.Id, 1, 50, CancellationToken.None);
+        var rows = await harness.Service.GetRecordsAsync(
+            AiDatabaseTestHarness.Tenant,
+            db.Id,
+            1,
+            50,
+            AiDatabaseRecordEnvironment.Draft,
+            CancellationToken.None);
         Assert.Equal(2, rows.Items.Count);
         Assert.All(rows.Items, r =>
         {
@@ -227,5 +243,58 @@ public sealed class AiDatabaseServiceBulkTests
         // 关键安全断言：错误信息走 AiDatabasePublicErrors 脱敏文案，不暴露 JsonException 堆栈。
         Assert.DoesNotContain("System.Text.Json", refreshed.ErrorMessage);
         Assert.DoesNotContain("at Atlas.", refreshed.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task DeleteRecordAsync_ShouldRespectExplicitEnvironment_WhenRowIdsOverlapAcrossDraftAndOnline()
+    {
+        using var harness = new AiDatabaseTestHarness();
+        var db = await harness.SeedDatabaseAsync();
+        const long sharedRowId = 424242;
+
+        await harness.PhysicalTableService.InsertRowAsync(
+            db,
+            AiDatabaseRecordEnvironment.Draft,
+            new AiDatabasePhysicalRow(
+                sharedRowId,
+                "{\"orderId\":\"DRAFT-1\",\"amount\":1}",
+                OwnerUserId: null,
+                CreatorUserId: null,
+                ChannelId: null,
+                CreatedAt: DateTime.UtcNow,
+                UpdatedAt: DateTime.UtcNow),
+            CancellationToken.None);
+
+        await harness.PhysicalTableService.InsertRowAsync(
+            db,
+            AiDatabaseRecordEnvironment.Online,
+            new AiDatabasePhysicalRow(
+                sharedRowId,
+                "{\"orderId\":\"ONLINE-1\",\"amount\":2}",
+                OwnerUserId: null,
+                CreatorUserId: null,
+                ChannelId: null,
+                CreatedAt: DateTime.UtcNow,
+                UpdatedAt: DateTime.UtcNow),
+            CancellationToken.None);
+
+        await harness.Service.DeleteRecordAsync(
+            AiDatabaseTestHarness.Tenant,
+            db.Id,
+            sharedRowId,
+            AiDatabaseRecordEnvironment.Online,
+            CancellationToken.None);
+
+        var draftCount = await harness.PhysicalTableService.CountRowsAsync(
+            db,
+            AiDatabaseRecordEnvironment.Draft,
+            CancellationToken.None);
+        var onlineCount = await harness.PhysicalTableService.CountRowsAsync(
+            db,
+            AiDatabaseRecordEnvironment.Online,
+            CancellationToken.None);
+
+        Assert.Equal(1, draftCount);
+        Assert.Equal(0, onlineCount);
     }
 }

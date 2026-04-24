@@ -467,7 +467,10 @@ const zhCN: CopyTree = {
     "plugin": "插件",
     "database": "数据库",
     "app": "应用",
-    "prompt": "Prompt"
+    "prompt": "Prompt",
+    "card": "卡片",
+    "voice": "音色",
+    "memory": "记忆库"
   },
   statusLabels: {
     all: "全部状态",
@@ -825,7 +828,10 @@ const enUS: CopyTree = {
     "plugin": "Plugin",
     "database": "Database",
     "app": "App",
-    "prompt": "Prompt"
+    "prompt": "Prompt",
+    "card": "Card",
+    "voice": "Voice",
+    "memory": "Memory"
   },
   statusLabels: {
     all: "All Status",

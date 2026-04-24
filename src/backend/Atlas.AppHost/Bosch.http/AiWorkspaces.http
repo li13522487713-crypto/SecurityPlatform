@@ -17,10 +17,74 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
-### 查询 AppHost 资源库
-GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20&resourceType=knowledge-base
+### 查询 AppHost 资源库（全部，不含 agent/app）
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 资源库 9 类 + 来源（知识库-官方，应对齐种子 4 条）
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20&resourceType=knowledge-base&source=official
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 知识库-自定义（无官方数据时期望为空或仅用户数据）
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20&resourceType=knowledge-base&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 子类型：知识库-文本
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20&resourceType=knowledge-base&subType=text&source=official
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 各类一行（resourceType slug）
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=2&resourceType=plugin&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=2&resourceType=workflow&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=2&resourceType=database&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=2&resourceType=prompt&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=2&resourceType=card&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=2&resourceType=memory&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=2&resourceType=voice&source=custom
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建音色（自定义来源）
+POST {{baseUrl}}/api/v1/voice-assets
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "测试音色",
+  "description": "dev",
+  "language": "zh-CN",
+  "gender": "female",
+  "previewUrl": null
+}
 
 ### 导入 AppHost 资源库文件
 POST {{baseUrl}}/api/v1/ai-workspaces/library/imports

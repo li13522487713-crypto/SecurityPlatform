@@ -26,7 +26,9 @@ public sealed record AiLibraryItem(
     string Path,
     string Source = "custom",
     string? SubType = null,
-    string? TypeLabel = null);
+    string? TypeLabel = null,
+    string? Icon = null,
+    string? IconColor = null);
 
 public sealed record AiLibraryImportRequest(
     string ResourceType,
@@ -52,7 +54,8 @@ public sealed record AiLibraryQueryRequest(
     string? ResourceType,
     int PageIndex,
     int PageSize,
-    string? Source = null);
+    string? Source = null,
+    string? SubType = null);
 
 public sealed record AiLibraryPagedResult(
     IReadOnlyList<AiLibraryItem> Items,

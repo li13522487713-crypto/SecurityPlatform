@@ -72,6 +72,10 @@ export interface AgentWorkbenchConfigTabProps {
   handleDatabaseSelectionChange: (nextDatabaseIds: number[]) => void;
   databaseBindings: AgentDatabaseBindingInput[];
   setDatabaseBindings: Dispatch<SetStateAction<AgentDatabaseBindingInput[]>>;
+  persistedDatabaseIds: number[];
+  databaseBindingActionId: number | null;
+  handleBindDatabase: (binding: AgentDatabaseBindingInput) => void | Promise<void>;
+  handleUnbindDatabase: (databaseId: number) => void | Promise<void>;
   selectedVariableIds: number[];
   handleVariableSelectionChange: (nextVariableIds: number[]) => void;
   variableBindings: AgentVariableBindingInput[];
@@ -131,6 +135,10 @@ export function AgentWorkbenchConfigTab(props: AgentWorkbenchConfigTabProps) {
     handleDatabaseSelectionChange,
     databaseBindings,
     setDatabaseBindings,
+    persistedDatabaseIds,
+    databaseBindingActionId,
+    handleBindDatabase,
+    handleUnbindDatabase,
     selectedVariableIds,
     handleVariableSelectionChange,
     variableBindings,
@@ -490,13 +498,37 @@ export function AgentWorkbenchConfigTab(props: AgentWorkbenchConfigTabProps) {
 
             {databaseBindings.map(binding => {
               const databaseOption = databaseOptions.find(item => item.id === binding.databaseId);
+              const isPersisted = persistedDatabaseIds.includes(binding.databaseId);
+              const isBindingBusy = databaseBindingActionId === binding.databaseId;
               return (
                 <div key={`database-${binding.databaseId}`} className="module-studio__coze-inspector-card">
                   <div className="module-studio__card-head">
                     <strong>{databaseOption?.name || `DB ${binding.databaseId}`}</strong>
                     <div className="module-studio__inline-actions">
-                      <Tag color={binding.isDefault ? "blue" : "grey"}>{binding.isDefault ? "默认库" : "已绑定"}</Tag>
+                      <Tag color={binding.isDefault ? "blue" : "grey"}>{binding.isDefault ? "默认库" : isPersisted ? "已绑定" : "未落库"}</Tag>
                       {binding.accessMode === "readwrite" ? <Tag color="orange">读写</Tag> : <Tag color="green">只读</Tag>}
+                      {isPersisted ? (
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          type="danger"
+                          loading={isBindingBusy}
+                          disabled={saving || !resourceReady}
+                          onClick={() => void handleUnbindDatabase(binding.databaseId)}
+                        >
+                          解绑
+                        </Button>
+                      ) : (
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          loading={isBindingBusy}
+                          disabled={saving || !resourceReady}
+                          onClick={() => void handleBindDatabase(binding)}
+                        >
+                          立即绑定
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <div className="module-studio__form-grid">

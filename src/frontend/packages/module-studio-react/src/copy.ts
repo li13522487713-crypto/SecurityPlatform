@@ -61,6 +61,96 @@ export interface StudioCopy {
     readonly channelUiNotAvailable: string;
     readonly channelUiNotAvailableHintTemplate: string;
   };
+  /** Coze 风格数据库详情（资源库 → 数据库） */
+  readonly databaseDetail: {
+    readonly subtitle: string;
+    readonly backToLibrary: string;
+    readonly channelReadWrite: string;
+    readonly channelIsolation: string;
+    readonly userPermissionMode: string;
+    readonly editStructure: string;
+    readonly tabStructure: string;
+    readonly tabDraft: string;
+    readonly tabOnline: string;
+    readonly colFieldName: string;
+    readonly colDescription: string;
+    readonly colIndexed: string;
+    readonly colType: string;
+    readonly colRequired: string;
+    readonly yes: string;
+    readonly no: string;
+    readonly draftCount: string;
+    readonly onlineCount: string;
+    readonly structureHintTemplate: string;
+    readonly addRecord: string;
+    readonly downloadTemplate: string;
+    readonly importData: string;
+    readonly colChannel: string;
+    readonly colUser: string;
+    readonly colCreatedAt: string;
+    readonly actions: string;
+    readonly edit: string;
+    readonly delete: string;
+    readonly loadingRecords: string;
+    readonly notFound: string;
+    readonly modalEditStructure: string;
+    readonly modalRenameTitle: string;
+    readonly fieldNamePh: string;
+    readonly fieldDescPh: string;
+    readonly requiredOn: string;
+    readonly requiredOff: string;
+    readonly removeField: string;
+    readonly addField: string;
+    readonly modalRecordCreate: string;
+    readonly modalRecordEditTemplate: string;
+    readonly writeTargetHintTemplate: string;
+    readonly modalChannelRw: string;
+    readonly modalChannelRwEmpty: string;
+    readonly colChannelName: string;
+    readonly colChannelType: string;
+    readonly linkDraftData: string;
+    readonly linkOnlineData: string;
+    readonly popoverIsolationTitle: string;
+    readonly isolationFullShared: string;
+    readonly isolationFullSharedDesc: string;
+    readonly isolationChannel: string;
+    readonly isolationChannelDesc: string;
+    readonly isolationInternal: string;
+    readonly isolationInternalDesc: string;
+    readonly popoverUserModeTitle: string;
+    readonly userModeSingle: string;
+    readonly userModeSingleDesc: string;
+    readonly userModeMulti: string;
+    readonly userModeMultiDesc: string;
+    readonly toastLoadDetailFailed: string;
+    readonly toastLoadRecordsFailed: string;
+    readonly toastSchemaNotEditable: string;
+    readonly toastMinOneField: string;
+    readonly toastStructureSaved: string;
+    readonly toastStructureSaveFailed: string;
+    readonly toastJsonInvalid: string;
+    readonly toastRecordSaved: string;
+    readonly toastRecordUpdated: string;
+    readonly toastRecordSaveFailed: string;
+    readonly toastRecordDeleted: string;
+    readonly toastRecordDeleteFailed: string;
+    readonly toastChannelRwNotAvailable: string;
+    readonly toastChannelRwSaved: string;
+    readonly toastChannelRwSaveFailed: string;
+    readonly toastModeNotAvailable: string;
+    readonly toastModeSaved: string;
+    readonly toastModeSaveFailed: string;
+    readonly toastImportSubmitted: string;
+    readonly toastImportFailed: string;
+    readonly typeString: string;
+    readonly typeNumber: string;
+    readonly typeInteger: string;
+    readonly typeBoolean: string;
+    readonly typeDate: string;
+    readonly typeJson: string;
+    readonly typeArray: string;
+    readonly typeUnknown: string;
+  };
   readonly modelGuard: {
     readonly noModelTitle: string;
     readonly noEnabledModelTitle: string;
@@ -300,6 +390,95 @@ const zhCN: StudioCopy = {
     channelUiNotAvailable: "该渠道类型尚未提供 UI",
     channelUiNotAvailableHintTemplate: "检测到渠道类型 \"{type}\"，请改走 HTTP / API Tab 或联系平台管理员。"
   },
+  databaseDetail: {
+    subtitle: "表结构、测试数据与线上数据统一管理。",
+    backToLibrary: "资源库",
+    channelReadWrite: "渠道读写配置",
+    channelIsolation: "渠道隔离",
+    userPermissionMode: "单用户模式",
+    editStructure: "编辑表结构",
+    tabStructure: "表结构",
+    tabDraft: "测试数据",
+    tabOnline: "线上数据",
+    colFieldName: "存储字段名称",
+    colDescription: "描述",
+    colIndexed: "设为索引",
+    colType: "类型",
+    colRequired: "是否必要",
+    yes: "是",
+    no: "否",
+    draftCount: "测试",
+    onlineCount: "线上",
+    structureHintTemplate: "系统字段与业务字段共 {count} 项",
+    addRecord: "新增记录",
+    downloadTemplate: "下载模板",
+    importData: "导入数据",
+    colChannel: "渠道",
+    colUser: "用户",
+    colCreatedAt: "创建时间",
+    actions: "操作",
+    edit: "编辑",
+    delete: "删除",
+    loadingRecords: "正在加载记录…",
+    notFound: "未找到数据库",
+    modalEditStructure: "编辑表结构",
+    modalRenameTitle: "修改表名称",
+    fieldNamePh: "字段名",
+    fieldDescPh: "描述",
+    requiredOn: "必填",
+    requiredOff: "可选",
+    removeField: "删除",
+    addField: "新增字段",
+    modalRecordCreate: "新增记录",
+    modalRecordEditTemplate: "编辑记录 #{id}",
+    writeTargetHintTemplate: "当前写入：{target}",
+    modalChannelRw: "渠道读写配置",
+    modalChannelRwEmpty: "尚未初始化渠道配置。",
+    colChannelName: "渠道",
+    colChannelType: "类型",
+    linkDraftData: "测试数据",
+    linkOnlineData: "线上数据",
+    popoverIsolationTitle: "选择模式",
+    isolationFullShared: "渠道共享",
+    isolationFullSharedDesc: "所有渠道共享同一份数据。",
+    isolationChannel: "渠道隔离",
+    isolationChannelDesc: "各渠道仅访问本渠道数据。",
+    isolationInternal: "站内共享",
+    isolationInternalDesc: "站内渠道共享数据，外部渠道彼此隔离。",
+    popoverUserModeTitle: "选择权限模式",
+    userModeSingle: "单用户模式",
+    userModeSingleDesc: "开发者和用户只能对自己创建的数据进行操作。",
+    userModeMulti: "多用户模式",
+    userModeMultiDesc: "开发者和用户能对所有人创建的数据进行操作（工作流节点场景）。",
+    toastLoadDetailFailed: "加载数据库详情失败。",
+    toastLoadRecordsFailed: "加载记录失败。",
+    toastSchemaNotEditable: "当前环境未启用表结构编辑。",
+    toastMinOneField: "至少保留一个业务字段。",
+    toastStructureSaved: "表结构已更新。",
+    toastStructureSaveFailed: "保存表结构失败。",
+    toastJsonInvalid: "记录 JSON 格式不合法。",
+    toastRecordSaved: "记录已创建。",
+    toastRecordUpdated: "记录已更新。",
+    toastRecordSaveFailed: "保存记录失败。",
+    toastRecordDeleted: "记录已删除。",
+    toastRecordDeleteFailed: "删除记录失败。",
+    toastChannelRwNotAvailable: "渠道配置接口不可用。",
+    toastChannelRwSaved: "渠道读写配置已保存。",
+    toastChannelRwSaveFailed: "保存渠道配置失败。",
+    toastModeNotAvailable: "模式配置接口不可用。",
+    toastModeSaved: "模式已更新。",
+    toastModeSaveFailed: "保存模式失败。",
+    toastImportSubmitted: "导入任务已提交。",
+    toastImportFailed: "导入提交失败。",
+    typeString: "String",
+    typeNumber: "Number",
+    typeInteger: "Integer",
+    typeBoolean: "Boolean",
+    typeDate: "Time",
+    typeJson: "Object",
+    typeArray: "Array",
+    typeUnknown: "String"
+  },
   modelGuard: {
     noModelTitle: "系统尚未配置 AI 模型",
     noEnabledModelTitle: "当前没有已启用的 AI 模型",
@@ -536,6 +715,95 @@ const enUS: StudioCopy = {
     activeReleaseInfoTemplate: "Active release v{releaseNo} ({status}).",
     channelUiNotAvailable: "Channel UI not available yet",
     channelUiNotAvailableHintTemplate: "Type \"{type}\" detected. Use the HTTP / API tab or contact platform admin."
+  },
+  databaseDetail: {
+    subtitle: "Schema, draft data, and online data in one place.",
+    backToLibrary: "Library",
+    channelReadWrite: "Channel read/write",
+    channelIsolation: "Channel isolation",
+    userPermissionMode: "Permission mode",
+    editStructure: "Edit schema",
+    tabStructure: "Schema",
+    tabDraft: "Test data",
+    tabOnline: "Online data",
+    colFieldName: "Field name",
+    colDescription: "Description",
+    colIndexed: "Indexed",
+    colType: "Type",
+    colRequired: "Required",
+    yes: "Yes",
+    no: "No",
+    draftCount: "Draft",
+    onlineCount: "Online",
+    structureHintTemplate: "{count} fields (system + custom)",
+    addRecord: "Add row",
+    downloadTemplate: "Template",
+    importData: "Import",
+    colChannel: "Channel",
+    colUser: "User",
+    colCreatedAt: "Created",
+    actions: "Actions",
+    edit: "Edit",
+    delete: "Delete",
+    loadingRecords: "Loading rows…",
+    notFound: "Database not found",
+    modalEditStructure: "Edit schema",
+    modalRenameTitle: "Rename table",
+    fieldNamePh: "Field name",
+    fieldDescPh: "Description",
+    requiredOn: "Required",
+    requiredOff: "Optional",
+    removeField: "Remove",
+    addField: "Add field",
+    modalRecordCreate: "New row",
+    modalRecordEditTemplate: "Edit row #{id}",
+    writeTargetHintTemplate: "Target: {target}",
+    modalChannelRw: "Channel read/write",
+    modalChannelRwEmpty: "Channel config not initialized.",
+    colChannelName: "Channel",
+    colChannelType: "Type",
+    linkDraftData: "Test data",
+    linkOnlineData: "Online data",
+    popoverIsolationTitle: "Isolation mode",
+    isolationFullShared: "Shared",
+    isolationFullSharedDesc: "All channels share the same dataset.",
+    isolationChannel: "Isolated",
+    isolationChannelDesc: "Each channel only sees its own rows.",
+    isolationInternal: "Internal shared",
+    isolationInternalDesc: "Internal channels share data; external channels stay isolated.",
+    popoverUserModeTitle: "Permission mode",
+    userModeSingle: "Single-user",
+    userModeSingleDesc: "Users only access rows they created.",
+    userModeMulti: "Multi-user",
+    userModeMultiDesc: "Users may access rows from everyone (workflow nodes).",
+    toastLoadDetailFailed: "Failed to load database.",
+    toastLoadRecordsFailed: "Failed to load rows.",
+    toastSchemaNotEditable: "Schema editing is not available.",
+    toastMinOneField: "Keep at least one custom field.",
+    toastStructureSaved: "Schema updated.",
+    toastStructureSaveFailed: "Failed to save schema.",
+    toastJsonInvalid: "Invalid JSON for row.",
+    toastRecordSaved: "Row created.",
+    toastRecordUpdated: "Row updated.",
+    toastRecordSaveFailed: "Failed to save row.",
+    toastRecordDeleted: "Row deleted.",
+    toastRecordDeleteFailed: "Failed to delete row.",
+    toastChannelRwNotAvailable: "Channel API not available.",
+    toastChannelRwSaved: "Channel settings saved.",
+    toastChannelRwSaveFailed: "Failed to save channel settings.",
+    toastModeNotAvailable: "Mode API not available.",
+    toastModeSaved: "Mode updated.",
+    toastModeSaveFailed: "Failed to save mode.",
+    toastImportSubmitted: "Import job submitted.",
+    toastImportFailed: "Import failed.",
+    typeString: "String",
+    typeNumber: "Number",
+    typeInteger: "Integer",
+    typeBoolean: "Boolean",
+    typeDate: "Time",
+    typeJson: "Object",
+    typeArray: "Array",
+    typeUnknown: "String"
   },
   modelGuard: {
     noModelTitle: "No AI model configured yet",

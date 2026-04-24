@@ -8,28 +8,63 @@ export interface AiDatabaseListItem {
   description?: string;
   botId?: number;
   recordCount: number;
+  draftRecordCount?: number;
+  onlineRecordCount?: number;
+  queryMode?: AiDatabaseQueryMode;
+  channelScope?: AiDatabaseChannelScope;
   createdAt: string;
   updatedAt?: string;
 }
 
 export interface AiDatabaseDetail extends AiDatabaseListItem {
   tableSchema: string;
+  workspaceId?: number;
+  fields?: AiDatabaseFieldItem[];
+  channelConfigs?: AiDatabaseChannelConfigItem[];
 }
 
 export interface AiDatabaseRecordListItem {
   id: number;
   databaseId: number;
   dataJson: string;
+  environment?: AiDatabaseRecordEnvironment;
+  ownerUserId?: number;
+  creatorUserId?: number;
+  channelId?: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface AiDatabaseFieldItem {
+  id?: number;
+  name: string;
+  description?: string;
+  type: string;
+  required: boolean;
+  indexed?: boolean;
+  isSystemField?: boolean;
+  sortOrder?: number;
+}
+
+export interface AiDatabaseChannelConfigItem {
+  channelKey: string;
+  displayName: string;
+  allowDraft: boolean;
+  allowOnline: boolean;
+  publishChannelType?: string;
+  credentialKind?: string;
+  sortOrder?: number;
 }
 
 export interface AiDatabaseCreateRequest {
   name: string;
   description?: string;
   botId?: number;
-  tableSchema: string;
+  tableSchema?: string;
   workspaceId?: number;
+  fields?: AiDatabaseFieldItem[];
+  queryMode?: AiDatabaseQueryMode;
+  channelScope?: AiDatabaseChannelScope;
 }
 
 export interface AiDatabaseSchemaValidateResult {
@@ -39,6 +74,16 @@ export interface AiDatabaseSchemaValidateResult {
 
 export interface AiDatabaseRecordUpsertRequest {
   dataJson: string;
+  environment?: AiDatabaseRecordEnvironment;
+}
+
+export interface AiDatabaseModeUpdateRequest {
+  queryMode: AiDatabaseQueryMode;
+  channelScope: AiDatabaseChannelScope;
+}
+
+export interface AiDatabaseChannelConfigsUpdateRequest {
+  items: AiDatabaseChannelConfigItem[];
 }
 
 /**
@@ -67,6 +112,7 @@ export interface AiDatabaseImportProgress {
 export interface AiDatabaseRecordBulkCreateRequest {
   /** 每项是单条记录的 dataJson（JSON 对象字符串）。 */
   rows: string[];
+  environment?: AiDatabaseRecordEnvironment;
 }
 
 export interface AiDatabaseRecordBulkRowResult {
@@ -100,8 +146,14 @@ export const enum AiDatabaseQueryMode {
  * D2：渠道隔离策略。Channel 按 ChannelId 过滤；Open 不过滤。
  */
 export const enum AiDatabaseChannelScope {
-  Open = 0,
-  Channel = 1
+  FullShared = 0,
+  ChannelIsolated = 1,
+  InternalShared = 2
+}
+
+export const enum AiDatabaseRecordEnvironment {
+  Draft = 1,
+  Online = 2
 }
 
 export async function getAiDatabasesPaged(
@@ -178,9 +230,12 @@ export async function validateAiDatabaseSchema(schemaJson: string): Promise<AiDa
 
 export async function getAiDatabaseRecordsPaged(
   id: number,
-  request: PagedRequest
+  request: PagedRequest,
+  environment: AiDatabaseRecordEnvironment = AiDatabaseRecordEnvironment.Draft
 ): Promise<PagedResult<AiDatabaseRecordListItem>> {
-  const response = await requestApi<ApiResponse<PagedResult<AiDatabaseRecordListItem>>>(`/ai-databases/${id}/records?${toQuery(request)}`);
+  const response = await requestApi<ApiResponse<PagedResult<AiDatabaseRecordListItem>>>(
+    `/ai-databases/${id}/records?${toQuery(request, { environment })}`
+  );
   if (!response.data) {
     throw new Error(response.message || aiDatabaseMessage("getRecordsFailed"));
   }
@@ -218,7 +273,15 @@ export async function updateAiDatabaseRecord(
 }
 
 export async function deleteAiDatabaseRecord(id: number, recordId: number): Promise<void> {
-  const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/records/${recordId}`, {
+  return deleteAiDatabaseRecordWithEnvironment(id, recordId, AiDatabaseRecordEnvironment.Draft);
+}
+
+export async function deleteAiDatabaseRecordWithEnvironment(
+  id: number,
+  recordId: number,
+  environment: AiDatabaseRecordEnvironment
+): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/records/${recordId}?${toQuery({}, { environment })}`, {
     method: "DELETE"
   });
   if (!response.success) {
@@ -271,7 +334,11 @@ export async function submitAiDatabaseBulkInsertJob(
   return response.data;
 }
 
-export async function submitAiDatabaseImport(id: number, file: File): Promise<number> {
+export async function submitAiDatabaseImport(
+  id: number,
+  file: File,
+  environment: AiDatabaseRecordEnvironment = AiDatabaseRecordEnvironment.Draft
+): Promise<number> {
   const uploadResponse = await uploadFile("/files", file);
   const fileId = extractResourceId(uploadResponse.data);
   if (!uploadResponse.success || !fileId) {
@@ -281,7 +348,7 @@ export async function submitAiDatabaseImport(id: number, file: File): Promise<nu
   const response = await requestApi<ApiResponse<{ taskId?: string; TaskId?: string }>>(`/ai-databases/${id}/imports`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileId: Number(fileId) })
+    body: JSON.stringify({ fileId: Number(fileId), environment })
   });
   const taskId = extractResourceId(response.data as { id?: string; Id?: string } | undefined)
     ?? extractResourceId({
@@ -305,6 +372,40 @@ export async function getAiDatabaseImportProgress(id: number): Promise<AiDatabas
     }
 
     throw error;
+  }
+}
+
+export async function updateAiDatabaseMode(id: number, request: AiDatabaseModeUpdateRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/mode`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || aiDatabaseMessage("updateDatabaseFailed"));
+  }
+}
+
+export async function getAiDatabaseChannelConfigs(id: number): Promise<AiDatabaseChannelConfigItem[]> {
+  const response = await requestApi<ApiResponse<AiDatabaseChannelConfigItem[]>>(`/ai-databases/${id}/channel-config`);
+  if (!response.success) {
+    throw new Error(response.message || aiDatabaseMessage("getDatabaseDetailFailed"));
+  }
+
+  return response.data ?? [];
+}
+
+export async function updateAiDatabaseChannelConfigs(
+  id: number,
+  request: AiDatabaseChannelConfigsUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/channel-config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || aiDatabaseMessage("updateDatabaseFailed"));
   }
 }
 

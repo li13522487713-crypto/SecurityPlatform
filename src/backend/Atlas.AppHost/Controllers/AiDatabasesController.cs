@@ -5,6 +5,7 @@ using Atlas.Application.Authorization;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
@@ -32,6 +33,8 @@ public sealed class AiDatabasesController : ControllerBase
     private readonly IValidator<AiDatabaseRecordBulkCreateRequest> _recordBulkValidator;
     private readonly IValidator<AiDatabaseSchemaValidateRequest> _schemaValidator;
     private readonly IValidator<AiDatabaseImportRequest> _importValidator;
+    private readonly IValidator<AiDatabaseModeUpdateRequest> _modeValidator;
+    private readonly IValidator<AiDatabaseChannelConfigsUpdateRequest> _channelConfigsValidator;
 
     public AiDatabasesController(
         IAiDatabaseService service,
@@ -45,7 +48,9 @@ public sealed class AiDatabasesController : ControllerBase
         IValidator<AiDatabaseRecordUpdateRequest> recordUpdateValidator,
         IValidator<AiDatabaseRecordBulkCreateRequest> recordBulkValidator,
         IValidator<AiDatabaseSchemaValidateRequest> schemaValidator,
-        IValidator<AiDatabaseImportRequest> importValidator)
+        IValidator<AiDatabaseImportRequest> importValidator,
+        IValidator<AiDatabaseModeUpdateRequest> modeValidator,
+        IValidator<AiDatabaseChannelConfigsUpdateRequest> channelConfigsValidator)
     {
         _service = service;
         _tenantProvider = tenantProvider;
@@ -59,6 +64,8 @@ public sealed class AiDatabasesController : ControllerBase
         _recordBulkValidator = recordBulkValidator;
         _schemaValidator = schemaValidator;
         _importValidator = importValidator;
+        _modeValidator = modeValidator;
+        _channelConfigsValidator = channelConfigsValidator;
     }
 
     /// <summary>D9：从当前 HTTP 上下文解析行级 owner/channel；用作 SingleUser/Channel 模式的策略输入。</summary>
@@ -180,10 +187,20 @@ public sealed class AiDatabasesController : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<AiDatabaseRecordListItem>>>> GetRecords(
         long id,
         [FromQuery] PagedRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] AiDatabaseRecordEnvironment environment = AiDatabaseRecordEnvironment.Draft)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _service.GetRecordsAsync(tenantId, id, request.PageIndex, request.PageSize, cancellationToken);
+        var (ownerUserId, _, channelId) = ResolveRowMetadata();
+        var result = await _service.GetRecordsAsync(
+            tenantId,
+            id,
+            request.PageIndex,
+            request.PageSize,
+            environment,
+            cancellationToken,
+            ownerUserId,
+            channelId);
         return Ok(ApiResponse<PagedResult<AiDatabaseRecordListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -250,7 +267,8 @@ public sealed class AiDatabasesController : ControllerBase
     {
         _recordUpdateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        await _service.UpdateRecordAsync(tenantId, id, recordId, request, cancellationToken);
+        var (ownerUserId, _, channelId) = ResolveRowMetadata();
+        await _service.UpdateRecordAsync(tenantId, id, recordId, request, cancellationToken, ownerUserId, channelId);
         await WriteDatabaseAuditAsync("ai_database_record.update", $"db:{id}/record:{recordId}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -260,12 +278,57 @@ public sealed class AiDatabasesController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> DeleteRecord(
         long id,
         long recordId,
+        CancellationToken cancellationToken,
+        [FromQuery] AiDatabaseRecordEnvironment environment = AiDatabaseRecordEnvironment.Draft)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var (ownerUserId, _, channelId) = ResolveRowMetadata();
+        await _service.DeleteRecordAsync(tenantId, id, recordId, environment, cancellationToken, ownerUserId, channelId);
+        await WriteDatabaseAuditAsync("ai_database_record.delete", $"db:{id}/record:{recordId}", cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/mode")]
+    [Authorize(Policy = PermissionPolicies.AiDatabaseUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateModes(
+        long id,
+        [FromBody] AiDatabaseModeUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        _modeValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
+        await _service.UpdateModesAsync(tenantId, id, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.mode.update", $"db:{id}", cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/channel-config")]
+    [Authorize(Policy = PermissionPolicies.AiDatabaseView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AiDatabaseChannelConfigItem>>>> GetChannelConfigs(
+        long id,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        await _service.DeleteRecordAsync(tenantId, id, recordId, cancellationToken);
-        await WriteDatabaseAuditAsync("ai_database_record.delete", $"db:{id}/record:{recordId}", cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { Id = recordId.ToString() }, HttpContext.TraceIdentifier));
+        var result = await _service.GetChannelConfigsAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AiDatabaseChannelConfigItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/channel-config")]
+    [Authorize(Policy = PermissionPolicies.AiDatabaseUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateChannelConfigs(
+        long id,
+        [FromBody] AiDatabaseChannelConfigsUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        _channelConfigsValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        await _writeGate.GuardByResourceAsync(tenantId, ResourceType, id, "edit", cancellationToken);
+        await _service.UpdateChannelConfigsAsync(tenantId, id, request, cancellationToken);
+        await _writeGate.InvalidateAsync(tenantId, ResourceType, id, cancellationToken);
+        await WriteDatabaseAuditAsync("ai_database.channel_config.update", $"db:{id}", cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/schema")]
