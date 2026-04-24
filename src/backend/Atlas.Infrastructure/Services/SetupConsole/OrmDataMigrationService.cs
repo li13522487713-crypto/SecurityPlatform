@@ -554,6 +554,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
 
     public static string ComputeFingerprint(DbConnectionConfig connection)
     {
+        ArgumentNullException.ThrowIfNull(connection);
         var canonical = $"{connection.DbType}|{connection.ConnectionString ?? string.Empty}";
         var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canonical));
         return Convert.ToHexString(bytes).ToLowerInvariant();

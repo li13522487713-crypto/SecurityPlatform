@@ -785,6 +785,8 @@ public sealed class DataMigrationTableProgress : TenantEntity
     public int BatchSize { get; private set; }
     public int CurrentBatchNo { get; private set; }
     public int TotalBatchCount { get; private set; }
+
+    [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
     public string? LastMaxId { get; private set; }
     public decimal ProgressPercent { get; private set; }
 

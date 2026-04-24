@@ -171,6 +171,12 @@ public sealed class DataMigrationPlanner : IDataMigrationPlanner
         foreach (var entityType in sortedEntities)
         {
             var entityName = entityType.Name;
+            if (entityType.IsAbstract || entityType.GetConstructor(Type.EmptyTypes) is null)
+            {
+                _logger.LogWarning("Skip migration entity {EntityName} because it does not have a public parameterless constructor.", entityName);
+                continue;
+            }
+
             if (scopedEntities.Count > 0 && !scopedEntities.Contains(entityName))
             {
                 continue;
