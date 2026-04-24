@@ -53,23 +53,35 @@ public sealed class SubWorkflowNodeExecutor : INodeExecutor
 
         var metaRepository = context.ServiceProvider.GetRequiredService<IWorkflowMetaRepository>();
         var draftRepository = context.ServiceProvider.GetRequiredService<IWorkflowDraftRepository>();
+        var cozeMetaRepository = context.ServiceProvider.GetService<ICozeWorkflowMetaRepository>();
+        var cozeDraftRepository = context.ServiceProvider.GetService<ICozeWorkflowDraftRepository>();
         var executionRepository = context.ServiceProvider.GetRequiredService<IWorkflowExecutionRepository>();
         var idGenerator = context.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>();
         var dagExecutor = context.ServiceProvider.GetRequiredService<DagExecutor>();
 
         var meta = await metaRepository.FindActiveByIdAsync(context.TenantId, targetWorkflowId, cancellationToken);
-        if (meta is null)
+        var draft = meta is null
+            ? null
+            : await draftRepository.FindByWorkflowIdAsync(context.TenantId, targetWorkflowId, cancellationToken);
+        var canvasJson = draft?.CanvasJson;
+        var versionNumber = meta?.LatestVersionNumber ?? 0;
+
+        if (meta is null && cozeMetaRepository is not null && cozeDraftRepository is not null)
         {
-            return new NodeExecutionResult(false, outputs, $"子工作流 {targetWorkflowId} 不存在。");
+            var cozeMeta = await cozeMetaRepository.FindActiveByIdAsync(context.TenantId, targetWorkflowId, cancellationToken);
+            var cozeDraft = cozeMeta is null
+                ? null
+                : await cozeDraftRepository.FindByWorkflowIdAsync(context.TenantId, targetWorkflowId, cancellationToken);
+            canvasJson = cozeDraft?.SchemaJson;
+            versionNumber = cozeMeta?.LatestVersionNumber ?? 0;
         }
 
-        var draft = await draftRepository.FindByWorkflowIdAsync(context.TenantId, targetWorkflowId, cancellationToken);
-        if (draft is null)
+        if (string.IsNullOrWhiteSpace(canvasJson))
         {
-            return new NodeExecutionResult(false, outputs, $"子工作流 {targetWorkflowId} 草稿不存在。");
+            return new NodeExecutionResult(false, outputs, $"子工作流 {targetWorkflowId} 不存在或草稿不存在。");
         }
 
-        var canvas = DagExecutor.ParseCanvas(draft.CanvasJson);
+        var canvas = DagExecutor.ParseCanvas(canvasJson);
         if (canvas is null)
         {
             return new NodeExecutionResult(false, outputs, $"子工作流 {targetWorkflowId} 画布无效。");
@@ -84,7 +96,7 @@ public sealed class SubWorkflowNodeExecutor : INodeExecutor
         var childExecution = new Domain.AiPlatform.Entities.WorkflowExecution(
             context.TenantId,
             targetWorkflowId,
-            meta.LatestVersionNumber,
+            versionNumber,
             createdByUserId,
             JsonSerializer.Serialize(childInputs),
             idGenerator.NextId());

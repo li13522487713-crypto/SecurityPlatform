@@ -238,9 +238,9 @@ public sealed class RagRetrievalService : IRagRetrievalService
                 ["hasEmbedding"] = entity.HasEmbedding.ToString(),
                 ["createdAt"] = entity.CreatedAt.ToString("O"),
             };
-            if (entity.RowIndex.HasValue)
+            if (entity.RowIndex > 0)
             {
-                meta["rowIndex"] = entity.RowIndex.Value.ToString();
+                meta["rowIndex"] = entity.RowIndex.ToString();
             }
             if (!string.IsNullOrWhiteSpace(entity.ColumnHeadersJson))
             {

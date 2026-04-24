@@ -435,7 +435,6 @@ if (appSetupStateProvider.IsReady)
 // ─── Middleware pipeline ───
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<AppSetupModeMiddleware>();
-app.UseMiddleware<XssProtectionMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

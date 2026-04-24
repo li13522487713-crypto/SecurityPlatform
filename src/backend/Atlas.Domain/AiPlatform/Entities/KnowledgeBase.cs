@@ -10,6 +10,7 @@ public sealed class KnowledgeBase : TenantEntity
     {
         Name = string.Empty;
         Description = string.Empty;
+        WorkspaceId = 0;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -24,7 +25,7 @@ public sealed class KnowledgeBase : TenantEntity
     {
         Id = id;
         Name = name;
-        WorkspaceId = workspaceId;
+        WorkspaceId = workspaceId ?? 0;
         Description = description ?? string.Empty;
         Type = type;
         CreatedAt = DateTime.UtcNow;

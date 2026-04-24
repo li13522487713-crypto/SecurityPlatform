@@ -9,6 +9,9 @@ public sealed class KnowledgeDocument : TenantEntity
         : base(TenantId.Empty)
     {
         FileName = string.Empty;
+        ContentType = string.Empty;
+        ErrorMessage = string.Empty;
+        ProcessedAt = DateTime.UnixEpoch;
         TagsJson = "[]";
         ImageMetadataJson = "{}";
         CreatedAt = DateTime.UtcNow;
@@ -33,6 +36,7 @@ public sealed class KnowledgeDocument : TenantEntity
         ContentType = contentType ?? string.Empty;
         FileSizeBytes = fileSizeBytes;
         Status = DocumentProcessingStatus.Pending;
+        ErrorMessage = string.Empty;
         ChunkCount = 0;
         TagsJson = NormalizeTagsJson(tagsJson);
         ImageMetadataJson = NormalizeImageMetadataJson(imageMetadataJson);
@@ -42,13 +46,13 @@ public sealed class KnowledgeDocument : TenantEntity
     public long KnowledgeBaseId { get; private set; }
     public long? FileId { get; private set; }
     public string FileName { get; private set; }
-    public string? ContentType { get; private set; }
+    public string ContentType { get; private set; }
     public long FileSizeBytes { get; private set; }
     public DocumentProcessingStatus Status { get; private set; }
-    public string? ErrorMessage { get; private set; }
+    public string ErrorMessage { get; private set; }
     public int ChunkCount { get; private set; }
     public DateTime CreatedAt { get; private set; }
-    public DateTime? ProcessedAt { get; private set; }
+    public DateTime ProcessedAt { get; private set; }
 
     /// <summary>JSON array of tag strings, e.g. <c>["a","b"]</c>.</summary>
     public string TagsJson { get; private set; } = "[]";
@@ -59,15 +63,15 @@ public sealed class KnowledgeDocument : TenantEntity
     public void MarkProcessing()
     {
         Status = DocumentProcessingStatus.Processing;
-        ErrorMessage = null;
-        ProcessedAt = null;
+        ErrorMessage = string.Empty;
+        ProcessedAt = DateTime.UnixEpoch;
     }
 
     public void MarkCompleted(int chunkCount)
     {
         Status = DocumentProcessingStatus.Completed;
         ChunkCount = Math.Max(0, chunkCount);
-        ErrorMessage = null;
+        ErrorMessage = string.Empty;
         ProcessedAt = DateTime.UtcNow;
     }
 

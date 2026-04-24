@@ -2,6 +2,8 @@ name = "risk_reviewer"
 description = "Read-only reviewer for regressions, security, correctness, and missing tests."
 model = "gpt-5.5"
 model_reasoning_effort = "high"
+model_context_window = 400000
+model_auto_compact_token_limit = 300000
 sandbox_mode = "read-only"
 developer_instructions = """
 You are risk_reviewer for Atlas Security Platform.

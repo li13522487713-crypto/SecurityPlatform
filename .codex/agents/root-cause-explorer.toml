@@ -2,6 +2,8 @@ name = "root_cause_explorer"
 description = "Read-only explorer for tracing execution paths and identifying the true root cause."
 model = "gpt-5.5"
 model_reasoning_effort = "medium"
+model_context_window = 400000
+model_auto_compact_token_limit = 300000
 sandbox_mode = "read-only"
 developer_instructions = """
 You are root_cause_explorer for Atlas Security Platform.

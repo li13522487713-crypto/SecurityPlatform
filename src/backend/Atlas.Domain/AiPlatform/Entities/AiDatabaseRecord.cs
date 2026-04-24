@@ -9,7 +9,9 @@ public sealed class AiDatabaseRecord : TenantEntity
         : base(TenantId.Empty)
     {
         DataJson = "{}";
+        ChannelId = string.Empty;
         CreatedAt = DateTime.UtcNow;
+        UpdatedAt = CreatedAt;
     }
 
     public AiDatabaseRecord(
@@ -39,18 +41,18 @@ public sealed class AiDatabaseRecord : TenantEntity
         Id = id;
         DatabaseId = databaseId;
         DataJson = string.IsNullOrWhiteSpace(dataJson) ? "{}" : dataJson;
-        OwnerUserId = ownerUserId;
-        CreatorUserId = creatorUserId;
-        ChannelId = string.IsNullOrWhiteSpace(channelId) ? null : channelId.Trim();
+        OwnerUserId = ownerUserId ?? 0;
+        CreatorUserId = creatorUserId ?? 0;
+        ChannelId = string.IsNullOrWhiteSpace(channelId) ? string.Empty : channelId.Trim();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
 
     public long DatabaseId { get; private set; }
     public string DataJson { get; private set; }
-    public long? OwnerUserId { get; private set; }
-    public long? CreatorUserId { get; private set; }
-    public string? ChannelId { get; private set; }
+    public long OwnerUserId { get; private set; }
+    public long CreatorUserId { get; private set; }
+    public string ChannelId { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
 
@@ -62,8 +64,8 @@ public sealed class AiDatabaseRecord : TenantEntity
 
     public void Reassign(long? ownerUserId, string? channelId)
     {
-        OwnerUserId = ownerUserId;
-        ChannelId = string.IsNullOrWhiteSpace(channelId) ? null : channelId.Trim();
+        OwnerUserId = ownerUserId ?? 0;
+        ChannelId = string.IsNullOrWhiteSpace(channelId) ? string.Empty : channelId.Trim();
         UpdatedAt = DateTime.UtcNow;
     }
 }

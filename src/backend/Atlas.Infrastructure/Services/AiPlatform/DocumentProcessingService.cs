@@ -285,9 +285,9 @@ public sealed class DocumentProcessingService
             ["documentId"] = entity.DocumentId.ToString(),
             ["chunkId"] = entity.Id.ToString()
         };
-        if (entity.RowIndex.HasValue)
+        if (entity.RowIndex > 0)
         {
-            meta["rowIndex"] = entity.RowIndex.Value.ToString();
+            meta["rowIndex"] = entity.RowIndex.ToString();
         }
 
         if (!string.IsNullOrWhiteSpace(entity.ColumnHeadersJson))

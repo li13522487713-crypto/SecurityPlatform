@@ -2471,7 +2471,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 .ExecuteCommandAsync(cancellationToken);
             await db.Updateable<AiPlugin>()
                 .SetColumns(x => x.WorkspaceId == workspace.Id)
-                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId == null)
+                .Where(x => x.TenantIdValue == tenantGuid && x.WorkspaceId <= 0)
                 .ExecuteCommandAsync(cancellationToken);
         }
     }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Atlas.Presentation.Shared.Controllers.Ai;
@@ -29,9 +30,9 @@ public sealed record CozeNodeTemplateListRequest(string[]? need_types, string[]?
 
 public sealed record CozeValidateSchemaRequest(string? workflow_id, string? schema, string? bind_project_id, string? bind_bot_id);
 
-public sealed record CozeWorkFlowTestRunRequest(string workflow_id, Dictionary<string, string>? input, string? space_id, string? bot_id, string? commit_id, string? project_id);
+public sealed record CozeWorkFlowTestRunRequest(string workflow_id, Dictionary<string, JsonElement>? input, string? space_id, string? bot_id, string? commit_id, string? project_id);
 
-public sealed record CozeGetWorkflowProcessRequest(string workflow_id, string? execute_id, string? sub_execute_id, bool? need_async, string? log_id, string? node_id);
+public sealed record CozeGetWorkflowProcessRequest(string? workflow_id, string? execute_id, string? sub_execute_id, bool? need_async, string? log_id, string? node_id);
 
 public sealed record CozeWorkflowTestResumeRequest(string workflow_id, string execute_id, string? event_id, string? data, string? space_id);
 
@@ -40,12 +41,12 @@ public sealed record CozeCancelWorkflowRequest(string execute_id, string? space_
 public sealed record CozeWorkflowNodeDebugRequest(
     string? workflow_id,
     string? node_id,
-    Dictionary<string, string>? input,
-    Dictionary<string, string>? batch,
+    Dictionary<string, JsonElement>? input,
+    Dictionary<string, JsonElement>? batch,
     string? space_id,
     string? bot_id,
     string? project_id,
-    Dictionary<string, string>? setting);
+    Dictionary<string, JsonElement>? setting);
 
 public sealed record CozeWorkflowReferencesRequest(string workflow_id, string? space_id);
 

@@ -2,6 +2,8 @@ name = "repro_tester"
 description = "Focused agent for reproduction, logs, failing tests, and edge-case verification."
 model = "gpt-5.5"
 model_reasoning_effort = "medium"
+model_context_window = 400000
+model_auto_compact_token_limit = 300000
 sandbox_mode = "read-only"
 developer_instructions = """
 You are repro_tester for Atlas Security Platform.

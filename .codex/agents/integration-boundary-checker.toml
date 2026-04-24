@@ -2,6 +2,8 @@ name = "integration_boundary_checker"
 description = "Read-only checker for frontend-backend boundaries, auth flows, HTTP examples, adapters, and cross-module consistency."
 model = "gpt-5.5"
 model_reasoning_effort = "high"
+model_context_window = 400000
+model_auto_compact_token_limit = 300000
 sandbox_mode = "read-only"
 developer_instructions = """
 You are integration_boundary_checker for Atlas Security Platform.

@@ -10,6 +10,9 @@ public sealed class AiDatabase : TenantEntity
     {
         Name = string.Empty;
         Description = string.Empty;
+        WorkspaceId = 0;
+        BotId = 0;
+        OwnerId = 0;
         TableSchema = "[]";
         OwnerType = AiDatabaseOwnerType.Library;
         QueryMode = AiDatabaseQueryMode.MultiUser;
@@ -31,11 +34,11 @@ public sealed class AiDatabase : TenantEntity
     {
         Id = id;
         Name = name;
-        WorkspaceId = workspaceId;
+        WorkspaceId = workspaceId ?? 0;
         Description = description ?? string.Empty;
-        BotId = botId;
+        BotId = botId ?? 0;
         OwnerType = botId.HasValue ? AiDatabaseOwnerType.Agent : AiDatabaseOwnerType.Library;
-        OwnerId = botId;
+        OwnerId = botId ?? 0;
         TableSchema = string.IsNullOrWhiteSpace(tableSchema) ? "[]" : tableSchema;
         SchemaVersion = 1;
         RecordCount = 0;
@@ -84,9 +87,9 @@ public sealed class AiDatabase : TenantEntity
             WorkspaceId = workspaceId.Value;
         }
         Description = description ?? string.Empty;
-        BotId = botId;
+        BotId = botId ?? 0;
         OwnerType = ownerType ?? (botId.HasValue ? AiDatabaseOwnerType.Agent : OwnerType);
-        OwnerId = ownerId ?? botId;
+        OwnerId = ownerId ?? botId ?? 0;
         TableSchema = string.IsNullOrWhiteSpace(tableSchema) ? "[]" : tableSchema;
         SchemaVersion = Math.Max(1, SchemaVersion + 1);
         UpdatedAt = DateTime.UtcNow;
@@ -102,11 +105,11 @@ public sealed class AiDatabase : TenantEntity
 
     public void UnbindBot()
     {
-        BotId = null;
+        BotId = 0;
         if (OwnerType == AiDatabaseOwnerType.Agent)
         {
             OwnerType = AiDatabaseOwnerType.Library;
-            OwnerId = null;
+            OwnerId = 0;
         }
         UpdatedAt = DateTime.UtcNow;
     }

@@ -72,12 +72,12 @@ public sealed class AiDatabaseRecordRepository : RepositoryBase<AiDatabaseRecord
         if (ownerUserId.HasValue)
         {
             var ownerVal = ownerUserId.Value;
-            query = query.Where(x => x.OwnerUserId == null || x.OwnerUserId == ownerVal);
+            query = query.Where(x => x.OwnerUserId == 0 || x.OwnerUserId == ownerVal);
         }
         if (!string.IsNullOrWhiteSpace(channelId))
         {
             var channelVal = channelId.Trim();
-            query = query.Where(x => x.ChannelId == null || x.ChannelId == channelVal);
+            query = query.Where(x => x.ChannelId == string.Empty || x.ChannelId == channelVal);
         }
         return query;
     }

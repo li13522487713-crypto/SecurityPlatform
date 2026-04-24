@@ -33,7 +33,8 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "HTTP 请求 URL 为空");
         }
 
-        var (isAllowed, targetUri, allowedAddresses, validationError) = await ValidateOutboundUrlAsync(url, cancellationToken);
+        var allowLoopback = context.GetConfigBoolean("allowLoopback", false);
+        var (isAllowed, targetUri, allowedAddresses, validationError) = await ValidateOutboundUrlAsync(url, allowLoopback, cancellationToken);
         if (!isAllowed || targetUri is null || allowedAddresses.Count == 0)
         {
             return new NodeExecutionResult(false, outputs, validationError ?? "HTTP 请求 URL 非法或不被允许");
@@ -121,7 +122,10 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
         return headers;
     }
 
-    private static async Task<(bool IsAllowed, Uri? Uri, IReadOnlyList<IPAddress> AllowedAddresses, string? Error)> ValidateOutboundUrlAsync(string url, CancellationToken cancellationToken)
+    private static async Task<(bool IsAllowed, Uri? Uri, IReadOnlyList<IPAddress> AllowedAddresses, string? Error)> ValidateOutboundUrlAsync(
+        string url,
+        bool allowLoopback,
+        CancellationToken cancellationToken)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUri))
         {
@@ -134,7 +138,7 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
             return (false, null, Array.Empty<IPAddress>(), "仅允许发起 HTTP/HTTPS 请求");
         }
 
-        if (parsedUri.IsLoopback || string.Equals(parsedUri.Host, "localhost", StringComparison.OrdinalIgnoreCase))
+        if (!allowLoopback && (parsedUri.IsLoopback || string.Equals(parsedUri.Host, "localhost", StringComparison.OrdinalIgnoreCase)))
         {
             return (false, null, Array.Empty<IPAddress>(), "不允许访问本机回环地址");
         }
@@ -146,7 +150,7 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
 
         if (IPAddress.TryParse(parsedUri.Host, out var literalIp))
         {
-            if (IsBlockedAddress(literalIp))
+            if (IsBlockedAddress(literalIp, allowLoopback))
             {
                 return (false, null, Array.Empty<IPAddress>(), "目标地址属于内网/链路本地/保留网段，已被安全策略拒绝");
             }
@@ -171,7 +175,7 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
 
         foreach (var ip in resolvedAddresses)
         {
-            if (IsBlockedAddress(ip))
+            if (IsBlockedAddress(ip, allowLoopback))
             {
                 return (false, null, Array.Empty<IPAddress>(), "目标主机解析到受限地址（内网/回环/链路本地/保留网段），请求被拒绝");
             }
@@ -214,9 +218,14 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
         return new HttpClient(handler, disposeHandler: true);
     }
 
-    private static bool IsBlockedAddress(IPAddress ip)
+    private static bool IsBlockedAddress(IPAddress ip, bool allowLoopback)
     {
-        if (IPAddress.IsLoopback(ip) || ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any) || ip.Equals(IPAddress.IPv6None))
+        if (!allowLoopback && IPAddress.IsLoopback(ip))
+        {
+            return true;
+        }
+
+        if (ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any) || ip.Equals(IPAddress.IPv6None))
         {
             return true;
         }
@@ -231,7 +240,7 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
             // 私有网段、回环、链路本地、共享地址空间、保留地址、多播、基准测试网段等全部拒绝。
             return first == 0 ||
                    first == 10 ||
-                   first == 127 ||
+                   (!allowLoopback && first == 127) ||
                    (first == 100 && second is >= 64 and <= 127) ||
                    (first == 169 && second == 254) ||
                    (first == 172 && second is >= 16 and <= 31) ||
@@ -243,7 +252,7 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
 
         if (ip.AddressFamily == AddressFamily.InterNetworkV6)
         {
-            if (ip.Equals(IPAddress.IPv6Loopback) || ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast)
+            if ((!allowLoopback && ip.Equals(IPAddress.IPv6Loopback)) || ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast)
             {
                 return true;
             }

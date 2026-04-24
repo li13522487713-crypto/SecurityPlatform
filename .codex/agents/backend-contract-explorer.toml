@@ -2,6 +2,8 @@ name = "backend_contract_explorer"
 description = "Read-only explorer for backend controllers, application services, contracts, auth, config, and job pipelines."
 model = "gpt-5.5"
 model_reasoning_effort = "medium"
+model_context_window = 400000
+model_auto_compact_token_limit = 300000
 sandbox_mode = "read-only"
 developer_instructions = """
 You are backend_contract_explorer for Atlas Security Platform.

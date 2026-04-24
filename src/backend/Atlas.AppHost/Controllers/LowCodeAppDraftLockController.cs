@@ -46,7 +46,7 @@ public sealed class LowCodeAppDraftLockController : ControllerBase
         var result = await _service.RenewAsync(tenantId, appId, req.SessionId, cancellationToken);
         if (!result.Acquired)
         {
-            throw new BusinessException(ErrorCodes.Conflict, "锁已被他人夺取或不存在，请重新获取");
+            //throw new BusinessException(ErrorCodes.Conflict, "锁已被他人夺取或不存在，请重新获取");
         }
 
         return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));

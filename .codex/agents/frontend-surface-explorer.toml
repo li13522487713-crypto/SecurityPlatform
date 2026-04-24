@@ -2,6 +2,8 @@ name = "frontend_surface_explorer"
 description = "Read-only explorer for frontend pages, routes, app-shell wiring, i18n, and UI/runtime integration."
 model = "gpt-5.5"
 model_reasoning_effort = "medium"
+model_context_window = 400000
+model_auto_compact_token_limit = 300000
 sandbox_mode = "read-only"
 developer_instructions = """
 You are frontend_surface_explorer for Atlas Security Platform.

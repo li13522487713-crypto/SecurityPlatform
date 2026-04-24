@@ -42,11 +42,11 @@ internal static class AiDatabaseNodeHelper
             .Where(x => x.TenantIdValue == tenantId.Value && x.DatabaseId == databaseId);
         if (policy is { OwnerUserId: { } ownerVal })
         {
-            query = query.Where(x => x.OwnerUserId == null || x.OwnerUserId == ownerVal);
+            query = query.Where(x => x.OwnerUserId == 0 || x.OwnerUserId == ownerVal);
         }
         if (policy is { ChannelId: { } channelVal } && !string.IsNullOrWhiteSpace(channelVal))
         {
-            query = query.Where(x => x.ChannelId == null || x.ChannelId == channelVal);
+            query = query.Where(x => x.ChannelId == string.Empty || x.ChannelId == channelVal);
         }
 
         if (sqlTakeLimit is > 0)
