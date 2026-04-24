@@ -42,7 +42,7 @@ interface VariableUpdateFormValues {
 
 export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, workspaceId }) => {
   const host = useLowcodeStudioHost();
-  const { api, createWorkflow, openPluginDetail } = host;
+  const { api, createWorkflow, deleteWorkflow, openPluginDetail } = host;
   const { selectedWorkflowId, setSelectedWorkflowId } = useStudioSelection();
   const qc = useQueryClient();
   const [activeKeys, setActiveKeys] = useState<string[]>(['workflow', 'plugin', 'data', 'settings']);
@@ -89,6 +89,22 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
       Toast.success(t('lowcode_studio.common.created'));
       setCreateOpen(false);
       setSelectedWorkflowId(result.workflowId);
+      await qc.invalidateQueries({ queryKey: ['lowcode-workflows', appId] });
+    },
+    onError: (error: Error) => Toast.error(error.message)
+  });
+
+  const deleteWorkflowMut = useMutation({
+    mutationFn: async (workflow: { id: string; name: string }) => {
+      if (!deleteWorkflow) throw new Error(t('lowcode_studio.workflow.deleteUnavailable'));
+      await deleteWorkflow({ appId, workspaceId, workflowId: workflow.id });
+      return workflow;
+    },
+    onSuccess: async (workflow) => {
+      Toast.success(t('lowcode_studio.common.deleted'));
+      if (selectedWorkflowId === workflow.id) {
+        setSelectedWorkflowId('');
+      }
       await qc.invalidateQueries({ queryKey: ['lowcode-workflows', appId] });
     },
     onError: (error: Error) => Toast.error(error.message)
@@ -201,6 +217,17 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
     setActiveKeys((prev) => (prev.includes('data') ? prev : [...prev, 'data']));
   };
 
+  const confirmDeleteWorkflow = (workflow: { id: string; name: string }) => {
+    Modal.confirm({
+      title: t('lowcode_studio.workflow.deleteConfirmTitle'),
+      content: `${t('lowcode_studio.workflow.deleteConfirmContent')}：${workflow.name}`,
+      okText: t('lowcode_studio.common.delete'),
+      cancelText: t('lowcode_studio.common.cancel'),
+      okButtonProps: { type: 'danger' },
+      onOk: () => deleteWorkflowMut.mutateAsync(workflow)
+    });
+  };
+
   return (
     <div style={{ padding: 12, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -239,10 +266,31 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
                       const active = workflow.id === selectedWorkflowId;
                       return (
                         <List.Item
-                          style={{ cursor: 'pointer', background: active ? '#e6f4ff' : undefined, padding: '6px 8px' }}
+                          style={{
+                            cursor: 'pointer',
+                            background: active ? '#e6f4ff' : undefined,
+                            padding: '6px 8px',
+                            minHeight: 38,
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
                           onClick={() => setSelectedWorkflowId(workflow.id)}
+                          extra={active && deleteWorkflow ? (
+                            <Button
+                              size="small"
+                              theme="borderless"
+                              type="danger"
+                              loading={deleteWorkflowMut.isPending}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                confirmDeleteWorkflow(workflow);
+                              }}
+                            >
+                              {t('lowcode_studio.common.delete')}
+                            </Button>
+                          ) : null}
                         >
-                          <Typography.Text strong={active} ellipsis={{ showTooltip: true }} style={{ fontSize: 13 }}>
+                          <Typography.Text strong={active} ellipsis={{ showTooltip: true }} style={{ fontSize: 13, maxWidth: active ? 150 : 210 }}>
                             ⚙ {workflow.name}
                           </Typography.Text>
                         </List.Item>

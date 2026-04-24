@@ -81,6 +81,12 @@ export interface LowcodeWorkflowCreateRequest {
   workspaceId?: string;
 }
 
+export interface LowcodeWorkflowDeleteRequest {
+  appId: string;
+  workflowId: string;
+  workspaceId?: string;
+}
+
 export interface LowcodeStudioHostConfig {
   api: LowcodeApi;
   auth: LowcodeStudioAuth;
@@ -102,6 +108,10 @@ export interface LowcodeStudioHostConfig {
    * 返回新建工作流的 ID。
    */
   createWorkflow?: (request: LowcodeWorkflowCreateRequest) => Promise<{ workflowId: string }>;
+  /**
+   * 业务逻辑模式下删除工作流。由宿主注入，必须删除 Coze 工作流并解除低代码 App 绑定。
+   */
+  deleteWorkflow?: (request: LowcodeWorkflowDeleteRequest) => Promise<void>;
 }
 
 function readStorageValue(key: string): string {

@@ -320,7 +320,7 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
         }
 
         await _commandService.DeleteAsync(_tenantProvider.GetTenantId(), workflowId, cancellationToken);
-        return Ok(SuccessWithoutData());
+        return Ok(Success(true));
     }
 
     [HttpPost("workflow_list")]

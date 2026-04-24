@@ -139,6 +139,10 @@ pnpm run format
 
 - `DagWorkflow*` / REST `api/v2/workflows` 必须与 LogicFlow 表达式能力对齐；节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
 - `app-web` 工作流页面优先复用 `@coze-workflow/playground-adapter`、`@coze-studio/workspace-adapter` 与 `src/frontend/packages/workflow/**`；禁止再引入 Atlas 自研桥接分叉。
+- Coze 画布编辑器保存的工作流必须是 Coze 原生合法 schema：`nodes[].id`、`nodes[].type`、`nodes[].meta.position`、`nodes[].data.nodeMeta`、`edges[].sourceNodeID`、`edges[].targetNodeID` 等字段必须真实持久化；读取接口必须原样读出该 schema，禁止在读取阶段临时转换、伪装或补坐标。
+- Coze 工作流新建、保存、测试脚本和夹具至少必须持久化开始节点与结束节点，并带合法坐标；任何工作流卡片不得因缺失 `meta.position` 叠加在同一位置。
+- `Atlas runtime schema`（如 `schemaVersion/nodes[key,type,config,layout]/edges[sourceNodeKey,targetNodeKey]`）仅允许用于 Atlas 微审批流、运行时内部 DSL 或显式标记的兼容执行层；禁止写入 Coze 画布编辑器工作流草稿，禁止把它作为 Coze Studio 的设计态持久化格式。
+- 若需要让 Coze 原生 schema 进入 Atlas 运行时执行，必须通过明确的编译/适配层把 `data.inputs`、`data.outputs`、`meta.position` 与 `edges` 转成运行时 `CanvasSchema`；不得反向要求 Coze 编辑器读取 Atlas runtime schema。
 - DAG 运行时需保障 Batch 子图、Loop + Break/Continue、Selector 分支裁剪、Resume（基于 preCompletedNodeKeys）。
 - 新增/修改节点能力必须同步节点目录/模板 API、前端节点面板与属性表单、i18n、单测/E2E、`.http` 示例和 `docs/workflow-editor-validation-matrix.md`。
 

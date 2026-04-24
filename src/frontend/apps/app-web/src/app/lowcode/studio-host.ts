@@ -15,7 +15,7 @@ import {
 import { createElement } from "react";
 import { studioPluginDetailPath } from "@atlas/app-shell-shared";
 import { LowcodeWorkflowEmbed } from "./workflow-embed";
-import { createWorkflow } from "../../services/api-workflow";
+import { createWorkflow, deleteWorkflow } from "../../services/api-workflow";
 import {
   getAccessToken,
   getAuthProfile,
@@ -133,6 +133,16 @@ export function createAppWebLowcodeStudioHost(appKey: string): LowcodeStudioHost
         { resourceType: "workflow", resourceId: String(workflowId) }
       );
       return { workflowId };
+    },
+    deleteWorkflow: async ({ appId, workflowId, workspaceId }) => {
+      const response = await deleteWorkflow(workflowId, workspaceId);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "删除工作流失败");
+      }
+      await requestJson(
+        `/api/v1/lowcode/apps/${encodeURIComponent(appId)}/resources/bindings/workflow/${encodeURIComponent(workflowId)}`,
+        "DELETE"
+      );
     },
     auth: {
       accessTokenFactory: () => getAccessToken() ?? "",

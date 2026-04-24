@@ -266,6 +266,7 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
         if (TryGetProperty(dataElement, "inputs", out var inputsElement) && inputsElement.ValueKind == JsonValueKind.Object)
         {
             config["inputs"] = inputsElement.Clone();
+            MergeGenericInputConfig(inputsElement, config);
             BuildInputMappings(inputsElement, inputMappings);
         }
 
@@ -280,6 +281,19 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
         }
 
         return config;
+    }
+
+    private static void MergeGenericInputConfig(JsonElement inputsElement, Dictionary<string, JsonElement> config)
+    {
+        foreach (var property in inputsElement.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "inputParameters", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            config[property.Name] = property.Value.Clone();
+        }
     }
 
     private static void BuildInputMappings(JsonElement inputsElement, Dictionary<string, string> mappings)
