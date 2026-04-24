@@ -393,6 +393,7 @@ public sealed class CozeWorkflowQueryService : ICozeWorkflowQueryService
         => new(execution.Id, execution.WorkflowId, execution.VersionNumber, execution.Status,
             execution.InputsJson, execution.OutputsJson, execution.ErrorMessage,
             execution.StartedAt, execution.CompletedAt,
+            execution.InterruptType, execution.InterruptNodeKey,
             nodes.Select(MapNodeExecution).ToList());
 
     private static DagWorkflowNodeExecutionDto MapNodeExecution(WorkflowNodeExecution node)

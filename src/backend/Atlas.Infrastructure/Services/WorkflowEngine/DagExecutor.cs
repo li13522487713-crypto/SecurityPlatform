@@ -203,10 +203,7 @@ public sealed class DagExecutor
                 // 同层全部成功后再合并输出，避免失败层产生部分提交。
                 foreach (var result in levelResults)
                 {
-                    foreach (var kvp in result.Outputs)
-                    {
-                        variables[kvp.Key] = kvp.Value;
-                    }
+                    MergeNodeOutputs(variables, result);
                     executedNodeCount++;
                 }
 
@@ -343,10 +340,7 @@ public sealed class DagExecutor
                         return;
                     }
 
-                    foreach (var kvp in batchResult.Outputs)
-                    {
-                        variables[kvp.Key] = kvp.Value;
-                    }
+                    MergeNodeOutputs(variables, batchResult);
                 }
             }
 
@@ -928,10 +922,7 @@ public sealed class DagExecutor
 
                 foreach (var bodyResult in bodyResults)
                 {
-                    foreach (var kvp in bodyResult.Outputs)
-                    {
-                        iterationScope[kvp.Key] = kvp.Value;
-                    }
+                    MergeNodeOutputs(iterationScope, bodyResult);
                 }
 
                 if (HasControlSignal(iterationScope, "loop_break"))
@@ -975,10 +966,7 @@ public sealed class DagExecutor
                 return LoopIterationResult.Failed(loopResult.NodeKey, loopResult.ErrorMessage, loopResult.InterruptType);
             }
 
-            foreach (var kvp in loopResult.Outputs)
-            {
-                variables[kvp.Key] = kvp.Value;
-            }
+            MergeNodeOutputs(variables, loopResult);
 
             if (IsLoopCompleted(loopResult.Outputs))
             {
@@ -1267,11 +1255,8 @@ public sealed class DagExecutor
 
             foreach (var levelResult in levelResults)
             {
-                foreach (var kvp in levelResult.Outputs)
-                {
-                    variables[kvp.Key] = kvp.Value;
-                    outputs[kvp.Key] = kvp.Value;
-                }
+                MergeNodeOutputs(variables, levelResult);
+                MergeNodeOutputs(outputs, levelResult);
             }
 
             foreach (var selectorNode in levelResults.Where(x => x.Success && x.NodeType == WorkflowNodeType.Selector))
@@ -2097,6 +2082,23 @@ public sealed class DagExecutor
         }
 
         return levels;
+    }
+
+    private static void MergeNodeOutputs(
+        IDictionary<string, JsonElement> variables,
+        NodeRunResult result)
+    {
+        foreach (var kvp in result.Outputs)
+        {
+            variables[kvp.Key] = kvp.Value;
+            if (string.IsNullOrWhiteSpace(result.NodeKey))
+            {
+                continue;
+            }
+
+            variables[$"{result.NodeKey}.{kvp.Key}"] = kvp.Value;
+            variables[$"block_output_{result.NodeKey}.{kvp.Key}"] = kvp.Value;
+        }
     }
 
     private static readonly Dictionary<string, JsonElement> EmptyOutputs = new(StringComparer.OrdinalIgnoreCase);

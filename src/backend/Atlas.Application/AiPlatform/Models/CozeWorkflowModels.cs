@@ -88,6 +88,8 @@ public sealed record CozeWorkflowExecutionDto(
     string? ErrorMessage,
     DateTime StartedAt,
     DateTime? CompletedAt,
+    InterruptType InterruptType,
+    string? InterruptNodeKey,
     IReadOnlyList<DagWorkflowNodeExecutionDto> NodeExecutions);
 
 public sealed record CozeWorkflowHistorySchemaDto(

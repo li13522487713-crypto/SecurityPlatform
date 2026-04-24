@@ -46,9 +46,13 @@ export function initializeAppRuntime() {
 }
 
 export async function loadAppFeatureFlags() {
-  await pullFeatureFlags({
-    strict: false,
-    timeout: 300,
-    fetchFeatureGating: async () => ({}) as FEATURE_FLAGS
-  });
+  try {
+    await pullFeatureFlags({
+      strict: false,
+      timeout: 300,
+      fetchFeatureGating: async () => ({}) as FEATURE_FLAGS
+    });
+  } catch {
+    // 本地低代码工作流编辑器不能被远端 feature flags 初始化失败阻断。
+  }
 }

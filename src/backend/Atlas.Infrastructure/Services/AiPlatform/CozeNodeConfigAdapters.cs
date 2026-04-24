@@ -66,6 +66,7 @@ internal static class CozeNodeConfigAdapterRegistry
             new SelectorNodeConfigAdapter(),
             new LoopNodeConfigAdapter(),
             new LlmNodeConfigAdapter(),
+            new TextProcessorNodeConfigAdapter(),
             new CommonOutputsNodeConfigAdapter(WorkflowNodeType.SubWorkflow)
         }.ToDictionary(x => x.NodeType, x => x);
 
@@ -563,6 +564,7 @@ internal sealed class LlmNodeConfigAdapter : ICozeNodeConfigAdapter
                         break;
                     case "prompt":
                     case "userprompt":
+                        config["prompt"] = scalarValue.Value;
                         config["userPrompt"] = scalarValue.Value;
                         break;
                 }
@@ -699,6 +701,92 @@ internal sealed class HttpRequesterNodeConfigAdapter : ICozeNodeConfigAdapter
             {
                 config["retryTimes"] = retryTimes.Clone();
             }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TextProcessor
+// ─────────────────────────────────────────────────────────────────────────────
+
+internal sealed class TextProcessorNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.TextProcessor;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (!context.DataElement.TryGetProperty("inputs", out var inputs) ||
+            inputs.ValueKind != JsonValueKind.Object)
+        {
+            CopyOutputKey(context, config);
+            return;
+        }
+
+        if (inputs.TryGetProperty("concatParams", out var concatParams) &&
+            concatParams.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var param in concatParams.EnumerateArray())
+            {
+                if (param.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var name = CozeAdapterHelper.TryGetString(param, "name");
+                if (!string.Equals(name, "concatResult", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var template = ExtractBlockInputContent(param);
+                if (!string.IsNullOrWhiteSpace(template))
+                {
+                    config["template"] = JsonSerializer.SerializeToElement(template);
+                    break;
+                }
+            }
+        }
+
+        CopyOutputKey(context, config);
+    }
+
+    private static string? ExtractBlockInputContent(JsonElement param)
+    {
+        if (!param.TryGetProperty("input", out var input) ||
+            input.ValueKind != JsonValueKind.Object ||
+            !input.TryGetProperty("value", out var value) ||
+            value.ValueKind != JsonValueKind.Object ||
+            !value.TryGetProperty("content", out var content))
+        {
+            return null;
+        }
+
+        return content.ValueKind == JsonValueKind.String ? content.GetString() : content.GetRawText();
+    }
+
+    private static void CopyOutputKey(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (!context.DataElement.TryGetProperty("outputs", out var outputsElement) ||
+            outputsElement.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var item in outputsElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var outputName = CozeAdapterHelper.TryGetString(item, "name")?.Trim();
+            if (string.IsNullOrWhiteSpace(outputName))
+            {
+                continue;
+            }
+
+            config["outputKey"] = JsonSerializer.SerializeToElement(outputName);
+            return;
         }
     }
 }

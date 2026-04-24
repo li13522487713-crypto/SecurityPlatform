@@ -813,14 +813,25 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
                 nodeId = node.NodeKey,
                 NodeType = node.NodeType.ToString(),
                 NodeName = node.NodeKey,
-                nodeStatus = ToCozeExecutionStatus(node.Status),
+                nodeStatus = ToNodeExeStatusCode(node.Status),
                 errorInfo = node.ErrorMessage,
                 input = node.InputsJson,
                 output = node.OutputsJson,
+                raw_output = node.OutputsJson,
+                extra = JsonSerializer.Serialize(new
+                {
+                    input = node.InputsJson,
+                    output = node.OutputsJson,
+                    error = node.ErrorMessage
+                }, JsonOptions),
                 nodeExeCost = node.DurationMs is null ? null : $"{node.DurationMs}ms",
                 errorLevel = string.IsNullOrWhiteSpace(node.ErrorMessage) ? null : "error",
-                executeId = node.ExecutionId.ToString()
+                executeId = node.ExecutionId.ToString(),
+                isBatch = false,
+                batch = (string?)null,
+                index = 0
             }).ToArray(),
+            nodeEvents = BuildNodeEvents(result),
             reason = result.ErrorMessage,
             logID = result.Id.ToString(),
             projectId = string.Empty
@@ -858,6 +869,7 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     }
 
     [HttpPost("nodeDebug")]
+    [HttpPost("node_debug")]
     [Authorize]
     public async Task<ActionResult<object>> WorkflowNodeDebug(
         [FromBody] CozeWorkflowNodeDebugRequest request,
@@ -1014,10 +1026,10 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     [Authorize]
     public ActionResult<object> ValidateSchema([FromBody] CozeValidateSchemaRequest request)
     {
-        var compileResult = _planCompiler.Compile(request.schema ?? string.Empty);
-        var result = !compileResult.IsSuccess || compileResult.Canvas is null
-            ? new CanvasValidationResult(false, compileResult.Errors)
-            : _canvasValidator.ValidateCanvas(JsonSerializer.Serialize(compileResult.Canvas));
+        var schema = request.schema ?? string.Empty;
+        var result = TryValidateCozeDesignSchema(schema, out var designResult)
+            ? designResult
+            : ValidateRuntimeSchema(schema);
 
         return Ok(Success((result.Errors ?? Array.Empty<CanvasValidationIssue>())
             .Select(error => new
@@ -1057,10 +1069,9 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
             return Ok(Success(Array.Empty<object>()));
         }
 
-        var compileResult = _planCompiler.Compile(schema);
-        var result = !compileResult.IsSuccess || compileResult.Canvas is null
-            ? new CanvasValidationResult(false, compileResult.Errors)
-            : _canvasValidator.ValidateCanvas(JsonSerializer.Serialize(compileResult.Canvas));
+        var result = TryValidateCozeDesignSchema(schema, out var designResult)
+            ? designResult
+            : ValidateRuntimeSchema(schema);
 
         var errors = (result.Errors ?? Array.Empty<CanvasValidationIssue>())
             .Select(error => new
@@ -1358,6 +1369,264 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
             cancellationToken);
 
         return Ok(Success(new { role_id = roleId }));
+    }
+
+    private CanvasValidationResult ValidateRuntimeSchema(string schema)
+    {
+        var compileResult = _planCompiler.Compile(schema);
+        return !compileResult.IsSuccess || compileResult.Canvas is null
+            ? new CanvasValidationResult(false, compileResult.Errors)
+            : _canvasValidator.ValidateCanvas(JsonSerializer.Serialize(compileResult.Canvas));
+    }
+
+    private static bool TryValidateCozeDesignSchema(string schema, out CanvasValidationResult result)
+    {
+        result = new CanvasValidationResult(true, Array.Empty<CanvasValidationIssue>());
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(schema);
+            var root = document.RootElement;
+            if (!IsCozeNativeSchema(root))
+            {
+                return false;
+            }
+
+            var issues = new List<CanvasValidationIssue>();
+            if (!TryGetProperty(root, "nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array)
+            {
+                issues.Add(new CanvasValidationIssue("COZE_NODES_MISSING", "Coze 画布缺少 nodes 数组。"));
+            }
+
+            if (!TryGetProperty(root, "edges", out var edges) || edges.ValueKind != JsonValueKind.Array)
+            {
+                issues.Add(new CanvasValidationIssue("COZE_EDGES_MISSING", "Coze 画布缺少 edges 数组。"));
+            }
+
+            var nodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var hasStartNode = false;
+            var hasEndNode = false;
+            if (nodes.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var node in nodes.EnumerateArray())
+                {
+                    if (node.ValueKind != JsonValueKind.Object)
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_NODE_INVALID", "Coze 节点必须为对象。"));
+                        continue;
+                    }
+
+                    var nodeId = TryGetString(node, "id");
+                    if (string.IsNullOrWhiteSpace(nodeId))
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_NODE_ID_MISSING", "Coze 节点缺少 id。"));
+                        continue;
+                    }
+
+                    nodeIds.Add(nodeId);
+                    if (!TryGetProperty(node, "type", out var nodeType))
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_NODE_TYPE_MISSING", $"Coze 节点 '{nodeId}' 缺少 type。", nodeId));
+                    }
+                    else
+                    {
+                        var typeText = nodeType.ValueKind == JsonValueKind.String
+                            ? nodeType.GetString()
+                            : nodeType.ValueKind == JsonValueKind.Number
+                                ? nodeType.GetRawText()
+                                : string.Empty;
+                        hasStartNode |= string.Equals(typeText, "1", StringComparison.OrdinalIgnoreCase);
+                        hasEndNode |= string.Equals(typeText, "2", StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    if (!TryGetNestedProperty(node, out var position, "meta", "position") ||
+                        position.ValueKind != JsonValueKind.Object ||
+                        !TryGetProperty(position, "x", out var x) ||
+                        !TryGetProperty(position, "y", out var y) ||
+                        x.ValueKind != JsonValueKind.Number ||
+                        y.ValueKind != JsonValueKind.Number)
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_NODE_POSITION_MISSING", $"Coze 节点 '{nodeId}' 缺少 meta.position.x/y。", nodeId));
+                    }
+
+                    if (!TryGetNestedProperty(node, out var nodeMeta, "data", "nodeMeta") ||
+                        nodeMeta.ValueKind != JsonValueKind.Object)
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_NODE_META_MISSING", $"Coze 节点 '{nodeId}' 缺少 data.nodeMeta。", nodeId));
+                    }
+                }
+            }
+
+            if (!hasStartNode)
+            {
+                issues.Add(new CanvasValidationIssue("COZE_START_NODE_MISSING", "Coze 画布缺少开始节点。"));
+            }
+
+            if (!hasEndNode)
+            {
+                issues.Add(new CanvasValidationIssue("COZE_END_NODE_MISSING", "Coze 画布缺少结束节点。"));
+            }
+
+            if (edges.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var edge in edges.EnumerateArray())
+                {
+                    if (edge.ValueKind != JsonValueKind.Object)
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_EDGE_INVALID", "Coze 连线必须为对象。"));
+                        continue;
+                    }
+
+                    var source = TryGetExactString(edge, "sourceNodeID");
+                    var target = TryGetExactString(edge, "targetNodeID");
+                    if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(target))
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_EDGE_CASE_INVALID", "Coze 连线必须使用 sourceNodeID/targetNodeID 字段。"));
+                        continue;
+                    }
+
+                    if (!nodeIds.Contains(source))
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_EDGE_SOURCE_UNKNOWN", $"Coze 连线 sourceNodeID '{source}' 不存在。"));
+                    }
+
+                    if (!nodeIds.Contains(target))
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_EDGE_TARGET_UNKNOWN", $"Coze 连线 targetNodeID '{target}' 不存在。"));
+                    }
+                }
+            }
+
+            result = new CanvasValidationResult(issues.Count == 0, issues);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            result = new CanvasValidationResult(
+                false,
+                [new CanvasValidationIssue("COZE_SCHEMA_PARSE_FAILED", $"Coze 画布 JSON 无法解析：{ex.Message}")]);
+            return true;
+        }
+    }
+
+    private static bool IsCozeNativeSchema(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        if (TryGetProperty(root, "edges", out var edges) && edges.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var edge in edges.EnumerateArray())
+            {
+                if (edge.ValueKind == JsonValueKind.Object &&
+                    (TryGetExactString(edge, "sourceNodeID") is not null ||
+                     TryGetExactString(edge, "targetNodeID") is not null))
+                {
+                    return true;
+                }
+            }
+        }
+
+        if (!TryGetProperty(root, "nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        return nodes.EnumerateArray()
+            .Any(node => node.ValueKind == JsonValueKind.Object &&
+                         TryGetProperty(node, "id", out _));
+    }
+
+    private static object[] BuildNodeEvents(CozeWorkflowExecutionDto execution)
+    {
+        if (execution.Status != ExecutionStatus.Interrupted ||
+            string.IsNullOrWhiteSpace(execution.InterruptNodeKey))
+        {
+            return Array.Empty<object>();
+        }
+
+        var eventType = execution.InterruptType switch
+        {
+            InterruptType.QuestionAnswer => "question_answer",
+            InterruptType.ManualApproval => "waiting_input",
+            InterruptType.Timeout => "timeout",
+            _ => "waiting_input"
+        };
+
+        return
+        [
+            new
+            {
+                nodeId = execution.InterruptNodeKey,
+                node_id = execution.InterruptNodeKey,
+                eventType,
+                event_type = eventType,
+                status = 1,
+                executeId = execution.Id.ToString(CultureInfo.InvariantCulture),
+                execute_id = execution.Id.ToString(CultureInfo.InvariantCulture),
+                data = new
+                {
+                    interrupt_type = execution.InterruptType.ToString(),
+                    node_id = execution.InterruptNodeKey
+                }
+            }
+        ];
+    }
+
+    private static bool TryGetNestedProperty(JsonElement element, out JsonElement value, params string[] path)
+    {
+        value = element;
+        foreach (var segment in path)
+        {
+            if (value.ValueKind != JsonValueKind.Object || !TryGetProperty(value, segment, out value))
+            {
+                value = default;
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string? TryGetString(JsonElement element, string propertyName)
+    {
+        return TryGetProperty(element, propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+    }
+
+    private static string? TryGetExactString(JsonElement element, string propertyName)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Name == propertyName && property.Value.ValueKind == JsonValueKind.String)
+            {
+                return property.Value.GetString();
+            }
+        }
+
+        return null;
     }
 
     private static object Success(object data)

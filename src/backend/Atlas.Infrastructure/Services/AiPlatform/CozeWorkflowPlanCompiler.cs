@@ -14,9 +14,64 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 /// </summary>
 public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
 {
-    private static readonly IReadOnlyDictionary<string, WorkflowNodeType> CozeNodeTypeAliases =
+    private static readonly IReadOnlyDictionary<string, WorkflowNodeType> CozeNodeTypeMap =
         new Dictionary<string, WorkflowNodeType>(StringComparer.OrdinalIgnoreCase)
         {
+            ["1"] = WorkflowNodeType.Entry,
+            ["2"] = WorkflowNodeType.Exit,
+            ["3"] = WorkflowNodeType.Llm,
+            ["4"] = WorkflowNodeType.Plugin,
+            ["5"] = WorkflowNodeType.CodeRunner,
+            ["6"] = WorkflowNodeType.KnowledgeRetriever,
+            ["8"] = WorkflowNodeType.Selector,
+            ["9"] = WorkflowNodeType.SubWorkflow,
+            ["11"] = WorkflowNodeType.Variable,
+            // Coze 通用 Database 父节点（ID=12）：Atlas 已用 5 个细粒度 Database 节点替代。
+            ["12"] = WorkflowNodeType.Comment,
+            ["13"] = WorkflowNodeType.OutputEmitter,
+            ["14"] = WorkflowNodeType.ImageGenerate,
+            ["15"] = WorkflowNodeType.TextProcessor,
+            ["16"] = WorkflowNodeType.ImageReference,
+            ["17"] = WorkflowNodeType.ImageCanvas,
+            ["18"] = WorkflowNodeType.QuestionAnswer,
+            ["19"] = WorkflowNodeType.Break,
+            ["20"] = WorkflowNodeType.VariableAssignerWithinLoop,
+            ["21"] = WorkflowNodeType.Loop,
+            ["22"] = WorkflowNodeType.IntentDetector,
+            ["24"] = WorkflowNodeType.SceneVariable,
+            ["25"] = WorkflowNodeType.SceneChat,
+            ["26"] = WorkflowNodeType.LtmUpstream,
+            ["27"] = WorkflowNodeType.KnowledgeIndexer,
+            ["28"] = WorkflowNodeType.Batch,
+            ["29"] = WorkflowNodeType.Continue,
+            ["30"] = WorkflowNodeType.InputReceiver,
+            ["31"] = WorkflowNodeType.Comment,
+            ["32"] = WorkflowNodeType.VariableAggregator,
+            ["34"] = WorkflowNodeType.TriggerUpsert,
+            ["35"] = WorkflowNodeType.TriggerDelete,
+            ["36"] = WorkflowNodeType.TriggerRead,
+            ["37"] = WorkflowNodeType.MessageList,
+            ["38"] = WorkflowNodeType.ClearConversationHistory,
+            ["39"] = WorkflowNodeType.CreateConversation,
+            ["40"] = WorkflowNodeType.AssignVariable,
+            ["41"] = WorkflowNodeType.DatabaseCustomSql,
+            ["42"] = WorkflowNodeType.DatabaseUpdate,
+            ["43"] = WorkflowNodeType.DatabaseQuery,
+            ["44"] = WorkflowNodeType.DatabaseDelete,
+            ["45"] = WorkflowNodeType.HttpRequester,
+            ["46"] = WorkflowNodeType.DatabaseInsert,
+            ["51"] = WorkflowNodeType.ConversationUpdate,
+            ["52"] = WorkflowNodeType.ConversationDelete,
+            ["53"] = WorkflowNodeType.ConversationList,
+            ["54"] = WorkflowNodeType.ConversationHistory,
+            ["55"] = WorkflowNodeType.CreateMessage,
+            ["56"] = WorkflowNodeType.EditMessage,
+            ["57"] = WorkflowNodeType.DeleteMessage,
+            ["58"] = WorkflowNodeType.JsonSerialization,
+            ["59"] = WorkflowNodeType.JsonDeserialization,
+            ["60"] = WorkflowNodeType.Agent,
+            ["61"] = WorkflowNodeType.KnowledgeDeleter,
+            ["62"] = WorkflowNodeType.Ltm,
             ["Start"] = WorkflowNodeType.Entry,
             ["Entry"] = WorkflowNodeType.Entry,
             ["End"] = WorkflowNodeType.Exit,
@@ -27,11 +82,7 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             ["Condition"] = WorkflowNodeType.Selector,
             ["Http"] = WorkflowNodeType.HttpRequester,
             ["HTTPRequest"] = WorkflowNodeType.HttpRequester,
-            // Coze 通用 Database 父节点（ID=12）：Atlas 已用 5 个细粒度 Database 节点替代，
-            // 此处降级为 Comment（无执行副作用），使画布至少能完成解析，
-            // 避免因枚举缺失导致整个 Coze-schema 编译路径失败。
             ["Database"] = WorkflowNodeType.Comment,
-            ["12"] = WorkflowNodeType.Comment,
         };
 
     public CozeWorkflowCompileResult Compile(string? schemaJson)
@@ -388,8 +439,9 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
 
         if (typeElement.ValueKind == JsonValueKind.Number && typeElement.TryGetInt32(out var numericType))
         {
-            nodeType = (WorkflowNodeType)numericType;
-            return Enum.IsDefined(typeof(WorkflowNodeType), nodeType);
+            return CozeNodeTypeMap.TryGetValue(
+                numericType.ToString(CultureInfo.InvariantCulture),
+                out nodeType);
         }
 
         if (typeElement.ValueKind != JsonValueKind.String)
@@ -404,14 +456,9 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
         }
 
         var trimmed = raw.Trim();
-        if (int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numericFromText))
+        if (CozeNodeTypeMap.TryGetValue(trimmed, out nodeType))
         {
-            var fromNumeric = (WorkflowNodeType)numericFromText;
-            if (Enum.IsDefined(typeof(WorkflowNodeType), fromNumeric))
-            {
-                nodeType = fromNumeric;
-                return true;
-            }
+            return true;
         }
 
         if (Enum.TryParse<WorkflowNodeType>(trimmed, true, out var parsedType) &&
@@ -421,7 +468,7 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             return true;
         }
 
-        return CozeNodeTypeAliases.TryGetValue(trimmed, out nodeType);
+        return false;
     }
 
     internal static string? ExtractFirstExpressionContent(JsonElement inputParametersElement)

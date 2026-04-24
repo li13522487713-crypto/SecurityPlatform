@@ -20,8 +20,37 @@ public static class WorkflowCanvasJsonBridge
         try
         {
             using var document = JsonDocument.Parse(canvasJson);
+            var schemaKind = DetectSchemaKind(document.RootElement);
+
+            if (schemaKind == CanvasSchemaKind.CozeNative)
+            {
+                var nativeCompileResult = CozePlanCompiler.Compile(canvasJson);
+                if (nativeCompileResult.IsSuccess && nativeCompileResult.Canvas is not null)
+                {
+                    canvas = nativeCompileResult.Canvas;
+                    return true;
+                }
+
+                canvas = null;
+                return false;
+            }
+
+            if (schemaKind == CanvasSchemaKind.AtlasRuntime &&
+                TryConvertCanvas(document.RootElement, out canvas))
+            {
+                return true;
+            }
+
+            // 兼容历史未知格式：先尝试 Atlas runtime，再尝试 Coze native。
             if (TryConvertCanvas(document.RootElement, out canvas))
             {
+                return true;
+            }
+
+            var compileResult = CozePlanCompiler.Compile(canvasJson);
+            if (compileResult.IsSuccess && compileResult.Canvas is not null)
+            {
+                canvas = compileResult.Canvas;
                 return true;
             }
         }
@@ -30,16 +59,66 @@ public static class WorkflowCanvasJsonBridge
             canvas = null;
         }
 
-        var compileResult = CozePlanCompiler.Compile(canvasJson);
-        if (compileResult.IsSuccess && compileResult.Canvas is not null)
-        {
-            canvas = compileResult.Canvas;
-            return true;
-        }
-
         canvas = null;
         return false;
     }
+
+    private static CanvasSchemaKind DetectSchemaKind(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object ||
+            !TryGetProperty(root, "nodes", out var nodesElement) ||
+            nodesElement.ValueKind != JsonValueKind.Array)
+        {
+            return CanvasSchemaKind.Unknown;
+        }
+
+        var hasCozeNode = false;
+        var hasAtlasNode = false;
+        foreach (var nodeElement in nodesElement.EnumerateArray())
+        {
+            if (nodeElement.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            hasCozeNode |= TryGetProperty(nodeElement, "id", out _);
+            hasAtlasNode |= TryGetProperty(nodeElement, "key", out _);
+        }
+
+        var hasCozeEdge = false;
+        var hasAtlasConnection = TryGetProperty(root, "connections", out var connectionsElement) &&
+                                  connectionsElement.ValueKind == JsonValueKind.Array;
+        if (TryGetProperty(root, "edges", out var edgesElement) && edgesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var edgeElement in edgesElement.EnumerateArray())
+            {
+                if (edgeElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                hasCozeEdge |= TryGetProperty(edgeElement, "sourceNodeID", out _) ||
+                               TryGetProperty(edgeElement, "targetNodeID", out _);
+                hasAtlasConnection |= TryGetProperty(edgeElement, "sourceNodeKey", out _) ||
+                                      TryGetProperty(edgeElement, "targetNodeKey", out _) ||
+                                      TryGetProperty(edgeElement, "fromNode", out _) ||
+                                      TryGetProperty(edgeElement, "toNode", out _);
+            }
+        }
+
+        if (hasCozeEdge || hasCozeNode)
+        {
+            return CanvasSchemaKind.CozeNative;
+        }
+
+        if (hasAtlasConnection || hasAtlasNode)
+        {
+            return CanvasSchemaKind.AtlasRuntime;
+        }
+
+        return CanvasSchemaKind.Unknown;
+    }
+
     private static bool TryConvertCanvas(JsonElement root, out CanvasSchema? canvas)
     {
         canvas = null;
@@ -77,6 +156,11 @@ public static class WorkflowCanvasJsonBridge
             }
 
             nodes.Add(node);
+        }
+
+        if (nodes.Count == 0 && nodesElement.GetArrayLength() > 0)
+        {
+            return false;
         }
 
         if (skippedNodeKeys.Count > 0)
@@ -455,5 +539,12 @@ public static class WorkflowCanvasJsonBridge
         }
 
         return value.TryGetDouble(out var result) ? result : null;
+    }
+
+    private enum CanvasSchemaKind
+    {
+        Unknown = 0,
+        AtlasRuntime = 1,
+        CozeNative = 2
     }
 }
