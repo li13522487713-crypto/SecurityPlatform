@@ -47,6 +47,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
   const qc = useQueryClient();
   const [activeKeys, setActiveKeys] = useState<string[]>(['workflow', 'plugin', 'data', 'settings']);
   const [createOpen, setCreateOpen] = useState(false);
+  const [workflowKeyword, setWorkflowKeyword] = useState('');
   const [pluginPickerOpen, setPluginPickerOpen] = useState(false);
   const [pluginKeyword, setPluginKeyword] = useState('');
   const [sessionsOpen, setSessionsOpen] = useState(false);
@@ -175,6 +176,11 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
   });
 
   const workflows = useMemo(() => workflowsQuery.data?.byType.workflow ?? [], [workflowsQuery.data]);
+  const filteredWorkflows = useMemo(() => {
+    const keyword = workflowKeyword.trim().toLowerCase();
+    if (!keyword) return workflows;
+    return workflows.filter((workflow) => workflow.name.toLowerCase().includes(keyword));
+  }, [workflowKeyword, workflows]);
   const boundPluginItems = useMemo(() => {
     return new Map((boundPluginsQuery.data?.byType.plugin ?? []).map((item) => [item.id, item]));
   }, [boundPluginsQuery.data]);
@@ -196,13 +202,14 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
   };
 
   return (
-    <div style={{ padding: 12, height: '100%', overflow: 'auto' }}>
+    <div style={{ padding: 12, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <Typography.Text strong>{t('lowcode_studio.layout.left.resources')}</Typography.Text>
         <Tag size="small">{t('lowcode_studio.toolbar.modeBusinessLogic')}</Tag>
       </div>
 
       <Collapse
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}
         activeKey={activeKeys}
         onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])}
         keepDOM
@@ -214,21 +221,37 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
           {workflowsQuery.isLoading ? <Spin /> : workflows.length === 0 ? (
             <Empty image={null} title={t('lowcode_studio.workflow.empty')} description={t('lowcode_studio.workflow.emptyDescription')} />
           ) : (
-            <List
-              size="small"
-              dataSource={workflows}
-              renderItem={(workflow) => {
-                const active = workflow.id === selectedWorkflowId;
-                return (
-                  <List.Item
-                    style={{ cursor: 'pointer', background: active ? '#e6f4ff' : undefined, padding: '6px 8px' }}
-                    onClick={() => setSelectedWorkflowId(workflow.id)}
-                  >
-                    <Typography.Text strong={active} style={{ fontSize: 13 }}>⚙ {workflow.name}</Typography.Text>
-                  </List.Item>
-                );
-              }}
-            />
+            <Space vertical spacing={8} align="start" style={{ width: '100%' }}>
+              <Input
+                value={workflowKeyword}
+                onChange={setWorkflowKeyword}
+                placeholder={t('lowcode_studio.workflow.search')}
+                showClear
+              />
+              {filteredWorkflows.length === 0 ? (
+                <Empty image={null} title={t('lowcode_studio.common.empty')} />
+              ) : (
+                <div style={{ width: '100%', maxHeight: 'clamp(180px, calc(100vh - 380px), 320px)', overflowY: 'auto' }}>
+                  <List
+                    size="small"
+                    dataSource={filteredWorkflows}
+                    renderItem={(workflow) => {
+                      const active = workflow.id === selectedWorkflowId;
+                      return (
+                        <List.Item
+                          style={{ cursor: 'pointer', background: active ? '#e6f4ff' : undefined, padding: '6px 8px' }}
+                          onClick={() => setSelectedWorkflowId(workflow.id)}
+                        >
+                          <Typography.Text strong={active} ellipsis={{ showTooltip: true }} style={{ fontSize: 13 }}>
+                            ⚙ {workflow.name}
+                          </Typography.Text>
+                        </List.Item>
+                      );
+                    }}
+                  />
+                </div>
+              )}
+            </Space>
           )}
         </Collapse.Panel>
 

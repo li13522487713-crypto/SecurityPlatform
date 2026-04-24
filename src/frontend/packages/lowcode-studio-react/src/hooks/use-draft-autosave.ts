@@ -123,7 +123,6 @@ export function useDraftEditSession(appId: string | undefined): DraftEditSession
     window.addEventListener('beforeunload', onBeforeUnload);
 
     return () => {
-      cancelled = true;
       window.clearInterval(autosaveTimer);
       window.clearInterval(renewTimer);
       window.removeEventListener('beforeunload', onBeforeUnload);

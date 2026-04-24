@@ -573,6 +573,7 @@ const zhCN = {
   cozeMenuCommunity: "作品社区",
   cozeMenuOpenApi: "API 管理",
   cozeMenuDocs: "文档中心",
+  cozeMenuNotifications: "通知",
   cozeMenuPlatform: "通用管理",
 
   cozeHomeBannerTitle: "让 AI 离应用更近一步",
@@ -1833,6 +1834,7 @@ const enUS: typeof zhCN = {
   cozeMenuCommunity: "Community",
   cozeMenuOpenApi: "API",
   cozeMenuDocs: "Docs",
+  cozeMenuNotifications: "Notifications",
   cozeMenuPlatform: "Platform",
 
   cozeHomeBannerTitle: "Bring AI closer to your apps",
