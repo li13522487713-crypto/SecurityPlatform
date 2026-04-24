@@ -67,6 +67,27 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
         return BuildProvider(name, options, requireEmbedding: false);
     }
 
+    public ILlmProvider GetLlmProviderByModelConfigId(long modelConfigId)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        if (tenantId.IsEmpty)
+        {
+            throw new InvalidOperationException("Tenant is required to resolve model config provider.");
+        }
+
+        var config = _modelConfigRepository
+            .FindByIdAsync(tenantId, modelConfigId, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new KeyNotFoundException($"Model config '{modelConfigId}' is not found.");
+        if (!config.IsEnabled)
+        {
+            throw new InvalidOperationException($"Model config '{modelConfigId}' is disabled.");
+        }
+
+        return BuildProvider(config);
+    }
+
     public IEmbeddingProvider GetEmbeddingProvider(string? providerName = null)
     {
         var options = _optionsMonitor.CurrentValue;

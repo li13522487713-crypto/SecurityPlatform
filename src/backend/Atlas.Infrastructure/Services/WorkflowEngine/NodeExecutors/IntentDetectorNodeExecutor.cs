@@ -3,7 +3,6 @@ using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -42,9 +41,11 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
             return new NodeExecutionResult(false, outputs, "IntentDetector 输入文本为空。");
         }
 
-        var model = context.GetConfigString("model.modelName", context.GetConfigString("model", "gpt-4o-mini"));
+        var model = context.GetConfigString(
+            "model.modelName",
+            context.GetConfigString("modelName", context.GetConfigString("model", "gpt-4o-mini")));
         var provider = context.GetConfigString("provider");
-        var modelConfig = await ResolveModelConfigAsync(context, cancellationToken);
+        var modelConfig = await CozeModelConfigResolver.ResolveAsync(context, cancellationToken);
         if (modelConfig is not null)
         {
             if (string.IsNullOrWhiteSpace(provider))
@@ -67,7 +68,9 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
         var prompt = BuildPrompt(systemPrompt, inputText, intents);
         try
         {
-            var llmProvider = _llmProviderFactory.GetLlmProvider(provider);
+            var llmProvider = modelConfig is null
+                ? _llmProviderFactory.GetLlmProvider(provider)
+                : _llmProviderFactory.GetLlmProviderByModelConfigId(modelConfig.Id);
             float.TryParse(
                 context.GetConfigString("temperature", modelConfig?.Temperature?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
                 NumberStyles.Float,
@@ -92,25 +95,6 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
         {
             return new NodeExecutionResult(false, outputs, $"IntentDetector 调用失败: {ex.Message}");
         }
-    }
-
-    private static async Task<ModelConfigDto?> ResolveModelConfigAsync(
-        NodeExecutionContext context,
-        CancellationToken cancellationToken)
-    {
-        var modelType = context.GetConfigInt64("model.modelType", 0L);
-        if (modelType <= 0)
-        {
-            return null;
-        }
-
-        var queryService = context.ServiceProvider.GetService<IModelConfigQueryService>();
-        if (queryService is null)
-        {
-            return null;
-        }
-
-        return await queryService.GetByIdAsync(context.TenantId, modelType, cancellationToken);
     }
 
     private static List<string> ResolveIntents(IReadOnlyDictionary<string, JsonElement> config)

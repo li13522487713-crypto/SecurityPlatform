@@ -43,7 +43,8 @@ public static class CozeCompatGatewaySupport
         var modelList = models.Select(item => new
         {
             name = item.DefaultModel,
-            model_type = item.Id,
+            model_type = ToCozeModelType(item),
+            model_config_id = item.Id.ToString(CultureInfo.InvariantCulture),
             model_name = string.IsNullOrWhiteSpace(item.ModelId) ? item.DefaultModel : item.ModelId,
             endpoint_name = item.ProviderType,
             model_class_name = item.ProviderType,
@@ -271,5 +272,31 @@ public static class CozeCompatGatewaySupport
             precise = value,
             customize = value
         };
+    }
+
+    private static int ToCozeModelType(ModelConfigDto item)
+    {
+        // Coze 前端把 model_type 当 number 处理；Atlas 雪花 ID 是 19 位 long，
+        // 直接下发会超过 JavaScript 安全整数，导致模型选择器可见但无法稳定选中。
+        // 这里生成稳定的 32 位兼容 ID，真实 Atlas 模型配置 ID 通过 model_config_id 保留。
+        var key = string.Join(
+            "|",
+            item.ProviderType.Trim().ToLowerInvariant(),
+            item.ModelId.Trim().ToLowerInvariant(),
+            item.DefaultModel.Trim().ToLowerInvariant(),
+            item.Id.ToString(CultureInfo.InvariantCulture));
+        unchecked
+        {
+            const uint fnvOffset = 2166136261;
+            const uint fnvPrime = 16777619;
+            var hash = fnvOffset;
+            foreach (var ch in key)
+            {
+                hash ^= ch;
+                hash *= fnvPrime;
+            }
+
+            return (int)(hash % 2_000_000_000) + 1000;
+        }
     }
 }

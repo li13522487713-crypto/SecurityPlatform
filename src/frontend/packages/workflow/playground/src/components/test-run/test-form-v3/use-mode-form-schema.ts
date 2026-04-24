@@ -107,6 +107,24 @@ export const useModeFormSchema = (options: UseModeFormSchemaOptions) => {
     },
   );
 
+  const snapshotCurrentValues = useMemoizedFn(() => {
+    const formModel = formApiRef.current.innerForm;
+    const previousModeSchema = formApiRef.current.modeSchema;
+    const originSchema = formApiRef.current.originSchema || getSchema();
+    const nodeId = originSchema?.['x-node-id'];
+    if (!formModel || !previousModeSchema || !originSchema || !nodeId) {
+      return;
+    }
+
+    const currentValue = cloneDeep(formModel.values);
+    ModeFormKit.formatValues({
+      mode: previousModeSchema['x-form-mode'] || 'form',
+      originFormSchema: originSchema,
+      formValues: currentValue,
+    });
+    testFormService.setCacheValues(nodeId, currentValue);
+  });
+
   useEffect(() => {
     generate();
     const dispose = document.onContentChange(e => {
@@ -120,9 +138,10 @@ export const useModeFormSchema = (options: UseModeFormSchemaOptions) => {
   useEffect(() => {
     const originSchema = getSchema();
     if (originSchema) {
+      snapshotCurrentValues();
       generateMode(originSchema, true);
     }
-  }, [mode, generateMode]);
+  }, [mode, generateMode, snapshotCurrentValues]);
 
   return {
     schemaWithMode,

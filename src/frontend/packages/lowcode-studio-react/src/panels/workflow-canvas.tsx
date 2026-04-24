@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Empty, Typography } from '@douyinfe/semi-ui';
 import { useStudioSelection } from '../stores/selection-store';
 import { useLowcodeStudioHost } from '../host';
@@ -19,8 +19,26 @@ export interface WorkflowCanvasProps {
 export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ appId, workspaceId, workspaceLabel }) => {
   const { selectedWorkflowId } = useStudioSelection();
   const { renderWorkflowEditor } = useLowcodeStudioHost();
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(selectedWorkflowId);
+  const [editorEpoch, setEditorEpoch] = useState(0);
 
-  if (!selectedWorkflowId) {
+  useEffect(() => {
+    if (!selectedWorkflowId) {
+      setActiveWorkflowId(null);
+      setEditorEpoch((value) => value + 1);
+      return;
+    }
+
+    setActiveWorkflowId(null);
+    const timer = window.setTimeout(() => {
+      setEditorEpoch((value) => value + 1);
+      setActiveWorkflowId(selectedWorkflowId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [selectedWorkflowId]);
+
+  if (!activeWorkflowId) {
     return (
       <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
         <Empty
@@ -42,11 +60,12 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ appId, workspace
     );
   }
 
-  // key 随 workflowId 变化，切换工作流时强制 remount
-  // 避免 @coze-workflow/playground 内部 inversify 容器与 Zustand store 持有上一个工作流的状态
+  // 切换工作流时先卸载旧编辑器，再挂载新编辑器。
+  // Coze playground 内部存在容器、Zustand store、试运行状态与问题面板缓存；只改 key
+  // 不能保证所有异步状态都在同一帧释放，显式空窗可以避免旧画布信息泄漏到新画布。
   return (
     <div
-      key={selectedWorkflowId}
+      key={`${activeWorkflowId}:${editorEpoch}`}
       style={{
         height: '100%',
         width: '100%',
@@ -56,7 +75,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ appId, workspace
         background: '#fafafa'
       }}
     >
-      {renderWorkflowEditor({ appId, workflowId: selectedWorkflowId, workspaceId, workspaceLabel })}
+      {renderWorkflowEditor({ appId, workflowId: activeWorkflowId, workspaceId, workspaceLabel })}
     </div>
   );
 };
