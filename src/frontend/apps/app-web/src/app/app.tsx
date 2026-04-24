@@ -7,7 +7,7 @@ import { getTenantId } from "@atlas/shared-react-core/utils";
 import { PageShell, ResultCard } from "./_shared";
 
 const { Title, Text } = Typography;
-import type { LibraryKnowledgeApi } from "@atlas/library-module-react";
+import type { LibraryKnowledgeApi, AiLibraryItem } from "@atlas/library-module-react";
 import {
   createMockLibraryApi,
   KnowledgeBaseCreateWizard,
@@ -199,6 +199,7 @@ import {
 import { WorkspaceHomePage } from "./pages/workspace-home-page";
 import { WorkspaceProjectsPage } from "./pages/workspace-projects-page";
 import { WorkspaceResourcesPage } from "./pages/workspace-resources-page";
+import { WorkspaceLibraryPage } from "./pages/workspace-library-page";
 import { WorkspaceTasksPage } from "./pages/workspace-tasks-page";
 import { WorkspaceEvaluationsPage } from "./pages/workspace-evaluations-page";
 import { CozeWorkspaceConsolePage } from "./pages/coze-workspace-console-page";
@@ -469,7 +470,18 @@ const realLibraryApi: LibraryKnowledgeApi = {
         ? resourceType
         : undefined;
 
-    return getLibraryPaged(request, normalizedType);
+    return getLibraryPaged(request, { resourceType: normalizedType }).then(result => ({
+      ...result,
+      items: result.items.filter(item =>
+        item.resourceType === "workflow"
+        || item.resourceType === "plugin"
+        || item.resourceType === "knowledge-base"
+        || item.resourceType === "database"
+        || item.resourceType === "agent"
+        || item.resourceType === "app"
+        || item.resourceType === "prompt"
+      ) as AiLibraryItem[]
+    }));
   },
   listKnowledgeBases: getKnowledgeBasesPaged,
   getKnowledgeBase: getKnowledgeBaseById,
@@ -2340,12 +2352,7 @@ function LegacyConsoleRedirectRoute() {
 }
 
 function WorkspaceLibraryRoute() {
-  const workspace = useWorkspaceContext();
-  return (
-    <Suspense fallback={<PageShell loading testId="coze-workspace-library-loading" />}>
-      <CozeWorkspaceLibraryPage spaceId={workspace.id} />
-    </Suspense>
-  );
+  return <WorkspaceLibraryPage />;
 }
 
 function WorkspaceKnowledgeDetailRoute() {

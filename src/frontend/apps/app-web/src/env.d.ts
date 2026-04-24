@@ -5,7 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_APP_WEB_PORT?: string;
   readonly VITE_DEFAULT_TENANT_ID?: string;
   readonly VITE_DEFAULT_USERNAME?: string;
-  readonly VITE_PLATFORM_HOST_TARGET?: string;
   /** 知识库专题：开启后 LibraryKnowledgeApi 走前端 mock 适配器（v5 §32-44 复刻阶段使用） */
   readonly VITE_LIBRARY_MOCK?: string;
   readonly [key: string]: string | undefined;

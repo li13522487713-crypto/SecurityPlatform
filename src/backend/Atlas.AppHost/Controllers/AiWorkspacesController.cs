@@ -63,12 +63,13 @@ public sealed class AiWorkspacesController : ControllerBase
         [FromQuery] string? resourceType = null,
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] string? source = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _service.GetLibraryAsync(
             tenantId,
-            new AiLibraryQueryRequest(keyword, resourceType, pageIndex, pageSize),
+            new AiLibraryQueryRequest(keyword, resourceType, pageIndex, pageSize, source),
             cancellationToken);
         return Ok(ApiResponse<AiLibraryPagedResult>.Ok(result, HttpContext.TraceIdentifier));
     }

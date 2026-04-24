@@ -24,6 +24,11 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
     private const string AgentResourceType = "agent";
     private const string AppResourceType = "app";
     private const string PromptResourceType = "prompt";
+    private const string CardResourceType = "card";
+    private const string VoiceResourceType = "voice";
+    private const string MemoryResourceType = "memory";
+    private const string SourceOfficial = "official";
+    private const string SourceCustom = "custom";
 
     private readonly AiWorkspaceRepository _workspaceRepository;
     private readonly AiPluginRepository _pluginRepository;
@@ -253,7 +258,40 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .Take(perTypeLimit)
             .ToListAsync(cancellationToken);
         var prompts = promptEntities
-            .Select(x => new AiLibraryItem("prompt", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, "/ai/prompts"));
+            .Select(x => new AiLibraryItem(PromptResourceType, x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, "/ai/prompts"));
+
+        var cardsQuery = _db.Queryable<AgentCard>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            cardsQuery = cardsQuery.Where(x => x.Name.Contains(safeKeyword));
+        }
+
+        var cardEntities = await cardsQuery
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .Take(perTypeLimit)
+            .ToListAsync(cancellationToken);
+        var cards = cardEntities
+            .Select(x => new AiLibraryItem(CardResourceType, x.Id, x.Name, null, x.UpdatedAt == default ? x.CreatedAt : x.UpdatedAt, $"/cards/{x.Id}", SourceCustom, x.CardType, x.CardType));
+
+        var memoriesQuery = _db.Queryable<LongTermMemory>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            memoriesQuery = memoriesQuery.Where(x => x.MemoryKey.Contains(safeKeyword) || x.Content.Contains(safeKeyword));
+        }
+
+        var memoryEntities = await memoriesQuery
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .Take(perTypeLimit)
+            .ToListAsync(cancellationToken);
+        var memories = memoryEntities
+            .Select(x => new AiLibraryItem(MemoryResourceType, x.Id, x.MemoryKey, x.Content, x.UpdatedAt, $"/memories/{x.Id}"));
+
+        // 音色资源暂无独立实体，占位空列表以保持前端 Tab 一致。
+        var voices = Enumerable.Empty<AiLibraryItem>();
 
         var allItems = agents
             .Concat(knowledgeBases)
@@ -261,11 +299,20 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
             .Concat(plugins)
             .Concat(databases)
             .Concat(apps)
-            .Concat(prompts);
+            .Concat(prompts)
+            .Concat(cards)
+            .Concat(memories)
+            .Concat(voices);
 
         if (!string.IsNullOrWhiteSpace(resourceType))
         {
             allItems = allItems.Where(x => string.Equals(x.ResourceType, resourceType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var source = request.Source?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(source) && source != "all")
+        {
+            allItems = allItems.Where(x => string.Equals(x.Source, source, StringComparison.OrdinalIgnoreCase));
         }
 
         var ordered = allItems.OrderByDescending(x => x.UpdatedAt).ToList();

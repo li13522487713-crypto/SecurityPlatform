@@ -1,9 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const useManagedWebServers = process.env.PLAYWRIGHT_MANAGED_WEBSERVERS !== "0";
-const appWebMode = process.env.PLAYWRIGHT_APP_WEB_MODE === "direct" ? "direct" : "platform";
-const appWebPort = appWebMode === "direct" ? 5182 : 5181;
-const appWebDevCommand = appWebMode === "direct" ? "pnpm run dev:app-web:direct" : "pnpm run dev:app-web";
+const appWebPort = 5181;
+const appWebDevCommand = "pnpm run dev:app-web";
 
 export default defineConfig({
   testDir: "./e2e",

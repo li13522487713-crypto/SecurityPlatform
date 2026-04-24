@@ -13,17 +13,6 @@ const frontendProbeUrls = [
 ].filter(Boolean);
 
 const cleanupTargets = [
-  "src/backend/Atlas.PlatformHost/setup-state.json",
-  "src/backend/Atlas.PlatformHost/appsettings.runtime.json",
-  "src/backend/Atlas.PlatformHost/atlas.e2e.db",
-  "src/backend/Atlas.PlatformHost/atlas.e2e.db-shm",
-  "src/backend/Atlas.PlatformHost/atlas.e2e.db-wal",
-  "src/backend/Atlas.PlatformHost/atlas.app.e2e.db",
-  "src/backend/Atlas.PlatformHost/atlas.app.e2e.db-shm",
-  "src/backend/Atlas.PlatformHost/atlas.app.e2e.db-wal",
-  "src/backend/Atlas.PlatformHost/hangfire-platformhost.db",
-  "src/backend/Atlas.PlatformHost/hangfire-platformhost.db-shm",
-  "src/backend/Atlas.PlatformHost/hangfire-platformhost.db-wal",
   "src/backend/Atlas.AppHost/hangfire-apphost.db",
   "src/backend/Atlas.AppHost/hangfire-apphost.db-shm",
   "src/backend/Atlas.AppHost/hangfire-apphost.db-wal",
@@ -37,7 +26,6 @@ const cleanupDirectories = [
   "src/frontend/playwright-report"
 ];
 
-const runtimeConfigPath = "src/backend/Atlas.PlatformHost/appsettings.runtime.json";
 const appSetupStatePath = "src/backend/Atlas.AppHost/app-setup-state.json";
 
 async function isUrlReady(url) {
@@ -67,9 +55,9 @@ async function shouldReuseRunningServices() {
 
 function stopRelevantProcesses() {
   if (process.platform !== "win32") {
-    // Linux/macOS：通过端口 -> PID 强制结束 5001 / 5002 / 5181 / 5182 上的监听进程，
-    // 避免上一轮 dotnet PlatformHost / AppHost / vite dev server 残留导致 setup 状态被复用。
-    const ports = [5001, 5002, 5181, 5182];
+    // Linux/macOS：通过端口 -> PID 强制结束 5002 / 5181 / 5182 上的监听进程，
+    // 避免上一轮 dotnet AppHost / vite dev server 残留导致 setup 状态被复用。
+    const ports = [5002, 5181, 5182];
     const killed = new Set();
     for (const port of ports) {
       try {
@@ -104,10 +92,10 @@ function stopRelevantProcesses() {
   const command = `
 $ErrorActionPreference = 'SilentlyContinue'
 $namedProcesses = Get-CimInstance Win32_Process | Where-Object {
-  (($_.Name -eq 'dotnet.exe' -or $_.Name -eq 'dotnet') -and $_.CommandLine -and ($_.CommandLine -match 'Atlas\\.PlatformHost|Atlas\\.AppHost')) -or
+  (($_.Name -eq 'dotnet.exe' -or $_.Name -eq 'dotnet') -and $_.CommandLine -and ($_.CommandLine -match 'Atlas\\.AppHost')) -or
   (($_.Name -eq 'node.exe' -or $_.Name -eq 'node') -and $_.CommandLine -and ($_.CommandLine -match 'dev:app-web|apps\\\\app-web|vite'))
 }
-$targetPorts = @(5001, 5002, 5181, 5182)
+$targetPorts = @(5002, 5181, 5182)
 $portPids = @()
 foreach ($port in $targetPorts) {
   $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
@@ -189,16 +177,6 @@ function clearDirectoryContents(relativePath) {
   console.log(`[reset-setup-state] cleared directory: ${relativePath}`);
 }
 
-function writeRuntimeConfigPlaceholder() {
-  const absolutePath = path.resolve(repoRoot, runtimeConfigPath);
-  if (!absolutePath.startsWith(repoRoot)) {
-    throw new Error(`Refusing to write path outside repo: ${absolutePath}`);
-  }
-
-  fs.writeFileSync(absolutePath, "{}\n", "utf8");
-  console.log(`[reset-setup-state] reset file: ${runtimeConfigPath}`);
-}
-
 function writeAppSetupStatePlaceholder() {
   const absolutePath = path.resolve(repoRoot, appSetupStatePath);
   if (!absolutePath.startsWith(repoRoot)) {
@@ -222,7 +200,6 @@ if (await shouldReuseRunningServices()) {
     clearDirectoryContents(directory);
   }
 
-  writeRuntimeConfigPlaceholder();
   writeAppSetupStatePlaceholder();
 
   console.log("[reset-setup-state] setup test environment reset complete.");

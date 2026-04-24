@@ -23,7 +23,10 @@ public sealed record AiLibraryItem(
     string Name,
     string? Description,
     DateTime UpdatedAt,
-    string Path);
+    string Path,
+    string Source = "custom",
+    string? SubType = null,
+    string? TypeLabel = null);
 
 public sealed record AiLibraryImportRequest(
     string ResourceType,
@@ -48,7 +51,8 @@ public sealed record AiLibraryQueryRequest(
     string? Keyword,
     string? ResourceType,
     int PageIndex,
-    int PageSize);
+    int PageSize,
+    string? Source = null);
 
 public sealed record AiLibraryPagedResult(
     IReadOnlyList<AiLibraryItem> Items,

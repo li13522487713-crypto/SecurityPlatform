@@ -2,49 +2,78 @@ import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-react
 import { requestApi, toQuery } from "./api-core";
 import type { AiLibraryItem, ResourceType } from "@atlas/library-module-react";
 
-type AiWorkspaceLibraryResourceType = Extract<ResourceType, "workflow" | "plugin" | "knowledge-base" | "database">;
-type AiWorkspaceLibraryItem = AiLibraryItem & { resourceType: AiWorkspaceLibraryResourceType };
+export type LibraryResourceType =
+  | "workflow"
+  | "plugin"
+  | "knowledge-base"
+  | "database"
+  | "agent"
+  | "app"
+  | "prompt"
+  | "card"
+  | "voice"
+  | "memory";
+
+export type LibrarySource = "all" | "official" | "custom";
+
+type AiWorkspaceLibraryImportType = Extract<ResourceType, "workflow" | "plugin" | "knowledge-base" | "database">;
+
+export type AiWorkspaceLibraryItem = Omit<AiLibraryItem, "resourceType"> & {
+  resourceType: LibraryResourceType;
+  source?: LibrarySource;
+  subType?: string | null;
+  typeLabel?: string | null;
+};
 
 interface AiWorkspaceLibraryResult {
-  items: AiLibraryItem[];
+  items: AiWorkspaceLibraryItem[];
   total: number;
   pageIndex: number;
   pageSize: number;
 }
 
 export interface AiLibraryImportRequest {
-  resourceType: AiWorkspaceLibraryResourceType;
+  resourceType: AiWorkspaceLibraryImportType;
   libraryItemId: number;
   targetAppId?: number;
   targetWorkspaceId?: number;
 }
 
 export interface AiLibraryMutationRequest {
-  resourceType: AiWorkspaceLibraryResourceType;
+  resourceType: AiWorkspaceLibraryImportType;
   resourceId: number;
 }
 
 export interface AiLibraryMutationResult {
   resourceId: number;
-  resourceType: AiWorkspaceLibraryResourceType;
+  resourceType: AiWorkspaceLibraryImportType;
   libraryItemId: number;
 }
 
-function isWorkspaceLibraryResourceType(resourceType: ResourceType): resourceType is AiWorkspaceLibraryResourceType {
-  return resourceType === "workflow" || resourceType === "plugin" || resourceType === "knowledge-base" || resourceType === "database";
+export interface LibraryQueryOptions {
+  resourceType?: LibraryResourceType;
+  source?: LibrarySource;
+  keyword?: string;
 }
 
-export async function getLibraryPaged(request: PagedRequest, resourceType?: AiWorkspaceLibraryResourceType) {
-  const query = toQuery(request, { resourceType });
+export async function getLibraryPaged(
+  request: PagedRequest,
+  options: LibraryQueryOptions = {}
+): Promise<PagedResult<AiWorkspaceLibraryItem>> {
+  const resourceType = options.resourceType && options.resourceType !== ("all" as LibraryResourceType)
+    ? options.resourceType
+    : undefined;
+  const source = options.source && options.source !== "all" ? options.source : undefined;
+  const keyword = options.keyword && options.keyword.trim().length > 0 ? options.keyword.trim() : undefined;
+
+  const query = toQuery(request, { resourceType, source, keyword });
   const response = await requestApi<ApiResponse<AiWorkspaceLibraryResult>>(`/ai-workspaces/library?${query}`);
   if (!response.data) {
     throw new Error(response.message || "查询资源库失败");
   }
 
-  const items = response.data.items.filter((item): item is AiWorkspaceLibraryItem => isWorkspaceLibraryResourceType(item.resourceType));
-
   return {
-    items,
+    items: response.data.items,
     total: response.data.total,
     pageIndex: response.data.pageIndex,
     pageSize: response.data.pageSize

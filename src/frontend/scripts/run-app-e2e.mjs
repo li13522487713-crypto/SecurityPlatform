@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(frontendRoot, "..", "..");
-const platformHostRoot = path.resolve(repoRoot, "src", "backend", "Atlas.PlatformHost");
 const appHostRoot = path.resolve(repoRoot, "src", "backend", "Atlas.AppHost");
 const appHostProject = path.resolve(appHostRoot, "Atlas.AppHost.csproj");
 const e2eBuildRoot = path.resolve(repoRoot, "artifacts", "e2e");
@@ -23,9 +22,7 @@ const playwrightArgs = hasExplicitConfigArg
 const appWebPort = 5181;
 const appWebScript = "dev:app-web";
 const appApiBase = "http://127.0.0.1:5002";
-const platformApiBase = appApiBase;
 const appWebBaseUrl = process.env.PLAYWRIGHT_APP_BASE_URL?.trim() || `http://127.0.0.1:${appWebPort}`;
-const platformDatabasePath = "Data Source=atlas.app.e2e.db";
 const appDatabasePath = `Data Source=${path.resolve(frontendRoot, "../backend/Atlas.AppHost/atlas.app.e2e.db")}`;
 const e2eConnectionString = `Data Source=${path.resolve(appHostRoot, "atlas.app.e2e.db")}`;
 const defaultTenantId = "00000000-0000-0000-0000-000000000001";
@@ -48,7 +45,6 @@ const services = [
     env: {
       ASPNETCORE_ENVIRONMENT: "Development",
       ASPNETCORE_URLS: "http://127.0.0.1:5002",
-      ATLAS_PLATFORM_CONFIG_ROOT: platformHostRoot,
       AppSetup__StateFilePath: path.resolve(appHostRoot, "app-setup-state.json"),
       Database__ConnectionString: e2eConnectionString,
       Database__DbType: "SQLite"
@@ -186,61 +182,6 @@ async function runCommand(command, args, cwd, extraEnv, displayName) {
 
     child.on("error", reject);
   });
-}
-
-async function ensurePlatformSetupState() {
-  const stateResp = await fetch(`${platformApiBase}/api/v1/setup/state`, { method: "GET" });
-  const statePayload = await readJsonSafe(stateResp);
-  if (statePayload?.success && statePayload?.data?.status === "Ready") {
-    return;
-  }
-
-  const initializeResp = await fetch(`${platformApiBase}/api/v1/setup/initialize`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      database: {
-        driverCode: "SQLite",
-        mode: "raw",
-        connectionString: platformDatabasePath
-      },
-      admin: {
-        tenantId: defaultTenantId,
-        username: defaultUsername,
-        password: defaultPassword
-      },
-      roles: {
-        selectedRoleCodes: ["SecurityAdmin"]
-      },
-      organization: {
-        departments: [{ name: "总部", code: "HQ", parentCode: null, sortOrder: 0 }],
-        positions: [{ name: "系统管理员", code: "SYS_ADMIN", description: "系统配置与运维管理", sortOrder: 10 }]
-      }
-    })
-  });
-  const initializePayload = await readJsonSafe(initializeResp);
-  const initialized =
-    (initializeResp.ok && initializePayload?.success === true) ||
-    initializePayload?.code === "ALREADY_CONFIGURED";
-
-  if (!initialized) {
-    throw new Error(`平台初始化失败: ${JSON.stringify(initializePayload)}`);
-  }
-
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 45_000) {
-    const response = await fetch(`${platformApiBase}/api/v1/setup/state`, { method: "GET" });
-    const payload = await readJsonSafe(response);
-    if (payload?.success && payload?.data?.status === "Ready") {
-      return;
-    }
-
-    await sleep(1000);
-  }
-
-  throw new Error("平台初始化等待超时（45s）");
 }
 
 async function ensureAppSetupState() {

@@ -38,7 +38,8 @@ public sealed class ResourceWorkspaceLookup : IResourceWorkspaceLookup
 
         try
         {
-            return normalizedType switch
+            long? rawWorkspaceId;
+            rawWorkspaceId = normalizedType switch
             {
                 "agent" => await _db.Queryable<Agent>()
                     .Where(x => x.TenantIdValue == tenantValue && x.Id == resourceId)
@@ -63,6 +64,9 @@ public sealed class ResourceWorkspaceLookup : IResourceWorkspaceLookup
                     .FirstAsync(cancellationToken),
                 _ => null
             };
+
+            // WorkspaceId=0 视同未绑定，归一化为 null。
+            return rawWorkspaceId is > 0 ? rawWorkspaceId : null;
         }
         catch (Exception)
         {

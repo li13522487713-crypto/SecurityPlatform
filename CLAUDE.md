@@ -34,10 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the solution (must have 0 errors, 0 warnings)
 dotnet build
 
-# Run PlatformHost (platform control plane, starts on http://localhost:5001)
-dotnet run --project src/backend/Atlas.PlatformHost
-
-# Run AppHost (application runtime data plane, starts on http://localhost:5002)
+# Run AppHost (application runtime host, starts on http://localhost:5002)
 dotnet run --project src/backend/Atlas.AppHost
 
 # Restore dependencies
@@ -53,9 +50,7 @@ cd src/frontend
 pnpm install
 
 # Start AppWeb
-pnpm run dev:app-web           # default platform mode on :5181
-pnpm run dev:app-web:platform  # force platform mode
-pnpm run dev:app-web:direct    # direct AppHost mode
+pnpm run dev:app-web           # AppWeb on :5181 (connects to AppHost)
 
 # Build frontend
 pnpm run build
@@ -69,18 +64,17 @@ pnpm run format
 ### Frontend (Legacy)
 `Atlas.WebApp` 与 `platform-web` 已删除（2026-04-05），请仅使用 `src/frontend/apps/app-web`。
 
-### Multi-Host Port Allocation
+### Runtime Port Allocation
 
 | Service | Port | Description |
 |---|---|---|
-| PlatformHost | 5001 | Control plane + YARP gateway |
-| AppHost | 5002 | Application runtime data plane |
+| AppHost | 5002 | Application runtime host |
 | **AppWeb** | **5181** | **New: Independent application frontend** |
 
-AppWeb 在 `platform` 模式下通过 PlatformHost 网关访问后端，在 `direct` 模式下直连 AppHost。
+AppWeb 当前仅支持直连 `AppHost` 的运行模式；历史 PlatformHost 前端链路已下线。
 
 ### API Testing
-- Use `.http` files in `src/backend/Atlas.PlatformHost/Bosch.http/` for testing endpoints
+- Use `.http` files in `src/backend/Atlas.AppHost/Bosch.http/` for testing endpoints
 - Format: REST Client syntax with variable extraction and request chaining
 - **Required:** Create or update `.http` files for every new/modified endpoint
 
@@ -97,7 +91,7 @@ Atlas.Application + Module.Application (DTOs, Validators, Mappings)
   ↑
 Atlas.Infrastructure (Service Implementations, Repositories, SqlSugar)
   ↑
-Atlas.PlatformHost / Atlas.AppHost (Controllers, Middleware, Host API Layer)
+Atlas.AppHost (Controllers, Middleware, Host API Layer)
 ```
 
 **Dependency Rule:** Dependencies flow inward toward Core. Outer layers depend on inner layers, never vice versa.
@@ -108,7 +102,7 @@ Each major feature is organized as a separate bounded context with:
 - **Domain Layer:** `Atlas.Domain.{Context}` - Entities inheriting from `TenantEntity`
 - **Application Layer:** `Atlas.Application.{Context}` - DTOs, validators, AutoMapper profiles, service interfaces
 - **Infrastructure:** Service implementations in `Atlas.Infrastructure/Services/{Context}*Service.cs`
-- **Presentation:** Controllers in `Atlas.PlatformHost/Controllers/` 或 `Atlas.AppHost/Controllers/`
+- **Presentation:** Controllers in `Atlas.AppHost/Controllers/`（如需历史兼容再同步 PlatformHost）
 
 **Current Contexts:** Assets, Audit, Alert, plus cross-cutting concerns (Auth, Users, Roles, Permissions, Departments, Menus)
 
@@ -169,12 +163,6 @@ src/
 │   │   ├── Security/                    # Pbkdf2PasswordHasher
 │   │   └── Options/                     # Configuration classes
 │   │
-│   ├── Atlas.PlatformHost/              # Platform control plane host
-│   │   ├── Controllers/                 # Platform API endpoints
-│   │   ├── ReverseProxy/                # YARP app-host proxy config
-│   │   ├── appsettings.json             # Platform host configuration
-│   │   ├── nlog.config                  # Logging setup
-│   │   └── Bosch.http/                  # REST Client test files
 │   ├── Atlas.AppHost/                   # App runtime data plane host
 │   │   ├── Controllers/                 # Runtime APIs
 │   │   ├── appsettings.json             # App host configuration
@@ -296,7 +284,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - **AppWeb** API client: `src/frontend/apps/app-web/src/services/api-core.ts`
 - **Shared auth utilities**: `src/frontend/packages/shared-react-core/src/utils/auth.ts`
 - Token stored in namespaced storage (managed by `@atlas/shared-react-core`, Platform/App 已隔离)
-- AppWeb 在 `platform` 模式下经由 `PlatformHost`，在 `direct` 模式下直连 `AppHost`
+- AppWeb 统一直连 `AppHost`
 
 ## Development Workflow
 
@@ -329,12 +317,12 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 8. **Register Services** in `Atlas.Infrastructure/ServiceCollectionExtensions.cs`
    - Add repository and service DI registrations
 
-9. **Add Controller** in `Atlas.PlatformHost/Controllers/` or `Atlas.AppHost/Controllers/`
+9. **Add Controller** in `Atlas.AppHost/Controllers/`（如需历史兼容再同步 PlatformHost）
    - `{Entity}Controller : ControllerBase`
    - Use `[Authorize]` attributes for access control
    - Inject query/command services via constructor
 
-10. **Create Test File** in `Atlas.PlatformHost/Bosch.http/`
+10. **Create Test File** in `Atlas.AppHost/Bosch.http/`
     - `{Entity}.http` with sample requests for all endpoints
 
 11. **Update Frontend** (if needed)
@@ -387,8 +375,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 
 ### rsbuild.config.ts
 - Dev server: AppWeb (5181)
-- `platform` mode proxy: `/api/*` → `http://localhost:5001`
-- `direct` mode proxy: `/api/*` → `http://localhost:5002`
+- proxy: `/api/*` → `http://localhost:5002`
 - Path alias follows workspace package resolution
 
 ## Important Notes
@@ -404,7 +391,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - Update `AGENTS.md` and `docs/contracts.md` if architecture changes
 
 ### Database Operations
-- Database file: `atlas.db` in PlatformHost directory (`src/backend/Atlas.PlatformHost/atlas.db`)
+- Database file: `atlas.app.e2e.db` in AppHost directory (`src/backend/Atlas.AppHost/atlas.app.e2e.db`)
 - Backups: `backups/` directory (daily, 30-day retention)
 - Schema initialization: `DatabaseInitializerHostedService` runs on startup
 - Migrations: Not using EF Core migrations (SqlSugar code-first)

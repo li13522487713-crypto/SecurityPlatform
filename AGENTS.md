@@ -80,8 +80,6 @@ dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName~Inte
 cd src/frontend
 pnpm install
 pnpm run dev:app-web
-pnpm run dev:app-web:platform
-pnpm run dev:app-web:direct
 pnpm run build
 pnpm run build:app-web
 pnpm run test:unit

@@ -60,13 +60,23 @@ public sealed class EditorContextController : ControllerBase
         }
 
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var workspaceIdText = workspaceId.Value.ToString();
+
+        // PlatformAdmin 拥有全租户资源访问权限，直接放行，避免 ListWorkspacesAsync
+        // 因 tenantId 隔离或归档过滤而误判 FORBIDDEN。
+        if (currentUser.IsPlatformAdmin)
+        {
+            return Ok(ApiResponse<EditorContextWorkspaceResponse>.Ok(
+                new EditorContextWorkspaceResponse(normalizedType, parsedResourceId.ToString(), workspaceIdText),
+                HttpContext.TraceIdentifier));
+        }
+
         var workspaces = await _workspacePortalService.ListWorkspacesAsync(
             tenantId,
             currentUser.UserId,
             currentUser.IsPlatformAdmin,
             cancellationToken);
 
-        var workspaceIdText = workspaceId.Value.ToString();
         var hasAccess = workspaces.Any(item => string.Equals(item.Id, workspaceIdText, StringComparison.OrdinalIgnoreCase));
         if (!hasAccess)
         {

@@ -46,6 +46,10 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
       Toast.warning(t("cozeCreateAgentNamePlaceholder"));
       return;
     }
+    if (!workspaceId || Number(workspaceId) <= 0) {
+      Toast.error(t("cozeCreateFailed"));
+      return;
+    }
     setSubmitting(true);
     try {
       const agentId = await createAiAssistantInWorkspace(
@@ -77,6 +81,10 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
     const trimmed = aiPrompt.trim();
     if (!trimmed) {
       Toast.warning(t("cozeCreateAgentAiPromptPlaceholder"));
+      return;
+    }
+    if (!workspaceId || Number(workspaceId) <= 0) {
+      Toast.error(t("cozeCreateFailed"));
       return;
     }
     setSubmitting(true);

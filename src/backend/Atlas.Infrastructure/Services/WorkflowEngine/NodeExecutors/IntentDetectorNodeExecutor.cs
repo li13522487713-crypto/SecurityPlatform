@@ -85,6 +85,14 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
             var result = await llmProvider.ChatAsync(request, cancellationToken);
 
             var parsed = ParseResult(result.Content, intents);
+            var classificationId = Math.Max(
+                1,
+                intents.FindIndex(x => string.Equals(x, parsed.Intent, StringComparison.OrdinalIgnoreCase)) + 1);
+            var displayReason = string.IsNullOrWhiteSpace(parsed.Reason)
+                ? parsed.Intent
+                : $"{parsed.Intent}: {parsed.Reason}";
+            outputs["classificationId"] = JsonSerializer.SerializeToElement(classificationId);
+            outputs["reason"] = VariableResolver.CreateStringElement(displayReason);
             outputs["detected_intent"] = VariableResolver.CreateStringElement(parsed.Intent);
             outputs["confidence"] = JsonSerializer.SerializeToElement(parsed.Confidence);
             outputs["intent_reason"] = VariableResolver.CreateStringElement(parsed.Reason);
@@ -104,7 +112,7 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
             if (intentsRaw.ValueKind == JsonValueKind.Array)
             {
                 return intentsRaw.EnumerateArray()
-                    .Select(x => VariableResolver.ToDisplayText(x).Trim())
+                    .Select(ResolveIntentName)
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
@@ -120,6 +128,17 @@ public sealed class IntentDetectorNodeExecutor : INodeExecutor
         }
 
         return [];
+    }
+
+    private static string ResolveIntentName(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty("name", out var nameElement))
+        {
+            return VariableResolver.ToDisplayText(nameElement).Trim();
+        }
+
+        return VariableResolver.ToDisplayText(element).Trim();
     }
 
     private static string BuildPrompt(string systemPrompt, string input, IReadOnlyList<string> intents)

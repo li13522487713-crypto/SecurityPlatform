@@ -3,7 +3,7 @@ import { requestApi, toQuery } from "../api-core";
 
 /**
  * 任务中心（PRD 02-7.4）。已切换为真实 REST：
- *   Atlas.PlatformHost/Controllers/WorkspaceTasksController.cs
+ *   Atlas.AppHost/Controllers/WorkspaceTasksController.cs
  *   Atlas.Infrastructure/Services/Coze/InMemoryWorkspaceTaskService.cs
  *
  * 后端 M3 阶段返回空集合（Empty 状态），第二阶段对接 BatchProcess + Hangfire 聚合视图。

@@ -354,7 +354,7 @@ function seedTextKb(store: MockStore): number {
     chunkCount: 2,
     parsingStrategy: { ...DEFAULT_PARSING_STRATEGY, parsingType: "precise", extractTable: true }
   });
-  pushChunk(store, id, docOpsId, 0, "PlatformHost 与 AppHost 通过共享 SqlSugar 连接 atlas.db；Hangfire 在平台侧运行。");
+  pushChunk(store, id, docOpsId, 0, "AppHost 通过 SqlSugar 连接 atlas.app.e2e.db；Hangfire 任务由应用运行时统一调度。");
   pushChunk(store, id, docOpsId, 1, "部署时需先初始化 BootstrapAdmin 账号，并在 Setup Console 完成租户/工作空间设置。");
   pushSucceededJobPair(store, id, docOpsId);
 
