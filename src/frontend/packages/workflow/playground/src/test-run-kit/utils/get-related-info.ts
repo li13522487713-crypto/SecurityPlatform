@@ -32,10 +32,19 @@ function checkHasConversationNode(typeList: StandardNodeType[]) {
 
 export const getRelatedInfo = async (options: GetRelatedInfoOptions) => {
   const { workflowId, spaceId } = options;
-  const { data: nodeTypes } = await workflowApi.QueryWorkflowNodeTypes({
-    workflow_id: workflowId,
-    space_id: spaceId,
-  });
+  const { data: nodeTypes } = await workflowApi
+    .QueryWorkflowNodeTypes({
+      workflow_id: workflowId,
+      space_id: spaceId,
+    })
+    .catch(() => ({
+      data: {
+        node_types: [],
+        sub_workflow_node_types: [],
+        nodes_properties: [],
+        sub_workflow_nodes_properties: [],
+      },
+    }));
   const flowTypeList = nodeTypes?.node_types ?? [];
   const subFlowTypeList = nodeTypes?.sub_workflow_node_types ?? [];
   const sumTypeList = [

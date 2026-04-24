@@ -21,6 +21,7 @@ export function useDraftAutosave(appId: string | undefined): void {
     if (!appId) return;
     const sessionId = resolveDraftSessionId(appId);
     sessionIdRef.current = sessionId;
+    let cancelled = false;
 
     // 启动时尝试获取锁；忽略冲突（多 tab 共存仍可只读）
     void lowcodeApi.draftLock.acquire(appId, sessionId).catch(() => undefined);
@@ -28,6 +29,9 @@ export function useDraftAutosave(appId: string | undefined): void {
     // 30s 去抖 autosave 兜底（用于"无操作期间也保持 latest"），此处用 setInterval 保守实现；
     // 复杂的局部 schema 变更去抖由各编辑组件实时调用 autosave 实现。
     const autosaveTimer = window.setInterval(async () => {
+      if (cancelled) {
+        return;
+      }
       try {
         const draft = await lowcodeApi.apps.getDraft(appId);
         // 仅当 schemaJson 与上次不同才写回（避免无意义重复写库 + 审计噪音）
@@ -48,6 +52,9 @@ export function useDraftAutosave(appId: string | undefined): void {
 
     // 心跳 30s 一次（与 60s TTL 配合，保留 30s 容错窗口）
     const renewTimer = window.setInterval(() => {
+      if (cancelled) {
+        return;
+      }
       void lowcodeApi.draftLock.renew(appId, sessionId).catch(() => undefined);
     }, 30_000);
 

@@ -165,4 +165,55 @@ public sealed class CozeWorkflowPlanCompilerTests
         var validationResult = validator.ValidateCanvas(serialized);
         Assert.True(validationResult.IsValid);
     }
+
+    [Fact]
+    public void Compile_ShouldMergeAtlasRuntimeConfigExtension()
+    {
+        const string json = """
+            {
+              "nodes": [
+                {
+                  "id": "entry_1",
+                  "type": 1,
+                  "meta": { "position": { "x": 120, "y": 80 } },
+                  "data": {
+                    "nodeMeta": { "title": "开始" },
+                    "outputs": [{ "key": "conversationName", "name": "conversationName", "type": "string", "required": true }]
+                  }
+                },
+                {
+                  "id": "conversation_1",
+                  "type": 39,
+                  "meta": { "position": { "x": 360, "y": 80 } },
+                  "data": {
+                    "nodeMeta": { "title": "创建会话" },
+                    "inputs": {
+                      "inputParameters": [
+                        { "name": "conversationName", "input": { "type": "string", "value": { "type": "ref", "content": { "source": "block-output", "blockID": "entry_1", "name": "conversationName" } } } }
+                      ]
+                    },
+                    "atlasRuntimeConfig": {
+                      "userId": 1001,
+                      "agentId": 2002,
+                      "title": "{{conversationName}}"
+                    },
+                    "outputs": [{ "key": "conversation_id", "name": "conversation_id", "type": "string" }]
+                  }
+                }
+              ],
+              "edges": [
+                { "sourceNodeID": "entry_1", "targetNodeID": "conversation_1" }
+              ]
+            }
+            """;
+
+        var result = _compiler.Compile(json);
+
+        Assert.True(result.IsSuccess);
+        var node = Assert.Single(result.Canvas!.Nodes, x => x.Key == "conversation_1");
+        Assert.Equal(WorkflowNodeType.CreateConversation, node.Type);
+        Assert.Equal(1001, node.Config["userId"].GetInt64());
+        Assert.Equal(2002, node.Config["agentId"].GetInt64());
+        Assert.Equal("{{conversationName}}", node.Config["title"].GetString());
+    }
 }

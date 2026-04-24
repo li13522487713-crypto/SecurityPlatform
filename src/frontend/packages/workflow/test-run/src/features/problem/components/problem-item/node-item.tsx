@@ -35,7 +35,7 @@ import {
   IconCopy,
   IconComment,
   IconPlayCircle,
-  IconStopCircle,
+  IconMinusCircleStroked,
   IconComponent,
   IconBox,
   IconList,
@@ -87,7 +87,7 @@ const getIconByName = (nodeName?: string) => {
   if (nodeName.includes('批处理')) return <IconCopy />;
   if (nodeName.includes('注释')) return <IconComment />;
   if (nodeName.includes('开始')) return <IconPlayCircle />;
-  if (nodeName.includes('结束')) return <IconStopCircle />;
+  if (nodeName.includes('结束')) return <IconMinusCircleStroked />;
   return <IconComponent />;
 };
 

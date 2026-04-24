@@ -56,7 +56,7 @@ export const WorkflowLeftPanel: React.FC<WorkflowLeftPanelProps> = ({ appId, wor
 
   const workflowsQuery = useQuery({
     queryKey: ['lowcode-workflows', appId],
-    queryFn: () => api.resources.search(appId, { types: 'workflow', pageSize: 50, boundOnly: true })
+    queryFn: () => api.resources.search(appId, { types: 'workflow', pageSize: 200, boundOnly: true })
   });
 
   const variablesQuery = useQuery({

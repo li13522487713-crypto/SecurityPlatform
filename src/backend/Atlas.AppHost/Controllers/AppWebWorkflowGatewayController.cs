@@ -1408,8 +1408,8 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
             }
 
             var nodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var hasStartNode = false;
-            var hasEndNode = false;
+            var startNodeCount = 0;
+            var endNodeCount = 0;
             if (nodes.ValueKind == JsonValueKind.Array)
             {
                 foreach (var node in nodes.EnumerateArray())
@@ -1427,7 +1427,11 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
                         continue;
                     }
 
-                    nodeIds.Add(nodeId);
+                    if (!nodeIds.Add(nodeId))
+                    {
+                        issues.Add(new CanvasValidationIssue("COZE_NODE_ID_DUPLICATED", $"Coze 节点 id '{nodeId}' 重复。", nodeId));
+                    }
+
                     if (!TryGetProperty(node, "type", out var nodeType))
                     {
                         issues.Add(new CanvasValidationIssue("COZE_NODE_TYPE_MISSING", $"Coze 节点 '{nodeId}' 缺少 type。", nodeId));
@@ -1439,8 +1443,15 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
                             : nodeType.ValueKind == JsonValueKind.Number
                                 ? nodeType.GetRawText()
                                 : string.Empty;
-                        hasStartNode |= string.Equals(typeText, "1", StringComparison.OrdinalIgnoreCase);
-                        hasEndNode |= string.Equals(typeText, "2", StringComparison.OrdinalIgnoreCase);
+                        if (string.Equals(typeText, "1", StringComparison.OrdinalIgnoreCase))
+                        {
+                            startNodeCount++;
+                        }
+
+                        if (string.Equals(typeText, "2", StringComparison.OrdinalIgnoreCase))
+                        {
+                            endNodeCount++;
+                        }
                     }
 
                     if (!TryGetNestedProperty(node, out var position, "meta", "position") ||
@@ -1461,14 +1472,22 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
                 }
             }
 
-            if (!hasStartNode)
+            if (startNodeCount != 1)
             {
-                issues.Add(new CanvasValidationIssue("COZE_START_NODE_MISSING", "Coze 画布缺少开始节点。"));
+                issues.Add(new CanvasValidationIssue(
+                    "COZE_START_NODE_COUNT_INVALID",
+                    startNodeCount == 0
+                        ? "Coze 根画布缺少开始节点。"
+                        : "Coze 根画布只能有一个开始节点。"));
             }
 
-            if (!hasEndNode)
+            if (endNodeCount != 1)
             {
-                issues.Add(new CanvasValidationIssue("COZE_END_NODE_MISSING", "Coze 画布缺少结束节点。"));
+                issues.Add(new CanvasValidationIssue(
+                    "COZE_END_NODE_COUNT_INVALID",
+                    endNodeCount == 0
+                        ? "Coze 根画布缺少结束节点。"
+                        : "Coze 根画布只能有一个结束节点。"));
             }
 
             if (edges.ValueKind == JsonValueKind.Array)

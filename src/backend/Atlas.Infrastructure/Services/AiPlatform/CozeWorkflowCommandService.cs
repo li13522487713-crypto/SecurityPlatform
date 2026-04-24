@@ -20,7 +20,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
             {
                 new
                 {
-                    id = "entry_1",
+                    id = "100001",
                     type = ((int)WorkflowNodeType.Entry).ToString(),
                     meta = new
                     {
@@ -45,7 +45,7 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
                 },
                 new
                 {
-                    id = "exit_1",
+                    id = "900001",
                     type = ((int)WorkflowNodeType.Exit).ToString(),
                     meta = new
                     {
@@ -86,8 +86,8 @@ public sealed class CozeWorkflowCommandService : ICozeWorkflowCommandService
             {
                 new
                 {
-                    sourceNodeID = "entry_1",
-                    targetNodeID = "exit_1"
+                    sourceNodeID = "100001",
+                    targetNodeID = "900001"
                 }
             }
         });

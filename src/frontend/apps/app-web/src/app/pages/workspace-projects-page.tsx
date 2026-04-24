@@ -31,7 +31,7 @@ import { getWorkspaces, type WorkspaceSummaryDto } from "../../services/api-org-
 import { createFolder, listFolders, moveItemToFolder, type FolderListItem } from "../../services/api-folders";
 import { createLowcodeProjectAppGateway } from "../gateways/project-app-gateway";
 
-type ProjectsResourceTypeFilter = "all" | "agent" | "app";
+type ProjectsResourceTypeFilter = "all" | "app";
 type ProjectsStatusFilter = "all" | "draft" | "published" | "archived";
 type WorkspaceActionMode = "migrate" | "copy";
 
@@ -165,37 +165,20 @@ export function WorkspaceProjectsPage() {
     }
     setLoading(true);
     try {
-      const loadAgents = resourceTypeFilter !== "app";
-      const loadApps = resourceTypeFilter !== "agent";
       const status = statusFilter === "all" ? undefined : statusFilter;
       const keyword = normalizedKeyword || undefined;
 
-      const [agentResult, workspaceIdeAppResult, lowcodeAppResult, folderResult] = await Promise.all([
-        loadAgents
-          ? getWorkspaceIdeResources({
-            pageIndex: 1,
-            pageSize: 120,
-            keyword,
-            resourceType: "agent",
-            status,
-            folderId: folderId || undefined,
-            workspaceId: workspace.id
-          })
-          : Promise.resolve({ items: [] as WorkspaceIdeResourceCardDto[], pageIndex: 1, pageSize: 120, total: 0 }),
-        loadApps
-          ? getWorkspaceIdeResources({
-            pageIndex: 1,
-            pageSize: 120,
-            keyword,
-            resourceType: "app",
-            status,
-            folderId: folderId || undefined,
-            workspaceId: workspace.id
-          })
-          : Promise.resolve({ items: [] as WorkspaceIdeResourceCardDto[], pageIndex: 1, pageSize: 120, total: 0 }),
-        loadApps
-          ? lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status, workspaceId: workspace.id, folderId: folderId || undefined })
-          : Promise.resolve({ items: [] as Array<{ id: string; name: string; description?: string; status: string; updatedAt: string; folderId?: string }>, pageIndex: 1, pageSize: 120, total: 0 }),
+      const [workspaceIdeAppResult, lowcodeAppResult, folderResult] = await Promise.all([
+        getWorkspaceIdeResources({
+          pageIndex: 1,
+          pageSize: 120,
+          keyword,
+          resourceType: "app",
+          status,
+          folderId: folderId || undefined,
+          workspaceId: workspace.id
+        }),
+        lowcodeGateway.list({ pageIndex: 1, pageSize: 120, keyword, status, workspaceId: workspace.id, folderId: folderId || undefined }),
         listFolders(workspace.id, { pageIndex: 1, pageSize: 200 })
       ]);
 
@@ -218,7 +201,6 @@ export function WorkspaceProjectsPage() {
       }
 
       const nextResources = [
-        ...agentResult.items.filter(isAgentResourceCard).map(mapAgentResourceCard),
         ...mergedAppResources
       ].sort((left, right) => {
         const leftTime = Date.parse(left.lastEditedAt || left.updatedAt);
@@ -573,7 +555,6 @@ export function WorkspaceProjectsPage() {
           value={resourceTypeFilter}
           optionList={[
             { label: t("cozeProjectsFilterTypeAll"), value: "all" },
-            { label: t("cozeProjectsFilterTypeAgent"), value: "agent" },
             { label: t("cozeProjectsFilterTypeApp"), value: "app" }
           ]}
           onChange={value => setResourceTypeFilter((value as ProjectsResourceTypeFilter) ?? "all")}

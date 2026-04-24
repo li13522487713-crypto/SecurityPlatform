@@ -321,6 +321,12 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             BuildInputMappings(inputsElement, inputMappings);
         }
 
+        if (TryGetProperty(dataElement, "atlasRuntimeConfig", out var runtimeConfigElement) &&
+            runtimeConfigElement.ValueKind == JsonValueKind.Object)
+        {
+            MergeGenericInputConfig(runtimeConfigElement, config);
+        }
+
         CozeNodeConfigAdapterRegistry.Adapt(
             nodeType,
             new CozeNodeAdaptContext(element, dataElement, nodeKey, inputMappings),
