@@ -424,3 +424,4 @@ src/frontend/tmp/
 tmp/
 /output/playwright/workflow-debug
 /src/backend/Atlas.PlatformHost/uploads/00000000-0000-0000-0000-000000000001
+/src/backend/Atlas.AppHost/uploads/00000000-0000-0000-0000-000000000001
