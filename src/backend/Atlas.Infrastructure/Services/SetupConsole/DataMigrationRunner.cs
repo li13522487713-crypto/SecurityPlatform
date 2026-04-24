@@ -18,6 +18,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
     private readonly IMigrationConnectionResolver _resolver;
     private readonly IDataMigrationPlanner _planner;
     private readonly IMigrationBulkWriter _bulkWriter;
+    private readonly IDataMigrationOrmService? _migrationService;
     private readonly ILogger<DataMigrationRunner> _logger;
 
     public DataMigrationRunner(
@@ -28,7 +29,8 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
         IMigrationConnectionResolver resolver,
         IDataMigrationPlanner planner,
         IMigrationBulkWriter bulkWriter,
-        ILogger<DataMigrationRunner> logger)
+        ILogger<DataMigrationRunner> logger,
+        IDataMigrationOrmService? migrationService = null)
     {
         _db = db;
         _tenantProvider = tenantProvider;
@@ -37,6 +39,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
         _resolver = resolver;
         _planner = planner;
         _bulkWriter = bulkWriter;
+        _migrationService = migrationService;
         _logger = logger;
     }
 
@@ -53,6 +56,17 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
         await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Runner", $"job queued with {plan.Items.Count} tables", null, cancellationToken)
             .ConfigureAwait(false);
+        if (job.MigrateFiles)
+        {
+            await AppendLogAsync(
+                    job.Id,
+                    "warn",
+                    "Runner",
+                    "file migration is not implemented in this release and was skipped",
+                    null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         var completed = 0;
         var failed = 0;
@@ -184,6 +198,13 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
         await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Runner", $"job finished state={job.State}", null, cancellationToken)
             .ConfigureAwait(false);
+
+        if (failed == 0 && job.ValidateAfterCopy && _migrationService is not null)
+        {
+            await AppendLogAsync(job.Id, "info", "Runner", "auto validation started", null, cancellationToken)
+                .ConfigureAwait(false);
+            await _migrationService.ValidateJobAsync(job.Id.ToString(), cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task CancelJobAsync(DataMigrationJob job, CancellationToken cancellationToken)

@@ -34,6 +34,22 @@ X-Tenant-Id: {{tenantId}}
 POST {{host}}/api/v1/tenant-datasources/{{dataSourceId}}/test
 X-Tenant-Id: {{tenantId}}
 
+### Test migration connection
+POST {{host}}/api/v1/setup-console/migration/test-connection
+Content-Type: application/json
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "connection": {
+    "driverCode": "MySql",
+    "dbType": "MySql",
+    "mode": "SavedDataSource",
+    "dataSourceId": {{dataSourceId}},
+    "displayName": "local-mysql-target"
+  }
+}
+
 ### Create AiDatabase migration job
 POST {{host}}/api/v1/setup-console/migration/jobs
 Content-Type: application/json
@@ -78,6 +94,11 @@ POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/start
 X-Setup-Console-Token: {{consoleToken}}
 X-Tenant-Id: {{tenantId}}
 
+### Get migration job
+GET {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### Get migration progress
 GET {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/progress
 X-Setup-Console-Token: {{consoleToken}}
@@ -112,5 +133,15 @@ X-Tenant-Id: {{tenantId}}
 
 ### Migration report
 GET {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/report
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Rollback migration job (currently returns 501 until true rollback is implemented)
+POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/rollback
+X-Setup-Console-Token: {{consoleToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Retry migration job
+POST {{host}}/api/v1/setup-console/migration/jobs/{{jobId}}/retry
 X-Setup-Console-Token: {{consoleToken}}
 X-Tenant-Id: {{tenantId}}

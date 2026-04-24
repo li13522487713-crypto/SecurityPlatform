@@ -42,7 +42,7 @@ public static class DataSourceDriverRegistry
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return "SQLite";
+            throw new ArgumentException("Database driver code is required.", nameof(value));
         }
 
         var trimmed = value.Trim();

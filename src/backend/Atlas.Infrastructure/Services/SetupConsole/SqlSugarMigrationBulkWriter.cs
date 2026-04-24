@@ -203,7 +203,7 @@ public sealed class SqlSugarMigrationBulkWriter : IMigrationBulkWriter
         }
     }
 
-    private static Task InsertEntityBatchAsync(
+    private static async Task InsertEntityBatchAsync(
         ISqlSugarClient targetScope,
         Type entityType,
         IReadOnlyList<object> rows,
@@ -222,10 +222,21 @@ public sealed class SqlSugarMigrationBulkWriter : IMigrationBulkWriter
                              && method.GetParameters()[0].ParameterType.IsArray);
         var insertable = insertableMethod.MakeGenericMethod(entityType).Invoke(targetScope, new object[] { typedArray })
             ?? throw new InvalidOperationException($"Insertable<{entityType.Name}>() returned null.");
+        var asyncExecMethod = insertable.GetType().GetMethods()
+            .FirstOrDefault(method => method.Name == "ExecuteCommandAsync" && method.GetParameters().Length == 0);
+        if (asyncExecMethod is not null)
+        {
+            var result = asyncExecMethod.Invoke(insertable, null);
+            if (result is Task task)
+            {
+                await task.ConfigureAwait(false);
+                return;
+            }
+        }
+
         var execMethod = insertable.GetType().GetMethods()
             .First(method => method.Name == "ExecuteCommand" && method.GetParameters().Length == 0);
         execMethod.Invoke(insertable, null);
-        return Task.CompletedTask;
     }
 
     private async Task<string?> TryBulkCopyDataTableAsync(

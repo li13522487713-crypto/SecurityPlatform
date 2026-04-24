@@ -9,9 +9,9 @@ namespace Atlas.PlatformHost.Controllers;
 /// <summary>
 /// 系统初始化与迁移控制台 - ORM 跨库迁移端点（M6）。
 ///
-/// 11 个端点对齐 docs/contracts.md 12.6：
+/// 数据迁移端点对齐 docs/contracts.md 12.6：
 ///  POST /test-connection / /jobs / /jobs/{id}/precheck|start|validate|cutover|rollback|retry
-///  GET  /jobs/{id}/progress|report|logs
+///  GET  /jobs/{id}|/jobs/{id}/progress|report|logs
 /// </summary>
 [ApiController]
 [Route("api/v1/setup-console/migration")]
@@ -75,6 +75,10 @@ public sealed class DataMigrationController : ControllerBase
     public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Cancel(string jobId, CancellationToken cancellationToken)
         => RunGuarded<DataMigrationJobDto>(() => _service.CancelJobAsync(jobId, cancellationToken), cancellationToken);
 
+    [HttpGet("jobs/{jobId}")]
+    public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> GetJob(string jobId, CancellationToken cancellationToken)
+        => RunGuarded<DataMigrationJobDto>(() => _service.GetJobAsync(jobId, cancellationToken), cancellationToken);
+
     [HttpGet("jobs/{jobId}/progress")]
     public async Task<ActionResult<ApiResponse<DataMigrationProgressDto>>> GetProgress(string jobId, CancellationToken cancellationToken)
     {
@@ -107,8 +111,21 @@ public sealed class DataMigrationController : ControllerBase
         => RunGuarded<DataMigrationJobDto>(() => _service.CutoverJobAsync(jobId, request, cancellationToken), cancellationToken);
 
     [HttpPost("jobs/{jobId}/rollback")]
-    public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Rollback(string jobId, CancellationToken cancellationToken)
-        => RunGuarded<DataMigrationJobDto>(() => _service.RollbackJobAsync(jobId, cancellationToken), cancellationToken);
+    public async Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Rollback(string jobId, CancellationToken cancellationToken)
+    {
+        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        {
+            return Unauthorized(ApiResponse<DataMigrationJobDto>.Fail(
+                "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
+        }
+
+        return StatusCode(
+            501,
+            ApiResponse<DataMigrationJobDto>.Fail(
+                "MIGRATION_ROLLBACK_NOT_IMPLEMENTED",
+                "Data rollback is not implemented. Cancel before cutover or retry from checkpoint instead.",
+                HttpContext.TraceIdentifier));
+    }
 
     [HttpPost("jobs/{jobId}/retry")]
     public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Retry(string jobId, CancellationToken cancellationToken)

@@ -7,11 +7,10 @@ import type {
 } from "../app/setup-console-state-machine";
 
 /**
- * 系统初始化与迁移控制台真接口 client（M5 后启用）。
+ * 系统初始化与迁移控制台真接口 client。
  *
- * - M1-M4 阶段：UI 全部消费 `services/mock/api-setup-console.mock.ts` 等 mock 文件。
- * - 这里仅暴露 DTO 类型 + 函数签名占位，供 mock 与真实实现共享，
- *   保证替换时业务代码无感（与 `api-setup.ts` 同款分层）。
+ * - 数据迁移主链路使用真实 HTTP 端点，不再通过 mock 推进状态或进度。
+ * - DTO 类型与真实接口共用，便于 setup-console 页面和资源库迁移向导复用。
  *
  * 全部协议详见 `docs/contracts.md` "12. 系统初始化与迁移控制台"。
  */
@@ -470,6 +469,8 @@ export const setupConsoleApi = {
       method: "POST",
       body: JSON.stringify(request)
     }),
+  getMigrationJob: (jobId: string) =>
+    fetchConsoleJson<DataMigrationJobDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}`),
   precheckMigrationJob: (jobId: string) =>
     fetchConsoleJson<DataMigrationPrecheckResultDto>(`/api/v1/setup-console/migration/jobs/${encodeURIComponent(jobId)}/precheck`, {
       method: "POST"

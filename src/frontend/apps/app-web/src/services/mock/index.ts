@@ -19,4 +19,3 @@ export * from "./api-publish-channels.mock";
 export * from "./api-setup-console.mock";
 export * from "./api-system-init.mock";
 export * from "./api-workspace-init.mock";
-export * from "./api-data-migration.mock";

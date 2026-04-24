@@ -612,6 +612,7 @@ export function WorkspaceLibraryPage() {
         visible={Boolean(migrationSource)}
         source={migrationSource}
         onClose={() => setMigrationSource(null)}
+        onTargetCreated={() => void load()}
       />
     </div>
   );

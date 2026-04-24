@@ -14,7 +14,6 @@ import {
   Table,
   Tabs,
   Toast,
-  Tooltip,
   Typography
 } from "@douyinfe/semi-ui";
 import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
@@ -22,6 +21,8 @@ import { IconRefresh } from "@douyinfe/semi-icons";
 import { useAppI18n } from "../../../i18n";
 import type {
   DataMigrationJobDto,
+  DataMigrationLogItemDto,
+  DataMigrationModuleScope,
   DataMigrationPrecheckResultDto,
   DataMigrationProgressDto,
   DataMigrationReportDto,
@@ -41,11 +42,13 @@ import { CreateDataSourceModal } from "../create-datasource-modal";
 const { Text, Title } = Typography;
 
 type WriteMode = "InsertOnly" | "TruncateThenInsert" | "Upsert";
+type ModuleCategory = Exclude<DataMigrationModuleScope["categories"][number], "all">;
 
 export interface MigrationWizardDrawerProps {
   visible: boolean;
   source: AiWorkspaceLibraryItem | null;
   onClose: () => void;
+  onTargetCreated?: () => void | Promise<void>;
 }
 
 interface MigrationConfigState {
@@ -55,8 +58,8 @@ interface MigrationConfigState {
   writeMode: WriteMode;
   createSchema: boolean;
   migrateSystemTables: boolean;
-  migrateFiles: boolean;
   validateAfterCopy: boolean;
+  selectedCategories: ModuleCategory[];
 }
 
 const DEFAULT_CONFIG: MigrationConfigState = {
@@ -66,9 +69,18 @@ const DEFAULT_CONFIG: MigrationConfigState = {
   writeMode: "InsertOnly",
   createSchema: true,
   migrateSystemTables: false,
-  migrateFiles: false,
-  validateAfterCopy: false
+  validateAfterCopy: false,
+  selectedCategories: ["resource-runtime"]
 };
+
+const MODULE_OPTIONS: Array<{ value: ModuleCategory; labelKey: string }> = [
+  { value: "system-foundation", labelKey: "setupConsoleCatalogCategorySystemFoundation" },
+  { value: "identity-permission", labelKey: "setupConsoleCatalogCategoryIdentityPermission" },
+  { value: "workspace", labelKey: "setupConsoleCatalogCategoryWorkspace" },
+  { value: "business-domain", labelKey: "setupConsoleCatalogCategoryBusinessDomain" },
+  { value: "resource-runtime", labelKey: "setupConsoleCatalogCategoryResourceRuntime" },
+  { value: "audit-log", labelKey: "setupConsoleCatalogCategoryAuditLog" }
+];
 
 interface ApiFailureShape {
   message?: string | null;
@@ -158,6 +170,16 @@ function buildTargetConfig(target: TenantDataSourceDto): DbConnectionConfig {
   };
 }
 
+function buildModuleScope(config: MigrationConfigState): DataMigrationModuleScope {
+  if (config.scopeMode === "module") {
+    return {
+      categories: config.selectedCategories.length > 0 ? config.selectedCategories : ["resource-runtime"]
+    };
+  }
+
+  return { categories: ["all"] };
+}
+
 function ConfigField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
@@ -167,13 +189,14 @@ function ConfigField({ label, children }: { label: string; children: ReactNode }
   );
 }
 
-export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWizardDrawerProps) {
+export function MigrationWizardDrawer({ visible, source, onClose, onTargetCreated }: MigrationWizardDrawerProps) {
   const { t } = useAppI18n();
   const [step, setStep] = useState(0);
   const [dataSources, setDataSources] = useState<TenantDataSourceDto[]>([]);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [loadingTargets, setLoadingTargets] = useState(false);
   const [targetKeyword, setTargetKeyword] = useState("");
+  const [targetTab, setTargetTab] = useState("saved");
   const [createDataSourceOpen, setCreateDataSourceOpen] = useState(false);
   const [config, setConfig] = useState<MigrationConfigState>(DEFAULT_CONFIG);
   const [job, setJob] = useState<DataMigrationJobDto | null>(null);
@@ -182,6 +205,9 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
   const [report, setReport] = useState<DataMigrationReportDto | null>(null);
   const [cutoverConfirmed, setCutoverConfirmed] = useState(false);
   const [restartConfirmed, setRestartConfirmed] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [logs, setLogs] = useState<DataMigrationLogItemDto[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
   const selectedTarget = useMemo(
@@ -239,6 +265,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
   const reset = useCallback(() => {
     setStep(0);
     setTargetId(null);
+    setTargetTab("saved");
     setTargetKeyword("");
     setConfig(DEFAULT_CONFIG);
     setJob(null);
@@ -247,6 +274,9 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
     setReport(null);
     setCutoverConfirmed(false);
     setRestartConfirmed(false);
+    setLogs([]);
+    setLogsOpen(false);
+    setLogsLoading(false);
     setBusy(null);
   }, []);
 
@@ -322,14 +352,14 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       source: sourceConfig,
       target: targetConfig,
       mode: "structure-plus-data",
-      moduleScope: { categories: ["all"] },
+      moduleScope: buildModuleScope(config),
       allowReExecute: true,
       selectedTables: config.scopeMode === "table" ? parseTables(config.selectedTablesText) : null,
       batchSize: config.batchSize,
       writeMode: config.writeMode,
       createSchema: config.createSchema,
       migrateSystemTables: config.migrateSystemTables,
-      migrateFiles: config.migrateFiles,
+      migrateFiles: false,
       validateAfterCopy: config.validateAfterCopy
     });
     if (!response.success || !response.data) {
@@ -385,6 +415,41 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       setReport(response.data);
     });
 
+  const handleLoadReport = () =>
+    guarded("report", async () => {
+      if (!job) {
+        return;
+      }
+      const response = await setupConsoleApi.getMigrationReport(job.id);
+      if (!response.success || !response.data) {
+        throw new Error(formatApiMessage(response));
+      }
+      setReport(response.data);
+    });
+
+  const handleOpenLogs = async (row?: DataMigrationTableProgressDto) => {
+    if (!job || logsLoading) {
+      return;
+    }
+
+    setLogsOpen(true);
+    setLogsLoading(true);
+    try {
+      const response = await setupConsoleApi.getMigrationLogs(job.id, { pageIndex: 1, pageSize: 100 });
+      if (!response.success || !response.data) {
+        throw new Error(formatApiMessage(response));
+      }
+      const items = row
+        ? response.data.items.filter(item => item.entityName === row.tableName || item.entityName === row.entityName)
+        : response.data.items;
+      setLogs(items);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : t("cozeLibraryQueryFailed"));
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
   const handleCutover = () =>
     guarded("cutover", async () => {
       if (!job) {
@@ -438,7 +503,17 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       width: 150,
       render: value => <Progress percent={Number(value ?? 0)} size="small" showInfo />
     },
-    { title: t("setupConsoleStepStateFailed"), dataIndex: "errorMessage", width: 220, render: value => value || "-" }
+    { title: t("setupConsoleStepStateFailed"), dataIndex: "errorMessage", width: 220, render: value => value || "-" },
+    {
+      title: t("setupConsoleMigrationViewLogs"),
+      dataIndex: "tableName",
+      width: 120,
+      render: (_value, record) => (
+        <Button size="small" onClick={() => void handleOpenLogs(record)}>
+          {t("setupConsoleMigrationViewLogs")}
+        </Button>
+      )
+    }
   ];
 
   const renderStep = () => {
@@ -466,12 +541,13 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <Tabs
             type="button"
-            activeKey="saved"
+            activeKey={targetTab}
             tabList={[
               { itemKey: "saved", tab: t("setupConsoleMigrationSavedDataSource") },
               { itemKey: "new", tab: t("setupConsoleMigrationNewDataSource") }
             ]}
             onChange={key => {
+              setTargetTab(String(key));
               if (key === "new") {
                 setCreateDataSourceOpen(true);
               }
@@ -554,6 +630,25 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
                   />
                 </ConfigField>
               ) : null}
+              {config.scopeMode === "module" ? (
+                <ConfigField label={t("setupConsoleMigrationScopeByCategory")}>
+                  <Select
+                    multiple
+                    value={config.selectedCategories}
+                    onChange={value => updateConfig(current => ({
+                      ...current,
+                      selectedCategories: (Array.isArray(value) ? value : [value])
+                        .filter(Boolean)
+                        .map(item => String(item) as ModuleCategory)
+                    }))}
+                    optionList={MODULE_OPTIONS.map(item => ({
+                      value: item.value,
+                      label: t(item.labelKey)
+                    }))}
+                    style={{ width: 360 }}
+                  />
+                </ConfigField>
+              ) : null}
               <ConfigField label={t("setupConsoleMigrationWriteMode")}>
                 <Select
                   value={config.writeMode}
@@ -581,9 +676,6 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
               </Checkbox>
               <Checkbox checked={config.migrateSystemTables} onChange={event => updateConfig(current => ({ ...current, migrateSystemTables: Boolean(event.target.checked) }))}>
                 {t("setupConsoleMigrationMigrateSystemTables")}
-              </Checkbox>
-              <Checkbox checked={config.migrateFiles} onChange={event => updateConfig(current => ({ ...current, migrateFiles: Boolean(event.target.checked) }))}>
-                {t("setupConsoleMigrationMigrateFiles")}
               </Checkbox>
               <Checkbox checked={config.validateAfterCopy} onChange={event => updateConfig(current => ({ ...current, validateAfterCopy: Boolean(event.target.checked) }))}>
                 {t("setupConsoleMigrationValidateAfterCopy")}
@@ -631,9 +723,9 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
               <Metric label={t("setupConsoleMigrationElapsed")} value={`${progress?.elapsedSeconds ?? 0}s`} />
             </div>
             <Space style={{ marginTop: 16 }}>
-              <Tooltip content={t("setupConsoleMigrationPauseUnsupported")}>
-                <Button disabled>{t("setupConsoleMigrationPause")}</Button>
-              </Tooltip>
+              <Button disabled={!job} loading={logsLoading} onClick={() => void handleOpenLogs()}>
+                {t("setupConsoleMigrationViewLogs")}
+              </Button>
               <Button type="danger" theme="solid" loading={busy === "cancel"} disabled={!job || isTerminalState(progress?.state ?? job.state)} onClick={() => void handleCancel()}>
                 {t("cozeCommonCancel")}
               </Button>
@@ -653,6 +745,9 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
           <Space>
             <Button loading={busy === "validate"} disabled={!job} onClick={() => void handleValidate()}>
               {t("setupConsoleMigrationValidate")}
+            </Button>
+            <Button loading={busy === "report"} disabled={!job} onClick={() => void handleLoadReport()}>
+              {t("setupConsoleMigrationViewReport")}
             </Button>
             <Checkbox checked={cutoverConfirmed} onChange={event => setCutoverConfirmed(Boolean(event.target.checked))}>
               {t("setupConsoleMigrationConfirmBackup")}
@@ -765,14 +860,38 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       <CreateDataSourceModal
         visible={createDataSourceOpen}
         title={t("setupConsoleMigrationNewDataSource")}
-        onClose={() => setCreateDataSourceOpen(false)}
+        onClose={() => {
+          setCreateDataSourceOpen(false);
+          setTargetTab("saved");
+        }}
         onCreated={async item => {
           setCreateDataSourceOpen(false);
+          setTargetTab("saved");
           resetJobState();
           await loadTargets();
+          await onTargetCreated?.();
           setTargetId(item.id);
         }}
       />
+      <SideSheet
+        title={t("setupConsoleMigrationViewLogs")}
+        visible={logsOpen}
+        onCancel={() => setLogsOpen(false)}
+        width={720}
+      >
+        <Table
+          loading={logsLoading}
+          pagination={false}
+          rowKey="id"
+          dataSource={logs}
+          columns={[
+            { title: t("setupConsoleMigrationColumnUpdatedAt"), dataIndex: "occurredAt", width: 180, render: value => formatTime(String(value)) },
+            { title: t("setupConsoleMigrationColumnState"), dataIndex: "level", width: 90 },
+            { title: t("setupConsoleMigrationReportEntityColumn"), dataIndex: "entityName", width: 160, render: value => value || "-" },
+            { title: t("setupConsoleMigrationViewLogs"), dataIndex: "message" }
+          ]}
+        />
+      </SideSheet>
     </SideSheet>
   );
 }

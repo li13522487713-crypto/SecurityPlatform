@@ -43,7 +43,6 @@ const startMigrationJob = setupConsoleApi.startMigrationJob;
 const getMigrationProgress = setupConsoleApi.getMigrationProgress;
 const validateMigrationJob = setupConsoleApi.validateMigrationJob;
 const cutoverMigrationJob = setupConsoleApi.cutoverMigrationJob;
-const rollbackMigrationJob = setupConsoleApi.rollbackMigrationJob;
 const retryMigrationJob = setupConsoleApi.retryMigrationJob;
 const getMigrationReport = setupConsoleApi.getMigrationReport;
 const getMigrationLogs = setupConsoleApi.getMigrationLogs;
@@ -95,14 +94,14 @@ const INITIAL_SOURCE: DbConnectionConfig = {
   driverCode: "SQLite",
   dbType: "SQLite",
   mode: "ConnectionString",
-  connectionString: "Data Source=atlas.db"
+  connectionString: ""
 };
 
 const INITIAL_TARGET: DbConnectionConfig = {
   driverCode: "MySql",
   dbType: "MySql",
   mode: "ConnectionString",
-  connectionString: "Server=localhost;Port=3306;Database=atlas;Uid=root;Pwd=password;"
+  connectionString: ""
 };
 
 export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTabProps) {
@@ -291,20 +290,6 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
     [guarded, job, keepSourceReadonlyForDays]
   );
 
-  const handleRollback = useCallback(
-    () =>
-      guarded("rollback", async () => {
-        if (!job) {
-          return;
-        }
-        const response = await rollbackMigrationJob(job.id);
-        if (response.success && response.data) {
-          setJob(response.data);
-        }
-      }),
-    [guarded, job]
-  );
-
   const handleRetry = useCallback(
     () =>
       guarded("retry", async () => {
@@ -378,7 +363,6 @@ export function MigrationTab({ activeMigration, onSnapshotChanged }: MigrationTa
         onStart={() => void handleStart()}
         onValidate={() => void handleValidate()}
         onCutover={() => void handleCutover()}
-        onRollback={() => void handleRollback()}
         onRetry={() => void handleRetry()}
       />
 
@@ -597,7 +581,6 @@ interface ExecuteSectionProps {
   onStart: () => void;
   onValidate: () => void;
   onCutover: () => void;
-  onRollback: () => void;
   onRetry: () => void;
 }
 
@@ -616,7 +599,6 @@ function ExecuteSection({
   onStart,
   onValidate,
   onCutover,
-  onRollback,
   onRetry
 }: ExecuteSectionProps) {
   const { t } = useAppI18n();
@@ -686,15 +668,6 @@ function ExecuteSection({
             onClick={onCutover}
           >
             {t("setupConsoleMigrationCutover")}
-          </Button>
-          <Button
-            type="danger"
-            theme="solid"
-            data-testid="setup-console-migration-rollback"
-            disabled={submitBusy || jobDone}
-            onClick={onRollback}
-          >
-            {t("setupConsoleMigrationRollback")}
           </Button>
           <Button
             type="tertiary"

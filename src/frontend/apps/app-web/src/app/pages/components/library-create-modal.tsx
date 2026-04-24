@@ -18,7 +18,6 @@ import { createLongTermMemoryItem } from "../../../services/api-ai-memory";
 import type { LibraryResourceType } from "../../../services/api-ai-workspace";
 import { useAppI18n } from "../../i18n";
 import { useWorkspaceContext } from "../../workspace-context";
-import { CreateDataSourceModal } from "./create-datasource-modal";
 
 export interface LibraryCreateModalProps {
   visible: boolean;
@@ -275,19 +274,6 @@ export function LibraryCreateModal({ visible, createType, onClose, onCreated }: 
 
   if (!createType) {
     return null;
-  }
-
-  if (createType === "database") {
-    return (
-      <CreateDataSourceModal
-        visible={visible}
-        initialName={name}
-        onClose={onClose}
-        onCreated={() => {
-          onCreated();
-        }}
-      />
-    );
   }
 
   const title = t("cozeLibraryCreateTitle");

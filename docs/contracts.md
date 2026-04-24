@@ -1898,22 +1898,24 @@ DTO 参考前端 [`api-setup-console.ts`](../src/frontend/apps/app-web/src/servi
 
 - `POST /api/v1/setup-console/migration/test-connection` body `MigrationTestConnectionRequest` → `ApiResponse<MigrationTestConnectionResponse>`
 - `POST /api/v1/setup-console/migration/jobs` body `DataMigrationJobCreateRequest` → `ApiResponse<DataMigrationJobDto>`
+- `GET /api/v1/setup-console/migration/jobs/{id}` → `ApiResponse<DataMigrationJobDto>`
 - `POST /api/v1/setup-console/migration/jobs/{id}/precheck` → 推进到 `prechecking` → `ready`
 - `POST /api/v1/setup-console/migration/jobs/{id}/start` → 推进到 `running`
 - `GET /api/v1/setup-console/migration/jobs/{id}/progress` → 实时轮询，返回当前实体 / 批次 / 复制行数
 - `POST /api/v1/setup-console/migration/jobs/{id}/validate` → 行数 + 抽样字段 + 外键校验，生成 `DataMigrationReportDto`
-- `POST /api/v1/setup-console/migration/jobs/{id}/cutover` body `DataMigrationCutoverRequest { keepSourceReadonlyForDays }` → 写 `appsettings.runtime.json` 切主
-- `POST /api/v1/setup-console/migration/jobs/{id}/rollback` → 回滚（仅未 cutover 时可用）
-- `POST /api/v1/setup-console/migration/jobs/{id}/retry` → 失败 / 已回滚任务从最后 checkpoint 续跑
+- `POST /api/v1/setup-console/migration/jobs/{id}/cutover` body `DataMigrationCutoverRequest { keepSourceReadonlyForDays, confirmBackup, confirmRestartRequired }` → 写 `appsettings.runtime.json` 切主
+- `POST /api/v1/setup-console/migration/jobs/{id}/rollback` → 当前返回 `501 MIGRATION_ROLLBACK_NOT_IMPLEMENTED`；不得把状态标为已回滚，直到实现真实数据回滚
+- `POST /api/v1/setup-console/migration/jobs/{id}/retry` → 失败 / 已取消 / 校验失败任务从最后 checkpoint 续跑
 - `GET /api/v1/setup-console/migration/jobs/{id}/report` → 校验报告
 - `GET /api/v1/setup-console/migration/jobs/{id}/logs?level=&pageIndex&pageSize` → 分页日志
 
 DTO 关键字段：
 
-- `DbConnectionConfig { driverCode, dbType: SQLite|MySql|PostgreSQL|SqlServer, mode: raw|visual, connectionString?, visualConfig? }`
-- `DataMigrationJobCreateRequest { source, target, mode, moduleScope, allowReExecute }`
+- `DbConnectionConfig { driverCode, dbType, mode: CurrentSystem|CurrentSystemAiDatabase|SavedDataSource|ConnectionString|VisualConfig, connectionString?, visualConfig?, displayName?, dataSourceId?, aiDatabaseId? }`
+- `DataMigrationJobCreateRequest { source, target, mode, moduleScope, allowReExecute, selectedEntities?, selectedTables?, excludedEntities?, excludedTables?, batchSize?, writeMode?, createSchema?, migrateSystemTables?, migrateFiles?, validateAfterCopy? }`
 - `DataMigrationModuleScope { categories: ["all" | category...], entityNames? }`
-- `DataMigrationJobDto { id, state, mode, source, target, sourceFingerprint, targetFingerprint, moduleScope, totalEntities, completedEntities, failedEntities, totalRows, copiedRows, progressPercent, currentEntityName?, currentBatchNo?, startedAt?, finishedAt?, errorSummary?, createdAt, updatedAt }`
+- `DataMigrationJobDto { id, state, mode, source, target, sourceFingerprint, targetFingerprint, moduleScope, totalEntities, completedEntities, failedEntities, totalRows, copiedRows, progressPercent, currentEntityName?, currentTableName?, currentBatchNo?, startedAt?, finishedAt?, errorSummary?, createdAt, updatedAt }`
+- `DataMigrationProgressDto { jobId, state, totalEntities, completedEntities, failedEntities, totalRows, copiedRows, progressPercent, currentEntityName?, currentTableName?, currentBatchNo?, elapsedSeconds, tables[], recentLogs[], recentBatches[] }`
 - `DataMigrationReportDto { jobId, totalEntities, passedEntities, failedEntities, rowDiff[], samplingDiff[], overallPassed, generatedAt }`
 
 防重复机制：
@@ -1927,7 +1929,7 @@ ORM 优先实现要点（M6）：
 
 - 源库 / 目标库各开一个 `SqlSugarScope`，用同一份 `EntityType[]` 双向 IO；类型差异由 SqlSugar 自动适配（`DateTimeOffset → DATETIME / TIMESTAMPTZ` 等）
 - 拓扑排序：基于 `[Navigate]` / 命名约定 `XxxId` 推断，`Tenant → UserAccount → Role → UserRole → Workspace → Agent → ...`
-- 大表分批：`Skip(page * batch).Take(batch).ToList()` + `Insertable(rows).ExecuteCommand()`，默认 batch=500
+- 大表分批：按主键 / `atlas_row_id` keyset 分页读取，优先 `Fastest().BulkCopy()`，不支持时降级批量 `Insertable`，默认 batch=10000
 - 校验：行数差 + 5% 抽样字段哈希 + 外键存在性
 
 ### 12.7 新增元数据表（8 张）

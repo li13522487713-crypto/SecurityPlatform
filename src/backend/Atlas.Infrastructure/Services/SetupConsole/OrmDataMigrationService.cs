@@ -170,11 +170,19 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         return MapJob(job);
     }
 
+    public async Task<DataMigrationJobDto> GetJobAsync(
+        string jobId,
+        CancellationToken cancellationToken = default)
+    {
+        var job = await LoadJobAsync(jobId, cancellationToken).ConfigureAwait(false);
+        return MapJob(job);
+    }
+
     public async Task<DataMigrationPrecheckResultDto> PrecheckJobAsync(
         string jobId,
         CancellationToken cancellationToken = default)
     {
-        var job = await LoadJobAsync(jobId).ConfigureAwait(false);
+        var job = await LoadJobAsync(jobId, cancellationToken).ConfigureAwait(false);
         job.TransitionTo(DataMigrationStates.Prechecking, DateTimeOffset.UtcNow);
         await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
 
@@ -205,7 +213,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         string jobId,
         CancellationToken cancellationToken = default)
     {
-        var job = await LoadJobAsync(jobId).ConfigureAwait(false);
+        var job = await LoadJobAsync(jobId, cancellationToken).ConfigureAwait(false);
         if (job.State is not (DataMigrationStates.Ready or DataMigrationStates.Failed or DataMigrationStates.Cancelled or DataMigrationStates.RolledBack or DataMigrationStates.Created))
         {
             throw new InvalidOperationException($"cannot start migration from state {job.State}");
@@ -551,13 +559,13 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private async Task<DataMigrationJob> LoadJobAsync(string jobId)
+    private async Task<DataMigrationJob> LoadJobAsync(string jobId, CancellationToken cancellationToken = default)
     {
         var parsedId = ParseJobId(jobId);
         var tenant = _tenantProvider.GetTenantId().Value;
         var job = await _db.Queryable<DataMigrationJob>()
             .Where(item => item.TenantIdValue == tenant && item.Id == parsedId)
-            .FirstAsync()
+            .FirstAsync(cancellationToken)
             .ConfigureAwait(false);
         return job ?? throw new InvalidOperationException($"migration job {jobId} not found");
     }
@@ -679,8 +687,8 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         int sampleSize,
         string tableName)
     {
-        var sourceRows = QueryPage(sourceScope, entityType, 0, sampleSize);
-        var targetRows = QueryPage(targetScope, entityType, 0, sampleSize);
+        var sourceRows = QuerySample(sourceScope, entityType, sampleSize);
+        var targetRows = QuerySample(targetScope, entityType, sampleSize);
         if (sourceRows is null || targetRows is null)
         {
             return new DataMigrationSamplingDiffDto(entityType.Name, tableName, 0, 0, Array.Empty<string>());
@@ -745,7 +753,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         return idProp?.GetValue(row)?.ToString() ?? string.Empty;
     }
 
-    private static System.Collections.IList? QueryPage(ISqlSugarClient scope, Type entityType, int skip, int take)
+    private static System.Collections.IList? QuerySample(ISqlSugarClient scope, Type entityType, int take)
     {
         var queryableMethod = scope.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .First(method => method.Name == "Queryable" && method.IsGenericMethod && method.GetParameters().Length == 0);
@@ -755,15 +763,22 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             return null;
         }
 
-        var skipMethod = queryable.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .First(method => method.Name == "Skip" && method.GetParameters().Length == 1);
-        var skipped = skipMethod.Invoke(queryable, new object[] { skip });
-        var takeMethod = queryable.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+        var ordered = TryOrderById(queryable);
+        var takeMethod = ordered.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .First(method => method.Name == "Take" && method.GetParameters().Length == 1);
-        var taken = takeMethod.Invoke(skipped, new object[] { take });
+        var taken = takeMethod.Invoke(ordered, new object[] { take });
         var toListMethod = taken!.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .First(method => method.Name == "ToList" && method.GetParameters().Length == 0);
         return toListMethod.Invoke(taken, null) as System.Collections.IList;
+    }
+
+    private static object TryOrderById(object queryable)
+    {
+        var orderByMethod = queryable.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .FirstOrDefault(method => method.Name == "OrderBy"
+                                      && method.GetParameters().Length == 1
+                                      && method.GetParameters()[0].ParameterType == typeof(string));
+        return orderByMethod?.Invoke(queryable, new object[] { "Id asc" }) ?? queryable;
     }
 
     private static long CountEntity(ISqlSugarClient scope, Type entityType)
