@@ -229,6 +229,8 @@ export function CreateDataSourceModal({
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Typography.Text type="tertiary">{t("cozeLibraryCreateDataSourceHint")}</Typography.Text>
+
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <Typography.Text strong>{t("cozeLibraryCreateName")}</Typography.Text>
             <Input value={name} onChange={setName} placeholder={t("cozeLibraryCreateNameRequired")} />

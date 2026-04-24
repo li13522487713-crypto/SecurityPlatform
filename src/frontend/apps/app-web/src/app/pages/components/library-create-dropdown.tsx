@@ -21,7 +21,7 @@ const ITEMS: { key: LibraryResourceType; labelKey: AppMessageKey; icon: ReactNod
   { key: "knowledge-base", labelKey: "cozeLibraryTabKnowledge", icon: <IconFolder /> },
   { key: "card", labelKey: "cozeLibraryTabCard", icon: <IconBox /> },
   { key: "prompt", labelKey: "cozeLibraryTabPrompt", icon: <IconArticle /> },
-  { key: "database", labelKey: "cozeLibraryTabDatabase", icon: <IconList /> },
+  { key: "database", labelKey: "cozeLibraryCreateDataSourceTitle", icon: <IconList /> },
   { key: "voice", labelKey: "cozeLibraryTabVoice", icon: <IconHistogram /> },
   { key: "memory", labelKey: "cozeLibraryTabMemory", icon: <IconLink /> }
 ];

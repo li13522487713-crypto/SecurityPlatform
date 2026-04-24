@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Banner,
   Button,
@@ -70,9 +70,29 @@ const DEFAULT_CONFIG: MigrationConfigState = {
   validateAfterCopy: false
 };
 
-function apiMessage(response: { message?: string | null; traceId?: string | null }): string {
+interface ApiFailureShape {
+  message?: string | null;
+  traceId?: string | null;
+  code?: string | null;
+  errorCode?: string | null;
+}
+
+function isConsoleAuthExpired(response: ApiFailureShape): boolean {
+  const code = String(response.code ?? response.errorCode ?? "").toUpperCase();
+  return code === "CONSOLE_TOKEN_EXPIRED" || response.message?.includes("console token") === true;
+}
+
+function apiMessage(response: ApiFailureShape, authExpiredMessage: string): string {
+  if (isConsoleAuthExpired(response)) {
+    return authExpiredMessage;
+  }
+
   const message = response.message?.trim() || "请求失败";
   return response.traceId ? `${message} (traceId: ${response.traceId})` : message;
+}
+
+function normalizedMigrationState(state?: string | null): string {
+  return String(state ?? "").toLowerCase();
 }
 
 function isTerminalState(state?: string | null): boolean {
@@ -86,7 +106,17 @@ function isTerminalState(state?: string | null): boolean {
     "cutover-completed",
     "cutover_failed",
     "cutover-failed"
-  ].includes(String(state ?? "").toLowerCase());
+  ].includes(normalizedMigrationState(state));
+}
+
+function isReadyForValidation(state?: string | null): boolean {
+  return [
+    "succeeded",
+    "validated",
+    "validation_failed",
+    "cutover_ready",
+    "cutover-ready"
+  ].includes(normalizedMigrationState(state));
 }
 
 function formatTime(value?: string | null): string {
@@ -128,6 +158,15 @@ function buildTargetConfig(target: TenantDataSourceDto): DbConnectionConfig {
   };
 }
 
+function ConfigField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+      <Text strong>{label}</Text>
+      {children}
+    </label>
+  );
+}
+
 export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWizardDrawerProps) {
   const { t } = useAppI18n();
   const [step, setStep] = useState(0);
@@ -164,6 +203,38 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
 
   const sourceConfig = useMemo(() => (source ? buildSourceConfig(source) : null), [source]);
   const targetConfig = useMemo(() => (selectedTarget ? buildTargetConfig(selectedTarget) : null), [selectedTarget]);
+  const currentMigrationState = progress?.state ?? job?.state ?? null;
+  const canEnterValidateStep = isReadyForValidation(currentMigrationState);
+
+  const formatApiMessage = useCallback(
+    (response: ApiFailureShape) => apiMessage(response, t("setupConsoleMigrationAuthExpired")),
+    [t]
+  );
+
+  const resetJobState = useCallback(() => {
+    setJob(null);
+    setPrecheck(null);
+    setProgress(null);
+    setReport(null);
+    setCutoverConfirmed(false);
+    setRestartConfirmed(false);
+  }, []);
+
+  const updateConfig = useCallback(
+    (updater: (current: MigrationConfigState) => MigrationConfigState) => {
+      resetJobState();
+      setConfig(updater);
+    },
+    [resetJobState]
+  );
+
+  const handleTargetSelect = useCallback(
+    (selected: (string | number)[]) => {
+      resetJobState();
+      setTargetId(String(selected[0] ?? ""));
+    },
+    [resetJobState]
+  );
 
   const reset = useCallback(() => {
     setStep(0);
@@ -216,14 +287,14 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
           window.setTimeout(() => void poll(), 1500);
         }
       } else {
-        Toast.error(apiMessage(response));
+        Toast.error(formatApiMessage(response));
       }
     };
     void poll();
     return () => {
       stopped = true;
     };
-  }, [job, step, visible]);
+  }, [formatApiMessage, job, step, visible]);
 
   const guarded = useCallback(async (label: string, action: () => Promise<void>) => {
     if (busy) {
@@ -262,18 +333,18 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       validateAfterCopy: config.validateAfterCopy
     });
     if (!response.success || !response.data) {
-      throw new Error(apiMessage(response));
+      throw new Error(formatApiMessage(response));
     }
     setJob(response.data);
     return response.data;
-  }, [config, job, sourceConfig, targetConfig, t]);
+  }, [config, formatApiMessage, job, sourceConfig, targetConfig, t]);
 
   const handlePrecheck = () =>
     guarded("precheck", async () => {
       const currentJob = await ensureJob();
       const response = await setupConsoleApi.precheckMigrationJob(currentJob.id);
       if (!response.success || !response.data) {
-        throw new Error(apiMessage(response));
+        throw new Error(formatApiMessage(response));
       }
       setPrecheck(response.data);
       setJob(response.data.job);
@@ -284,7 +355,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       const currentJob = await ensureJob();
       const response = await setupConsoleApi.startMigrationJob(currentJob.id);
       if (!response.success || !response.data) {
-        throw new Error(apiMessage(response));
+        throw new Error(formatApiMessage(response));
       }
       setJob(response.data);
       setStep(3);
@@ -297,7 +368,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       }
       const response = await setupConsoleApi.cancelMigrationJob(job.id);
       if (!response.success || !response.data) {
-        throw new Error(apiMessage(response));
+        throw new Error(formatApiMessage(response));
       }
       setJob(response.data);
     });
@@ -309,7 +380,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       }
       const response = await setupConsoleApi.validateMigrationJob(job.id);
       if (!response.success || !response.data) {
-        throw new Error(apiMessage(response));
+        throw new Error(formatApiMessage(response));
       }
       setReport(response.data);
     });
@@ -325,7 +396,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
         confirmRestartRequired: restartConfirmed
       });
       if (!response.success || !response.data) {
-        throw new Error(apiMessage(response));
+        throw new Error(formatApiMessage(response));
       }
       setJob(response.data);
       Toast.success(t("setupConsoleMigrationCutoverCompleted"));
@@ -427,7 +498,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
             pagination={false}
             rowSelection={{
               selectedRowKeys: targetId ? [targetId] : [],
-              onChange: selected => setTargetId(String(selected[0] ?? ""))
+              onChange: selected => handleTargetSelect(selected as (string | number)[])
             }}
           />
           <Space>
@@ -461,57 +532,66 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
           </Card>
           <Card>
             <Space vertical align="start" style={{ width: "100%" }}>
-              <Select
-                value={config.scopeMode}
-                onChange={value => setConfig(current => ({ ...current, scopeMode: String(value) as MigrationConfigState["scopeMode"] }))}
-                optionList={[
-                  { value: "all", label: t("setupConsoleMigrationScopeAll") },
-                  { value: "module", label: t("setupConsoleMigrationScopeByCategory") },
-                  { value: "table", label: t("setupConsoleMigrationScopeByEntity") }
-                ]}
-                style={{ width: 240 }}
-              />
-              {config.scopeMode === "table" ? (
-                <Input.TextArea
-                  value={config.selectedTablesText}
-                  onChange={value => setConfig(current => ({ ...current, selectedTablesText: value }))}
-                  placeholder={t("setupConsoleMigrationSelectedTablesPlaceholder")}
-                  autosize={{ minRows: 3, maxRows: 6 }}
+              <ConfigField label={t("setupConsoleMigrationScopeLabel")}>
+                <Select
+                  value={config.scopeMode}
+                  onChange={value => updateConfig(current => ({ ...current, scopeMode: String(value) as MigrationConfigState["scopeMode"] }))}
+                  optionList={[
+                    { value: "all", label: t("setupConsoleMigrationScopeAll") },
+                    { value: "module", label: t("setupConsoleMigrationScopeByCategory") },
+                    { value: "table", label: t("setupConsoleMigrationScopeByEntity") }
+                  ]}
+                  style={{ width: 240 }}
                 />
+              </ConfigField>
+              {config.scopeMode === "table" ? (
+                <ConfigField label={t("setupConsoleMigrationSelectedTables")}>
+                  <Input.TextArea
+                    value={config.selectedTablesText}
+                    onChange={value => updateConfig(current => ({ ...current, selectedTablesText: value }))}
+                    placeholder={t("setupConsoleMigrationSelectedTablesPlaceholder")}
+                    autosize={{ minRows: 3, maxRows: 6 }}
+                  />
+                </ConfigField>
               ) : null}
-              <Select
-                value={config.writeMode}
-                onChange={value => setConfig(current => ({ ...current, writeMode: String(value) as WriteMode }))}
-                optionList={[
-                  { value: "InsertOnly", label: "InsertOnly" },
-                  { value: "TruncateThenInsert", label: "TruncateThenInsert" },
-                  { value: "Upsert", label: "Upsert", disabled: true }
-                ]}
-                style={{ width: 240 }}
-              />
+              <ConfigField label={t("setupConsoleMigrationWriteMode")}>
+                <Select
+                  value={config.writeMode}
+                  onChange={value => updateConfig(current => ({ ...current, writeMode: String(value) as WriteMode }))}
+                  optionList={[
+                    { value: "InsertOnly", label: "InsertOnly" },
+                    { value: "TruncateThenInsert", label: "TruncateThenInsert" },
+                    { value: "Upsert", label: "Upsert", disabled: true }
+                  ]}
+                  style={{ width: 240 }}
+                />
+              </ConfigField>
               <Text type="tertiary">{t("setupConsoleMigrationUpsertDisabledHint")}</Text>
-              <InputNumber
-                value={config.batchSize}
-                min={100}
-                max={100000}
-                step={1000}
-                onChange={value => setConfig(current => ({ ...current, batchSize: Number(value ?? 10000) }))}
-              />
-              <Checkbox checked={config.createSchema} onChange={event => setConfig(current => ({ ...current, createSchema: Boolean(event.target.checked) }))}>
+              <ConfigField label={t("setupConsoleMigrationBatchSize")}>
+                <InputNumber
+                  value={config.batchSize}
+                  min={100}
+                  max={100000}
+                  step={1000}
+                  onChange={value => updateConfig(current => ({ ...current, batchSize: Number(value ?? 10000) }))}
+                />
+              </ConfigField>
+              <Checkbox checked={config.createSchema} onChange={event => updateConfig(current => ({ ...current, createSchema: Boolean(event.target.checked) }))}>
                 {t("setupConsoleMigrationCreateSchema")}
               </Checkbox>
-              <Checkbox checked={config.migrateSystemTables} onChange={event => setConfig(current => ({ ...current, migrateSystemTables: Boolean(event.target.checked) }))}>
+              <Checkbox checked={config.migrateSystemTables} onChange={event => updateConfig(current => ({ ...current, migrateSystemTables: Boolean(event.target.checked) }))}>
                 {t("setupConsoleMigrationMigrateSystemTables")}
               </Checkbox>
-              <Checkbox checked={config.migrateFiles} onChange={event => setConfig(current => ({ ...current, migrateFiles: Boolean(event.target.checked) }))}>
+              <Checkbox checked={config.migrateFiles} onChange={event => updateConfig(current => ({ ...current, migrateFiles: Boolean(event.target.checked) }))}>
                 {t("setupConsoleMigrationMigrateFiles")}
               </Checkbox>
-              <Checkbox checked={config.validateAfterCopy} onChange={event => setConfig(current => ({ ...current, validateAfterCopy: Boolean(event.target.checked) }))}>
+              <Checkbox checked={config.validateAfterCopy} onChange={event => updateConfig(current => ({ ...current, validateAfterCopy: Boolean(event.target.checked) }))}>
                 {t("setupConsoleMigrationValidateAfterCopy")}
               </Checkbox>
               <Button loading={busy === "precheck"} disabled={!selectedTarget} onClick={() => void handlePrecheck()}>
                 {t("setupConsoleMigrationPrecheck")}
               </Button>
+              {!precheck ? <Banner type="info" description={t("setupConsoleMigrationPrecheckRequired")} /> : null}
             </Space>
           </Card>
           {precheck ? (
@@ -546,7 +626,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
               <Metric label={t("setupConsoleMigrationProgressFailedEntities")} value={String(progress?.failedEntities ?? job?.failedEntities ?? 0)} />
               <Metric label={t("setupConsoleMigrationProgressCurrentEntity")} value={progress?.currentTableName ?? progress?.currentEntityName ?? job?.currentTableName ?? "-"} />
               <Metric label={t("setupConsoleMigrationProgressCurrentBatch")} value={String(progress?.currentBatchNo ?? job?.currentBatchNo ?? "-")} />
-              <Metric label={t("setupConsoleMigrationStateRunning")} value={progress?.state ?? job?.state ?? "-"} />
+              <Metric label={t("setupConsoleMigrationColumnState")} value={progress?.state ?? job?.state ?? "-"} />
               <Metric label={t("setupConsoleMigrationStartedAt")} value={formatTime(progress?.startedAt ?? job?.startedAt)} />
               <Metric label={t("setupConsoleMigrationElapsed")} value={`${progress?.elapsedSeconds ?? 0}s`} />
             </div>
@@ -559,6 +639,9 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
               </Button>
             </Space>
           </Card>
+          {!canEnterValidateStep ? (
+            <Banner type="info" description={t("setupConsoleMigrationProgressNotReady")} />
+          ) : null}
           <Table columns={progressColumns} dataSource={progressRows} rowKey="tableName" pagination={false} scroll={{ y: 360 }} />
         </div>
       );
@@ -612,6 +695,26 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
     );
   };
 
+  const canUseNext =
+    (step === 0 && Boolean(source)) ||
+    (step === 1 && Boolean(selectedTarget)) ||
+    (step === 3 && canEnterValidateStep);
+  const showNextButton = step !== 2 && step < 4;
+  const handleNext = () => {
+    if (step === 3 && !canEnterValidateStep) {
+      Toast.warning(t("setupConsoleMigrationProgressNotReady"));
+      return;
+    }
+    setStep(current => Math.min(4, current + 1));
+  };
+  const handleStartFromConfig = () => {
+    if (!precheck) {
+      Toast.warning(t("setupConsoleMigrationPrecheckRequired"));
+      return;
+    }
+    void handleStart();
+  };
+
   return (
     <SideSheet
       title={t("setupConsoleMigrationWizardTitle")}
@@ -620,23 +723,31 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
       width={1080}
       footer={
         <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-          <Button disabled={step <= 0} onClick={() => setStep(current => Math.max(0, current - 1))}>
+          <Button disabled={step <= 0 || busy !== null} onClick={() => setStep(current => Math.max(0, current - 1))}>
             {t("cozeCommonBack")}
           </Button>
           <Space>
             {step === 2 ? (
-              <Button type="primary" theme="solid" loading={busy === "start"} disabled={!selectedTarget} onClick={() => void handleStart()}>
+              <Button
+                type="primary"
+                theme="solid"
+                loading={busy === "start"}
+                disabled={!selectedTarget || busy !== null}
+                onClick={handleStartFromConfig}
+              >
                 {t("setupConsoleMigrationStart")}
               </Button>
             ) : null}
-            <Button
-              type="primary"
-              theme="solid"
-              disabled={(step === 1 && !selectedTarget) || step >= 4}
-              onClick={() => setStep(current => Math.min(4, current + 1))}
-            >
-              {t("cozeCommonNext")}
-            </Button>
+            {showNextButton ? (
+              <Button
+                type="primary"
+                theme="solid"
+                disabled={!canUseNext || busy !== null}
+                onClick={handleNext}
+              >
+                {t("cozeCommonNext")}
+              </Button>
+            ) : null}
           </Space>
         </div>
       }
@@ -657,6 +768,7 @@ export function MigrationWizardDrawer({ visible, source, onClose }: MigrationWiz
         onClose={() => setCreateDataSourceOpen(false)}
         onCreated={async item => {
           setCreateDataSourceOpen(false);
+          resetJobState();
           await loadTargets();
           setTargetId(item.id);
         }}

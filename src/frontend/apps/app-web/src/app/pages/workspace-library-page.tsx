@@ -94,6 +94,19 @@ function formatDate(iso?: string): string {
 }
 
 const TAB_KEYS = new Set<string>(TAB_DEFS.map(x => x.key));
+const SETUP_CONSOLE_TOKEN_KEY = "atlas_setup_console_token";
+
+function hasSetupConsoleToken(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    return Boolean(window.sessionStorage.getItem(SETUP_CONSOLE_TOKEN_KEY));
+  } catch {
+    return false;
+  }
+}
 
 function tabFromSearch(query: string | null): LibraryTabKey {
   if (!query || query === "all") {
@@ -348,13 +361,25 @@ export function WorkspaceLibraryPage() {
     [load, t]
   );
 
+  const handleOpenMigration = useCallback(
+    (record: AiWorkspaceLibraryItem) => {
+      if (!hasSetupConsoleToken()) {
+        Toast.warning(t("setupConsoleMigrationAuthRequired"));
+        return;
+      }
+
+      setMigrationSource(record);
+    },
+    [t]
+  );
+
   const renderActionMenu = useCallback(
     (record: AiWorkspaceLibraryItem) => (
       <Dropdown.Menu>
         <Dropdown.Item onClick={() => handleOpen(record)}>{t("cozeLibraryActionDetail")}</Dropdown.Item>
         <Dropdown.Item disabled>{t("cozeLibraryActionCopyToSpace")}</Dropdown.Item>
         {record.resourceType === "database" && record.subType !== "datasource" ? (
-          <Dropdown.Item onClick={() => setMigrationSource(record)}>{t("cozeLibraryActionMigrateDatabase")}</Dropdown.Item>
+          <Dropdown.Item onClick={() => handleOpenMigration(record)}>{t("cozeLibraryActionMigrateDatabase")}</Dropdown.Item>
         ) : null}
         <Dropdown.Item disabled>{t("cozeLibraryActionBackup")}</Dropdown.Item>
         {record.resourceType === "database" ? (
@@ -366,7 +391,7 @@ export function WorkspaceLibraryPage() {
         )}
       </Dropdown.Menu>
     ),
-    [handleDeleteDatabase, handleOpen, t]
+    [handleDeleteDatabase, handleOpen, handleOpenMigration, t]
   );
 
   const columns: ColumnProps<AiWorkspaceLibraryItem>[] = useMemo(
