@@ -16,6 +16,7 @@ public sealed class AiDatabaseProvisionService : IAiDatabaseProvisioner
     private readonly AiDatabaseRepository _repository;
     private readonly AiDatabaseHostingOptions _hostingOptions;
     private readonly DatabaseEncryptionOptions _encryptionOptions;
+    private readonly IAiDatabaseProvisioningService? _managedProvisioningService;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly ILogger<AiDatabaseProvisionService> _logger;
 
@@ -25,16 +26,46 @@ public sealed class AiDatabaseProvisionService : IAiDatabaseProvisioner
         IOptions<DatabaseEncryptionOptions> encryptionOptions,
         IHostEnvironment hostEnvironment,
         ILogger<AiDatabaseProvisionService> logger)
+        : this(repository, hostingOptions, encryptionOptions, null, hostEnvironment, logger)
+    {
+    }
+
+    public AiDatabaseProvisionService(
+        AiDatabaseRepository repository,
+        IOptions<AiDatabaseHostingOptions> hostingOptions,
+        IOptions<DatabaseEncryptionOptions> encryptionOptions,
+        IAiDatabaseProvisioningService? managedProvisioningService,
+        IHostEnvironment hostEnvironment,
+        ILogger<AiDatabaseProvisionService> logger)
     {
         _repository = repository;
         _hostingOptions = hostingOptions.Value;
         _encryptionOptions = encryptionOptions.Value;
+        _managedProvisioningService = managedProvisioningService;
         _hostEnvironment = hostEnvironment;
         _logger = logger;
     }
 
     public async Task EnsureProvisionedAsync(AiDatabase database, CancellationToken cancellationToken)
     {
+        if (database.DefaultHostProfileId.HasValue)
+        {
+            if (database.ProvisionState == AiDatabaseProvisionState.Ready &&
+                database.DraftInstanceId.HasValue &&
+                database.OnlineInstanceId.HasValue)
+            {
+                return;
+            }
+
+            if (_managedProvisioningService is null)
+            {
+                throw new InvalidOperationException("Managed AI database provisioning service is not registered.");
+            }
+
+            await _managedProvisioningService.ProvisionAsync(database, cancellationToken);
+            return;
+        }
+
         if (database.StorageMode == AiDatabaseStorageMode.Standalone &&
             database.ProvisionState == AiDatabaseProvisionState.Ready &&
             !string.IsNullOrWhiteSpace(database.EncryptedDraftConnection) &&
@@ -118,6 +149,31 @@ public sealed class AiDatabaseProvisionService : IAiDatabaseProvisioner
 
     public async Task DropAsync(AiDatabase database, CancellationToken cancellationToken)
     {
+        if (database.DefaultHostProfileId.HasValue)
+        {
+            if (database.DraftInstanceId.HasValue)
+            {
+                if (_managedProvisioningService is null)
+                {
+                    throw new InvalidOperationException("Managed AI database provisioning service is not registered.");
+                }
+
+                await _managedProvisioningService.DropInstanceAsync(database.TenantId, database.DraftInstanceId.Value.ToString(), cancellationToken);
+            }
+
+            if (database.OnlineInstanceId.HasValue)
+            {
+                if (_managedProvisioningService is null)
+                {
+                    throw new InvalidOperationException("Managed AI database provisioning service is not registered.");
+                }
+
+                await _managedProvisioningService.DropInstanceAsync(database.TenantId, database.OnlineInstanceId.Value.ToString(), cancellationToken);
+            }
+
+            return;
+        }
+
         var driverCode = DataSourceDriverRegistry.NormalizeDriverCode(database.DriverCode);
         var names = AiDatabasePhysicalNameBuilder.Build(database.TenantId, database.Id, driverCode);
         switch (driverCode)

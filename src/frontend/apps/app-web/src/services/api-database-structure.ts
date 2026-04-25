@@ -1,5 +1,5 @@
 import type { ApiResponse } from "@atlas/shared-react-core/types";
-import { requestApi, toQuery } from "./api-core";
+import { requestApi } from "./api-core";
 
 export type DatabaseObjectType = "table" | "view" | "procedure" | "trigger";
 export type DatabaseEnvironment = "Draft" | "Online";
@@ -120,6 +120,11 @@ export interface DropDatabaseObjectRequest {
   confirmDanger: boolean;
 }
 
+export interface DriverDataTypeOption {
+  value: string;
+  label: string;
+}
+
 function unwrap<T>(response: ApiResponse<T>): T {
   if (response.success === false || response.data == null) {
     throw new Error(response.message || "Database structure API request failed.");
@@ -138,26 +143,26 @@ function base(databaseId: string): string {
 }
 
 export async function listDatabaseObjects(databaseId: string, type: DatabaseObjectType): Promise<DatabaseObjectDto[]> {
-  return unwrap(await requestApi<ApiResponse<DatabaseObjectDto[]>>(`${base(databaseId)}/objects?${toQuery({}, { type })}`));
+  return unwrap(await requestApi<ApiResponse<DatabaseObjectDto[]>>(`${base(databaseId)}/objects?${new URLSearchParams({ type }).toString()}`));
 }
 
 export async function getTableColumns(databaseId: string, tableName: string, schema?: string): Promise<DatabaseColumnDto[]> {
-  const query = schema ? `?${toQuery({}, { schema })}` : "";
+  const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
   return unwrap(await requestApi<ApiResponse<DatabaseColumnDto[]>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}/columns${query}`));
 }
 
 export async function getViewColumns(databaseId: string, viewName: string, schema?: string): Promise<DatabaseColumnDto[]> {
-  const query = schema ? `?${toQuery({}, { schema })}` : "";
+  const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
   return unwrap(await requestApi<ApiResponse<DatabaseColumnDto[]>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}/columns${query}`));
 }
 
 export async function getTableDdl(databaseId: string, tableName: string, schema?: string): Promise<DdlResponse> {
-  const query = schema ? `?${toQuery({}, { schema })}` : "";
+  const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
   return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}/ddl${query}`));
 }
 
 export async function getViewDdl(databaseId: string, viewName: string, schema?: string): Promise<DdlResponse> {
-  const query = schema ? `?${toQuery({}, { schema })}` : "";
+  const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
   return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}/ddl${query}`));
 }
 
@@ -222,4 +227,8 @@ export async function dropView(databaseId: string, viewName: string, request: Dr
     method: "DELETE",
     body: JSON.stringify(request)
   }));
+}
+
+export async function getDatabaseDriverDataTypes(driverCode: string): Promise<DriverDataTypeOption[]> {
+  return unwrap(await requestApi<ApiResponse<DriverDataTypeOption[]>>(`/database-resources/drivers/${encodeURIComponent(driverCode)}/data-types`));
 }

@@ -125,7 +125,15 @@ public sealed class AiDatabasesController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var id = await _service.CreateAsync(tenantId, request, cancellationToken);
         await WriteDatabaseAuditAsync("ai_database.create", $"db:{id}", cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+        var detail = await _service.GetByIdAsync(tenantId, id, cancellationToken);
+        var draftSourceId = string.IsNullOrWhiteSpace(detail?.DraftInstanceId) ? null : $"ai:{detail.DraftInstanceId}";
+        var onlineSourceId = string.IsNullOrWhiteSpace(detail?.OnlineInstanceId) ? null : $"ai:{detail.OnlineInstanceId}";
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            Id = id.ToString(),
+            DraftSourceId = draftSourceId,
+            OnlineSourceId = onlineSourceId
+        }, HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id:long}")]

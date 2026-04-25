@@ -36,19 +36,22 @@ public sealed class AiDatabaseClientFactory : IAiDatabaseClientFactory, IDisposa
     private readonly DatabaseEncryptionOptions _encryptionOptions;
     private readonly AiDatabaseHostingOptions _hostingOptions;
     private readonly ILogger<AiDatabaseClientFactory> _logger;
+    private readonly AiDatabasePhysicalInstanceRepository? _physicalInstanceRepository;
 
     public AiDatabaseClientFactory(
         AiDatabaseRepository repository,
         IAiDatabaseProvisioner provisioner,
         IOptions<DatabaseEncryptionOptions> encryptionOptions,
         IOptions<AiDatabaseHostingOptions> hostingOptions,
-        ILogger<AiDatabaseClientFactory> logger)
+        ILogger<AiDatabaseClientFactory> logger,
+        AiDatabasePhysicalInstanceRepository? physicalInstanceRepository = null)
     {
         _repository = repository;
         _provisioner = provisioner;
         _encryptionOptions = encryptionOptions.Value;
         _hostingOptions = hostingOptions.Value;
         _logger = logger;
+        _physicalInstanceRepository = physicalInstanceRepository;
     }
 
     public async Task<SqlSugarClient> GetClientAsync(
@@ -78,13 +81,27 @@ public sealed class AiDatabaseClientFactory : IAiDatabaseClientFactory, IDisposa
             return (database, cached);
         }
 
-        var encrypted = environment == AiDatabaseRecordEnvironment.Online
-            ? database.EncryptedOnlineConnection
-            : database.EncryptedDraftConnection;
+        var managedInstance = _physicalInstanceRepository is null
+            ? null
+            : await _physicalInstanceRepository.FindByDatabaseEnvironmentAsync(tenantId, databaseId, environment, cancellationToken);
+        var encrypted = managedInstance?.EncryptedConnection;
+        var driverCode = managedInstance?.DriverCode ?? database.DriverCode;
+
+        if (string.IsNullOrWhiteSpace(encrypted))
+        {
+            encrypted = environment == AiDatabaseRecordEnvironment.Online
+                ? database.EncryptedOnlineConnection
+                : database.EncryptedDraftConnection;
+        }
 
         if (string.IsNullOrWhiteSpace(encrypted))
         {
             throw new BusinessException("数据库连接尚未初始化。", ErrorCodes.ValidationError);
+        }
+
+        if (managedInstance is not null && managedInstance.ProvisionState != AiDatabaseProvisionState.Ready)
+        {
+            throw new BusinessException("数据库物理实例尚未就绪。", ErrorCodes.ValidationError);
         }
 
         var connectionString = _encryptionOptions.Enabled
@@ -96,7 +113,7 @@ public sealed class AiDatabaseClientFactory : IAiDatabaseClientFactory, IDisposa
             var client = new SqlSugarClient(new ConnectionConfig
             {
                 ConnectionString = connectionString,
-                DbType = DataSourceDriverRegistry.ResolveDbType(database.DriverCode),
+                DbType = DataSourceDriverRegistry.ResolveDbType(driverCode),
                 IsAutoCloseConnection = true
             });
             client.Ado.CommandTimeOut = Math.Clamp(_hostingOptions.CommandTimeoutSeconds, 1, 60);

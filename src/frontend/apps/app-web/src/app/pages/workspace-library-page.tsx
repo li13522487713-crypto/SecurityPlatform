@@ -39,6 +39,7 @@ import { MigrationWizardDrawer } from "./components/migration-wizard/migration-w
 import { deleteTenantDataSource } from "../../services/api-tenant-datasource";
 import { APP_PERMISSIONS } from "../../constants/permissions";
 import { useOptionalPermissionContext } from "../permission-context";
+import { DatabaseCenterPage } from "./database-center";
 
 type LibraryTabKey =
   | "all"
@@ -522,22 +523,31 @@ export function WorkspaceLibraryPage() {
           }}
           tabList={TAB_DEFS.map(x => ({ itemKey: x.key, tab: t(x.labelKey) }))}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Input
-            prefix={<IconSearch />}
-            placeholder={t("cozeLibrarySearchPlaceholder")}
-            value={keyword}
-            onChange={v => {
-              setKeyword(v);
-              setPageIndex(1);
-            }}
-            showClear
-            style={{ width: 240 }}
-          />
-          <Button onClick={() => setImportOpen(true)}>{t("cozeLibraryImport")}</Button>
-          <LibraryCreateDropdown onSelectType={handleSelectCreate} />
-        </div>
+        {activeTab === "database" ? null : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Input
+              prefix={<IconSearch />}
+              placeholder={t("cozeLibrarySearchPlaceholder")}
+              value={keyword}
+              onChange={v => {
+                setKeyword(v);
+                setPageIndex(1);
+              }}
+              showClear
+              style={{ width: 240 }}
+            />
+            <Button onClick={() => setImportOpen(true)}>{t("cozeLibraryImport")}</Button>
+            <LibraryCreateDropdown onSelectType={handleSelectCreate} />
+          </div>
+        )}
       </div>
+
+      {activeTab === "database" ? (
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <DatabaseCenterPage workspaceId={workspace.id} />
+        </div>
+      ) : (
+        <>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {subTypeOptions.length > 1 ? (
@@ -636,6 +646,8 @@ export function WorkspaceLibraryPage() {
         onClose={() => setMigrationSource(null)}
         onTargetCreated={() => void load()}
       />
+        </>
+      )}
     </div>
   );
 }

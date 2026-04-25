@@ -62,6 +62,7 @@ public static class PermissionPolicies
     public const string DataSourcesDelete = "Permission:system:datasource:delete";
     public const string DataSourcesQuery = "Permission:system:datasource:query";
     public const string DataSourcesSchemaWrite = "Permission:system:datasource:schema-write";
+    public const string AiDatabaseHostProfileManage = "Permission:ai-database-host-profile:manage";
 
     public const string UsersView = "Permission:users:view";
     public const string UsersCreate = "Permission:users:create";

@@ -35,7 +35,11 @@ public interface IDatabaseDialect
 
     string GetProcedureListSql(string? schema);
 
+    string GetFunctionListSql(string? schema);
+
     string GetTriggerListSql(string? schema);
+
+    string GetEventListSql(string? schema);
 
     string GetColumnListSql(string objectName, string? schema);
 
@@ -245,7 +249,11 @@ public abstract class DatabaseDialectBase : IDatabaseDialect
 
     public virtual string GetProcedureListSql(string? schema) => BuildListObjectsSql("procedure");
 
+    public virtual string GetFunctionListSql(string? schema) => BuildListObjectsSql("function");
+
     public virtual string GetTriggerListSql(string? schema) => BuildListObjectsSql("trigger");
+
+    public virtual string GetEventListSql(string? schema) => BuildListObjectsSql("event");
 
     public virtual string GetColumnListSql(string objectName, string? schema) => BuildColumnsSql(objectName, schema);
 

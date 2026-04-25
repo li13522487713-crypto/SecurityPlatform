@@ -130,7 +130,13 @@ function buildAllSpaceLinks(workspaceId: string, t: (key: AppMessageKey) => stri
       path: `${workspaceRootPath(workspaceId)}/library`,
       icon: <IconFolder />,
       testId: "app-sidebar-item-resources",
-      activeMatchers: [`${workspaceRootPath(workspaceId)}/library`, `${workspaceRootPath(workspaceId)}/plugin`, `${workspaceRootPath(workspaceId)}/knowledge`]
+      activeMatchers: [
+        `${workspaceRootPath(workspaceId)}/library`,
+        `${workspaceRootPath(workspaceId)}/plugin`,
+        `${workspaceRootPath(workspaceId)}/knowledge`,
+        `${workspaceRootPath(workspaceId)}/database`,
+        `${workspaceRootPath(workspaceId)}/databases`
+      ]
     },
     {
       key: "tasks",

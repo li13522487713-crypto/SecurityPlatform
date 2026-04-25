@@ -23,6 +23,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
     private readonly AiDatabaseChannelConfigRepository _channelConfigRepository;
     private readonly AiDatabaseRecordRepository _recordRepository;
     private readonly AiDatabaseImportTaskRepository _importTaskRepository;
+    private readonly AiDatabaseHostProfileRepository? _hostProfileRepository;
+    private readonly AiDatabasePhysicalInstanceRepository? _physicalInstanceRepository;
     private readonly AiAppResourceBindingRepository _appResourceBindingRepository;
     private readonly AiDatabaseQuotaPolicy _quotaPolicy;
     private readonly AiDatabasePhysicalTableService _physicalTableService;
@@ -48,12 +50,51 @@ public sealed class AiDatabaseService : IAiDatabaseService
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
         ILogger<AiDatabaseService> logger)
+        : this(
+            databaseRepository,
+            fieldRepository,
+            channelConfigRepository,
+            recordRepository,
+            importTaskRepository,
+            null,
+            null,
+            appResourceBindingRepository,
+            quotaPolicy,
+            physicalTableService,
+            provisioner,
+            fileStorageService,
+            backgroundWorkQueue,
+            idGeneratorAccessor,
+            unitOfWork,
+            logger)
+    {
+    }
+
+    public AiDatabaseService(
+        AiDatabaseRepository databaseRepository,
+        AiDatabaseFieldRepository fieldRepository,
+        AiDatabaseChannelConfigRepository channelConfigRepository,
+        AiDatabaseRecordRepository recordRepository,
+        AiDatabaseImportTaskRepository importTaskRepository,
+        AiDatabaseHostProfileRepository? hostProfileRepository,
+        AiDatabasePhysicalInstanceRepository? physicalInstanceRepository,
+        AiAppResourceBindingRepository appResourceBindingRepository,
+        AiDatabaseQuotaPolicy quotaPolicy,
+        AiDatabasePhysicalTableService physicalTableService,
+        IAiDatabaseProvisioner provisioner,
+        IFileStorageService fileStorageService,
+        IBackgroundWorkQueue backgroundWorkQueue,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        IUnitOfWork unitOfWork,
+        ILogger<AiDatabaseService> logger)
     {
         _databaseRepository = databaseRepository;
         _fieldRepository = fieldRepository;
         _channelConfigRepository = channelConfigRepository;
         _recordRepository = recordRepository;
         _importTaskRepository = importTaskRepository;
+        _hostProfileRepository = hostProfileRepository;
+        _physicalInstanceRepository = physicalInstanceRepository;
         _appResourceBindingRepository = appResourceBindingRepository;
         _quotaPolicy = quotaPolicy;
         _physicalTableService = physicalTableService;
@@ -144,6 +185,27 @@ public sealed class AiDatabaseService : IAiDatabaseService
         var id = _idGeneratorAccessor.NextId();
         var driverCode = Atlas.Infrastructure.Services.DataSourceDriverRegistry.NormalizeDriverCode(request.DriverCode);
         _ = Atlas.Infrastructure.Services.DataSourceDriverRegistry.ResolveDbType(driverCode);
+        AiDatabaseHostProfile? hostProfile = null;
+        if (!string.IsNullOrWhiteSpace(request.HostProfileId))
+        {
+            if (_hostProfileRepository is null || _physicalInstanceRepository is null)
+            {
+                throw new BusinessException("AI 数据库托管配置服务未注册。", ErrorCodes.ValidationError);
+            }
+
+            var hostProfileId = ParseRequiredId(request.HostProfileId, nameof(request.HostProfileId));
+            hostProfile = await _hostProfileRepository.FindByIdAsync(tenantId, hostProfileId, cancellationToken)
+                ?? throw new BusinessException("托管配置不存在。", ErrorCodes.NotFound);
+            if (!string.Equals(hostProfile.DriverCode, driverCode, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException("托管配置与数据库驱动不匹配。", ErrorCodes.ValidationError);
+            }
+
+            if (!hostProfile.IsEnabled)
+            {
+                throw new BusinessException("托管配置已停用。", ErrorCodes.ValidationError);
+            }
+        }
 
         var entity = new AiDatabase(
             tenantId,
@@ -156,12 +218,53 @@ public sealed class AiDatabaseService : IAiDatabaseService
             request.QueryMode,
             request.ChannelScope);
         entity.SetStandaloneDriver(driverCode);
+        AiDatabasePhysicalInstance? draftInstance = null;
+        AiDatabasePhysicalInstance? onlineInstance = null;
+        if (hostProfile is not null)
+        {
+            draftInstance = new AiDatabasePhysicalInstance(
+                tenantId,
+                _idGeneratorAccessor.NextId(),
+                id,
+                AiDatabaseRecordEnvironment.Draft,
+                driverCode,
+                hostProfile.Id);
+            if (request.EnvironmentMode == AiDatabaseEnvironmentMode.DraftOnline)
+            {
+                onlineInstance = new AiDatabasePhysicalInstance(
+                    tenantId,
+                    _idGeneratorAccessor.NextId(),
+                    id,
+                    AiDatabaseRecordEnvironment.Online,
+                    driverCode,
+                    hostProfile.Id);
+            }
+
+            entity.ConfigureManagedInstances(
+                driverCode,
+                hostProfile.Id,
+                draftInstance.Id,
+                onlineInstance?.Id,
+                request.PhysicalDatabaseName ?? request.SchemaName,
+                request.EnvironmentMode == AiDatabaseEnvironmentMode.DraftOnline ? request.PhysicalDatabaseName ?? request.SchemaName : null);
+        }
+
         var fields = BuildFieldEntities(tenantId, id, normalizedFields);
         var channelConfigs = BuildChannelConfigEntities(tenantId, id, items: null);
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _databaseRepository.AddAsync(entity, cancellationToken);
+            if (draftInstance is not null)
+            {
+                await _physicalInstanceRepository!.AddAsync(draftInstance, cancellationToken);
+            }
+
+            if (onlineInstance is not null)
+            {
+                await _physicalInstanceRepository!.AddAsync(onlineInstance, cancellationToken);
+            }
+
             await _fieldRepository.AddRangeAsync(fields, cancellationToken);
             await _channelConfigRepository.AddRangeAsync(channelConfigs, cancellationToken);
         }, cancellationToken);
@@ -1078,6 +1181,11 @@ public sealed class AiDatabaseService : IAiDatabaseService
     private static string NormalizeFieldType(string? type)
         => string.IsNullOrWhiteSpace(type) ? "string" : type.Trim().ToLowerInvariant();
 
+    private static long ParseRequiredId(string value, string name)
+        => long.TryParse(value, out var id) && id > 0
+            ? id
+            : throw new BusinessException($"{name} 必须是有效字符串 ID。", ErrorCodes.ValidationError);
+
     private static AiDatabaseListItem MapListItem(AiDatabase entity, int draftRecordCount, int onlineRecordCount)
         => new(
             entity.Id,
@@ -1091,6 +1199,9 @@ public sealed class AiDatabaseService : IAiDatabaseService
             entity.ChannelScope,
             entity.StorageMode,
             entity.DriverCode,
+            entity.DefaultHostProfileId?.ToString(),
+            entity.DraftInstanceId?.ToString(),
+            entity.OnlineInstanceId?.ToString(),
             entity.ProvisionState,
             entity.CreatedAt,
             entity.UpdatedAt);
@@ -1114,6 +1225,9 @@ public sealed class AiDatabaseService : IAiDatabaseService
             entity.ChannelScope,
             entity.StorageMode,
             entity.DriverCode,
+            entity.DefaultHostProfileId?.ToString(),
+            entity.DraftInstanceId?.ToString(),
+            entity.OnlineInstanceId?.ToString(),
             entity.ProvisionState,
             entity.ProvisionError,
             entity.WorkspaceId,

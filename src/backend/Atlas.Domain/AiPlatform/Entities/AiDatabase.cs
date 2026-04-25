@@ -29,6 +29,9 @@ public sealed class AiDatabase : TenantEntity
         PhysicalDatabaseName = string.Empty;
         DraftDatabaseName = string.Empty;
         OnlineDatabaseName = string.Empty;
+        DefaultHostProfileId = null;
+        DraftInstanceId = null;
+        OnlineInstanceId = null;
         DialectVersion = "v1";
         ProvisionState = AiDatabaseProvisionState.Pending;
         ResourceSource = LibrarySource.Custom;
@@ -69,6 +72,9 @@ public sealed class AiDatabase : TenantEntity
         PhysicalDatabaseName = string.Empty;
         DraftDatabaseName = string.Empty;
         OnlineDatabaseName = string.Empty;
+        DefaultHostProfileId = null;
+        DraftInstanceId = null;
+        OnlineInstanceId = null;
         DialectVersion = "v1";
         ProvisionState = AiDatabaseProvisionState.Pending;
         ResourceSource = resourceSource;
@@ -107,6 +113,9 @@ public sealed class AiDatabase : TenantEntity
     public string PhysicalDatabaseName { get; private set; }
     public string DraftDatabaseName { get; private set; }
     public string OnlineDatabaseName { get; private set; }
+    public long? DefaultHostProfileId { get; private set; }
+    public long? DraftInstanceId { get; private set; }
+    public long? OnlineInstanceId { get; private set; }
     public string DialectVersion { get; private set; }
     public AiDatabaseProvisionState ProvisionState { get; private set; }
     public string? ProvisionError { get; private set; }
@@ -176,6 +185,34 @@ public sealed class AiDatabase : TenantEntity
         ProvisionState = AiDatabaseProvisionState.Pending;
         ProvisionError = null;
         DialectVersion = string.IsNullOrWhiteSpace(DialectVersion) ? "v1" : DialectVersion;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ConfigureManagedInstances(
+        string driverCode,
+        long hostProfileId,
+        long? draftInstanceId,
+        long? onlineInstanceId,
+        string? draftDatabaseName,
+        string? onlineDatabaseName)
+    {
+        StorageMode = AiDatabaseStorageMode.Standalone;
+        DriverCode = string.IsNullOrWhiteSpace(driverCode) ? "SQLite" : driverCode.Trim();
+        DefaultHostProfileId = hostProfileId;
+        DraftInstanceId = draftInstanceId;
+        OnlineInstanceId = onlineInstanceId;
+        DraftDatabaseName = draftDatabaseName?.Trim() ?? string.Empty;
+        OnlineDatabaseName = onlineDatabaseName?.Trim() ?? string.Empty;
+        ProvisionState = AiDatabaseProvisionState.Pending;
+        ProvisionError = null;
+        DialectVersion = string.IsNullOrWhiteSpace(DialectVersion) ? "v1" : DialectVersion;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarkProvisionReady()
+    {
+        ProvisionState = AiDatabaseProvisionState.Ready;
+        ProvisionError = null;
         UpdatedAt = DateTime.UtcNow;
     }
 

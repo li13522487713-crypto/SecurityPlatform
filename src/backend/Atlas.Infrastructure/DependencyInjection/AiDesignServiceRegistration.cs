@@ -38,6 +38,8 @@ public static class AiDesignServiceRegistration
         services.AddScoped<KnowledgeDocumentRepository>();
         services.AddScoped<DocumentChunkRepository>();
         services.AddScoped<AiDatabaseRepository>();
+        services.AddScoped<AiDatabaseHostProfileRepository>();
+        services.AddScoped<AiDatabasePhysicalInstanceRepository>();
         services.AddScoped<AiDatabaseFieldRepository>();
         services.AddScoped<AiDatabaseChannelConfigRepository>();
         services.AddScoped<AiDatabaseRecordRepository>();
@@ -88,6 +90,11 @@ public static class AiDesignServiceRegistration
         services.AddScoped<KnowledgeQuotaPolicy>();
         services.AddScoped<AiDatabaseQuotaPolicy>();
         services.AddScoped<AiDatabasePhysicalTableService>();
+        services.AddScoped<IAiDatabaseSecretProtector, AiDatabaseSecretProtector>();
+        services.AddScoped<IAiDatabaseHostProfileService, AiDatabaseHostProfileService>();
+        services.AddScoped<IAiDatabasePhysicalInstanceService, AiDatabasePhysicalInstanceService>();
+        services.AddScoped<IAiDatabaseProvisioningService, AiDatabaseProvisioningService>();
+        services.AddScoped<IDatabaseManagementService, DatabaseManagementService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiAppResourceBindingService, AiAppResourceBindingService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();

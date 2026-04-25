@@ -92,24 +92,65 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
             var ch = sql[i];
             var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
 
-            if (state == ScannerState.Normal && ch == '/' && next == '*')
+            if (state == ScannerState.Normal)
             {
-                if (i + 2 < sql.Length && sql[i + 2] == '!')
+                if (ch == '/' && next == '*')
                 {
-                    throw new SqlSafetyException("SQL_MYSQL_VERSION_COMMENT_FORBIDDEN", "MySQL executable comments are not allowed.");
+                    if (i + 2 < sql.Length && sql[i + 2] == '!')
+                    {
+                        throw new SqlSafetyException("SQL_MYSQL_VERSION_COMMENT_FORBIDDEN", "MySQL executable comments are not allowed.");
+                    }
+
+                    state = ScannerState.BlockComment;
+                    builder.Append(' ');
+                    i++;
+                    continue;
                 }
 
-                state = ScannerState.BlockComment;
-                builder.Append(' ');
-                i++;
-                continue;
-            }
+                if (ch == '-' && next == '-')
+                {
+                    state = ScannerState.LineComment;
+                    builder.Append(' ');
+                    i++;
+                    continue;
+                }
 
-            if (state == ScannerState.Normal && ch == '-' && next == '-')
-            {
-                state = ScannerState.LineComment;
-                builder.Append(' ');
-                i++;
+                if (ch == '\'')
+                {
+                    state = ScannerState.SingleQuoted;
+                    builder.Append(' ');
+                    continue;
+                }
+
+                if (ch == '"')
+                {
+                    state = ScannerState.DoubleQuoted;
+                    builder.Append(' ');
+                    continue;
+                }
+
+                if (ch == '`')
+                {
+                    state = ScannerState.BacktickQuoted;
+                    builder.Append(' ');
+                    continue;
+                }
+
+                if (ch == '[')
+                {
+                    state = ScannerState.BracketQuoted;
+                    builder.Append(' ');
+                    continue;
+                }
+
+                if (ch == ';')
+                {
+                    result.Add(builder.ToString());
+                    builder.Clear();
+                    continue;
+                }
+
+                builder.Append(ch);
                 continue;
             }
 
@@ -135,13 +176,6 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
                 continue;
             }
 
-            if (state == ScannerState.Normal && ch == '\'')
-            {
-                state = ScannerState.SingleQuoted;
-                builder.Append(' ');
-                continue;
-            }
-
             if (state == ScannerState.SingleQuoted)
             {
                 if (ch == '\\' && next != '\0')
@@ -164,15 +198,14 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
                 continue;
             }
 
-            if (state == ScannerState.Normal && ch == '"')
-            {
-                state = ScannerState.DoubleQuoted;
-                builder.Append(' ');
-                continue;
-            }
-
             if (state == ScannerState.DoubleQuoted)
             {
+                if (ch == '\\' && next != '\0')
+                {
+                    i++;
+                    continue;
+                }
+
                 if (ch == '"' && next == '"')
                 {
                     i++;
@@ -187,17 +220,38 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
                 continue;
             }
 
-            if (state == ScannerState.Normal && ch == ';')
+            if (state == ScannerState.BacktickQuoted)
             {
-                result.Add(builder.ToString());
-                builder.Clear();
+                if (ch == '`' && next == '`')
+                {
+                    i++;
+                    continue;
+                }
+
+                if (ch == '`')
+                {
+                    state = ScannerState.Normal;
+                }
+
                 continue;
             }
 
-            builder.Append(ch);
+            if (state == ScannerState.BracketQuoted)
+            {
+                if (ch == ']' && next == ']')
+                {
+                    i++;
+                    continue;
+                }
+
+                if (ch == ']')
+                {
+                    state = ScannerState.Normal;
+                }
+            }
         }
 
-        if (state is ScannerState.SingleQuoted or ScannerState.DoubleQuoted or ScannerState.BlockComment)
+        if (state is ScannerState.SingleQuoted or ScannerState.DoubleQuoted or ScannerState.BacktickQuoted or ScannerState.BracketQuoted or ScannerState.BlockComment)
         {
             throw new SqlSafetyException("SQL_UNCLOSED_LITERAL_OR_COMMENT", "SQL contains an unclosed literal or comment.");
         }
@@ -210,7 +264,11 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
     {
         try
         {
-            EnsureNoForbidden(sql, allowedLeadingCreate: null);
+            foreach (var statement in SplitStatementsSafely(sql))
+            {
+                EnsureNoForbidden(statement, allowedLeadingCreate: null);
+            }
+
             return false;
         }
         catch (SqlSafetyException)
@@ -259,7 +317,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
                 throw new SqlSafetyException("SQL_FORBIDDEN_KEYWORD", "Dangerous SQL keyword detected.");
             }
 
-            if (ForbiddenFunctions.Contains(token))
+            if (IsForbiddenFunction(token))
             {
                 throw new SqlSafetyException("SQL_FORBIDDEN_FUNCTION", "Dangerous SQL function detected.");
             }
@@ -289,6 +347,36 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
                 throw new SqlSafetyException("SQL_FORBIDDEN_PHRASE", "Dangerous SQL phrase detected.");
             }
         }
+
+        if (ContainsCopyToProgram(tokens))
+        {
+            throw new SqlSafetyException("SQL_FORBIDDEN_PHRASE", "Dangerous SQL phrase detected.");
+        }
+    }
+
+    private static bool IsForbiddenFunction(string token)
+        => ForbiddenFunctions.Any(function => string.Equals(function, token, StringComparison.OrdinalIgnoreCase));
+
+    private static bool ContainsCopyToProgram(IReadOnlyList<string> tokens)
+    {
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            if (!string.Equals(tokens[i], "COPY", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            for (var j = i + 1; j + 1 < tokens.Count; j++)
+            {
+                if (string.Equals(tokens[j], "TO", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(tokens[j + 1], "PROGRAM", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static IEnumerable<string> TokenizeExecutableText(string statement)
@@ -307,6 +395,8 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         Normal,
         SingleQuoted,
         DoubleQuoted,
+        BacktickQuoted,
+        BracketQuoted,
         LineComment,
         BlockComment
     }

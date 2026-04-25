@@ -1,0 +1,121 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@profileId = 1
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 支持的数据库驱动
+GET {{baseUrl}}/api/v1/ai-database-host-profiles/drivers
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 托管配置列表
+GET {{baseUrl}}/api/v1/ai-database-host-profiles?pageIndex=1&pageSize=20&keyword=sqlite
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建 SQLite 托管配置
+# @name createSqliteHostProfile
+POST {{baseUrl}}/api/v1/ai-database-host-profiles
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "SQLite 本地托管",
+  "driverCode": "SQLite",
+  "provisionMode": "SQLiteFile",
+  "sqliteRootPath": "App_Data/ai-databases",
+  "defaultCharset": "utf8mb4",
+  "defaultCollation": "utf8mb4_0900_ai_ci",
+  "maxDatabaseCount": 100,
+  "isDefault": true,
+  "isEnabled": true
+}
+
+### 创建 MySQL 托管配置（AdminConnection 会加密落库，响应不回显）
+POST {{baseUrl}}/api/v1/ai-database-host-profiles
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "MySQL 开发托管",
+  "driverCode": "MySQL",
+  "provisionMode": "MySqlDatabase",
+  "host": "127.0.0.1",
+  "port": 3306,
+  "adminDatabase": "mysql",
+  "username": "root",
+  "password": "P@ssw0rd!",
+  "adminConnection": "Server=127.0.0.1;Port=3306;Database=mysql;User ID=root;Password=P@ssw0rd!;Charset=utf8mb4;",
+  "defaultCharset": "utf8mb4",
+  "defaultCollation": "utf8mb4_0900_ai_ci",
+  "maxDatabaseCount": 100,
+  "isDefault": false,
+  "isEnabled": true
+}
+
+### 获取托管配置详情
+GET {{baseUrl}}/api/v1/ai-database-host-profiles/{{profileId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 测试未保存托管配置
+POST {{baseUrl}}/api/v1/ai-database-host-profiles/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "driverCode": "SQLite",
+  "provisionMode": "SQLiteFile",
+  "sqliteRootPath": "App_Data/ai-databases"
+}
+
+### 测试已保存托管配置
+POST {{baseUrl}}/api/v1/ai-database-host-profiles/{{profileId}}/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 设为默认托管配置
+POST {{baseUrl}}/api/v1/ai-database-host-profiles/{{profileId}}/set-default
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新托管配置
+PUT {{baseUrl}}/api/v1/ai-database-host-profiles/{{profileId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "SQLite 本地托管",
+  "driverCode": "SQLite",
+  "provisionMode": "SQLiteFile",
+  "sqliteRootPath": "App_Data/ai-databases",
+  "defaultCharset": "utf8mb4",
+  "defaultCollation": "utf8mb4_0900_ai_ci",
+  "maxDatabaseCount": 200,
+  "isDefault": true,
+  "isEnabled": true
+}
+
+### 删除托管配置
+DELETE {{baseUrl}}/api/v1/ai-database-host-profiles/{{profileId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

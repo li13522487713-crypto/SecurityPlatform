@@ -24,16 +24,29 @@ public sealed class DatabaseDialectRegistryTests
     [InlineData("SQLite", "SQLite")]
     [InlineData("sqlite", "SQLite")]
     [InlineData("MySql", "MySql")]
+    [InlineData("mysql", "MySql")]
+    [InlineData("postgres", "PostgreSQL")]
     [InlineData("PostgreSQL", "PostgreSQL")]
     public void Resolve_KnownDriver_IsCaseInsensitive(string input, string expected)
     {
         Assert.Equal(expected, CreateRegistry().Resolve(input).DriverCode);
     }
 
-    [Fact]
-    public void Resolve_UnknownDriver_DoesNotFallbackToSqlite()
+    [Theory]
+    [InlineData("unknown-driver")]
+    [InlineData("Access")]
+    [InlineData("access")]
+    public void Resolve_UnsupportedDriver_DoesNotFallbackToSqlite(string driverCode)
     {
-        Assert.Throws<NotSupportedException>(() => CreateRegistry().Resolve("unknown-driver"));
+        Assert.Throws<NotSupportedException>(() => CreateRegistry().Resolve(driverCode));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Resolve_EmptyDriver_DoesNotFallbackToSqlite(string driverCode)
+    {
+        Assert.Throws<ArgumentException>(() => CreateRegistry().Resolve(driverCode));
     }
 }
 

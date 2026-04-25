@@ -112,6 +112,8 @@ public static class AtlasOrmSchemaCatalog
         typeof(KnowledgeImageAnnotationEntity),
         typeof(AiWorkflowDefinition),
         typeof(AiDatabase),
+        typeof(AiDatabaseHostProfile),
+        typeof(AiDatabasePhysicalInstance),
         typeof(AiDatabaseField),
         typeof(AiDatabaseChannelConfig),
         typeof(AiDatabaseRecord),
