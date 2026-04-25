@@ -204,6 +204,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureProductizationSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiPluginSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureAiDatabaseManagementSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureResourceLibrarySourceColumnsAsync(db, cancellationToken); migrationCount++;
             await EnsureWorkspacePortalSchemaAsync(db, cancellationToken); migrationCount++;
             await EnsureAiMemorySchemaAsync(db, cancellationToken); migrationCount++;
@@ -2045,6 +2046,28 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await AddColumnIfMissingAsync(db, "AiPlugin", "AuthConfigJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiPlugin", "ToolSchemaJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+    }
+
+    private static async Task EnsureAiDatabaseManagementSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AiDatabase", false))
+        {
+            return;
+        }
+
+        await AddColumnIfMissingAsync(db, "AiDatabase", "StorageMode", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "DriverCode", "TEXT NOT NULL DEFAULT 'SQLite'", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedDraftConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedOnlineConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "PhysicalDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "DraftDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "DefaultHostProfileId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "DraftInstanceId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineInstanceId", "INTEGER NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "DialectVersion", "TEXT NOT NULL DEFAULT 'v1'", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionState", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionError", "TEXT NULL", cancellationToken);
     }
 
     private static async Task EnsureResourceLibrarySourceColumnsAsync(ISqlSugarClient db, CancellationToken cancellationToken)

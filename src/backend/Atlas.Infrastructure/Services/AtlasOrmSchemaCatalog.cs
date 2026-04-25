@@ -364,7 +364,42 @@ public static class AtlasOrmSchemaCatalog
     public static void EnsureRuntimeSchema(ISqlSugarClient db)
     {
         ArgumentNullException.ThrowIfNull(db);
+        EnsureAiDatabaseManagementSchema(db);
         db.CodeFirst.InitTables(AllRuntimeEntityTypes);
+    }
+
+    private static void EnsureAiDatabaseManagementSchema(ISqlSugarClient db)
+    {
+        if (db.CurrentConnectionConfig?.DbType != DbType.Sqlite
+            || !db.DbMaintenance.IsAnyTable("AiDatabase", false))
+        {
+            return;
+        }
+
+        AddColumnIfMissing(db, "AiDatabase", "StorageMode", "INTEGER NOT NULL DEFAULT 1");
+        AddColumnIfMissing(db, "AiDatabase", "DriverCode", "TEXT NOT NULL DEFAULT 'SQLite'");
+        AddColumnIfMissing(db, "AiDatabase", "EncryptedDraftConnection", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "EncryptedOnlineConnection", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "PhysicalDatabaseName", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "DraftDatabaseName", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "OnlineDatabaseName", "TEXT NOT NULL DEFAULT ''");
+        AddColumnIfMissing(db, "AiDatabase", "DefaultHostProfileId", "INTEGER NULL");
+        AddColumnIfMissing(db, "AiDatabase", "DraftInstanceId", "INTEGER NULL");
+        AddColumnIfMissing(db, "AiDatabase", "OnlineInstanceId", "INTEGER NULL");
+        AddColumnIfMissing(db, "AiDatabase", "DialectVersion", "TEXT NOT NULL DEFAULT 'v1'");
+        AddColumnIfMissing(db, "AiDatabase", "ProvisionState", "INTEGER NOT NULL DEFAULT 0");
+        AddColumnIfMissing(db, "AiDatabase", "ProvisionError", "TEXT NULL");
+    }
+
+    private static void AddColumnIfMissing(ISqlSugarClient db, string tableName, string columnName, string columnDefinition)
+    {
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        if (columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        db.Ado.ExecuteCommand($"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition}");
     }
 
     public static IReadOnlyList<string> GetMissingCriticalTableNames(ISqlSugarClient db)
