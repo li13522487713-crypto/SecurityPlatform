@@ -2050,24 +2050,47 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
     private static async Task EnsureAiDatabaseManagementSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
-        if (!db.DbMaintenance.IsAnyTable("AiDatabase", false))
+        if (db.CurrentConnectionConfig?.DbType != DbType.Sqlite)
         {
             return;
         }
 
-        await AddColumnIfMissingAsync(db, "AiDatabase", "StorageMode", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "DriverCode", "TEXT NOT NULL DEFAULT 'SQLite'", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedDraftConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedOnlineConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "PhysicalDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "DraftDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "DefaultHostProfileId", "INTEGER NULL", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "DraftInstanceId", "INTEGER NULL", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineInstanceId", "INTEGER NULL", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "DialectVersion", "TEXT NOT NULL DEFAULT 'v1'", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionState", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
-        await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionError", "TEXT NULL", cancellationToken);
+        if (db.DbMaintenance.IsAnyTable("AiDatabase", false))
+        {
+            await AddColumnIfMissingAsync(db, "AiDatabase", "StorageMode", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DriverCode", "TEXT NOT NULL DEFAULT 'SQLite'", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedDraftConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "EncryptedOnlineConnection", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "PhysicalDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DraftDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineDatabaseName", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DefaultHostProfileId", "INTEGER NULL", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DraftInstanceId", "INTEGER NULL", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "OnlineInstanceId", "INTEGER NULL", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "DialectVersion", "TEXT NOT NULL DEFAULT 'v1'", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionState", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+            await AddColumnIfMissingAsync(db, "AiDatabase", "ProvisionError", "TEXT NULL", cancellationToken);
+        }
+
+        if (RequiresNullableColumnFix<AiDatabaseHostProfile>(
+                db,
+                "Port",
+                "MaxDatabaseCount",
+                "LastTestAt",
+                "LastTestMessage"))
+        {
+            await RebuildTableViaOrmAsync<AiDatabaseHostProfile>(db, cancellationToken);
+        }
+
+        if (RequiresNullableColumnFix<AiDatabasePhysicalInstance>(
+                db,
+                "ProvisionError",
+                "DriverVersion",
+                "LastConnectedAt",
+                "LastConnectionTestMessage"))
+        {
+            await RebuildTableViaOrmAsync<AiDatabasePhysicalInstance>(db, cancellationToken);
+        }
     }
 
     private static async Task EnsureResourceLibrarySourceColumnsAsync(ISqlSugarClient db, CancellationToken cancellationToken)

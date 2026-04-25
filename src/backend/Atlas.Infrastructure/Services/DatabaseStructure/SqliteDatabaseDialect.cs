@@ -13,7 +13,10 @@ public sealed class SqliteDatabaseDialect : DatabaseDialectBase
         "TEXT",
         "REAL",
         "NUMERIC",
-        "BLOB"
+        "BLOB",
+        "DATETIME",
+        "DATE",
+        "BOOLEAN"
     };
 
     public override string BuildListObjectsSql(string objectType)
@@ -32,7 +35,18 @@ public sealed class SqliteDatabaseDialect : DatabaseDialectBase
     public override string BuildColumnsSql(string objectName, string? schema)
     {
         ValidateIdentifier(objectName);
-        return $"PRAGMA table_info({QuoteIdentifier(objectName)})";
+        var escapedObjectName = objectName.Replace("'", "''", StringComparison.Ordinal);
+        return $"""
+            SELECT
+                CAST(cid AS INTEGER) AS cid,
+                CAST(name AS TEXT) AS name,
+                CAST(type AS TEXT) AS type,
+                CAST("notnull" AS INTEGER) AS "notnull",
+                IFNULL(CAST(dflt_value AS TEXT), '') AS dflt_value,
+                CAST(pk AS INTEGER) AS pk
+            FROM pragma_table_info('{escapedObjectName}')
+            ORDER BY cid
+            """;
     }
 
     public override string BuildDdlSql(string objectName, string? schema, string objectType)

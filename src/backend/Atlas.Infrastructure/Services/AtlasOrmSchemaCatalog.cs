@@ -389,6 +389,26 @@ public static class AtlasOrmSchemaCatalog
         AddColumnIfMissing(db, "AiDatabase", "DialectVersion", "TEXT NOT NULL DEFAULT 'v1'");
         AddColumnIfMissing(db, "AiDatabase", "ProvisionState", "INTEGER NOT NULL DEFAULT 0");
         AddColumnIfMissing(db, "AiDatabase", "ProvisionError", "TEXT NULL");
+
+        if (SqliteSchemaAlignment.RequiresNullableColumnFix<AiDatabaseHostProfile>(
+                db,
+                "Port",
+                "MaxDatabaseCount",
+                "LastTestAt",
+                "LastTestMessage"))
+        {
+            SqliteSchemaAlignment.RebuildTableViaOrm<AiDatabaseHostProfile>(db);
+        }
+
+        if (SqliteSchemaAlignment.RequiresNullableColumnFix<AiDatabasePhysicalInstance>(
+                db,
+                "ProvisionError",
+                "DriverVersion",
+                "LastConnectedAt",
+                "LastConnectionTestMessage"))
+        {
+            SqliteSchemaAlignment.RebuildTableViaOrm<AiDatabasePhysicalInstance>(db);
+        }
     }
 
     private static void AddColumnIfMissing(ISqlSugarClient db, string tableName, string columnName, string columnDefinition)

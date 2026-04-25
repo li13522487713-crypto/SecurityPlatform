@@ -107,6 +107,24 @@ internal static class SqliteSchemaAlignment
         }
     }
 
+    public static void RebuildTableViaOrm<TEntity>(ISqlSugarClient db)
+        where TEntity : class, new()
+    {
+        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
+        var data = db.Queryable<TEntity>().ToList();
+        db.DbMaintenance.DropTable(tableName);
+        db.CodeFirst.InitTables<TEntity>();
+        if (data.Count > 0)
+        {
+            db.Insertable(data).ExecuteCommand();
+        }
+    }
+
     public static SqliteCatalogCleanupResult CleanupBrokenSchemaEntries(ISqlSugarClient db)
     {
         try

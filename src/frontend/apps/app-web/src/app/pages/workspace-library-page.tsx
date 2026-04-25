@@ -16,7 +16,6 @@ import type { ColumnProps } from "@douyinfe/semi-ui/lib/es/table";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   chatflowEditorPath,
-  orgWorkspaceDatabaseDetailPath,
   orgWorkspaceKnowledgeBaseDetailPath,
   orgWorkspacePluginDetailPath,
   workflowEditorPath,
@@ -273,7 +272,7 @@ export function WorkspaceLibraryPage() {
         { resourceType: tab?.resourceType, source, keyword, subType: st }
       );
       setItems(result.items);
-      setTotal(result.total);
+      setTotal(Number(result.total ?? 0));
     } catch (error) {
       Toast.error((error as Error).message || t("cozeLibraryQueryFailed"));
       setItems([]);
@@ -328,7 +327,7 @@ export function WorkspaceLibraryPage() {
             navigate("/settings/system/datasources");
             return;
           }
-          navigate(orgWorkspaceDatabaseDetailPath(workspace.orgId, workspace.id, record.resourceId));
+          navigate(`/space/${encodeURIComponent(workspace.id)}/library?tab=database&databaseId=${encodeURIComponent(record.resourceId)}`);
           return;
         case "prompt":
           navigate("/ai/prompts");
@@ -544,7 +543,10 @@ export function WorkspaceLibraryPage() {
 
       {activeTab === "database" ? (
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          <DatabaseCenterPage workspaceId={workspace.id} />
+          <DatabaseCenterPage
+            workspaceId={workspace.id}
+            initialSourceId={searchParams.get("sourceId") ?? searchParams.get("databaseId") ?? undefined}
+          />
         </div>
       ) : (
         <>

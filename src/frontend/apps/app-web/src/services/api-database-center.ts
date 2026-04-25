@@ -4,10 +4,11 @@ import { extractResourceId, requestApi, toQuery } from "./api-core";
 export type DatabaseCenterSourceKind = "AiDatabase" | "TenantDataSource" | "External" | string;
 export type DatabaseCenterEnvironment = "Draft" | "Online";
 export type DatabaseCenterObjectType = "table" | "view" | "procedure" | "function" | "trigger" | "event";
-export type DatabaseCenterProvisionMode = "Managed" | "Existing" | "Attach" | string;
+export type DatabaseCenterProvisionMode = "SQLiteFile" | "MySqlDatabase" | "PostgreSqlSchema" | "PostgreSqlDatabase" | "ExistingDatabase" | string;
 
 export interface DatabaseCenterSourceSummary {
   id: string;
+  aiDatabaseId?: string | null;
   name: string;
   sourceKind: DatabaseCenterSourceKind;
   driverCode: string;
@@ -224,6 +225,8 @@ export async function previewDatabaseCenterSql(request: DatabaseCenterSqlRequest
 }
 
 export async function createDatabaseCenterDatabase(request: DatabaseCenterCreateDatabaseRequest): Promise<string> {
+  const provisionMode = toProvisionMode(request.driverCode, request.provisionMode);
+  const environmentMode = request.environmentMode === "DraftOnly" ? 1 : 0;
   const response = await requestApi<ApiResponse<{ id?: string; Id?: string; draftSourceId?: string; DraftSourceId?: string }>>("/ai-databases", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -233,10 +236,21 @@ export async function createDatabaseCenterDatabase(request: DatabaseCenterCreate
       workspaceId: request.workspaceId,
       driverCode: request.driverCode,
       hostProfileId: request.hostProfileId,
-      provisionMode: request.provisionMode,
-      environmentMode: request.environmentMode === "DraftOnly" ? "DraftOnly" : "DraftOnline",
+      provisionMode,
+      environmentMode,
       schemaName: request.defaultSchemaName,
-      physicalDatabaseName: request.physicalDatabaseName
+      physicalDatabaseName: request.physicalDatabaseName,
+      fields: [
+        {
+          name: "name",
+          description: "Database center bootstrap field",
+          type: "string",
+          required: false,
+          indexed: false,
+          isSystemField: false,
+          sortOrder: 0
+        }
+      ]
     })
   });
   const id = String(response.data?.draftSourceId ?? response.data?.DraftSourceId ?? extractResourceId(response.data) ?? "");
@@ -247,14 +261,26 @@ export async function createDatabaseCenterDatabase(request: DatabaseCenterCreate
   return id;
 }
 
+function toProvisionMode(driverCode: string, provisionMode?: string | null): number {
+  const explicit = String(provisionMode ?? "").toLowerCase();
+  if (explicit === "existingdatabase" || explicit === "existing") return 4;
+
+  const normalized = driverCode.toLowerCase();
+  if (normalized === "sqlite") return 0;
+  if (normalized === "mysql") return 1;
+  if (normalized === "postgresql" || normalized === "postgres") return 2;
+  return 4;
+}
+
 function normalizeSource(source: Record<string, unknown>): DatabaseCenterSourceSummary {
   const id = String(source.id ?? source.sourceId ?? "");
-  return {
-    id,
-    name: String(source.name ?? ""),
+    return {
+      id,
+      aiDatabaseId: (source.aiDatabaseId ?? source.databaseId) as string | null | undefined,
+      name: String(source.name ?? ""),
     sourceKind: String(source.sourceKind ?? "AiDatabase"),
     driverCode: String(source.driverCode ?? ""),
-    environment: (source.environment ?? "Draft") as DatabaseCenterEnvironment,
+    environment: normalizeEnvironment(source.environment),
     status: (source.status ?? source.provisionState) as string | null | undefined,
     readOnly: source.readOnly as boolean | null | undefined,
     address: source.address as string | null | undefined,
@@ -269,4 +295,12 @@ function normalizeSource(source: Record<string, unknown>): DatabaseCenterSourceS
     updatedAt: source.updatedAt as string | null | undefined,
     createdAt: source.createdAt as string | null | undefined
   };
+}
+
+function normalizeEnvironment(value: unknown): DatabaseCenterEnvironment {
+  if (value === 2 || value === "2" || String(value).toLowerCase() === "online") {
+    return "Online";
+  }
+
+  return "Draft";
 }

@@ -19,11 +19,13 @@ import { SqlCodeEditor } from "./sql-code-editor";
 interface ObjectDetailDrawerProps {
   databaseId: string;
   object: DatabaseObjectDto | null;
+  initialTab?: "structure" | "preview" | "ddl";
   onClose: () => void;
 }
 
-export function ObjectDetailDrawer({ databaseId, object, onClose }: ObjectDetailDrawerProps) {
+export function ObjectDetailDrawer({ databaseId, object, initialTab = "structure", onClose }: ObjectDetailDrawerProps) {
   const { t } = useAppI18n();
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [columns, setColumns] = useState<DatabaseColumnDto[]>([]);
   const [ddl, setDdl] = useState("");
   const [preview, setPreview] = useState<PreviewDataResponse | null>(null);
@@ -32,8 +34,9 @@ export function ObjectDetailDrawer({ databaseId, object, onClose }: ObjectDetail
 
   useEffect(() => {
     if (!object) return;
+    setActiveTab(initialTab);
     void loadAll();
-  }, [databaseId, object?.name, object?.objectType, object?.schema, pageSize]);
+  }, [databaseId, initialTab, object?.name, object?.objectType, object?.schema, pageSize]);
 
   const structureColumns: ColumnProps<DatabaseColumnDto>[] = [
     { title: t("databaseStructureFieldName"), dataIndex: "name" },
@@ -49,7 +52,7 @@ export function ObjectDetailDrawer({ databaseId, object, onClose }: ObjectDetail
   return (
     <SideSheet visible={Boolean(object)} onCancel={onClose} title={object?.name} width={980}>
       <Spin spinning={loading}>
-        <Tabs>
+        <Tabs activeKey={activeTab} onChange={key => setActiveTab(key as "structure" | "preview" | "ddl")}>
           <Tabs.TabPane tab={t("databaseStructureTabStructure")} itemKey="structure">
             <Table rowKey="name" pagination={false} dataSource={columns} columns={structureColumns} size="small" />
           </Tabs.TabPane>
@@ -108,7 +111,7 @@ export function ObjectDetailDrawer({ databaseId, object, onClose }: ObjectDetail
 
   async function loadPreview() {
     if (!object) return;
-    const request = { schema: object.schema, pageIndex: 1, pageSize, environment: "Draft" as const };
+    const request = { schema: object.schema, pageIndex: 1, pageSize };
     setPreview(object.objectType === "view"
       ? await previewViewData(databaseId, object.name, request)
       : await previewTableData(databaseId, object.name, request));

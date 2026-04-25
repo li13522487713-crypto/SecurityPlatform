@@ -1,0 +1,490 @@
+[
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/community-works-page.tsx",
+        "name":  "community-works-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/coze-agent-publish-manage-page.tsx",
+        "name":  "coze-agent-publish-manage-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/coze-workspace-console-page.tsx",
+        "name":  "coze-workspace-console-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-structure-page.tsx",
+        "name":  "database-structure-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/docs-page.tsx",
+        "name":  "docs-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/editor-routes.tsx",
+        "name":  "editor-routes",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/entry-gateway-page.tsx",
+        "name":  "entry-gateway-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/forbidden-page.tsx",
+        "name":  "forbidden-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/home-page.tsx",
+        "name":  "home-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/login-page.tsx",
+        "name":  "login-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/market-plugins-page.tsx",
+        "name":  "market-plugins-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/market-templates-page.tsx",
+        "name":  "market-templates-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/me-notifications-page.tsx",
+        "name":  "me-notifications-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/me-profile-page.tsx",
+        "name":  "me-profile-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/me-settings-page.tsx",
+        "name":  "me-settings-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/open-api-page.tsx",
+        "name":  "open-api-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/status-page.tsx",
+        "name":  "status-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-evaluations-page.tsx",
+        "name":  "workspace-evaluations-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-home-page.tsx",
+        "name":  "workspace-home-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-library-page.tsx",
+        "name":  "workspace-library-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-projects-page.tsx",
+        "name":  "workspace-projects-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-resources-page.tsx",
+        "name":  "workspace-resources-page",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-resources-redirect.tsx",
+        "name":  "workspace-resources-redirect",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-settings-models-page.tsx",
+        "name":  "workspace-settings-models-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-settings-page.tsx",
+        "name":  "workspace-settings-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-settings-publish-page.tsx",
+        "name":  "workspace-settings-publish-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/workspace-tasks-page.tsx",
+        "name":  "workspace-tasks-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/components/create-datasource-modal.tsx",
+        "name":  "create-datasource-modal",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/components/library-create-dropdown.tsx",
+        "name":  "library-create-dropdown",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/components/library-create-modal.tsx",
+        "name":  "library-create-modal",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/components/library-import-modal.tsx",
+        "name":  "library-import-modal",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/components/migration-wizard/migration-wizard-drawer.tsx",
+        "name":  "migration-wizard-drawer",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/connectors/connector-detail-page.tsx",
+        "name":  "connector-detail-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/connectors/connectors-page.tsx",
+        "name":  "connectors-page",
+        "inAppImport":  true,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/ai-database-create-wizard.tsx",
+        "name":  "ai-database-create-wizard",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/database-center-dock.tsx",
+        "name":  "database-center-dock",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/database-center-page.tsx",
+        "name":  "database-center-page",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/database-center-shell.tsx",
+        "name":  "database-center-shell",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/database-schema-tree.tsx",
+        "name":  "database-schema-tree",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/database-source-panel.tsx",
+        "name":  "database-source-panel",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/database-structure-workbench.tsx",
+        "name":  "database-structure-workbench",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/er-diagram-canvas.tsx",
+        "name":  "er-diagram-canvas",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/host-profile-manage-drawer.tsx",
+        "name":  "host-profile-manage-drawer",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/instance-detail-panel.tsx",
+        "name":  "instance-detail-panel",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/sql-editor-panel.tsx",
+        "name":  "sql-editor-panel",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-center/table-object-list.tsx",
+        "name":  "table-object-list",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-structure/create-table-drawer.tsx",
+        "name":  "create-table-drawer",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-structure/create-view-drawer.tsx",
+        "name":  "create-view-drawer",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-structure/danger-delete-modal.tsx",
+        "name":  "danger-delete-modal",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-structure/data-preview-table.tsx",
+        "name":  "data-preview-table",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-structure/object-detail-drawer.tsx",
+        "name":  "object-detail-drawer",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/database-structure/sql-code-editor.tsx",
+        "name":  "sql-code-editor",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  true
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/console-auth-gate.tsx",
+        "name":  "console-auth-gate",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/dashboard-tab.tsx",
+        "name":  "dashboard-tab",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/migration-tab.tsx",
+        "name":  "migration-tab",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/repair-tab.tsx",
+        "name":  "repair-tab",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/setup-console-page.tsx",
+        "name":  "setup-console-page",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/system-init-tab.tsx",
+        "name":  "system-init-tab",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/workspace-init-tab.tsx",
+        "name":  "workspace-init-tab",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/components/recovery-key-display.tsx",
+        "name":  "recovery-key-display",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    },
+    {
+        "file":  "src/frontend/apps/app-web/src/app/pages/setup-console/components/step-card.tsx",
+        "name":  "step-card",
+        "inAppImport":  false,
+        "inEditor":  false,
+        "refToOther":  0,
+        "maybeOrphan":  false
+    }
+]

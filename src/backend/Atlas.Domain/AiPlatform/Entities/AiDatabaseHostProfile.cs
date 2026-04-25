@@ -65,6 +65,7 @@ public sealed class AiDatabaseHostProfile : TenantEntity
 
     public string Host { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
     public int? Port { get; private set; }
 
     public string AdminDatabase { get; private set; }
@@ -85,6 +86,7 @@ public sealed class AiDatabaseHostProfile : TenantEntity
 
     public string SqliteRootPath { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
     public int? MaxDatabaseCount { get; private set; }
 
     public bool IsDefault { get; private set; }
@@ -93,9 +95,10 @@ public sealed class AiDatabaseHostProfile : TenantEntity
 
     public AiDatabaseConnectionTestStatus TestStatus { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
     public DateTime? LastTestAt { get; private set; }
 
-    [SugarColumn(Length = 2048)]
+    [SugarColumn(Length = 2048, IsNullable = true)]
     public string? LastTestMessage { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
@@ -220,9 +223,10 @@ public sealed class AiDatabasePhysicalInstance : TenantEntity
 
     public AiDatabaseProvisionState ProvisionState { get; private set; }
 
-    [SugarColumn(Length = 2048)]
+    [SugarColumn(Length = 2048, IsNullable = true)]
     public string? ProvisionError { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
     public string? DriverVersion { get; private set; }
 
     public string Charset { get; private set; }
@@ -233,9 +237,10 @@ public sealed class AiDatabasePhysicalInstance : TenantEntity
 
     public DateTime UpdatedAt { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
     public DateTime? LastConnectedAt { get; private set; }
 
-    [SugarColumn(Length = 2048)]
+    [SugarColumn(Length = 2048, IsNullable = true)]
     public string? LastConnectionTestMessage { get; private set; }
 
     public void Configure(

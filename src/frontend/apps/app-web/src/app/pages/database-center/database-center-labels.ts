@@ -39,6 +39,7 @@ export interface DatabaseCenterLabels {
   driver: string;
   description: string;
   connectionString: string;
+  sqliteRootPath: string;
   defaultDatabase: string;
   defaultSchema: string;
   active: string;
@@ -60,6 +61,24 @@ export interface DatabaseCenterLabels {
   testSuccess: string;
   emptyStructure: string;
   readOnly: string;
+  createTableVisual: string;
+  createTableSql: string;
+  createView: string;
+  tableName: string;
+  viewName: string;
+  columnName: string;
+  dataType: string;
+  nullable: string;
+  primaryKey: string;
+  autoIncrement: string;
+  defaultValue: string;
+  comment: string;
+  addColumn: string;
+  removeColumn: string;
+  previewSql: string;
+  sqlCreateTable: string;
+  viewSelectSql: string;
+  previewSuccess: string;
 }
 
 export const defaultDatabaseCenterLabels: DatabaseCenterLabels = {
@@ -103,6 +122,7 @@ export const defaultDatabaseCenterLabels: DatabaseCenterLabels = {
   driver: "驱动",
   description: "描述",
   connectionString: "连接串",
+  sqliteRootPath: "SQLite 根目录",
   defaultDatabase: "默认库名",
   defaultSchema: "默认 Schema",
   active: "启用",
@@ -123,5 +143,23 @@ export const defaultDatabaseCenterLabels: DatabaseCenterLabels = {
   saveSuccess: "保存成功",
   testSuccess: "连接测试通过",
   emptyStructure: "当前 Schema 暂无结构对象",
-  readOnly: "只读"
+  readOnly: "只读",
+  createTableVisual: "可视化建表",
+  createTableSql: "SQL 建表",
+  createView: "新建视图",
+  tableName: "表名",
+  viewName: "视图名",
+  columnName: "字段名",
+  dataType: "数据类型",
+  nullable: "可空",
+  primaryKey: "主键",
+  autoIncrement: "自增",
+  defaultValue: "默认值",
+  comment: "注释",
+  addColumn: "添加字段",
+  removeColumn: "移除字段",
+  previewSql: "预览 SQL",
+  sqlCreateTable: "SQL 建表语句",
+  viewSelectSql: "视图 SELECT",
+  previewSuccess: "预览成功"
 };

@@ -93,6 +93,7 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
           selectedObject={selectedObject}
           loading={state.loadingStructure}
           onSelectObject={setSelectedObject}
+          onStructureChanged={state.loadStructure}
         />
         <InstanceDetailPanel
           labels={labels}

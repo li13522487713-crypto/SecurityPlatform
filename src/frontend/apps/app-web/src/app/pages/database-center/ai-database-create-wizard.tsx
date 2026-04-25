@@ -30,7 +30,7 @@ export function AiDatabaseCreateWizard({ labels, visible, workspaceId, onClose, 
     description: "",
     workspaceId,
     driverCode: "SQLite",
-    provisionMode: "Managed",
+    provisionMode: "SQLiteFile",
     hostProfileId: "",
     physicalDatabaseName: "",
     defaultSchemaName: "draft",
@@ -78,9 +78,10 @@ export function AiDatabaseCreateWizard({ labels, visible, workspaceId, onClose, 
               value={form.provisionMode}
               onChange={value => setForm({ ...form, provisionMode: String(value) as DatabaseCenterProvisionMode })}
               optionList={[
-                { value: "Managed", label: "Managed" },
-                { value: "Existing", label: "Existing" },
-                { value: "Attach", label: "Attach" }
+                { value: "SQLiteFile", label: "SQLiteFile" },
+                { value: "MySqlDatabase", label: "MySqlDatabase" },
+                { value: "PostgreSqlSchema", label: "PostgreSqlSchema" },
+                { value: "ExistingDatabase", label: "ExistingDatabase" }
               ]}
             />
             <Select

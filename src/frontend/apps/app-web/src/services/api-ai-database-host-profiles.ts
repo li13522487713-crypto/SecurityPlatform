@@ -12,6 +12,7 @@ export interface AiDatabaseHostProfile {
   maskedConnectionSummary?: string | null;
   defaultDatabaseName?: string | null;
   defaultSchemaName?: string | null;
+  sqliteRootPath?: string | null;
   maxPoolSize?: number | null;
   connectionTimeoutSeconds?: number | null;
   isDefault: boolean;
@@ -29,6 +30,7 @@ export interface AiDatabaseHostProfileMutationRequest {
   driverCode: AiDatabaseHostProfileDriverCode;
   description?: string | null;
   connectionString?: string | null;
+  sqliteRootPath?: string | null;
   defaultDatabaseName?: string | null;
   defaultSchemaName?: string | null;
   maxPoolSize?: number | null;
@@ -128,21 +130,41 @@ function normalizeProfile(profile: AiDatabaseHostProfile & Record<string, unknow
     lastTestedAt: profile.lastTestedAt ?? (profile.lastTestAt as string | null | undefined),
     defaultDatabaseName: profile.defaultDatabaseName ?? (profile.adminDatabase as string | null | undefined),
     defaultSchemaName: profile.defaultSchemaName ?? (profile.defaultSchema as string | null | undefined),
+    sqliteRootPath: profile.sqliteRootPath as string | null | undefined,
     updatedAt: profile.updatedAt ?? null
   };
 }
 
 function toBackendRequest(request: AiDatabaseHostProfileMutationRequest) {
+  const driverCode = String(request.driverCode);
+  const provisionMode = toProvisionMode(driverCode);
+  const isSqlite = driverCode.toLowerCase() === "sqlite";
+  const sqliteRootPath = trimOrNull(request.sqliteRootPath ?? request.connectionString);
+
   return {
     name: request.name,
-    driverCode: request.driverCode,
-    provisionMode: request.driverCode === "SQLite" ? "SQLiteFile" : request.driverCode === "MySql" ? "MySqlDatabase" : request.driverCode === "PostgreSQL" ? "PostgreSqlSchema" : "ExistingDatabase",
-    adminConnection: request.connectionString,
+    driverCode,
+    provisionMode,
+    adminConnection: isSqlite ? null : trimOrNull(request.connectionString),
     defaultSchema: request.defaultSchemaName,
     adminDatabase: request.defaultDatabaseName,
+    sqliteRootPath: isSqlite ? sqliteRootPath : null,
     isDefault: request.isDefault ?? false,
     isEnabled: request.isActive ?? true
   };
+}
+
+function toProvisionMode(driverCode: string): number {
+  const normalized = driverCode.toLowerCase();
+  if (normalized === "sqlite") return 0;
+  if (normalized === "mysql") return 1;
+  if (normalized === "postgresql" || normalized === "postgres") return 2;
+  return 4;
+}
+
+function trimOrNull(value?: string | null): string | null {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
 }
 
 export async function deleteAiDatabaseHostProfile(id: string): Promise<void> {

@@ -99,11 +99,13 @@ export interface CreateTableRequest extends PreviewCreateTableDdlRequest {
 
 export interface CreateTableSqlRequest {
   sql: string;
+  schema?: string;
 }
 
 export interface PreviewViewSqlRequest {
   sql: string;
   limit?: number;
+  schema?: string;
 }
 
 export interface CreateViewRequest {
@@ -138,7 +140,20 @@ function unwrapVoid(response: ApiResponse<unknown>): void {
   }
 }
 
-function base(databaseId: string): string {
+function normalizePreviewData(response: PreviewDataResponse): PreviewDataResponse {
+  return {
+    ...response,
+    total: Number(response.total ?? response.rows.length),
+    pageIndex: Number(response.pageIndex ?? 1),
+    pageSize: Number(response.pageSize ?? response.rows.length)
+  };
+}
+
+function base(databaseId: string, schema?: string): string {
+  if (schema) {
+    return `/database-center/sources/${encodeURIComponent(databaseId)}/schemas/${encodeURIComponent(schema)}/structure`;
+  }
+
   return `/database-resources/${encodeURIComponent(databaseId)}/structure`;
 }
 
@@ -148,82 +163,82 @@ export async function listDatabaseObjects(databaseId: string, type: DatabaseObje
 
 export async function getTableColumns(databaseId: string, tableName: string, schema?: string): Promise<DatabaseColumnDto[]> {
   const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
-  return unwrap(await requestApi<ApiResponse<DatabaseColumnDto[]>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}/columns${query}`));
+  return unwrap(await requestApi<ApiResponse<DatabaseColumnDto[]>>(`${base(databaseId, schema)}/tables/${encodeURIComponent(tableName)}/columns${schema ? "" : query}`));
 }
 
 export async function getViewColumns(databaseId: string, viewName: string, schema?: string): Promise<DatabaseColumnDto[]> {
   const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
-  return unwrap(await requestApi<ApiResponse<DatabaseColumnDto[]>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}/columns${query}`));
+  return unwrap(await requestApi<ApiResponse<DatabaseColumnDto[]>>(`${base(databaseId, schema)}/views/${encodeURIComponent(viewName)}/columns${schema ? "" : query}`));
 }
 
 export async function getTableDdl(databaseId: string, tableName: string, schema?: string): Promise<DdlResponse> {
   const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
-  return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}/ddl${query}`));
+  return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId, schema)}/tables/${encodeURIComponent(tableName)}/ddl${schema ? "" : query}`));
 }
 
 export async function getViewDdl(databaseId: string, viewName: string, schema?: string): Promise<DdlResponse> {
   const query = schema ? `?${new URLSearchParams({ schema }).toString()}` : "";
-  return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}/ddl${query}`));
+  return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId, schema)}/views/${encodeURIComponent(viewName)}/ddl${schema ? "" : query}`));
 }
 
 export async function previewTableData(databaseId: string, tableName: string, request: PreviewDataRequest): Promise<PreviewDataResponse> {
-  return unwrap(await requestApi<ApiResponse<PreviewDataResponse>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}/preview`, {
+  return normalizePreviewData(unwrap(await requestApi<ApiResponse<PreviewDataResponse>>(`${base(databaseId, request.schema)}/tables/${encodeURIComponent(tableName)}/preview`, {
     method: "POST",
     body: JSON.stringify(request)
-  }));
+  })));
 }
 
 export async function previewViewData(databaseId: string, viewName: string, request: PreviewDataRequest): Promise<PreviewDataResponse> {
-  return unwrap(await requestApi<ApiResponse<PreviewDataResponse>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}/preview`, {
+  return normalizePreviewData(unwrap(await requestApi<ApiResponse<PreviewDataResponse>>(`${base(databaseId, request.schema)}/views/${encodeURIComponent(viewName)}/preview`, {
     method: "POST",
     body: JSON.stringify(request)
-  }));
+  })));
 }
 
 export async function previewCreateTableDdl(databaseId: string, request: PreviewCreateTableDdlRequest): Promise<DdlResponse> {
-  return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId)}/tables/preview-ddl`, {
+  return unwrap(await requestApi<ApiResponse<DdlResponse>>(`${base(databaseId, request.schema)}/tables/preview-ddl`, {
     method: "POST",
     body: JSON.stringify(request)
   }));
 }
 
 export async function createTableVisual(databaseId: string, request: CreateTableRequest): Promise<void> {
-  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId, request.schema)}/tables`, {
     method: "POST",
     body: JSON.stringify({ ...request, mode: "visual" })
   }));
 }
 
 export async function createTableSql(databaseId: string, request: CreateTableSqlRequest): Promise<void> {
-  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables/sql`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId, request.schema)}/tables/sql`, {
     method: "POST",
     body: JSON.stringify(request)
   }));
 }
 
 export async function previewViewSql(databaseId: string, request: PreviewViewSqlRequest): Promise<PreviewDataResponse> {
-  return unwrap(await requestApi<ApiResponse<PreviewDataResponse>>(`${base(databaseId)}/views/preview`, {
+  return normalizePreviewData(unwrap(await requestApi<ApiResponse<PreviewDataResponse>>(`${base(databaseId, request.schema)}/views/preview`, {
     method: "POST",
     body: JSON.stringify(request)
-  }));
+  })));
 }
 
 export async function createView(databaseId: string, request: CreateViewRequest): Promise<void> {
-  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/views`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId, request.schema)}/views`, {
     method: "POST",
     body: JSON.stringify(request)
   }));
 }
 
 export async function dropTable(databaseId: string, tableName: string, request: DropDatabaseObjectRequest): Promise<void> {
-  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId, request.schema)}/tables/${encodeURIComponent(tableName)}`, {
     method: "DELETE",
     body: JSON.stringify(request)
   }));
 }
 
 export async function dropView(databaseId: string, viewName: string, request: DropDatabaseObjectRequest): Promise<void> {
-  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId, request.schema)}/views/${encodeURIComponent(viewName)}`, {
     method: "DELETE",
     body: JSON.stringify(request)
   }));

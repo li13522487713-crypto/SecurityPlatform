@@ -26,6 +26,7 @@ const emptyForm: AiDatabaseHostProfileMutationRequest = {
   driverCode: "SQLite",
   description: "",
   connectionString: "",
+  sqliteRootPath: "data/ai-db/e2e",
   defaultDatabaseName: "",
   defaultSchemaName: "",
   maxPoolSize: 50,
@@ -58,6 +59,7 @@ export function HostProfileManageDrawer({ labels, visible, onClose }: HostProfil
       driverCode: selected.driverCode,
       description: selected.description ?? "",
       connectionString: "",
+      sqliteRootPath: selected.sqliteRootPath ?? "data/ai-db/e2e",
       defaultDatabaseName: selected.defaultDatabaseName ?? "",
       defaultSchemaName: selected.defaultSchemaName ?? "",
       maxPoolSize: selected.maxPoolSize ?? 50,
@@ -97,7 +99,12 @@ export function HostProfileManageDrawer({ labels, visible, onClose }: HostProfil
             optionList={["SQLite", "MySql", "PostgreSQL", "SqlServer", "Oracle", "Dm", "Kdbndp"].map(value => ({ value, label: value }))}
           />
           <TextArea style={{ width: "100%" }} placeholder={labels.description} value={form.description ?? ""} onChange={(value: string) => setForm({ ...form, description: value })} />
-          <TextArea style={{ width: "100%" }} placeholder={labels.connectionString} value={form.connectionString ?? ""} onChange={(value: string) => setForm({ ...form, connectionString: value })} />
+          <TextArea
+            style={{ width: "100%" }}
+            placeholder={form.driverCode === "SQLite" ? labels.sqliteRootPath : labels.connectionString}
+            value={(form.driverCode === "SQLite" ? form.sqliteRootPath : form.connectionString) ?? ""}
+            onChange={(value: string) => setForm(form.driverCode === "SQLite" ? { ...form, sqliteRootPath: value } : { ...form, connectionString: value })}
+          />
           <Input placeholder={labels.defaultDatabase} value={form.defaultDatabaseName ?? ""} onChange={value => setForm({ ...form, defaultDatabaseName: value })} />
           <Input placeholder={labels.defaultSchema} value={form.defaultSchemaName ?? ""} onChange={value => setForm({ ...form, defaultSchemaName: value })} />
           <Space>

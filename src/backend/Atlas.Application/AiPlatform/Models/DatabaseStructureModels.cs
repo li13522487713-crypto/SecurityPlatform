@@ -1,4 +1,5 @@
 using Atlas.Domain.AiPlatform.Entities;
+using System.Text.Json.Serialization;
 
 namespace Atlas.Application.AiPlatform.Models;
 
@@ -64,6 +65,7 @@ public sealed record TableColumnDesignDto(
     string? DefaultValue = null,
     string? Comment = null)
 {
+    [JsonConstructor]
     public TableColumnDesignDto(
         string Name,
         string DataType,

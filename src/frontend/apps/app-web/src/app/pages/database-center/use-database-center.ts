@@ -45,8 +45,28 @@ export function useDatabaseCenter({ workspaceId, initialSourceId, labels }: UseD
         keyword: keyword.trim() || undefined,
         workspaceId
       });
-      setSources(result.items ?? []);
-      setSelectedSourceId(current => current || initialSourceId || result.items?.[0]?.id || "");
+      const nextSources = result.items ?? [];
+      setSources(nextSources);
+      setSelectedSourceId(current => {
+        if (current) {
+          return current;
+        }
+
+        if (initialSourceId) {
+          const direct = nextSources.find(item => item.id === initialSourceId);
+          if (direct) {
+            return direct.id;
+          }
+
+          const byAiDatabase = nextSources.find(item => item.aiDatabaseId === initialSourceId && item.environment === "Draft")
+            ?? nextSources.find(item => item.aiDatabaseId === initialSourceId);
+          if (byAiDatabase) {
+            return byAiDatabase.id;
+          }
+        }
+
+        return nextSources[0]?.id || "";
+      });
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : labels.loadFailed);
     } finally {
