@@ -29,7 +29,7 @@ Content-Type: application/json
 {
   "name": "结构管理 SQLite 演示库",
   "description": "独立物理库 draft/online 验证",
-  "workspaceId": "1",
+  "workspaceId": 1,
   "driverCode": "SQLite",
   "queryMode": 1,
   "channelScope": 1,

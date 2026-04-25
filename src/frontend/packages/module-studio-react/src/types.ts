@@ -471,7 +471,7 @@ export interface StudioDatabaseChannelConfigItem {
 
 export interface StudioDatabaseRecordItem {
   id: number;
-  databaseId: number;
+  databaseId: string;
   dataJson: string;
   environment?: number;
   ownerUserId?: number;
@@ -513,7 +513,7 @@ export interface StudioDatabaseSchemaValidationResult {
 
 export interface StudioDatabaseImportProgress {
   taskId: number;
-  databaseId: number;
+  databaseId: string;
   status: number;
   totalRows: number;
   succeededRows: number;
@@ -694,28 +694,28 @@ export interface StudioModuleApi {
   publishPlugin: (pluginId: number) => Promise<void>;
   listKnowledgeBases: () => Promise<Array<{ id: number; name: string; type: number }>>;
   getKnowledgeBase: (id: number) => Promise<StudioKnowledgeBaseDetail>;
-  listDatabases: () => Promise<Array<{ id: number; name: string; botId?: number }>>;
-  getDatabaseDetail: (id: number) => Promise<StudioDatabaseDetail>;
+  listDatabases: () => Promise<Array<{ id: string; name: string; botId?: number }>>;
+  getDatabaseDetail: (id: string) => Promise<StudioDatabaseDetail>;
   createDatabase?: (request: StudioDatabaseUpsertRequest) => Promise<number>;
-  updateDatabase?: (id: number, request: StudioDatabaseUpsertRequest) => Promise<void>;
+  updateDatabase?: (id: string, request: StudioDatabaseUpsertRequest) => Promise<void>;
   listDatabaseRecords: (
-    id: number,
+    id: string,
     params?: { pageIndex?: number; pageSize?: number; environment?: number }
   ) => Promise<PagedResult<StudioDatabaseRecordItem>>;
-  createDatabaseRecord: (id: number, request: StudioDatabaseRecordUpsertRequest) => Promise<number>;
-  updateDatabaseRecord: (id: number, recordId: number, request: StudioDatabaseRecordUpsertRequest) => Promise<void>;
-  deleteDatabaseRecord: (id: number, recordId: number, environment?: number) => Promise<void>;
+  createDatabaseRecord: (id: string, request: StudioDatabaseRecordUpsertRequest) => Promise<number>;
+  updateDatabaseRecord: (id: string, recordId: number, request: StudioDatabaseRecordUpsertRequest) => Promise<void>;
+  deleteDatabaseRecord: (id: string, recordId: number, environment?: number) => Promise<void>;
   validateDatabaseSchemaDraft: (schemaJson: string) => Promise<StudioDatabaseSchemaValidationResult>;
-  submitDatabaseImport: (id: number, file: File, environment?: number) => Promise<number>;
-  getDatabaseImportProgress: (id: number) => Promise<StudioDatabaseImportProgress | null>;
-  downloadDatabaseTemplate: (id: number) => Promise<void>;
-  getDatabaseChannelConfigs?: (id: number) => Promise<StudioDatabaseChannelConfigItem[]>;
-  updateDatabaseChannelConfigs?: (id: number, request: StudioDatabaseChannelConfigsUpdateRequest) => Promise<void>;
-  updateDatabaseMode?: (id: number, request: StudioDatabaseModeUpdateRequest) => Promise<void>;
+  submitDatabaseImport: (id: string, file: File, environment?: number) => Promise<number>;
+  getDatabaseImportProgress: (id: string) => Promise<StudioDatabaseImportProgress | null>;
+  downloadDatabaseTemplate: (id: string) => Promise<void>;
+  getDatabaseChannelConfigs?: (id: string) => Promise<StudioDatabaseChannelConfigItem[]>;
+  updateDatabaseChannelConfigs?: (id: string, request: StudioDatabaseChannelConfigsUpdateRequest) => Promise<void>;
+  updateDatabaseMode?: (id: string, request: StudioDatabaseModeUpdateRequest) => Promise<void>;
   /** D5：同步批量插入；受 MaxBulkInsertRows 限制（默认 1000）。可选——上层未实现时回退到逐条 createDatabaseRecord。 */
-  bulkCreateDatabaseRecords?: (id: number, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseRecordBulkCreateResult>;
+  bulkCreateDatabaseRecords?: (id: string, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseRecordBulkCreateResult>;
   /** D5：异步批量插入。可选——上层未实现时不暴露入口。 */
-  submitDatabaseBulkInsertJob?: (id: number, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseBulkJobAccepted>;
+  submitDatabaseBulkInsertJob?: (id: string, request: StudioDatabaseRecordBulkCreateRequest) => Promise<StudioDatabaseBulkJobAccepted>;
   listBotVariables: (botId: string) => Promise<Array<{ id: number; key: string; scopeId?: number }>>;
   bindAgentWorkflow: (agentId: string, workflowId?: string) => Promise<WorkflowBinding>;
   bindAgentDatabase?: (agentId: string, request: AgentDatabaseBindingInput) => Promise<AgentDatabaseBinding[]>;

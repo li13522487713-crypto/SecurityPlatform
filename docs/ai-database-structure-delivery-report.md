@@ -47,8 +47,18 @@ flowchart LR
 - `src/frontend/apps/app-web/src/services/api-database-structure.ts`
 - `src/frontend/apps/app-web/src/services/api-ai-database.ts`
 - `src/frontend/apps/app-web/src/app/pages/database-structure-page.tsx`
+- `src/frontend/apps/app-web/src/app/pages/database-structure/create-table-drawer.tsx`
+- `src/frontend/apps/app-web/src/app/pages/database-structure/create-view-drawer.tsx`
+- `src/frontend/apps/app-web/src/app/pages/database-structure/object-detail-drawer.tsx`
+- `src/frontend/apps/app-web/src/app/pages/database-structure/danger-delete-modal.tsx`
+- `src/frontend/apps/app-web/src/app/pages/database-structure/data-preview-table.tsx`
+- `src/frontend/apps/app-web/src/app/pages/database-structure/sql-code-editor.tsx`
+- `src/frontend/apps/app-web/src/app/pages/database-structure/data-type-options.ts`
 - `src/frontend/apps/app-web/src/app/pages/workspace-library-page.tsx`
 - `src/frontend/apps/app-web/src/app/pages/components/library-create-modal.tsx`
+- `src/frontend/packages/module-studio-react/src/database/database-detail-page.tsx`
+- `src/frontend/packages/module-studio-react/src/pages.tsx`
+- `src/frontend/packages/module-studio-react/src/types.ts`
 
 ## 6. 新增接口清单
 
@@ -72,7 +82,7 @@ flowchart LR
 
 - DTO：`DatabaseObjectDto`、`DatabaseColumnDto`、`PreviewDataRequest`、`PreviewDataResponse`、`DdlResponse`、`CreateTableRequest`、`CreateTableSqlRequest`、`CreateViewRequest`、`DropDatabaseObjectRequest`、方言建表/建视图定义。
 - 服务：`IAiDatabaseProvisioner`、`IAiDatabaseClientFactory`、`IDatabaseStructureService`、`ISqlSafetyValidator`、`IDatabaseDialectRegistry`。
-- 权限：复用 `DataSourcesView` / `DataSourcesQuery`，写接口使用已有 `DataSourcesSchemaWrite`。
+- 权限：复用 `DataSourcesView` / `DataSourcesQuery`，写接口使用 `DataSourcesSchemaWrite`；权限种子已补齐到 `AppPermissionSeedCatalog`，资源库入口按 `DataSourcesView` 做前端门禁。
 - 配置：`AiDatabaseHosting`，含 `DefaultDriverCode`、`PreviewLimit`、`CommandTimeoutSeconds`、`Sqlite.Root`、`MySql.AdminConnection`、`PostgreSql.AdminConnection`。
 
 ## 8. 方言支持矩阵
@@ -111,36 +121,35 @@ flowchart LR
 
 ## 12. 前端说明
 
-- 资源库数据库 Tab 已有“结构管理”入口，独立 AI 数据库跳转全屏路由。
+- 资源库数据库 Tab 已有“结构管理”入口，独立 AI 数据库跳转全屏路由；外部数据源入口禁用并提示不支持 AI 数据库结构管理。
 - 结构页可真实调用对象列表、字段、DDL、数据预览、可视化建表、SQL 建表、新建视图、删除表/视图接口。
+- 可视化建表、视图创建、对象详情、数据预览、危险删除、SQL 编辑器已拆分独立组件；SQL 输入与 DDL 展示使用 `@coze-arch/bot-monaco-editor`。
 - 已清理结构管理链路 `Number(databaseId)`，`api-ai-database` 的主数据库 ID 改为 string。
 
 ## 13. 验证结果
 
 - `dotnet build Atlas.SecurityPlatform.slnx`：通过，0 警告 0 错误。
-- `dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName~SqlSafetyValidatorTests|FullyQualifiedName~DatabaseDialect"`：通过，33/33。
+- `dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName~SqlSafetyValidatorTests|FullyQualifiedName~DatabaseDialect|FullyQualifiedName~DatabaseStructureServiceSqliteTests"`：通过，36/36。
 - `pnpm run build:app-web`：通过。
 - `pnpm run i18n:check`：通过。
 - `pnpm run lint`：通过。
+- SQLite 集成验证：真实创建 draft/online `.db` 文件，ClientFactory 连接 draft，StructureService 在 draft 创建表、插入数据、读取对象/字段/DDL/预览均通过。
 - `dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Integration"`：599 个用例中 590 通过、9 失败；失败集中在既有 Workflow/Identity/Agent/Canvas 测试，与本次新增结构管理专项无直接关联。
 
 ## 14. MySQL / PostgreSQL 验证
 
 - 本机未配置 `AiDatabaseHosting:MySql:AdminConnection`，未执行真实 MySQL 链路。
 - 本机未配置 `AiDatabaseHosting:PostgreSql:AdminConnection`，未执行真实 PostgreSQL 链路。
-- 缺失 admin connection 时 provision 返回明确错误，不会 fallback SQLite。
+- 缺失 admin connection 时 provision 返回明确错误，不会 fallback SQLite；专项单测覆盖 MySQL/PG 缺配置错误信息。
 
 ## 15. 已知风险
 
-- 前端结构管理页仍是单文件实现，内部使用 Semi `SideSheet`，未按要求拆出 `CreateTableDrawer.tsx`、`CreateViewDrawer.tsx`、`DatabaseObjectDetailDrawer.tsx`、`DangerDeleteModal.tsx`。
-- SQL 编辑器仍为 `Input.TextArea`，未接入 `@coze-arch/bot-monaco-editor`。
-- 删除确认由后端强校验，前端确认交互尚未做到输入名称 + 勾选确认 + 禁用按钮的完整危险操作体验。
-- 数据预览分页基础可用，但详情页 UI 尚未做完整远程分页控件。
+- MySQL / PostgreSQL 由于当前环境没有 admin connection，只完成方言、配置缺失、错误返回与代码路径验证，未做真实数据库实例验证。
+- 旧 JSON 行模型执行链路仍保留兼容，工作流节点如依赖旧行模型需后续单独重写到独立物理库结构查询。
 - 未完成浏览器手动全链路验证。
 
 ## 16. 后续建议
 
-1. 将结构页拆分为独立 Drawer/Modal 组件，并接入 bot-monaco-editor。
-2. 配置 MySQL/PG admin connection 后执行 `.http` 最小链路。
-3. 增加 AppHost API 级集成测试，覆盖 SQLite 创建库、建表、视图、删除、注入拒绝。
-4. 梳理旧 JSON 行模型前端入口，统一灰显并提示使用结构管理。
+1. 配置 MySQL/PG admin connection 后执行 `.http` 最小链路。
+2. 增加 AppHost API 级集成测试，覆盖 SQLite 创建库、建表、视图、删除、注入拒绝。
+3. 梳理旧 JSON 行模型前端入口，统一灰显并提示使用结构管理。

@@ -1,3 +1,6 @@
+using System.Text;
+using Atlas.Application.AiPlatform.Models;
+
 namespace Atlas.Infrastructure.Services.DatabaseStructure;
 
 public sealed class SqliteDatabaseDialect : DatabaseDialectBase
@@ -46,7 +49,34 @@ public sealed class SqliteDatabaseDialect : DatabaseDialectBase
         return $"DROP {keyword} IF EXISTS {QuoteIdentifier(objectName)}";
     }
 
-    protected override string BuildColumnSql(Atlas.Application.AiPlatform.Models.TableColumnDesignDto column)
+    public override string BuildCreateTableSql(PreviewCreateTableDdlRequest request)
+    {
+        ValidateIdentifier(request.TableName);
+        if (request.Columns.Count == 0)
+        {
+            throw new InvalidOperationException("At least one column is required.");
+        }
+
+        var lines = request.Columns.Select(BuildColumnSql).ToList();
+        var primaryKeys = request.Columns
+            .Where(column => column.PrimaryKey && !column.AutoIncrement)
+            .Select(column => QuoteIdentifier(column.Name))
+            .ToList();
+        if (primaryKeys.Count > 0)
+        {
+            lines.Add($"PRIMARY KEY ({string.Join(", ", primaryKeys)})");
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine($"CREATE TABLE {QualifiedName(request.TableName, request.Schema)} (");
+        builder.AppendLine("  " + string.Join("," + Environment.NewLine + "  ", lines));
+        builder.Append(')');
+        AppendTableOptions(builder, request);
+        builder.Append(';');
+        return builder.ToString();
+    }
+
+    protected override string BuildColumnSql(TableColumnDesignDto column)
     {
         if (column.PrimaryKey && column.AutoIncrement)
         {

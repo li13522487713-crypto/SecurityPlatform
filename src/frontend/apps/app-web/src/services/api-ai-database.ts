@@ -25,7 +25,7 @@ export interface AiDatabaseDetail extends AiDatabaseListItem {
 
 export interface AiDatabaseRecordListItem {
   id: number;
-  databaseId: number;
+  databaseId: string;
   dataJson: string;
   environment?: AiDatabaseRecordEnvironment;
   ownerUserId?: number;
@@ -96,7 +96,7 @@ export const enum AiDatabaseImportSource {
 
 export interface AiDatabaseImportProgress {
   taskId: number;
-  databaseId: number;
+  databaseId: string;
   status: number;
   totalRows: number;
   succeededRows: number;
@@ -229,7 +229,7 @@ export async function validateAiDatabaseSchema(schemaJson: string): Promise<AiDa
 }
 
 export async function getAiDatabaseRecordsPaged(
-  id: number,
+  id: string,
   request: PagedRequest,
   environment: AiDatabaseRecordEnvironment = AiDatabaseRecordEnvironment.Draft
 ): Promise<PagedResult<AiDatabaseRecordListItem>> {
@@ -243,7 +243,7 @@ export async function getAiDatabaseRecordsPaged(
   return response.data;
 }
 
-export async function createAiDatabaseRecord(id: number, request: AiDatabaseRecordUpsertRequest): Promise<number> {
+export async function createAiDatabaseRecord(id: string, request: AiDatabaseRecordUpsertRequest): Promise<number> {
   const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>(`/ai-databases/${id}/records`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -258,7 +258,7 @@ export async function createAiDatabaseRecord(id: number, request: AiDatabaseReco
 }
 
 export async function updateAiDatabaseRecord(
-  id: number,
+  id: string,
   recordId: number,
   request: AiDatabaseRecordUpsertRequest
 ): Promise<void> {
@@ -272,12 +272,12 @@ export async function updateAiDatabaseRecord(
   }
 }
 
-export async function deleteAiDatabaseRecord(id: number, recordId: number): Promise<void> {
+export async function deleteAiDatabaseRecord(id: string, recordId: number): Promise<void> {
   return deleteAiDatabaseRecordWithEnvironment(id, recordId, AiDatabaseRecordEnvironment.Draft);
 }
 
 export async function deleteAiDatabaseRecordWithEnvironment(
-  id: number,
+  id: string,
   recordId: number,
   environment: AiDatabaseRecordEnvironment
 ): Promise<void> {
@@ -294,7 +294,7 @@ export async function deleteAiDatabaseRecordWithEnvironment(
  * 返回每行的成功 / 失败明细。
  */
 export async function createAiDatabaseRecordsBulk(
-  id: number,
+  id: string,
   request: AiDatabaseRecordBulkCreateRequest
 ): Promise<AiDatabaseRecordBulkCreateResult> {
   const response = await requestApi<ApiResponse<AiDatabaseRecordBulkCreateResult>>(
@@ -316,7 +316,7 @@ export async function createAiDatabaseRecordsBulk(
  * D5：异步批量插入记录。返回 taskId，进度通过 getAiDatabaseImportProgress 查询。
  */
 export async function submitAiDatabaseBulkInsertJob(
-  id: number,
+  id: string,
   request: AiDatabaseRecordBulkCreateRequest
 ): Promise<AiDatabaseBulkJobAccepted> {
   const response = await requestApi<ApiResponse<AiDatabaseBulkJobAccepted>>(
@@ -335,7 +335,7 @@ export async function submitAiDatabaseBulkInsertJob(
 }
 
 export async function submitAiDatabaseImport(
-  id: number,
+  id: string,
   file: File,
   environment: AiDatabaseRecordEnvironment = AiDatabaseRecordEnvironment.Draft
 ): Promise<number> {
@@ -362,7 +362,7 @@ export async function submitAiDatabaseImport(
   return Number(taskId);
 }
 
-export async function getAiDatabaseImportProgress(id: number): Promise<AiDatabaseImportProgress | null> {
+export async function getAiDatabaseImportProgress(id: string): Promise<AiDatabaseImportProgress | null> {
   try {
     const response = await requestApi<ApiResponse<AiDatabaseImportProgress>>(`/ai-databases/${id}/imports/latest`);
     return response.data ?? null;
@@ -375,7 +375,7 @@ export async function getAiDatabaseImportProgress(id: number): Promise<AiDatabas
   }
 }
 
-export async function updateAiDatabaseMode(id: number, request: AiDatabaseModeUpdateRequest): Promise<void> {
+export async function updateAiDatabaseMode(id: string, request: AiDatabaseModeUpdateRequest): Promise<void> {
   const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/mode`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -386,7 +386,7 @@ export async function updateAiDatabaseMode(id: number, request: AiDatabaseModeUp
   }
 }
 
-export async function getAiDatabaseChannelConfigs(id: number): Promise<AiDatabaseChannelConfigItem[]> {
+export async function getAiDatabaseChannelConfigs(id: string): Promise<AiDatabaseChannelConfigItem[]> {
   const response = await requestApi<ApiResponse<AiDatabaseChannelConfigItem[]>>(`/ai-databases/${id}/channel-config`);
   if (!response.success) {
     throw new Error(response.message || aiDatabaseMessage("getDatabaseDetailFailed"));
@@ -396,7 +396,7 @@ export async function getAiDatabaseChannelConfigs(id: number): Promise<AiDatabas
 }
 
 export async function updateAiDatabaseChannelConfigs(
-  id: number,
+  id: string,
   request: AiDatabaseChannelConfigsUpdateRequest
 ): Promise<void> {
   const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/channel-config`, {
@@ -409,6 +409,6 @@ export async function updateAiDatabaseChannelConfigs(
   }
 }
 
-export async function downloadAiDatabaseTemplate(id: number): Promise<void> {
+export async function downloadAiDatabaseTemplate(id: string): Promise<void> {
   await downloadFile(`/ai-databases/${id}/template`);
 }

@@ -2519,7 +2519,7 @@ export function DataResourcesPage({
   onOpenLibrary: () => void;
 }) {
   const [knowledgeItems, setKnowledgeItems] = useState<Array<{ id: number; name: string; type: number }>>([]);
-  const [databaseItems, setDatabaseItems] = useState<Array<{ id: number; name: string; botId?: number }>>([]);
+  const [databaseItems, setDatabaseItems] = useState<Array<{ id: string; name: string; botId?: number }>>([]);
 
   useEffect(() => {
     void Promise.all([
@@ -2675,7 +2675,7 @@ export function DatabaseDetailPage({
   onOpenLibrary,
   onNavigateBack
 }: StudioPageProps & {
-  databaseId: number;
+  databaseId: string;
   onOpenLibrary: () => void;
   onNavigateBack?: () => void;
 }) {
@@ -2695,10 +2695,10 @@ export function DatabasesPage({
   onOpenDetail,
   onOpenLibrary
 }: StudioPageProps & {
-  onOpenDetail: (databaseId: number) => void;
+  onOpenDetail: (databaseId: string) => void;
   onOpenLibrary: () => void;
 }) {
-  const [items, setItems] = useState<Array<{ id: number; name: string; botId?: number }>>([]);
+  const [items, setItems] = useState<Array<{ id: string; name: string; botId?: number }>>([]);
   const [keyword, setKeyword] = useState("");
 
   useEffect(() => {

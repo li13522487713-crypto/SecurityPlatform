@@ -126,7 +126,7 @@ export function DatabaseDetailPageImpl({
   onOpenLibrary,
   onNavigateBack
 }: StudioPageProps & {
-  databaseId: number;
+  databaseId: string;
   onOpenLibrary: () => void;
   onNavigateBack?: () => void;
 }) {

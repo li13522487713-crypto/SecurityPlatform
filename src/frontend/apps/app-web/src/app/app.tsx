@@ -1683,7 +1683,7 @@ function StudioDatabaseDetailRoute() {
     <DatabaseDetailPage
       api={studioApi}
       locale={locale}
-      databaseId={Number(id)}
+      databaseId={id}
       onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
       onNavigateBack={() => navigate(`${orgWorkspaceLibraryPath(orgId, workspace.id)}?tab=database`)}
     />
@@ -2863,7 +2863,7 @@ function SpaceDatabaseDetailRoute() {
     <DatabaseDetailPage
       api={studioApi}
       locale={locale}
-      databaseId={Number(id)}
+      databaseId={id}
       onOpenLibrary={() => navigate(orgWorkspaceLibraryPath(orgId, workspace.id))}
       onNavigateBack={() => navigate(`${orgWorkspaceLibraryPath(orgId, workspace.id)}?tab=database`)}
     />
