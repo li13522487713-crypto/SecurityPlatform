@@ -1,0 +1,159 @@
+@baseUrl = http://localhost:5002
+@accessToken = {{login.response.body.data.accessToken}}
+@databaseId = 1
+@tableName = sys_user_demo
+@viewName = v_sys_user_demo
+
+### Login
+# @name login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "tenantId": "00000000-0000-0000-0000-000000000001",
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+### List tables
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/objects?type=table
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+
+### Preview create table DDL
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/preview-ddl
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "tableName": "{{tableName}}",
+  "comment": "demo table",
+  "columns": [
+    { "name": "id", "dataType": "INTEGER", "nullable": false, "primaryKey": true, "autoIncrement": true },
+    { "name": "name", "dataType": "TEXT", "nullable": false, "comment": "user name" },
+    { "name": "created_at", "dataType": "TEXT", "nullable": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "options": {}
+}
+
+### Create table visually
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "tableName": "{{tableName}}",
+  "comment": "demo table",
+  "mode": "visual",
+  "columns": [
+    { "name": "id", "dataType": "INTEGER", "nullable": false, "primaryKey": true, "autoIncrement": true },
+    { "name": "name", "dataType": "TEXT", "nullable": false },
+    { "name": "created_at", "dataType": "TEXT", "nullable": false, "defaultValue": "CURRENT_TIMESTAMP" }
+  ],
+  "options": {}
+}
+
+### Create table by SQL
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/sql
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "sql": "CREATE TABLE sys_role_demo (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);"
+}
+
+### Table columns
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}/columns
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+
+### Table DDL
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}/ddl
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+
+### Preview table data
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}/preview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "pageIndex": 1,
+  "pageSize": 20,
+  "environment": "Draft"
+}
+
+### Preview view SQL
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/preview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "sql": "SELECT id, name FROM sys_user_demo",
+  "limit": 100
+}
+
+### Create view
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "viewName": "{{viewName}}",
+  "sql": "SELECT id, name FROM sys_user_demo"
+}
+
+### List views
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/objects?type=view
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+
+### View columns
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}/columns
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+
+### View DDL
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}/ddl
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+
+### Preview view data
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}/preview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "pageIndex": 1,
+  "pageSize": 20,
+  "environment": "Draft"
+}
+
+### Drop view
+DELETE {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "confirmName": "{{viewName}}",
+  "confirmDanger": true
+}
+
+### Drop table
+DELETE {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+Content-Type: application/json
+
+{
+  "confirmName": "{{tableName}}",
+  "confirmDanger": true
+}

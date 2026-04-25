@@ -119,6 +119,7 @@ import { AppStartupKernel } from "./startup-kernel";
 import { WorkflowRuntimeBoundary } from "./workflow-runtime-boundary";
 import { WorkspaceProvider, useOptionalWorkspaceContext, useWorkspaceContext } from "./workspace-context";
 import { CozeAgentPublishManagePage } from "./pages/coze-agent-publish-manage-page";
+import { DatabaseStructurePage } from "./pages/database-structure-page";
 import { APP_PERMISSIONS } from "../constants/permissions";
 import {
   getConfiguredAppKey,
@@ -2949,6 +2950,7 @@ export const appRoutes = [
       { path: "knowledge-bases/provider-configs", element: <WorkspaceKnowledgeProviderCenterRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "knowledge-bases/:id", element: <WorkspaceKnowledgeDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "knowledge-bases/:id/upload", element: <WorkspaceKnowledgeUploadRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
+      { path: "database/:databaseId/structure", element: <DatabaseStructurePage />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "database/:id", element: <SpaceDatabaseDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "databases/:id", element: <SpaceDatabaseDetailRoute />, handle: WORKSPACE_LIBRARY_ROUTE_HANDLE },
       { path: "apps/:id", element: <LegacyWorkspaceAppRedirectRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },

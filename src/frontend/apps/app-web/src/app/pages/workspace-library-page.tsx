@@ -373,11 +373,21 @@ export function WorkspaceLibraryPage() {
     [t]
   );
 
+  const handleOpenStructure = useCallback(
+    (record: AiWorkspaceLibraryItem) => {
+      navigate(`/space/${workspace.id}/database/${encodeURIComponent(record.resourceId)}/structure`);
+    },
+    [navigate, workspace.id]
+  );
+
   const renderActionMenu = useCallback(
     (record: AiWorkspaceLibraryItem) => (
       <Dropdown.Menu>
         <Dropdown.Item onClick={() => handleOpen(record)}>{t("cozeLibraryActionDetail")}</Dropdown.Item>
         <Dropdown.Item disabled>{t("cozeLibraryActionCopyToSpace")}</Dropdown.Item>
+        {record.resourceType === "database" && record.subType !== "datasource" ? (
+          <Dropdown.Item onClick={() => handleOpenStructure(record)}>{t("cozeLibraryActionStructure")}</Dropdown.Item>
+        ) : null}
         {record.resourceType === "database" && record.subType !== "datasource" ? (
           <Dropdown.Item onClick={() => handleOpenMigration(record)}>{t("cozeLibraryActionMigrateDatabase")}</Dropdown.Item>
         ) : null}
@@ -391,7 +401,7 @@ export function WorkspaceLibraryPage() {
         )}
       </Dropdown.Menu>
     ),
-    [handleDeleteDatabase, handleOpen, handleOpenMigration, t]
+    [handleDeleteDatabase, handleOpen, handleOpenMigration, handleOpenStructure, t]
   );
 
   const columns: ColumnProps<AiWorkspaceLibraryItem>[] = useMemo(

@@ -12,6 +12,9 @@ public sealed record AiDatabaseListItem(
     int OnlineRecordCount,
     AiDatabaseQueryMode QueryMode,
     AiDatabaseChannelScope ChannelScope,
+    AiDatabaseStorageMode StorageMode,
+    string DriverCode,
+    AiDatabaseProvisionState ProvisionState,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
 
@@ -26,6 +29,10 @@ public sealed record AiDatabaseDetail(
     int OnlineRecordCount,
     AiDatabaseQueryMode QueryMode,
     AiDatabaseChannelScope ChannelScope,
+    AiDatabaseStorageMode StorageMode,
+    string DriverCode,
+    AiDatabaseProvisionState ProvisionState,
+    string? ProvisionError,
     long? WorkspaceId,
     IReadOnlyList<AiDatabaseFieldItem> Fields,
     IReadOnlyList<AiDatabaseChannelConfigItem> ChannelConfigs,
@@ -39,6 +46,7 @@ public sealed record AiDatabaseCreateRequest(
     string? TableSchema,
     long? WorkspaceId = null,
     IReadOnlyList<AiDatabaseFieldItem>? Fields = null,
+    string DriverCode = "SQLite",
     AiDatabaseQueryMode QueryMode = AiDatabaseQueryMode.MultiUser,
     AiDatabaseChannelScope ChannelScope = AiDatabaseChannelScope.FullShared);
 

@@ -92,6 +92,7 @@ internal sealed class AiDatabaseTestHarness : IDisposable
         services.AddSingleton<IUnitOfWork>(UnitOfWork);
         services.AddSingleton(NullLogger<AiDatabaseService>.Instance);
         services.AddSingleton(PhysicalTableService);
+        services.AddSingleton<IAiDatabaseProvisioner>(new TestAiDatabaseProvisioner(PhysicalTableService, DatabaseRepository));
         services.AddSingleton<IAiDatabaseService>(sp => new AiDatabaseService(
             DatabaseRepository,
             FieldRepository,
@@ -101,6 +102,7 @@ internal sealed class AiDatabaseTestHarness : IDisposable
             BindingRepository,
             QuotaPolicy,
             PhysicalTableService,
+            sp.GetRequiredService<IAiDatabaseProvisioner>(),
             FileStorage,
             BackgroundWorkQueue,
             IdGenerator,
@@ -258,6 +260,33 @@ internal sealed class AiDatabaseTestHarness : IDisposable
         private long _next = 1_000_000;
         public long NextId() => Interlocked.Increment(ref _next);
     }
+}
+
+internal sealed class TestAiDatabaseProvisioner : IAiDatabaseProvisioner
+{
+    private readonly AiDatabasePhysicalTableService _physicalTableService;
+    private readonly AiDatabaseRepository _databaseRepository;
+
+    public TestAiDatabaseProvisioner(AiDatabasePhysicalTableService physicalTableService, AiDatabaseRepository databaseRepository)
+    {
+        _physicalTableService = physicalTableService;
+        _databaseRepository = databaseRepository;
+    }
+
+    public async Task EnsureProvisionedAsync(AiDatabase database, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(database.DraftTableName) || string.IsNullOrWhiteSpace(database.OnlineTableName))
+        {
+            var names = _physicalTableService.BuildTableNames(database.TenantId, database.Id);
+            database.SetPhysicalTables(names.DraftTableName, names.OnlineTableName);
+            await _databaseRepository.UpdateAsync(database, cancellationToken);
+        }
+
+        await _physicalTableService.EnsureDatabaseTablesAsync(database, legacyDraftRows: null, cancellationToken);
+    }
+
+    public Task DropAsync(AiDatabase database, CancellationToken cancellationToken)
+        => _physicalTableService.DropDatabaseTablesAsync(database, cancellationToken);
 }
 
 /// <summary>

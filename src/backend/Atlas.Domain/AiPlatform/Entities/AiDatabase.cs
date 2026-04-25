@@ -21,6 +21,12 @@ public sealed class AiDatabase : TenantEntity
         ChannelScope = AiDatabaseChannelScope.FullShared;
         DraftTableName = string.Empty;
         OnlineTableName = string.Empty;
+        StorageMode = AiDatabaseStorageMode.Standalone;
+        DriverCode = "SQLite";
+        EncryptedDraftConnection = string.Empty;
+        EncryptedOnlineConnection = string.Empty;
+        PhysicalDatabaseName = string.Empty;
+        ProvisionState = AiDatabaseProvisionState.Pending;
         ResourceSource = LibrarySource.Custom;
         CreatedAt = DateTime.UtcNow;
     }
@@ -52,6 +58,12 @@ public sealed class AiDatabase : TenantEntity
         ChannelScope = channelScope ?? AiDatabaseChannelScope.FullShared;
         DraftTableName = string.Empty;
         OnlineTableName = string.Empty;
+        StorageMode = AiDatabaseStorageMode.Standalone;
+        DriverCode = "SQLite";
+        EncryptedDraftConnection = string.Empty;
+        EncryptedOnlineConnection = string.Empty;
+        PhysicalDatabaseName = string.Empty;
+        ProvisionState = AiDatabaseProvisionState.Pending;
         ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
@@ -73,6 +85,15 @@ public sealed class AiDatabase : TenantEntity
     public AiDatabaseChannelScope ChannelScope { get; private set; }
     public string DraftTableName { get; private set; }
     public string OnlineTableName { get; private set; }
+    public AiDatabaseStorageMode StorageMode { get; private set; }
+    public string DriverCode { get; private set; }
+    [SugarColumn(Length = 4096)]
+    public string EncryptedDraftConnection { get; private set; }
+    [SugarColumn(Length = 4096)]
+    public string EncryptedOnlineConnection { get; private set; }
+    public string PhysicalDatabaseName { get; private set; }
+    public AiDatabaseProvisionState ProvisionState { get; private set; }
+    public string? ProvisionError { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
 
@@ -95,6 +116,38 @@ public sealed class AiDatabase : TenantEntity
 
     public string GetTableName(AiDatabaseRecordEnvironment environment)
         => environment == AiDatabaseRecordEnvironment.Online ? OnlineTableName : DraftTableName;
+
+    public void ConfigureStandaloneStorage(
+        string driverCode,
+        string encryptedDraftConnection,
+        string encryptedOnlineConnection,
+        string physicalDatabaseName)
+    {
+        StorageMode = AiDatabaseStorageMode.Standalone;
+        DriverCode = string.IsNullOrWhiteSpace(driverCode) ? "SQLite" : driverCode.Trim();
+        EncryptedDraftConnection = encryptedDraftConnection?.Trim() ?? string.Empty;
+        EncryptedOnlineConnection = encryptedOnlineConnection?.Trim() ?? string.Empty;
+        PhysicalDatabaseName = physicalDatabaseName?.Trim() ?? string.Empty;
+        ProvisionState = AiDatabaseProvisionState.Ready;
+        ProvisionError = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetStandaloneDriver(string driverCode)
+    {
+        StorageMode = AiDatabaseStorageMode.Standalone;
+        DriverCode = string.IsNullOrWhiteSpace(driverCode) ? "SQLite" : driverCode.Trim();
+        ProvisionState = AiDatabaseProvisionState.Pending;
+        ProvisionError = null;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarkProvisionFailed(string error)
+    {
+        ProvisionState = AiDatabaseProvisionState.Failed;
+        ProvisionError = string.IsNullOrWhiteSpace(error) ? "Provision failed." : error.Trim();
+        UpdatedAt = DateTime.UtcNow;
+    }
 
     public void Update(
         string name,
@@ -195,4 +248,17 @@ public enum AiDatabaseRecordEnvironment
 {
     Draft = 1,
     Online = 2
+}
+
+public enum AiDatabaseStorageMode
+{
+    LegacyJson = 0,
+    Standalone = 1
+}
+
+public enum AiDatabaseProvisionState
+{
+    Pending = 0,
+    Ready = 1,
+    Failed = 2
 }

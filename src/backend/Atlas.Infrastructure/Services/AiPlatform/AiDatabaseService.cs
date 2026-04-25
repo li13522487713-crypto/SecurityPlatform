@@ -25,6 +25,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
     private readonly AiAppResourceBindingRepository _appResourceBindingRepository;
     private readonly AiDatabaseQuotaPolicy _quotaPolicy;
     private readonly AiDatabasePhysicalTableService _physicalTableService;
+    private readonly IAiDatabaseProvisioner _provisioner;
     private readonly IFileStorageService _fileStorageService;
     private readonly IBackgroundWorkQueue _backgroundWorkQueue;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
@@ -40,6 +41,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
         AiAppResourceBindingRepository appResourceBindingRepository,
         AiDatabaseQuotaPolicy quotaPolicy,
         AiDatabasePhysicalTableService physicalTableService,
+        IAiDatabaseProvisioner provisioner,
         IFileStorageService fileStorageService,
         IBackgroundWorkQueue backgroundWorkQueue,
         IIdGeneratorAccessor idGeneratorAccessor,
@@ -54,6 +56,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
         _appResourceBindingRepository = appResourceBindingRepository;
         _quotaPolicy = quotaPolicy;
         _physicalTableService = physicalTableService;
+        _provisioner = provisioner;
         _fileStorageService = fileStorageService;
         _backgroundWorkQueue = backgroundWorkQueue;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -82,8 +85,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
         {
             cancellationToken.ThrowIfCancellationRequested();
             await EnsureStorageReadyAsync(item, cancellationToken);
-            var draftCount = await _physicalTableService.CountRowsAsync(item, AiDatabaseRecordEnvironment.Draft, cancellationToken);
-            var onlineCount = await _physicalTableService.CountRowsAsync(item, AiDatabaseRecordEnvironment.Online, cancellationToken);
+            var draftCount = item.StorageMode == AiDatabaseStorageMode.Standalone ? 0 : await _physicalTableService.CountRowsAsync(item, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+            var onlineCount = item.StorageMode == AiDatabaseStorageMode.Standalone ? 0 : await _physicalTableService.CountRowsAsync(item, AiDatabaseRecordEnvironment.Online, cancellationToken);
             if (item.RecordCount != draftCount + onlineCount)
             {
                 item.SetRecordCount(draftCount + onlineCount);
@@ -107,8 +110,8 @@ public sealed class AiDatabaseService : IAiDatabaseService
         await EnsureStorageReadyAsync(entity, cancellationToken);
         var fields = await GetOrBootstrapFieldsAsync(entity, cancellationToken);
         var channelConfigs = await GetOrBootstrapChannelConfigsAsync(entity, cancellationToken);
-        var draftCount = await _physicalTableService.CountRowsAsync(entity, AiDatabaseRecordEnvironment.Draft, cancellationToken);
-        var onlineCount = await _physicalTableService.CountRowsAsync(entity, AiDatabaseRecordEnvironment.Online, cancellationToken);
+        var draftCount = entity.StorageMode == AiDatabaseStorageMode.Standalone ? 0 : await _physicalTableService.CountRowsAsync(entity, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        var onlineCount = entity.StorageMode == AiDatabaseStorageMode.Standalone ? 0 : await _physicalTableService.CountRowsAsync(entity, AiDatabaseRecordEnvironment.Online, cancellationToken);
         if (entity.RecordCount != draftCount + onlineCount)
         {
             entity.SetRecordCount(draftCount + onlineCount);
@@ -148,9 +151,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
             request.WorkspaceId,
             request.QueryMode,
             request.ChannelScope);
-        var (draftTableName, onlineTableName) = _physicalTableService.BuildTableNames(tenantId, id);
-        entity.SetPhysicalTables(draftTableName, onlineTableName);
-
+        entity.SetStandaloneDriver(Atlas.Infrastructure.Services.DataSourceDriverRegistry.NormalizeDriverCode(request.DriverCode));
         var fields = BuildFieldEntities(tenantId, id, normalizedFields);
         var channelConfigs = BuildChannelConfigEntities(tenantId, id, items: null);
 
@@ -161,7 +162,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
             await _channelConfigRepository.AddRangeAsync(channelConfigs, cancellationToken);
         }, cancellationToken);
 
-        await _physicalTableService.EnsureDatabaseTablesAsync(entity, legacyDraftRows: null, cancellationToken);
+        await _provisioner.EnsureProvisionedAsync(entity, cancellationToken);
         return entity.Id;
     }
 
@@ -223,7 +224,14 @@ public sealed class AiDatabaseService : IAiDatabaseService
             await _databaseRepository.DeleteAsync(tenantId, entity.Id, cancellationToken);
         }, cancellationToken);
 
-        await _physicalTableService.DropDatabaseTablesAsync(entity, cancellationToken);
+        if (entity.StorageMode == AiDatabaseStorageMode.Standalone)
+        {
+            await _provisioner.DropAsync(entity, cancellationToken);
+        }
+        else
+        {
+            await _physicalTableService.DropDatabaseTablesAsync(entity, cancellationToken);
+        }
     }
 
     public async Task BindAsync(TenantId tenantId, long id, long botId, CancellationToken cancellationToken)
@@ -593,6 +601,12 @@ public sealed class AiDatabaseService : IAiDatabaseService
 
     private async Task EnsureStorageReadyAsync(AiDatabase database, CancellationToken cancellationToken)
     {
+        if (database.StorageMode == AiDatabaseStorageMode.Standalone)
+        {
+            await _provisioner.EnsureProvisionedAsync(database, cancellationToken);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(database.DraftTableName) || string.IsNullOrWhiteSpace(database.OnlineTableName))
         {
             var names = _physicalTableService.BuildTableNames(database.TenantId, database.Id);
@@ -1071,6 +1085,9 @@ public sealed class AiDatabaseService : IAiDatabaseService
             onlineRecordCount,
             entity.QueryMode,
             entity.ChannelScope,
+            entity.StorageMode,
+            entity.DriverCode,
+            entity.ProvisionState,
             entity.CreatedAt,
             entity.UpdatedAt);
 
@@ -1091,6 +1108,10 @@ public sealed class AiDatabaseService : IAiDatabaseService
             onlineRecordCount,
             entity.QueryMode,
             entity.ChannelScope,
+            entity.StorageMode,
+            entity.DriverCode,
+            entity.ProvisionState,
+            entity.ProvisionError,
             entity.WorkspaceId,
             fields.Select(MapField).ToList(),
             channelConfigs.Select(MapChannelConfig).ToList(),
