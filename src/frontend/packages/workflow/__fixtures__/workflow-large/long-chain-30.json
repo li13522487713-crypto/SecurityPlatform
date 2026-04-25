@@ -1,0 +1,1521 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Start",
+          "description": "Start fixture node",
+          "icon": "",
+          "subTitle": "type 1",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "auto_save_history": false
+        },
+        "outputs": [
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "user_id",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n1",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-1",
+          "description": "n-1 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n2",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-2",
+          "description": "n-2 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n1",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n3",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-3",
+          "description": "n-3 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n2",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n4",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-4",
+          "description": "n-4 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n3",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n5",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-5",
+          "description": "n-5 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n6",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-6",
+          "description": "n-6 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n5",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n7",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-7",
+          "description": "n-7 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n6",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n8",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-8",
+          "description": "n-8 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n7",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n9",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-9",
+          "description": "n-9 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n10",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-10",
+          "description": "n-10 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n9",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n11",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-11",
+          "description": "n-11 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n10",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n12",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-12",
+          "description": "n-12 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n11",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n13",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-13",
+          "description": "n-13 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n14",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-14",
+          "description": "n-14 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n13",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n15",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-15",
+          "description": "n-15 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n14",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n16",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-16",
+          "description": "n-16 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n15",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n17",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-17",
+          "description": "n-17 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n18",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-18",
+          "description": "n-18 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n17",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n19",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-19",
+          "description": "n-19 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n18",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n20",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-20",
+          "description": "n-20 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n19",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n21",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-21",
+          "description": "n-21 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n22",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-22",
+          "description": "n-22 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n21",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n23",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-23",
+          "description": "n-23 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n22",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n24",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-24",
+          "description": "n-24 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n23",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n25",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-25",
+          "description": "n-25 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n26",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-26",
+          "description": "n-26 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n25",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n27",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-27",
+          "description": "n-27 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n26",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "n28",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "n-28",
+          "description": "n-28 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n27",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "end",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "End",
+          "description": "End fixture node",
+          "icon": "",
+          "subTitle": "type 2",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "terminatePlan": "returnVariables",
+          "outputEmitter": {
+            "streamingOutput": false,
+            "content": {
+              "value": "{{end.answer}}"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "answer",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start",
+      "targetNodeID": "n1"
+    },
+    {
+      "sourceNodeID": "n1",
+      "targetNodeID": "n2"
+    },
+    {
+      "sourceNodeID": "n2",
+      "targetNodeID": "n3"
+    },
+    {
+      "sourceNodeID": "n3",
+      "targetNodeID": "n4"
+    },
+    {
+      "sourceNodeID": "n4",
+      "targetNodeID": "n5"
+    },
+    {
+      "sourceNodeID": "n5",
+      "targetNodeID": "n6"
+    },
+    {
+      "sourceNodeID": "n6",
+      "targetNodeID": "n7"
+    },
+    {
+      "sourceNodeID": "n7",
+      "targetNodeID": "n8"
+    },
+    {
+      "sourceNodeID": "n8",
+      "targetNodeID": "n9"
+    },
+    {
+      "sourceNodeID": "n9",
+      "targetNodeID": "n10"
+    },
+    {
+      "sourceNodeID": "n10",
+      "targetNodeID": "n11"
+    },
+    {
+      "sourceNodeID": "n11",
+      "targetNodeID": "n12"
+    },
+    {
+      "sourceNodeID": "n12",
+      "targetNodeID": "n13"
+    },
+    {
+      "sourceNodeID": "n13",
+      "targetNodeID": "n14"
+    },
+    {
+      "sourceNodeID": "n14",
+      "targetNodeID": "n15"
+    },
+    {
+      "sourceNodeID": "n15",
+      "targetNodeID": "n16"
+    },
+    {
+      "sourceNodeID": "n16",
+      "targetNodeID": "n17"
+    },
+    {
+      "sourceNodeID": "n17",
+      "targetNodeID": "n18"
+    },
+    {
+      "sourceNodeID": "n18",
+      "targetNodeID": "n19"
+    },
+    {
+      "sourceNodeID": "n19",
+      "targetNodeID": "n20"
+    },
+    {
+      "sourceNodeID": "n20",
+      "targetNodeID": "n21"
+    },
+    {
+      "sourceNodeID": "n21",
+      "targetNodeID": "n22"
+    },
+    {
+      "sourceNodeID": "n22",
+      "targetNodeID": "n23"
+    },
+    {
+      "sourceNodeID": "n23",
+      "targetNodeID": "n24"
+    },
+    {
+      "sourceNodeID": "n24",
+      "targetNodeID": "n25"
+    },
+    {
+      "sourceNodeID": "n25",
+      "targetNodeID": "n26"
+    },
+    {
+      "sourceNodeID": "n26",
+      "targetNodeID": "n27"
+    },
+    {
+      "sourceNodeID": "n27",
+      "targetNodeID": "n28"
+    },
+    {
+      "sourceNodeID": "n28",
+      "targetNodeID": "end"
+    }
+  ]
+}

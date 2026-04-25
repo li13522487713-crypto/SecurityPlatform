@@ -27,4 +27,9 @@ export * from './form-extensions';
 export * from './constants';
 export * from './services';
 export { generateInputJsonSchema } from './utils/generate-input-json-schema';
+export {
+  buildVariableReferenceIndex,
+  type VariableReferenceRecord,
+  type WorkflowVariableReferenceIndex,
+} from './utils/variable-reference-index';
 export { createWorkflowVariablePlugins } from './create-workflow-variable-plugin';

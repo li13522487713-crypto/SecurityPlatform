@@ -1,0 +1,599 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Start",
+          "description": "Start fixture node",
+          "icon": "",
+          "subTitle": "type 1",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "auto_save_history": false
+        },
+        "outputs": [
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "user_id",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "condition",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Condition",
+          "description": "Condition fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "branch_0",
+      "type": "3",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Branch 0",
+          "description": "Branch 0 fixture node",
+          "icon": "",
+          "subTitle": "type 3",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "llmParam": {
+            "prompt": "Summarize upstream result.",
+            "model": "fixture-model"
+          },
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "answer",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "branch_1",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Branch 1",
+          "description": "Branch 1 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "branch_2",
+      "type": "45",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Branch 2",
+          "description": "Branch 2 fixture node",
+          "icon": "",
+          "subTitle": "type 45",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "method": "POST",
+          "url": "https://example.com/api/fixture",
+          "headers": [],
+          "body": {
+            "type": "json",
+            "value": "{\"ok\":true}"
+          },
+          "inputParameters": [
+            {
+              "name": "payload",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n1",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "status",
+            "type": "Integer",
+            "required": false
+          },
+          {
+            "name": "body",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "branch_3",
+      "type": "4",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Branch 3",
+          "description": "Branch 3 fixture node",
+          "icon": "",
+          "subTitle": "type 4",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "pluginFrom": "library",
+          "apiParam": [
+            {
+              "name": "pluginID",
+              "input": {
+                "type": "literal",
+                "content": "9223372036854770001",
+                "rawMeta": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "name": "apiID",
+              "input": {
+                "type": "literal",
+                "content": "9223372036854770002",
+                "rawMeta": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "name": "pluginVersion",
+              "input": {
+                "type": "literal",
+                "content": "v1",
+                "rawMeta": {
+                  "type": "string"
+                }
+              }
+            }
+          ],
+          "inputParameters": [
+            {
+              "name": "query",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "plugin_result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "branch_4",
+      "type": "13",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Branch 4",
+          "description": "Branch 4 fixture node",
+          "icon": "",
+          "subTitle": "type 13",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "content": {
+            "type": "literal",
+            "content": "Fixture output",
+            "rawMeta": {
+              "type": "string"
+            }
+          },
+          "streamingOutput": false,
+          "inputParameters": [
+            {
+              "name": "content",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n3",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "message",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "else_node",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Else",
+          "description": "Else fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "end",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "End",
+          "description": "End fixture node",
+          "icon": "",
+          "subTitle": "type 2",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "terminatePlan": "returnVariables",
+          "outputEmitter": {
+            "streamingOutput": false,
+            "content": {
+              "value": "{{end.answer}}"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "answer",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start",
+      "targetNodeID": "condition"
+    },
+    {
+      "sourceNodeID": "condition",
+      "targetNodeID": "branch_0",
+      "sourcePortID": "true"
+    },
+    {
+      "sourceNodeID": "branch_0",
+      "targetNodeID": "end"
+    },
+    {
+      "sourceNodeID": "condition",
+      "targetNodeID": "branch_1",
+      "sourcePortID": "true_1"
+    },
+    {
+      "sourceNodeID": "branch_1",
+      "targetNodeID": "end"
+    },
+    {
+      "sourceNodeID": "condition",
+      "targetNodeID": "branch_2",
+      "sourcePortID": "true_2"
+    },
+    {
+      "sourceNodeID": "branch_2",
+      "targetNodeID": "end"
+    },
+    {
+      "sourceNodeID": "condition",
+      "targetNodeID": "branch_3",
+      "sourcePortID": "true_3"
+    },
+    {
+      "sourceNodeID": "branch_3",
+      "targetNodeID": "end"
+    },
+    {
+      "sourceNodeID": "condition",
+      "targetNodeID": "branch_4",
+      "sourcePortID": "true_4"
+    },
+    {
+      "sourceNodeID": "branch_4",
+      "targetNodeID": "end"
+    },
+    {
+      "sourceNodeID": "condition",
+      "targetNodeID": "else_node",
+      "sourcePortID": "false"
+    },
+    {
+      "sourceNodeID": "else_node",
+      "targetNodeID": "end"
+    }
+  ]
+}

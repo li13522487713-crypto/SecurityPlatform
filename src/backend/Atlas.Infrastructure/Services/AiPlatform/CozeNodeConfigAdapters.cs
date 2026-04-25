@@ -8,6 +8,24 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 /// </summary>
 internal static class CozeAdapterHelper
 {
+    internal static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
     internal static string? TryGetString(JsonElement element, string propertyName)
     {
         foreach (var property in element.EnumerateObject())
@@ -20,6 +38,23 @@ internal static class CozeAdapterHelper
         }
 
         return null;
+    }
+
+    internal static void CopyIfExists(JsonElement source, Dictionary<string, JsonElement> config, string sourceName, string? targetName = null)
+    {
+        if (TryGetProperty(source, sourceName, out var value))
+        {
+            config[targetName ?? sourceName] = value.Clone();
+        }
+    }
+
+    internal static void CopyOutputs(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (TryGetProperty(context.DataElement, "outputs", out var outputs) &&
+            outputs.ValueKind == JsonValueKind.Array)
+        {
+            config["outputs"] = outputs.Clone();
+        }
     }
 }
 
@@ -67,7 +102,48 @@ internal static class CozeNodeConfigAdapterRegistry
             new LoopNodeConfigAdapter(),
             new LlmNodeConfigAdapter(),
             new TextProcessorNodeConfigAdapter(),
-            new CommonOutputsNodeConfigAdapter(WorkflowNodeType.SubWorkflow)
+            new PluginNodeConfigAdapter(),
+            new KnowledgeRetrieveNodeConfigAdapter(),
+            new SubWorkflowNodeConfigAdapter(),
+            new OutputEmitterNodeConfigAdapter(),
+            new QuestionAnswerNodeConfigAdapter(),
+            new BatchNodeConfigAdapter(),
+            new InputReceiverNodeConfigAdapter(),
+            new IntentDetectorNodeConfigAdapter(),
+            new VariableNodeConfigAdapter(),
+            new SetVariableNodeConfigAdapter(),
+            new VariableMergeNodeConfigAdapter(),
+            new VariableAssignNodeConfigAdapter(),
+            new DatabaseCustomSqlNodeConfigAdapter(),
+            new DatabaseQueryNodeConfigAdapter(),
+            new DatabaseCreateNodeConfigAdapter(),
+            new DatabaseUpdateNodeConfigAdapter(),
+            new DatabaseDeleteNodeConfigAdapter(),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.Break),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.Continue),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.KnowledgeIndexer),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.LtmUpstream),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.SceneVariable),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.SceneChat),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.TriggerUpsert),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.TriggerDelete),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.TriggerRead),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.MessageList),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ClearConversationHistory),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.CreateConversation),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ConversationUpdate),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ConversationDelete),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ConversationList),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ConversationHistory),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.CreateMessage),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.EditMessage),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.DeleteMessage),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.JsonSerialization),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.JsonDeserialization),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.Imageflow),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ImageGenerate),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ImageReference),
+            new PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType.ImageCanvas)
         }.ToDictionary(x => x.NodeType, x => x);
 
     public static void Adapt(WorkflowNodeType nodeType, in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
@@ -792,7 +868,489 @@ internal sealed class TextProcessorNodeConfigAdapter : ICozeNodeConfigAdapter
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SubWorkflow (and any future node type that only needs outputs forwarded)
+// Plugin / Knowledge / SubWorkflow / Output / Question / Batch / Input / Intent
+// ─────────────────────────────────────────────────────────────────────────────
+
+internal sealed class PluginNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.Plugin;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (!CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            return;
+        }
+
+        CozeAdapterHelper.CopyIfExists(inputs, config, "pluginFrom", "plugin_from");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "apiParam", "api_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "batch");
+
+        if (CozeAdapterHelper.TryGetProperty(inputs, "apiParam", out var apiParam) &&
+            apiParam.ValueKind == JsonValueKind.Array)
+        {
+            CopyNamedBlockInput(apiParam, config, "pluginID", "plugin_id");
+            CopyNamedBlockInput(apiParam, config, "apiID", "api_id");
+            CopyNamedBlockInput(apiParam, config, "pluginVersion", "plugin_version");
+            CopyNamedBlockInput(apiParam, config, "apiName", "api_name");
+            CopyNamedBlockInput(apiParam, config, "toolName", "tool_name");
+        }
+    }
+
+    private static void CopyNamedBlockInput(
+        JsonElement items,
+        Dictionary<string, JsonElement> config,
+        string name,
+        string targetName)
+    {
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !string.Equals(CozeAdapterHelper.TryGetString(item, "name"), name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (TryExtractBlockInputContent(item, out var value))
+            {
+                config[targetName] = value.Clone();
+            }
+        }
+    }
+
+    private static bool TryExtractBlockInputContent(JsonElement item, out JsonElement value)
+    {
+        if (CozeAdapterHelper.TryGetProperty(item, "input", out var input) &&
+            CozeAdapterHelper.TryGetProperty(input, "value", out var valueElement))
+        {
+            if (CozeAdapterHelper.TryGetProperty(valueElement, "content", out value))
+            {
+                return true;
+            }
+
+            value = valueElement;
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+}
+
+internal sealed class KnowledgeRetrieveNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.KnowledgeRetriever;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (!CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            return;
+        }
+
+        CozeAdapterHelper.CopyIfExists(inputs, config, "datasetParam", "dataset_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "chatHistorySetting", "chat_history_setting");
+
+        if (CozeAdapterHelper.TryGetProperty(inputs, "datasetParam", out var datasetParam) &&
+            datasetParam.ValueKind == JsonValueKind.Array)
+        {
+            config["knowledgeIds"] = JsonSerializer.SerializeToElement(ExtractNamedContents(datasetParam, "datasetList"));
+            CopyNamedContent(datasetParam, config, "topK", "topK");
+            CopyNamedContent(datasetParam, config, "minScore", "minScore");
+            CopyNamedContent(datasetParam, config, "useRerank", "useRerank");
+            CopyNamedContent(datasetParam, config, "useRewrite", "useRewrite");
+            CopyNamedContent(datasetParam, config, "useNl2sql", "useNl2sql");
+            CopyNamedContent(datasetParam, config, "strategy", "strategy");
+        }
+    }
+
+    private static List<JsonElement> ExtractNamedContents(JsonElement items, string name)
+    {
+        var result = new List<JsonElement>();
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object &&
+                string.Equals(CozeAdapterHelper.TryGetString(item, "name"), name, StringComparison.OrdinalIgnoreCase) &&
+                TryExtractContent(item, out var content))
+            {
+                if (content.ValueKind == JsonValueKind.Array)
+                {
+                    result.AddRange(content.EnumerateArray().Select(x => x.Clone()));
+                }
+                else
+                {
+                    result.Add(content.Clone());
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static void CopyNamedContent(JsonElement items, Dictionary<string, JsonElement> config, string name, string targetName)
+    {
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object &&
+                string.Equals(CozeAdapterHelper.TryGetString(item, "name"), name, StringComparison.OrdinalIgnoreCase) &&
+                TryExtractContent(item, out var content))
+            {
+                config[targetName] = content.Clone();
+                return;
+            }
+        }
+    }
+
+    private static bool TryExtractContent(JsonElement item, out JsonElement content)
+    {
+        if (CozeAdapterHelper.TryGetProperty(item, "input", out var input) &&
+            CozeAdapterHelper.TryGetProperty(input, "value", out var value) &&
+            CozeAdapterHelper.TryGetProperty(value, "content", out content))
+        {
+            return true;
+        }
+
+        content = default;
+        return false;
+    }
+}
+
+internal sealed class SubWorkflowNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.SubWorkflow;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (!CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            return;
+        }
+
+        CozeAdapterHelper.CopyIfExists(inputs, config, "workflowId", "workflow_id");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "workflowVersion", "workflow_version");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputDefs", "input_defs");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "input_parameters");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "batch");
+    }
+}
+
+internal sealed class OutputEmitterNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.OutputEmitter;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (!CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            return;
+        }
+
+        CozeAdapterHelper.CopyIfExists(inputs, config, "content", "output_content");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "streamingOutput", "streamingOutput");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "terminatePlan", "terminatePlan");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+    }
+}
+
+internal sealed class QuestionAnswerNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.QuestionAnswer;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (!CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            return;
+        }
+
+        CozeAdapterHelper.CopyIfExists(inputs, config, "answer_type", "answer_type");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "answerType", "answer_type");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "options");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "llmParam", "llm_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+    }
+}
+
+internal sealed class BatchNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.Batch;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (!CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            return;
+        }
+
+        CozeAdapterHelper.CopyIfExists(inputs, config, "batch");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+    }
+}
+
+internal sealed class InputReceiverNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.InputReceiver;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            CozeAdapterHelper.CopyIfExists(inputs, config, "outputSchema", "outputSchema");
+        }
+    }
+}
+
+internal sealed class IntentDetectorNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.IntentDetector;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (!CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            return;
+        }
+
+        CozeAdapterHelper.CopyIfExists(inputs, config, "intents");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "llmParam", "llm_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "chatHistorySetting", "chat_history_setting");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+    }
+}
+
+internal sealed class VariableNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.Variable;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+
+        if (CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            CozeAdapterHelper.CopyIfExists(inputs, config, "variableType", "variable_type");
+            CozeAdapterHelper.CopyIfExists(inputs, config, "defaultValue", "default_value");
+            CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+        }
+    }
+}
+
+internal sealed class SetVariableNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.VariableAssignerWithinLoop;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+        if (CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "assign_pairs");
+        }
+    }
+}
+
+internal sealed class VariableMergeNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.VariableAggregator;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+        if (CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            CozeAdapterHelper.CopyIfExists(inputs, config, "mergeGroups", "merge_groups");
+        }
+    }
+}
+
+internal sealed class VariableAssignNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public WorkflowNodeType NodeType => WorkflowNodeType.AssignVariable;
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyOutputs(context, config);
+        if (CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs))
+        {
+            CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "variable_assign_pairs");
+        }
+    }
+}
+
+internal abstract class DatabaseNodeConfigAdapterBase : ICozeNodeConfigAdapter
+{
+    public abstract WorkflowNodeType NodeType { get; }
+
+    public abstract void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config);
+
+    protected static bool TryGetInputs(in CozeNodeAdaptContext context, out JsonElement inputs)
+        => CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out inputs) &&
+           inputs.ValueKind == JsonValueKind.Object;
+
+    protected static void CopyDatabaseInfo(JsonElement inputs, Dictionary<string, JsonElement> config)
+    {
+        CozeAdapterHelper.CopyIfExists(inputs, config, "databaseInfoList", "database_info_list");
+
+        if (!CozeAdapterHelper.TryGetProperty(inputs, "databaseInfoList", out var list) ||
+            list.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var item in list.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var databaseId =
+                CozeAdapterHelper.TryGetString(item, "databaseInfoID") ??
+                CozeAdapterHelper.TryGetString(item, "databaseInfoId") ??
+                CozeAdapterHelper.TryGetString(item, "databaseID") ??
+                CozeAdapterHelper.TryGetString(item, "databaseId");
+
+            if (!string.IsNullOrWhiteSpace(databaseId))
+            {
+                config["databaseInfoId"] = JsonSerializer.SerializeToElement(databaseId);
+                return;
+            }
+        }
+    }
+}
+
+internal sealed class DatabaseCustomSqlNodeConfigAdapter : DatabaseNodeConfigAdapterBase
+{
+    public override WorkflowNodeType NodeType => WorkflowNodeType.DatabaseCustomSql;
+
+    public override void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (!TryGetInputs(context, out var inputs))
+        {
+            return;
+        }
+
+        CopyDatabaseInfo(inputs, config);
+        CozeAdapterHelper.CopyIfExists(inputs, config, "sql", "sqlTemplate");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "sqlTemplate", "sqlTemplate");
+    }
+}
+
+internal sealed class DatabaseQueryNodeConfigAdapter : DatabaseNodeConfigAdapterBase
+{
+    public override WorkflowNodeType NodeType => WorkflowNodeType.DatabaseQuery;
+
+    public override void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (!TryGetInputs(context, out var inputs))
+        {
+            return;
+        }
+
+        CopyDatabaseInfo(inputs, config);
+        CozeAdapterHelper.CopyIfExists(inputs, config, "selectParam", "select_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+        CozeAdapterHelper.CopyOutputs(context, config);
+    }
+}
+
+internal sealed class DatabaseCreateNodeConfigAdapter : DatabaseNodeConfigAdapterBase
+{
+    public override WorkflowNodeType NodeType => WorkflowNodeType.DatabaseInsert;
+
+    public override void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (!TryGetInputs(context, out var inputs))
+        {
+            return;
+        }
+
+        CopyDatabaseInfo(inputs, config);
+        CozeAdapterHelper.CopyIfExists(inputs, config, "insertParam", "insert_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+        CozeAdapterHelper.CopyOutputs(context, config);
+    }
+}
+
+internal sealed class DatabaseUpdateNodeConfigAdapter : DatabaseNodeConfigAdapterBase
+{
+    public override WorkflowNodeType NodeType => WorkflowNodeType.DatabaseUpdate;
+
+    public override void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (!TryGetInputs(context, out var inputs))
+        {
+            return;
+        }
+
+        CopyDatabaseInfo(inputs, config);
+        CozeAdapterHelper.CopyIfExists(inputs, config, "updateParam", "update_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+        CozeAdapterHelper.CopyOutputs(context, config);
+    }
+}
+
+internal sealed class DatabaseDeleteNodeConfigAdapter : DatabaseNodeConfigAdapterBase
+{
+    public override WorkflowNodeType NodeType => WorkflowNodeType.DatabaseDelete;
+
+    public override void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (!TryGetInputs(context, out var inputs))
+        {
+            return;
+        }
+
+        CopyDatabaseInfo(inputs, config);
+        CozeAdapterHelper.CopyIfExists(inputs, config, "deleteParam", "delete_param");
+        CozeAdapterHelper.CopyIfExists(inputs, config, "inputParameters", "inputParameters");
+        CozeAdapterHelper.CopyOutputs(context, config);
+    }
+}
+
+internal sealed class PassThroughInputsOutputsNodeConfigAdapter : ICozeNodeConfigAdapter
+{
+    public PassThroughInputsOutputsNodeConfigAdapter(WorkflowNodeType nodeType)
+    {
+        NodeType = nodeType;
+    }
+
+    public WorkflowNodeType NodeType { get; }
+
+    public void Adapt(in CozeNodeAdaptContext context, Dictionary<string, JsonElement> config)
+    {
+        if (CozeAdapterHelper.TryGetProperty(context.DataElement, "inputs", out var inputs) &&
+            inputs.ValueKind == JsonValueKind.Object)
+        {
+            config["inputs"] = inputs.Clone();
+            foreach (var property in inputs.EnumerateObject())
+            {
+                config[property.Name] = property.Value.Clone();
+            }
+        }
+
+        CozeAdapterHelper.CopyOutputs(context, config);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Generic outputs forwarding
 // ─────────────────────────────────────────────────────────────────────────────
 
 internal sealed class CommonOutputsNodeConfigAdapter : ICozeNodeConfigAdapter

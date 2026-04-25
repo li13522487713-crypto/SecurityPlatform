@@ -1,0 +1,13 @@
+{
+  "$schema": "./allowlist.schema.json",
+  "allowedDifferences": [
+    {
+      "path": "playground/src/services/workflow-operation-service.ts",
+      "reason": "Atlas gateway wiring and execution integration differ from upstream Coze Studio."
+    },
+    {
+      "path": "playground/src/services/workflow-save-service.ts",
+      "reason": "Atlas workspace/runtime lifecycle integrates with local backend compatibility services."
+    }
+  ]
+}

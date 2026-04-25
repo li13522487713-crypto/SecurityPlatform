@@ -26,18 +26,21 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             ["8"] = WorkflowNodeType.Selector,
             ["9"] = WorkflowNodeType.SubWorkflow,
             ["11"] = WorkflowNodeType.Variable,
-            // Coze 通用 Database 父节点（ID=12）：Atlas 已用 5 个细粒度 Database 节点替代。
-            ["12"] = WorkflowNodeType.Comment,
+            // Coze Go NodeTypeMetas: ID=12 is DatabaseCustomSQL, not Comment.
+            ["12"] = WorkflowNodeType.DatabaseCustomSql,
             ["13"] = WorkflowNodeType.OutputEmitter,
-            ["14"] = WorkflowNodeType.ImageGenerate,
+            // Atlas keeps upstream image nodes as explicit symbolic types. Their enum values
+            // are partially private for DB compatibility, so string IDs are mapped here.
+            ["14"] = WorkflowNodeType.Imageflow,
             ["15"] = WorkflowNodeType.TextProcessor,
-            ["16"] = WorkflowNodeType.ImageReference,
-            ["17"] = WorkflowNodeType.ImageCanvas,
+            ["16"] = WorkflowNodeType.ImageGenerate,
+            ["17"] = WorkflowNodeType.ImageReference,
             ["18"] = WorkflowNodeType.QuestionAnswer,
             ["19"] = WorkflowNodeType.Break,
             ["20"] = WorkflowNodeType.VariableAssignerWithinLoop,
             ["21"] = WorkflowNodeType.Loop,
             ["22"] = WorkflowNodeType.IntentDetector,
+            ["23"] = WorkflowNodeType.ImageCanvas,
             ["24"] = WorkflowNodeType.SceneVariable,
             ["25"] = WorkflowNodeType.SceneChat,
             ["26"] = WorkflowNodeType.LtmUpstream,
@@ -82,7 +85,7 @@ public sealed class CozeWorkflowPlanCompiler : ICozeWorkflowPlanCompiler
             ["Condition"] = WorkflowNodeType.Selector,
             ["Http"] = WorkflowNodeType.HttpRequester,
             ["HTTPRequest"] = WorkflowNodeType.HttpRequester,
-            ["Database"] = WorkflowNodeType.Comment,
+            ["Database"] = WorkflowNodeType.DatabaseCustomSql,
         };
 
     public CozeWorkflowCompileResult Compile(string? schemaJson)

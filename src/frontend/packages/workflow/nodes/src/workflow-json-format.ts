@@ -328,7 +328,9 @@ export class WorkflowJSONFormat implements WorkflowJSONFormatContribution {
       return node;
     });
 
-    console.log('------------------ save ----------------------', json);
+    if (IS_DEV_MODE) {
+      console.debug('------------------ save ----------------------', json);
+    }
     return json;
   }
 }

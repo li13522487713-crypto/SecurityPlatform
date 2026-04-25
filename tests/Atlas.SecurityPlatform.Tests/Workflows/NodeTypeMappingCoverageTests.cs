@@ -69,4 +69,16 @@ public sealed class NodeTypeMappingCoverageTests
         Assert.False(string.IsNullOrWhiteSpace(entryCode));
         Assert.NotEqual("Entry", entryCode); // 应当是数字字符串
     }
+
+    [Theory]
+    [InlineData("Imageflow", "14")]
+    [InlineData("ImageGenerate", "16")]
+    [InlineData("ImageReference", "17")]
+    [InlineData("ImageCanvas", "23")]
+    public void ToCozeNodeTypeCode_ShouldUseFrontendStandardNodeTypeForImageNodes(string nodeTypeKey, string expectedCode)
+    {
+        var code = CozeCompatGatewaySupport.ToCozeNodeTypeCode(nodeTypeKey);
+
+        Assert.Equal(expectedCode, code);
+    }
 }

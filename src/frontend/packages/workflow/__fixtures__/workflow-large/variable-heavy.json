@@ -1,0 +1,4070 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Start",
+          "description": "Start fixture node",
+          "icon": "",
+          "subTitle": "type 1",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "auto_save_history": false
+        },
+        "outputs": [
+          {
+            "name": "var_0",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_1",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_2",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_3",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_4",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_5",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_6",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_7",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_8",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_9",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_10",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_11",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_12",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_13",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_14",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_15",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_16",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_17",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_18",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_19",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_20",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_21",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_22",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_23",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_24",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_25",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_26",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_27",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_28",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_29",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_30",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_31",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_32",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_33",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_34",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_35",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_36",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_37",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_38",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_39",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_40",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_41",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_42",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_43",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_44",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_45",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_46",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_47",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_48",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "var_49",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v1",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-1",
+          "description": "v-1 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v2",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-2",
+          "description": "v-2 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n1",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v3",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-3",
+          "description": "v-3 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n2",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v4",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-4",
+          "description": "v-4 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v5",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-5",
+          "description": "v-5 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n4",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v6",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-6",
+          "description": "v-6 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n5",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v7",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-7",
+          "description": "v-7 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n6",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v8",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-8",
+          "description": "v-8 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v9",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-9",
+          "description": "v-9 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n8",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v10",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-10",
+          "description": "v-10 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n9",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v11",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-11",
+          "description": "v-11 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n10",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v12",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-12",
+          "description": "v-12 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v13",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-13",
+          "description": "v-13 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n12",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v14",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-14",
+          "description": "v-14 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n13",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v15",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-15",
+          "description": "v-15 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n14",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v16",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-16",
+          "description": "v-16 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v17",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-17",
+          "description": "v-17 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n16",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v18",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-18",
+          "description": "v-18 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n17",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v19",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 180
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-19",
+          "description": "v-19 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n18",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v20",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-20",
+          "description": "v-20 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v21",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-21",
+          "description": "v-21 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n20",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v22",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-22",
+          "description": "v-22 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n21",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v23",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-23",
+          "description": "v-23 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n22",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v24",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-24",
+          "description": "v-24 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v25",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-25",
+          "description": "v-25 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n24",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v26",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-26",
+          "description": "v-26 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n25",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v27",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-27",
+          "description": "v-27 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n26",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v28",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-28",
+          "description": "v-28 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v29",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 360
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-29",
+          "description": "v-29 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n28",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v30",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-30",
+          "description": "v-30 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n29",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v31",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-31",
+          "description": "v-31 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n30",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v32",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-32",
+          "description": "v-32 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v33",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-33",
+          "description": "v-33 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n32",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v34",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-34",
+          "description": "v-34 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n33",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v35",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-35",
+          "description": "v-35 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n34",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v36",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-36",
+          "description": "v-36 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v37",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-37",
+          "description": "v-37 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n36",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v38",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-38",
+          "description": "v-38 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n37",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v39",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 540
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-39",
+          "description": "v-39 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n38",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v40",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-40",
+          "description": "v-40 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v41",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-41",
+          "description": "v-41 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n40",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v42",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-42",
+          "description": "v-42 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n41",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v43",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-43",
+          "description": "v-43 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n42",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v44",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 1280,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-44",
+          "description": "v-44 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "v45",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 1600,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-45",
+          "description": "v-45 fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n44",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v46",
+      "type": "40",
+      "meta": {
+        "position": {
+          "x": 1920,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-46",
+          "description": "v-46 fixture node",
+          "icon": "",
+          "subTitle": "type 40",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "inputParameters": [
+            {
+              "name": "assign_result",
+              "left": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              },
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "n45",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "assigned",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v47",
+      "type": "32",
+      "meta": {
+        "position": {
+          "x": 2240,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-47",
+          "description": "v-47 fixture node",
+          "icon": "",
+          "subTitle": "type 32",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "mergeGroups": [
+            {
+              "name": "merged",
+              "variables": [
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "start",
+                    "name": "query"
+                  }
+                },
+                {
+                  "type": "ref",
+                  "content": {
+                    "source": "block-output",
+                    "blockID": "n46",
+                    "name": "result"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "merged",
+            "type": "Object",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "v48",
+      "type": "8",
+      "meta": {
+        "position": {
+          "x": 2560,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "v-48",
+          "description": "v-48 fixture node",
+          "icon": "",
+          "subTitle": "type 8",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "branches": [
+            {
+              "name": "branch_0",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-0",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_1",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-1",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_2",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-2",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_3",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-3",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "name": "branch_4",
+              "condition": {
+                "logic": 2,
+                "conditions": [
+                  {
+                    "operator": 1,
+                    "left": {
+                      "type": "ref",
+                      "content": {
+                        "source": "block-output",
+                        "blockID": "start",
+                        "name": "query"
+                      }
+                    },
+                    "right": {
+                      "type": "literal",
+                      "content": "case-4",
+                      "rawMeta": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    },
+    {
+      "id": "end",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 2880,
+          "y": 720
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "End",
+          "description": "End fixture node",
+          "icon": "",
+          "subTitle": "type 2",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "terminatePlan": "returnVariables",
+          "outputEmitter": {
+            "streamingOutput": false,
+            "content": {
+              "value": "{{end.answer}}"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "answer",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start",
+      "targetNodeID": "v1"
+    },
+    {
+      "sourceNodeID": "v1",
+      "targetNodeID": "v2"
+    },
+    {
+      "sourceNodeID": "v2",
+      "targetNodeID": "v3"
+    },
+    {
+      "sourceNodeID": "v3",
+      "targetNodeID": "v4"
+    },
+    {
+      "sourceNodeID": "v4",
+      "targetNodeID": "v5"
+    },
+    {
+      "sourceNodeID": "v5",
+      "targetNodeID": "v6"
+    },
+    {
+      "sourceNodeID": "v6",
+      "targetNodeID": "v7"
+    },
+    {
+      "sourceNodeID": "v7",
+      "targetNodeID": "v8"
+    },
+    {
+      "sourceNodeID": "v8",
+      "targetNodeID": "v9"
+    },
+    {
+      "sourceNodeID": "v9",
+      "targetNodeID": "v10"
+    },
+    {
+      "sourceNodeID": "v10",
+      "targetNodeID": "v11"
+    },
+    {
+      "sourceNodeID": "v11",
+      "targetNodeID": "v12"
+    },
+    {
+      "sourceNodeID": "v12",
+      "targetNodeID": "v13"
+    },
+    {
+      "sourceNodeID": "v13",
+      "targetNodeID": "v14"
+    },
+    {
+      "sourceNodeID": "v14",
+      "targetNodeID": "v15"
+    },
+    {
+      "sourceNodeID": "v15",
+      "targetNodeID": "v16"
+    },
+    {
+      "sourceNodeID": "v16",
+      "targetNodeID": "v17"
+    },
+    {
+      "sourceNodeID": "v17",
+      "targetNodeID": "v18"
+    },
+    {
+      "sourceNodeID": "v18",
+      "targetNodeID": "v19"
+    },
+    {
+      "sourceNodeID": "v19",
+      "targetNodeID": "v20"
+    },
+    {
+      "sourceNodeID": "v20",
+      "targetNodeID": "v21"
+    },
+    {
+      "sourceNodeID": "v21",
+      "targetNodeID": "v22"
+    },
+    {
+      "sourceNodeID": "v22",
+      "targetNodeID": "v23"
+    },
+    {
+      "sourceNodeID": "v23",
+      "targetNodeID": "v24"
+    },
+    {
+      "sourceNodeID": "v24",
+      "targetNodeID": "v25"
+    },
+    {
+      "sourceNodeID": "v25",
+      "targetNodeID": "v26"
+    },
+    {
+      "sourceNodeID": "v26",
+      "targetNodeID": "v27"
+    },
+    {
+      "sourceNodeID": "v27",
+      "targetNodeID": "v28"
+    },
+    {
+      "sourceNodeID": "v28",
+      "targetNodeID": "v29"
+    },
+    {
+      "sourceNodeID": "v29",
+      "targetNodeID": "v30"
+    },
+    {
+      "sourceNodeID": "v30",
+      "targetNodeID": "v31"
+    },
+    {
+      "sourceNodeID": "v31",
+      "targetNodeID": "v32"
+    },
+    {
+      "sourceNodeID": "v32",
+      "targetNodeID": "v33"
+    },
+    {
+      "sourceNodeID": "v33",
+      "targetNodeID": "v34"
+    },
+    {
+      "sourceNodeID": "v34",
+      "targetNodeID": "v35"
+    },
+    {
+      "sourceNodeID": "v35",
+      "targetNodeID": "v36"
+    },
+    {
+      "sourceNodeID": "v36",
+      "targetNodeID": "v37"
+    },
+    {
+      "sourceNodeID": "v37",
+      "targetNodeID": "v38"
+    },
+    {
+      "sourceNodeID": "v38",
+      "targetNodeID": "v39"
+    },
+    {
+      "sourceNodeID": "v39",
+      "targetNodeID": "v40"
+    },
+    {
+      "sourceNodeID": "v40",
+      "targetNodeID": "v41"
+    },
+    {
+      "sourceNodeID": "v41",
+      "targetNodeID": "v42"
+    },
+    {
+      "sourceNodeID": "v42",
+      "targetNodeID": "v43"
+    },
+    {
+      "sourceNodeID": "v43",
+      "targetNodeID": "v44"
+    },
+    {
+      "sourceNodeID": "v44",
+      "targetNodeID": "v45"
+    },
+    {
+      "sourceNodeID": "v45",
+      "targetNodeID": "v46"
+    },
+    {
+      "sourceNodeID": "v46",
+      "targetNodeID": "v47"
+    },
+    {
+      "sourceNodeID": "v47",
+      "targetNodeID": "v48"
+    },
+    {
+      "sourceNodeID": "v48",
+      "targetNodeID": "end"
+    }
+  ]
+}

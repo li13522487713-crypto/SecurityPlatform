@@ -1655,13 +1655,21 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
         => new { code = 0, msg = "success", data = new { } };
 
     private static object Fail(string message)
-        => new { code = -1, msg = message, data = new { } };
+    {
+        var errorCode = message.Contains("workflow_id", StringComparison.OrdinalIgnoreCase)
+            ? "INVALID_WORKFLOW_ID_FORMAT"
+            : message.Contains("execute_id", StringComparison.OrdinalIgnoreCase)
+                ? "INVALID_EXECUTE_ID_FORMAT"
+                : "WORKFLOW_COMPAT_ERROR";
+
+        return new { code = -1, msg = message, error_code = errorCode, data = new { } };
+    }
 
     private static bool TryParseWorkflowId(string? raw, out long workflowId)
-        => long.TryParse(raw, out workflowId);
+        => CozeCompatGatewaySupport.TryParsePositiveLongId(raw, out workflowId);
 
     private static bool TryParseExecutionId(string? raw, out long executionId)
-        => long.TryParse(raw, out executionId);
+        => CozeCompatGatewaySupport.TryParsePositiveLongId(raw, out executionId);
 
     private static bool TryParsePositiveId(string? raw, out long value)
     {
@@ -1724,6 +1732,20 @@ public sealed class AppWebWorkflowGatewayController : ControllerBase
     {
         if (Enum.TryParse<WorkflowNodeType>(nodeTypeKey, true, out var nodeType))
         {
+            var upstreamCode = nodeType switch
+            {
+                WorkflowNodeType.Imageflow => "14",
+                WorkflowNodeType.ImageGenerate => "16",
+                WorkflowNodeType.ImageReference => "17",
+                WorkflowNodeType.ImageCanvas => "23",
+                _ => null
+            };
+
+            if (upstreamCode is not null)
+            {
+                return upstreamCode;
+            }
+
             return ((int)nodeType).ToString(CultureInfo.InvariantCulture);
         }
 

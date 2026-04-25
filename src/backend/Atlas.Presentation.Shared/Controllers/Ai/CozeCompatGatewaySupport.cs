@@ -193,10 +193,32 @@ public static class CozeCompatGatewaySupport
         return new DateTimeOffset(value).ToUnixTimeMilliseconds();
     }
 
+    public static bool TryParsePositiveLongId(string? raw, out long value)
+    {
+        value = 0;
+        return !string.IsNullOrWhiteSpace(raw)
+               && long.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value)
+               && value > 0;
+    }
+
     public static string ToCozeNodeTypeCode(string nodeTypeKey)
     {
         if (Enum.TryParse<WorkflowNodeType>(nodeTypeKey, true, out var nodeType))
         {
+            var upstreamCode = nodeType switch
+            {
+                WorkflowNodeType.Imageflow => "14",
+                WorkflowNodeType.ImageGenerate => "16",
+                WorkflowNodeType.ImageReference => "17",
+                WorkflowNodeType.ImageCanvas => "23",
+                _ => null
+            };
+
+            if (upstreamCode is not null)
+            {
+                return upstreamCode;
+            }
+
             return ((int)nodeType).ToString(CultureInfo.InvariantCulture);
         }
 

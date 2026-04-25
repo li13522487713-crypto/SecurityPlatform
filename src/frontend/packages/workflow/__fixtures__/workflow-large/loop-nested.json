@@ -1,0 +1,345 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "type": "1",
+      "meta": {
+        "position": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Start",
+          "description": "Start fixture node",
+          "icon": "",
+          "subTitle": "type 1",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "auto_save_history": false
+        },
+        "outputs": [
+          {
+            "name": "query",
+            "type": "String",
+            "required": false
+          },
+          {
+            "name": "user_id",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "loop",
+      "type": "21",
+      "meta": {
+        "position": {
+          "x": 320,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "Loop",
+          "description": "Loop fixture node",
+          "icon": "",
+          "subTitle": "type 21",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "loopArray": [
+            {
+              "name": "items",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "query"
+                }
+              }
+            }
+          ],
+          "loopVariables": [
+            {
+              "name": "item",
+              "type": "String",
+              "required": false
+            },
+            {
+              "name": "index",
+              "type": "Integer",
+              "required": false
+            }
+          ],
+          "breakCondition": {
+            "type": "literal",
+            "content": false,
+            "rawMeta": {
+              "type": "boolean"
+            }
+          }
+        },
+        "outputs": [
+          {
+            "name": "loop_result",
+            "type": "Array",
+            "required": false
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "id": "loop_code",
+          "type": "5",
+          "meta": {
+            "position": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "data": {
+            "nodeMeta": {
+              "title": "Loop Code",
+              "description": "Loop Code fixture node",
+              "icon": "",
+              "subTitle": "type 5",
+              "mainColor": "#4D53E8"
+            },
+            "inputs": {
+              "code": "async function main(params) { return { result: params.input }; }",
+              "inputParameters": [
+                {
+                  "name": "input",
+                  "input": {
+                    "type": "ref",
+                    "content": {
+                      "source": "block-output",
+                      "blockID": "start",
+                      "name": "result"
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": [
+              {
+                "name": "result",
+                "type": "String",
+                "required": false
+              }
+            ]
+          }
+        },
+        {
+          "id": "loop_llm",
+          "type": "3",
+          "meta": {
+            "position": {
+              "x": 320,
+              "y": 0
+            }
+          },
+          "data": {
+            "nodeMeta": {
+              "title": "Loop LLM",
+              "description": "Loop LLM fixture node",
+              "icon": "",
+              "subTitle": "type 3",
+              "mainColor": "#4D53E8"
+            },
+            "inputs": {
+              "llmParam": {
+                "prompt": "Summarize upstream result.",
+                "model": "fixture-model"
+              },
+              "inputParameters": [
+                {
+                  "name": "query",
+                  "input": {
+                    "type": "ref",
+                    "content": {
+                      "source": "block-output",
+                      "blockID": "start",
+                      "name": "query"
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": [
+              {
+                "name": "answer",
+                "type": "String",
+                "required": false
+              }
+            ]
+          }
+        },
+        {
+          "id": "loop_assign",
+          "type": "40",
+          "meta": {
+            "position": {
+              "x": 640,
+              "y": 0
+            }
+          },
+          "data": {
+            "nodeMeta": {
+              "title": "Loop Assign",
+              "description": "Loop Assign fixture node",
+              "icon": "",
+              "subTitle": "type 40",
+              "mainColor": "#4D53E8"
+            },
+            "inputs": {
+              "inputParameters": [
+                {
+                  "name": "assign_result",
+                  "left": {
+                    "type": "ref",
+                    "content": {
+                      "source": "block-output",
+                      "blockID": "start",
+                      "name": "query"
+                    }
+                  },
+                  "input": {
+                    "type": "ref",
+                    "content": {
+                      "source": "block-output",
+                      "blockID": "start",
+                      "name": "result"
+                    }
+                  }
+                }
+              ]
+            },
+            "outputs": [
+              {
+                "name": "assigned",
+                "type": "String",
+                "required": false
+              }
+            ]
+          }
+        }
+      ],
+      "edges": [
+        {
+          "sourceNodeID": "loop_code",
+          "targetNodeID": "loop_llm"
+        },
+        {
+          "sourceNodeID": "loop_llm",
+          "targetNodeID": "loop_assign"
+        }
+      ]
+    },
+    {
+      "id": "after_loop",
+      "type": "5",
+      "meta": {
+        "position": {
+          "x": 640,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "After Loop",
+          "description": "After Loop fixture node",
+          "icon": "",
+          "subTitle": "type 5",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "code": "async function main(params) { return { result: params.input }; }",
+          "inputParameters": [
+            {
+              "name": "input",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": [
+          {
+            "name": "result",
+            "type": "String",
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "end",
+      "type": "2",
+      "meta": {
+        "position": {
+          "x": 960,
+          "y": 0
+        }
+      },
+      "data": {
+        "nodeMeta": {
+          "title": "End",
+          "description": "End fixture node",
+          "icon": "",
+          "subTitle": "type 2",
+          "mainColor": "#4D53E8"
+        },
+        "inputs": {
+          "terminatePlan": "returnVariables",
+          "outputEmitter": {
+            "streamingOutput": false,
+            "content": {
+              "value": "{{end.answer}}"
+            }
+          },
+          "inputParameters": [
+            {
+              "name": "answer",
+              "input": {
+                "type": "ref",
+                "content": {
+                  "source": "block-output",
+                  "blockID": "start",
+                  "name": "result"
+                }
+              }
+            }
+          ]
+        },
+        "outputs": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "sourceNodeID": "start",
+      "targetNodeID": "loop"
+    },
+    {
+      "sourceNodeID": "loop",
+      "targetNodeID": "after_loop",
+      "sourcePortID": "loop-output"
+    },
+    {
+      "sourceNodeID": "after_loop",
+      "targetNodeID": "end"
+    }
+  ]
+}
