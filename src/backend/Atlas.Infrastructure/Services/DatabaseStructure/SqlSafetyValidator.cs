@@ -4,153 +4,192 @@ using Atlas.Application.AiPlatform.Abstractions;
 
 namespace Atlas.Infrastructure.Services.DatabaseStructure;
 
-public sealed class SqlSafetyValidator : ISqlSafetyValidator
+public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
 {
-    private static readonly Regex ForbiddenKeywords = new(
-        @"\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|EXEC|EXECUTE|MERGE|GRANT|REVOKE|CREATE\s+USER|CREATE\s+DATABASE|ATTACH|DETACH)\b",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly HashSet<string> ForbiddenTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "DROP",
+        "DELETE",
+        "UPDATE",
+        "INSERT",
+        "ALTER",
+        "TRUNCATE",
+        "EXEC",
+        "EXECUTE",
+        "MERGE",
+        "GRANT",
+        "REVOKE",
+        "ATTACH",
+        "DETACH"
+    };
+
+    private static readonly string[] ForbiddenPhrases =
+    [
+        "CREATE DATABASE",
+        "CREATE USER",
+        "INTO OUTFILE",
+        "COPY TO PROGRAM"
+    ];
+
+    private static readonly string[] ForbiddenFunctions =
+    [
+        "LOAD_FILE",
+        "XP_CMDSHELL"
+    ];
 
     public void ValidateCreateTable(string sql)
     {
-        var sanitized = NormalizeSingleStatement(sql);
-        if (!Regex.IsMatch(sanitized, @"^\s*CREATE\s+TABLE\b", RegexOptions.IgnoreCase))
+        var statement = SingleStatement(sql);
+        if (!StartsWithKeywordSequence(statement, "CREATE", "TABLE"))
         {
-            throw new SqlSafetyException("Only CREATE TABLE statements are allowed.");
+            throw new SqlSafetyException("SQL_CREATE_TABLE_REQUIRED", "Only CREATE TABLE statements are allowed.");
         }
 
-        ValidateNoForbiddenKeywords(sanitized, allowCreateTable: true, allowCreateView: false);
+        EnsureNoForbidden(statement, allowedLeadingCreate: "TABLE");
     }
 
     public void ValidateCreateView(string sql)
     {
-        var sanitized = NormalizeSingleStatement(sql);
-        if (Regex.IsMatch(sanitized, @"^\s*CREATE\s+(OR\s+REPLACE\s+)?VIEW\b", RegexOptions.IgnoreCase))
+        var statement = SingleStatement(sql);
+        if (!StartsWithCreateView(statement))
         {
-            ValidateNoForbiddenKeywords(sanitized, allowCreateTable: false, allowCreateView: true);
-            if (!Regex.IsMatch(sanitized, @"\bAS\s+(SELECT|WITH)\b", RegexOptions.IgnoreCase))
-            {
-                throw new SqlSafetyException("CREATE VIEW must be based on a SELECT statement.");
-            }
-
-            return;
+            throw new SqlSafetyException("SQL_CREATE_VIEW_REQUIRED", "Only CREATE VIEW statements are allowed.");
         }
 
-        ValidateSelectOnly(sanitized);
+        EnsureNoForbidden(statement, allowedLeadingCreate: "VIEW");
+        var tokens = TokenizeExecutableText(statement).ToList();
+        var asIndex = tokens.FindIndex(token => string.Equals(token, "AS", StringComparison.OrdinalIgnoreCase));
+        if (asIndex < 0 || tokens.Skip(asIndex + 1).All(token => !string.Equals(token, "SELECT", StringComparison.OrdinalIgnoreCase) && !string.Equals(token, "WITH", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new SqlSafetyException("SQL_CREATE_VIEW_SELECT_REQUIRED", "CREATE VIEW must contain a SELECT query.");
+        }
     }
 
     public void ValidateSelectOnly(string sql)
     {
-        var sanitized = NormalizeSingleStatement(sql);
-        if (!Regex.IsMatch(sanitized, @"^\s*(SELECT|WITH)\b", RegexOptions.IgnoreCase))
+        var statement = SingleStatement(sql);
+        var tokens = TokenizeExecutableText(statement).ToList();
+        if (tokens.Count == 0 || (!string.Equals(tokens[0], "SELECT", StringComparison.OrdinalIgnoreCase) && !string.Equals(tokens[0], "WITH", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new SqlSafetyException("Only SELECT statements are allowed.");
+            throw new SqlSafetyException("SQL_SELECT_REQUIRED", "Only SELECT statements are allowed.");
         }
 
-        ValidateNoForbiddenKeywords(sanitized, allowCreateTable: false, allowCreateView: false);
+        EnsureNoForbidden(statement, allowedLeadingCreate: null);
     }
 
-    private static void ValidateNoForbiddenKeywords(string sql, bool allowCreateTable, bool allowCreateView)
-    {
-        var withoutAllowedCreate = sql;
-        if (allowCreateTable)
-        {
-            withoutAllowedCreate = Regex.Replace(withoutAllowedCreate, @"^\s*CREATE\s+TABLE\b", string.Empty, RegexOptions.IgnoreCase);
-        }
-
-        if (allowCreateView)
-        {
-            withoutAllowedCreate = Regex.Replace(withoutAllowedCreate, @"^\s*CREATE\s+(OR\s+REPLACE\s+)?VIEW\b", string.Empty, RegexOptions.IgnoreCase);
-        }
-
-        if (ForbiddenKeywords.IsMatch(withoutAllowedCreate))
-        {
-            throw new SqlSafetyException("Dangerous SQL keyword detected.");
-        }
-    }
-
-    private static string NormalizeSingleStatement(string sql)
+    public IReadOnlyList<string> SplitStatementsSafely(string sql)
     {
         if (string.IsNullOrWhiteSpace(sql))
         {
-            throw new SqlSafetyException("SQL statement cannot be empty.");
+            return [];
         }
 
-        var stripped = StripComments(sql).Trim();
-        var statements = SplitStatements(stripped).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
-        if (statements.Count != 1)
-        {
-            throw new SqlSafetyException("Multiple SQL statements are not allowed.");
-        }
-
-        return statements[0].Trim();
-    }
-
-    private static string StripComments(string sql)
-    {
-        var builder = new StringBuilder(sql.Length);
-        var inSingle = false;
-        var inDouble = false;
+        var result = new List<string>();
+        var builder = new StringBuilder();
+        var state = ScannerState.Normal;
         for (var i = 0; i < sql.Length; i++)
         {
             var ch = sql[i];
             var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
-            if (!inSingle && !inDouble && ch == '-' && next == '-')
+
+            if (state == ScannerState.Normal && ch == '/' && next == '*')
             {
-                while (i < sql.Length && sql[i] != '\n')
+                if (i + 2 < sql.Length && sql[i + 2] == '!')
                 {
-                    i++;
+                    throw new SqlSafetyException("SQL_MYSQL_VERSION_COMMENT_FORBIDDEN", "MySQL executable comments are not allowed.");
                 }
-                builder.Append('\n');
+
+                state = ScannerState.BlockComment;
+                builder.Append(' ');
+                i++;
                 continue;
             }
 
-            if (!inSingle && !inDouble && ch == '/' && next == '*')
+            if (state == ScannerState.Normal && ch == '-' && next == '-')
             {
-                i += 2;
-                while (i + 1 < sql.Length && !(sql[i] == '*' && sql[i + 1] == '/'))
+                state = ScannerState.LineComment;
+                builder.Append(' ');
+                i++;
+                continue;
+            }
+
+            if (state == ScannerState.LineComment)
+            {
+                if (ch is '\r' or '\n')
                 {
+                    state = ScannerState.Normal;
+                    builder.Append(ch);
+                }
+
+                continue;
+            }
+
+            if (state == ScannerState.BlockComment)
+            {
+                if (ch == '*' && next == '/')
+                {
+                    state = ScannerState.Normal;
                     i++;
                 }
-                i++;
+
+                continue;
+            }
+
+            if (state == ScannerState.Normal && ch == '\'')
+            {
+                state = ScannerState.SingleQuoted;
                 builder.Append(' ');
                 continue;
             }
 
-            if (ch == '\'' && !inDouble)
+            if (state == ScannerState.SingleQuoted)
             {
-                inSingle = !inSingle;
-            }
-            else if (ch == '"' && !inSingle)
-            {
-                inDouble = !inDouble;
-            }
+                if (ch == '\\' && next != '\0')
+                {
+                    i++;
+                    continue;
+                }
 
-            builder.Append(ch);
-        }
+                if (ch == '\'' && next == '\'')
+                {
+                    i++;
+                    continue;
+                }
 
-        return builder.ToString();
-    }
+                if (ch == '\'')
+                {
+                    state = ScannerState.Normal;
+                }
 
-    private static IEnumerable<string> SplitStatements(string sql)
-    {
-        var builder = new StringBuilder();
-        var inSingle = false;
-        var inDouble = false;
-        for (var i = 0; i < sql.Length; i++)
-        {
-            var ch = sql[i];
-            if (ch == '\'' && !inDouble)
-            {
-                inSingle = !inSingle;
-            }
-            else if (ch == '"' && !inSingle)
-            {
-                inDouble = !inDouble;
+                continue;
             }
 
-            if (ch == ';' && !inSingle && !inDouble)
+            if (state == ScannerState.Normal && ch == '"')
             {
-                yield return builder.ToString();
+                state = ScannerState.DoubleQuoted;
+                builder.Append(' ');
+                continue;
+            }
+
+            if (state == ScannerState.DoubleQuoted)
+            {
+                if (ch == '"' && next == '"')
+                {
+                    i++;
+                    continue;
+                }
+
+                if (ch == '"')
+                {
+                    state = ScannerState.Normal;
+                }
+
+                continue;
+            }
+
+            if (state == ScannerState.Normal && ch == ';')
+            {
+                result.Add(builder.ToString());
                 builder.Clear();
                 continue;
             }
@@ -158,6 +197,117 @@ public sealed class SqlSafetyValidator : ISqlSafetyValidator
             builder.Append(ch);
         }
 
-        yield return builder.ToString();
+        if (state is ScannerState.SingleQuoted or ScannerState.DoubleQuoted or ScannerState.BlockComment)
+        {
+            throw new SqlSafetyException("SQL_UNCLOSED_LITERAL_OR_COMMENT", "SQL contains an unclosed literal or comment.");
+        }
+
+        result.Add(builder.ToString());
+        return result.Select(item => item.Trim()).Where(item => item.Length > 0).ToList();
+    }
+
+    public bool ContainsForbiddenKeyword(string sql)
+    {
+        try
+        {
+            EnsureNoForbidden(sql, allowedLeadingCreate: null);
+            return false;
+        }
+        catch (SqlSafetyException)
+        {
+            return true;
+        }
+    }
+
+    private static bool StartsWithCreateView(string statement)
+        => StartsWithKeywordSequence(statement, "CREATE", "VIEW") ||
+           StartsWithKeywordSequence(statement, "CREATE", "OR", "REPLACE", "VIEW");
+
+    private static bool StartsWithKeywordSequence(string statement, params string[] expected)
+    {
+        var tokens = TokenizeExecutableText(statement).Take(expected.Length).ToList();
+        return tokens.Count == expected.Length &&
+               tokens.Zip(expected, (actual, wanted) => string.Equals(actual, wanted, StringComparison.OrdinalIgnoreCase)).All(BooleanIdentity);
+    }
+
+    private static bool BooleanIdentity(bool value) => value;
+
+    private string SingleStatement(string sql)
+    {
+        var statements = SplitStatementsSafely(sql);
+        if (statements.Count == 0)
+        {
+            throw new SqlSafetyException("SQL_EMPTY", "SQL statement cannot be empty.");
+        }
+
+        if (statements.Count != 1)
+        {
+            throw new SqlSafetyException("SQL_MULTIPLE_STATEMENTS_FORBIDDEN", "Multiple SQL statements are not allowed.");
+        }
+
+        return statements[0];
+    }
+
+    private static void EnsureNoForbidden(string statement, string? allowedLeadingCreate)
+    {
+        var tokens = TokenizeExecutableText(statement).ToList();
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+            if (ForbiddenTokens.Contains(token))
+            {
+                throw new SqlSafetyException("SQL_FORBIDDEN_KEYWORD", "Dangerous SQL keyword detected.");
+            }
+
+            if (ForbiddenFunctions.Contains(token))
+            {
+                throw new SqlSafetyException("SQL_FORBIDDEN_FUNCTION", "Dangerous SQL function detected.");
+            }
+
+            if (string.Equals(token, "CREATE", StringComparison.OrdinalIgnoreCase))
+            {
+                var next = i + 1 < tokens.Count ? tokens[i + 1] : string.Empty;
+                if (i == 0 && allowedLeadingCreate is not null && string.Equals(next, allowedLeadingCreate, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (i == 0 && string.Equals(next, "OR", StringComparison.OrdinalIgnoreCase) && allowedLeadingCreate is "VIEW")
+                {
+                    continue;
+                }
+
+                throw new SqlSafetyException("SQL_FORBIDDEN_CREATE", "Only the requested CREATE statement is allowed.");
+            }
+        }
+
+        var executable = string.Join(' ', tokens).ToUpperInvariant();
+        foreach (var phrase in ForbiddenPhrases)
+        {
+            if (executable.Contains(phrase, StringComparison.Ordinal))
+            {
+                throw new SqlSafetyException("SQL_FORBIDDEN_PHRASE", "Dangerous SQL phrase detected.");
+            }
+        }
+    }
+
+    private static IEnumerable<string> TokenizeExecutableText(string statement)
+    {
+        foreach (Match match in TokenPattern().Matches(statement))
+        {
+            yield return match.Value;
+        }
+    }
+
+    [GeneratedRegex(@"[A-Za-z_][A-Za-z0-9_]*")]
+    private static partial Regex TokenPattern();
+
+    private enum ScannerState
+    {
+        Normal,
+        SingleQuoted,
+        DoubleQuoted,
+        LineComment,
+        BlockComment
     }
 }

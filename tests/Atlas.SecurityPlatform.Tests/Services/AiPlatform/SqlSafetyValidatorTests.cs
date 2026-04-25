@@ -45,8 +45,8 @@ public sealed class SqlSafetyValidatorTests
 
     [Theory]
     [InlineData("CREATE VIEW v_users AS SELECT id, name FROM users")]
-    [InlineData("SELECT id, name FROM users")]
-    public void ValidateCreateView_AllowsCreateViewOrSelectWrapper(string sql)
+    [InlineData("CREATE OR REPLACE VIEW v_users AS SELECT id, name FROM users")]
+    public void ValidateCreateView_AllowsCreateView(string sql)
     {
         _validator.ValidateCreateView(sql);
     }
@@ -58,5 +58,35 @@ public sealed class SqlSafetyValidatorTests
     public void ValidateCreateView_BlocksDangerousInput(string sql)
     {
         Assert.Throws<SqlSafetyException>(() => _validator.ValidateCreateView(sql));
+    }
+
+    [Theory]
+    [InlineData("DROP TABLE users")]
+    [InlineData("UPDATE users SET name = 'x'")]
+    [InlineData("SELECT LOAD_FILE('/etc/passwd')")]
+    [InlineData("EXEC xp_cmdshell 'dir'")]
+    [InlineData("/*! DROP TABLE users */ SELECT 1")]
+    [InlineData("")]
+    [InlineData(";")]
+    public void Validator_BlocksExplicitRiskCases(string sql)
+    {
+        Assert.Throws<SqlSafetyException>(() => _validator.ValidateSelectOnly(sql));
+    }
+
+    [Theory]
+    [InlineData("SELECT 'DROP TABLE x' AS text")]
+    [InlineData("SELECT 1 -- DROP TABLE x")]
+    [InlineData("CREATE TABLE users(id int) /* DROP TABLE x */")]
+    [InlineData("CREATE TABLE users(id int);")]
+    public void Validator_IgnoresLiteralsCommentsAndTrailingSemicolon(string sql)
+    {
+        if (sql.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+        {
+            _validator.ValidateSelectOnly(sql);
+        }
+        else
+        {
+            _validator.ValidateCreateTable(sql);
+        }
     }
 }

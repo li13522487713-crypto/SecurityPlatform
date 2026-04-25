@@ -12,6 +12,7 @@ using Atlas.Domain.Identity.Entities;
 using System.Globalization;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 工作区 IDE 旧 AI 数据库字段兼容展示。
 namespace Atlas.Infrastructure.Services.Platform;
 
 public sealed class WorkspaceIdeService : IWorkspaceIdeService

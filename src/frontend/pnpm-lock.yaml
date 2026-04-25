@@ -80,6 +80,9 @@ importers:
       '@coze-arch/bot-api':
         specifier: workspace:*
         version: link:../../packages/arch/bot-api
+      '@coze-arch/bot-monaco-editor':
+        specifier: workspace:*
+        version: link:../../packages/arch/bot-monaco-editor
       '@coze-arch/bot-space-api':
         specifier: workspace:*
         version: link:../../packages/arch/bot-space-api

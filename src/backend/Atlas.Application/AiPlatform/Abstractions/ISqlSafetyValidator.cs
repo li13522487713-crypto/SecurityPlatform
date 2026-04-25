@@ -7,12 +7,24 @@ public interface ISqlSafetyValidator
     void ValidateCreateView(string sql);
 
     void ValidateSelectOnly(string sql);
+
+    IReadOnlyList<string> SplitStatementsSafely(string sql);
+
+    bool ContainsForbiddenKeyword(string sql);
 }
 
 public sealed class SqlSafetyException : Exception
 {
-    public SqlSafetyException(string message)
+    public SqlSafetyException(string code, string message)
         : base(message)
     {
+        Code = code;
     }
+
+    public SqlSafetyException(string message)
+        : this("SQL_SAFETY_VALIDATION_FAILED", message)
+    {
+    }
+
+    public string Code { get; }
 }

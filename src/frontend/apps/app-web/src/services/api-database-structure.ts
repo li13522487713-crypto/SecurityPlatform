@@ -9,10 +9,14 @@ export interface DatabaseObjectDto {
   objectType: DatabaseObjectType;
   schema?: string;
   engine?: string;
-  rowCount?: number;
+  algorithm?: string;
+  rowCount?: number | string;
   comment?: string;
   createdAt?: string;
   updatedAt?: string;
+  status?: string;
+  canPreview: boolean;
+  canDrop: boolean;
 }
 
 export interface DatabaseColumnDto {
@@ -49,6 +53,8 @@ export interface PreviewDataResponse {
   total: number;
   pageIndex: number;
   pageSize: number;
+  truncated?: boolean;
+  elapsedMs?: number;
 }
 
 export interface DdlResponse {
@@ -56,6 +62,7 @@ export interface DdlResponse {
 }
 
 export interface TableColumnDesignDto {
+  id: string;
   name: string;
   dataType: string;
   length?: number;
@@ -74,6 +81,8 @@ export interface TableOptionsDto {
   collation?: string;
   schema?: string;
   tablespace?: string;
+  includeAuditFields?: boolean;
+  extraOptions?: Record<string, string | null>;
 }
 
 export interface PreviewCreateTableDdlRequest {
@@ -102,6 +111,7 @@ export interface CreateViewRequest {
   viewName: string;
   comment?: string;
   sql: string;
+  mode?: "SelectOnly" | "CreateViewSql";
 }
 
 export interface DropDatabaseObjectRequest {
@@ -111,10 +121,16 @@ export interface DropDatabaseObjectRequest {
 }
 
 function unwrap<T>(response: ApiResponse<T>): T {
-  if (!response.data) {
+  if (response.success === false || response.data == null) {
     throw new Error(response.message || "Database structure API request failed.");
   }
   return response.data;
+}
+
+function unwrapVoid(response: ApiResponse<unknown>): void {
+  if (response.success === false) {
+    throw new Error(response.message || "Database structure API request failed.");
+  }
 }
 
 function base(databaseId: string): string {
@@ -167,17 +183,17 @@ export async function previewCreateTableDdl(databaseId: string, request: Preview
 }
 
 export async function createTableVisual(databaseId: string, request: CreateTableRequest): Promise<void> {
-  await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables`, {
     method: "POST",
     body: JSON.stringify({ ...request, mode: "visual" })
-  });
+  }));
 }
 
 export async function createTableSql(databaseId: string, request: CreateTableSqlRequest): Promise<void> {
-  await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables/sql`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables/sql`, {
     method: "POST",
     body: JSON.stringify(request)
-  });
+  }));
 }
 
 export async function previewViewSql(databaseId: string, request: PreviewViewSqlRequest): Promise<PreviewDataResponse> {
@@ -188,22 +204,22 @@ export async function previewViewSql(databaseId: string, request: PreviewViewSql
 }
 
 export async function createView(databaseId: string, request: CreateViewRequest): Promise<void> {
-  await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/views`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/views`, {
     method: "POST",
     body: JSON.stringify(request)
-  });
+  }));
 }
 
 export async function dropTable(databaseId: string, tableName: string, request: DropDatabaseObjectRequest): Promise<void> {
-  await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/tables/${encodeURIComponent(tableName)}`, {
     method: "DELETE",
     body: JSON.stringify(request)
-  });
+  }));
 }
 
 export async function dropView(databaseId: string, viewName: string, request: DropDatabaseObjectRequest): Promise<void> {
-  await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}`, {
+  unwrapVoid(await requestApi<ApiResponse<unknown>>(`${base(databaseId)}/views/${encodeURIComponent(viewName)}`, {
     method: "DELETE",
     body: JSON.stringify(request)
-  });
+  }));
 }

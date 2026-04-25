@@ -4,6 +4,15 @@ public sealed class SqliteDatabaseDialect : DatabaseDialectBase
 {
     public override string DriverCode => "SQLite";
 
+    protected override IReadOnlySet<string> SupportedDataTypes { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "INTEGER",
+        "TEXT",
+        "REAL",
+        "NUMERIC",
+        "BLOB"
+    };
+
     public override string BuildListObjectsSql(string objectType)
     {
         var type = NormalizeObjectType(objectType);

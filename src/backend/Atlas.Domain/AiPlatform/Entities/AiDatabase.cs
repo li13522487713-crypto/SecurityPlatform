@@ -5,6 +5,7 @@ using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
+#pragma warning disable CS0618 // 实体内部仍需维护旧字段的反序列化与兼容写入。
 public sealed class AiDatabase : TenantEntity
 {
     public AiDatabase()
@@ -26,6 +27,9 @@ public sealed class AiDatabase : TenantEntity
         EncryptedDraftConnection = string.Empty;
         EncryptedOnlineConnection = string.Empty;
         PhysicalDatabaseName = string.Empty;
+        DraftDatabaseName = string.Empty;
+        OnlineDatabaseName = string.Empty;
+        DialectVersion = "v1";
         ProvisionState = AiDatabaseProvisionState.Pending;
         ResourceSource = LibrarySource.Custom;
         CreatedAt = DateTime.UtcNow;
@@ -63,6 +67,9 @@ public sealed class AiDatabase : TenantEntity
         EncryptedDraftConnection = string.Empty;
         EncryptedOnlineConnection = string.Empty;
         PhysicalDatabaseName = string.Empty;
+        DraftDatabaseName = string.Empty;
+        OnlineDatabaseName = string.Empty;
+        DialectVersion = "v1";
         ProvisionState = AiDatabaseProvisionState.Pending;
         ResourceSource = resourceSource;
         CreatedAt = DateTime.UtcNow;
@@ -75,15 +82,21 @@ public sealed class AiDatabase : TenantEntity
     public long? BotId { get; private set; }
     public AiDatabaseOwnerType OwnerType { get; private set; }
     public long? OwnerId { get; private set; }
+    [Obsolete("旧 JSON 行模型字段，仅用于兼容读取；新结构管理不得使用。")]
     public string TableSchema { get; private set; }
+    [Obsolete("旧 JSON 行模型字段，仅用于兼容读取；新结构管理不得使用。")]
     public int SchemaVersion { get; private set; }
+    [Obsolete("旧 JSON 行模型字段，仅用于兼容读取；新结构管理不得使用。")]
     public int PublishedVersion { get; private set; }
+    [Obsolete("旧 JSON 行模型字段，仅用于兼容读取；新结构管理行数从物理库读取。")]
     public int RecordCount { get; private set; }
     /// <summary>D2：行可见性策略。SingleUser=按 OwnerUserId 过滤；MultiUser=不过滤。</summary>
     public AiDatabaseQueryMode QueryMode { get; private set; }
     /// <summary>D2：渠道隔离策略。支持完全共享 / 渠道隔离 / 站内共享。</summary>
     public AiDatabaseChannelScope ChannelScope { get; private set; }
+    [Obsolete("旧主库物理表字段，仅用于兼容读取；新结构管理不得使用。")]
     public string DraftTableName { get; private set; }
+    [Obsolete("旧主库物理表字段，仅用于兼容读取；新结构管理不得使用。")]
     public string OnlineTableName { get; private set; }
     public AiDatabaseStorageMode StorageMode { get; private set; }
     public string DriverCode { get; private set; }
@@ -92,6 +105,9 @@ public sealed class AiDatabase : TenantEntity
     [SugarColumn(Length = 4096)]
     public string EncryptedOnlineConnection { get; private set; }
     public string PhysicalDatabaseName { get; private set; }
+    public string DraftDatabaseName { get; private set; }
+    public string OnlineDatabaseName { get; private set; }
+    public string DialectVersion { get; private set; }
     public AiDatabaseProvisionState ProvisionState { get; private set; }
     public string? ProvisionError { get; private set; }
     public DateTime CreatedAt { get; private set; }
@@ -122,12 +138,32 @@ public sealed class AiDatabase : TenantEntity
         string encryptedDraftConnection,
         string encryptedOnlineConnection,
         string physicalDatabaseName)
+        => ConfigureStandaloneStorage(
+            driverCode,
+            encryptedDraftConnection,
+            encryptedOnlineConnection,
+            physicalDatabaseName,
+            $"{physicalDatabaseName}_draft",
+            $"{physicalDatabaseName}_online",
+            "v1");
+
+    public void ConfigureStandaloneStorage(
+        string driverCode,
+        string encryptedDraftConnection,
+        string encryptedOnlineConnection,
+        string physicalDatabaseName,
+        string draftDatabaseName,
+        string onlineDatabaseName,
+        string dialectVersion)
     {
         StorageMode = AiDatabaseStorageMode.Standalone;
         DriverCode = string.IsNullOrWhiteSpace(driverCode) ? "SQLite" : driverCode.Trim();
         EncryptedDraftConnection = encryptedDraftConnection?.Trim() ?? string.Empty;
         EncryptedOnlineConnection = encryptedOnlineConnection?.Trim() ?? string.Empty;
         PhysicalDatabaseName = physicalDatabaseName?.Trim() ?? string.Empty;
+        DraftDatabaseName = draftDatabaseName?.Trim() ?? string.Empty;
+        OnlineDatabaseName = onlineDatabaseName?.Trim() ?? string.Empty;
+        DialectVersion = string.IsNullOrWhiteSpace(dialectVersion) ? "v1" : dialectVersion.Trim();
         ProvisionState = AiDatabaseProvisionState.Ready;
         ProvisionError = null;
         UpdatedAt = DateTime.UtcNow;
@@ -137,6 +173,14 @@ public sealed class AiDatabase : TenantEntity
     {
         StorageMode = AiDatabaseStorageMode.Standalone;
         DriverCode = string.IsNullOrWhiteSpace(driverCode) ? "SQLite" : driverCode.Trim();
+        ProvisionState = AiDatabaseProvisionState.Pending;
+        ProvisionError = null;
+        DialectVersion = string.IsNullOrWhiteSpace(DialectVersion) ? "v1" : DialectVersion;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void MarkProvisionPending()
+    {
         ProvisionState = AiDatabaseProvisionState.Pending;
         ProvisionError = null;
         UpdatedAt = DateTime.UtcNow;
@@ -218,6 +262,7 @@ public sealed class AiDatabase : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 }
+#pragma warning restore CS0618
 
 public enum AiDatabaseOwnerType
 {

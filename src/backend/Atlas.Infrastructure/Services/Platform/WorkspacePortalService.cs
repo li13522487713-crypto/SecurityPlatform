@@ -15,6 +15,7 @@ using Atlas.Domain.Platform.Entities;
 using Atlas.Infrastructure.Repositories;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 门户旧 AI 数据库版本字段兼容展示。
 namespace Atlas.Infrastructure.Services.Platform;
 
 public sealed class WorkspacePortalService : IWorkspacePortalService

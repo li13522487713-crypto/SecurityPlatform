@@ -12,6 +12,7 @@ using Atlas.Infrastructure.Services.AiPlatform;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 迁移控制台按要求不改设计，保留旧 AI 数据库物理表兼容解析。
 namespace Atlas.Infrastructure.Services.SetupConsole;
 
 public sealed class MigrationConnectionResolver : IMigrationConnectionResolver

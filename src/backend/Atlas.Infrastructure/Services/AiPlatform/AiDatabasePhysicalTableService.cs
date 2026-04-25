@@ -6,6 +6,7 @@ using Atlas.Domain.AiPlatform.Entities;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 旧 atlas_data_json 物理表兼容服务，保留旧表名字段。
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AiDatabasePhysicalTableService

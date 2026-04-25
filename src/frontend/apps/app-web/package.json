@@ -22,6 +22,7 @@
     "@coze-agent-ide/entry-adapter": "workspace:*",
     "@coze-agent-ide/layout-adapter": "workspace:*",
     "@coze-arch/bot-api": "workspace:*",
+    "@coze-arch/bot-monaco-editor": "workspace:*",
     "@coze-arch/bot-space-api": "workspace:*",
     "@coze-arch/coze-design": "0.0.6-alpha.346d77",
     "@coze-foundation/foundation-sdk": "workspace:*",

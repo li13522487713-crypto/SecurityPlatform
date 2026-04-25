@@ -11,6 +11,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 工作流节点旧 JSON 行模型兼容路径，本任务不重写执行逻辑。
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
 internal sealed record DbClause(string Field, string Operator, string Value, string Logic);

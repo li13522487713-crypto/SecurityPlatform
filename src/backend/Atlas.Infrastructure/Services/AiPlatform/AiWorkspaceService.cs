@@ -13,6 +13,7 @@ using SqlSugar;
 using System.Text.Json;
 using System.Globalization;
 
+#pragma warning disable CS0618 // 工作区旧 AI 数据库字段兼容展示。
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AiWorkspaceService : IAiWorkspaceService

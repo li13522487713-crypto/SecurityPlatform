@@ -4,6 +4,24 @@ public class PostgreSqlDatabaseDialect : DatabaseDialectBase
 {
     public override string DriverCode => "PostgreSQL";
 
+    public override bool SupportsCreateDatabase => true;
+
+    public override bool SupportsCreateSchema => true;
+
+    protected override IReadOnlySet<string> SupportedDataTypes { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "BIGINT",
+        "INTEGER",
+        "VARCHAR",
+        "TEXT",
+        "TIMESTAMP",
+        "NUMERIC",
+        "DECIMAL",
+        "BOOLEAN",
+        "JSONB",
+        "UUID"
+    };
+
     public override string BuildListObjectsSql(string objectType)
     {
         var type = objectType.Trim().ToLowerInvariant();
@@ -13,6 +31,37 @@ public class PostgreSqlDatabaseDialect : DatabaseDialectBase
             "procedure" => "SELECT routine_name AS name, 'procedure' AS object_type, routine_schema AS schema_name, NULL AS engine, NULL AS row_count, NULL AS comment, NULL AS created_at, NULL AS updated_at FROM information_schema.routines WHERE routine_type = 'PROCEDURE' AND routine_schema NOT IN ('pg_catalog','information_schema') ORDER BY routine_schema, routine_name",
             "trigger" => "SELECT trigger_name AS name, 'trigger' AS object_type, trigger_schema AS schema_name, NULL AS engine, NULL AS row_count, event_manipulation AS comment, NULL AS created_at, NULL AS updated_at FROM information_schema.triggers WHERE trigger_schema NOT IN ('pg_catalog','information_schema') ORDER BY trigger_schema, trigger_name",
             _ => "SELECT table_name AS name, 'table' AS object_type, table_schema AS schema_name, NULL AS engine, NULL AS row_count, NULL AS comment, NULL AS created_at, NULL AS updated_at FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') AND table_type = 'BASE TABLE' ORDER BY table_schema, table_name"
+        };
+    }
+
+    public override string GetTableListSql(string? schema)
+        => BuildListObjectsSql("table", schema);
+
+    public override string GetViewListSql(string? schema)
+        => BuildListObjectsSql("view", schema);
+
+    public override string GetProcedureListSql(string? schema)
+        => BuildListObjectsSql("procedure", schema);
+
+    public override string GetTriggerListSql(string? schema)
+        => BuildListObjectsSql("trigger", schema);
+
+    private string BuildListObjectsSql(string objectType, string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return BuildListObjectsSql(objectType);
+        }
+
+        ValidateIdentifier(schema);
+        var schemaLiteral = schema.Replace("'", "''", StringComparison.Ordinal);
+        var type = objectType.Trim().ToLowerInvariant();
+        return type switch
+        {
+            "view" => $"SELECT table_name AS name, 'view' AS object_type, table_schema AS schema_name, NULL AS engine, NULL AS row_count, NULL AS comment, NULL AS created_at, NULL AS updated_at FROM information_schema.views WHERE table_schema = '{schemaLiteral}' ORDER BY table_schema, table_name",
+            "procedure" => $"SELECT routine_name AS name, 'procedure' AS object_type, routine_schema AS schema_name, NULL AS engine, NULL AS row_count, NULL AS comment, NULL AS created_at, NULL AS updated_at FROM information_schema.routines WHERE routine_type = 'PROCEDURE' AND routine_schema = '{schemaLiteral}' ORDER BY routine_schema, routine_name",
+            "trigger" => $"SELECT trigger_name AS name, 'trigger' AS object_type, trigger_schema AS schema_name, NULL AS engine, NULL AS row_count, event_manipulation AS comment, NULL AS created_at, NULL AS updated_at FROM information_schema.triggers WHERE trigger_schema = '{schemaLiteral}' ORDER BY trigger_schema, trigger_name",
+            _ => $"SELECT table_name AS name, 'table' AS object_type, table_schema AS schema_name, NULL AS engine, NULL AS row_count, NULL AS comment, NULL AS created_at, NULL AS updated_at FROM information_schema.tables WHERE table_schema = '{schemaLiteral}' AND table_type = 'BASE TABLE' ORDER BY table_schema, table_name"
         };
     }
 
@@ -41,5 +90,22 @@ public class PostgreSqlDatabaseDialect : DatabaseDialectBase
         ValidateIdentifier(objectName);
         var keyword = string.Equals(objectType, "view", StringComparison.OrdinalIgnoreCase) ? "VIEW" : "TABLE";
         return $"DROP {keyword} IF EXISTS {QualifiedName(objectName, schema)}";
+    }
+
+    protected override string BuildColumnSql(Atlas.Application.AiPlatform.Models.TableColumnDesignDto column)
+    {
+        if (column.AutoIncrement)
+        {
+            ValidateIdentifier(column.Name);
+            if (!column.PrimaryKey)
+            {
+                throw new InvalidOperationException("Identity column must be a primary key.");
+            }
+
+            var type = column.DataType.Equals("BIGINT", StringComparison.OrdinalIgnoreCase) ? "BIGINT" : "INTEGER";
+            return $"{QuoteIdentifier(column.Name)} {type} GENERATED BY DEFAULT AS IDENTITY NOT NULL";
+        }
+
+        return base.BuildColumnSql(column);
     }
 }

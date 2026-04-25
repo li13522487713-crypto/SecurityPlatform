@@ -90,4 +90,16 @@ public interface IDatabaseStructureService
         string viewName,
         DropDatabaseObjectRequest request,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<DatabaseObjectDto>> GetProcedureListAsync(
+        TenantId tenantId,
+        long databaseId,
+        AiDatabaseRecordEnvironment environment,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<DatabaseObjectDto>> GetTriggerListAsync(
+        TenantId tenantId,
+        long databaseId,
+        AiDatabaseRecordEnvironment environment,
+        CancellationToken cancellationToken);
 }

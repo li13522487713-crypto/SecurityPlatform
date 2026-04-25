@@ -7,10 +7,14 @@ public sealed record DatabaseObjectDto(
     string ObjectType,
     string? Schema,
     string? Engine,
+    string? Algorithm,
     long? RowCount,
     string? Comment,
     DateTime? CreatedAt,
-    DateTime? UpdatedAt);
+    DateTime? UpdatedAt,
+    string? Status = null,
+    bool CanPreview = true,
+    bool CanDrop = true);
 
 public sealed record DatabaseColumnDto(
     string Name,
@@ -39,13 +43,16 @@ public sealed record PreviewDataResponse(
     IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows,
     long Total,
     int PageIndex,
-    int PageSize);
+    int PageSize,
+    bool Truncated = false,
+    long ElapsedMs = 0);
 
 public sealed record PreviewDataColumn(string Name, string DataType);
 
 public sealed record DdlResponse(string Ddl);
 
 public sealed record TableColumnDesignDto(
+    string? Id,
     string Name,
     string DataType,
     int? Length = null,
@@ -55,14 +62,32 @@ public sealed record TableColumnDesignDto(
     bool PrimaryKey = false,
     bool AutoIncrement = false,
     string? DefaultValue = null,
-    string? Comment = null);
+    string? Comment = null)
+{
+    public TableColumnDesignDto(
+        string Name,
+        string DataType,
+        int? Length = null,
+        int? Precision = null,
+        int? Scale = null,
+        bool Nullable = true,
+        bool PrimaryKey = false,
+        bool AutoIncrement = false,
+        string? DefaultValue = null,
+        string? Comment = null)
+        : this(null, Name, DataType, Length, Precision, Scale, Nullable, PrimaryKey, AutoIncrement, DefaultValue, Comment)
+    {
+    }
+}
 
 public sealed record TableOptionsDto(
     string? Engine = null,
     string? Charset = null,
     string? Collation = null,
     string? Schema = null,
-    string? Tablespace = null);
+    string? Tablespace = null,
+    bool IncludeAuditFields = false,
+    IReadOnlyDictionary<string, string?>? ExtraOptions = null);
 
 public sealed record PreviewCreateTableDdlRequest(
     string? Schema,
@@ -87,7 +112,8 @@ public sealed record CreateViewRequest(
     string? Schema,
     string ViewName,
     string? Comment,
-    string Sql);
+    string Sql,
+    string Mode = "SelectOnly");
 
 public sealed record DropDatabaseObjectRequest(
     string? Schema,

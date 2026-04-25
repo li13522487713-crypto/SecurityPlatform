@@ -13,6 +13,7 @@ using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+#pragma warning disable CS0618 // 旧 JSON 行模型兼容入口，保留旧字段读取与展示。
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AiDatabaseService : IAiDatabaseService
@@ -141,6 +142,9 @@ public sealed class AiDatabaseService : IAiDatabaseService
         _quotaPolicy.EnsureFieldCount(normalizedFields.Count);
 
         var id = _idGeneratorAccessor.NextId();
+        var driverCode = Atlas.Infrastructure.Services.DataSourceDriverRegistry.NormalizeDriverCode(request.DriverCode);
+        _ = Atlas.Infrastructure.Services.DataSourceDriverRegistry.ResolveDbType(driverCode);
+
         var entity = new AiDatabase(
             tenantId,
             normalizedName,
@@ -151,7 +155,7 @@ public sealed class AiDatabaseService : IAiDatabaseService
             request.WorkspaceId,
             request.QueryMode,
             request.ChannelScope);
-        entity.SetStandaloneDriver(Atlas.Infrastructure.Services.DataSourceDriverRegistry.NormalizeDriverCode(request.DriverCode));
+        entity.SetStandaloneDriver(driverCode);
         var fields = BuildFieldEntities(tenantId, id, normalizedFields);
         var channelConfigs = BuildChannelConfigEntities(tenantId, id, items: null);
 

@@ -20,6 +20,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 测试夹具覆盖旧 JSON 行模型兼容路径。
 namespace Atlas.SecurityPlatform.Tests.Services.AiPlatform;
 
 /// <summary>
@@ -284,6 +285,15 @@ internal sealed class TestAiDatabaseProvisioner : IAiDatabaseProvisioner
 
         await _physicalTableService.EnsureDatabaseTablesAsync(database, legacyDraftRows: null, cancellationToken);
     }
+
+    public Task EnsureDraftAsync(AiDatabase database, CancellationToken cancellationToken)
+        => EnsureProvisionedAsync(database, cancellationToken);
+
+    public Task EnsureOnlineAsync(AiDatabase database, CancellationToken cancellationToken)
+        => EnsureProvisionedAsync(database, cancellationToken);
+
+    public Task ValidateHostingOptionsAsync(string driverCode, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 
     public Task DropAsync(AiDatabase database, CancellationToken cancellationToken)
         => _physicalTableService.DropDatabaseTablesAsync(database, cancellationToken);

@@ -1,18 +1,18 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.Audit.Abstractions;
-using Atlas.Core.Identity;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Infrastructure.Services.DatabaseStructure;
 using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/v1/database-resources/{databaseId}/structure")]
@@ -40,21 +40,13 @@ public sealed class DatabaseStructureController : ControllerBase
     }
 
     [HttpGet("objects")]
-    [Authorize(Policy = PermissionPolicies.DataSourcesQuery)]
+    [Authorize(Policy = PermissionPolicies.DataSourcesView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DatabaseObjectDto>>>> GetObjects(
         string databaseId,
         [FromQuery] string type = "table",
         [FromQuery] AiDatabaseRecordEnvironment environment = AiDatabaseRecordEnvironment.Draft,
         CancellationToken cancellationToken = default)
-    {
-        if (!TryParseDatabaseId(databaseId, out var parsedId, out var error))
-        {
-            return BadRequest(ApiResponse<IReadOnlyList<DatabaseObjectDto>>.Fail(ErrorCodes.ValidationError, error, HttpContext.TraceIdentifier));
-        }
-
-        var result = await _service.GetObjectsAsync(_tenantProvider.GetTenantId(), parsedId, environment, type, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<DatabaseObjectDto>>.Ok(result, HttpContext.TraceIdentifier));
-    }
+        => await Execute(databaseId, parsedId => _service.GetObjectsAsync(_tenantProvider.GetTenantId(), parsedId, environment, type, cancellationToken));
 
     [HttpGet("tables/{tableName}/columns")]
     [Authorize(Policy = PermissionPolicies.DataSourcesView)]
@@ -64,15 +56,7 @@ public sealed class DatabaseStructureController : ControllerBase
         [FromQuery] string? schema = null,
         [FromQuery] AiDatabaseRecordEnvironment environment = AiDatabaseRecordEnvironment.Draft,
         CancellationToken cancellationToken = default)
-    {
-        if (!TryParseDatabaseId(databaseId, out var parsedId, out var error))
-        {
-            return BadRequest(ApiResponse<IReadOnlyList<DatabaseColumnDto>>.Fail(ErrorCodes.ValidationError, error, HttpContext.TraceIdentifier));
-        }
-
-        var result = await _service.GetTableColumnsAsync(_tenantProvider.GetTenantId(), parsedId, environment, tableName, schema, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<DatabaseColumnDto>>.Ok(result, HttpContext.TraceIdentifier));
-    }
+        => await Execute(databaseId, parsedId => _service.GetTableColumnsAsync(_tenantProvider.GetTenantId(), parsedId, environment, tableName, schema, cancellationToken));
 
     [HttpGet("views/{viewName}/columns")]
     [Authorize(Policy = PermissionPolicies.DataSourcesView)]
@@ -82,15 +66,7 @@ public sealed class DatabaseStructureController : ControllerBase
         [FromQuery] string? schema = null,
         [FromQuery] AiDatabaseRecordEnvironment environment = AiDatabaseRecordEnvironment.Draft,
         CancellationToken cancellationToken = default)
-    {
-        if (!TryParseDatabaseId(databaseId, out var parsedId, out var error))
-        {
-            return BadRequest(ApiResponse<IReadOnlyList<DatabaseColumnDto>>.Fail(ErrorCodes.ValidationError, error, HttpContext.TraceIdentifier));
-        }
-
-        var result = await _service.GetViewColumnsAsync(_tenantProvider.GetTenantId(), parsedId, environment, viewName, schema, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<DatabaseColumnDto>>.Ok(result, HttpContext.TraceIdentifier));
-    }
+        => await Execute(databaseId, parsedId => _service.GetViewColumnsAsync(_tenantProvider.GetTenantId(), parsedId, environment, viewName, schema, cancellationToken));
 
     [HttpGet("tables/{tableName}/ddl")]
     [Authorize(Policy = PermissionPolicies.DataSourcesQuery)]
@@ -228,9 +204,7 @@ public sealed class DatabaseStructureController : ControllerBase
             "Kdbndp" => new[] { "BIGINT", "INTEGER", "VARCHAR", "TEXT", "TIMESTAMP", "NUMERIC", "BOOLEAN", "JSONB", "UUID" },
             _ => new[] { "BIGINT", "INTEGER", "VARCHAR", "TEXT", "TIMESTAMP", "NUMERIC", "BOOLEAN" }
         };
-        var result = types
-            .Select(type => (object)new { value = type, label = type })
-            .ToList();
+        var result = types.Select(type => (object)new { value = type, label = type }).ToList();
         return Ok(ApiResponse<IReadOnlyList<object>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

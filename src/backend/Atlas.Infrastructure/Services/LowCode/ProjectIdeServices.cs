@@ -13,6 +13,7 @@ using Atlas.Domain.LowCode.Entities;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
 
+#pragma warning disable CS0618 // 低代码 IDE 旧 AI 数据库字段兼容展示。
 namespace Atlas.Infrastructure.Services.LowCode;
 
 public sealed class ProjectIdeBootstrapService : IProjectIdeBootstrapService

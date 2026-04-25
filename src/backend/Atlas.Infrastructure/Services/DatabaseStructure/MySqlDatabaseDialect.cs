@@ -7,6 +7,24 @@ public sealed class MySqlDatabaseDialect : DatabaseDialectBase
 {
     public override string DriverCode => "MySql";
 
+    public override bool SupportsCreateDatabase => true;
+
+    public override bool SupportsEstimatedRowCount => true;
+
+    protected override IReadOnlySet<string> SupportedDataTypes { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "BIGINT",
+        "INT",
+        "VARCHAR",
+        "TEXT",
+        "DATETIME",
+        "TIMESTAMP",
+        "DECIMAL",
+        "NUMERIC",
+        "TINYINT",
+        "JSON"
+    };
+
     public override string QuoteIdentifier(string identifier)
     {
         ValidateIdentifier(identifier);
@@ -50,8 +68,14 @@ public sealed class MySqlDatabaseDialect : DatabaseDialectBase
     {
         if (column.AutoIncrement)
         {
+            var normalizedType = NormalizeDataType(column.DataType, column.Length, column.Precision, column.Scale);
+            if (!column.PrimaryKey || !IsMySqlIntegerType(normalizedType))
+            {
+                throw new InvalidOperationException("AUTO_INCREMENT is only allowed on integer primary key columns.");
+            }
+
             ValidateIdentifier(column.Name);
-            var pieces = new List<string> { QuoteIdentifier(column.Name), NormalizeType(column), "NOT NULL", "AUTO_INCREMENT" };
+            var pieces = new List<string> { QuoteIdentifier(column.Name), normalizedType, "NOT NULL", "AUTO_INCREMENT" };
             return string.Join(' ', pieces);
         }
 
@@ -62,12 +86,20 @@ public sealed class MySqlDatabaseDialect : DatabaseDialectBase
     {
         if (!string.IsNullOrWhiteSpace(request.Options?.Engine))
         {
+            ValidateIdentifier(request.Options.Engine.Trim(), "engine");
             builder.Append($" ENGINE={request.Options.Engine.Trim()}");
         }
 
         if (!string.IsNullOrWhiteSpace(request.Options?.Charset))
         {
+            ValidateIdentifier(request.Options.Charset.Trim(), "charset");
             builder.Append($" DEFAULT CHARSET={request.Options.Charset.Trim()}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Options?.Collation))
+        {
+            ValidateIdentifier(request.Options.Collation.Trim(), "collation");
+            builder.Append($" COLLATE={request.Options.Collation.Trim()}");
         }
 
         if (!string.IsNullOrWhiteSpace(request.Comment))
@@ -75,4 +107,9 @@ public sealed class MySqlDatabaseDialect : DatabaseDialectBase
             builder.Append($" COMMENT='{request.Comment.Replace("'", "''", StringComparison.Ordinal)}'");
         }
     }
+
+    private static bool IsMySqlIntegerType(string dataType)
+        => dataType.StartsWith("BIGINT", StringComparison.OrdinalIgnoreCase) ||
+           dataType.StartsWith("INT", StringComparison.OrdinalIgnoreCase) ||
+           dataType.StartsWith("TINYINT", StringComparison.OrdinalIgnoreCase);
 }

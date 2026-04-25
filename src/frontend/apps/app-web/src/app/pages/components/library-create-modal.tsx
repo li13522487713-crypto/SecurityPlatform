@@ -158,7 +158,7 @@ export function LibraryCreateModal({ visible, createType, onClose, onCreated }: 
           const id = await createAiDatabase({
             name: trimmed,
             description: description.trim() || undefined,
-            workspaceId: Number(workspaceId),
+            workspaceId,
             fields: normalizedFields,
             queryMode: AiDatabaseQueryMode.SingleUser,
             channelScope: AiDatabaseChannelScope.ChannelIsolated

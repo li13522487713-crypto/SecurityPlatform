@@ -3,7 +3,7 @@ import { downloadFile, extractResourceId, requestApi, toQuery, uploadFile } from
 import { aiDatabaseMessage } from "./ai-database.i18n";
 
 export interface AiDatabaseListItem {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   botId?: number;
@@ -18,7 +18,7 @@ export interface AiDatabaseListItem {
 
 export interface AiDatabaseDetail extends AiDatabaseListItem {
   tableSchema: string;
-  workspaceId?: number;
+  workspaceId?: string;
   fields?: AiDatabaseFieldItem[];
   channelConfigs?: AiDatabaseChannelConfigItem[];
 }
@@ -61,7 +61,7 @@ export interface AiDatabaseCreateRequest {
   description?: string;
   botId?: number;
   tableSchema?: string;
-  workspaceId?: number;
+  workspaceId?: string;
   fields?: AiDatabaseFieldItem[];
   queryMode?: AiDatabaseQueryMode;
   channelScope?: AiDatabaseChannelScope;
@@ -172,7 +172,7 @@ export async function getAiDatabasesPaged(
   return response.data;
 }
 
-export async function getAiDatabaseById(id: number): Promise<AiDatabaseDetail> {
+export async function getAiDatabaseById(id: string): Promise<AiDatabaseDetail> {
   const response = await requestApi<ApiResponse<AiDatabaseDetail>>(`/ai-databases/${id}`);
   if (!response.data) {
     throw new Error(response.message || aiDatabaseMessage("getDatabaseDetailFailed"));
@@ -181,7 +181,7 @@ export async function getAiDatabaseById(id: number): Promise<AiDatabaseDetail> {
   return response.data;
 }
 
-export async function createAiDatabase(request: AiDatabaseCreateRequest): Promise<number> {
+export async function createAiDatabase(request: AiDatabaseCreateRequest): Promise<string> {
   const response = await requestApi<ApiResponse<{ id?: string; Id?: string }>>("/ai-databases", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -192,10 +192,10 @@ export async function createAiDatabase(request: AiDatabaseCreateRequest): Promis
     throw new Error(response.message || aiDatabaseMessage("createDatabaseFailed"));
   }
 
-  return Number(databaseId);
+  return databaseId;
 }
 
-export async function updateAiDatabase(id: number, request: AiDatabaseCreateRequest): Promise<void> {
+export async function updateAiDatabase(id: string, request: AiDatabaseCreateRequest): Promise<void> {
   const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -206,7 +206,7 @@ export async function updateAiDatabase(id: number, request: AiDatabaseCreateRequ
   }
 }
 
-export async function deleteAiDatabase(id: number): Promise<void> {
+export async function deleteAiDatabase(id: string): Promise<void> {
   const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}`, {
     method: "DELETE"
   });

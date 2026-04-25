@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Dropdown, Empty, Input, Modal, Select, Spin, Table, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Dropdown, Empty, Input, Modal, Select, Spin, Table, Tabs, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   IconSearch,
   IconCode,
@@ -37,6 +37,8 @@ import type { AppMessageKey } from "../messages";
 import { deleteAiDatabase } from "../../services/api-ai-database";
 import { MigrationWizardDrawer } from "./components/migration-wizard/migration-wizard-drawer";
 import { deleteTenantDataSource } from "../../services/api-tenant-datasource";
+import { APP_PERMISSIONS } from "../../constants/permissions";
+import { useOptionalPermissionContext } from "../permission-context";
 
 type LibraryTabKey =
   | "all"
@@ -178,6 +180,7 @@ function readLibraryStateFromSearchParams(sp: URLSearchParams): { tab: LibraryTa
 
 export function WorkspaceLibraryPage() {
   const { t } = useAppI18n();
+  const permission = useOptionalPermissionContext();
   const workspace = useWorkspaceContext();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -351,7 +354,7 @@ export function WorkspaceLibraryPage() {
           if (record.subType === "datasource") {
             await deleteTenantDataSource(record.resourceId);
           } else {
-            await deleteAiDatabase(Number(record.resourceId));
+            await deleteAiDatabase(record.resourceId);
           }
           Toast.success(t("cozeLibraryDeleteDatabaseSuccess"));
           await load();
@@ -380,28 +383,37 @@ export function WorkspaceLibraryPage() {
     [navigate, workspace.id]
   );
 
+  const canViewDataSources = !permission || permission.hasPermission(APP_PERMISSIONS.DATA_SOURCES_VIEW);
+
   const renderActionMenu = useCallback(
-    (record: AiWorkspaceLibraryItem) => (
-      <Dropdown.Menu>
-        <Dropdown.Item onClick={() => handleOpen(record)}>{t("cozeLibraryActionDetail")}</Dropdown.Item>
-        <Dropdown.Item disabled>{t("cozeLibraryActionCopyToSpace")}</Dropdown.Item>
-        {record.resourceType === "database" && record.subType !== "datasource" ? (
-          <Dropdown.Item onClick={() => handleOpenStructure(record)}>{t("cozeLibraryActionStructure")}</Dropdown.Item>
-        ) : null}
-        {record.resourceType === "database" && record.subType !== "datasource" ? (
-          <Dropdown.Item onClick={() => handleOpenMigration(record)}>{t("cozeLibraryActionMigrateDatabase")}</Dropdown.Item>
-        ) : null}
-        <Dropdown.Item disabled>{t("cozeLibraryActionBackup")}</Dropdown.Item>
-        {record.resourceType === "database" ? (
-          <Dropdown.Item type="danger" onClick={() => handleDeleteDatabase(record)}>
-            {t("cozeLibraryActionDelete")}
-          </Dropdown.Item>
-        ) : (
-          <Dropdown.Item disabled>{t("cozeLibraryActionDelete")}</Dropdown.Item>
-        )}
-      </Dropdown.Menu>
-    ),
-    [handleDeleteDatabase, handleOpen, handleOpenMigration, handleOpenStructure, t]
+    (record: AiWorkspaceLibraryItem) => {
+      const independentAiDatabase = record.resourceType === "database" && record.subType !== "datasource";
+      const structureDisabled = !independentAiDatabase || !canViewDataSources;
+
+      return (
+        <Dropdown.Menu>
+          <Dropdown.Item onClick={() => handleOpen(record)}>{t("cozeLibraryActionDetail")}</Dropdown.Item>
+          <Dropdown.Item disabled>{t("cozeLibraryActionCopyToSpace")}</Dropdown.Item>
+          {record.resourceType === "database" ? (
+            <Tooltip content={independentAiDatabase ? t("cozeLibraryActionStructure") : t("cozeLibraryActionStructureDatasourceDisabled")}>
+              <Dropdown.Item disabled={structureDisabled} onClick={() => handleOpenStructure(record)}>{t("cozeLibraryActionStructure")}</Dropdown.Item>
+            </Tooltip>
+          ) : null}
+          {independentAiDatabase ? (
+            <Dropdown.Item onClick={() => handleOpenMigration(record)}>{t("cozeLibraryActionMigrateDatabase")}</Dropdown.Item>
+          ) : null}
+          <Dropdown.Item disabled>{t("cozeLibraryActionBackup")}</Dropdown.Item>
+          {record.resourceType === "database" ? (
+            <Dropdown.Item type="danger" onClick={() => handleDeleteDatabase(record)}>
+              {t("cozeLibraryActionDelete")}
+            </Dropdown.Item>
+          ) : (
+            <Dropdown.Item disabled>{t("cozeLibraryActionDelete")}</Dropdown.Item>
+          )}
+        </Dropdown.Menu>
+      );
+    },
+    [canViewDataSources, handleDeleteDatabase, handleOpen, handleOpenMigration, handleOpenStructure, t]
   );
 
   const columns: ColumnProps<AiWorkspaceLibraryItem>[] = useMemo(

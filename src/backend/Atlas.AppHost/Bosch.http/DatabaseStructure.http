@@ -1,29 +1,52 @@
 @baseUrl = http://localhost:5002
-@accessToken = {{login.response.body.data.accessToken}}
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@accessToken = {{login.response.body.$.data.accessToken}}
 @databaseId = 1
 @tableName = sys_user_demo
+@sqlTableName = biz_order_demo
 @viewName = v_sys_user_demo
 
-### Login
+### 登录
 # @name login
-POST {{baseUrl}}/api/v1/auth/login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### 创建 SQLite AI 数据库
+# @name createSqliteDatabase
+POST {{baseUrl}}/api/v1/ai-databases
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
-  "tenantId": "00000000-0000-0000-0000-000000000001",
-  "username": "admin",
-  "password": "P@ssw0rd!"
+  "name": "结构管理 SQLite 演示库",
+  "description": "独立物理库 draft/online 验证",
+  "workspaceId": "1",
+  "driverCode": "SQLite",
+  "queryMode": 1,
+  "channelScope": 1,
+  "fields": [
+    { "name": "name", "type": "string", "required": false, "sortOrder": 0 }
+  ]
 }
 
-### List tables
-GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/objects?type=table
+### 获取表列表
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/objects?type=table&environment=Draft
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 
-### Preview create table DDL
+### 预览 create table DDL
 POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/preview-ddl
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
@@ -37,10 +60,10 @@ Content-Type: application/json
   "options": {}
 }
 
-### Create table visually
+### 可视化创建表
 POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
@@ -55,30 +78,30 @@ Content-Type: application/json
   "options": {}
 }
 
-### Create table by SQL
+### SQL 创建表
 POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/sql
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
-  "sql": "CREATE TABLE sys_role_demo (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);"
+  "sql": "CREATE TABLE {{sqlTableName}} (id INTEGER PRIMARY KEY AUTOINCREMENT, user_name TEXT NOT NULL, amount NUMERIC);"
 }
 
-### Table columns
+### 获取表字段
 GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}/columns
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 
-### Table DDL
+### 获取表 DDL
 GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}/ddl
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 
-### Preview table data
+### 预览表数据
 POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}/preview
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
@@ -87,10 +110,10 @@ Content-Type: application/json
   "environment": "Draft"
 }
 
-### Preview view SQL
+### 预览视图 SELECT
 POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/preview
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
@@ -98,36 +121,37 @@ Content-Type: application/json
   "limit": 100
 }
 
-### Create view
+### 创建视图
 POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
   "viewName": "{{viewName}}",
+  "mode": "SelectOnly",
   "sql": "SELECT id, name FROM sys_user_demo"
 }
 
-### List views
-GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/objects?type=view
+### 获取视图列表
+GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/objects?type=view&environment=Draft
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 
-### View columns
+### 获取视图字段
 GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}/columns
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 
-### View DDL
+### 获取视图 DDL
 GET {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}/ddl
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 
-### Preview view data
+### 预览视图数据
 POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}/preview
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
@@ -136,10 +160,10 @@ Content-Type: application/json
   "environment": "Draft"
 }
 
-### Drop view
+### 删除视图
 DELETE {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/views/{{viewName}}
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
@@ -147,13 +171,38 @@ Content-Type: application/json
   "confirmDanger": true
 }
 
-### Drop table
+### 删除表
 DELETE {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/{{tableName}}
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: 00000000-0000-0000-0000-000000000001
+X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
   "confirmName": "{{tableName}}",
   "confirmDanger": true
+}
+
+### SQL 注入失败示例
+POST {{baseUrl}}/api/v1/database-resources/{{databaseId}}/structure/tables/sql
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sql": "CREATE TABLE unsafe_demo(id INTEGER); DROP TABLE sys_user_demo;"
+}
+
+### 未知 driver 失败示例
+POST {{baseUrl}}/api/v1/ai-databases
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "未知驱动演示",
+  "workspaceId": "1",
+  "driverCode": "NotARealDriver",
+  "fields": [
+    { "name": "name", "type": "string", "required": false, "sortOrder": 0 }
+  ]
 }
