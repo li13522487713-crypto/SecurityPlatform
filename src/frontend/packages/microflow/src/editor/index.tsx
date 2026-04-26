@@ -34,6 +34,7 @@ export interface MicroflowEditorProps {
   toolbarPrefix?: ReactNode;
   toolbarSuffix?: ReactNode;
   nodePanelLabels?: Partial<MicroflowNodePanelLabels>;
+  immersive?: boolean;
   onPublish?: (schema: MicroflowSchema) => Promise<void> | void;
   onSaveComplete?: (response: SaveMicroflowResponse) => void;
   onValidateComplete?: (response: ValidateMicroflowResponse) => void;
@@ -190,6 +191,22 @@ const canvasViewportStyle: CSSProperties = {
     "radial-gradient(circle, rgba(22, 93, 255, 0.08) 1px, transparent 1px), var(--semi-color-fill-0, #f4f7fb)",
   backgroundSize: "22px 22px"
 };
+
+function createEditorShellStyle(immersive: boolean): CSSProperties {
+  return {
+    ...shellStyle,
+    gridTemplateRows: immersive ? "56px minmax(0, 1fr)" : shellStyle.gridTemplateRows,
+    minHeight: immersive ? 0 : shellStyle.minHeight
+  };
+}
+
+function createEditorBodyStyle(immersive: boolean): CSSProperties {
+  return {
+    ...bodyStyle,
+    gridTemplateColumns: immersive ? "300px minmax(720px, 1fr) 420px" : bodyStyle.gridTemplateColumns,
+    overflow: immersive ? "hidden" : bodyStyle.overflow
+  };
+}
 
 const canvasLayerStyle: CSSProperties = {
   position: "absolute",
@@ -542,6 +559,7 @@ export function MicroflowEditor({
   toolbarPrefix,
   toolbarSuffix,
   nodePanelLabels,
+  immersive = false,
   onPublish,
   onSaveComplete,
   onValidateComplete,
@@ -701,7 +719,7 @@ export function MicroflowEditor({
 
   return (
     <MicroflowRuntimeBoundary>
-      <div style={shellStyle} data-testid="microflow-editor">
+      <div style={createEditorShellStyle(immersive)} data-testid="microflow-editor">
         <div style={toolbarStyle}>
           <Space>
             {toolbarPrefix}
@@ -741,7 +759,7 @@ export function MicroflowEditor({
             {toolbarSuffix}
           </Space>
         </div>
-        <div style={bodyStyle}>
+        <div style={createEditorBodyStyle(immersive)}>
           <aside style={panelStyle}>
             <MicroflowNodePanel
               favoriteNodeKeys={favoriteNodeKeys}
@@ -780,32 +798,36 @@ export function MicroflowEditor({
               onDeleteNode={handleDeleteNode}
             />
           </aside>
-          <aside style={{ ...rightPanelStyle, borderLeft: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-0, #f7f8fa)" }}>
-            <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-              <Title heading={6} style={{ margin: 0 }}>Region Guide</Title>
-              {[
-                "Toolbar saves drafts, validates, runs tests, publishes, formats, and opens settings.",
-                "Node panel groups Mendix-style events, decisions, activities, loops, parameters, and annotations.",
-                "Canvas supports selection, dragging, zooming, fit view, minimap, sequence flows, error flows, and annotation flows.",
-                "Property panel changes with the selected node and exposes configuration plus error handling.",
-                "Problem panel lists validation issues and debug panel shows test-run trace frames with nodeId."
-              ].map((item, index) => (
-                <div key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <Tag color="blue">{index + 1}</Tag>
-                  <Text type="tertiary">{item}</Text>
-                </div>
-              ))}
-            </Space>
-          </aside>
+          {immersive ? null : (
+            <aside style={{ ...rightPanelStyle, borderLeft: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-0, #f7f8fa)" }}>
+              <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+                <Title heading={6} style={{ margin: 0 }}>Region Guide</Title>
+                {[
+                  "Toolbar saves drafts, validates, runs tests, publishes, formats, and opens settings.",
+                  "Node panel groups Mendix-style events, decisions, activities, loops, parameters, and annotations.",
+                  "Canvas supports selection, dragging, zooming, fit view, minimap, sequence flows, error flows, and annotation flows.",
+                  "Property panel changes with the selected node and exposes configuration plus error handling.",
+                  "Problem panel lists validation issues and debug panel shows test-run trace frames with nodeId."
+                ].map((item, index) => (
+                  <div key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <Tag color="blue">{index + 1}</Tag>
+                    <Text type="tertiary">{item}</Text>
+                  </div>
+                ))}
+              </Space>
+            </aside>
+          )}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 12, padding: 12, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>
-          <Card title={`${copy.problems} (${issues.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
-            <ProblemPanel issues={issues} onSelectNode={setSelectedNodeId} />
-          </Card>
-          <Card title={`${copy.debug} (${traceFrames.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
-            <DebugPanel frames={traceFrames} onSelectNode={setSelectedNodeId} />
-          </Card>
-        </div>
+        {immersive ? null : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 12, padding: 12, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>
+            <Card title={`${copy.problems} (${issues.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
+              <ProblemPanel issues={issues} onSelectNode={setSelectedNodeId} />
+            </Card>
+            <Card title={`${copy.debug} (${traceFrames.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
+              <DebugPanel frames={traceFrames} onSelectNode={setSelectedNodeId} />
+            </Card>
+          </div>
+        )}
       </div>
       <Modal
         visible={testRunOpen}

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Checkbox, Input, Modal, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
-import { IconArrowLeft } from "@douyinfe/semi-icons";
+import { IconArrowLeft, IconExpand } from "@douyinfe/semi-icons";
 import {
   createLocalMicroflowApiClient,
   MicroflowEditor,
@@ -40,6 +40,7 @@ export function MicroflowEditorPage() {
   const { t } = useAppI18n();
   const navigate = useNavigate();
   const workspace = useWorkspaceContext();
+  const editorFrameRef = useRef<HTMLDivElement>(null);
   const { microflowId = "" } = useParams<{ microflowId: string }>();
   const apiClient = useMemo(() => createLocalMicroflowApiClient(), []);
   const [resource, setResource] = useState<MicroflowResource>();
@@ -50,6 +51,7 @@ export function MicroflowEditorPage() {
   const [releaseNote, setReleaseNote] = useState("");
   const [overwriteCurrent, setOverwriteCurrent] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,9 +71,32 @@ export function MicroflowEditorPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    function syncFullscreen() {
+      setFullscreen(document.fullscreenElement === editorFrameRef.current);
+    }
+
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
   const backToLibrary = useCallback(() => {
     navigate(cozeWorkspaceLibraryPath(workspace.id, "microflow"));
   }, [navigate, workspace.id]);
+
+  async function toggleFullscreen() {
+    const target = editorFrameRef.current;
+    if (!target) {
+      return;
+    }
+
+    if (document.fullscreenElement === target) {
+      await document.exitFullscreen?.();
+      return;
+    }
+
+    await target.requestFullscreen?.();
+  }
 
   async function handlePublish() {
     if (!schema || !resource) {
@@ -106,10 +131,19 @@ export function MicroflowEditorPage() {
   }
 
   return (
-    <div style={{ height: "100%", minHeight: 720 }}>
+    <div
+      ref={editorFrameRef}
+      style={{
+        height: "100dvh",
+        minHeight: fullscreen ? 0 : 720,
+        background: "var(--semi-color-bg-0, #f7f8fa)",
+        overflow: "hidden"
+      }}
+    >
       <MicroflowEditor
         schema={schema}
         apiClient={apiClient}
+        immersive={fullscreen}
         onSchemaChange={setSchema}
         onSaveComplete={() => void load()}
         onPublish={() => {
@@ -120,6 +154,9 @@ export function MicroflowEditorPage() {
           <Space align="center">
             <Button icon={<IconArrowLeft />} theme="borderless" onClick={backToLibrary}>
               {t("microflowBackToLibrary")}
+            </Button>
+            <Button icon={<IconExpand />} theme="borderless" onClick={() => void toggleFullscreen()}>
+              {fullscreen ? t("microflowExitFullscreen") : t("microflowEnterFullscreen")}
             </Button>
             <Tag color={resource.status === "published" ? "green" : resource.status === "archived" ? "grey" : "blue"}>
               {resource.status === "published" ? t("microflowStatusPublished") : resource.status === "archived" ? t("microflowStatusArchived") : t("microflowStatusDraft")}
