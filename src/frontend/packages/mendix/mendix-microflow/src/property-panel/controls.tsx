@@ -25,6 +25,7 @@ export function createExpression(text = ""): MicroflowExpression {
     id: `expr-${Date.now()}-${Math.round(Math.random() * 10000)}`,
     language: "mendix",
     text,
+    raw: text,
     referencedVariables: []
   };
 }
@@ -77,14 +78,14 @@ export function ExpressionEditor({
 }: MicroflowExpressionEditorProps) {
   const expression = value ?? createExpression();
   const [modalOpen, setModalOpen] = useState(false);
-  const [draft, setDraft] = useState(expression.text);
+  const [draft, setDraft] = useState(expression.text ?? expression.raw);
   const variableOptions = useMemo(() => variables.map(variable => ({
-    label: `${variable.name}: ${variable.type.name}`,
+    label: `${variable.name}: ${(variable.type ?? { name: variable.dataType.kind }).name}`,
     value: variable.name
   })), [variables]);
 
   function updateText(text: string) {
-    onChange({ ...expression, text });
+    onChange({ ...expression, text, raw: text });
   }
 
   return (
@@ -92,7 +93,7 @@ export function ExpressionEditor({
       <TextArea
         autosize
         readonly={readonly}
-        value={expression.text}
+        value={expression.text ?? expression.raw}
         placeholder={placeholder}
         onChange={updateText}
       />
@@ -112,7 +113,7 @@ export function ExpressionEditor({
         <Button
           disabled={readonly}
           onClick={() => {
-            setDraft(expression.text);
+            setDraft(expression.text ?? expression.raw);
             setModalOpen(true);
           }}
         >
@@ -120,7 +121,7 @@ export function ExpressionEditor({
         </Button>
       </div>
       <Text type="tertiary" size="small">Syntax hints and engine validation are reserved for the expression runtime.</Text>
-      {required && !expression.text.trim() ? <FieldError message="Expression is required." /> : null}
+      {required && !(expression.text ?? expression.raw).trim() ? <FieldError message="Expression is required." /> : null}
       {issues.map(issue => <FieldError key={issue} message={issue} />)}
       <Modal
         visible={modalOpen}
@@ -141,7 +142,7 @@ export function ExpressionEditor({
             optionList={variableOptions}
             onChange={selected => {
               const selectedValues = Array.isArray(selected) ? selected.map(String) : [];
-              onChange({ ...expression, referencedVariables: selectedValues, text: draft });
+              onChange({ ...expression, referencedVariables: selectedValues, text: draft, raw: draft });
             }}
           />
         </Space>
@@ -158,7 +159,7 @@ export function VariableSelector({ value, variables, readonly, placeholder = "Se
       style={{ width: "100%" }}
       value={value}
       placeholder={placeholder}
-      optionList={variables.map(variable => ({ label: `${variable.name}: ${variable.type.name}`, value: variable.name }))}
+      optionList={variables.map(variable => ({ label: `${variable.name}: ${(variable.type ?? { name: variable.dataType.kind }).name}`, value: variable.name }))}
       onChange={selected => onChange(String(selected ?? ""))}
     />
   );

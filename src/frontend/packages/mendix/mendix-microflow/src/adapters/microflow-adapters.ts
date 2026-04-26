@@ -1,5 +1,7 @@
 import type {
   MendixCompatMicroflow,
+  MendixCompatDataType,
+  MendixCompatPrimitiveDataType,
   MicroflowAction,
   MicroflowActionActivity,
   MicroflowActivityCategory,
@@ -16,6 +18,7 @@ import type {
   MicroflowEditorGraph,
   MicroflowEditorGraphPatch,
   MicroflowEndEvent,
+  MicroflowEventConfig,
   MicroflowErrorEvent,
   MicroflowExclusiveMerge,
   MicroflowExclusiveSplit,
@@ -574,6 +577,8 @@ export function legacyNodeToObject(node: MicroflowNode): MicroflowObject {
     return {
       ...objectBase(node, "inheritanceSplit", "Microflows$InheritanceSplit"),
       inputObjectVariableName: node.config.inputObject,
+      generalizedEntityQualifiedName: node.config.generalizedEntity ?? "",
+      allowedSpecializations: [],
       entity: {
         generalizedEntityQualifiedName: node.config.generalizedEntity ?? "",
         allowedSpecializations: []
@@ -626,7 +631,7 @@ export function legacyNodeToObject(node: MicroflowNode): MicroflowObject {
     autoGenerateCaption: false,
     backgroundColor: "default",
     disabled: node.enabled === false,
-    action: makeAction(node)
+    action: makeAction(node as Extract<MicroflowNode, { type: "activity" }>)
   } as MicroflowActionActivity;
 }
 
@@ -736,7 +741,10 @@ export function buildAuthoringFieldsFromLegacy(schema: MicroflowLegacyGraphSchem
   const variableIndex = buildVariableIndex(parameters, objectCollection, flows);
   const returnType = schema.nodes
     .filter(node => node.type === "endEvent")
-    .map(node => toMicroflowDataType(node.config.returnValue?.expectedType ?? node.config.returnType))
+    .map(node => {
+      const config = node.config as MicroflowEventConfig;
+      return toMicroflowDataType(config.returnValue?.expectedType ?? config.returnType);
+    })
     .find(type => type.kind !== "unknown") ?? { kind: "void" as const };
   return {
     schemaVersion: "1.0.0",
@@ -780,6 +788,7 @@ export function buildAuthoringFieldsFromLegacy(schema: MicroflowLegacyGraphSchem
         y: schema.viewport?.offset.y ?? 0,
         zoom: schema.viewport?.zoom ?? 1
       },
+      zoom: schema.viewport?.zoom ?? 1,
       selection: {}
     },
     audit: {
@@ -844,7 +853,67 @@ function portsForObject(object: MicroflowObject): MicroflowPort[] {
   if (object.kind === "loopedActivity") {
     return [input, output, loopBodyIn, loopBodyOut, error];
   }
-  return object.kind === "actionActivity" || object.kind === "loopedActivity" ? [input, output, error] : [input, output];
+  return object.kind === "actionActivity" ? [input, output, error] : [input, output];
+}
+
+export function toMendixCompatDataType(type: MicroflowDataType): MendixCompatDataType {
+  if (type.kind === "enumeration") {
+    return { $Type: "DataTypes$EnumerationType", enumerationQualifiedName: type.enumerationQualifiedName };
+  }
+  if (type.kind === "object") {
+    return { $Type: "DataTypes$ObjectType", entityQualifiedName: type.entityQualifiedName };
+  }
+  if (type.kind === "list") {
+    return { $Type: "DataTypes$ListType", itemType: toMendixCompatDataType(type.itemType) };
+  }
+  if (type.kind === "fileDocument") {
+    return { $Type: "DataTypes$FileDocumentType", entityQualifiedName: type.entityQualifiedName };
+  }
+  const primitiveMap: Record<Exclude<MicroflowDataType["kind"], "enumeration" | "object" | "list" | "fileDocument">, MendixCompatDataType & { $Type: "DataTypes$PrimitiveType" }> = {
+    void: { $Type: "DataTypes$PrimitiveType", primitive: "Void" },
+    boolean: { $Type: "DataTypes$PrimitiveType", primitive: "Boolean" },
+    integer: { $Type: "DataTypes$PrimitiveType", primitive: "Integer" },
+    long: { $Type: "DataTypes$PrimitiveType", primitive: "Long" },
+    decimal: { $Type: "DataTypes$PrimitiveType", primitive: "Decimal" },
+    string: { $Type: "DataTypes$PrimitiveType", primitive: "String" },
+    dateTime: { $Type: "DataTypes$PrimitiveType", primitive: "DateTime" },
+    binary: { $Type: "DataTypes$PrimitiveType", primitive: "Binary" },
+    json: { $Type: "DataTypes$PrimitiveType", primitive: "Json" },
+    unknown: { $Type: "DataTypes$PrimitiveType", primitive: "Unknown" }
+  };
+  return primitiveMap[type.kind];
+}
+
+export function fromMendixCompatDataType(type: MendixCompatDataType): MicroflowDataType {
+  if (type.$Type === "DataTypes$MicroflowDataType") {
+    return type.authoringType;
+  }
+  if (type.$Type === "DataTypes$EnumerationType") {
+    return { kind: "enumeration", enumerationQualifiedName: type.enumerationQualifiedName };
+  }
+  if (type.$Type === "DataTypes$ObjectType") {
+    return { kind: "object", entityQualifiedName: type.entityQualifiedName };
+  }
+  if (type.$Type === "DataTypes$ListType") {
+    return { kind: "list", itemType: fromMendixCompatDataType(type.itemType) };
+  }
+  if (type.$Type === "DataTypes$FileDocumentType") {
+    return { kind: "fileDocument", entityQualifiedName: type.entityQualifiedName };
+  }
+  const primitiveMap: Record<MendixCompatPrimitiveDataType, MicroflowDataType> = {
+    Void: { kind: "void" },
+    Boolean: { kind: "boolean" },
+    Integer: { kind: "integer" },
+    Long: { kind: "long" },
+    Decimal: { kind: "decimal" },
+    String: { kind: "string" },
+    DateTime: { kind: "dateTime" },
+    Binary: { kind: "binary" },
+    Json: { kind: "json" },
+    Unknown: { kind: "unknown", reason: "compat primitive" }
+  };
+  const primitive = (type as { primitive?: keyof typeof primitiveMap }).primitive ?? "Unknown";
+  return primitiveMap[primitive];
 }
 
 function portPosition(object: MicroflowObject, port: MicroflowPort, index: number): MicroflowPoint {
@@ -923,7 +992,7 @@ export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: strin
   if (object.kind === "inheritanceSplit") {
     return {
       ...base,
-      config: { inputObject: object.inputObjectVariableName, generalizedEntity: object.entity.generalizedEntityQualifiedName }
+      config: { inputObject: object.inputObjectVariableName, generalizedEntity: object.generalizedEntityQualifiedName }
     } as MicroflowNode;
   }
   if (object.kind === "loopedActivity") {
@@ -1066,6 +1135,7 @@ export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema
     nodes: objects.map(entry => ({
       id: `node-${entry.object.id}`,
       objectId: entry.object.id,
+      kind: entry.object.kind,
       nodeKind: entry.object.kind,
       activityKind: entry.object.kind === "actionActivity" ? entry.object.action.kind : undefined,
       title: entry.object.caption ?? entry.object.id,
@@ -1109,8 +1179,11 @@ export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema
       return {
         id: `edge-${flow.id}`,
         flowId: flow.id,
+        kind: flow.kind === "annotation" ? "annotation" : flow.editor.edgeKind,
         sourceNodeId: `node-${flow.originObjectId}`,
+        sourceObjectId: flow.originObjectId,
         targetNodeId: `node-${flow.destinationObjectId}`,
+        targetObjectId: flow.destinationObjectId,
         sourcePortId: `${flow.originObjectId}:${sourcePort?.id ?? "out"}`,
         targetPortId: `${flow.destinationObjectId}:${targetPort?.id ?? "in"}`,
         edgeKind: flow.kind === "annotation" ? "annotation" : flow.editor.edgeKind,
@@ -1203,7 +1276,7 @@ export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMi
     name: schema.name,
     documentation: schema.documentation ?? "",
     parameters: schema.parameters,
-    microflowReturnType: schema.returnType,
+    microflowReturnType: toMendixCompatDataType(schema.returnType),
     returnVariableName: schema.returnVariableName ?? "",
     objectCollection: schema.objectCollection,
     flows: schema.flows,
@@ -1235,7 +1308,7 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
     documentation: input.documentation,
     moduleId: input.$UnitID ?? "default",
     parameters: input.parameters,
-    returnType: input.microflowReturnType,
+    returnType: fromMendixCompatDataType(input.microflowReturnType),
     returnVariableName: input.returnVariableName,
     objectCollection: input.objectCollection,
     flows: input.flows,
@@ -1257,7 +1330,7 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
     },
     variables,
     validation: { issues: [] },
-    editor: { viewport: { x: 0, y: 0, zoom: 1 }, selection: {} },
+    editor: { viewport: { x: 0, y: 0, zoom: 1 }, zoom: 1, selection: {} },
     audit: { version: "v1", status: input.excluded ? "archived" : "draft" }
   };
 }
@@ -1271,6 +1344,6 @@ export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntime
     parameters: schema.parameters,
     objectCollection: schema.objectCollection,
     flows: schema.flows,
-    variables: schema.variables
+    variables: schema.variables ?? buildVariableIndex(schema.parameters, schema.objectCollection, schema.flows)
   };
 }

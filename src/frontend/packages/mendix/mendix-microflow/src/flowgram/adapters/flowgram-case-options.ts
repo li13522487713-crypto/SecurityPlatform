@@ -111,7 +111,7 @@ function usedCaseKeys(schema: MicroflowSchema, sourceObjectId: string, currentFl
   return new Set(
     schema.flows
       .filter(flow => flow.kind === "sequence" && flow.id !== currentFlowId && flow.originObjectId === sourceObjectId && !flow.isErrorHandler)
-      .flatMap(flow => flow.caseValues.map(caseValueKey)),
+      .flatMap(flow => (flow.caseValues ?? []).map(caseValueKey)),
   );
 }
 

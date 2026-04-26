@@ -7,20 +7,26 @@ import type {
   MicroflowDataType,
   MicroflowExpression,
   MicroflowFlow,
+  MicroflowIterableListLoopSource,
   MicroflowObject,
   MicroflowVariableSymbol,
+  MicroflowWhileLoopCondition,
   MicroflowSequenceFlow
 } from "../schema";
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../flowgram/adapters/flowgram-case-options";
-import type { MicroflowEdgePatch, MicroflowNodePatch, MicroflowPropertyPanelProps } from "./types";
+import type { MicroflowEdgePatch, MicroflowNodeFormRegistry, MicroflowNodePatch, MicroflowPropertyPanelProps } from "./types";
 
 export * from "./controls";
-export * from "./node-forms";
-export * from "./sections";
 export * from "./types";
 
-export function buildVariablesForPropertyPanel(schema: { variables: Record<string, Record<string, MicroflowVariableSymbol>> }): MicroflowVariableSymbol[] {
-  return Object.values(schema.variables).flatMap(group => Object.values(group));
+export function getMicroflowNodeFormKey(object: MicroflowObject): string {
+  return object.kind === "actionActivity" ? `activity:${object.action.kind}` : object.kind;
+}
+
+export const microflowNodeFormRegistry: MicroflowNodeFormRegistry = {};
+
+export function buildVariablesForPropertyPanel(schema: { variables?: Record<string, Record<string, MicroflowVariableSymbol>> }): MicroflowVariableSymbol[] {
+  return Object.values(schema.variables ?? {}).flatMap(group => Object.values(group));
 }
 
 const { Text, Title } = Typography;
@@ -355,7 +361,15 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
         ) : null}
         {object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" ? (
           <Field label="Split Expression">
-            <Input value={object.splitCondition.expression.raw} disabled={props.readonly} onChange={raw => patch({ ...object, splitCondition: { ...object.splitCondition, expression: expression(raw, { kind: object.splitCondition.resultType }) } })} />
+            <Input value={object.splitCondition.expression.raw} disabled={props.readonly} onChange={raw => patch({
+              ...object,
+              splitCondition: {
+                ...object.splitCondition,
+                expression: expression(raw, object.splitCondition.resultType === "enumeration"
+                  ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
+                  : { kind: "boolean" })
+              } as typeof object.splitCondition
+            })} />
           </Field>
         ) : null}
         {object.kind === "inheritanceSplit" ? (
@@ -364,7 +378,10 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
               <Input value={object.inputObjectVariableName} disabled={props.readonly} onChange={inputObjectVariableName => patch({ ...object, inputObjectVariableName })} />
             </Field>
             <Field label="Allowed Specializations">
-              <TextArea value={object.entity.allowedSpecializations.join("\n")} autosize disabled={props.readonly} onChange={value => patch({ ...object, entity: { ...object.entity, allowedSpecializations: value.split("\n").map(item => item.trim()).filter(Boolean) } })} />
+              <TextArea value={object.allowedSpecializations.join("\n")} autosize disabled={props.readonly} onChange={value => {
+                const allowedSpecializations = value.split("\n").map(item => item.trim()).filter(Boolean);
+                patch({ ...object, allowedSpecializations, entity: { ...object.entity, allowedSpecializations } });
+              }} />
             </Field>
           </>
         ) : null}
@@ -379,7 +396,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                   ...object,
                   loopSource: String(kind) === "whileCondition"
                     ? { kind: "whileCondition", officialType: "Microflows$WhileLoopCondition", expression: expression("true", { kind: "boolean" }) }
-                    : { kind: "iterableList", officialType: "Microflows$IterableList", listVariableName: "Items", iteratorVariableName: "Item", currentIndexVariableName: "$currentIndex" }
+                    : { kind: "iterableList", officialType: "Microflows$IterableList", listVariableName: "Items", iteratorVariableName: "Item", currentIndexVariableName: "$currentIndex" } as MicroflowIterableListLoopSource | MicroflowWhileLoopCondition
                 })}
                 optionList={[{ label: "Iterable List", value: "iterableList" }, { label: "While Condition", value: "whileCondition" }]}
               />
@@ -387,15 +404,15 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
             {object.loopSource.kind === "iterableList" ? (
               <>
                 <Field label="List Variable">
-                  <Input value={object.loopSource.listVariableName} disabled={props.readonly} onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName } })} />
+                  <Input value={object.loopSource.listVariableName} disabled={props.readonly} onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName } as MicroflowIterableListLoopSource })} />
                 </Field>
                 <Field label="Iterator Variable">
-                  <Input value={object.loopSource.iteratorVariableName} disabled={props.readonly} onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName } })} />
+                  <Input value={object.loopSource.iteratorVariableName} disabled={props.readonly} onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName } as MicroflowIterableListLoopSource })} />
                 </Field>
               </>
             ) : (
               <Field label="While Expression">
-                <Input value={object.loopSource.expression.raw} disabled={props.readonly} onChange={raw => patch({ ...object, loopSource: { ...object.loopSource, expression: expression(raw, { kind: "boolean" }) } })} />
+                <Input value={object.loopSource.expression.raw} disabled={props.readonly} onChange={raw => patch({ ...object, loopSource: { ...object.loopSource, expression: expression(raw, { kind: "boolean" }) } as MicroflowWhileLoopCondition })} />
               </Field>
             )}
           </>

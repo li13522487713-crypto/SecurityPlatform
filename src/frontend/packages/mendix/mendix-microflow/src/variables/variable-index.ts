@@ -82,10 +82,11 @@ export function buildVariableIndex(schema: MicroflowSchema, _metadata: Microflow
   }
   for (const { object, collectionId } of flattenObjects(schema.objectCollection)) {
     if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
-      const listSymbol = Object.values(index.listOutputs).find(symbol => symbol.name === object.loopSource.listVariableName);
-      index.loopVariables[object.loopSource.iteratorVariableName] = {
-        name: object.loopSource.iteratorVariableName,
-        dataType: listSymbol?.dataType.kind === "list" ? listSymbol.dataType.itemType : { kind: "unknown", reason: object.loopSource.listVariableName },
+      const loopSource = object.loopSource;
+      const listSymbol = Object.values(index.listOutputs).find(symbol => symbol.name === loopSource.listVariableName);
+      index.loopVariables[loopSource.iteratorVariableName] = {
+        name: loopSource.iteratorVariableName,
+        dataType: listSymbol?.dataType.kind === "list" ? listSymbol.dataType.itemType : { kind: "unknown", reason: loopSource.listVariableName },
         source: { kind: "loopIterator", loopObjectId: object.id },
         scope: { collectionId: object.objectCollection.id, loopObjectId: object.id },
         readonly: true

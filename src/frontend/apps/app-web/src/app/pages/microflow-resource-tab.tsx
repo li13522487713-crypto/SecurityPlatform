@@ -287,17 +287,28 @@ export function MicroflowResourceTab() {
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
-              <Card
-                style={{ minHeight: 184, border: "1px dashed var(--semi-color-primary)", cursor: "pointer", background: "var(--semi-color-primary-light-default)" }}
-                bodyStyle={{ minHeight: 184, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setCreateOpen(true)}
+                onKeyDown={event => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setCreateOpen(true);
+                  }
+                }}
               >
-                <Space vertical align="center">
-                  <Button icon={<IconPlus />} theme="solid" type="primary" />
-                  <Title heading={6} style={{ margin: 0 }}>{t("microflowCreateCardTitle")}</Title>
-                  <Text type="tertiary">{t("microflowCreateCardDesc")}</Text>
-                </Space>
-              </Card>
+                <Card
+                  style={{ minHeight: 184, border: "1px dashed var(--semi-color-primary)", cursor: "pointer", background: "var(--semi-color-primary-light-default)" }}
+                  bodyStyle={{ minHeight: 184, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+                >
+                  <Space vertical align="center">
+                    <Button icon={<IconPlus />} theme="solid" type="primary" />
+                    <Title heading={6} style={{ margin: 0 }}>{t("microflowCreateCardTitle")}</Title>
+                    <Text type="tertiary">{t("microflowCreateCardDesc")}</Text>
+                  </Space>
+                </Card>
+              </div>
               <Card bodyStyle={{ padding: 0 }}>
                 {items.length === 0 ? (
                   <Empty title={t("microflowEmptyTitle")} description={t("microflowEmptyDesc")} style={{ padding: 48 }} />

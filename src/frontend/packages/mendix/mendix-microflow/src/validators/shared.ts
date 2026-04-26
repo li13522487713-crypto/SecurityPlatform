@@ -16,15 +16,16 @@ export function issue(
 }
 
 export function flattenObjects(collection: MicroflowObjectCollection): Array<{ object: MicroflowObject; loopObjectId?: string; collectionId: string }> {
-  return collection.objects.flatMap(object => {
+  const result: Array<{ object: MicroflowObject; loopObjectId?: string; collectionId: string }> = [];
+  for (const object of collection.objects) {
     if (object.kind !== "loopedActivity") {
-      return [{ object, collectionId: collection.id }];
+      result.push({ object, collectionId: collection.id });
+      continue;
     }
-    return [
-      { object, collectionId: collection.id },
-      ...flattenObjects(object.objectCollection).map(item => ({ ...item, loopObjectId: item.loopObjectId ?? object.id }))
-    ];
-  });
+    result.push({ object, collectionId: collection.id });
+    result.push(...flattenObjects(object.objectCollection).map(item => ({ ...item, loopObjectId: item.loopObjectId ?? object.id })));
+  }
+  return result;
 }
 
 export function objectMap(schema: MicroflowSchema): Map<string, MicroflowObject> {

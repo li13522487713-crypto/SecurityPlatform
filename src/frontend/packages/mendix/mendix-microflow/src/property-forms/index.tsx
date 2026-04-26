@@ -76,7 +76,7 @@ function renderObjectRows(object: MicroflowObject): Array<[string, string]> {
             ["Retrieve Source", action.retrieveSource.kind],
             ["Entity", action.retrieveSource.kind === "database" ? (action.retrieveSource.entityQualifiedName ?? "") : ""],
             ["Association", action.retrieveSource.kind === "association" ? (action.retrieveSource.associationQualifiedName ?? "") : ""]
-          ]
+          ] satisfies Array<[string, string]>
         : []),
       ...(action.kind === "restCall"
         ? [
@@ -84,9 +84,9 @@ function renderObjectRows(object: MicroflowObject): Array<[string, string]> {
             ["URL", action.request.urlExpression.raw],
             ["Response Mode", action.response.handling.kind],
             ["Timeout", String(action.timeoutSeconds)]
-          ]
+          ] satisfies Array<[string, string]>
         : [])
-    ].filter(([, value]) => value.length > 0);
+    ].filter(([, value]) => value.length > 0) as Array<[string, string]>;
   }
   if (object.kind === "loopedActivity") {
     return [

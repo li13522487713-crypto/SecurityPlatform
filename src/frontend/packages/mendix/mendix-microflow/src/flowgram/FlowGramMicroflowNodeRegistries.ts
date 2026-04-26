@@ -28,7 +28,7 @@ const objectKinds: MicroflowObjectKind[] = [
   "annotation",
 ];
 
-function fallbackPorts(kind: MicroflowObjectKind): WorkflowNodeRegistry["meta"]["defaultPorts"] {
+function fallbackPorts(kind: MicroflowObjectKind): Array<{ type: "input" | "output"; portID: string }> {
   if (kind === "startEvent") {
     return [{ type: "output", portID: "out" }];
   }
@@ -53,7 +53,7 @@ export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] 
     formMeta: {
       render: () => null,
     },
-  }));
+  } as unknown as WorkflowNodeRegistry));
 }
 
 @injectable()
@@ -70,10 +70,9 @@ export class FlowGramMicroflowNodeRegistryContribution
   registerEntityManager(entityManager: EntityManager): void {
     entityManager.registerEntityData(
       FlowNodeFormData,
-      () => ({
+      (() => ({
         formModelFactory: (entity: WorkflowNodeEntity) => new FormModelV2(entity),
-      }),
+      })) as unknown as Parameters<EntityManager["registerEntityData"]>[1],
     );
   }
 }
-

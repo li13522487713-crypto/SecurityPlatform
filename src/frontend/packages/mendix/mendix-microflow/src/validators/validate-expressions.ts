@@ -1,11 +1,20 @@
-import type { MicroflowExpression, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowExpression, MicroflowSchema, MicroflowValidationIssue, MicroflowVariableIndex } from "../schema/types";
 import { flattenObjects, issue } from "./shared";
 import { expressionVariables, flattenVariableIndex, isVariableInScope, resolveExpressionScope } from "../variable-index";
 import { validateExpression } from "../expressions";
 
 export function validateExpressions(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
-  const allSymbols = flattenVariableIndex(schema.variables);
+  const variables: MicroflowVariableIndex = schema.variables ?? {
+    parameters: {},
+    localVariables: {},
+    objectOutputs: {},
+    listOutputs: {},
+    loopVariables: {},
+    errorVariables: {},
+    systemVariables: {}
+  };
+  const allSymbols = flattenVariableIndex(variables);
   const symbolByName = new Map(allSymbols.map(symbol => [symbol.name, symbol]));
   for (const { object, loopObjectId } of flattenObjects(schema.objectCollection)) {
     const scope = resolveExpressionScope(schema, object.id);
@@ -28,7 +37,7 @@ export function validateExpressions(schema: MicroflowSchema): MicroflowValidatio
         if (variable === "$currentIndex" && !loopObjectId && object.kind !== "loopedActivity") {
           issues.push(issue("MF_EXPRESSION_INVALID", "$currentIndex is only valid inside Loop.", { objectId: object.id, fieldPath: item.fieldPath }));
         }
-        if (variable.startsWith("$latest") && !Object.prototype.hasOwnProperty.call(schema.variables.errorVariables, variable)) {
+        if (variable.startsWith("$latest") && !Object.prototype.hasOwnProperty.call(variables.errorVariables, variable)) {
           issues.push(issue("MF_EXPRESSION_INVALID", `${variable} is only valid inside error handler context.`, { objectId: object.id, fieldPath: item.fieldPath }));
         }
         const symbol = symbolByName.get(variable);

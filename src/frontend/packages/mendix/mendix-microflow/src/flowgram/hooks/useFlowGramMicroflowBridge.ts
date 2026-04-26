@@ -33,7 +33,7 @@ function portById(schema: MicroflowSchema, portId?: string) {
 export function useFlowGramMicroflowBridge(params: {
   schema: MicroflowSchema;
   issues: MicroflowSchema["validation"]["issues"];
-  traceFrames: MicroflowSchema["debug"]["lastTrace"];
+  traceFrames?: NonNullable<MicroflowSchema["debug"]>["lastTrace"];
   readonly?: boolean;
   onSchemaChange: (schema: MicroflowSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
@@ -76,12 +76,12 @@ export function useFlowGramMicroflowBridge(params: {
       }
       const newEdge = findNewFlowGramEdge(schema, json);
       if (newEdge) {
-        const sourcePort = portById(schema, newEdge.sourcePortID);
-        const targetPort = portById(schema, newEdge.targetPortID);
+        const sourcePort = portById(schema, newEdge.sourcePortID === undefined ? undefined : String(newEdge.sourcePortID));
+        const targetPort = portById(schema, newEdge.targetPortID === undefined ? undefined : String(newEdge.targetPortID));
         if (!sourcePort || !targetPort || !canConnectPorts(schema, sourcePort, targetPort).allowed) {
           Toast.warning("当前端口连接不合法。");
           reloadingRef.current = true;
-          void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug.lastTrace))).finally(() => {
+          void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace))).finally(() => {
             reloadingRef.current = false;
           });
           return;
@@ -96,7 +96,7 @@ export function useFlowGramMicroflowBridge(params: {
             targetObjectId: targetPort.objectId,
           });
           reloadingRef.current = true;
-          void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug.lastTrace))).finally(() => {
+          void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace))).finally(() => {
             reloadingRef.current = false;
           });
           return;

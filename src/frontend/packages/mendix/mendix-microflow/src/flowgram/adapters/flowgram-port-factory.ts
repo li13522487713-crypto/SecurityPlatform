@@ -16,7 +16,7 @@ export function microflowPortToFlowGramPort(port: MicroflowEditorPort): FlowGram
   };
 }
 
-export function microflowPortsToFlowGramPorts(ports: MicroflowEditorPort[]): WorkflowNodeJSON["meta"]["defaultPorts"] {
+export function microflowPortsToFlowGramPorts(ports: MicroflowEditorPort[]): FlowGramPortDescriptor[] {
   return ports.map(microflowPortToFlowGramPort);
 }
 
@@ -33,4 +33,3 @@ export function connectionIndexFromPortId(portId?: string): number {
   }
   return 0;
 }
-

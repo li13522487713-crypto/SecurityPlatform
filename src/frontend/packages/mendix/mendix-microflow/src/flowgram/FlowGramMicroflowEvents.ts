@@ -1,6 +1,4 @@
-import { inject, injectable } from "inversify";
 import {
-  FlowDocumentContribution,
   FlowRendererContribution,
   FlowRendererKey,
   type FlowRendererRegistry,
@@ -22,12 +20,11 @@ export class FlowGramMicroflowBridgeService {
 }
 
 function portId(port: WorkflowPortEntity): string | undefined {
-  return port.portID;
+  return typeof port.portID === "string" ? port.portID : port.portID === undefined ? undefined : String(port.portID);
 }
 
-@injectable()
 export class FlowGramMicroflowDocumentOptions implements WorkflowDocumentOptions {
-  constructor(@inject(FlowGramMicroflowBridgeService) private readonly bridge: FlowGramMicroflowBridgeService) {}
+  constructor(private readonly bridge: FlowGramMicroflowBridgeService = new FlowGramMicroflowBridgeService()) {}
 
   canAddLine(fromPort: WorkflowPortEntity, toPort: WorkflowPortEntity): boolean {
     const schema = this.bridge.schema;
@@ -44,8 +41,7 @@ export class FlowGramMicroflowDocumentOptions implements WorkflowDocumentOptions
   }
 }
 
-@injectable()
-export class FlowGramMicroflowRenderContribution implements FlowRendererContribution, FlowDocumentContribution {
+export class FlowGramMicroflowRenderContribution implements FlowRendererContribution {
   registerRenderer(renderer: FlowRendererRegistry): void {
     renderer.registerReactComponent(FlowRendererKey.NODE_RENDER, FlowGramMicroflowNodeRenderer);
   }

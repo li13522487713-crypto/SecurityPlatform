@@ -29,7 +29,7 @@ export function validateDecisions(schema: MicroflowSchema): MicroflowValidationI
         issues.push(issue("MF_DECISION_DUPLICATE_CASE", "Decision cannot have duplicate caseValues.", { objectId: object.id }));
       }
       if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" && object.splitCondition.resultType === "boolean") {
-        const bools = new Set(outgoing.flatMap(flow => flow.kind === "sequence" ? flow.caseValues : []).filter(item => item.kind === "boolean").map(item => item.value));
+        const bools = new Set(outgoing.flatMap(flow => flow.kind === "sequence" ? flow.caseValues : []).filter((item): item is Extract<MicroflowCaseValue, { kind: "boolean" }> => item !== undefined && item.kind === "boolean").map(item => item.value));
         if (!bools.has(true) || !bools.has(false)) {
           issues.push(issue("MF_DECISION_BRANCH_MISSING", "Boolean ExclusiveSplit must have true and false cases.", { objectId: object.id }));
         }
@@ -39,7 +39,7 @@ export function validateDecisions(schema: MicroflowSchema): MicroflowValidationI
         if (!object.splitCondition.enumerationQualifiedName || !enumeration) {
           issues.push(issue("MF_ENUMERATION_DECISION_UNKNOWN_ENUMERATION", "Enumeration ExclusiveSplit must reference an existing enumeration.", { objectId: object.id, fieldPath: "splitCondition.enumerationQualifiedName" }));
         }
-        for (const caseValue of outgoing.flatMap(flow => flow.caseValues).filter((item): item is Extract<MicroflowCaseValue, { kind: "enumeration" }> => item.kind === "enumeration")) {
+        for (const caseValue of outgoing.flatMap(flow => flow.caseValues).filter((item): item is Extract<MicroflowCaseValue, { kind: "enumeration" }> => item !== undefined && item.kind === "enumeration")) {
           if (caseValue.enumerationQualifiedName !== object.splitCondition.enumerationQualifiedName) {
             issues.push(issue("MF_ENUMERATION_CASE_ENUMERATION_MISMATCH", "Enumeration case must use the source ExclusiveSplit enumeration.", { objectId: object.id }));
           }
@@ -58,7 +58,7 @@ export function validateDecisions(schema: MicroflowSchema): MicroflowValidationI
         const allowed = getAllowedSpecializations(object, mockMicroflowMetadataCatalog);
         const inheritanceCases = outgoing
           .flatMap(flow => flow.caseValues)
-          .filter((item): item is Extract<MicroflowCaseValue, { kind: "inheritance" }> => item.kind === "inheritance")
+          .filter((item): item is Extract<MicroflowCaseValue, { kind: "inheritance" }> => item !== undefined && item.kind === "inheritance")
           .map(item => item.entityQualifiedName);
         if (new Set(inheritanceCases).size !== inheritanceCases.length) {
           issues.push(issue("MF_DECISION_DUPLICATE_CASE", "InheritanceSplit cannot have duplicate specialization branches.", { objectId: object.id }));

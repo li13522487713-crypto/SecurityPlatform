@@ -21,7 +21,7 @@ function titleForObject(object: MicroflowObject): string {
     return object.action.caption || object.action.kind;
   }
   if (object.kind === "parameterObject") {
-    return object.parameterName;
+    return object.parameterName ?? object.parameterId;
   }
   return object.kind;
 }
@@ -123,15 +123,15 @@ export function authoringToFlowGram(
     const objectIssues = issueIndex.get(node.objectId) ?? [];
     const data: FlowGramMicroflowNodeData = {
       objectId: node.objectId,
-      objectKind: object?.kind ?? node.kind,
+      objectKind: object?.kind ?? node.nodeKind,
       collectionId: node.collectionId,
       parentObjectId: node.parentObjectId,
       loopSummary: loopSummaryForObject(object, schema),
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
       title: object ? titleForObject(object) : node.title,
       subtitle: object ? subtitleForObject(object) : node.subtitle,
-      documentation: object?.documentation?.text,
-      officialType: object?.officialType ?? node.kind,
+      documentation: object?.documentation,
+      officialType: object?.officialType ?? node.nodeKind,
       disabled: Boolean(object && "disabled" in object && object.disabled),
       validationState: validationState(objectIssues),
       runtimeState: runtimeStateForObject(node.objectId, trace),
@@ -159,7 +159,7 @@ export function authoringToFlowGram(
     const data: FlowGramMicroflowEdgeData = {
       flowId: edge.flowId,
       flowKind: flow?.kind ?? "sequence",
-      edgeKind: edge.kind,
+      edgeKind: edge.kind ?? edge.edgeKind,
       isErrorHandler: flow?.kind === "sequence" ? flow.isErrorHandler : false,
       caseValues: flow?.kind === "sequence" ? flow.caseValues : [],
       label: flow ? flowCaseLabel(flow) : edge.label,
@@ -169,8 +169,8 @@ export function authoringToFlowGram(
     };
     return {
       id: edge.flowId,
-      sourceNodeID: edge.sourceObjectId,
-      targetNodeID: edge.targetObjectId,
+      sourceNodeID: edge.sourceObjectId ?? edge.sourceNodeId,
+      targetNodeID: edge.targetObjectId ?? edge.targetNodeId,
       sourcePortID: edge.sourcePortId,
       targetPortID: edge.targetPortId,
       data,

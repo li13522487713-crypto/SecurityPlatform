@@ -209,7 +209,16 @@ const objects: MicroflowObject[] = [
       ]
     }
   },
-  { ...base("inheritance-member", "inheritanceSplit", "Microflows$InheritanceSplit", "Member Type?", 2040, 92, 168, 108), kind: "inheritanceSplit", officialType: "Microflows$InheritanceSplit", inputObjectVariableName: "member", entity: { generalizedEntityQualifiedName: "University.Member", allowedSpecializations: ["University.Student", "University.Teacher"] }, errorHandlingType: "rollback" },
+  {
+    ...base("inheritance-member", "inheritanceSplit", "Microflows$InheritanceSplit", "Member Type?", 2040, 92, 168, 108),
+    kind: "inheritanceSplit",
+    officialType: "Microflows$InheritanceSplit",
+    inputObjectVariableName: "member",
+    generalizedEntityQualifiedName: "University.Member",
+    allowedSpecializations: ["University.Student", "University.Teacher"],
+    entity: { generalizedEntityQualifiedName: "University.Member", allowedSpecializations: ["University.Student", "University.Teacher"] },
+    errorHandlingType: "rollback"
+  },
   activity("log-success", "Log Success", 2260, 86, {
     ...actionBase("logMessage", "Microflows$LogMessageAction", "logging"),
     editor: { category: "logging", iconKey: "logMessage", availability: "supported" },
@@ -294,6 +303,17 @@ export const sampleMicroflowSchema: MicroflowSchema = {
   exposure: { exportLevel: "module", markAsUsed: true, asMicroflowAction: { enabled: true, caption: "Process Order", category: "Sales" }, url: { enabled: true, path: "/orders/process", searchParameters: ["orderId"] } },
   variables,
   validation: { issues: [] },
-  editor: { viewport: { x: 0, y: 0, zoom: 0.82 }, selection: {}, layoutMode: "freeform" },
+  editor: {
+    viewport: { x: 0, y: 0, zoom: 0.82 },
+    zoom: 0.82,
+    activeBottomPanel: "problems",
+    leftPanelCollapsed: false,
+    rightPanelCollapsed: false,
+    bottomPanelCollapsed: false,
+    showMiniMap: true,
+    gridEnabled: true,
+    selection: {},
+    layoutMode: "freeform"
+  },
   audit: { version: "v3", status: "draft", createdBy: "System", createdAt: "2026-04-26T00:00:00.000Z", updatedBy: "System", updatedAt: "2026-04-26T00:00:00.000Z" }
 };

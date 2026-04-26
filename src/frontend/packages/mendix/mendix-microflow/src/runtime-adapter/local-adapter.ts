@@ -7,6 +7,8 @@ import type {
   MicroflowResource,
   MicroflowResourceSortKey,
   MicroflowResourceStatus,
+  MicroflowDataType,
+  MicroflowTypeRef,
   MicroflowSchema,
   PublishMicroflowPayload
 } from "../schema/types";
@@ -36,6 +38,37 @@ function cloneResource(resource: MicroflowResource): MicroflowResource {
     tags: [...resource.tags],
     schema: cloneSchema(resource.schema)
   };
+}
+
+function typeRefToDataType(type: MicroflowTypeRef): MicroflowDataType {
+  if (type.kind === "void") {
+    return { kind: "void" };
+  }
+  if (type.kind === "entity" || type.kind === "object") {
+    return { kind: "object", entityQualifiedName: type.entity ?? type.name };
+  }
+  if (type.kind === "list") {
+    return { kind: "list", itemType: type.itemType ? typeRefToDataType(type.itemType) : { kind: "unknown", reason: "missing list item type" } };
+  }
+  if (type.name === "Boolean") {
+    return { kind: "boolean" };
+  }
+  if (type.name === "Integer") {
+    return { kind: "integer" };
+  }
+  if (type.name === "Long") {
+    return { kind: "long" };
+  }
+  if (type.name === "Decimal") {
+    return { kind: "decimal" };
+  }
+  if (type.name === "DateTime") {
+    return { kind: "dateTime" };
+  }
+  if (type.name === "String" || type.kind === "primitive") {
+    return { kind: "string" };
+  }
+  return { kind: "unknown", reason: type.name };
 }
 
 function nowIso(): string {
@@ -203,14 +236,15 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     schema.description = input.description.trim();
     schema.version = "v0.1";
     if (input.returnType?.kind && input.returnType.kind !== "void") {
-      schema.returnType = input.returnType;
+      const returnType = typeRefToDataType(input.returnType);
+      schema.returnType = returnType;
       schema.objectCollection.objects = schema.objectCollection.objects.map(object => object.kind === "endEvent"
         ? {
             ...object,
             returnValue: {
               id: `${id}-return`,
               raw: "empty",
-              inferredType: input.returnType,
+              inferredType: returnType,
               references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
               diagnostics: []
             }

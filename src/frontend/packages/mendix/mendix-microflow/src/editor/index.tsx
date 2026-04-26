@@ -31,6 +31,7 @@ import {
   deleteFlow,
   deleteObject,
   duplicateObject,
+  emptyVariableIndex,
   ensureAuthoringSchema,
   findObject,
   moveObject,
@@ -244,13 +245,14 @@ function findLoopAtPosition(graph: MicroflowEditorGraph, position: { x: number; 
 }
 
 function collectVariables(schema: MicroflowSchema) {
-  return Object.values(schema.variables.parameters)
-    .concat(Object.values(schema.variables.localVariables))
-    .concat(Object.values(schema.variables.objectOutputs))
-    .concat(Object.values(schema.variables.listOutputs))
-    .concat(Object.values(schema.variables.loopVariables))
-    .concat(Object.values(schema.variables.errorVariables))
-    .concat(Object.values(schema.variables.systemVariables));
+  const variables = schema.variables ?? emptyVariableIndex();
+  return Object.values(variables.parameters)
+    .concat(Object.values(variables.localVariables))
+    .concat(Object.values(variables.objectOutputs))
+    .concat(Object.values(variables.listOutputs))
+    .concat(Object.values(variables.loopVariables))
+    .concat(Object.values(variables.errorVariables))
+    .concat(Object.values(variables.systemVariables));
 }
 
 function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string, targetObjectId: string): MicroflowFlow {
@@ -785,18 +787,25 @@ function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       {issues.map(issue => (
-        <Card key={issue.id} shadows="hover" style={{ width: "100%" }} bodyStyle={{ padding: 10 }} onClick={() => onSelect(issue)}>
-          <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
-            <div style={{ minWidth: 0 }}>
-              <Text strong>{issue.code}</Text>
-              <br />
-              <Text size="small" type="secondary">{issue.message}</Text>
-              <br />
-              <Text size="small" type="tertiary">{issue.fieldPath ?? issue.objectId ?? issue.flowId ?? issue.actionId}</Text>
-            </div>
-            <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
-          </Space>
-        </Card>
+        <div key={issue.id} role="button" tabIndex={0} onClick={() => onSelect(issue)} onKeyDown={event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelect(issue);
+          }
+        }}>
+          <Card shadows="hover" style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+            <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
+              <div style={{ minWidth: 0 }}>
+                <Text strong>{issue.code}</Text>
+                <br />
+                <Text size="small" type="secondary">{issue.message}</Text>
+                <br />
+                <Text size="small" type="tertiary">{issue.fieldPath ?? issue.objectId ?? issue.flowId ?? issue.actionId}</Text>
+              </div>
+              <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
+            </Space>
+          </Card>
+        </div>
       ))}
     </Space>
   );
@@ -917,7 +926,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const handleAddNode = (item: MicroflowNodeRegistryItem, options?: { position?: { x: number; y: number }; insertFlowId?: string }) => {
     const position = options?.position ?? { x: 120 + graph.nodes.length * 36, y: 120 + graph.nodes.length * 18 };
     const parentLoopObjectId = findLoopAtPosition(graph, position);
-    const eventType = item.type === "event" ? (item.defaultConfig as { eventType?: string }).eventType : undefined;
+    const eventType = String(item.type) === "event" ? (item.defaultConfig as { eventType?: string }).eventType : undefined;
     if (eventType && ["start", "end"].includes(eventType) && parentLoopObjectId) {
       Toast.warning("Start / End events cannot be placed inside Loop.");
       return;

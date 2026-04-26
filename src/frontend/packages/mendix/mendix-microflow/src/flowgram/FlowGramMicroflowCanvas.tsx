@@ -48,12 +48,16 @@ interface FlowGramMicroflowToolbarProps extends Pick<FlowGramMicroflowCanvasProp
 function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
   const playground = usePlayground();
   const resetLayout = useService<WorkflowResetLayoutService>(WorkflowResetLayoutService);
+  const fitView = () => {
+    const service = resetLayout as WorkflowResetLayoutService & { fitView?: () => void };
+    service.fitView?.();
+  };
   return (
     <div className="microflow-flowgram-toolbar">
       <Space>
         <Button icon={<IconPlus />} size="small" onClick={() => playground.config.zoomin()} />
         <Button icon={<IconMinus />} size="small" onClick={() => playground.config.zoomout()} />
-        <Button icon={<IconRefresh />} size="small" onClick={() => resetLayout.fitView()} />
+        <Button icon={<IconRefresh />} size="small" onClick={fitView} />
         <Button icon={<IconUndo />} size="small" disabled={!props.canUndo} onClick={props.onUndo} />
         <Button icon={<IconRedo />} size="small" disabled={!props.canRedo} onClick={props.onRedo} />
         <Button
@@ -64,7 +68,7 @@ function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
         />
         <Button icon={<IconTreeTriangleDown />} size="small" disabled={props.readonly} onClick={() => {
           props.onAutoLayout?.();
-          requestAnimationFrame(() => resetLayout.fitView());
+          requestAnimationFrame(fitView);
         }}>
           Auto
         </Button>

@@ -5,7 +5,7 @@ import type { MicroflowEditorGraphPatch, MicroflowEditorPort, MicroflowFlow, Mic
 import { createMicroflowFlowFromPorts } from "./flowgram-edge-factory";
 
 function edgeKey(edge: Pick<WorkflowEdgeJSON, "sourceNodeID" | "targetNodeID" | "sourcePortID" | "targetPortID">): string {
-  return [edge.sourceNodeID, edge.sourcePortID ?? "", edge.targetNodeID, edge.targetPortID ?? ""].join("::");
+  return [edge.sourceNodeID, edge.sourcePortID ?? "", edge.targetNodeID, edge.targetPortID ?? ""].map(value => String(value ?? "")).join("::");
 }
 
 function portById(schema: MicroflowSchema, portId?: string): MicroflowEditorPort | undefined {
@@ -38,22 +38,22 @@ export function findNewFlowGramEdge(schema: MicroflowSchema, json: WorkflowJSON)
   const current = new Set(
     toEditorGraph(schema).edges.map(edge =>
       edgeKey({
-        sourceNodeID: edge.sourceObjectId,
+        sourceNodeID: edge.sourceObjectId ?? edge.sourceNodeId,
         sourcePortID: edge.sourcePortId,
-        targetNodeID: edge.targetObjectId,
+        targetNodeID: edge.targetObjectId ?? edge.targetNodeId,
         targetPortID: edge.targetPortId,
       }),
     ),
   );
   return (json.edges ?? []).find(edge => {
-    const data = edge.data as { flowId?: string } | undefined;
+    const data = (edge as WorkflowEdgeJSON & { data?: { flowId?: string } }).data;
     return !data?.flowId && !current.has(edgeKey(edge));
   });
 }
 
 export function createFlowFromFlowGramEdge(schema: MicroflowSchema, edge: WorkflowEdgeJSON): MicroflowFlow | undefined {
-  const sourcePort = portById(schema, edge.sourcePortID);
-  const targetPort = portById(schema, edge.targetPortID);
+  const sourcePort = portById(schema, edge.sourcePortID === undefined ? undefined : String(edge.sourcePortID));
+  const targetPort = portById(schema, edge.targetPortID === undefined ? undefined : String(edge.targetPortID));
   if (!sourcePort || !targetPort) {
     return undefined;
   }
@@ -63,9 +63,8 @@ export function createFlowFromFlowGramEdge(schema: MicroflowSchema, edge: Workfl
 export function findDeletedFlowId(schema: MicroflowSchema, json: WorkflowJSON): string | undefined {
   const flowIds = new Set(
     (json.edges ?? [])
-      .map(edge => (edge.data as { flowId?: string } | undefined)?.flowId)
+      .map(edge => (edge as WorkflowEdgeJSON & { data?: { flowId?: string } }).data?.flowId)
       .filter((id): id is string => Boolean(id)),
   );
   return schema.flows.find(flow => !flowIds.has(flow.id))?.id;
 }
-

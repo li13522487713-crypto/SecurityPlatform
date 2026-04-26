@@ -278,6 +278,8 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       kind: "inheritanceSplit",
       officialType: "Microflows$InheritanceSplit",
       inputObjectVariableName: "object",
+      generalizedEntityQualifiedName: "System.Object",
+      allowedSpecializations: [],
       entity: { generalizedEntityQualifiedName: "System.Object", allowedSpecializations: [] },
       errorHandlingType: "rollback"
     };
@@ -482,7 +484,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
     ...base,
     kind,
     officialType: registryAction?.officialType ?? "Microflows$GenericAction"
-  };
+  } as MicroflowAction;
 }
 
 export function createSequenceFlow(input: {
