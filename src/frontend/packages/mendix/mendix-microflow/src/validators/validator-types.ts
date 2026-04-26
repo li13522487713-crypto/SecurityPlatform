@@ -6,8 +6,13 @@ import type { MicroflowValidationCode } from "./validation-codes";
 export type { MicroflowValidationIssue };
 export type { MicroflowValidationCode };
 
+export interface MicroflowValidatorContext {
+  metadata: MicroflowMetadataCatalog;
+  variableIndex: MicroflowVariableIndex;
+}
+
 export interface MicroflowValidator {
-  validate(schema: MicroflowAuthoringSchema): MicroflowValidationIssue[];
+  validate(schema: MicroflowAuthoringSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[];
 }
 
 export interface MicroflowValidationOptions {
@@ -18,7 +23,10 @@ export interface MicroflowValidationOptions {
 
 export interface MicroflowValidationInput {
   schema: MicroflowAuthoringSchema;
-  metadata?: MicroflowMetadataCatalog;
+  /**
+   * 必须为已加载的目录；`null` / `undefined` 时返回 `MF_METADATA_CATALOG_MISSING`，不回落到 mock。
+   */
+  metadata: MicroflowMetadataCatalog | null | undefined;
   variableIndex?: MicroflowVariableIndex;
   options?: MicroflowValidationOptions;
 }

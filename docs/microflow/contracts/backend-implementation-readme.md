@@ -38,7 +38,8 @@
 1. 实现上述 REST，响应包 `MicroflowApiResponse`。
 2. 新增 `createHttpMicroflowResourceAdapter`（未来）在内部调 fetch，**仅解析 Envelope**。
 3. 宿主注入 adapter，替换 `createLocalMicroflowResourceAdapter`。
-4. 元数据、校验、TestRun 同理接入。
+4. 元数据：实现 `GET /api/microflow-metadata`（及可选子路径），字段与 `MicroflowMetadataCatalog` 对齐；宿主注入 `createHttpMicroflowMetadataAdapter`，替换默认 mock adapter。校验（`validateMicroflowSchema`）、表达式、变量作用域均以传入 catalog 为准，缺失时返回 `MF_METADATA_CATALOG_MISSING` 等 issue，由 ProblemPanel 展示。
+5. TestRun 等同理接入。
 
 ## 未知项
 

@@ -1,6 +1,6 @@
 import { toRuntimeDto } from "@atlas/microflow/adapters";
 import { authoringToFlowGram } from "@atlas/microflow/flowgram/authoring-to-flowgram";
-import { mockMicroflowMetadataCatalog } from "@atlas/microflow/metadata";
+import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
 import { normalizeMicroflowSchema } from "@atlas/microflow/schema";
 import { validateMicroflowSchema } from "@atlas/microflow/validators";
 import { buildVariableIndex } from "@atlas/microflow/variables";
@@ -29,7 +29,11 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       if (normalized.id !== schema.id || normalized.stableId !== schema.stableId) {
         errors.push(`${item.key}: normalizeMicroflowSchema 改变了 id/stableId`);
       }
-      const validation = validateMicroflowSchema({ schema, options: { mode: "save", includeWarnings: true, includeInfo: true } });
+      const validation = validateMicroflowSchema({
+        schema,
+        metadata: getDefaultMockMetadataCatalog(),
+        options: { mode: "save", includeWarnings: true, includeInfo: true },
+      });
       if (item.expectedValidation) {
         const errCount = validation.issues.filter(i => i.severity === "error").length;
         const warnCount = validation.issues.filter(i => i.severity === "warning").length;
@@ -59,7 +63,7 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       if (plan2.startNodeId !== plan.startNodeId) {
         errors.push(`${item.key}: toExecutionPlanFromSchema.startNodeId 与 toExecutionPlan 不一致`);
       }
-      buildVariableIndex(schema, mockMicroflowMetadataCatalog);
+      buildVariableIndex(schema, getDefaultMockMetadataCatalog());
     } catch (caught) {
       errors.push(`${item.key}: ${caught instanceof Error ? caught.message : String(caught)}`);
     }

@@ -1,10 +1,11 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { flattenObjects, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
 const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-export function validateLoop(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateLoop(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const objects = flattenObjects(schema.objectCollection);
   for (const { object, loopObjectId, collectionId } of objects) {

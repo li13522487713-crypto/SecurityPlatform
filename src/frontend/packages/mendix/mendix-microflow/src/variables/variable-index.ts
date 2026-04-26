@@ -3,7 +3,6 @@ import {
   getEntityByQualifiedName,
   getMicroflowById,
   getTargetEntityByAssociation,
-  mockMicroflowMetadataCatalog,
   type MicroflowMetadataCatalog,
 } from "../metadata";
 import type {
@@ -474,7 +473,7 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
   }
 }
 
-export function buildVariableIndex(schema: MicroflowSchema, metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog): MicroflowVariableIndex {
+export function buildVariableIndex(schema: MicroflowSchema, metadata: MicroflowMetadataCatalog): MicroflowVariableIndex {
   const index = emptyIndex(schema);
   addSymbol(index, createSymbol({
     name: "$currentUser",

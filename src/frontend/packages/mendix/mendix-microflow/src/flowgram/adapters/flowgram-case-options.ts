@@ -1,4 +1,4 @@
-import { findEntity, getEnumerationValueKeys, mockMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
+import { findEntity, getEnumerationValueKeys, type MicroflowMetadataCatalog } from "../../metadata";
 import { flattenObjectCollection } from "../../adapters";
 import type {
   MicroflowCaseValue,
@@ -162,8 +162,8 @@ export function getBooleanCaseOptions(schema: MicroflowSchema, sourceObjectId: s
 export function getEnumerationCaseOptions(
   schema: MicroflowSchema,
   sourceObjectId: string,
-  currentFlowId?: string,
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog,
+  currentFlowId: string | undefined,
+  metadata: MicroflowMetadataCatalog,
 ): MicroflowCaseOption[] {
   const source = objectById(schema, sourceObjectId);
   const enumerationQualifiedName = source?.kind === "exclusiveSplit" && source.splitCondition.kind === "expression"
@@ -198,8 +198,8 @@ export function getEnumerationCaseOptions(
 export function getObjectTypeCaseOptions(
   schema: MicroflowSchema,
   sourceObjectId: string,
-  currentFlowId?: string,
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog,
+  currentFlowId: string | undefined,
+  metadata: MicroflowMetadataCatalog,
 ): MicroflowCaseOption[] {
   const source = objectById(schema, sourceObjectId);
   const split = source?.kind === "inheritanceSplit" ? source : undefined;
@@ -231,7 +231,7 @@ export function getObjectTypeCaseOptions(
 
 export function getAllowedSpecializations(
   split: MicroflowInheritanceSplit | undefined,
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog,
+  metadata: MicroflowMetadataCatalog,
 ): string[] {
   if (!split) {
     return [];
@@ -245,8 +245,8 @@ export function getAllowedSpecializations(
 export function getCaseOptionsForSource(
   schema: MicroflowSchema,
   sourceObjectId: string,
-  currentFlowId?: string,
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog,
+  currentFlowId: string | undefined,
+  metadata: MicroflowMetadataCatalog,
 ): MicroflowCaseOption[] {
   const kind = getCaseEditorKind(schema, sourceObjectId);
   if (kind === "enumeration") {

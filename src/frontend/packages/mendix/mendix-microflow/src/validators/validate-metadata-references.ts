@@ -6,12 +6,12 @@ import {
   getEnumerationValueKeys,
   getMicroflowById,
   getSpecializations,
-  mockMicroflowMetadataCatalog,
   type MicroflowMetadataCatalog,
 } from "../metadata";
 import type { MicroflowDataType, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { flattenObjects, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
 function validateDataType(
   dataType: MicroflowDataType,
@@ -30,10 +30,8 @@ function validateDataType(
   return [];
 }
 
-export function validateMetadataReferences(
-  schema: MicroflowSchema,
-  catalog: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog,
-): MicroflowValidationIssue[] {
+export function validateMetadataReferences(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
+  const catalog: MicroflowMetadataCatalog = context.metadata;
   const issues: MicroflowValidationIssue[] = [];
 
   for (const parameter of schema.parameters) {

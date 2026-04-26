@@ -1,7 +1,8 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { flattenObjects, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
-export function validateObjectCollection(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateObjectCollection(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const ids = new Set<string>();
   for (const { object } of flattenObjects(schema.objectCollection)) {

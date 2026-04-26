@@ -22,6 +22,7 @@ import { toEditorGraph } from "../adapters";
 import { FlowGramMicroflowCaseEditor } from "./FlowGramMicroflowCaseEditor";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
 import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
+import { useMicroflowMetadataCatalog } from "../metadata";
 import { getCaseOptionsForSource } from "./adapters/flowgram-case-options";
 import {
   clientPointToFlowGramPoint,
@@ -206,9 +207,12 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     onSelectionChange: props.onSelectionChange,
     onPendingCaseLine: setPendingCaseLine,
   });
+  const metadataCatalog = useMicroflowMetadataCatalog();
   const options = useMemo(
-    () => pendingCaseLine ? getCaseOptionsForSource(props.schema, pendingCaseLine.sourceObjectId) : [],
-    [pendingCaseLine, props.schema],
+    () => pendingCaseLine && metadataCatalog
+      ? getCaseOptionsForSource(props.schema, pendingCaseLine.sourceObjectId, undefined, metadataCatalog)
+      : [],
+    [pendingCaseLine, props.schema, metadataCatalog],
   );
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {

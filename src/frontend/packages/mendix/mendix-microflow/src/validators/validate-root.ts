@@ -1,7 +1,8 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
-export function validateRoot(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateRoot(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   if (!schema.objectCollection) {
     issues.push(issue("MF_OBJECT_COLLECTION_MISSING", "Microflow must have objectCollection.", { fieldPath: "objectCollection" }));

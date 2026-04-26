@@ -7,18 +7,9 @@ import type {
   MicroflowExpressionEditorProps,
   MicroflowVariableSelectorProps
 } from "./types";
+import { AssociationSelector as MetadataAssociationSelector, AttributeSelector as MetadataAttributeSelector, EntitySelector as MetadataEntitySelector } from "./selectors";
 
 const { Text } = Typography;
-
-export const mockEntities = ["Order", "OrderItem", "User", "Product", "Inventory"];
-
-export const mockAttributes: Record<string, string[]> = {
-  Order: ["Id", "Status", "CreatedDate", "ProcessedDate", "Operator", "TotalAmount"],
-  Product: ["Id", "Name", "Stock", "Price"],
-  OrderItem: ["Id", "Quantity", "Price", "Product"],
-  User: ["Id", "Name", "Email"],
-  Inventory: ["Id", "Product", "Stock"]
-};
 
 export function createExpression(text = ""): MicroflowExpression {
   return {
@@ -167,28 +158,27 @@ export function VariableSelector({ value, variables, readonly, placeholder = "Se
 
 export function EntitySelector({ value, readonly, onChange }: MicroflowEntitySelectorProps) {
   return (
-    <Select
-      filter
-      disabled={readonly}
-      style={{ width: "100%" }}
+    <MetadataEntitySelector
       value={value}
-      placeholder="Select entity"
-      optionList={mockEntities.map(entity => ({ label: entity, value: entity }))}
-      onChange={selected => onChange(String(selected ?? ""))}
+      disabled={readonly}
+      onChange={qualified => onChange(qualified ?? "")}
     />
   );
 }
 
-export function AssociationSelector({ value, readonly, onChange }: { value?: string; readonly?: boolean; onChange: (value: string) => void }) {
+export function AssociationSelector({ value, readonly, onChange, startEntityQualifiedName }: {
+  value?: string;
+  readonly?: boolean;
+  onChange: (value: string) => void;
+  /** 若 legacy 表单未传，需在选择实体后由上层填入。 */
+  startEntityQualifiedName?: string;
+}) {
   return (
-    <Select
-      filter
-      disabled={readonly}
-      style={{ width: "100%" }}
+    <MetadataAssociationSelector
+      startEntityQualifiedName={startEntityQualifiedName}
       value={value}
-      placeholder="Select association"
-      optionList={["Order/Items", "Order/Customer", "Product/Inventory"].map(item => ({ label: item, value: item }))}
-      onChange={selected => onChange(String(selected ?? ""))}
+      disabled={readonly}
+      onChange={q => onChange(q ?? "")}
     />
   );
 }
@@ -197,23 +187,19 @@ export function AttributeSelector({
   entity,
   value,
   readonly,
-  onChange
+  onChange,
 }: {
   entity?: string;
   value?: string;
   readonly?: boolean;
   onChange: (value: string) => void;
 }) {
-  const options = (entity ? mockAttributes[entity] : undefined) ?? mockAttributes.Order;
   return (
-    <Select
-      filter
-      disabled={readonly}
-      style={{ width: "100%" }}
+    <MetadataAttributeSelector
+      entityQualifiedName={entity}
       value={value}
-      placeholder="Select attribute"
-      optionList={options.map(attribute => ({ label: attribute, value: attribute }))}
-      onChange={selected => onChange(String(selected ?? ""))}
+      disabled={readonly}
+      onChange={q => onChange(q ?? "")}
     />
   );
 }

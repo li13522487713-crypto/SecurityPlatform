@@ -1,7 +1,7 @@
-import { mockMicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowDataType, MicroflowObject, MicroflowObjectCollection, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variables";
 import { issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
 function compatibleKinds(dataType: MicroflowDataType, expected: MicroflowDataType["kind"][]): boolean {
   return expected.includes(dataType.kind);
@@ -20,6 +20,7 @@ function variableIssue(
 
 function checkVariableReference(input: {
   schema: MicroflowSchema;
+  metadata: MicroflowValidatorContext["metadata"];
   objectId: string;
   actionId?: string;
   fieldPath: string;
@@ -28,7 +29,7 @@ function checkVariableReference(input: {
   label: string;
   issues: MicroflowValidationIssue[];
 }) {
-  const index = buildVariableIndex(input.schema, mockMicroflowMetadataCatalog);
+  const index = buildVariableIndex(input.schema, input.metadata);
   const symbol = resolveVariableReferenceFromIndex(input.schema, index, { objectId: input.objectId, actionId: input.actionId, fieldPath: input.fieldPath }, input.value);
   if (!input.value.trim()) {
     input.issues.push(variableIssue("MF_VARIABLE_REFERENCE_REQUIRED", `${input.label} variable is required.`, input.objectId, input.actionId, input.fieldPath));
@@ -46,8 +47,9 @@ function checkVariableReference(input: {
   }
 }
 
-export function validateVariables(schema: MicroflowSchema): MicroflowValidationIssue[] {
-  const index = buildVariableIndex(schema, mockMicroflowMetadataCatalog);
+export function validateVariables(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
+  const { metadata } = context;
+  const index = buildVariableIndex(schema, metadata);
   const issues: MicroflowValidationIssue[] = (index.diagnostics ?? []).map(diagnostic => issue(
     diagnostic.code,
     diagnostic.message,
@@ -68,6 +70,7 @@ export function validateVariables(schema: MicroflowSchema): MicroflowValidationI
     if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
       checkVariableReference({
         schema,
+        metadata,
         objectId: object.id,
         fieldPath: "loopSource.listVariableName",
         value: object.loopSource.listVariableName,
@@ -84,6 +87,7 @@ export function validateVariables(schema: MicroflowSchema): MicroflowValidationI
     if (action.kind === "retrieve" && action.retrieveSource.kind === "association") {
       checkVariableReference({
         schema,
+        metadata,
         objectId: object.id,
         actionId: action.id,
         fieldPath: "action.retrieveSource.startVariableName",
@@ -96,6 +100,7 @@ export function validateVariables(schema: MicroflowSchema): MicroflowValidationI
     if (action.kind === "changeMembers") {
       checkVariableReference({
         schema,
+        metadata,
         objectId: object.id,
         actionId: action.id,
         fieldPath: "action.changeVariableName",
@@ -108,6 +113,7 @@ export function validateVariables(schema: MicroflowSchema): MicroflowValidationI
     if (action.kind === "commit" || action.kind === "delete" || action.kind === "rollback") {
       checkVariableReference({
         schema,
+        metadata,
         objectId: object.id,
         actionId: action.id,
         fieldPath: "action.objectOrListVariableName",
@@ -120,6 +126,7 @@ export function validateVariables(schema: MicroflowSchema): MicroflowValidationI
     if (action.kind === "changeVariable") {
       checkVariableReference({
         schema,
+        metadata,
         objectId: object.id,
         actionId: action.id,
         fieldPath: "action.variableName",

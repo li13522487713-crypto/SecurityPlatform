@@ -1,5 +1,6 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { flattenObjects, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
 function textField(action: { [key: string]: unknown }, key: string): string {
   const value = action[key];
@@ -29,7 +30,7 @@ function required(issueList: MicroflowValidationIssue[], code: string, message: 
   }
 }
 
-export function validateActions(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateActions(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   for (const { object } of flattenObjects(schema.objectCollection)) {
     if (object.kind !== "actionActivity") {

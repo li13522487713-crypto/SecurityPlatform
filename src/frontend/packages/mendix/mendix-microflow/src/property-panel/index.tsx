@@ -19,7 +19,15 @@ import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../flo
 import { defaultMicroflowActionRegistry, defaultMicroflowEdgeRegistry, defaultMicroflowObjectNodeRegistry } from "../node-registry";
 import type { MicroflowPropertyTabKey } from "../schema/types";
 import { collectFlowsRecursive, findObjectWithCollection } from "../schema/utils/object-utils";
-import { getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, getSpecializations, useMicroflowMetadata } from "../metadata";
+import {
+  EMPTY_MICROFLOW_METADATA_CATALOG,
+  getAssociationByQualifiedName,
+  getAttributeByQualifiedName,
+  getMicroflowById,
+  getSpecializations,
+  useMetadataStatus,
+  useMicroflowMetadataCatalog,
+} from "../metadata";
 import { buildVariableIndex, getObjectEntityQualifiedName, resolveVariableReferenceFromIndex } from "../variables";
 import { FieldError, ValidationIssueList } from "./common";
 import { ExpressionEditor } from "./expression";
@@ -471,8 +479,10 @@ function GenericActionFields({
   readonly?: boolean;
   onPatch: (patch: MicroflowNodePatch) => void;
 }) {
-  const catalog = useMicroflowMetadata();
-  const variableIndex = useMemo(() => buildVariableIndex(schema, catalog), [schema, catalog.version]);
+  const catalog = useMicroflowMetadataCatalog();
+  const { version: metadataVersion } = useMetadataStatus();
+  const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
+  const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, metadataVersion]);
   const action = object.action;
   const fields = getGenericActionFields(action.kind);
   if (fields.length === 0 || ["retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "restCall", "logMessage", "callMicroflow", "createVariable", "changeVariable"].includes(action.kind)) {
@@ -521,7 +531,7 @@ function GenericActionFields({
               <ExpressionEditor
                 value={currentExpression}
                 schema={schema}
-                metadata={catalog}
+                metadata={effectiveCatalog}
                 variableIndex={variableIndex}
                 objectId={object.id}
                 actionId={action.id}
@@ -558,21 +568,23 @@ function ActionActivityFields({
   onPatch: (patch: MicroflowNodePatch) => void;
 }) {
   const action = object.action;
-  const catalog = useMicroflowMetadata();
-  const variableIndex = useMemo(() => buildVariableIndex(schema, catalog), [schema, catalog.version]);
+  const catalog = useMicroflowMetadataCatalog();
+  const { version: metadataVersion } = useMetadataStatus();
+  const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
+  const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, metadataVersion]);
   const variableEntity = (variableName?: string) => variableName
     ? getObjectEntityQualifiedName(resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id }, variableName)?.dataType)
     : undefined;
   const associationSource = action.kind === "retrieve" && action.retrieveSource.kind === "association"
-    ? variableEntity(action.retrieveSource.startVariableName) ?? getAssociationByQualifiedName(catalog, action.retrieveSource.associationQualifiedName ?? undefined)?.sourceEntityQualifiedName
+    ? variableEntity(action.retrieveSource.startVariableName) ?? getAssociationByQualifiedName(effectiveCatalog, action.retrieveSource.associationQualifiedName ?? undefined)?.sourceEntityQualifiedName
     : undefined;
   const [associationStartEntity, setAssociationStartEntity] = useState<string | undefined>(associationSource);
   const firstMemberEntity = action.kind === "changeMembers" && action.memberChanges[0]?.memberQualifiedName
     ? action.memberChanges[0].memberQualifiedName.split(".").slice(0, -1).join(".")
     : undefined;
   const inferredMemberEntity = action.kind === "changeMembers" ? variableEntity(action.changeVariableName) : undefined;
-  const [memberEntity, setMemberEntity] = useState<string | undefined>(inferredMemberEntity ?? firstMemberEntity ?? "Sales.Order");
-  const selectedMicroflow = action.kind === "callMicroflow" ? getMicroflowById(catalog, action.targetMicroflowId) : undefined;
+  const [memberEntity, setMemberEntity] = useState<string | undefined>(inferredMemberEntity ?? firstMemberEntity);
+  const selectedMicroflow = action.kind === "callMicroflow" ? getMicroflowById(effectiveCatalog, action.targetMicroflowId) : undefined;
   const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -643,7 +655,7 @@ function ActionActivityFields({
                 <ExpressionEditor
                   value={action.retrieveSource.xPathConstraint}
                   schema={schema}
-                  metadata={catalog}
+                  metadata={effectiveCatalog}
                   variableIndex={variableIndex}
                   objectId={object.id}
                   actionId={action.id}
@@ -844,12 +856,12 @@ function ActionActivityFields({
                   <ExpressionEditor
                     value={change.valueExpression}
                     schema={schema}
-                    metadata={catalog}
+                    metadata={effectiveCatalog}
                     variableIndex={variableIndex}
                     objectId={object.id}
                     actionId={action.id}
                     fieldPath={`action.memberChanges.${index}.valueExpression`}
-                    expectedType={getAttributeByQualifiedName(catalog, change.memberQualifiedName)?.type}
+                    expectedType={getAttributeByQualifiedName(effectiveCatalog, change.memberQualifiedName)?.type}
                     required={change.assignmentKind !== "clear"}
                     disabled={readonly}
                     placeholder="Expression"
@@ -906,7 +918,7 @@ function ActionActivityFields({
             <ExpressionEditor
               value={action.request.urlExpression}
               schema={schema}
-              metadata={catalog}
+              metadata={effectiveCatalog}
               variableIndex={variableIndex}
               objectId={object.id}
               actionId={action.id}
@@ -928,7 +940,7 @@ function ActionActivityFields({
                   <ExpressionEditor
                     value={header.valueExpression}
                     schema={schema}
-                    metadata={catalog}
+                    metadata={effectiveCatalog}
                     variableIndex={variableIndex}
                     objectId={object.id}
                     actionId={action.id}
@@ -950,7 +962,7 @@ function ActionActivityFields({
                   <ExpressionEditor
                     value={parameter.valueExpression}
                     schema={schema}
-                    metadata={catalog}
+                    metadata={effectiveCatalog}
                     variableIndex={variableIndex}
                     objectId={object.id}
                     actionId={action.id}
@@ -988,7 +1000,7 @@ function ActionActivityFields({
               <ExpressionEditor
                 value={action.request.body.expression}
                 schema={schema}
-                metadata={catalog}
+                metadata={effectiveCatalog}
                 variableIndex={variableIndex}
                 objectId={object.id}
                 actionId={action.id}
@@ -1043,7 +1055,7 @@ function ActionActivityFields({
             <ExpressionEditor
               value={action.template.text}
               schema={schema}
-              metadata={catalog}
+              metadata={effectiveCatalog}
               variableIndex={variableIndex}
               objectId={object.id}
               actionId={action.id}
@@ -1074,7 +1086,7 @@ function ActionActivityFields({
               value={action.targetMicroflowId}
               disabled={readonly}
               onChange={targetMicroflowId => {
-                const target = getMicroflowById(catalog, targetMicroflowId);
+                const target = getMicroflowById(effectiveCatalog, targetMicroflowId);
                 patchObject(updateAction(object, {
                   targetMicroflowId: targetMicroflowId ?? "",
                   targetMicroflowQualifiedName: target?.qualifiedName,
@@ -1144,7 +1156,7 @@ function ActionActivityFields({
             <ExpressionEditor
               value={action.initialValue}
               schema={schema}
-              metadata={catalog}
+              metadata={effectiveCatalog}
               variableIndex={variableIndex}
               objectId={object.id}
               actionId={action.id}
@@ -1175,7 +1187,7 @@ function ActionActivityFields({
             <ExpressionEditor
               value={action.valueExpression}
               schema={schema}
-              metadata={catalog}
+              metadata={effectiveCatalog}
               variableIndex={variableIndex}
               objectId={object.id}
               actionId={action.id}
@@ -1198,8 +1210,10 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
   if (!object) {
     return null;
   }
-  const catalog = useMicroflowMetadata();
-  const variableIndex = useMemo(() => buildVariableIndex(props.schema, catalog), [props.schema, catalog.version]);
+  const catalog = useMicroflowMetadataCatalog();
+  const { version: metadataVersion } = useMetadataStatus();
+  const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
+  const variableIndex = useMemo(() => buildVariableIndex(props.schema, effectiveCatalog), [props.schema, effectiveCatalog, metadataVersion]);
   const tabs = useMemo(() => getObjectTabs(object), [object]);
   const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>(tabs[0] ?? "properties");
   useEffect(() => {
@@ -1263,7 +1277,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
               <ExpressionEditor
                 value={object.returnValue}
                 schema={props.schema}
-                metadata={catalog}
+                metadata={effectiveCatalog}
                 variableIndex={variableIndex}
                 objectId={object.id}
                 fieldPath="returnValue"
@@ -1337,7 +1351,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                   <ExpressionEditor
                     value={object.splitCondition.expression}
                     schema={props.schema}
-                    metadata={catalog}
+                    metadata={effectiveCatalog}
                     variableIndex={variableIndex}
                     objectId={object.id}
                     fieldPath="splitCondition.expression"
@@ -1370,7 +1384,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
             </Field>
             <Field label="Generalized Entity">
               <EntitySelector value={object.generalizedEntityQualifiedName} disabled={props.readonly} onChange={generalizedEntityQualifiedName => {
-                const specializations = getSpecializations(catalog, generalizedEntityQualifiedName);
+                const specializations = getSpecializations(effectiveCatalog, generalizedEntityQualifiedName);
                 patch({
                   ...object,
                   generalizedEntityQualifiedName: generalizedEntityQualifiedName ?? "",
@@ -1387,7 +1401,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 value={object.allowedSpecializations}
                 disabled={props.readonly || !object.generalizedEntityQualifiedName}
                 style={{ width: "100%" }}
-                optionList={getSpecializations(catalog, object.generalizedEntityQualifiedName).map(value => ({ label: value, value }))}
+                optionList={getSpecializations(effectiveCatalog, object.generalizedEntityQualifiedName).map(value => ({ label: value, value }))}
                 onChange={selected => {
                   const allowedSpecializations = Array.isArray(selected) ? selected.map(String) : [];
                   patch({ ...object, allowedSpecializations, entity: { ...object.entity, allowedSpecializations } });
@@ -1452,7 +1466,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 <ExpressionEditor
                   value={object.loopSource.expression}
                   schema={props.schema}
-                  metadata={catalog}
+                  metadata={effectiveCatalog}
                   variableIndex={variableIndex}
                   objectId={object.id}
                   fieldPath="loopSource.expression"
@@ -1612,6 +1626,8 @@ function CaseValueField({ props, flow, patch }: {
   flow: MicroflowSequenceFlow;
   patch: (next: MicroflowFlow) => void;
 }) {
+  const catalog = useMicroflowMetadataCatalog();
+  const { loading: metadataLoading, error: metadataError } = useMetadataStatus();
   const caseKind = getCaseEditorKind(props.schema, flow.originObjectId);
   if (!caseKind || flow.isErrorHandler || flow.editor.edgeKind === "sequence") {
     return (
@@ -1629,7 +1645,16 @@ function CaseValueField({ props, flow, patch }: {
       </Field>
     );
   }
-  const options = getCaseOptionsForSource(props.schema, flow.originObjectId, flow.id);
+  if (metadataError) {
+    return <Text type="danger">元数据加载失败，无法配置分支条件。</Text>;
+  }
+  if (metadataLoading && !catalog) {
+    return <Text type="tertiary">元数据加载中…</Text>;
+  }
+  if (!catalog) {
+    return <Text type="warning">元数据未加载</Text>;
+  }
+  const options = getCaseOptionsForSource(props.schema, flow.originObjectId, flow.id, catalog);
   const current = flow.caseValues[0];
   const currentKey = current ? caseValueKey(current) : undefined;
   return (

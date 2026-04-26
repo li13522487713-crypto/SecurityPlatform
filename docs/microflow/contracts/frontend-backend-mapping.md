@@ -38,6 +38,8 @@
 
 ## MicroflowMetadataAdapter
 
+前端**生产路径**通过 Adapter / `MicroflowMetadataProvider` 获取 `MicroflowMetadataCatalog`；不得在生产组件、校验器、表达式与变量模块中直接 `import` mock catalog 或 `mockEntities`。同步桥接仅使用 `getDefaultMockMetadataCatalog()`（测试与过渡工具），新代码应 `await adapter.getMetadataCatalog()`。
+
 | 方法 | HTTP | 说明 |
 |------|------|------|
 | `getMetadataCatalog` / `refreshMetadataCatalog` | `GET /api/microflow-metadata` | 响应为 catalog + 必填 `updatedAt`。 |

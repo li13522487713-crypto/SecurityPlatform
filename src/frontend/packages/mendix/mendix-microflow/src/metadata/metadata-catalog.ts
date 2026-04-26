@@ -130,6 +130,18 @@ export interface MicroflowMetadataCatalog {
   version?: string;
 }
 
+/** 显式空目录：metadata 未加载且不做 mock 回落时使用。 */
+export const EMPTY_MICROFLOW_METADATA_CATALOG: MicroflowMetadataCatalog = {
+  modules: [],
+  entities: [],
+  associations: [],
+  enumerations: [],
+  microflows: [],
+  pages: [],
+  workflows: [],
+  version: "empty",
+};
+
 export type MicroflowEntityAttribute = MetadataAttribute;
 export type MicroflowEntityRef = MetadataEntity;
 export type MicroflowAssociationRef = MetadataAssociation;
@@ -156,6 +168,22 @@ export function getEntityByQualifiedName(catalog: MicroflowMetadataCatalog, qual
 }
 
 export const findEntity = getEntityByQualifiedName;
+
+/** 将简名或未限定名解析为 catalog 中的 qualifiedName（用于旧 demo 数据兼容）。 */
+export function resolveStoredEntityQualifiedName(catalog: MicroflowMetadataCatalog, value?: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (getEntityByQualifiedName(catalog, value)) {
+    return value;
+  }
+  const byName = catalog.entities.find(entity => entity.name === value);
+  if (byName) {
+    return byName.qualifiedName;
+  }
+  const bySuffix = catalog.entities.find(entity => entity.qualifiedName.endsWith(`.${value}`));
+  return bySuffix?.qualifiedName ?? value;
+}
 
 export function getEntityAttributes(catalog: MicroflowMetadataCatalog, entityQualifiedName?: string): MetadataAttribute[] {
   return getEntityByQualifiedName(catalog, entityQualifiedName)?.attributes ?? [];

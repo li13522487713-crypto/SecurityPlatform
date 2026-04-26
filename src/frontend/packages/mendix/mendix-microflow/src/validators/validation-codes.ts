@@ -90,6 +90,8 @@ export const microflowValidationCodes = [
   "MF_OBJECT_UNREACHABLE",
   "MF_OBJECT_CANNOT_REACH_END",
   "MF_FLOW_DEAD_END",
+  "MF_METADATA_CATALOG_MISSING",
+  "MF_METADATA_LOAD_FAILED",
 ] as const;
 
 export type MicroflowValidationCode = typeof microflowValidationCodes[number] | (string & {});

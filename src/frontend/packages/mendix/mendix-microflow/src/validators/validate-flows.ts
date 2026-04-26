@@ -1,10 +1,12 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { collectFlowsRecursive, findFlowWithCollection } from "../schema/utils/object-utils";
 import { objectLocationMap, objectMap, issue } from "./shared";
-import { findEnumeration, mockMicroflowMetadataCatalog } from "../metadata";
+import { findEnumeration, getEnumerationValueKeys } from "../metadata";
 import { caseValueKey, getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
+import type { MicroflowValidatorContext } from "./validator-types";
 
-export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateFlows(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
+  const { metadata } = context;
   const issues: MicroflowValidationIssue[] = [];
   const objects = objectMap(schema);
   const locations = objectLocationMap(schema);
@@ -77,12 +79,12 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
         }
       }
       for (const caseValue of flow.caseValues.filter(caseValue => caseValue.kind === "enumeration")) {
-        const enumeration = findEnumeration(mockMicroflowMetadataCatalog, caseValue.enumerationQualifiedName);
+        const enumeration = findEnumeration(metadata, caseValue.enumerationQualifiedName);
         if (!caseValue.enumerationQualifiedName || !enumeration) {
           issues.push(issue("MF_ENUMERATION_CASE_UNKNOWN_ENUMERATION", "Enumeration case must reference an existing enumeration.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
           continue;
         }
-        if (!enumeration.values.includes(caseValue.value)) {
+        if (!getEnumerationValueKeys(metadata, caseValue.enumerationQualifiedName).includes(caseValue.value)) {
           issues.push(issue("MF_ENUMERATION_CASE_INVALID_VALUE", "Enumeration case value must belong to the selected enumeration.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
         }
       }
@@ -107,7 +109,7 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
         outgoingCaseKeys.set(source.id, perSource);
       }
       for (const caseValue of flow.caseValues.filter(caseValue => caseValue.kind === "inheritance")) {
-        const allowed = getAllowedSpecializations(source, mockMicroflowMetadataCatalog);
+        const allowed = getAllowedSpecializations(source, metadata);
         if (allowed.length > 0 && !allowed.includes(caseValue.entityQualifiedName)) {
           issues.push(issue("MF_OBJECT_TYPE_CASE_INVALID_SPECIALIZATION", "Object type case specialization must be allowed by the source InheritanceSplit.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
         }

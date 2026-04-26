@@ -8,7 +8,7 @@
 
 ## 全量表（与源码数组顺序一致）
 
-见源码 `microflowValidationCodes`（当前 93 项，含 `MF_ACTION_NANOFLOW_ONLY`、`MF_ACTION_DEPRECATED`、`MF_METADATA_SPECIALIZATION_NOT_FOUND` 等）。此处不重复粘贴，避免与代码漂移；发布前以 TypeScript 编译与 `verify-contracts` 为准。
+见源码 `microflowValidationCodes`（当前 95 项，含 `MF_METADATA_CATALOG_MISSING`、`MF_METADATA_LOAD_FAILED`、`MF_ACTION_NANOFLOW_ONLY`、`MF_ACTION_DEPRECATED`、`MF_METADATA_SPECIALIZATION_NOT_FOUND` 等）。此处不重复粘贴，避免与代码漂移；发布前以 TypeScript 编译与 `verify-contracts` 为准。
 
 ## 与校验器未入码表的发射
 

@@ -2,9 +2,9 @@ import {
   getAssociationByQualifiedName,
   getAttributeByQualifiedName,
   getEntityByQualifiedName,
-  mockMicroflowMetadataCatalog,
+  EMPTY_MICROFLOW_METADATA_CATALOG,
   type MicroflowMetadataCatalog,
-} from "../metadata";
+} from "../metadata/metadata-catalog";
 import type { MicroflowDataType, MicroflowExpression, MicroflowSchema, MicroflowVariableIndex, MicroflowVariableSymbol } from "../schema/types";
 import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variables";
 import { parseExpressionReferences } from "./expression-reference-parser";
@@ -54,11 +54,18 @@ export function validateExpression(input: {
     allowMaybeVariables?: boolean;
   };
 }): ExpressionValidationResult {
-  const metadata = input.metadata ?? mockMicroflowMetadataCatalog;
+  const metadata = input.metadata ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const variableIndex = input.variableIndex ?? buildVariableIndex(input.schema, metadata);
   const raw = rawExpression(input.expression);
   const parse = parseExpressionReferences(raw);
   const diagnostics: ExpressionDiagnostic[] = [...parse.diagnostics];
+  if (input.metadata == null) {
+    diagnostics.push(expressionDiagnostic({
+      code: "MF_METADATA_CATALOG_MISSING",
+      message: "元数据目录未提供，成员与关联类型校验可能不完整。",
+      severity: "warning",
+    }));
+  }
   if (input.context.required && !raw.trim()) {
     diagnostics.push(expressionDiagnostic({
       code: "MF_EXPR_REQUIRED",

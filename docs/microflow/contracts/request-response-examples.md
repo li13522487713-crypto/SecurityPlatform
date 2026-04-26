@@ -91,6 +91,8 @@ Body: `{ "reason": "rollback to stable" }`
 
 `GET /api/microflow-metadata?workspaceId=ws-1`
 
+响应为 `MicroflowApiResponse`，`success: true` 时 `data` 为 `MicroflowMetadataCatalog`（与 TypeScript 类型一致，含必填 `updatedAt` 等）。前端 `createHttpMicroflowMetadataAdapter` 负责解包；校验器、表达式推断、变量索引均依赖该 catalog，**不**在业务代码中硬编码实体/枚举列表。
+
 ## 11. 通用 API 错误
 
 ```json

@@ -8,7 +8,7 @@ import type {
   MicroflowVariableVisibility,
 } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
-import { mockMicroflowMetadataCatalog } from "../metadata";
+import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex } from "./variable-index";
 
 function flattenObjects(
@@ -86,7 +86,7 @@ export function getVariableSymbols(index: MicroflowVariableIndex): MicroflowVari
 export function getVariableSymbols(schema: MicroflowSchema, metadata?: MicroflowMetadataCatalog): MicroflowVariableSymbol[];
 export function getVariableSymbols(
   schemaOrIndex: MicroflowSchema | MicroflowVariableIndex,
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog
+  metadata: MicroflowMetadataCatalog = EMPTY_MICROFLOW_METADATA_CATALOG,
 ): MicroflowVariableSymbol[] {
   if ("objectCollection" in schemaOrIndex) {
     const index = buildVariableIndex(schemaOrIndex, metadata);
@@ -164,7 +164,7 @@ export function getVariablesBeforeObject(
   objectIdOrMetadata?: string | MicroflowMetadataCatalog
 ): MicroflowVariableSymbol[] {
   if (typeof indexOrObjectId === "string") {
-    const index = buildVariableIndex(schema, typeof objectIdOrMetadata === "object" ? objectIdOrMetadata : mockMicroflowMetadataCatalog);
+    const index = buildVariableIndex(schema, typeof objectIdOrMetadata === "object" ? objectIdOrMetadata : EMPTY_MICROFLOW_METADATA_CATALOG);
     return normalizeSymbols(schema, index, indexOrObjectId, false);
   }
   return normalizeSymbols(schema, indexOrObjectId, String(objectIdOrMetadata), false);
@@ -178,7 +178,7 @@ export function getVariablesAfterObject(
   objectIdOrMetadata?: string | MicroflowMetadataCatalog
 ): MicroflowVariableSymbol[] {
   if (typeof indexOrObjectId === "string") {
-    const index = buildVariableIndex(schema, typeof objectIdOrMetadata === "object" ? objectIdOrMetadata : mockMicroflowMetadataCatalog);
+    const index = buildVariableIndex(schema, typeof objectIdOrMetadata === "object" ? objectIdOrMetadata : EMPTY_MICROFLOW_METADATA_CATALOG);
     return normalizeSymbols(schema, index, indexOrObjectId, true);
   }
   return normalizeSymbols(schema, indexOrObjectId, String(objectIdOrMetadata), true);

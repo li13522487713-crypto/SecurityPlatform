@@ -4,9 +4,9 @@ import {
   getEntityByQualifiedName,
   getMicroflowById,
   getTargetEntityByAssociation,
-  mockMicroflowMetadataCatalog,
+  EMPTY_MICROFLOW_METADATA_CATALOG,
   type MicroflowMetadataCatalog,
-} from "../metadata";
+} from "../metadata/metadata-catalog";
 import type { MicroflowDataType, MicroflowExpression, MicroflowSchema, MicroflowVariableIndex, MicroflowVariableSymbol } from "../schema/types";
 import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variables";
 import { parseExpressionReferences } from "./expression-reference-parser";
@@ -102,10 +102,17 @@ export function inferExpressionType(
     return inputOrExpression?.inferredType ?? { kind: "unknown", reason: "expression" };
   }
 
-  const metadata = inputOrExpression.metadata ?? mockMicroflowMetadataCatalog;
+  const metadata = inputOrExpression.metadata ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const index = inputOrExpression.variableIndex ?? buildVariableIndex(inputOrExpression.schema, metadata);
   const raw = rawExpression(inputOrExpression.expression).trim();
   const diagnostics: ExpressionTypeInferenceResult["diagnostics"] = [];
+  if (inputOrExpression.metadata == null) {
+    diagnostics.push(expressionDiagnostic({
+      code: "MF_METADATA_CATALOG_MISSING",
+      message: "元数据目录未提供，无法进行完整类型推断。",
+      severity: "warning",
+    }));
+  }
   if (!raw) {
     return { inferredType: { kind: "unknown", reason: "empty expression" }, confidence: "low", diagnostics };
   }

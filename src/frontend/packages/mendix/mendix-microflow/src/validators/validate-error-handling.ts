@@ -1,8 +1,9 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { objectMap, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
-export function validateErrorHandling(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateErrorHandling(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const objects = objectMap(schema);
   const errorFlows = collectFlowsRecursive(schema).filter(item => item.kind === "sequence" && item.isErrorHandler);

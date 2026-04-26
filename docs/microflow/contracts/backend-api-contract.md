@@ -66,6 +66,8 @@
 - `GET /api/microflow-metadata/enumerations/{qualifiedName}` — `MetadataEnumeration`。
 - `GET /api/microflow-metadata/microflows` — `MetadataMicroflowRef[]`。
 
+前端使用 `createHttpMicroflowMetadataAdapter({ apiBaseUrl })` 请求 `GET /api/microflow-metadata`（及可选子资源）；响应须为 `MicroflowApiResponse`，`data` 与 `MicroflowMetadataCatalog` 类型对齐。生产 UI 不直接使用 mock catalog，仅通过 Adapter / Provider 消费上述 DTO。
+
 ## 与 Adapter 的边界
 
 - **UI / ResourceAdapter**：直接消费业务 DTO，不经 `MicroflowApiResponse`。

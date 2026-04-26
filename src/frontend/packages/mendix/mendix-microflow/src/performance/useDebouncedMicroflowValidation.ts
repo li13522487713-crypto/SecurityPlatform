@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { validateMicroflowSchema } from "../schema/validator";
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowMetadataCatalog } from "../metadata";
 
 export type MicroflowValidationStatus = "idle" | "validating" | "valid" | "invalid" | "failed";
 
 export interface UseDebouncedMicroflowValidationOptions {
   schema: MicroflowSchema;
+  metadata: MicroflowMetadataCatalog | null;
   trigger: number;
   delayMs?: number;
   initialIssues?: MicroflowValidationIssue[];
@@ -14,6 +16,7 @@ export interface UseDebouncedMicroflowValidationOptions {
 
 export function useDebouncedMicroflowValidation({
   schema,
+  metadata,
   trigger,
   delayMs = 400,
   initialIssues = schema.validation.issues ?? [],
@@ -27,7 +30,8 @@ export function useDebouncedMicroflowValidation({
   const runNow = useCallback((targetSchema: MicroflowSchema = latestSchemaRef.current) => {
     setStatus("validating");
     try {
-      const nextIssues = validateMicroflowSchema(targetSchema);
+      const result = validateMicroflowSchema({ schema: targetSchema, metadata });
+      const nextIssues = result.issues;
       setIssues(nextIssues);
       setLastValidatedAt(new Date());
       setStatus(nextIssues.some(issue => issue.severity === "error") ? "invalid" : "valid");
@@ -45,7 +49,7 @@ export function useDebouncedMicroflowValidation({
       setStatus("failed");
       return [failureIssue];
     }
-  }, []);
+  }, [metadata]);
 
   useEffect(() => {
     if (trigger === 0) {

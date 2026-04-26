@@ -22,6 +22,9 @@ import {
   inheritanceCaseValue,
 } from "./flowgram/adapters/flowgram-case-options";
 import type { MicroflowObject, MicroflowSchema } from "./schema";
+import { getDefaultMockMetadataCatalog } from "./metadata";
+
+const mockMeta = getDefaultMockMetadataCatalog();
 
 function registry(key: string) {
   const item = defaultMicroflowNodeRegistry.find(entry => getMicroflowNodeRegistryKey(entry) === key || entry.type === key);
@@ -91,7 +94,7 @@ describe("microflow editor interactions", () => {
   });
 
   it("derives FlowGram JSON from AuthoringSchema without losing flow semantics", () => {
-    const json = authoringToFlowGram(sampleMicroflowSchema, validateMicroflowSchema(sampleMicroflowSchema), []);
+    const json = authoringToFlowGram(sampleMicroflowSchema, validateMicroflowSchema({ schema: sampleMicroflowSchema, metadata: mockMeta }).issues, []);
     expect(json.nodes.length).toBeGreaterThan(0);
     expect(json.edges.length).toBeGreaterThan(0);
     expect(json.nodes[0]?.data).toHaveProperty("objectId");
@@ -240,7 +243,7 @@ describe("microflow editor interactions", () => {
     expect(source && target ? canConnectPorts(schema, source, target).allowed : true).toBe(false);
 
     const invalidFlow = createSequenceFlow({ originObjectId: rootAction.id, destinationObjectId: loopAction.id });
-    const issues = validateMicroflowSchema({ ...schema, flows: [invalidFlow] });
+    const issues = validateMicroflowSchema({ schema: { ...schema, flows: [invalidFlow] }, metadata: mockMeta }).issues;
     expect(issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(true);
   });
 
@@ -271,7 +274,7 @@ describe("microflow editor interactions", () => {
     }
     const flow = createSequenceFlow({ originObjectId: loopAction.id, destinationObjectId: loopAction.id });
     const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [loopAction] } }], [flow]);
-    const json = authoringToFlowGram(schema, validateMicroflowSchema(schema), []);
+    const json = authoringToFlowGram(schema, validateMicroflowSchema({ schema, metadata: mockMeta }).issues, []);
     const loopNode = json.nodes.find(node => node.id === loop.id);
     expect(loopNode?.data).toMatchObject({
       objectId: loop.id,
@@ -309,7 +312,7 @@ describe("microflow editor interactions", () => {
     });
     expect(next.flows.some(item => item.id === flow.id && item.originObjectId === first.id && item.destinationObjectId === second.id)).toBe(true);
     expect(next.editor.selection.flowId).toBe(flow.id);
-    expect(validateMicroflowSchema(next).some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(false);
+    expect(validateMicroflowSchema({ schema: next, metadata: mockMeta }).issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(false);
   });
 
   it("creates FlowGram port connections as schema flows with the correct edge kind", () => {
@@ -390,22 +393,25 @@ describe("microflow editor interactions", () => {
       caseValues: [enumerationCaseValue("Sales.OrderStatus", "New")]
     });
     const schema = schemaWith([decision, first, second], [flow]);
-    const options = getEnumerationCaseOptions(schema, decision.id);
+    const options = getEnumerationCaseOptions(schema, decision.id, undefined, mockMeta);
     expect(options.find(option => option.caseValue.kind === "enumeration" && option.caseValue.value === "New")?.disabled).toBe(true);
     expect(options.find(option => option.caseValue.kind === "enumeration" && option.caseValue.value === "Paid")?.disabled).toBe(false);
     const duplicateIssues = validateMicroflowSchema({
-      ...schema,
-      flows: [
-        flow,
-        createSequenceFlow({
-          originObjectId: decision.id,
-          destinationObjectId: second.id,
-          originConnectionIndex: 1,
-          edgeKind: "decisionCondition",
-          caseValues: [enumerationCaseValue("Sales.OrderStatus", "New")]
-        })
-      ]
-    });
+      schema: {
+        ...schema,
+        flows: [
+          flow,
+          createSequenceFlow({
+            originObjectId: decision.id,
+            destinationObjectId: second.id,
+            originConnectionIndex: 1,
+            edgeKind: "decisionCondition",
+            caseValues: [enumerationCaseValue("Sales.OrderStatus", "New")]
+          })
+        ],
+      },
+      metadata: mockMeta,
+    }).issues;
     expect(duplicateIssues.some(issue => issue.code === "MF_DECISION_CASE_DUPLICATED")).toBe(true);
   });
 
@@ -447,40 +453,46 @@ describe("microflow editor interactions", () => {
       caseValues: [inheritanceCaseValue("Sales.CardPayment")]
     });
     const schema = schemaWith([split, first, second], [flow]);
-    const options = getObjectTypeCaseOptions(schema, split.id);
+    const options = getObjectTypeCaseOptions(schema, split.id, undefined, mockMeta);
     expect(options.find(option => option.caseValue.kind === "inheritance" && option.caseValue.entityQualifiedName === "Sales.CardPayment")?.disabled).toBe(true);
     expect(options.some(option => option.caseValue.kind === "empty")).toBe(true);
     expect(options.some(option => option.caseValue.kind === "fallback")).toBe(true);
     const duplicateIssues = validateMicroflowSchema({
-      ...schema,
-      flows: [
-        flow,
-        createSequenceFlow({
-          originObjectId: split.id,
-          destinationObjectId: second.id,
-          originConnectionIndex: 1,
-          edgeKind: "objectTypeCondition",
-          caseValues: [fallbackCaseValue(), fallbackCaseValue()]
-        })
-      ]
-    });
+      schema: {
+        ...schema,
+        flows: [
+          flow,
+          createSequenceFlow({
+            originObjectId: split.id,
+            destinationObjectId: second.id,
+            originConnectionIndex: 1,
+            edgeKind: "objectTypeCondition",
+            caseValues: [fallbackCaseValue(), fallbackCaseValue()]
+          })
+        ],
+      },
+      metadata: mockMeta,
+    }).issues;
     expect(duplicateIssues.some(issue => issue.code === "MF_OBJECT_TYPE_CASE_DUPLICATED" || issue.code === "MF_DECISION_DUPLICATE_CASE")).toBe(true);
   });
 
   it("builds variable index and validates scoped expression errors", () => {
-    const index = buildVariableIndex(sampleMicroflowSchema);
+    const index = buildVariableIndex(sampleMicroflowSchema, mockMeta);
     expect(index.parameters.orderId.name).toBe("orderId");
     expect(index.objectOutputs.order.name).toBe("order");
     expect(index.systemVariables.$currentIndex.name).toBe("$currentIndex");
     const issues = validateMicroflowSchema({
-      ...sampleMicroflowSchema,
-      objectCollection: {
-        ...sampleMicroflowSchema.objectCollection,
-        objects: sampleMicroflowSchema.objectCollection.objects.map(object => object.kind === "endEvent"
-          ? { ...object, returnValue: { raw: "$currentIndex", references: { variables: ["$currentIndex"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] } } }
-          : object)
-      }
-    });
+      schema: {
+        ...sampleMicroflowSchema,
+        objectCollection: {
+          ...sampleMicroflowSchema.objectCollection,
+          objects: sampleMicroflowSchema.objectCollection.objects.map(object => object.kind === "endEvent"
+            ? { ...object, returnValue: { raw: "$currentIndex", references: { variables: ["$currentIndex"], entities: [], attributes: [], associations: [], enumerations: [], functions: [] } } }
+            : object)
+        }
+      },
+      metadata: mockMeta,
+    }).issues;
     expect(issues.some(issue => issue.code === "MF_EXPRESSION_INVALID" || issue.code === "MF_EXPRESSION_UNKNOWN_VARIABLE")).toBe(true);
   });
 });

@@ -47,7 +47,13 @@ import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, 
 import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
-import { MicroflowMetadataProvider } from "../metadata";
+import {
+  EMPTY_MICROFLOW_METADATA_CATALOG,
+  MicroflowMetadataProvider,
+  useMicroflowMetadataCatalog,
+  type MicroflowMetadataAdapter,
+  type MicroflowMetadataCatalog,
+} from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import { MicroflowTestRunModal, type MicroflowRunSession, type MicroflowRuntimeLog, type MicroflowTestRunInput } from "../debug";
@@ -167,6 +173,10 @@ export interface MicroflowEditorProps {
   onValidateComplete?: (response: ValidateMicroflowResponse) => void;
   onTestRunComplete?: (response: TestRunMicroflowResponse) => void;
   onSchemaChange?: (schema: MicroflowSchema) => void;
+  /** 未传时 Provider 内默认使用 mock adapter。 */
+  metadataAdapter?: MicroflowMetadataAdapter;
+  /** 同步注入目录时可跳过首次异步加载。 */
+  metadataCatalog?: MicroflowMetadataCatalog;
 }
 
 export interface MicroflowEditorLabels {
@@ -1166,14 +1176,18 @@ function caseValueLabel(value: MicroflowCaseValue): string {
   return value.kind;
 }
 
-export function MicroflowEditor(props: MicroflowEditorProps) {
+function MicroflowEditorInner(props: MicroflowEditorProps) {
   const labels = { ...defaultLabels, ...props.labels };
+  const loadedMetadata = useMicroflowMetadataCatalog();
+  const metadataForRefresh = loadedMetadata ?? props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const apiClient = props.apiClient ?? createLocalMicroflowApiClient();
   const persistAuxPanelState = props.persistAuxPanelState !== false;
   const rightPanelFallback = props.defaultRightPanelOpen ?? (props.immersive === true);
   const bottomPanelFallback = props.defaultBottomPanelOpen ?? (props.immersive === true);
 
-  const [schema, setSchema] = useState<MicroflowSchema>(() => refreshDerivedState(ensureAuthoringSchema(props.schema)));
+  const [schema, setSchema] = useState<MicroflowSchema>(() =>
+    refreshDerivedState(ensureAuthoringSchema(props.schema), props.metadataCatalog ?? EMPTY_MICROFLOW_METADATA_CATALOG),
+  );
   const historyManagerRef = useRef<MicroflowHistoryManager | null>(null);
   if (!historyManagerRef.current) {
     historyManagerRef.current = new MicroflowHistoryManager();
@@ -1196,6 +1210,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     runValidationNow,
   } = useDebouncedMicroflowValidation({
     schema,
+    metadata: loadedMetadata,
     trigger: validationTrigger,
     initialIssues: schema.validation.issues ?? [],
   });
@@ -1299,7 +1314,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           },
         }
       : next;
-    const refreshed = refreshDerivedState(nextWithSelection);
+    const refreshed = refreshDerivedState(nextWithSelection, metadataForRefresh);
     const shouldPushHistory = options.pushHistory !== false && source !== "history" && !historyManager.getState().isRestoring;
 
     if (shouldPushHistory) {
@@ -1404,7 +1419,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   };
 
   const handleSave = async () => {
-    const validation = validateMicroflowSchema({ schema, options: { mode: "save", includeWarnings: true } });
+    const validation = validateMicroflowSchema({ schema, metadata: loadedMetadata, options: { mode: "save", includeWarnings: true } });
     setIssues(validation.issues);
     setSaving(true);
     try {
@@ -1429,7 +1444,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   };
 
   const handleTestRun = async () => {
-    const validation = validateMicroflowSchema({ schema, options: { mode: "testRun", includeWarnings: true } });
+    const validation = validateMicroflowSchema({ schema, metadata: loadedMetadata, options: { mode: "testRun", includeWarnings: true } });
     setIssues(validation.issues);
     if (validation.summary.errorCount > 0) {
       setBottomOpen(true);
@@ -1517,7 +1532,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
         ...restored.schema.editor,
         selection: selectionExists(restored.schema as MicroflowSchema, restored.selection),
       },
-    } as MicroflowSchema);
+    } as MicroflowSchema, metadataForRefresh);
     commitSchema(nextSchema, restored.snapshot.reason, { pushHistory: false, source: "history" });
     historyManager.finishRestoring();
     refreshHistoryState();
@@ -1535,7 +1550,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
         ...restored.schema.editor,
         selection: selectionExists(restored.schema as MicroflowSchema, restored.selection),
       },
-    } as MicroflowSchema);
+    } as MicroflowSchema, metadataForRefresh);
     commitSchema(nextSchema, restored.snapshot.reason, { pushHistory: false, source: "history" });
     historyManager.finishRestoring();
     refreshHistoryState();
@@ -1806,8 +1821,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
         >
           {rightOpen ? (
             <div style={propertyPaneStyle}>
-              <MicroflowMetadataProvider>
-                <MicroflowPropertyPanel
+              <MicroflowPropertyPanel
                   selectedObject={selectedObject}
                   selectedFlow={selectedFlow}
                   schema={schema}
@@ -1858,7 +1872,6 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
                   }}
                   onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true })}
                 />
-              </MicroflowMetadataProvider>
             </div>
           ) : null}
           <div
@@ -2023,5 +2036,14 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
         onRun={handleExecuteTestRun}
       />
     </div>
+  );
+}
+
+export function MicroflowEditor(props: MicroflowEditorProps) {
+  const { metadataAdapter, metadataCatalog, ...rest } = props;
+  return (
+    <MicroflowMetadataProvider adapter={metadataAdapter} initialCatalog={metadataCatalog}>
+      <MicroflowEditorInner {...rest} metadataAdapter={metadataAdapter} metadataCatalog={metadataCatalog} />
+    </MicroflowMetadataProvider>
   );
 }

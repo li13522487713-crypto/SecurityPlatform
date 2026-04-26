@@ -1,6 +1,6 @@
 import { Select, Typography } from "@douyinfe/semi-ui";
 import { useMemo } from "react";
-import { useMicroflowMetadata } from "../../metadata";
+import { EMPTY_MICROFLOW_METADATA_CATALOG, useMicroflowMetadata } from "../../metadata";
 import type { MicroflowAuthoringSchema, MicroflowDataType } from "../../schema";
 import {
   buildVariableIndex,
@@ -39,8 +39,9 @@ export function VariableSelector({
   disabled?: boolean;
   placeholder?: string;
 }) {
-  const catalog = useMicroflowMetadata();
-  const variableIndex = useMemo(() => buildVariableIndex(schema, catalog), [schema, catalog.version]);
+  const { catalog, loading, error, version } = useMicroflowMetadata();
+  const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
+  const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, version]);
   const variables = useMemo(() => {
     if (!objectId) {
       return [];
@@ -55,6 +56,12 @@ export function VariableSelector({
     ? resolveVariableReferenceFromIndex(schema, variableIndex, { objectId, fieldPath }, value)
     : null;
   const currentVisible = !value || Boolean(current);
+  if (error) {
+    return <Text type="danger" size="small">元数据加载失败：{error.message}</Text>;
+  }
+  if (loading && !catalog) {
+    return <Select style={{ width: "100%" }} disabled placeholder="元数据加载中…" />;
+  }
   return (
     <div style={{ display: "grid", gap: 4, width: "100%" }}>
       <Select

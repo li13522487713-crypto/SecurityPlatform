@@ -296,7 +296,7 @@ export function MicroflowObjectRetrieveForm(rawProps: MicroflowNodeFormProps) {
       </FieldRow>
       {config.retrieveMode === "association" ? (
         <FieldRow label="Association" required error={!config.association ? "Association is required." : undefined}>
-          <AssociationSelector value={config.association} readonly={props.readonly} onChange={association => updateActivityConfig(props, { association })} />
+          <AssociationSelector startEntityQualifiedName={config.entity} value={config.association} readonly={props.readonly} onChange={association => updateActivityConfig(props, { association })} />
         </FieldRow>
       ) : null}
       <FieldRow label="Condition XPath / expression">

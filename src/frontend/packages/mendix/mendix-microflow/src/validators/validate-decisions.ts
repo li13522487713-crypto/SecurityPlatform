@@ -1,8 +1,9 @@
 import type { MicroflowCaseValue, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
-import { findEnumeration, getEnumerationValueKeys, mockMicroflowMetadataCatalog } from "../metadata";
+import { findEnumeration, getEnumerationValueKeys } from "../metadata";
 import { getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
 import { flattenObjects, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
 function caseKey(caseValue: MicroflowCaseValue): string {
   if (caseValue.kind === "boolean") {
@@ -17,7 +18,8 @@ function caseKey(caseValue: MicroflowCaseValue): string {
   return caseValue.kind;
 }
 
-export function validateDecisions(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateDecisions(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
+  const { metadata } = context;
   const issues: MicroflowValidationIssue[] = [];
   const flows = collectFlowsRecursive(schema);
   for (const { object } of flattenObjects(schema.objectCollection)) {
@@ -59,7 +61,7 @@ export function validateDecisions(schema: MicroflowSchema): MicroflowValidationI
         }
       }
       if (object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" && object.splitCondition.resultType === "enumeration") {
-        const enumeration = findEnumeration(mockMicroflowMetadataCatalog, object.splitCondition.enumerationQualifiedName);
+        const enumeration = findEnumeration(metadata, object.splitCondition.enumerationQualifiedName);
         if (!object.splitCondition.enumerationQualifiedName || !enumeration) {
           issues.push(issue("MF_ENUMERATION_DECISION_UNKNOWN_ENUMERATION", "Enumeration ExclusiveSplit must reference an existing enumeration.", { objectId: object.id, fieldPath: "splitCondition.enumerationQualifiedName" }));
         }
@@ -72,7 +74,7 @@ export function validateDecisions(schema: MicroflowSchema): MicroflowValidationI
             if (caseValue.kind === "enumeration" && caseValue.enumerationQualifiedName !== object.splitCondition.enumerationQualifiedName) {
               issues.push(issue("MF_ENUMERATION_CASE_ENUMERATION_MISMATCH", "Enumeration case must use the source ExclusiveSplit enumeration.", { flowId: flow.id, objectId: object.id, fieldPath: "caseValues" }));
             }
-            if (caseValue.kind === "enumeration" && enumeration && !getEnumerationValueKeys(mockMicroflowMetadataCatalog, enumeration.qualifiedName).includes(caseValue.value)) {
+            if (caseValue.kind === "enumeration" && enumeration && !getEnumerationValueKeys(metadata, enumeration.qualifiedName).includes(caseValue.value)) {
               issues.push(issue("MF_ENUMERATION_CASE_INVALID_VALUE", "Enumeration case value must belong to the selected enumeration.", { flowId: flow.id, objectId: object.id, fieldPath: "caseValues" }));
             }
           }
@@ -85,7 +87,7 @@ export function validateDecisions(schema: MicroflowSchema): MicroflowValidationI
         if (!object.entity.generalizedEntityQualifiedName) {
           issues.push(issue("MF_OBJECT_TYPE_GENERALIZATION_MISSING", "InheritanceSplit must define generalizedEntityQualifiedName.", { objectId: object.id, fieldPath: "entity.generalizedEntityQualifiedName" }));
         }
-        const allowed = getAllowedSpecializations(object, mockMicroflowMetadataCatalog);
+        const allowed = getAllowedSpecializations(object, metadata);
         const inheritanceCases = outgoing
           .flatMap(flow => flow.caseValues)
           .filter((item): item is Extract<MicroflowCaseValue, { kind: "inheritance" }> => item !== undefined && item.kind === "inheritance")

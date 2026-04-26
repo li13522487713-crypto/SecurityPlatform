@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Button, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
 import { MicroflowEditor, type MicroflowSchema } from "@atlas/microflow";
+import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import { PublishMicroflowModal } from "../publish/PublishMicroflowModal";
@@ -16,13 +17,15 @@ const { Text } = Typography;
 export interface MendixMicroflowEditorEntryProps {
   resource: MicroflowResource;
   adapter: MicroflowResourceAdapter;
+  metadataAdapter?: MicroflowMetadataAdapter;
+  metadataCatalog?: MicroflowMetadataCatalog;
   onSave?: (resource: MicroflowResource) => void;
   onPublish?: (resource: MicroflowResource) => void;
   onBack?: () => void;
   readonly?: boolean;
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, onSave, onPublish, onBack, readonly }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, onSave, onPublish, onBack, readonly }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowSchema>(resource.schema);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -36,6 +39,8 @@ export function MendixMicroflowEditorEntry({ resource, adapter, onSave, onPublis
       <MicroflowEditor
         schema={schema}
         apiClient={apiClient}
+        metadataAdapter={metadataAdapter}
+        metadataCatalog={metadataCatalog}
         readonly={effectiveReadonly}
         onSchemaChange={setSchema}
         onSaveComplete={() => {

@@ -1,6 +1,6 @@
 import { validateMicroflowSchema } from "../schema/validator";
 import { ensureAuthoringSchema, flattenObjectCollection } from "../adapters";
-import { mockMicroflowMetadataCatalog } from "../metadata";
+import { getDefaultMockMetadataCatalog } from "../metadata";
 import { buildVariableIndex } from "../variables";
 import { mockTestRunMicroflow } from "../debug";
 import type {
@@ -314,10 +314,10 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 
   async validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse> {
-    const issues = validateMicroflowSchema(request.schema);
+    const { issues } = validateMicroflowSchema({ schema: request.schema, metadata: getDefaultMockMetadataCatalog() });
     return {
       valid: issues.every(item => item.severity !== "error"),
-      issues
+      issues,
     };
   }
 
@@ -325,8 +325,8 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     const schema = request.schema ?? this.resources.get(request.microflowId ?? "")?.schema ?? sampleMicroflowSchema;
     const session = await mockTestRunMicroflow({
       schema,
-      metadata: mockMicroflowMetadataCatalog,
-      variableIndex: buildVariableIndex(schema, mockMicroflowMetadataCatalog),
+      metadata: getDefaultMockMetadataCatalog(),
+      variableIndex: buildVariableIndex(schema, getDefaultMockMetadataCatalog()),
       parameters: request.input,
       options: request.options,
     });

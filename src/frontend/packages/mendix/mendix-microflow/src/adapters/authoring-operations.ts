@@ -3,7 +3,9 @@ import {
   microflowActionRegistryByActivityType,
   type MicroflowNodeRegistryEntry
 } from "../node-registry";
+import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex } from "../variables";
+import type { MicroflowMetadataCatalog } from "../metadata";
 import type {
   MicroflowAction,
   MicroflowAnnotationFlow,
@@ -674,10 +676,13 @@ export function deleteParameter(schema: MicroflowSchema, parameterId: string): M
   });
 }
 
-export function refreshDerivedState(schema: MicroflowSchema): MicroflowSchema {
+export function refreshDerivedState(
+  schema: MicroflowSchema,
+  metadata: MicroflowMetadataCatalog = EMPTY_MICROFLOW_METADATA_CATALOG,
+): MicroflowSchema {
   return {
     ...schema,
-    variables: buildVariableIndex(schema),
+    variables: buildVariableIndex(schema, metadata),
     validation: schema.validation,
     editor: {
       ...schema.editor,

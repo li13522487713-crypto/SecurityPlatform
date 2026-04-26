@@ -17,6 +17,12 @@ export { isLegacyMicroflowSchema, migrateLegacyMicroflowSchema, normalizeMicrofl
 export type { MicroflowValidationIssue as ValidationIssue } from "@atlas/microflow/schema";
 
 export type { MicroflowMetadataCatalog, MetadataEntity, MetadataEnumeration, MetadataMicroflowRef, MetadataPageRef, MetadataWorkflowRef } from "@atlas/microflow/metadata";
+export type { MicroflowMetadataAdapter, GetMicroflowMetadataRequest } from "@atlas/microflow/metadata";
+export {
+  createMockMicroflowMetadataAdapter,
+  createLocalMicroflowMetadataAdapter,
+  getDefaultMockMetadataCatalog,
+} from "@atlas/microflow/metadata";
 
 export type { MicroflowRunSession, MicroflowTraceFrame } from "@atlas/microflow/debug";
 export type { MicroflowDebugState } from "@atlas/microflow/schema";
@@ -27,5 +33,4 @@ export { buildVariableIndex } from "@atlas/microflow/variables";
 export { microflowValidationCodes, validateMicroflowSchema } from "@atlas/microflow/validators";
 export type { MicroflowValidationCode } from "@atlas/microflow/validators";
 export { authoringToFlowGram } from "@atlas/microflow/flowgram/authoring-to-flowgram";
-export { mockMicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 export { createLocalMicroflowApiClient, LocalMicroflowApiClient } from "@atlas/microflow/runtime-adapter";

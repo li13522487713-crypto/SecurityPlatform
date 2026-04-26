@@ -1,6 +1,6 @@
 import type { MicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowSchema, MicroflowVariableIndex, MicroflowVariableSymbol } from "../schema/types";
-import { mockMicroflowMetadataCatalog } from "../metadata";
+import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex } from "./variable-index";
 import { getVariablesBeforeObject } from "./variable-scope-engine";
 
@@ -29,7 +29,7 @@ export function getAvailableVariablesAtField(
   fieldPathOrMetadata?: string | MicroflowMetadataCatalog,
 ): MicroflowVariableSymbol[] {
   if (typeof indexOrObjectId === "string") {
-    return getVariablesBeforeObject(schema, indexOrObjectId, typeof fieldPathOrMetadata === "object" ? fieldPathOrMetadata : mockMicroflowMetadataCatalog);
+    return getVariablesBeforeObject(schema, indexOrObjectId, typeof fieldPathOrMetadata === "object" ? fieldPathOrMetadata : EMPTY_MICROFLOW_METADATA_CATALOG);
   }
   return getVariablesBeforeObject(schema, indexOrObjectId, String(objectIdOrFieldPath));
 }
@@ -37,7 +37,7 @@ export function getAvailableVariablesAtField(
 export function getVariablesForExpression(
   schema: MicroflowSchema,
   context: MicroflowExpressionScopeContext,
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog
+  metadata: MicroflowMetadataCatalog = EMPTY_MICROFLOW_METADATA_CATALOG,
 ): MicroflowVariableSymbol[] {
   return getAvailableVariablesAtField(schema, context.objectId, context.fieldPath ?? "", metadata);
 }
@@ -54,7 +54,7 @@ export function resolveVariableReference(
   schema: MicroflowSchema,
   context: MicroflowExpressionScopeContext,
   variableName: string,
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog
+  metadata: MicroflowMetadataCatalog = EMPTY_MICROFLOW_METADATA_CATALOG,
 ): MicroflowVariableSymbol | null {
   const index = buildVariableIndex(schema, metadata);
   return resolveVariableReferenceFromIndex(schema, index, context, variableName);

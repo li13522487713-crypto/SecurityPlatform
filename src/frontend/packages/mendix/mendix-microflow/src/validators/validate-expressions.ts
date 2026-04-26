@@ -1,8 +1,9 @@
-import { getAttributeByQualifiedName, mockMicroflowMetadataCatalog } from "../metadata";
+import { getAttributeByQualifiedName, type MicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowDataType, MicroflowExpression, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variables";
 import { validateExpression } from "../expressions";
 import { flattenObjects, issue } from "./shared";
+import type { MicroflowValidatorContext } from "./validator-types";
 
 interface ExpressionTarget {
   expression?: MicroflowExpression | string;
@@ -13,9 +14,7 @@ interface ExpressionTarget {
   required?: boolean;
 }
 
-function expressionIssues(schema: MicroflowSchema, target: ExpressionTarget): MicroflowValidationIssue[] {
-  const metadata = mockMicroflowMetadataCatalog;
-  const variableIndex = buildVariableIndex(schema, metadata);
+function expressionIssues(schema: MicroflowSchema, metadata: MicroflowMetadataCatalog, variableIndex: MicroflowValidatorContext["variableIndex"], target: ExpressionTarget): MicroflowValidationIssue[] {
   const result = validateExpression({
     expression: target.expression,
     schema,
@@ -46,10 +45,9 @@ function expressionIssues(schema: MicroflowSchema, target: ExpressionTarget): Mi
   return [...issues, ...legacyCompatibilityIssues];
 }
 
-export function validateExpressions(schema: MicroflowSchema): MicroflowValidationIssue[] {
+export function validateExpressions(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const targets: ExpressionTarget[] = [];
-  const metadata = mockMicroflowMetadataCatalog;
-  const variableIndex = buildVariableIndex(schema, metadata);
+  const { metadata, variableIndex } = context;
   for (const { object } of flattenObjects(schema.objectCollection)) {
     if (object.kind === "endEvent") {
       targets.push({
@@ -177,5 +175,5 @@ export function validateExpressions(schema: MicroflowSchema): MicroflowValidatio
       }));
     }
   }
-  return targets.flatMap(target => expressionIssues(schema, target));
+  return targets.flatMap(target => expressionIssues(schema, metadata, variableIndex, target));
 }
