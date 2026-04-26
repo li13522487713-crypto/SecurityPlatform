@@ -111,6 +111,8 @@ export interface DatabaseCenterLabels {
   searchTablesFields: string;
   autoLayout: string;
   fitCanvas: string;
+  fullscreen: string;
+  exitFullscreen: string;
   zoomIn: string;
   zoomOut: string;
   connectionInfo: string;
@@ -249,6 +251,8 @@ export const defaultDatabaseCenterLabels: DatabaseCenterLabels = {
   searchTablesFields: "搜索表或字段",
   autoLayout: "自动布局",
   fitCanvas: "适应画布",
+  fullscreen: "全屏",
+  exitFullscreen: "退出全屏",
   zoomIn: "放大",
   zoomOut: "缩小",
   connectionInfo: "连接信息",

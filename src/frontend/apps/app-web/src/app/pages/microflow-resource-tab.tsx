@@ -50,6 +50,28 @@ function nextVersion(version: string): string {
   return "v1";
 }
 
+function displayResource(item: MicroflowResource): MicroflowResource {
+  const map: Record<string, Pick<MicroflowResource, "name" | "description" | "tags">> = {
+    "mf-order-process": {
+      name: "订单处理微流",
+      description: "处理用户订单的完整流程",
+      tags: ["订单", "处理", "示例"]
+    },
+    "mf-customer-onboarding": {
+      name: "用户注册微流",
+      description: "新用户注册与初始化配置",
+      tags: ["用户", "注册"]
+    },
+    "mf-payment-archive": {
+      name: "库存调整微流",
+      description: "库存容量调整和校验逻辑",
+      tags: ["库存", "调整"]
+    }
+  };
+  const override = map[item.id];
+  return override ? { ...item, ...override } : item;
+}
+
 interface CreateMicroflowModalProps {
   visible: boolean;
   onClose: () => void;
@@ -160,8 +182,8 @@ export function MicroflowResourceTab() {
         apiClient.listMicroflows(query),
         apiClient.listMicroflows()
       ]);
-      setItems(filtered);
-      setAllItems(all);
+      setItems(filtered.map(displayResource));
+      setAllItems(all.map(displayResource));
     } catch (error) {
       Toast.error((error as Error).message || t("microflowLoadFailed"));
     } finally {
@@ -259,10 +281,10 @@ export function MicroflowResourceTab() {
               <Spin />
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: 14, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "180px minmax(0, 1fr)", gap: 12, alignItems: "start" }}>
               <Card
-                style={{ minHeight: 220, border: "1px dashed var(--semi-color-primary)", cursor: "pointer", background: "var(--semi-color-primary-light-default)" }}
-                bodyStyle={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center" }}
+                style={{ minHeight: 184, border: "1px dashed var(--semi-color-primary)", cursor: "pointer", background: "var(--semi-color-primary-light-default)" }}
+                bodyStyle={{ minHeight: 184, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
                 onClick={() => setCreateOpen(true)}
               >
                 <Space vertical align="center">
@@ -280,23 +302,23 @@ export function MicroflowResourceTab() {
                     role="button"
                     tabIndex={0}
                     onClick={() => navigate(microflowEditorPath(item.id))}
-                    style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 80px 110px 44px 44px", gap: 12, alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--semi-color-border)", cursor: "pointer" }}
+                    style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 56px 84px 36px 36px", gap: 12, alignItems: "center", padding: "12px 14px", borderBottom: "1px solid var(--semi-color-border)", cursor: "pointer" }}
                   >
                     <Space align="center" style={{ minWidth: 0 }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--semi-color-primary-light-default)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--semi-color-primary)" }}>
-                        <IconCode size="large" />
+                      <div style={{ width: 42, height: 42, borderRadius: 12, background: "var(--semi-color-primary-light-default)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--semi-color-primary)" }}>
+                        <IconCode />
                       </div>
                       <div style={{ minWidth: 0 }}>
                         <Space spacing={6}>
                           <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 260 }}>{item.name}</Text>
-                          {item.tags.slice(0, 2).map(tag => <Tag key={tag} size="small">{tag}</Tag>)}
+                          {item.tags.slice(0, 3).map(tag => <Tag key={tag} size="small">{tag}</Tag>)}
                         </Space>
                         <div><Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 420 }}>{item.description}</Text></div>
                         <div><Text type="tertiary" size="small">{item.ownerName} · {formatDate(item.updatedAt)}</Text></div>
                       </div>
                     </Space>
-                    <Text strong>{item.version}</Text>
-                    <Tag color={statusColor(item.status)}>{statusLabel(item.status, t)}</Tag>
+                    <Text strong style={{ justifySelf: "start" }}>{item.version}</Text>
+                    <Tag color={statusColor(item.status)} style={{ justifySelf: "start", minWidth: 0 }}>{statusLabel(item.status, t)}</Tag>
                     <Button
                       theme="borderless"
                       type="tertiary"
@@ -316,6 +338,15 @@ export function MicroflowResourceTab() {
                     </Dropdown>
                   </div>
                 ))}
+                {items.length > 0 ? (
+                  <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 16, padding: "10px 14px" }}>
+                    <Text type="tertiary" size="small">共 {items.length} 条</Text>
+                    <Button size="small" theme="borderless" disabled>{"<"}</Button>
+                    <Tag color="blue">1</Tag>
+                    <Button size="small" theme="borderless" disabled>{">"}</Button>
+                    <Select size="small" value="10" style={{ width: 92 }} optionList={[{ value: "10", label: "10 条/页" }]} />
+                  </div>
+                ) : null}
               </Card>
             </div>
           )}

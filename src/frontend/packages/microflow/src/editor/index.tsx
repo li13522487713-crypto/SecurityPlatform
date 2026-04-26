@@ -1,9 +1,8 @@
-import { useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
-import { Badge, Button, Card, Collapse, Divider, Empty, Input, Modal, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { Badge, Button, Card, Divider, Empty, Input, Modal, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconDelete,
   IconPlay,
-  IconPlus,
   IconSave,
   IconSearch,
   IconSetting,
@@ -11,7 +10,14 @@ import {
   IconUndo,
   IconRedo
 } from "@douyinfe/semi-icons";
-import { microflowNodeRegistries, createMicroflowNodeFromRegistry, type MicroflowNodeRegistryEntry } from "../node-registry";
+import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
+import {
+  createMicroflowNodeFromRegistry,
+  getMicroflowNodeByType,
+  getMicroflowNodeRegistryKey,
+  type MicroflowNodeDragPayload,
+  type MicroflowNodeRegistryEntry
+} from "../node-registry";
 import { MicroflowPropertyForm } from "../property-forms";
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
 import { validateMicroflowSchema } from "../schema/validator";
@@ -19,12 +25,16 @@ import type { MicroflowEdge, MicroflowNode, MicroflowSchema, MicroflowValidation
 
 const { Text, Title } = Typography;
 
+const favoriteStorageKey = "atlas_microflow_node_panel_favorites";
+const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
+
 export interface MicroflowEditorProps {
   schema: MicroflowSchema;
   apiClient?: MicroflowApiClient;
   labels?: Partial<MicroflowEditorLabels>;
   toolbarPrefix?: ReactNode;
   toolbarSuffix?: ReactNode;
+  nodePanelLabels?: Partial<MicroflowNodePanelLabels>;
   onPublish?: (schema: MicroflowSchema) => Promise<void> | void;
   onSaveComplete?: (response: SaveMicroflowResponse) => void;
   onValidateComplete?: (response: ValidateMicroflowResponse) => void;
@@ -65,6 +75,60 @@ const defaultLabels: MicroflowEditorLabels = {
   problems: "Problems",
   debug: "Debug"
 };
+
+function readFavoriteNodeKeys(): string[] {
+  if (typeof window === "undefined") {
+    return defaultFavoriteNodeKeys;
+  }
+  try {
+    const saved = window.localStorage.getItem(favoriteStorageKey);
+    if (saved === null) {
+      return defaultFavoriteNodeKeys;
+    }
+    const parsed = JSON.parse(saved) as unknown;
+    return Array.isArray(parsed) && parsed.every(item => typeof item === "string") ? parsed : defaultFavoriteNodeKeys;
+  } catch {
+    return defaultFavoriteNodeKeys;
+  }
+}
+
+function saveFavoriteNodeKeys(keys: string[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(favoriteStorageKey, JSON.stringify(keys));
+  } catch {
+    // Favorite persistence should not block editor interactions.
+  }
+}
+
+function parseNodeDragPayload(data: string): MicroflowNodeDragPayload | undefined {
+  if (!data) {
+    return undefined;
+  }
+  try {
+    const value = JSON.parse(data) as Record<string, unknown>;
+    if (
+      value.sourcePanel !== "microflow-node-panel" ||
+      typeof value.nodeType !== "string" ||
+      typeof value.registryKey !== "string" ||
+      typeof value.title !== "string"
+    ) {
+      return undefined;
+    }
+    return {
+      nodeType: value.nodeType as MicroflowNodeDragPayload["nodeType"],
+      activityType: typeof value.activityType === "string" ? value.activityType as MicroflowNodeDragPayload["activityType"] : undefined,
+      registryKey: value.registryKey,
+      title: value.title,
+      defaultConfig: typeof value.defaultConfig === "object" && value.defaultConfig !== null ? value.defaultConfig as Record<string, unknown> : {},
+      sourcePanel: "microflow-node-panel"
+    };
+  } catch {
+    return undefined;
+  }
+}
 
 const shellStyle: CSSProperties = {
   display: "grid",
@@ -265,47 +329,6 @@ function MicroflowNodeCard({
   );
 }
 
-function MicroflowNodePanel({ onAddNode }: { onAddNode: (entry: MicroflowNodeRegistryEntry) => void }) {
-  const [keyword, setKeyword] = useState("");
-  const grouped = useMemo(() => {
-    const map = new Map<string, MicroflowNodeRegistryEntry[]>();
-    const normalized = keyword.trim().toLowerCase();
-    for (const entry of microflowNodeRegistries) {
-      if (normalized && ![entry.title, entry.description, entry.subgroup, entry.iconKey].filter(Boolean).join(" ").toLowerCase().includes(normalized)) {
-        continue;
-      }
-      map.set(entry.group, [...(map.get(entry.group) ?? []), entry]);
-    }
-    return [...map.entries()];
-  }, [keyword]);
-
-  return (
-    <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <Title heading={6} style={{ margin: 0 }}>Nodes</Title>
-      <Input prefix={<IconSearch />} value={keyword} onChange={setKeyword} placeholder="Search nodes" showClear />
-      <Collapse defaultActiveKey={grouped.map(([group]) => group)}>
-        {grouped.map(([group, entries]) => (
-          <Collapse.Panel key={group} header={group} itemKey={group}>
-            <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
-              {entries.map(entry => (
-                <Button
-                  key={entry.activityType ? `${entry.type}:${entry.activityType}` : entry.type}
-                  theme="light"
-                  block
-                  icon={<IconPlus />}
-                  onClick={() => onAddNode(entry)}
-                >
-                  {entry.subgroup ? `${entry.subgroup} / ${entry.title}` : entry.title}
-                </Button>
-              ))}
-            </Space>
-          </Collapse.Panel>
-        ))}
-      </Collapse>
-    </Space>
-  );
-}
-
 function MicroflowCanvas({
   schema,
   selectedNodeId,
@@ -313,6 +336,7 @@ function MicroflowCanvas({
   viewport,
   onSelectNode,
   onSchemaChange,
+  onDropNode,
   onViewportChange
 }: {
   schema: MicroflowSchema;
@@ -321,6 +345,7 @@ function MicroflowCanvas({
   viewport: { zoom: number; offset: MicroflowPosition };
   onSelectNode: (nodeId: string) => void;
   onSchemaChange: (schema: MicroflowSchema) => void;
+  onDropNode: (payload: MicroflowNodeDragPayload, position: MicroflowPosition) => void;
   onViewportChange: (viewport: { zoom: number; offset: MicroflowPosition }) => void;
 }) {
   const nodesById = useMemo(() => new Map(schema.nodes.map(node => [node.id, node])), [schema.nodes]);
@@ -349,6 +374,24 @@ function MicroflowCanvas({
       }}
       onPointerUp={() => {
         dragRef.current = undefined;
+      }}
+      onDragOver={event => {
+        if (event.dataTransfer.types.includes("application/x-atlas-microflow-node")) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={event => {
+        const payload = parseNodeDragPayload(event.dataTransfer.getData("application/x-atlas-microflow-node"));
+        if (!payload) {
+          return;
+        }
+        event.preventDefault();
+        const rect = event.currentTarget.getBoundingClientRect();
+        onDropNode(payload, {
+          x: (event.clientX - rect.left - viewport.offset.x) / viewport.zoom,
+          y: (event.clientY - rect.top - viewport.offset.y) / viewport.zoom
+        });
       }}
       onWheel={event => {
         const nextZoom = Math.min(1.4, Math.max(0.45, viewport.zoom - event.deltaY * 0.001));
@@ -474,6 +517,7 @@ export function MicroflowEditor({
   labels,
   toolbarPrefix,
   toolbarSuffix,
+  nodePanelLabels,
   onPublish,
   onSaveComplete,
   onValidateComplete,
@@ -488,11 +532,17 @@ export function MicroflowEditor({
   const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
   const [viewport, setViewport] = useState(initialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
   const [testRunOpen, setTestRunOpen] = useState(false);
+  const [documentationNode, setDocumentationNode] = useState<MicroflowNodeRegistryEntry>();
+  const [favoriteNodeKeys, setFavoriteNodeKeys] = useState<string[]>(readFavoriteNodeKeys);
   const [testInput, setTestInput] = useState<Record<string, string>>(() =>
     Object.fromEntries(initialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`]))
   );
 
   const selectedNode = schema.nodes.find(node => node.id === selectedNodeId);
+
+  useEffect(() => {
+    saveFavoriteNodeKeys(favoriteNodeKeys);
+  }, [favoriteNodeKeys]);
 
   function commitSchema(nextSchema: MicroflowSchema) {
     setSchema(nextSchema);
@@ -531,14 +581,28 @@ export function MicroflowEditor({
     await onPublish(schema);
   }
 
-  function handleAddNode(entry: MicroflowNodeRegistryEntry) {
-    const registryKey = entry.activityType ? `${entry.type}:${entry.activityType}` : entry.type;
-    const nextNode = createMicroflowNodeFromRegistry(registryKey, `${registryKey.replace(":", "-")}-${Date.now()}`, {
+  function handleAddNode(entry: MicroflowNodeRegistryEntry, options?: { position?: MicroflowPosition }) {
+    if (!entry.enabled) {
+      Toast.warning(entry.disabledReason ?? "This node is disabled.");
+      return;
+    }
+    const registryKey = getMicroflowNodeRegistryKey(entry);
+    const position = options?.position ?? {
       x: 320 + schema.nodes.length * 16,
       y: 120 + schema.nodes.length * 12
-    });
+    };
+    const nextNode = createMicroflowNodeFromRegistry(entry, position, `${registryKey.replace(":", "-")}-${Date.now()}`);
     commitSchema({ ...schema, nodes: [...schema.nodes, nextNode] });
     setSelectedNodeId(nextNode.id);
+  }
+
+  function handleDropNode(payload: MicroflowNodeDragPayload, position: MicroflowPosition) {
+    const entry = getMicroflowNodeByType(payload.nodeType, payload.activityType);
+    if (!entry) {
+      Toast.error(`Unknown microflow node: ${payload.registryKey}`);
+      return;
+    }
+    handleAddNode(entry, { position });
   }
 
   function handleDeleteSelected() {
@@ -597,7 +661,14 @@ export function MicroflowEditor({
         </div>
         <div style={bodyStyle}>
           <aside style={panelStyle}>
-            <MicroflowNodePanel onAddNode={handleAddNode} />
+            <MicroflowNodePanel
+              favoriteNodeKeys={favoriteNodeKeys}
+              onFavoriteChange={setFavoriteNodeKeys}
+              onAddNode={(entry, options) => handleAddNode(entry, options)}
+              onStartDrag={() => undefined}
+              onShowDocumentation={setDocumentationNode}
+              labels={nodePanelLabels}
+            />
           </aside>
           <MicroflowCanvas
             schema={schema}
@@ -606,6 +677,7 @@ export function MicroflowEditor({
             viewport={viewport}
             onSelectNode={setSelectedNodeId}
             onSchemaChange={commitSchema}
+            onDropNode={handleDropNode}
             onViewportChange={setViewport}
           />
           <aside style={rightPanelStyle}>
@@ -664,6 +736,30 @@ export function MicroflowEditor({
             />
           ))}
         </Space>
+      </Modal>
+      <Modal
+        visible={Boolean(documentationNode)}
+        title={documentationNode?.title ?? "Node documentation"}
+        footer={null}
+        onCancel={() => setDocumentationNode(undefined)}
+      >
+        {documentationNode ? (
+          <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
+            <Text>{documentationNode.documentation ?? documentationNode.description}</Text>
+            <Tag color={documentationNode.enabled ? "green" : "grey"}>
+              {documentationNode.enabled ? "Enabled" : documentationNode.disabledReason ?? "Disabled"}
+            </Tag>
+            <Text type="tertiary">
+              Type: {getMicroflowNodeRegistryKey(documentationNode)}
+            </Text>
+            <Text type="tertiary">
+              Inputs: {(documentationNode.inputs ?? []).join(", ") || "-"}
+            </Text>
+            <Text type="tertiary">
+              Outputs: {(documentationNode.outputs ?? []).join(", ") || "-"}
+            </Text>
+          </Space>
+        ) : null}
       </Modal>
     </MicroflowRuntimeBoundary>
   );

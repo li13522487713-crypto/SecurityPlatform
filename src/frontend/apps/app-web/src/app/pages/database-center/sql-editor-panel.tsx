@@ -19,9 +19,10 @@ interface SqlEditorPanelProps {
   schema?: string;
   environment: DatabaseCenterEnvironment;
   compact?: boolean;
+  fullscreen?: boolean;
 }
 
-export function SqlEditorPanel({ labels, sourceId, schema, environment, compact = false }: SqlEditorPanelProps) {
+export function SqlEditorPanel({ labels, sourceId, schema, environment, compact = false, fullscreen = false }: SqlEditorPanelProps) {
   const [sql, setSql] = useState("SELECT * FROM demo_table LIMIT 20;");
   const [limit, setLimit] = useState(50);
   const [executing, setExecuting] = useState(false);
@@ -61,7 +62,7 @@ export function SqlEditorPanel({ labels, sourceId, schema, environment, compact 
           optionList={[20, 50, 100, 200].map(value => ({ value, label: String(value) }))}
         />
       </div>
-      <SqlCodeEditor value={sql} onChange={setSql} height={compact ? 128 : 260} />
+      <SqlCodeEditor value={sql} onChange={setSql} height={fullscreen ? "calc(100dvh - 260px)" : compact ? 128 : 260} />
       {result ? (
         <Space vertical align="start" style={{ width: "100%" }}>
           <Space>

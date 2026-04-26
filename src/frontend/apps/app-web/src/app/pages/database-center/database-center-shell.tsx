@@ -1,10 +1,8 @@
-import { useMemo, useState } from "react";
-import { Button, SideSheet, Space, Tag, Typography } from "@douyinfe/semi-ui";
-import { IconDownloadStroked, IconPlus, IconRefresh, IconSetting } from "@douyinfe/semi-icons";
+import { useEffect, useMemo, useState } from "react";
+import { Button, SideSheet, Typography } from "@douyinfe/semi-ui";
 import {
   ResponsivePageFrame,
   ResponsiveSummaryCards,
-  ResponsiveToolbar,
   useResponsiveBreakpoint
 } from "../../_shared";
 import type { AiWorkspaceLibraryItem } from "../../../services/api-ai-workspace";
@@ -20,7 +18,7 @@ import { InstanceDetailPanel } from "./instance-detail-panel";
 import { MigrationWizardDrawer } from "../components/migration-wizard/migration-wizard-drawer";
 import { useDatabaseCenter } from "./use-database-center";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 type DatabaseCenterDrawerPanel = "guide" | "sources" | "schemas" | "details";
 
 interface DatabaseCenterShellProps {
@@ -39,6 +37,7 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
   const [migrationSource, setMigrationSource] = useState<AiWorkspaceLibraryItem | null>(null);
   const [selectedObject, setSelectedObject] = useState<DatabaseCenterObjectSummary | null>(null);
   const [objectRequest, setObjectRequest] = useState<DatabaseCenterObjectRequest | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const selectedColumns = useMemo(() => {
     if (!selectedObject || !state.structure) return [];
@@ -79,6 +78,27 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
     });
   }
 
+  useEffect(() => {
+    function syncFullscreen() {
+      setFullscreen(document.fullscreenElement === frameRef.current);
+    }
+
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, [frameRef]);
+
+  async function toggleFullscreen() {
+    const target = frameRef.current;
+    if (!target) return;
+
+    if (document.fullscreenElement) {
+      await document.exitFullscreen?.();
+      return;
+    }
+
+    await target.requestFullscreen?.();
+  }
+
   const guideCards = [
     ["1", labels.sources, labels.guideSourcesHint],
     ["2", labels.schemas, labels.guideSchemasHint],
@@ -104,46 +124,6 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
         `database-center-page--${breakpoint}`,
         size.height > 0 && size.height < 760 ? "database-center-page--low-height" : ""
       ].filter(Boolean).join(" ")}
-      header={
-        <>
-      <header className="database-center-header">
-        <ResponsiveToolbar
-          main={
-            <Space vertical align="start" spacing={4} className="database-center-title-block">
-              <Space wrap>
-                <Title heading={3} style={{ margin: 0 }}>{labels.title}</Title>
-                {state.selectedSource ? <Tag color="blue">{state.selectedSource.driverCode}</Tag> : null}
-                {state.environment ? <Tag color={state.environment === "Draft" ? "green" : "orange"}>{state.environment}</Tag> : null}
-              </Space>
-              <Text type="tertiary" ellipsis={{ showTooltip: true }}>{labels.subtitle}</Text>
-            </Space>
-          }
-          actions={
-            <>
-              <Tag color={state.selectedSource?.provisionState === "Ready" ? "green" : "orange"}>
-                {state.selectedSource?.provisionState === "Ready" ? labels.connected : state.selectedSource?.provisionState ?? "Pending"}
-              </Tag>
-              <Button icon={<IconRefresh />} onClick={() => void state.refresh()}>{labels.refresh}</Button>
-              <Button icon={<IconDownloadStroked />} disabled={!state.selectedSourceId || !state.selectedSchema || state.environment !== "Draft"} onClick={() => setImportDdlVisible(true)}>{labels.importDdl}</Button>
-              <Button icon={<IconSetting />} onClick={() => setHostProfilesVisible(true)}>{labels.hostProfiles}</Button>
-              <Button icon={<IconPlus />} theme="solid" onClick={() => setCreateVisible(true)}>{labels.newDatabase}</Button>
-            </>
-          }
-        />
-      </header>
-      <ResponsiveSummaryCards className="database-center-guide" minCardWidth={220}>
-        {guideCards.map(item => (
-          <div key={item[0]} className="database-center-guide-card">
-            <span className="database-center-guide-card__index">{item[0]}</span>
-            <div className="database-center-guide-card__content">
-              <strong>{item[1]}</strong>
-              <Text type="tertiary" size="small">{item[2]}</Text>
-            </div>
-          </div>
-        ))}
-      </ResponsiveSummaryCards>
-        </>
-      }
     >
       <section className="database-center-layout">
         <div className="database-center-drawer-actions">
@@ -165,8 +145,10 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
           selectedObject={selectedObject}
           objectRequest={objectRequest}
           loading={state.loadingStructure}
+          fullscreen={fullscreen}
           onSelectObject={setSelectedObject}
           onStructureChanged={state.loadStructure}
+          onToggleFullscreen={() => void toggleFullscreen()}
         />
         {renderDetailPanel()}
         </div>

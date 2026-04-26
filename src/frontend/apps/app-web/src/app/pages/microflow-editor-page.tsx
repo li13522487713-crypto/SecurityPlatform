@@ -144,6 +144,34 @@ export function MicroflowEditorPage() {
           problems: t("microflowEditorProblems"),
           debug: t("microflowEditorDebug")
         }}
+        nodePanelLabels={{
+          nodesTab: t("microflowNodePanelNodesTab"),
+          componentsTab: t("microflowNodePanelComponentsTab"),
+          templatesTab: t("microflowNodePanelTemplatesTab"),
+          searchPlaceholder: t("microflowNodePanelSearchPlaceholder"),
+          filterTitle: t("microflowNodePanelFilterTitle"),
+          filterAll: t("microflowNodePanelFilterAll"),
+          filterFavorites: t("microflowNodePanelFilterFavorites"),
+          filterEnabled: t("microflowNodePanelFilterEnabled"),
+          favoritesTitle: t("microflowNodePanelFavoritesTitle"),
+          favoritesEmpty: t("microflowNodePanelFavoritesEmpty"),
+          addToCanvas: t("microflowNodePanelAddToCanvas"),
+          favorite: t("microflowNodePanelFavorite"),
+          unfavorite: t("microflowNodePanelUnfavorite"),
+          viewDocumentation: t("microflowNodePanelViewDocumentation"),
+          copyNodeType: t("microflowNodePanelCopyNodeType"),
+          copied: t("microflowNodePanelCopied"),
+          disabled: t("microflowNodePanelDisabled"),
+          emptyTitle: t("microflowNodePanelEmptyTitle"),
+          emptyDescription: t("microflowNodePanelEmptyDescription"),
+          clearSearch: t("microflowNodePanelClearSearch"),
+          footerHint: t("microflowNodePanelFooterHint"),
+          componentsPlaceholder: t("microflowNodePanelComponentsPlaceholder"),
+          templatesPlaceholder: t("microflowNodePanelTemplatesPlaceholder"),
+          inputs: t("microflowNodePanelInputs"),
+          outputs: t("microflowNodePanelOutputs"),
+          useCases: t("microflowNodePanelUseCases")
+        }}
       />
 
       <Modal

@@ -1,5 +1,5 @@
 import { Button, Checkbox, Empty, Input, Modal, SideSheet, Space, Spin, Tabs, Toast } from "@douyinfe/semi-ui";
-import { IconPlus } from "@douyinfe/semi-icons";
+import { IconExpand, IconPlus } from "@douyinfe/semi-icons";
 import { useEffect, useState } from "react";
 import type {
   DatabaseCenterEnvironment,
@@ -46,8 +46,10 @@ interface DatabaseStructureWorkbenchProps {
   selectedObject: DatabaseCenterObjectSummary | null;
   objectRequest?: DatabaseCenterObjectRequest | null;
   loading: boolean;
+  fullscreen?: boolean;
   onSelectObject: (object: DatabaseCenterObjectSummary) => void;
   onStructureChanged: () => Promise<void> | void;
+  onToggleFullscreen?: () => void;
 }
 
 export function DatabaseStructureWorkbench({
@@ -60,8 +62,10 @@ export function DatabaseStructureWorkbench({
   selectedObject,
   objectRequest,
   loading,
+  fullscreen = false,
   onSelectObject,
-  onStructureChanged
+  onStructureChanged,
+  onToggleFullscreen
 }: DatabaseStructureWorkbenchProps) {
   const objects = structure?.objects ?? [];
   const tables = objects.filter(item => item.objectType === "table");
@@ -129,7 +133,7 @@ export function DatabaseStructureWorkbench({
   }, [objectRequest?.token]);
 
   return (
-    <main className="database-center-workbench">
+    <main className={`database-center-workbench${fullscreen ? " database-center-workbench--fullscreen" : ""}`}>
       <div className="database-center-workbench__main">
         <Spin spinning={loading}>
           {!sourceId ? (
@@ -140,6 +144,7 @@ export function DatabaseStructureWorkbench({
               <Space />
               <Space wrap>
                 <Button className="database-center-dock-open-button" onClick={() => setDockVisible(true)}>{labels.globalActions}</Button>
+                <Button icon={<IconExpand />} onClick={onToggleFullscreen}>{fullscreen ? labels.exitFullscreen : labels.fullscreen}</Button>
                 <Button icon={<IconPlus />} disabled={!canEdit} onClick={() => setCreateTableVisible(true)}>{labels.createTableVisual}</Button>
                 <Button icon={<IconPlus />} disabled={!canEdit} onClick={() => setCreateViewVisible(true)}>{labels.createView}</Button>
               </Space>
@@ -167,11 +172,11 @@ export function DatabaseStructureWorkbench({
               </Tabs.TabPane>
               <Tabs.TabPane tab={labels.ddl} itemKey="ddl">
                 <Spin spinning={inlineLoading}>
-                  {inlineDdl ? <SqlCodeEditor value={inlineDdl} readOnly height={420} /> : <Empty description={labels.noObjectSelected} />}
+                  {inlineDdl ? <SqlCodeEditor value={inlineDdl} readOnly height={fullscreen ? "calc(100dvh - 170px)" : 420} /> : <Empty description={labels.noObjectSelected} />}
                 </Spin>
               </Tabs.TabPane>
               <Tabs.TabPane tab={labels.sqlEditor} itemKey="sql">
-                <SqlEditorPanel labels={labels} sourceId={sourceId} schema={schemaName} environment={environment} />
+                <SqlEditorPanel labels={labels} sourceId={sourceId} schema={schemaName} environment={environment} fullscreen={fullscreen} />
               </Tabs.TabPane>
             </Tabs>
             </>

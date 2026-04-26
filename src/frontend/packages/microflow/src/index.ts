@@ -1,5 +1,6 @@
 export * from "./schema";
 export * from "./node-registry";
+export * from "./node-panel";
 export * from "./runtime-adapter";
 export * from "./mendix-compat";
 export { MicroflowEditor, type MicroflowEditorLabels, type MicroflowEditorProps } from "./editor";
