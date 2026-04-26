@@ -11,6 +11,7 @@ import type {
   MicroflowVariableSymbol,
   MicroflowSequenceFlow
 } from "../schema";
+import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../flowgram/adapters/flowgram-case-options";
 import type { MicroflowEdgePatch, MicroflowNodePatch, MicroflowPropertyPanelProps } from "./types";
 
 export * from "./controls";
@@ -411,6 +412,61 @@ function flowPatch(flow: MicroflowFlow, patch: MicroflowEdgePatch): MicroflowFlo
   return { ...flow, ...patch } as MicroflowFlow;
 }
 
+function CaseValueField({ props, flow, patch }: {
+  props: MicroflowPropertyPanelProps;
+  flow: MicroflowSequenceFlow;
+  patch: (next: MicroflowFlow) => void;
+}) {
+  const caseKind = getCaseEditorKind(props.schema, flow.originObjectId);
+  if (!caseKind || flow.isErrorHandler || flow.editor.edgeKind === "sequence") {
+    return (
+      <Field label="Case Values">
+        <TextArea
+          autosize
+          disabled={props.readonly}
+          value={flow.caseValues.map(item => item.kind === "boolean" ? item.persistedValue : item.kind === "enumeration" ? item.value : item.kind === "inheritance" ? item.entityQualifiedName : item.kind).join("\n")}
+          onChange={value => patch(flowPatch(flow, {
+            caseValues: value.split("\n").map(item => item.trim()).filter(Boolean).map(item => item === "true" || item === "false"
+              ? { kind: "boolean" as const, officialType: "Microflows$EnumerationCase" as const, value: item === "true", persistedValue: item as "true" | "false" }
+              : { kind: "enumeration" as const, officialType: "Microflows$EnumerationCase" as const, enumerationQualifiedName: "", value: item })
+          }))}
+        />
+      </Field>
+    );
+  }
+  const options = getCaseOptionsForSource(props.schema, flow.originObjectId, flow.id);
+  const current = flow.caseValues[0];
+  const currentKey = current ? caseValueKey(current) : undefined;
+  return (
+    <Field label={caseKind === "enumeration" ? "Enumeration Case" : caseKind === "objectType" ? "Object Type Case" : "Boolean Case"}>
+      <Select
+        value={currentKey}
+        disabled={props.readonly}
+        style={{ width: "100%" }}
+        onChange={value => {
+          const option = options.find(item => item.key === String(value));
+          if (!option) {
+            return;
+          }
+          patch(flowPatch(flow, {
+            caseValues: [option.caseValue],
+            editor: {
+              ...flow.editor,
+              edgeKind: caseKind === "objectType" ? "objectTypeCondition" : "decisionCondition",
+              label: option.label,
+            },
+          }));
+        }}
+        optionList={options.map(option => ({
+          label: option.reason ? `${option.label} - ${option.reason}` : option.label,
+          value: option.key,
+          disabled: option.disabled,
+        }))}
+      />
+    </Field>
+  );
+}
+
 function FlowPanel(props: MicroflowPropertyPanelProps) {
   const flow = props.selectedFlow;
   if (!flow) {
@@ -482,18 +538,7 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
                 </Field>
               </>
             ) : null}
-            <Field label="Case Values">
-              <TextArea
-                autosize
-                disabled={props.readonly}
-                value={flow.caseValues.map(item => item.kind === "boolean" ? item.persistedValue : item.kind === "enumeration" ? item.value : item.kind === "inheritance" ? item.entityQualifiedName : item.kind).join("\n")}
-                onChange={value => patch(flowPatch(flow, {
-                  caseValues: value.split("\n").map(item => item.trim()).filter(Boolean).map(item => item === "true" || item === "false"
-                    ? { kind: "boolean" as const, officialType: "Microflows$EnumerationCase" as const, value: item === "true", persistedValue: item as "true" | "false" }
-                    : { kind: "enumeration" as const, officialType: "Microflows$EnumerationCase" as const, enumerationQualifiedName: "", value: item })
-                }))}
-              />
-            </Field>
+            <CaseValueField props={props} flow={flow} patch={patch} />
             <Field label="Label">
               <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
             </Field>

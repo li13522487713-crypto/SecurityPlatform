@@ -3,12 +3,12 @@ import type { WorkflowEdgeJSON, WorkflowJSON, WorkflowNodeJSON } from "@flowgram
 import { flattenObjectCollection, toEditorGraph } from "../../adapters";
 import type {
   MicroflowAuthoringSchema,
-  MicroflowFlow,
   MicroflowObject,
   MicroflowSchema,
   MicroflowTraceFrame,
   MicroflowValidationIssue,
 } from "../../schema";
+import { flowCaseLabel } from "./flowgram-case-options";
 import { microflowPortsToFlowGramPorts } from "./flowgram-port-factory";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowIssueIndex, FlowGramMicroflowNodeData } from "../FlowGramMicroflowTypes";
 
@@ -75,23 +75,6 @@ function runtimeStateForFlow(flowId: string, trace: MicroflowTraceFrame[] = []):
   return trace.some(item => item.incomingFlowId === flowId || item.outgoingFlowId === flowId) ? "visited" : "idle";
 }
 
-function flowLabel(flow: MicroflowFlow): string | undefined {
-  if (flow.editor.label) {
-    return flow.editor.label;
-  }
-  if (flow.kind === "sequence" && flow.isErrorHandler) {
-    return "Error";
-  }
-  const firstCase = flow.kind === "sequence" ? flow.caseValues[0] : undefined;
-  if (!firstCase) {
-    return undefined;
-  }
-  if (firstCase.kind === "boolean") {
-    return firstCase.value ? "是" : "否";
-  }
-  return firstCase.persistedValue;
-}
-
 export function authoringToFlowGram(
   schema: MicroflowSchema | MicroflowAuthoringSchema,
   issues: MicroflowValidationIssue[] = schema.validation?.issues ?? [],
@@ -140,7 +123,7 @@ export function authoringToFlowGram(
       edgeKind: edge.kind,
       isErrorHandler: flow?.kind === "sequence" ? flow.isErrorHandler : false,
       caseValues: flow?.kind === "sequence" ? flow.caseValues : [],
-      label: flow ? flowLabel(flow) : edge.label,
+      label: flow ? flowCaseLabel(flow) : edge.label,
       description: flow?.editor.description,
       runtimeState: runtimeStateForFlow(edge.flowId, trace),
       validationState: validationState(flowIssues),

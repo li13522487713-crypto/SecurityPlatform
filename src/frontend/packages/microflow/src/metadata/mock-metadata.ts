@@ -41,6 +41,32 @@ export const mockMicroflowMetadataCatalog: MicroflowMetadataCatalog = {
         { name: "StatusCode", qualifiedName: "System.HttpResponse.StatusCode", type: { kind: "integer" }, required: true },
         { name: "Body", qualifiedName: "System.HttpResponse.Body", type: { kind: "string" }, required: false }
       ]
+    },
+    {
+      qualifiedName: "Sales.PaymentMethod",
+      associations: [],
+      specializations: ["Sales.CardPayment", "Sales.BankTransferPayment"],
+      attributes: [
+        { name: "Id", qualifiedName: "Sales.PaymentMethod.Id", type: { kind: "string" }, required: true }
+      ]
+    },
+    {
+      qualifiedName: "Sales.CardPayment",
+      associations: [],
+      generalization: "Sales.PaymentMethod",
+      specializations: [],
+      attributes: [
+        { name: "CardLast4", qualifiedName: "Sales.CardPayment.CardLast4", type: { kind: "string" }, required: false }
+      ]
+    },
+    {
+      qualifiedName: "Sales.BankTransferPayment",
+      associations: [],
+      generalization: "Sales.PaymentMethod",
+      specializations: [],
+      attributes: [
+        { name: "BankName", qualifiedName: "Sales.BankTransferPayment.BankName", type: { kind: "string" }, required: false }
+      ]
     }
   ],
   associations: [

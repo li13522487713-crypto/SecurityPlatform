@@ -6,6 +6,7 @@ import type {
   MicroflowPoint,
   MicroflowValidationIssue,
 } from "../schema";
+import type { MicroflowCaseEditorKind } from "./adapters/flowgram-case-options";
 
 export type FlowGramMicroflowNodeType = MicroflowObjectKind;
 
@@ -52,6 +53,7 @@ export interface FlowGramMicroflowChangeReason {
 }
 
 export interface FlowGramMicroflowPendingLine {
+  caseKind: MicroflowCaseEditorKind;
   sourcePortId: string;
   targetPortId: string;
   sourceObjectId: string;
@@ -60,4 +62,3 @@ export interface FlowGramMicroflowPendingLine {
 }
 
 export type FlowGramMicroflowIssueIndex = Map<string, MicroflowValidationIssue[]>;
-

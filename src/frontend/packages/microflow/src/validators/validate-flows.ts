@@ -1,9 +1,12 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { objectMap, issue } from "./shared";
+import { findEnumeration, mockMicroflowMetadataCatalog } from "../metadata";
+import { caseValueKey, getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
 
 export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const objects = objectMap(schema);
+  const outgoingCaseKeys = new Map<string, Map<string, string>>();
   for (const flow of schema.flows) {
     const source = objects.get(flow.originObjectId);
     const target = objects.get(flow.destinationObjectId);
@@ -38,6 +41,18 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
       issues.push(issue("MF_ERROR_FLOW_SOURCE", "isErrorHandler source must support errorHandling.", { flowId: flow.id }));
     }
     if (source?.kind === "exclusiveSplit" && flow.editor.edgeKind === "decisionCondition") {
+      if (flow.caseValues.length === 0) {
+        issues.push(issue("MF_DECISION_CASE_MISSING", "Decision condition flow must define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+      }
+      for (const caseValue of flow.caseValues) {
+        const key = caseValueKey(caseValue);
+        const perSource = outgoingCaseKeys.get(source.id) ?? new Map<string, string>();
+        if (perSource.has(key)) {
+          issues.push(issue("MF_DECISION_CASE_DUPLICATED", "Decision case values must be unique per source.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+        }
+        perSource.set(key, flow.id);
+        outgoingCaseKeys.set(source.id, perSource);
+      }
       const booleanCases = flow.caseValues.filter(caseValue => caseValue.kind === "boolean");
       for (const caseValue of booleanCases) {
         const duplicates = schema.flows.filter(item =>
@@ -50,9 +65,41 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
           issues.push(issue("MF_DECISION_CASE_DUPLICATED", "Decision case values must be unique per source.", { flowId: flow.id, objectId: source.id }));
         }
       }
+      for (const caseValue of flow.caseValues.filter(caseValue => caseValue.kind === "enumeration")) {
+        const enumeration = findEnumeration(mockMicroflowMetadataCatalog, caseValue.enumerationQualifiedName);
+        if (!caseValue.enumerationQualifiedName || !enumeration) {
+          issues.push(issue("MF_ENUMERATION_CASE_UNKNOWN_ENUMERATION", "Enumeration case must reference an existing enumeration.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+          continue;
+        }
+        if (!enumeration.values.includes(caseValue.value)) {
+          issues.push(issue("MF_ENUMERATION_CASE_INVALID_VALUE", "Enumeration case value must belong to the selected enumeration.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+        }
+      }
     }
     if (source?.kind === "inheritanceSplit" && flow.editor.edgeKind === "objectTypeCondition") {
+      if (!source.inputObjectVariableName) {
+        issues.push(issue("MF_OBJECT_TYPE_INPUT_MISSING", "InheritanceSplit must define inputObjectVariableName.", { objectId: source.id, fieldPath: "inputObjectVariableName" }));
+      }
+      if (!source.entity.generalizedEntityQualifiedName) {
+        issues.push(issue("MF_OBJECT_TYPE_GENERALIZATION_MISSING", "InheritanceSplit must define generalizedEntityQualifiedName.", { objectId: source.id, fieldPath: "entity.generalizedEntityQualifiedName" }));
+      }
+      if (flow.caseValues.length === 0) {
+        issues.push(issue("MF_OBJECT_TYPE_CASE_MISSING", "Object type condition flow must define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+      }
+      for (const caseValue of flow.caseValues) {
+        const key = caseValueKey(caseValue);
+        const perSource = outgoingCaseKeys.get(source.id) ?? new Map<string, string>();
+        if (perSource.has(key)) {
+          issues.push(issue("MF_OBJECT_TYPE_CASE_DUPLICATED", "Object type case values must be unique per source.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+        }
+        perSource.set(key, flow.id);
+        outgoingCaseKeys.set(source.id, perSource);
+      }
       for (const caseValue of flow.caseValues.filter(caseValue => caseValue.kind === "inheritance")) {
+        const allowed = getAllowedSpecializations(source, mockMicroflowMetadataCatalog);
+        if (allowed.length > 0 && !allowed.includes(caseValue.entityQualifiedName)) {
+          issues.push(issue("MF_OBJECT_TYPE_CASE_INVALID_SPECIALIZATION", "Object type case specialization must be allowed by the source InheritanceSplit.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
+        }
         const duplicates = schema.flows.filter(item =>
           item.kind === "sequence" &&
           item.id !== flow.id &&

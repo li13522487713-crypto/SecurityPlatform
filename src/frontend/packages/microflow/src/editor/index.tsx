@@ -13,6 +13,7 @@ import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowT
 import {
   applyEditorGraphPatchToAuthoring,
   addParameter,
+  createAutoLayoutPatch,
   createAnnotationFlow,
   createObjectFromRegistry,
   createSequenceFlow,
@@ -926,6 +927,16 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     setDirty(true);
   };
 
+  const handleAutoLayout = () => {
+    const patch = createAutoLayoutPatch(schema);
+    if (!patch.movedNodes?.length) {
+      Toast.warning("No nodes to layout.");
+      return;
+    }
+    commitSchema(applyEditorGraphPatchToAuthoring(schema, patch));
+    Toast.success("Auto layout applied.");
+  };
+
   return (
     <div style={shellStyle}>
       <div style={toolbarStyle}>
@@ -972,6 +983,11 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
             });
           }}
           onDropRegistryItem={(item, position) => handleAddNode(item, { position })}
+          canUndo={history.length > 0}
+          canRedo={future.length > 0}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onAutoLayout={handleAutoLayout}
         />
         <div style={rightPanelStyle}>
           <MicroflowPropertyPanel

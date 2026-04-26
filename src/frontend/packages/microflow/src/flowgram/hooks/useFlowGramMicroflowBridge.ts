@@ -19,6 +19,7 @@ import {
   flowGramPositionPatch,
 } from "../adapters/flowgram-to-authoring-patch";
 import { createMicroflowFlowFromPorts } from "../adapters/flowgram-edge-factory";
+import { getCaseEditorKind } from "../adapters/flowgram-case-options";
 import { FlowGramMicroflowBridgeService } from "../FlowGramMicroflowEvents";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
 
@@ -29,11 +30,6 @@ function portById(schema: MicroflowSchema, portId?: string) {
   return toEditorGraph(schema).nodes.flatMap(node => node.ports).find(port => port.id === portId);
 }
 
-function isBooleanDecisionLine(schema: MicroflowSchema, edge: NonNullable<ReturnType<typeof findNewFlowGramEdge>>): boolean {
-  const source = schema.objectCollection.objects.find(object => object.id === edge.sourceNodeID);
-  return source?.kind === "exclusiveSplit" && source.splitCondition.resultType?.kind === "boolean";
-}
-
 export function useFlowGramMicroflowBridge(params: {
   schema: MicroflowSchema;
   issues: MicroflowSchema["validation"]["issues"];
@@ -41,7 +37,7 @@ export function useFlowGramMicroflowBridge(params: {
   readonly?: boolean;
   onSchemaChange: (schema: MicroflowSchema, reason: string) => void;
   onSelectionChange: (selection: FlowGramMicroflowSelection) => void;
-  onPendingBooleanLine: (line?: FlowGramMicroflowPendingLine) => void;
+  onPendingCaseLine: (line?: FlowGramMicroflowPendingLine) => void;
 }) {
   const doc = useService<WorkflowDocument>(WorkflowDocument);
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
@@ -73,7 +69,7 @@ export function useFlowGramMicroflowBridge(params: {
       const deletedFlowId = findDeletedFlowId(schema, json);
       if (deletedFlowId) {
         params.onSchemaChange(
-          applyEditorGraphPatchToAuthoring(schema, { deletedFlowIds: [deletedFlowId] } as MicroflowEditorGraphPatch),
+          applyEditorGraphPatchToAuthoring(schema, { deleteFlowId: deletedFlowId } as MicroflowEditorGraphPatch),
           "flowgramLineDelete",
         );
         return;
@@ -90,8 +86,10 @@ export function useFlowGramMicroflowBridge(params: {
           });
           return;
         }
-        if (isBooleanDecisionLine(schema, newEdge)) {
-          params.onPendingBooleanLine({
+        const caseKind = getCaseEditorKind(schema, sourcePort.objectId);
+        if (caseKind) {
+          params.onPendingCaseLine({
+            caseKind,
             sourcePortId: sourcePort.id,
             targetPortId: targetPort.id,
             sourceObjectId: sourcePort.objectId,
@@ -138,7 +136,7 @@ export function useFlowGramMicroflowBridge(params: {
   }, [params, selectService]);
 
   return {
-    createBooleanCaseFlow(caseValues: MicroflowCaseValue[], label: string, pending: FlowGramMicroflowPendingLine) {
+    createCaseFlow(caseValues: MicroflowCaseValue[], label: string, pending: FlowGramMicroflowPendingLine) {
       const sourcePort = portById(latestSchemaRef.current, pending.sourcePortId);
       const targetPort = portById(latestSchemaRef.current, pending.targetPortId);
       if (!sourcePort || !targetPort) {

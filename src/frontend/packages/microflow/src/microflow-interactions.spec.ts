@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { createObjectFromRegistry, createSequenceFlow, toEditorGraph } from "./adapters";
+import { createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, toEditorGraph } from "./adapters";
 import { canConnectPorts, defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "./node-registry";
 import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
 import { buildVariableIndex } from "./variables";
 import { authoringToFlowGram } from "./flowgram/adapters/authoring-to-flowgram";
 import { createMicroflowFlowFromPorts } from "./flowgram/adapters/flowgram-edge-factory";
+import {
+  enumerationCaseValue,
+  fallbackCaseValue,
+  getEnumerationCaseOptions,
+  getObjectTypeCaseOptions,
+  inheritanceCaseValue,
+} from "./flowgram/adapters/flowgram-case-options";
 import type { MicroflowObject, MicroflowSchema } from "./schema";
 
 function registry(key: string) {
@@ -100,6 +107,93 @@ describe("microflow editor interactions", () => {
     expect(flow.editor.edgeKind).toBe("decisionCondition");
     expect(flow.editor.label).toBe("否");
     expect(flow.caseValues[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
+  });
+
+  it("creates an auto layout patch from root flow order", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 500, y: 500 }, "layout-start");
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 100, y: 500 }, "layout-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 100, y: 100 }, "layout-end");
+    const first = createSequenceFlow({ originObjectId: start.id, destinationObjectId: retrieve.id, originConnectionIndex: 0 });
+    const second = createSequenceFlow({ originObjectId: retrieve.id, destinationObjectId: end.id, originConnectionIndex: 0 });
+    const patch = createAutoLayoutPatch(schemaWith([end, retrieve, start], [first, second]));
+    const positions = new Map(patch.movedNodes?.map(item => [item.objectId, item.position]));
+    expect(positions.get(start.id)?.x).toBeLessThan(positions.get(retrieve.id)?.x ?? 0);
+    expect(positions.get(retrieve.id)?.x).toBeLessThan(positions.get(end.id)?.x ?? 0);
+  });
+
+  it("offers enumeration cases and validates duplicate enum values", () => {
+    const decision = {
+      ...createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "enum-decision"),
+      splitCondition: {
+        kind: "expression" as const,
+        expression: { raw: "$Order/Status", references: { variables: ["Order"], entities: [], attributes: ["Status"], associations: [], enumerations: [], functions: [] }, diagnostics: [], inferredType: { kind: "enumeration" as const, enumerationQualifiedName: "Sales.OrderStatus" } },
+        resultType: "enumeration" as const,
+        enumerationQualifiedName: "Sales.OrderStatus",
+      },
+    };
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "enum-change-1");
+    const second = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "enum-change-2");
+    const flow = createSequenceFlow({
+      originObjectId: decision.id,
+      destinationObjectId: first.id,
+      originConnectionIndex: 1,
+      edgeKind: "decisionCondition",
+      caseValues: [enumerationCaseValue("Sales.OrderStatus", "Pending")]
+    });
+    const schema = schemaWith([decision, first, second], [flow]);
+    const options = getEnumerationCaseOptions(schema, decision.id);
+    expect(options.find(option => option.caseValue.kind === "enumeration" && option.caseValue.value === "Pending")?.disabled).toBe(true);
+    expect(options.find(option => option.caseValue.kind === "enumeration" && option.caseValue.value === "Completed")?.disabled).toBe(false);
+    const duplicateIssues = validateMicroflowSchema({
+      ...schema,
+      flows: [
+        flow,
+        createSequenceFlow({
+          originObjectId: decision.id,
+          destinationObjectId: second.id,
+          originConnectionIndex: 1,
+          edgeKind: "decisionCondition",
+          caseValues: [enumerationCaseValue("Sales.OrderStatus", "Pending")]
+        })
+      ]
+    });
+    expect(duplicateIssues.some(issue => issue.code === "MF_DECISION_CASE_DUPLICATED")).toBe(true);
+  });
+
+  it("offers object type specialization, empty, and fallback cases", () => {
+    const split = {
+      ...createObjectFromRegistry(registry("objectTypeDecision"), { x: 0, y: 0 }, "type-decision"),
+      inputObjectVariableName: "payment",
+      entity: { generalizedEntityQualifiedName: "Sales.PaymentMethod", allowedSpecializations: ["Sales.CardPayment", "Sales.BankTransferPayment"] },
+    };
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: -80 }, "type-change-1");
+    const second = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 80 }, "type-change-2");
+    const flow = createSequenceFlow({
+      originObjectId: split.id,
+      destinationObjectId: first.id,
+      originConnectionIndex: 1,
+      edgeKind: "objectTypeCondition",
+      caseValues: [inheritanceCaseValue("Sales.CardPayment")]
+    });
+    const schema = schemaWith([split, first, second], [flow]);
+    const options = getObjectTypeCaseOptions(schema, split.id);
+    expect(options.find(option => option.caseValue.kind === "inheritance" && option.caseValue.entityQualifiedName === "Sales.CardPayment")?.disabled).toBe(true);
+    expect(options.some(option => option.caseValue.kind === "empty")).toBe(true);
+    expect(options.some(option => option.caseValue.kind === "fallback")).toBe(true);
+    const duplicateIssues = validateMicroflowSchema({
+      ...schema,
+      flows: [
+        flow,
+        createSequenceFlow({
+          originObjectId: split.id,
+          destinationObjectId: second.id,
+          originConnectionIndex: 1,
+          edgeKind: "objectTypeCondition",
+          caseValues: [fallbackCaseValue(), fallbackCaseValue()]
+        })
+      ]
+    });
+    expect(duplicateIssues.some(issue => issue.code === "MF_OBJECT_TYPE_CASE_DUPLICATED" || issue.code === "MF_DECISION_DUPLICATE_CASE")).toBe(true);
   });
 
   it("builds variable index and validates scoped expression errors", () => {

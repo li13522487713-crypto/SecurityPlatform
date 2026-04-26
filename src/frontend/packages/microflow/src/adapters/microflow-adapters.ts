@@ -830,6 +830,9 @@ function portsForObject(object: MicroflowObject): MicroflowPort[] {
     return [input];
   }
   if (object.kind === "exclusiveSplit") {
+    if (object.splitCondition.resultType === "enumeration") {
+      return [input, { id: "case", label: "Case", direction: "output", kind: "decisionOut", cardinality: "oneOrMore", edgeTypes: ["decisionCondition"] }, error];
+    }
     return [input, { id: "true", label: "True", direction: "output", kind: "decisionOut", cardinality: "one", edgeTypes: ["decisionCondition"] }, { id: "false", label: "False", direction: "output", kind: "decisionOut", cardinality: "one", edgeTypes: ["decisionCondition"] }, error];
   }
   if (object.kind === "inheritanceSplit") {
