@@ -167,8 +167,8 @@ export interface DbConnectionConfig {
   connectionString?: string;
   visualConfig?: Record<string, string> | null;
   displayName?: string | null;
-  dataSourceId?: number | null;
-  aiDatabaseId?: number | null;
+  dataSourceId?: number | string | null;
+  aiDatabaseId?: number | string | null;
 }
 
 export interface MigrationTestConnectionRequest {
@@ -352,6 +352,7 @@ import { resolveApiUrl } from "./api-core";
 
 const CONSOLE_TOKEN_HEADER = "X-Setup-Console-Token";
 const SESSION_TOKEN_KEY = "atlas_setup_console_token";
+const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
 function readSessionToken(): string | null {
   if (typeof window === "undefined") {
@@ -366,7 +367,8 @@ function readSessionToken(): string | null {
 
 async function fetchConsoleJson<T>(url: string, options?: RequestInit): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "X-Tenant-Id": DEFAULT_TENANT_ID
   };
   const token = readSessionToken();
   if (token) {

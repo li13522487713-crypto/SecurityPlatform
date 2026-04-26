@@ -270,7 +270,7 @@ export function CreateDataSourceModal({
             </label>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
-              {selectedDriver?.fields.map(field => (
+              {(selectedDriver?.fields ?? []).map(field => (
                 <label
                   key={field.key}
                   style={{

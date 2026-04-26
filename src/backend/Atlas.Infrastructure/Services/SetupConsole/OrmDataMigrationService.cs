@@ -184,7 +184,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
     {
         var job = await LoadJobAsync(jobId, cancellationToken).ConfigureAwait(false);
         job.TransitionTo(DataMigrationStates.Prechecking, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
 
         var source = await _resolver.ResolveAsync(BuildConfig(job.SourceConfigJson, job.SourceDbType, job.SourceConnectionString), cancellationToken)
             .ConfigureAwait(false);
@@ -193,7 +193,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         var plan = await _planner.PlanAsync(job, source, target, cancellationToken).ConfigureAwait(false);
 
         job.TransitionTo(DataMigrationStates.Ready, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Precheck", $"passed tables={plan.Items.Count} totalRows={plan.TotalRows}", null, cancellationToken)
             .ConfigureAwait(false);
 
@@ -220,26 +220,25 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         }
 
         job.MarkQueued(DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-        if (_legacyInlineRunner is not null)
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
+        await AppendLogAsync(job.Id, "info", "Start", "job started", null, cancellationToken).ConfigureAwait(false);
+        var inlineRunner = _legacyInlineRunner ?? new DataMigrationRunner(
+            _db,
+            _tenantProvider,
+            _idGen,
+            _secretProtector,
+            _resolver,
+            _planner,
+            new SqlSugarMigrationBulkWriter(NullLogger<SqlSugarMigrationBulkWriter>.Instance),
+            NullLogger<DataMigrationRunner>.Instance);
+        await inlineRunner.RunAsync(job.Id, cancellationToken).ConfigureAwait(false);
+        job = await LoadJobAsync(jobId).ConfigureAwait(false);
+        if (job.State == DataMigrationStates.Succeeded && job.ValidateAfterCopy)
         {
-            await _legacyInlineRunner.RunAsync(job.Id, cancellationToken).ConfigureAwait(false);
+            await ValidateJobAsync(job.Id.ToString(), cancellationToken).ConfigureAwait(false);
             job = await LoadJobAsync(jobId).ConfigureAwait(false);
-            if (job.State == DataMigrationStates.Succeeded)
-            {
-                job.TransitionTo(DataMigrationStates.Validating, DateTimeOffset.UtcNow);
-                await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            return MapJob(job);
         }
 
-        _backgroundWorkQueue.Enqueue(async (serviceProvider, ct) =>
-        {
-            var runner = serviceProvider.GetRequiredService<IDataMigrationRunner>();
-            await runner.RunAsync(job.Id, ct).ConfigureAwait(false);
-        });
-        await AppendLogAsync(job.Id, "info", "Start", "job enqueued", null, cancellationToken).ConfigureAwait(false);
         return MapJob(job);
     }
 
@@ -261,7 +260,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             throw new InvalidOperationException($"cannot cancel migration from state {job.State}");
         }
 
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "warn", "Cancel", $"cancel requested from state {job.State}", null, cancellationToken).ConfigureAwait(false);
         return MapJob(job);
     }
@@ -326,7 +325,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         }
 
         job.TransitionTo(DataMigrationStates.Validating, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
 
         var source = await _resolver.ResolveAsync(BuildConfig(job.SourceConfigJson, job.SourceDbType, job.SourceConnectionString), cancellationToken)
             .ConfigureAwait(false);
@@ -421,7 +420,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
 
         job.TransitionTo(overallPassed ? DataMigrationStates.Validated : DataMigrationStates.ValidationFailed, DateTimeOffset.UtcNow,
             overallPassed ? null : $"{failed} table(s) failed validation");
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Validate", $"passed={passed}/{tableProgress.Count}", null, cancellationToken).ConfigureAwait(false);
 
         return new DataMigrationReportDto(
@@ -459,13 +458,13 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         catch (Exception ex)
         {
             job.TransitionTo(DataMigrationStates.CutoverFailed, DateTimeOffset.UtcNow, ex.Message);
-            await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+            await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
             await AppendLogAsync(job.Id, "error", "Cutover", ex.Message, null, cancellationToken).ConfigureAwait(false);
             throw;
         }
 
         job.MarkFinished(DataMigrationStates.CutoverCompleted, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Cutover", $"completed; keep source readonly for {request.KeepSourceReadonlyForDays} days", null, cancellationToken)
             .ConfigureAwait(false);
         return MapJob(job);
@@ -482,7 +481,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         }
 
         job.MarkFinished(DataMigrationStates.RolledBack, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "warn", "Rollback", "rolled back by user request", null, cancellationToken).ConfigureAwait(false);
         return MapJob(job);
     }
@@ -498,7 +497,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         }
 
         job.TransitionTo(DataMigrationStates.Ready, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Retry", "retry triggered; ready to resume", null, cancellationToken).ConfigureAwait(false);
         return MapJob(job);
     }
@@ -570,6 +569,11 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             .ConfigureAwait(false);
         return job ?? throw new InvalidOperationException($"migration job {jobId} not found");
     }
+
+    private Task<int> UpdateJobAsync(DataMigrationJob job, CancellationToken cancellationToken = default)
+        => _db.Updateable(job)
+            .Where(item => item.TenantIdValue == job.TenantIdValue && item.Id == job.Id)
+            .ExecuteCommandAsync(cancellationToken);
 
     private DbConnectionConfig BuildConfig(string? configJson, string dbType, string encryptedConnectionString)
     {
@@ -822,9 +826,11 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
     private static IMigrationConnectionResolver CreateLegacyResolver(ISqlSugarClient db, ITenantProvider tenantProvider)
     {
         var repo = new Repositories.TenantDataSourceRepository(db);
+        var instanceRepo = new Repositories.AiDatabasePhysicalInstanceRepository(db);
         var options = Microsoft.Extensions.Options.Options.Create(new Infrastructure.Options.DatabaseEncryptionOptions());
         var aiSvc = new AiPlatform.AiDatabasePhysicalTableService(db, NullLogger<AiPlatform.AiDatabasePhysicalTableService>.Instance);
-        return new MigrationConnectionResolver(db, tenantProvider, repo, options, aiSvc);
+        var aiSecretProtector = new AiPlatform.AiDatabaseSecretProtector(options);
+        return new MigrationConnectionResolver(db, tenantProvider, repo, options, aiSvc, instanceRepo, aiSecretProtector);
     }
 
     private static IDataMigrationRunner CreateLegacyRunner(

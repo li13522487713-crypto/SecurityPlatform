@@ -28,7 +28,7 @@ public sealed class SqlSugarMigrationBulkWriter : IMigrationBulkWriter
         using var targetScope = MigrationSqlSugarScopeFactory.Create(target.ConnectionString, target.DbType);
         if (createSchema)
         {
-            await EnsureTargetSchemaAsync(targetScope, target.DbType, item, cancellationToken).ConfigureAwait(false);
+            await EnsureTargetSchemaAsync(targetScope, source, target, item, cancellationToken).ConfigureAwait(false);
         }
 
         var rowsBefore = await CountTargetRowsAsync(item, target, cancellationToken).ConfigureAwait(false);
@@ -122,7 +122,8 @@ public sealed class SqlSugarMigrationBulkWriter : IMigrationBulkWriter
 
     private async Task EnsureTargetSchemaAsync(
         ISqlSugarClient targetScope,
-        string targetDbType,
+        ResolvedMigrationConnection source,
+        ResolvedMigrationConnection target,
         DataMigrationPlanItem item,
         CancellationToken cancellationToken)
     {
@@ -139,18 +140,47 @@ public sealed class SqlSugarMigrationBulkWriter : IMigrationBulkWriter
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        await targetScope.Ado.ExecuteCommandAsync(
-            MigrationSqlSugarScopeFactory.BuildCreateAiTableSql(targetDbType, item.TableName)).ConfigureAwait(false);
-        foreach (var columnName in new[]
-                 {
-                     MigrationSqlSugarScopeFactory.AiOwnerUserIdColumn,
-                     MigrationSqlSugarScopeFactory.AiChannelIdColumn
-                 })
+        var createSql = TryReadSourceCreateTableSql(source, item.TableName)
+            ?? MigrationSqlSugarScopeFactory.BuildCreateAiTableSql(target.DbType, item.TableName);
+        await targetScope.Ado.ExecuteCommandAsync(createSql).ConfigureAwait(false);
+        if (createSql.Contains(MigrationSqlSugarScopeFactory.AiDataJsonColumn, StringComparison.OrdinalIgnoreCase))
         {
-            await targetScope.Ado.ExecuteCommandAsync(
-                MigrationSqlSugarScopeFactory.BuildCreateAiIndexSql(targetDbType, item.TableName, columnName, columnName))
-                .ConfigureAwait(false);
+            foreach (var columnName in new[]
+                     {
+                         MigrationSqlSugarScopeFactory.AiOwnerUserIdColumn,
+                         MigrationSqlSugarScopeFactory.AiChannelIdColumn
+                     })
+            {
+                await targetScope.Ado.ExecuteCommandAsync(
+                        MigrationSqlSugarScopeFactory.BuildCreateAiIndexSql(target.DbType, item.TableName, columnName, columnName))
+                    .ConfigureAwait(false);
+            }
         }
+    }
+
+    private static string? TryReadSourceCreateTableSql(ResolvedMigrationConnection source, string tableName)
+    {
+        if (!string.Equals(DataSourceDriverRegistry.NormalizeDriverCode(source.DbType), "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        using var sourceScope = MigrationSqlSugarScopeFactory.Create(source.ConnectionString, source.DbType);
+        var sql = Convert.ToString(sourceScope.Ado.GetScalar(
+            """
+            SELECT sql
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name = @tableName
+            LIMIT 1;
+            """,
+            new SugarParameter("@tableName", tableName)));
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return null;
+        }
+
+        return sql.Trim();
     }
 
     private async Task TruncateOrDeleteAsync(

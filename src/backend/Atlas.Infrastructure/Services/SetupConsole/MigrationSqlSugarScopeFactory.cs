@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.SetupConsole;
@@ -182,6 +184,14 @@ internal static class MigrationSqlSugarScopeFactory
     {
         var normalized = tableName.Replace("-", "_", StringComparison.Ordinal);
         var raw = $"{normalized}_{suffix}";
-        return raw.Length <= 60 ? raw : raw[..60];
+        if (raw.Length <= 60)
+        {
+            return raw;
+        }
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)))[..8].ToLowerInvariant();
+        var tail = $"_{suffix}_{hash}";
+        var prefixLength = Math.Max(1, 60 - tail.Length);
+        return $"{normalized[..Math.Min(normalized.Length, prefixLength)]}{tail}";
     }
 }

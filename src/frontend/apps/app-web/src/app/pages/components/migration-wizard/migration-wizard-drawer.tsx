@@ -44,9 +44,14 @@ const { Text, Title } = Typography;
 type WriteMode = "InsertOnly" | "TruncateThenInsert" | "Upsert";
 type ModuleCategory = Exclude<DataMigrationModuleScope["categories"][number], "all">;
 
+type MigrationWizardSource = Omit<AiWorkspaceLibraryItem, "resourceId"> & {
+  resourceId: number | string;
+  environment?: "Draft" | "Online" | string | null;
+};
+
 export interface MigrationWizardDrawerProps {
   visible: boolean;
-  source: AiWorkspaceLibraryItem | null;
+  source: MigrationWizardSource | null;
   onClose: () => void;
   onTargetCreated?: () => void | Promise<void>;
 }
@@ -150,13 +155,15 @@ function parseTables(text: string): string[] | null {
   return tables.length > 0 ? tables : null;
 }
 
-function buildSourceConfig(source: AiWorkspaceLibraryItem): DbConnectionConfig {
+function buildSourceConfig(source: MigrationWizardSource): DbConnectionConfig {
+  const environment = source.environment ?? (source.name.includes("Online") ? "Online" : "Draft");
   return {
     driverCode: "",
     dbType: "",
     mode: "CurrentSystemAiDatabase",
     displayName: source.name,
-    aiDatabaseId: Number(source.resourceId)
+    visualConfig: { environment },
+    aiDatabaseId: String(source.resourceId)
   };
 }
 
@@ -165,7 +172,7 @@ function buildTargetConfig(target: TenantDataSourceDto): DbConnectionConfig {
     driverCode: target.driverCode || target.dbType,
     dbType: target.dbType,
     mode: "SavedDataSource",
-    dataSourceId: Number(target.id),
+    dataSourceId: String(target.id),
     displayName: target.name
   };
 }
@@ -469,13 +476,40 @@ export function MigrationWizardDrawer({ visible, source, onClose, onTargetCreate
 
   const targetColumns: ColumnProps<TenantDataSourceDto>[] = [
     {
+      title: t("setupConsoleMigrationSelectTarget"),
+      dataIndex: "id",
+      width: 92,
+      fixed: "left",
+      render: (_value, record) => {
+        const selected = String(record.id) === String(targetId);
+        return (
+          <Button
+            size="small"
+            theme={selected ? "solid" : "light"}
+            type={selected ? "primary" : "tertiary"}
+            onClick={event => {
+              event.stopPropagation();
+              handleTargetSelect([record.id]);
+            }}
+          >
+            {selected ? t("setupConsoleMigrationSelectedTarget") : t("setupConsoleMigrationSelectTarget")}
+          </Button>
+        );
+      }
+    },
+    {
       title: t("cozeLibraryCreateName"),
       dataIndex: "name",
+      width: 300,
       render: (_value, record) => (
         <div>
-          <Text strong>{record.name}</Text>
+          <Text strong ellipsis={{ showTooltip: true }}>
+            {record.name}
+          </Text>
           <div>
-            <Text type="tertiary">{formatTenantDataSourceSummary(record)}</Text>
+            <Text type="tertiary" ellipsis={{ showTooltip: true }}>
+              {formatTenantDataSourceSummary(record)}
+            </Text>
           </div>
         </div>
       )
@@ -553,31 +587,38 @@ export function MigrationWizardDrawer({ visible, source, onClose, onTargetCreate
               }
             }}
           />
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, minWidth: 0 }}>
             <Input
               prefix={null}
               value={targetKeyword}
               onChange={setTargetKeyword}
               placeholder={t("cozeLibrarySearchPlaceholder")}
               showClear
-              style={{ width: 280 }}
+              style={{ width: "min(100%, 320px)" }}
             />
             <Button icon={<IconRefresh />} loading={loadingTargets} onClick={() => void loadTargets()}>
               {t("setupConsoleRefresh")}
             </Button>
           </div>
-          <Table
-            columns={targetColumns}
-            dataSource={filteredTargets}
-            loading={loadingTargets}
-            rowKey="id"
-            pagination={false}
-            rowSelection={{
-              selectedRowKeys: targetId ? [targetId] : [],
-              onChange: selected => handleTargetSelect(selected as (string | number)[])
-            }}
-          />
-          <Space>
+          <div style={{ minWidth: 0, overflowX: "auto" }}>
+            <Table
+              columns={targetColumns}
+              dataSource={filteredTargets}
+              loading={loadingTargets}
+              rowKey="id"
+              pagination={false}
+              scroll={{ x: 980 }}
+              onRow={record => ({
+                onClick: () => handleTargetSelect([record.id]),
+                style: { cursor: "pointer" }
+              })}
+              rowSelection={{
+                selectedRowKeys: targetId ? [targetId] : [],
+                onChange: selected => handleTargetSelect(selected as (string | number)[])
+              }}
+            />
+          </div>
+          <Space wrap>
             <Button disabled={!targetId} onClick={() => void guarded("test-target", async () => {
               if (!targetId) {
                 return;
@@ -815,7 +856,7 @@ export function MigrationWizardDrawer({ visible, source, onClose, onTargetCreate
       title={t("setupConsoleMigrationWizardTitle")}
       visible={visible}
       onCancel={onClose}
-      width={1080}
+      width="min(1080px, calc(100vw - 32px))"
       footer={
         <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
           <Button disabled={step <= 0 || busy !== null} onClick={() => setStep(current => Math.max(0, current - 1))}>

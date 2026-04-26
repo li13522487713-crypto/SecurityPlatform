@@ -77,12 +77,12 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
             .Where(item => item.TenantIdValue == tenant && item.TokenHash == hash)
             .FirstAsync()
             .ConfigureAwait(false);
-        if (record is null || !record.IsActive(DateTimeOffset.UtcNow))
+        if (record is null || !record.IsActive(DateTimeOffset.Now))
         {
             return null;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
         record.Renew(now, now.Add(TokenLifetime));
         await _db.Updateable(record).ExecuteCommandAsync().ConfigureAwait(false);
 
@@ -106,7 +106,7 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
             .Where(item => item.TenantIdValue == tenant && item.TokenHash == hash)
             .FirstAsync()
             .ConfigureAwait(false);
-        return record is not null && record.IsActive(DateTimeOffset.UtcNow);
+        return record is not null && record.IsActive(DateTimeOffset.Now);
     }
 
     public async Task RevokeAsync(string consoleToken, CancellationToken cancellationToken = default)
@@ -125,7 +125,7 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
         {
             return;
         }
-        record.Revoke(DateTimeOffset.UtcNow);
+        record.Revoke(DateTimeOffset.Now);
         await _db.Updateable(record).ExecuteCommandAsync().ConfigureAwait(false);
     }
 
@@ -258,7 +258,7 @@ public sealed class SetupRecoveryKeyService : ISetupRecoveryKeyService
 
     private async Task<ConsoleAuthTokenDto> IssueTokenAsync(CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.Now;
         var plain = GenerateConsoleToken();
         var hash = HashToken(plain);
         var permissions = "system,workspace,migration";

@@ -53,7 +53,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
         var plan = await _planner.PlanAsync(job, source, target, cancellationToken).ConfigureAwait(false);
 
         job.MarkRunning(plan.TotalEntities, plan.TotalRows, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Runner", $"job queued with {plan.Items.Count} tables", null, cancellationToken)
             .ConfigureAwait(false);
         if (job.MigrateFiles)
@@ -88,13 +88,13 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
             try
             {
                 tableProgress.MarkRunning(DateTimeOffset.UtcNow);
-                await _db.Updateable(tableProgress).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                await UpdateTableProgressAsync(tableProgress, cancellationToken).ConfigureAwait(false);
 
                 var rowsBefore = await _bulkWriter
                     .PrepareTargetAsync(item, source, target, job.WriteMode, job.CreateSchema, cancellationToken)
                     .ConfigureAwait(false);
                 tableProgress.UpdateTargetRowsAfter(rowsBefore, DateTimeOffset.UtcNow);
-                await _db.Updateable(tableProgress).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                await UpdateTableProgressAsync(tableProgress, cancellationToken).ConfigureAwait(false);
 
                 var batchNo = 0;
                 var lastMaxId = await LoadCheckpointLastMaxIdAsync(job.Id, item.TableName, cancellationToken).ConfigureAwait(false);
@@ -106,7 +106,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
                     {
                         var cancelledTargetRows = await _bulkWriter.CountTargetRowsAsync(item, target, cancellationToken).ConfigureAwait(false);
                         tableProgress.MarkCancelled(cancelledTargetRows, DateTimeOffset.UtcNow);
-                        await _db.Updateable(tableProgress).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                        await UpdateTableProgressAsync(tableProgress, cancellationToken).ConfigureAwait(false);
                         await CancelJobAsync(freshJob, cancellationToken).ConfigureAwait(false);
                         return;
                     }
@@ -124,7 +124,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
                     copiedRows += writeResult.BatchNoRows;
 
                     tableProgress.RecordBatch(batchNo, tableProgress.CopiedRows + writeResult.BatchNoRows, lastMaxId.ToString(), DateTimeOffset.UtcNow);
-                    await _db.Updateable(tableProgress).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                    await UpdateTableProgressAsync(tableProgress, cancellationToken).ConfigureAwait(false);
                     await UpsertCheckpointAsync(job.Id, item.TableName, batchNo, lastMaxId, tableProgress.CopiedRows, cancellationToken)
                         .ConfigureAwait(false);
 
@@ -149,25 +149,25 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
                         ? (job.TotalEntities <= 0 ? 0m : Math.Round((completed * 100m) / job.TotalEntities, 2, MidpointRounding.AwayFromZero))
                         : Math.Round(copiedRows * 100m / job.TotalRows, 2, MidpointRounding.AwayFromZero);
                     freshJob.RecordProgress(item.EntityName, item.TableName, batchNo, completed, failed, copiedRows, progressPercent, DateTimeOffset.UtcNow);
-                    await _db.Updateable(freshJob).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                    await UpdateJobAsync(freshJob, cancellationToken).ConfigureAwait(false);
                 }
 
                 var targetRowsAfter = await _bulkWriter.CountTargetRowsAsync(item, target, cancellationToken).ConfigureAwait(false);
                 tableProgress.MarkSucceeded(targetRowsAfter, DateTimeOffset.UtcNow);
-                await _db.Updateable(tableProgress).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                await UpdateTableProgressAsync(tableProgress, cancellationToken).ConfigureAwait(false);
                 completed += 1;
                 freshJob = await LoadJobAsync(jobId, cancellationToken).ConfigureAwait(false);
                 var finishedProgress = freshJob.TotalRows <= 0
                     ? (freshJob.TotalEntities <= 0 ? 100m : Math.Round((completed * 100m) / freshJob.TotalEntities, 2, MidpointRounding.AwayFromZero))
                     : Math.Round(copiedRows * 100m / freshJob.TotalRows, 2, MidpointRounding.AwayFromZero);
                 freshJob.RecordProgress(item.EntityName, item.TableName, tableProgress.CurrentBatchNo, completed, failed, copiedRows, finishedProgress, DateTimeOffset.UtcNow);
-                await _db.Updateable(freshJob).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                await UpdateJobAsync(freshJob, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 failed += 1;
                 tableProgress.MarkFailed(ex.Message, tableProgress.FailedRows + 1, DateTimeOffset.UtcNow);
-                await _db.Updateable(tableProgress).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                await UpdateTableProgressAsync(tableProgress, cancellationToken).ConfigureAwait(false);
                 var failBatch = new DataMigrationBatch(
                     _tenantProvider.GetTenantId(),
                     _idGen.NextId(),
@@ -195,7 +195,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
             job.MarkFinished(DataMigrationStates.Succeeded, DateTimeOffset.UtcNow);
         }
 
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Runner", $"job finished state={job.State}", null, cancellationToken)
             .ConfigureAwait(false);
 
@@ -210,7 +210,7 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
     private async Task CancelJobAsync(DataMigrationJob job, CancellationToken cancellationToken)
     {
         job.MarkFinished(DataMigrationStates.Cancelled, DateTimeOffset.UtcNow);
-        await _db.Updateable(job).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "warn", "Runner", "job cancelled by user", null, cancellationToken).ConfigureAwait(false);
     }
 
@@ -289,8 +289,21 @@ public sealed class DataMigrationRunner : IDataMigrationRunner
         }
 
         checkpoint.Advance(batchNo, lastMaxId, copiedRows, DateTimeOffset.UtcNow);
-        await _db.Updateable(checkpoint).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await _db.Updateable(checkpoint)
+            .Where(row => row.TenantIdValue == checkpoint.TenantIdValue && row.Id == checkpoint.Id)
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
+
+    private Task<int> UpdateJobAsync(DataMigrationJob job, CancellationToken cancellationToken)
+        => _db.Updateable(job)
+            .Where(row => row.TenantIdValue == job.TenantIdValue && row.Id == job.Id)
+            .ExecuteCommandAsync(cancellationToken);
+
+    private Task<int> UpdateTableProgressAsync(DataMigrationTableProgress tableProgress, CancellationToken cancellationToken)
+        => _db.Updateable(tableProgress)
+            .Where(row => row.TenantIdValue == tableProgress.TenantIdValue && row.Id == tableProgress.Id)
+            .ExecuteCommandAsync(cancellationToken);
 
     private async Task AppendLogAsync(
         long jobId,

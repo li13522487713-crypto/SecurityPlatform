@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.SetupConsole.Abstractions;
 using Atlas.Application.SetupConsole.Models;
 using Atlas.Core.Tenancy;
@@ -9,6 +10,7 @@ using Atlas.Domain.Setup.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 
@@ -26,19 +28,25 @@ public sealed class MigrationConnectionResolver : IMigrationConnectionResolver
     private readonly TenantDataSourceRepository _tenantDataSourceRepository;
     private readonly DatabaseEncryptionOptions _encryptionOptions;
     private readonly AiDatabasePhysicalTableService _aiDatabasePhysicalTableService;
+    private readonly AiDatabasePhysicalInstanceRepository _aiDatabasePhysicalInstanceRepository;
+    private readonly IAiDatabaseSecretProtector _aiDatabaseSecretProtector;
 
     public MigrationConnectionResolver(
         ISqlSugarClient db,
         ITenantProvider tenantProvider,
         TenantDataSourceRepository tenantDataSourceRepository,
         IOptions<DatabaseEncryptionOptions> encryptionOptions,
-        AiDatabasePhysicalTableService aiDatabasePhysicalTableService)
+        AiDatabasePhysicalTableService aiDatabasePhysicalTableService,
+        AiDatabasePhysicalInstanceRepository aiDatabasePhysicalInstanceRepository,
+        IAiDatabaseSecretProtector aiDatabaseSecretProtector)
     {
         _db = db;
         _tenantProvider = tenantProvider;
         _tenantDataSourceRepository = tenantDataSourceRepository;
         _encryptionOptions = encryptionOptions.Value;
         _aiDatabasePhysicalTableService = aiDatabasePhysicalTableService;
+        _aiDatabasePhysicalInstanceRepository = aiDatabasePhysicalInstanceRepository;
+        _aiDatabaseSecretProtector = aiDatabaseSecretProtector;
     }
 
     public async Task<ResolvedMigrationConnection> ResolveAsync(
@@ -127,6 +135,13 @@ public sealed class MigrationConnectionResolver : IMigrationConnectionResolver
             throw new InvalidOperationException($"AiDatabase {config.AiDatabaseId.Value} not found.");
         }
 
+        if (database.StorageMode == AiDatabaseStorageMode.Standalone
+            && (database.DraftInstanceId.HasValue || database.OnlineInstanceId.HasValue))
+        {
+            return await ResolveStandaloneAiDatabaseAsync(config, tenantId, database, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         var baseConnection = ResolveCurrentSystem(config);
         var tableNames = _aiDatabasePhysicalTableService.BuildTableNames(tenantId, database.Id);
         var resolvedTables = new[]
@@ -156,6 +171,130 @@ public sealed class MigrationConnectionResolver : IMigrationConnectionResolver
             Fingerprint = ComputeFingerprint(
                 $"current-ai-database|{tenantId.Value:D}|{database.Id}|{string.Join('|', resolvedTables.Select(x => x.TableName))}")
         };
+    }
+
+    private async Task<ResolvedMigrationConnection> ResolveStandaloneAiDatabaseAsync(
+        DbConnectionConfig config,
+        TenantId tenantId,
+        AiDatabase database,
+        CancellationToken cancellationToken)
+    {
+        var environment = ResolveAiDatabaseEnvironment(config.VisualConfig);
+        var instance = await _aiDatabasePhysicalInstanceRepository
+            .FindByDatabaseEnvironmentAsync(tenantId, database.Id, environment, cancellationToken)
+            .ConfigureAwait(false);
+        if (instance is null)
+        {
+            throw new InvalidOperationException($"AiDatabase {database.Id} {environment} physical instance not found.");
+        }
+
+        if (instance.ProvisionState != AiDatabaseProvisionState.Ready)
+        {
+            throw new InvalidOperationException($"AiDatabase {database.Id} {environment} physical instance is not ready.");
+        }
+
+        var connectionString = _aiDatabaseSecretProtector.Decrypt(instance.EncryptedConnection);
+        var driverCode = DataSourceDriverRegistry.NormalizeDriverCode(instance.DriverCode);
+        var tables = DiscoverStandaloneSqliteTables(connectionString, driverCode);
+        return new ResolvedMigrationConnection(
+            driverCode,
+            driverCode,
+            DataMigrationConnectionModes.CurrentSystemAiDatabase,
+            connectionString,
+            config.DisplayName ?? $"{database.Name} {environment}",
+            null,
+            database.Id,
+            tables,
+            ComputeFingerprint(
+                $"standalone-ai-database|{tenantId.Value:D}|{database.Id}|{environment}|{connectionString}|{string.Join('|', tables.Select(x => x.TableName))}"));
+    }
+
+    private static AiDatabaseRecordEnvironment ResolveAiDatabaseEnvironment(IDictionary<string, string>? visualConfig)
+    {
+        if (visualConfig is not null
+            && visualConfig.TryGetValue("environment", out var value)
+            && Enum.TryParse<AiDatabaseRecordEnvironment>(value, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return AiDatabaseRecordEnvironment.Draft;
+    }
+
+    private static IReadOnlyList<ResolvedMigrationTable> DiscoverStandaloneSqliteTables(
+        string connectionString,
+        string driverCode)
+    {
+        if (!string.Equals(DataSourceDriverRegistry.NormalizeDriverCode(driverCode), "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            return Array.Empty<ResolvedMigrationTable>();
+        }
+
+        using var connection = new SqliteConnection(connectionString);
+        connection.Open();
+        var tableNames = new List<string>();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name NOT LIKE 'sqlite_%'
+                ORDER BY name;
+                """;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var tableName = reader.GetString(0);
+                if (!string.IsNullOrWhiteSpace(tableName))
+                {
+                    tableNames.Add(tableName);
+                }
+            }
+        }
+
+        var tables = new List<ResolvedMigrationTable>();
+        foreach (var tableName in tableNames)
+        {
+            var primaryKeyColumn = ReadSqlitePrimaryKeyColumn(connection, tableName);
+
+            if (string.IsNullOrWhiteSpace(primaryKeyColumn))
+            {
+                continue;
+            }
+
+            tables.Add(new ResolvedMigrationTable(tableName, tableName, primaryKeyColumn, true, null, "table"));
+        }
+
+        return tables;
+    }
+
+    private static string? ReadSqlitePrimaryKeyColumn(SqliteConnection connection, string tableName)
+    {
+        var fallbackIdColumn = default(string);
+        var candidates = new List<(string Name, int Order)>();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({MigrationSqlSugarScopeFactory.QuoteIdentifier("SQLite", tableName)});";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var name = reader.GetString(reader.GetOrdinal("name"));
+            var primaryKeyOrder = reader.GetInt32(reader.GetOrdinal("pk"));
+            if (primaryKeyOrder > 0)
+            {
+                candidates.Add((name, primaryKeyOrder));
+            }
+            else if (string.Equals(name, "id", StringComparison.OrdinalIgnoreCase))
+            {
+                fallbackIdColumn = name;
+            }
+        }
+
+        return candidates
+            .OrderBy(item => item.Order)
+            .Select(item => item.Name)
+            .FirstOrDefault()
+            ?? fallbackIdColumn;
     }
 
     private async Task<ResolvedMigrationConnection> ResolveSavedDataSourceAsync(

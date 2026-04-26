@@ -236,7 +236,10 @@ public sealed class DataMigrationPlanner : IDataMigrationPlanner
             if (existingMap.TryGetValue(item.TableName, out var record))
             {
                 record.ResetForRetry(item.SourceRows, item.TargetRowsBefore, job.BatchSize, item.TotalBatchCount, now);
-                await _db.Updateable(record).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                await _db.Updateable(record)
+                    .Where(row => row.TenantIdValue == record.TenantIdValue && row.Id == record.Id)
+                    .ExecuteCommandAsync(cancellationToken)
+                    .ConfigureAwait(false);
                 continue;
             }
 

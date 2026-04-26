@@ -72,7 +72,7 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
 
     setMigrationSource({
       resourceType: "database",
-      resourceId: Number(source.aiDatabaseId),
+      resourceId: source.aiDatabaseId,
       name: source.name,
       description: source.description ?? undefined,
       updatedAt: source.updatedAt ?? source.createdAt ?? new Date().toISOString(),
@@ -80,6 +80,7 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
       subType: "table",
       typeLabel: labels.aiDatabases,
       source: "custom",
+      environment: source.environment,
       status: source.provisionState ?? source.status ?? undefined
     });
   }
@@ -151,27 +152,6 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
       }
     >
       <section className="database-center-layout">
-        <nav className="database-center-nav">
-          {[
-            labels.overview,
-            labels.dataSourceManagement,
-            labels.aiDatabases,
-            labels.structure,
-            labels.sqlEditor,
-            labels.backupManagement,
-            labels.auditLogs,
-            labels.settingsCenter
-          ].map(item => (
-            <button
-              key={item}
-              type="button"
-              className={`database-center-nav__item${item === labels.dataSourceManagement ? " database-center-nav__item--active" : ""}`}
-            >
-              <span className="database-center-nav__glyph" />
-              {item}
-            </button>
-          ))}
-        </nav>
         <div className="database-center-drawer-actions">
           <Button size="small" onClick={() => setDrawerPanel("guide")}>{labels.overview}</Button>
           <Button size="small" onClick={() => setDrawerPanel("sources")}>{labels.sources}</Button>

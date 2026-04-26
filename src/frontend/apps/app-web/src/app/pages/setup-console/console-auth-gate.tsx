@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { Button, Divider, Input, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../i18n";
-import { authenticateSetupConsole } from "../../../services/mock";
+import { setupConsoleApi } from "../../../services/api-setup-console";
 import { FormCard, InfoBanner, PageShell } from "../../_shared";
 import { writeConsoleToken } from "./console-token-storage";
 
@@ -52,7 +52,7 @@ export function ConsoleAuthGate({ children, authenticated, onAuthenticated }: Co
     setSubmitting(true);
     setErrorMessage(null);
     try {
-      const response = await authenticateSetupConsole({
+      const response = await setupConsoleApi.authenticate({
         recoveryKey: form.recoveryKey.trim() || undefined,
         bootstrapAdminUsername: form.bootstrapAdminUsername.trim() || undefined,
         bootstrapAdminPassword: form.bootstrapAdminPassword || undefined

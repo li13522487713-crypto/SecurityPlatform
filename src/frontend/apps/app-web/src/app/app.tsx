@@ -2757,8 +2757,8 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBounda
     return { hasError: true };
   }
 
-  componentDidCatch(_error: Error, _errorInfo: ErrorInfo): void {
-    // Keep the fallback page minimal and avoid recursive state updates.
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    console.error("AppErrorBoundary captured render error", error, errorInfo);
   }
 
   render() {

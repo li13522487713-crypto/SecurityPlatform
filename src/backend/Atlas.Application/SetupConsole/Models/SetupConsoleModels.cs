@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Atlas.Application.SetupConsole.Models;
 
 // =============================================================================
@@ -128,7 +130,9 @@ public sealed record DbConnectionConfig(
     string? ConnectionString,
     IDictionary<string, string>? VisualConfig,
     string? DisplayName = null,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     long? DataSourceId = null,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
     long? AiDatabaseId = null);
 
 public sealed record MigrationTestConnectionRequest(DbConnectionConfig Connection);
