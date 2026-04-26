@@ -284,3 +284,4 @@ export function MendixStudioIndexPage({
 
 export { useMendixStudioStore };
 export { SAMPLE_PROCUREMENT_APP } from "./sample-app";
+export * from "./microflow";

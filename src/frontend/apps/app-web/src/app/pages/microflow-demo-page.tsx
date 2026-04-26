@@ -1,16 +1,12 @@
-import { useMemo } from "react";
-import {
-  createLocalMicroflowApiClient,
-  MicroflowEditor,
-  sampleMicroflowSchema
-} from "@atlas/microflow";
+import { MendixMicroflowResourceTab, createMicroflowEditorPath } from "@atlas/mendix-studio-core";
+import { useNavigate } from "react-router-dom";
 
 export function MicroflowDemoPage() {
-  const apiClient = useMemo(() => createLocalMicroflowApiClient([sampleMicroflowSchema]), []);
+  const navigate = useNavigate();
 
   return (
-    <div style={{ height: "calc(100vh - 60px)", minHeight: 720 }}>
-      <MicroflowEditor schema={sampleMicroflowSchema} apiClient={apiClient} />
+    <div style={{ height: "calc(100vh - 60px)", minHeight: 720, padding: 16 }}>
+      <MendixMicroflowResourceTab onOpenMicroflow={resourceId => navigate(createMicroflowEditorPath(resourceId))} />
     </div>
   );
 }
