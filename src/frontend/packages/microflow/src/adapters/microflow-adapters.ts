@@ -1151,6 +1151,7 @@ export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMi
   return {
     $ID: schema.id,
     $Type: "Microflows$Microflow",
+    $UnitID: schema.moduleId,
     name: schema.name,
     documentation: schema.documentation ?? "",
     parameters: schema.parameters,
@@ -1175,6 +1176,7 @@ export function toMendixCompat(schema: MicroflowAuthoringSchema): MendixCompatMi
 }
 
 export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthoringSchema {
+  const variables = buildVariableIndex(input.parameters, input.objectCollection, input.flows);
   return {
     schemaVersion: "1.0.0",
     mendixProfile: "mx11",
@@ -1183,7 +1185,7 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
     name: input.name,
     displayName: input.name,
     documentation: input.documentation,
-    moduleId: "default",
+    moduleId: input.$UnitID ?? "default",
     parameters: input.parameters,
     returnType: input.microflowReturnType,
     returnVariableName: input.returnVariableName,
@@ -1205,10 +1207,10 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
       asWorkflowAction: input.workflowActionInfo ? { enabled: true, ...input.workflowActionInfo } : undefined,
       url: input.url ? { enabled: true, path: input.url, searchParameters: input.urlSearchParameters } : undefined
     },
-    variables: emptyVariableIndex(),
+    variables,
     validation: { issues: [] },
     editor: { viewport: { x: 0, y: 0, zoom: 1 }, selection: {} },
-    audit: { version: "v1", status: "draft" }
+    audit: { version: "v1", status: input.excluded ? "archived" : "draft" }
   };
 }
 

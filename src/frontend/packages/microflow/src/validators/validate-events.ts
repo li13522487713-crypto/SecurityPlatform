@@ -23,6 +23,9 @@ export function validateEvents(schema: MicroflowSchema): MicroflowValidationIssu
       if (incoming.length > 0) {
         issues.push(issue("MF_START_HAS_INCOMING", "StartEvent cannot have incoming flows.", { objectId: item.object.id }));
       }
+      if (!outgoing.some(flow => flow.kind === "sequence" && !flow.isErrorHandler)) {
+        issues.push(issue("MF_START_NO_OUTGOING", "StartEvent must have at least one non-error SequenceFlow outgoing.", { objectId: item.object.id }));
+      }
       if (item.loopObjectId) {
         issues.push(issue("MF_START_IN_LOOP", "StartEvent cannot be placed inside Loop.", { objectId: item.object.id }));
       }
@@ -40,9 +43,21 @@ export function validateEvents(schema: MicroflowSchema): MicroflowValidationIssu
       if (schema.returnType.kind !== "void" && !item.object.returnValue) {
         issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "Non-void microflow EndEvent must have returnValue.", { objectId: item.object.id, fieldPath: "returnValue" }));
       }
+      if (schema.returnType.kind !== "void" && item.object.returnValue?.inferredType && item.object.returnValue.inferredType.kind !== schema.returnType.kind) {
+        issues.push(issue("MF_END_RETURN_TYPE_MISMATCH", "EndEvent.returnValue inferredType must be compatible with microflow returnType.", { objectId: item.object.id, fieldPath: "returnValue.inferredType" }));
+      }
     }
-    if (item.object.kind === "errorEvent" && outgoing.length > 0) {
-      issues.push(issue("MF_ERROR_EVENT_OUTGOING", "ErrorEvent cannot have outgoing flows.", { objectId: item.object.id }));
+    if (item.object.kind === "errorEvent") {
+      if (outgoing.length > 0) {
+        issues.push(issue("MF_ERROR_EVENT_OUTGOING", "ErrorEvent cannot have outgoing flows.", { objectId: item.object.id }));
+      }
+      const incomingSequence = incoming.filter(flow => flow.kind === "sequence");
+      if (incomingSequence.some(flow => !flow.isErrorHandler)) {
+        issues.push(issue("MF_ERROR_EVENT_OUT_OF_SCOPE", "ErrorEvent cannot be connected by normal SequenceFlow.", { objectId: item.object.id }));
+      }
+      if (!incomingSequence.some(flow => flow.isErrorHandler)) {
+        issues.push(issue("MF_ERROR_EVENT_OUT_OF_SCOPE", "ErrorEvent must be in error handler scope (requires incoming isErrorHandler SequenceFlow).", { objectId: item.object.id }));
+      }
     }
   }
   return issues;

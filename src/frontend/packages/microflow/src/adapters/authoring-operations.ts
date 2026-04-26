@@ -1,9 +1,10 @@
 import {
-  createMicroflowNodeFromRegistry,
   getMicroflowNodeRegistryKey,
+  microflowActionRegistryByActivityType,
   type MicroflowNodeRegistryEntry
 } from "../node-registry";
 import type {
+  MicroflowAction,
   MicroflowAnnotationFlow,
   MicroflowCaseValue,
   MicroflowDataType,
@@ -19,7 +20,7 @@ import type {
   MicroflowSequenceFlow,
   MicroflowSize
 } from "../schema/types";
-import { emptyVariableIndex, flattenObjectCollection, legacyNodeToObject, toEditorGraph } from "./microflow-adapters";
+import { emptyVariableIndex, flattenObjectCollection, toEditorGraph } from "./microflow-adapters";
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -191,7 +192,263 @@ export function splitFlowWithObject(schema: MicroflowSchema, flowId: string, obj
 }
 
 export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, position: MicroflowPoint, id = `${getMicroflowNodeRegistryKey(entry).replace(":", "-")}-${Date.now()}`): MicroflowObject {
-  return legacyNodeToObject(createMicroflowNodeFromRegistry(entry, position, id));
+  const config = entry.defaultConfig as Record<string, unknown>;
+  const base = {
+    id,
+    stableId: id,
+    caption: entry.title,
+    documentation: entry.documentation.summary,
+    relativeMiddlePoint: position,
+    size: {
+      width: entry.render.width ?? 176,
+      height: entry.render.height ?? 76
+    },
+    editor: {
+      colorToken: entry.colorToken,
+      iconKey: entry.iconKey
+    }
+  };
+  if (entry.type === "event") {
+    const eventType = String(config.eventType ?? "start");
+    if (eventType === "start") {
+      return { ...base, kind: "startEvent", officialType: "Microflows$StartEvent", trigger: { type: "manual" } };
+    }
+    if (eventType === "end") {
+      return { ...base, kind: "endEvent", officialType: "Microflows$EndEvent", endBehavior: { type: "normalReturn" } };
+    }
+    if (eventType === "error") {
+      return {
+        ...base,
+        kind: "errorEvent",
+        officialType: "Microflows$ErrorEvent",
+        error: { sourceVariableName: "$latestError", messageExpression: expression("$latestError") }
+      };
+    }
+    if (eventType === "break") {
+      return { ...base, kind: "breakEvent", officialType: "Microflows$BreakEvent" };
+    }
+    return { ...base, kind: "continueEvent", officialType: "Microflows$ContinueEvent" };
+  }
+  if (entry.type === "decision") {
+    return {
+      ...base,
+      kind: "exclusiveSplit",
+      officialType: "Microflows$ExclusiveSplit",
+      splitCondition: { kind: "expression", expression: expression("true", { kind: "boolean" }), resultType: "boolean" },
+      errorHandlingType: "rollback"
+    };
+  }
+  if (entry.type === "objectTypeDecision") {
+    return {
+      ...base,
+      kind: "inheritanceSplit",
+      officialType: "Microflows$InheritanceSplit",
+      inputObjectVariableName: "object",
+      entity: { generalizedEntityQualifiedName: "System.Object", allowedSpecializations: [] },
+      errorHandlingType: "rollback"
+    };
+  }
+  if (entry.type === "merge") {
+    return {
+      ...base,
+      kind: "exclusiveMerge",
+      officialType: "Microflows$ExclusiveMerge",
+      mergeBehavior: { strategy: "firstArrived" }
+    };
+  }
+  if (entry.type === "loop") {
+    return {
+      ...base,
+      kind: "loopedActivity",
+      officialType: "Microflows$LoopedActivity",
+      documentation: entry.documentation.summary,
+      errorHandlingType: "rollback",
+      loopSource: {
+        kind: "iterableList",
+        officialType: "Microflows$IterableList",
+        listVariableName: String(config.iterableVariableName ?? "items"),
+        iteratorVariableName: String(config.itemVariableName ?? "item"),
+        currentIndexVariableName: "$currentIndex"
+      },
+      objectCollection: {
+        id: `${id}-collection`,
+        officialType: "Microflows$MicroflowObjectCollection",
+        objects: []
+      }
+    };
+  }
+  if (entry.type === "parameter") {
+    const parameter = (config.parameter as { id?: string } | undefined) ?? {};
+    return {
+      ...base,
+      kind: "parameterObject",
+      officialType: "Microflows$MicroflowParameterObject",
+      parameterId: parameter.id ?? id
+    };
+  }
+  if (entry.type === "annotation") {
+    return {
+      ...base,
+      kind: "annotation",
+      officialType: "Microflows$Annotation",
+      text: String(config.text ?? entry.title)
+    };
+  }
+  const action = defaultActionFromRegistry(entry, id, config);
+  return {
+    ...base,
+    kind: "actionActivity",
+    officialType: "Microflows$ActionActivity",
+    caption: entry.title,
+    autoGenerateCaption: false,
+    backgroundColor: "default",
+    disabled: false,
+    action
+  };
+}
+
+function expression(raw: string, inferredType?: MicroflowDataType): MicroflowExpression {
+  return {
+    raw,
+    inferredType,
+    references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+    diagnostics: []
+  };
+}
+
+function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: string, config: Record<string, unknown>): MicroflowAction {
+  const registryAction = entry.activityType ? microflowActionRegistryByActivityType.get(entry.activityType) : undefined;
+  const kind = registryAction?.kind ?? "logMessage";
+  const base = {
+    id: `action-${objectId}`,
+    officialType: registryAction?.officialType ?? "Microflows$LogMessageAction",
+    kind,
+    errorHandlingType: "rollback" as const,
+    documentation: entry.documentation.summary,
+    editor: {
+      category: registryAction?.category ?? "logging",
+      iconKey: registryAction?.iconKey ?? entry.iconKey,
+      availability: registryAction?.availability ?? "supported"
+    }
+  };
+  if (kind === "retrieve") {
+    return {
+      ...base,
+      kind: "retrieve",
+      officialType: "Microflows$RetrieveAction",
+      outputVariableName: String(config.resultVariableName ?? config.objectVariableName ?? "result"),
+      retrieveSource: String(config.retrieveMode ?? "database") === "association"
+        ? {
+            kind: "association",
+            officialType: "Microflows$AssociationRetrieveSource",
+            associationQualifiedName: typeof config.association === "string" ? config.association : null,
+            startVariableName: String(config.objectVariableName ?? "context")
+          }
+        : {
+            kind: "database",
+            officialType: "Microflows$DatabaseRetrieveSource",
+            entityQualifiedName: typeof config.entity === "string" ? config.entity : null,
+            xPathConstraint: null,
+            sortItemList: { items: [] },
+            range: { kind: "first", officialType: "Microflows$ConstantRange", value: "first" }
+          }
+    };
+  }
+  if (kind === "createObject") {
+    return {
+      ...base,
+      kind: "createObject",
+      officialType: "Microflows$CreateObjectAction",
+      entityQualifiedName: String(config.entity ?? "System.Object"),
+      outputVariableName: String(config.resultVariableName ?? "object"),
+      memberChanges: [],
+      commit: { enabled: false, withEvents: true, refreshInClient: false }
+    };
+  }
+  if (kind === "changeMembers") {
+    return {
+      ...base,
+      kind: "changeMembers",
+      officialType: "Microflows$ChangeMembersAction",
+      changeVariableName: String(config.objectVariableName ?? "object"),
+      memberChanges: [],
+      commit: { enabled: false, withEvents: true, refreshInClient: false },
+      validateObject: true
+    };
+  }
+  if (kind === "commit") {
+    return {
+      ...base,
+      kind: "commit",
+      officialType: "Microflows$CommitAction",
+      objectOrListVariableName: String(config.objectVariableName ?? "object"),
+      withEvents: Boolean(config.withEvents ?? true),
+      refreshInClient: Boolean(config.refreshClient ?? false)
+    };
+  }
+  if (kind === "delete") {
+    return {
+      ...base,
+      kind: "delete",
+      officialType: "Microflows$DeleteAction",
+      objectOrListVariableName: String(config.objectVariableName ?? "object"),
+      withEvents: Boolean(config.withEvents ?? true),
+      deleteBehavior: "deleteOnly"
+    };
+  }
+  if (kind === "rollback") {
+    return {
+      ...base,
+      kind: "rollback",
+      officialType: "Microflows$RollbackAction",
+      objectOrListVariableName: String(config.objectVariableName ?? "object"),
+      refreshInClient: Boolean(config.refreshClient ?? false)
+    };
+  }
+  if (kind === "callMicroflow") {
+    return {
+      ...base,
+      kind: "callMicroflow",
+      officialType: "Microflows$MicroflowCallAction",
+      targetMicroflowId: String(config.targetMicroflowId ?? ""),
+      parameterMappings: [],
+      returnValue: { storeResult: false },
+      callMode: "sync"
+    };
+  }
+  if (kind === "restCall") {
+    return {
+      ...base,
+      kind: "restCall",
+      officialType: "Microflows$RestCallAction",
+      request: {
+        method: String(config.method ?? "GET") as "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+        urlExpression: expression(String(config.url ?? "https://api.example.com"), { kind: "string" }),
+        headers: [],
+        queryParameters: [],
+        body: { kind: "none" }
+      },
+      response: { handling: { kind: "ignore" } },
+      timeoutSeconds: 30
+    };
+  }
+  if (kind === "logMessage") {
+    return {
+      ...base,
+      kind: "logMessage",
+      officialType: "Microflows$LogMessageAction",
+      level: "info",
+      logNodeName: String(config.logNodeName ?? "Microflow"),
+      template: { text: String(config.message ?? "Log message"), arguments: [] },
+      includeContextVariables: false,
+      includeTraceId: true
+    };
+  }
+  return {
+    ...base,
+    kind,
+    officialType: registryAction?.officialType ?? "Microflows$GenericAction"
+  };
 }
 
 export function createSequenceFlow(input: {

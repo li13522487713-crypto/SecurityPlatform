@@ -196,6 +196,87 @@ function collectVariables(schema: MicroflowSchema) {
     .concat(Object.values(schema.variables.systemVariables));
 }
 
+function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string, targetObjectId: string): MicroflowFlow {
+  const source = findObject(schema, sourceObjectId);
+  const target = findObject(schema, targetObjectId);
+  if (!source || !target) {
+    return createSequenceFlow({ originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
+  }
+  if (source.kind === "annotation" || target.kind === "annotation") {
+    return createAnnotationFlow({ originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
+  }
+  const supportsErrorHandling = source.kind === "actionActivity"
+    ? source.action.errorHandlingType !== "rollback"
+    : source.kind === "loopedActivity"
+      ? source.errorHandlingType !== "rollback"
+      : source.kind === "exclusiveSplit" || source.kind === "inheritanceSplit";
+  if (target.kind === "errorEvent" && supportsErrorHandling) {
+    return createSequenceFlow({
+      originObjectId: sourceObjectId,
+      destinationObjectId: targetObjectId,
+      isErrorHandler: true,
+      edgeKind: "errorHandler",
+      label: "error"
+    });
+  }
+  if (source.kind === "exclusiveSplit") {
+    const existing = schema.flows.filter(
+      (flow): flow is Extract<MicroflowFlow, { kind: "sequence" }> =>
+        flow.kind === "sequence" && flow.originObjectId === source.id && !flow.isErrorHandler
+    );
+    if (source.splitCondition.kind === "expression" && source.splitCondition.resultType === "boolean") {
+      const used = new Set(
+        existing.flatMap(flow => flow.caseValues)
+          .filter(caseValue => caseValue.kind === "boolean")
+          .map(caseValue => caseValue.value)
+      );
+      if (!used.has(true)) {
+        return createSequenceFlow({
+          originObjectId: sourceObjectId,
+          destinationObjectId: targetObjectId,
+          edgeKind: "decisionCondition",
+          caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }],
+          label: "true"
+        });
+      }
+      if (!used.has(false)) {
+        return createSequenceFlow({
+          originObjectId: sourceObjectId,
+          destinationObjectId: targetObjectId,
+          edgeKind: "decisionCondition",
+          caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }],
+          label: "false"
+        });
+      }
+    }
+    return createSequenceFlow({
+      originObjectId: sourceObjectId,
+      destinationObjectId: targetObjectId,
+      edgeKind: "decisionCondition",
+      caseValues: [{ kind: "fallback", officialType: "Microflows$NoCase" }],
+      label: "fallback"
+    });
+  }
+  if (source.kind === "inheritanceSplit") {
+    const existingCases = schema.flows
+      .filter((flow): flow is Extract<MicroflowFlow, { kind: "sequence" }> => flow.kind === "sequence" && flow.originObjectId === source.id && !flow.isErrorHandler)
+      .flatMap(flow => flow.caseValues)
+      .filter(caseValue => caseValue.kind === "inheritance")
+      .map(caseValue => caseValue.entityQualifiedName);
+    const nextEntity = source.entity.allowedSpecializations.find(entity => !existingCases.includes(entity));
+    return createSequenceFlow({
+      originObjectId: sourceObjectId,
+      destinationObjectId: targetObjectId,
+      edgeKind: "objectTypeCondition",
+      caseValues: nextEntity
+        ? [{ kind: "inheritance", officialType: "Microflows$InheritanceCase", entityQualifiedName: nextEntity }]
+        : [{ kind: "fallback", officialType: "Microflows$NoCase" }],
+      label: nextEntity ?? "fallback"
+    });
+  }
+  return createSequenceFlow({ originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
+}
+
 function NodeCard({
   node,
   selected,
@@ -302,11 +383,13 @@ function EdgeLayer({
 }
 
 function MicroflowCanvas({
+  schema,
   graph,
   traceFrames,
   onPatch,
   onDropRegistryItem
 }: {
+  schema: MicroflowSchema;
   graph: MicroflowEditorGraph;
   traceFrames: MicroflowTraceFrame[];
   onPatch: (schemaPatch: MicroflowEditorGraphPatch) => void;
@@ -369,7 +452,7 @@ function MicroflowCanvas({
             trace={traceByObject.get(node.objectId)}
             onSelect={() => {
               if (connectingFrom && connectingFrom !== node.objectId) {
-                emitPatch({ addFlow: createSequenceFlow({ originObjectId: connectingFrom, destinationObjectId: node.objectId }) });
+                emitPatch({ addFlow: createFlowForConnection(schema, connectingFrom, node.objectId) });
                 setConnectingFrom(undefined);
                 return;
               }
@@ -558,6 +641,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           />
         </div>
         <MicroflowCanvas
+          schema={schema}
           graph={graph}
           traceFrames={traceFrames}
           onPatch={patchedGraph => {
@@ -579,7 +663,25 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
               commitSchema(updateObject(schema, objectId, () => patch.object as MicroflowObject));
             }}
             onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
-              commitSchema(updateFlow(schema, flowId, () => patch as MicroflowFlow));
+              commitSchema(updateFlow(schema, flowId, flow => {
+                const next = { ...flow, ...patch } as MicroflowFlow;
+                if (flow.kind === "sequence") {
+                  const partial = patch as Partial<Extract<MicroflowFlow, { kind: "sequence" }>>;
+                  return {
+                    ...flow,
+                    ...partial,
+                    line: partial.line ?? flow.line,
+                    editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
+                  };
+                }
+                const partial = patch as Partial<Extract<MicroflowFlow, { kind: "annotation" }>>;
+                return {
+                  ...flow,
+                  ...partial,
+                  line: partial.line ?? flow.line,
+                  editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
+                };
+              }));
             }}
             onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
             onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
