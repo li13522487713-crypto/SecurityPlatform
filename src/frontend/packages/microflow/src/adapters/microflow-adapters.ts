@@ -23,6 +23,7 @@ import type {
   MicroflowFlow,
   MicroflowInheritanceSplit,
   MicroflowLine,
+  MicroflowLegacyGraphSchema,
   MicroflowLoopedActivity,
   MicroflowNode,
   MicroflowObject,
@@ -698,7 +699,7 @@ export function legacyEdgeToFlow(edge: MicroflowEdge, nodesById: Map<string, Mic
   } satisfies MicroflowSequenceFlow;
 }
 
-export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "nodes" | "edges" | "parameters" | "id" | "name" | "description" | "version" | "viewport">): Omit<MicroflowSchema, "nodes" | "edges" | "variables"> {
+export function buildAuthoringFieldsFromLegacy(schema: MicroflowLegacyGraphSchema): MicroflowSchema {
   const synchronizedParameters = schema.nodes
     .filter((node): node is Extract<MicroflowNode, { type: "parameter" }> => node.type === "parameter")
     .map(node => ({
@@ -769,7 +770,7 @@ export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "no
       exportLevel: "module",
       markAsUsed: false
     },
-    variableIndex,
+    variables: variableIndex,
     validation: {
       issues: []
     },
@@ -784,62 +785,24 @@ export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "no
     audit: {
       version: schema.version,
       status: "draft"
-    }
+    },
+    version: schema.version
   };
 }
 
-export function ensureAuthoringSchema(schema: MicroflowSchema): MicroflowSchema {
-  const hasAuthoringRoot = Boolean(schema.objectCollection?.officialType === "Microflows$MicroflowObjectCollection" && Array.isArray(schema.flows));
-  const legacyGraph = hasAuthoringRoot ? toLegacyGraph(schema) : { nodes: schema.nodes ?? [], edges: schema.edges ?? [] };
-  const authoringFields = hasAuthoringRoot
-    ? {
-        schemaVersion: schema.schemaVersion,
-        mendixProfile: schema.mendixProfile,
-        stableId: schema.stableId,
-        displayName: schema.displayName,
-        documentation: schema.documentation,
-        moduleId: schema.moduleId,
-        moduleName: schema.moduleName,
-        returnType: schema.returnType,
-        returnVariableName: schema.returnVariableName,
-        objectCollection: schema.objectCollection,
-        flows: schema.flows,
-        security: schema.security,
-        concurrency: schema.concurrency,
-        exposure: schema.exposure,
-        variableIndex: schema.variableIndex,
-        validation: schema.validation,
-        editor: schema.editor,
-        audit: schema.audit
-      }
-    : buildAuthoringFieldsFromLegacy({
-        id: schema.id,
-        name: schema.name,
-        version: schema.version,
-        description: schema.description,
-        parameters: schema.parameters,
-        nodes: schema.nodes,
-        edges: schema.edges,
-        viewport: schema.viewport
-      });
-
-  return {
-    ...schema,
-    ...authoringFields,
-    variables: schema.variables ?? [],
-    nodes: legacyGraph.nodes,
-    edges: legacyGraph.edges,
-    viewport: schema.viewport ?? {
-      zoom: authoringFields.editor.viewport.zoom,
-      offset: {
-        x: authoringFields.editor.viewport.x,
-        y: authoringFields.editor.viewport.y
-      }
-    }
-  };
+export function isLegacyGraphSchema(schema: MicroflowSchema | MicroflowLegacyGraphSchema | unknown): schema is MicroflowLegacyGraphSchema {
+  const value = schema as Partial<MicroflowLegacyGraphSchema>;
+  return Array.isArray(value.nodes) && Array.isArray(value.edges);
 }
 
-export function applyLegacyGraphPatch(schema: MicroflowSchema, patch: Partial<Pick<MicroflowSchema, "nodes" | "edges" | "viewport" | "variables">>): MicroflowSchema {
+export function ensureAuthoringSchema(schema: MicroflowSchema | MicroflowLegacyGraphSchema): MicroflowSchema {
+  if (isLegacyGraphSchema(schema)) {
+    return buildAuthoringFieldsFromLegacy(schema);
+  }
+  return schema;
+}
+
+export function applyLegacyGraphPatch(schema: MicroflowLegacyGraphSchema, patch: Partial<Pick<MicroflowLegacyGraphSchema, "nodes" | "edges" | "viewport" | "variables">>): MicroflowSchema {
   const legacySchema = {
     ...schema,
     nodes: patch.nodes ?? schema.nodes,
@@ -847,11 +810,7 @@ export function applyLegacyGraphPatch(schema: MicroflowSchema, patch: Partial<Pi
     viewport: patch.viewport ?? schema.viewport,
     variables: patch.variables ?? schema.variables
   };
-  return {
-    ...legacySchema,
-    ...buildAuthoringFieldsFromLegacy(legacySchema),
-    variables: legacySchema.variables
-  };
+  return buildAuthoringFieldsFromLegacy(legacySchema);
 }
 
 export function flattenObjectCollection(collection: MicroflowObjectCollection): MicroflowObject[] {
@@ -1069,32 +1028,35 @@ export function findMicroflowObject(collection: MicroflowObjectCollection, objec
 }
 
 export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema): MicroflowEditorGraph {
-  const objects = flattenObjectCollection(schema.objectCollection);
+  const objects = collectEditorObjects(schema.objectCollection);
   const issues = "validation" in schema ? schema.validation.issues : [];
   return {
-    nodes: objects.map(object => ({
-      id: `node-${object.id}`,
-      objectId: object.id,
-      nodeKind: object.kind,
-      activityKind: object.kind === "actionActivity" ? object.action.kind : undefined,
-      title: object.caption ?? object.id,
-      subtitle: object.officialType,
-      iconKey: object.editor.iconKey ?? object.kind,
-      position: object.relativeMiddlePoint,
-      size: object.size,
-      ports: portsForObject(object).map((port, index) => ({
-        id: `${object.id}:${port.id}`,
-        objectId: object.id,
+    nodes: objects.map(entry => ({
+      id: `node-${entry.object.id}`,
+      objectId: entry.object.id,
+      nodeKind: entry.object.kind,
+      activityKind: entry.object.kind === "actionActivity" ? entry.object.action.kind : undefined,
+      title: entry.object.caption ?? entry.object.id,
+      subtitle: entry.object.officialType,
+      iconKey: entry.object.editor.iconKey ?? entry.object.kind,
+      position: entry.object.relativeMiddlePoint,
+      size: entry.object.size,
+      ports: portsForObject(entry.object).map((port, index) => ({
+        id: `${entry.object.id}:${port.id}`,
+        objectId: entry.object.id,
         label: port.label,
         direction: port.direction,
         kind: port.kind,
-        connectionIndex: index
+        connectionIndex: index,
+        edgeTypes: port.edgeTypes
       })),
+      parentObjectId: entry.parentObjectId,
+      collectionId: entry.collectionId,
       state: {
-        selected: Boolean(object.editor.selected),
-        disabled: Boolean(object.disabled),
-        hasError: issues.some(issue => issue.severity === "error" && (issue.objectId === object.id || issue.nodeId === object.id)),
-        hasWarning: issues.some(issue => issue.severity === "warning" && (issue.objectId === object.id || issue.nodeId === object.id))
+        selected: Boolean(entry.object.editor.selected),
+        disabled: Boolean(entry.object.disabled),
+        hasError: issues.some(issue => issue.severity === "error" && (issue.objectId === entry.object.id || issue.nodeId === entry.object.id)),
+        hasWarning: issues.some(issue => issue.severity === "warning" && (issue.objectId === entry.object.id || issue.nodeId === entry.object.id))
       }
     })),
     edges: schema.flows.map(flow => ({
@@ -1120,6 +1082,16 @@ export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema
     viewport: schema.editor.viewport,
     selection: schema.editor.selection
   };
+}
+
+function collectEditorObjects(
+  collection: MicroflowObjectCollection,
+  parentObjectId?: string
+): Array<{ object: MicroflowObject; collectionId: string; parentObjectId?: string }> {
+  return collection.objects.flatMap(object => [
+    { object, collectionId: collection.id, parentObjectId },
+    ...(object.kind === "loopedActivity" ? collectEditorObjects(object.objectCollection, object.id) : [])
+  ]);
 }
 
 function mapObject(collection: MicroflowObjectCollection, objectId: string, mapper: (object: MicroflowObject) => MicroflowObject): MicroflowObjectCollection {
@@ -1171,7 +1143,7 @@ export function applyEditorGraphPatch(schema: MicroflowSchema, patch: MicroflowE
   };
   return {
     ...next,
-    ...toLegacyGraph(next)
+    version: schema.version
   };
 }
 

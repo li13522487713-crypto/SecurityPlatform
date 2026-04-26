@@ -20,7 +20,7 @@ export const sampleOrderProcessingMicroflow: MicroflowAuthoringSchema = {
   security: sampleMicroflowSchema.security,
   concurrency: sampleMicroflowSchema.concurrency,
   exposure: sampleMicroflowSchema.exposure,
-  variables: sampleMicroflowSchema.variableIndex,
+  variables: sampleMicroflowSchema.variables,
   validation: sampleMicroflowSchema.validation,
   editor: sampleMicroflowSchema.editor,
   audit: sampleMicroflowSchema.audit

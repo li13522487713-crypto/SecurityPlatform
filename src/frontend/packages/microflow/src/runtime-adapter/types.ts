@@ -3,8 +3,7 @@ import type {
   MicroflowListQuery,
   MicroflowReference,
   MicroflowResource,
-  MicroflowRuntimeEdgeDto,
-  MicroflowRuntimeNodeDto,
+  MicroflowRuntimeDto,
   MicroflowSchema,
   MicroflowValidationIssue,
   PublishMicroflowPayload
@@ -41,7 +40,9 @@ export interface TestRunMicroflowRequest {
 export interface MicroflowRuntimeError {
   code: string;
   message: string;
+  objectId?: string;
   nodeId?: string;
+  flowId?: string;
   details?: Record<string, unknown>;
 }
 
@@ -49,8 +50,12 @@ export interface MicroflowTraceFrame {
   id: string;
   frameId: string;
   runId: string;
+  objectId: string;
   nodeId: string;
+  objectTitle: string;
   nodeTitle: string;
+  incomingFlowId?: string;
+  outgoingFlowId?: string;
   incomingEdgeId?: string;
   outgoingEdgeId?: string;
   status: "success" | "failed" | "skipped" | "running";
@@ -78,12 +83,7 @@ export interface PublishMicroflowResponse {
   resource?: MicroflowResource;
 }
 
-export interface MicroflowRuntimeDto {
-  microflowId: string;
-  version: string;
-  nodes: MicroflowRuntimeNodeDto[];
-  edges: MicroflowRuntimeEdgeDto[];
-}
+export type { MicroflowRuntimeDto };
 
 export interface MicroflowApiClient {
   listMicroflows(query?: MicroflowListQuery): Promise<MicroflowResource[]>;

@@ -1,36 +1,42 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
-import { Badge, Button, Card, Checkbox, Dropdown, Empty, Input, Modal, Select, SideSheet, Space, Switch, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
-import {
-  IconChevronDown,
-  IconChevronUp,
-  IconCopy,
-  IconDelete,
-  IconMinus,
-  IconPlus,
-  IconPlay,
-  IconRefresh,
-  IconSave,
-  IconSearch,
-  IconSetting,
-  IconTickCircle,
-  IconUndo,
-  IconRedo
-} from "@douyinfe/semi-icons";
+import { useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
+import { Badge, Button, Card, Empty, Modal, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { IconCopy, IconDelete, IconPlay, IconRefresh, IconSave, IconTickCircle, IconUndo, IconRedo } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
-import { MicroflowPropertyPanel, type MicroflowNodePatch } from "../property-panel";
+import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
 import {
-  createMicroflowNodeFromRegistry,
-  createMicroflowEdge,
-  getMicroflowEdgeRegistryItem,
-  getMicroflowNodeByType,
   getMicroflowNodeRegistryKey,
+  microflowNodeRegistryByKey,
   type MicroflowNodeDragPayload,
-  type MicroflowNodeRegistryEntry
+  type MicroflowNodeRegistryItem
 } from "../node-registry";
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
-import { applyLegacyGraphPatch, ensureAuthoringSchema, toEditorGraph } from "../adapters";
+import {
+  applyEditorGraphPatchToAuthoring,
+  createAnnotationFlow,
+  createObjectFromRegistry,
+  createSequenceFlow,
+  deleteFlow,
+  deleteObject,
+  duplicateObject,
+  ensureAuthoringSchema,
+  findObject,
+  moveObject,
+  refreshDerivedState,
+  toEditorGraph,
+  updateFlow,
+  updateObject
+} from "../adapters";
 import { validateMicroflowSchema } from "../schema/validator";
-import type { MicroflowEdge, MicroflowEditorGraph, MicroflowNode, MicroflowNodeOutput, MicroflowSchema, MicroflowValidationIssue, MicroflowPosition, MicroflowVariable } from "../schema/types";
+import type {
+  MicroflowEditorEdge,
+  MicroflowEditorGraph,
+  MicroflowEditorGraphPatch,
+  MicroflowEditorNode,
+  MicroflowFlow,
+  MicroflowObject,
+  MicroflowSchema,
+  MicroflowValidationIssue
+} from "../schema/types";
 
 const { Text, Title } = Typography;
 
@@ -91,11 +97,8 @@ function readFavoriteNodeKeys(): string[] {
     return defaultFavoriteNodeKeys;
   }
   try {
-    const saved = window.localStorage.getItem(favoriteStorageKey);
-    if (saved === null) {
-      return defaultFavoriteNodeKeys;
-    }
-    const parsed = JSON.parse(saved) as unknown;
+    const value = window.localStorage.getItem(favoriteStorageKey);
+    const parsed = value ? JSON.parse(value) as unknown : defaultFavoriteNodeKeys;
     return Array.isArray(parsed) && parsed.every(item => typeof item === "string") ? parsed : defaultFavoriteNodeKeys;
   } catch {
     return defaultFavoriteNodeKeys;
@@ -103,69 +106,18 @@ function readFavoriteNodeKeys(): string[] {
 }
 
 function saveFavoriteNodeKeys(keys: string[]): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-  try {
+  if (typeof window !== "undefined") {
     window.localStorage.setItem(favoriteStorageKey, JSON.stringify(keys));
-  } catch {
-    // Favorite persistence should not block editor interactions.
   }
 }
 
-function parseNodeDragPayload(data: string): MicroflowNodeDragPayload | undefined {
-  if (!data) {
-    return undefined;
-  }
+function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
   try {
-    const value = JSON.parse(data) as Record<string, unknown>;
-    if (
-      value.sourcePanel !== "microflow-node-panel" ||
-      typeof value.nodeType !== "string" ||
-      typeof value.registryKey !== "string" ||
-      typeof value.title !== "string"
-    ) {
-      return undefined;
-    }
-    return {
-      nodeType: value.nodeType as MicroflowNodeDragPayload["nodeType"],
-      activityType: typeof value.activityType === "string" ? value.activityType as MicroflowNodeDragPayload["activityType"] : undefined,
-      registryKey: value.registryKey,
-      title: value.title,
-      defaultConfig: typeof value.defaultConfig === "object" && value.defaultConfig !== null ? value.defaultConfig as Record<string, unknown> : {},
-      sourcePanel: "microflow-node-panel"
-    };
+    const parsed = JSON.parse(value) as MicroflowNodeDragPayload;
+    return parsed.sourcePanel === "microflow-node-panel" ? parsed : undefined;
   } catch {
     return undefined;
   }
-}
-
-function cloneNode<TNode extends MicroflowNode>(node: TNode): TNode {
-  return JSON.parse(JSON.stringify(node)) as TNode;
-}
-
-function variablesFromOutputs(outputs: MicroflowNodeOutput[] | undefined): MicroflowVariable[] {
-  return (outputs ?? []).filter(output => output.name.trim().length > 0).map(output => ({
-    id: output.id,
-    name: output.name,
-    type: output.type,
-    scope: "node"
-  }));
-}
-
-function materializeAuthoringSchema(schema: MicroflowSchema): MicroflowSchema {
-  return ensureAuthoringSchema(schema);
-}
-
-function findContainingLoopId(nodes: MicroflowNode[], position: MicroflowPosition): string | undefined {
-  return nodes.find(node => {
-    if (node.type !== "loop") {
-      return false;
-    }
-    const width = node.render.width ?? 178;
-    const height = node.render.height ?? 82;
-    return position.x >= node.position.x && position.x <= node.position.x + width + 280 && position.y >= node.position.y && position.y <= node.position.y + height + 180;
-  })?.id;
 }
 
 const shellStyle: CSSProperties = {
@@ -173,8 +125,7 @@ const shellStyle: CSSProperties = {
   gridTemplateRows: "60px minmax(0, 1fr) 220px",
   height: "100%",
   minHeight: 0,
-  background: "var(--semi-color-bg-0, #f7f8fa)",
-  color: "var(--semi-color-text-0, #1d2129)"
+  background: "var(--semi-color-bg-0, #f7f8fa)"
 };
 
 const toolbarStyle: CSSProperties = {
@@ -183,9 +134,7 @@ const toolbarStyle: CSSProperties = {
   justifyContent: "space-between",
   padding: "8px 12px",
   borderBottom: "1px solid var(--semi-color-border, #e5e6eb)",
-  background: "var(--semi-color-bg-2, #fff)",
-  minWidth: 0,
-  overflow: "hidden"
+  background: "var(--semi-color-bg-2, #fff)"
 };
 
 const bodyStyle: CSSProperties = {
@@ -209,1330 +158,449 @@ const rightPanelStyle: CSSProperties = {
   borderLeft: "1px solid var(--semi-color-border, #e5e6eb)"
 };
 
-const canvasViewportStyle: CSSProperties = {
+const canvasStyle: CSSProperties = {
   position: "relative",
   minWidth: 0,
   minHeight: 0,
   overflow: "hidden",
-  background:
-    "radial-gradient(circle, rgba(22, 93, 255, 0.08) 1px, transparent 1px), var(--semi-color-fill-0, #f4f7fb)",
+  background: "radial-gradient(circle, rgba(22, 93, 255, 0.08) 1px, transparent 1px), var(--semi-color-fill-0, #f4f7fb)",
   backgroundSize: "22px 22px"
 };
 
-function createEditorShellStyle(immersive: boolean): CSSProperties {
+function screenToCanvas(container: HTMLDivElement | null, event: { clientX: number; clientY: number }, graph: MicroflowEditorGraph) {
+  const rect = container?.getBoundingClientRect();
   return {
-    ...shellStyle,
-    gridTemplateRows: immersive ? "56px minmax(0, 1fr)" : shellStyle.gridTemplateRows
+    x: ((event.clientX - (rect?.left ?? 0)) - graph.viewport.x) / graph.viewport.zoom,
+    y: ((event.clientY - (rect?.top ?? 0)) - graph.viewport.y) / graph.viewport.zoom
   };
 }
 
-function createEditorBodyStyle(immersive: boolean, leftCollapsed: boolean, rightCollapsed: boolean): CSSProperties {
-  return {
-    ...bodyStyle,
-    gridTemplateColumns: `${leftCollapsed ? "44px" : immersive ? "300px" : "300px"} minmax(420px, 1fr) ${rightCollapsed ? "44px" : immersive ? "420px" : "400px"}`
-  };
-}
-
-const canvasLayerStyle: CSSProperties = {
-  position: "absolute",
-  left: 0,
-  top: 0,
-  width: 3000,
-  height: 1100,
-  transformOrigin: "0 0"
-};
-
-function nodeSize(node: MicroflowNode): { width: number; height: number } {
-  return {
-    width: node.render.width ?? 160,
-    height: node.render.height ?? 72
-  };
-}
-
-function toneColor(node: MicroflowNode): string {
-  if (node.render.tone === "success") {
-    return "#12b886";
-  }
-  if (node.render.tone === "danger") {
-    return "#f93920";
-  }
-  if (node.render.tone === "warning") {
-    return "#ff8800";
-  }
-  if (node.render.tone === "info") {
-    return "#165dff";
-  }
-  return "#4e5969";
-}
-
-function edgeStyle(edge: MicroflowEdge): { stroke: string; dash?: string } {
-  const registryItem = getMicroflowEdgeRegistryItem(edge.type);
-  const dash = registryItem?.lineStyle === "dashed" ? "6 6" : registryItem?.lineStyle === "dotted" ? "2 5" : undefined;
-  return { stroke: registryItem?.colorToken ?? "#4e5969", dash };
-}
-
-function portPosition(node: MicroflowNode, portId: string | undefined, fallbackDirection: "input" | "output"): MicroflowPosition {
-  const size = nodeSize(node);
-  const port = node.ports.find(item => item.id === portId) ?? node.ports.find(item => item.direction === fallbackDirection);
-  const outputIndex = Math.max(0, node.ports.filter(item => item.direction === "output").findIndex(item => item.id === port?.id));
-  const inputIndex = Math.max(0, node.ports.filter(item => item.direction === "input").findIndex(item => item.id === port?.id));
-  if (port?.direction === "output") {
-    return {
-      x: node.position.x + size.width,
-      y: node.position.y + Math.min(size.height - 14, 16 + outputIndex * 18)
-    };
-  }
-  return {
-    x: node.position.x,
-    y: node.position.y + Math.min(size.height - 14, 16 + inputIndex * 18)
-  };
-}
-
-function edgePath(edge: MicroflowEdge, nodesById: Map<string, MicroflowNode>): string {
-  const source = nodesById.get(edge.sourceNodeId);
-  const target = nodesById.get(edge.targetNodeId);
-  if (!source || !target) {
-    return "";
-  }
-  const start = portPosition(source, edge.sourcePortId, "output");
-  const end = portPosition(target, edge.targetPortId, "input");
-  const distance = Math.max(80, Math.abs(end.x - start.x) / 2);
-  return `M ${start.x} ${start.y} C ${start.x + distance} ${start.y}, ${end.x - distance} ${end.y}, ${end.x} ${end.y}`;
-}
-
-function edgeLabelPosition(edge: MicroflowEdge, nodesById: Map<string, MicroflowNode>): MicroflowPosition {
-  const source = nodesById.get(edge.sourceNodeId);
-  const target = nodesById.get(edge.targetNodeId);
-  if (!source || !target) {
-    return { x: 0, y: 0 };
-  }
-  const start = portPosition(source, edge.sourcePortId, "output");
-  const end = portPosition(target, edge.targetPortId, "input");
-  return {
-    x: (start.x + end.x) / 2,
-    y: (start.y + end.y) / 2 - 8
-  };
-}
-
-function edgeLabel(edge: MicroflowEdge): string | undefined {
-  if (edge.label) {
-    return edge.label;
-  }
-  const value = edge.conditionValue;
-  if (!value) {
-    return edge.type === "errorHandler" ? "Error" : undefined;
-  }
-  if (value.kind === "boolean") {
-    return value.value ? "是" : "否";
-  }
-  if (value.kind === "objectType") {
-    return value.entity;
-  }
-  return value.value;
-}
-
-function createIssueMap(issues: MicroflowValidationIssue[]): Map<string, MicroflowValidationIssue[]> {
-  const map = new Map<string, MicroflowValidationIssue[]>();
-  for (const issue of issues) {
-    const key = issue.nodeId ?? issue.objectId;
-    if (!key) {
-      continue;
+function findLoopAtPosition(graph: MicroflowEditorGraph, position: { x: number; y: number }): string | undefined {
+  return graph.nodes.find(node => {
+    if (node.nodeKind !== "loopedActivity") {
+      return false;
     }
-    map.set(key, [...(map.get(key) ?? []), issue]);
-  }
-  return map;
+    const width = node.size.width + 280;
+    const height = node.size.height + 190;
+    return position.x >= node.position.x && position.x <= node.position.x + width && position.y >= node.position.y && position.y <= node.position.y + height;
+  })?.objectId;
 }
 
-function MicroflowRuntimeBoundary({ children }: { children: React.ReactNode }) {
+function collectVariables(schema: MicroflowSchema) {
+  return Object.values(schema.variables.parameters)
+    .concat(Object.values(schema.variables.localVariables))
+    .concat(Object.values(schema.variables.objectOutputs))
+    .concat(Object.values(schema.variables.listOutputs))
+    .concat(Object.values(schema.variables.loopVariables))
+    .concat(Object.values(schema.variables.errorVariables))
+    .concat(Object.values(schema.variables.systemVariables));
+}
+
+function NodeCard({
+  node,
+  selected,
+  connecting,
+  trace,
+  onPointerDown,
+  onSelect,
+  onConnect
+}: {
+  node: MicroflowEditorNode;
+  selected: boolean;
+  connecting: boolean;
+  trace?: MicroflowTraceFrame;
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+  onSelect: () => void;
+  onConnect: () => void;
+}) {
   return (
-    <div style={{ height: "100%", width: "100%", overflow: "hidden" }} data-testid="microflow-runtime-boundary">
-      {children}
+    <div
+      onClick={event => {
+        event.stopPropagation();
+        onSelect();
+      }}
+      onPointerDown={onPointerDown}
+      style={{
+        position: "absolute",
+        left: node.position.x,
+        top: node.position.y,
+        width: node.size.width,
+        minHeight: node.size.height,
+        padding: 10,
+        borderRadius: node.nodeKind === "startEvent" || node.nodeKind === "endEvent" ? 999 : 14,
+        border: selected ? "2px solid #165dff" : "1px solid rgba(78, 89, 105, 0.22)",
+        background: node.state.disabled ? "rgba(242,243,245,0.92)" : "var(--semi-color-bg-2, #fff)",
+        boxShadow: selected ? "0 12px 32px rgba(22, 93, 255, 0.16)" : "0 8px 24px rgba(29, 33, 41, 0.08)",
+        cursor: "grab",
+        userSelect: "none"
+      }}
+    >
+      <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
+        <div style={{ minWidth: 0 }}>
+          <Text strong ellipsis={{ showTooltip: true }}>{node.title}</Text>
+          <br />
+          <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>{node.activityKind ?? node.nodeKind}</Text>
+        </div>
+        <Button
+          size="small"
+          theme={connecting ? "solid" : "borderless"}
+          type={connecting ? "primary" : "tertiary"}
+          onClick={event => {
+            event.stopPropagation();
+            onConnect();
+          }}
+        >
+          +
+        </Button>
+      </Space>
+      {trace ? <Tag color={trace.status === "failed" ? "red" : "green"} style={{ marginTop: 8 }}>{trace.status} {trace.durationMs}ms</Tag> : null}
+      {node.state.hasError ? <Badge dot type="danger" style={{ position: "absolute", right: -3, top: -3 }} /> : null}
     </div>
   );
 }
 
-function MicroflowNodeCard({
-  node,
-  selected,
-  issues,
-  onSelect,
-  onDragStart,
-  onPortPointerDown
+function EdgeLayer({
+  graph,
+  selectedFlowId,
+  onSelect
 }: {
-  node: MicroflowNode;
-  selected: boolean;
-  issues: MicroflowValidationIssue[];
-  onSelect: (nodeId: string) => void;
-  onDragStart: (nodeId: string, pointer: MicroflowPosition) => void;
-  onPortPointerDown: (nodeId: string, portId: string, pointer: MicroflowPosition) => void;
+  graph: MicroflowEditorGraph;
+  selectedFlowId?: string;
+  onSelect: (flowId: string) => void;
 }) {
-  const size = nodeSize(node);
-  const color = toneColor(node);
-  const commonStyle: CSSProperties = {
-    position: "absolute",
-    left: node.position.x,
-    top: node.position.y,
-    width: size.width,
-    height: size.height,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "10px 12px",
-    cursor: "grab",
-    userSelect: "none",
-    border: `2px solid ${selected ? "#165dff" : issues.length > 0 ? "#f93920" : "rgba(78, 89, 105, 0.22)"}`,
-    background: node.type === "annotation" ? "rgba(255, 247, 224, 0.96)" : "var(--semi-color-bg-2, #fff)",
-    boxShadow: selected ? "0 8px 22px rgba(22, 93, 255, 0.22)" : "0 8px 20px rgba(31, 35, 41, 0.08)"
-  };
-  const shapeStyle: CSSProperties = node.render.shape === "diamond"
-    ? { ...commonStyle, transform: "rotate(45deg)", borderRadius: 10 }
-    : node.render.shape === "event"
-      ? { ...commonStyle, borderRadius: 999 }
-      : node.render.shape === "annotation"
-        ? { ...commonStyle, borderRadius: 12, borderStyle: "dashed" }
-        : node.render.shape === "loop"
-          ? { ...commonStyle, borderRadius: 18 }
-          : { ...commonStyle, borderRadius: 14 };
-
+  const nodeById = new Map(graph.nodes.map(node => [node.objectId, node]));
   return (
-    <div
-      style={shapeStyle}
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(node.id)}
-      onPointerDown={(event: PointerEvent<HTMLDivElement>) => {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        onSelect(node.id);
-        onDragStart(node.id, { x: event.clientX, y: event.clientY });
-      }}
-    >
-      <div style={node.render.shape === "diamond" ? { transform: "rotate(-45deg)", textAlign: "center" } : { textAlign: "center", width: "100%" }}>
-        <Space vertical spacing={2} align="center">
-          <Tag color={issues.length > 0 ? "red" : "blue"} size="small">
-            {node.type === "activity" ? node.config.activityType : node.type}
-          </Tag>
-          <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: size.width - 24 }}>
-            {node.title}
-          </Text>
-          {node.render.shape === "loop" ? <Text type="tertiary">loop</Text> : null}
-          {issues.length > 0 ? <Badge count={issues.length} type="danger" /> : <span style={{ width: 20, height: 3, borderRadius: 2, background: color }} />}
-        </Space>
-      </div>
-      {node.ports.map(port => {
-        const position = portPosition(node, port.id, port.direction);
+    <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}>
+      {graph.edges.map(edge => {
+        const source = nodeById.get(edge.sourceNodeId.replace(/^node-/, ""));
+        const target = nodeById.get(edge.targetNodeId.replace(/^node-/, ""));
+        if (!source || !target) {
+          return null;
+        }
+        const x1 = source.position.x + source.size.width;
+        const y1 = source.position.y + source.size.height / 2;
+        const x2 = target.position.x;
+        const y2 = target.position.y + target.size.height / 2;
+        const mid = (x1 + x2) / 2;
+        const selected = selectedFlowId === edge.flowId;
         return (
-          <button
-            key={port.id}
-            type="button"
-            title={`${port.label} · ${port.kind}`}
-            style={{
-              position: "absolute",
-              left: port.direction === "output" ? size.width - 6 : -8,
-              top: position.y - node.position.y - 7,
-              width: 14,
-              height: 14,
-              borderRadius: 999,
-              border: `2px solid ${port.kind === "errorOut" ? "#f93920" : port.kind === "annotation" ? "#86909c" : "#165dff"}`,
-              background: "#fff",
-              cursor: port.direction === "output" ? "crosshair" : "default",
-              padding: 0
-            }}
-            onPointerDown={event => {
-              event.stopPropagation();
-              if (port.direction === "output") {
-                onPortPointerDown(node.id, port.id, { x: event.clientX, y: event.clientY });
-              }
-            }}
-          />
+          <g key={edge.id} style={{ pointerEvents: "auto" }} onClick={event => { event.stopPropagation(); onSelect(edge.flowId); }}>
+            <path
+              d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
+              fill="none"
+              stroke={selected ? "#165dff" : edge.style.colorToken}
+              strokeWidth={selected ? 3 : 2}
+              strokeDasharray={edge.style.strokeType === "dashed" ? "6 4" : edge.style.strokeType === "dotted" ? "2 4" : undefined}
+            />
+            <circle cx={x2} cy={y2} r={4} fill={selected ? "#165dff" : edge.style.colorToken} />
+            {edge.label ? <text x={mid} y={(y1 + y2) / 2 - 8} fontSize={12} fill="#4e5969">{edge.label}</text> : null}
+          </g>
         );
       })}
-    </div>
+    </svg>
   );
 }
 
 function MicroflowCanvas({
-  schema,
-  editorGraph,
-  selectedNodeId,
-  selectedEdgeId,
-  issues,
+  graph,
   traceFrames,
-  viewport,
-  gridVisible,
-  locked,
-  onSelectNode,
-  onSelectEdge,
-  onSchemaChange,
-  onDropNode,
-  onCreateEdge,
-  onUpdateEdge,
-  onDeleteEdge,
-  onViewportChange
+  onPatch,
+  onDropRegistryItem
 }: {
-  schema: MicroflowSchema;
-  editorGraph: MicroflowEditorGraph;
-  selectedNodeId?: string;
-  selectedEdgeId?: string;
-  issues: MicroflowValidationIssue[];
+  graph: MicroflowEditorGraph;
   traceFrames: MicroflowTraceFrame[];
-  viewport: { zoom: number; offset: MicroflowPosition };
-  gridVisible: boolean;
-  locked: boolean;
-  onSelectNode: (nodeId: string) => void;
-  onSelectEdge: (edgeId: string) => void;
-  onSchemaChange: (schema: MicroflowSchema) => void;
-  onDropNode: (payload: MicroflowNodeDragPayload, position: MicroflowPosition) => void;
-  onCreateEdge: (edge: MicroflowEdge) => void;
-  onUpdateEdge: (edgeId: string, patch: Partial<MicroflowEdge>) => void;
-  onDeleteEdge: (edgeId: string) => void;
-  onViewportChange: (viewport: { zoom: number; offset: MicroflowPosition }) => void;
+  onPatch: (schemaPatch: MicroflowEditorGraphPatch) => void;
+  onDropRegistryItem: (item: MicroflowNodeRegistryItem, position: { x: number; y: number }) => void;
 }) {
-  const graphNodeIds = useMemo(() => new Set(editorGraph.nodes.map(node => node.objectId)), [editorGraph.nodes]);
-  const nodesById = useMemo(() => new Map(schema.nodes.map(node => [node.id, node])), [schema.nodes]);
-  const issueMap = useMemo(() => createIssueMap(issues), [issues]);
-  const errorNodeIds = useMemo(() => new Set(traceFrames.filter(frame => frame.error).map(frame => frame.nodeId)), [traceFrames]);
-  const tracedEdgeIds = useMemo(() => new Set(traceFrames.flatMap(frame => [frame.incomingEdgeId, frame.outgoingEdgeId]).filter((value): value is string => Boolean(value))), [traceFrames]);
-  const dragRef = useRef<{ nodeId: string; startPointer: MicroflowPosition; startPosition: MicroflowPosition }>();
-  const [connection, setConnection] = useState<{ sourceNodeId: string; sourcePortId: string; pointer: MicroflowPosition }>();
-  const [edgeMenu, setEdgeMenu] = useState<{ edge: MicroflowEdge; x: number; y: number }>();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ objectId: string; offsetX: number; offsetY: number } | null>(null);
+  const [connectingFrom, setConnectingFrom] = useState<string | undefined>();
+  const traceByObject = useMemo(() => new Map(traceFrames.map(frame => [frame.objectId, frame])), [traceFrames]);
+  const selectedFlowId = graph.selection.flowId;
+  const selectedObjectId = graph.selection.objectId;
 
-  function updateNodePosition(nodeId: string, position: MicroflowPosition) {
-    const nextSchema = applyLegacyGraphPatch(schema, {
-      nodes: schema.nodes.map(node => node.id === nodeId ? { ...node, position } : node)
-    });
-    onSchemaChange(nextSchema);
-  }
-
-  function canvasPoint(clientX: number, clientY: number, element: HTMLElement): MicroflowPosition {
-    const rect = element.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left - viewport.offset.x) / viewport.zoom,
-      y: (clientY - rect.top - viewport.offset.y) / viewport.zoom
-    };
-  }
-
-  function createEdgeFromConnection(targetNode: MicroflowNode): void {
-    if (!connection) {
-      return;
-    }
-    const source = nodesById.get(connection.sourceNodeId);
-    const sourcePort = source?.ports.find(port => port.id === connection.sourcePortId);
-    const targetPort = targetNode.ports.find(port => port.direction === "input");
-    if (!source || !sourcePort || !targetPort) {
-      return;
-    }
-    const kind = sourcePort.kind === "errorOut"
-      ? "errorHandler"
-      : source.type === "decision"
-        ? "decisionCondition"
-        : source.type === "objectTypeDecision"
-          ? "objectTypeCondition"
-          : source.type === "annotation" || targetNode.type === "annotation"
-            ? "annotation"
-            : "sequence";
-    const registryItem = getMicroflowEdgeRegistryItem(kind);
-    const sourceKind = source.kind ?? (["startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(source.type) ? "event" : source.type);
-    const targetKind = targetNode.kind ?? (["startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(targetNode.type) ? "event" : targetNode.type);
-    if (!registryItem || !registryItem.sourcePortKinds.includes(sourcePort.kind) || !registryItem.targetPortKinds.includes(targetPort.kind) || !registryItem.sourceNodeKinds.includes(sourceKind as never) || !registryItem.targetNodeKinds.includes(targetKind as never)) {
-      Toast.error(`非法连接：${source.title} 不能通过 ${registryItem?.titleZh ?? kind} 连接到 ${targetNode.title}`);
-      return;
-    }
-    const conditionValue = kind === "decisionCondition"
-      ? { kind: "boolean" as const, value: sourcePort.id !== "false" }
-      : kind === "objectTypeCondition"
-        ? { kind: "objectType" as const, entity: "fallback" as const }
-        : undefined;
-    onCreateEdge(createMicroflowEdge({
-      type: kind,
-      sourceNodeId: source.id,
-      sourcePortId: sourcePort.id,
-      targetNodeId: targetNode.id,
-      targetPortId: targetPort.id,
-      label: kind === "errorHandler" ? "Error" : undefined,
-      conditionValue,
-      errorHandlingType: kind === "errorHandler" ? "customWithRollback" : undefined,
-      exposeLatestError: kind === "errorHandler" ? true : undefined,
-      logError: kind === "errorHandler" ? true : undefined,
-      attachmentMode: kind === "annotation" ? "node" : undefined,
-      showInExport: kind === "annotation" ? true : undefined
-    }));
-    Toast.success(`已创建 ${registryItem.titleZh}`);
-  }
+  const emitPatch = (patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1]) => {
+    onPatch(patch);
+  };
 
   return (
     <div
-      style={canvasViewportStyle}
-      onPointerMove={event => {
-        const drag = dragRef.current;
-        if (connection) {
-          setConnection(current => current ? { ...current, pointer: canvasPoint(event.clientX, event.clientY, event.currentTarget) } : current);
-          return;
-        }
-        if (!drag || locked) {
-          return;
-        }
-        updateNodePosition(drag.nodeId, {
-          x: drag.startPosition.x + (event.clientX - drag.startPointer.x) / viewport.zoom,
-          y: drag.startPosition.y + (event.clientY - drag.startPointer.y) / viewport.zoom
-        });
-      }}
-      onPointerUp={() => {
-        setConnection(undefined);
-        dragRef.current = undefined;
-      }}
-      onDragOver={event => {
-        if (event.dataTransfer.types.includes("application/x-atlas-microflow-node")) {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "copy";
-        }
-      }}
-      onDrop={event => {
-        const payload = parseNodeDragPayload(event.dataTransfer.getData("application/x-atlas-microflow-node"));
+      ref={containerRef}
+      style={canvasStyle}
+      onClick={() => emitPatch({ selectedObjectId: undefined, selectedFlowId: undefined })}
+      onDragOver={event => event.preventDefault()}
+      onDrop={(event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        const payload = parseDragPayload(event.dataTransfer.getData("application/json") || event.dataTransfer.getData("text/plain"));
         if (!payload) {
           return;
         }
-        event.preventDefault();
-        const rect = event.currentTarget.getBoundingClientRect();
-        onDropNode(payload, {
-          x: (event.clientX - rect.left - viewport.offset.x) / viewport.zoom,
-          y: (event.clientY - rect.top - viewport.offset.y) / viewport.zoom
-        });
+        const entry = microflowNodeRegistryByKey.get(payload.registryKey);
+        if (!entry) {
+          return;
+        }
+        onDropRegistryItem(entry, screenToCanvas(containerRef.current, event, graph));
       }}
-      onWheel={event => {
-        const nextZoom = Math.min(1.4, Math.max(0.45, viewport.zoom - event.deltaY * 0.001));
-        onViewportChange({ ...viewport, zoom: nextZoom });
+      onPointerMove={event => {
+        if (!drag) {
+          return;
+        }
+        const position = screenToCanvas(containerRef.current, event, graph);
+        emitPatch({ movedNodes: [{ objectId: drag.objectId, position: { x: position.x - drag.offsetX, y: position.y - drag.offsetY } }] });
       }}
-      onClick={() => {
-        onSelectEdge("");
-        setEdgeMenu(undefined);
-      }}
+      onPointerUp={() => setDrag(null)}
     >
-      {!gridVisible ? <div style={{ position: "absolute", inset: 0, background: "var(--semi-color-fill-0)" }} /> : null}
       <div
-        data-microflow-canvas-layer
         style={{
-          ...canvasLayerStyle,
-          transform: `translate(${viewport.offset.x}px, ${viewport.offset.y}px) scale(${viewport.zoom})`
+          position: "absolute",
+          transform: `translate(${graph.viewport.x}px, ${graph.viewport.y}px) scale(${graph.viewport.zoom})`,
+          transformOrigin: "0 0",
+          width: 3200,
+          height: 2200
         }}
       >
-        <svg width="3000" height="1100" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-          <defs>
-            <marker id="microflow-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-              <path d="M 0 0 L 10 4 L 0 8 z" fill="#4e5969" />
-            </marker>
-          </defs>
-          {schema.edges.map(edge => {
-            const style = edgeStyle(edge);
-            const label = edgeLabel(edge);
-            const traced = tracedEdgeIds.has(edge.id);
-            return (
-              <g key={edge.id}>
-                <path
-                  d={edgePath(edge, nodesById)}
-                  fill="none"
-                  stroke={selectedEdgeId === edge.id ? "#165dff" : traced ? "#12b886" : style.stroke}
-                  opacity={traceFrames.length > 0 && !traced ? 0.32 : 1}
-                  strokeWidth={selectedEdgeId === edge.id ? 3 : traced ? 3 : edge.type === "errorHandler" ? 2.4 : 1.8}
-                  strokeDasharray={style.dash}
-                  markerEnd={getMicroflowEdgeRegistryItem(edge.type)?.hasArrow === false ? undefined : "url(#microflow-arrow)"}
-                  style={{ pointerEvents: "stroke", cursor: "pointer" }}
-                  onClick={event => {
-                    event.stopPropagation();
-                    onSelectEdge(edge.id);
-                  }}
-                  onContextMenu={event => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setEdgeMenu({ edge, x: event.clientX, y: event.clientY });
-                    onSelectEdge(edge.id);
-                  }}
-                />
-                {label ? (
-                  <text
-                    {...edgeLabelPosition(edge, nodesById)}
-                    fill={style.stroke}
-                    fontSize={12}
-                    style={{ pointerEvents: "auto", cursor: "text" }}
-                    onDoubleClick={event => {
-                      event.stopPropagation();
-                      const nextLabel = window.prompt("编辑连线标签", label);
-                      if (nextLabel !== null) {
-                        onUpdateEdge(edge.id, { label: nextLabel });
-                      }
-                    }}
-                  >
-                    {label}
-                  </text>
-                ) : null}
-              </g>
-            );
-          })}
-          {connection ? (
-            <path
-              d={`M ${portPosition(nodesById.get(connection.sourceNodeId) as MicroflowNode, connection.sourcePortId, "output").x} ${portPosition(nodesById.get(connection.sourceNodeId) as MicroflowNode, connection.sourcePortId, "output").y} L ${connection.pointer.x} ${connection.pointer.y}`}
-              stroke="#165dff"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              fill="none"
-            />
-          ) : null}
-        </svg>
-        {schema.nodes.filter(node => graphNodeIds.has(node.id)).map(node => (
-          <MicroflowNodeCard
+        <EdgeLayer graph={graph} selectedFlowId={selectedFlowId} onSelect={flowId => emitPatch({ selectedObjectId: undefined, selectedFlowId: flowId })} />
+        {graph.nodes.map(node => (
+          <NodeCard
             key={node.id}
             node={node}
-            selected={node.id === selectedNodeId}
-            issues={errorNodeIds.has(node.id) ? [
-              ...(issueMap.get(node.id) ?? []),
-              { id: `trace-error:${node.id}`, code: "TRACE_ERROR", severity: "error", message: "Last test run failed on this node.", nodeId: node.id }
-            ] : issueMap.get(node.id) ?? []}
-            onSelect={onSelectNode}
-            onDragStart={(nodeId, pointer) => {
-              if (locked) {
+            selected={node.objectId === selectedObjectId}
+            connecting={connectingFrom === node.objectId}
+            trace={traceByObject.get(node.objectId)}
+            onSelect={() => {
+              if (connectingFrom && connectingFrom !== node.objectId) {
+                emitPatch({ addFlow: createSequenceFlow({ originObjectId: connectingFrom, destinationObjectId: node.objectId }) });
+                setConnectingFrom(undefined);
                 return;
               }
-              const current = nodesById.get(nodeId);
-              if (current) {
-                dragRef.current = { nodeId, startPointer: pointer, startPosition: current.position };
-              }
+              emitPatch({ selectedObjectId: node.objectId, selectedFlowId: undefined });
             }}
-            onPortPointerDown={(nodeId, portId, pointer) => {
-              if (!locked) {
-                const layer = document.querySelector("[data-microflow-canvas-layer]") as HTMLElement | null;
-                const canvasPointValue = layer?.parentElement ? canvasPoint(pointer.x, pointer.y, layer.parentElement) : pointer;
-                setConnection({ sourceNodeId: nodeId, sourcePortId: portId, pointer: canvasPointValue });
-              }
+            onConnect={() => setConnectingFrom(connectingFrom === node.objectId ? undefined : node.objectId)}
+            onPointerDown={event => {
+              event.stopPropagation();
+              const position = screenToCanvas(containerRef.current, event, graph);
+              setDrag({ objectId: node.objectId, offsetX: position.x - node.position.x, offsetY: position.y - node.position.y });
             }}
           />
         ))}
       </div>
-      {connection ? (
-        <div style={{ position: "absolute", left: 16, top: 16, padding: "6px 10px", borderRadius: 8, background: "rgba(22,93,255,.1)", color: "#165dff" }}>
-          拖到目标节点松开以创建连线，非法目标会提示。
-        </div>
-      ) : null}
-      {connection ? schema.nodes.filter(node => graphNodeIds.has(node.id)).map(node => (
-        <button
-          key={`target-${node.id}`}
-          type="button"
-          style={{
-            position: "absolute",
-            left: viewport.offset.x + node.position.x * viewport.zoom,
-            top: viewport.offset.y + node.position.y * viewport.zoom,
-            width: (node.render.width ?? 160) * viewport.zoom,
-            height: (node.render.height ?? 72) * viewport.zoom,
-            border: "2px dashed rgba(22,93,255,.45)",
-            borderRadius: 14,
-            background: "transparent",
-            cursor: "crosshair"
-          }}
-          onPointerUp={event => {
-            event.stopPropagation();
-            createEdgeFromConnection(node);
-            setConnection(undefined);
-          }}
-        />
-      )) : null}
-      {edgeMenu ? (
-        <div style={{ position: "fixed", left: edgeMenu.x, top: edgeMenu.y, zIndex: 1000 }}>
-          <Dropdown.Menu>
-            <Dropdown.Item onClick={() => {
-              const next = window.prompt("编辑条件/标签", edgeLabel(edgeMenu.edge) ?? "");
-              if (next !== null) {
-                onUpdateEdge(edgeMenu.edge.id, {
-                  label: next,
-                  conditionValue: edgeMenu.edge.type === "decisionCondition"
-                    ? (next === "false" || next === "否" ? { kind: "boolean", value: false } : next === "true" || next === "是" ? { kind: "boolean", value: true } : { kind: "enumeration", value: next })
-                    : edgeMenu.edge.conditionValue
-                });
-              }
-              setEdgeMenu(undefined);
-            }}>编辑条件 / 标签</Dropdown.Item>
-            <Dropdown.Item onClick={() => {
-              onUpdateEdge(edgeMenu.edge.id, { type: "errorHandler", sourcePortId: "error", label: "Error", errorHandlingType: "customWithRollback" });
-              setEdgeMenu(undefined);
-            }}>设为错误处理流</Dropdown.Item>
-            <Dropdown.Item onClick={() => {
-              onUpdateEdge(edgeMenu.edge.id, { type: "sequence", sourcePortId: "out", label: "" });
-              setEdgeMenu(undefined);
-            }}>转为普通顺序流</Dropdown.Item>
-            <Dropdown.Item disabled>插入节点到连线：拖节点到线附近自动拆分</Dropdown.Item>
-            <Dropdown.Item type="danger" onClick={() => {
-              onDeleteEdge(edgeMenu.edge.id);
-              setEdgeMenu(undefined);
-            }}>删除连线</Dropdown.Item>
-          </Dropdown.Menu>
-        </div>
-      ) : null}
-      <Card
-        bodyStyle={{ padding: 8 }}
-        style={{ position: "absolute", right: 16, bottom: 16, width: 180, background: "rgba(255,255,255,0.88)" }}
-      >
-        <Text type="tertiary">MiniMap</Text>
-        <div style={{ position: "relative", height: 86, marginTop: 6, background: "rgba(22,93,255,0.06)", borderRadius: 8 }}>
-          {schema.nodes.filter(node => graphNodeIds.has(node.id)).map(node => (
-            <span
-              key={node.id}
-              style={{
-                position: "absolute",
-                left: node.position.x / 12,
-                top: node.position.y / 12,
-                width: 10,
-                height: 6,
-                borderRadius: 3,
-                background: node.id === selectedNodeId ? "#165dff" : "#86909c"
-              }}
-            />
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }
 
-function ProblemPanel({
-  issues,
-  nodesById,
-  onLocateNode
-}: {
-  issues: MicroflowValidationIssue[];
-  nodesById: Map<string, MicroflowNode>;
-  onLocateNode: (nodeId: string) => void;
-}) {
-  const [filter, setFilter] = useState<"all" | "error" | "warning" | "info">("all");
-  const filtered = filter === "all" ? issues : issues.filter(issue => issue.severity === filter);
-
+function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]; onSelect: (issue: MicroflowValidationIssue) => void }) {
   if (issues.length === 0) {
-    return <Empty image={<IconTickCircle />} title="No validation issues" description="The current schema passes basic validation." />;
+    return <Empty title="No problems" description="Schema validation passed." />;
   }
-
   return (
-    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
-      <Tabs type="button" size="small" activeKey={filter} onChange={key => setFilter(key as typeof filter)}>
-        <Tabs.TabPane itemKey="all" tab={`All ${issues.length}`} />
-        <Tabs.TabPane itemKey="error" tab={`Errors ${issues.filter(issue => issue.severity === "error").length}`} />
-        <Tabs.TabPane itemKey="warning" tab={`Warnings ${issues.filter(issue => issue.severity === "warning").length}`} />
-        <Tabs.TabPane itemKey="info" tab={`Info ${issues.filter(issue => issue.severity === "info").length}`} />
-      </Tabs>
-      <div style={{ minHeight: 0, overflow: "auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "82px 160px minmax(220px, 1fr) minmax(160px, .8fr) 84px", gap: 10, padding: "6px 4px", borderBottom: "1px solid var(--semi-color-border)" }}>
-          {["Type", "Node", "Problem", "Details", "Action"].map(label => <Text key={label} strong size="small">{label}</Text>)}
-        </div>
-        {filtered.map(issue => (
-          <div
-            key={issue.id}
-            style={{ display: "grid", gridTemplateColumns: "82px 160px minmax(220px, 1fr) minmax(160px, .8fr) 84px", gap: 10, padding: "8px 4px", borderBottom: "1px solid var(--semi-color-border)", alignItems: "center" }}
-          >
-            <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
-            <Text ellipsis={{ showTooltip: true }}>{issue.nodeId || issue.objectId ? nodesById.get(issue.nodeId ?? issue.objectId ?? "")?.title ?? issue.nodeId ?? issue.objectId : issue.edgeId ?? issue.flowId ?? "Schema"}</Text>
-            <Text ellipsis={{ showTooltip: true }}>{issue.message}</Text>
-            <Text type="tertiary" ellipsis={{ showTooltip: true }}>{[issue.code, issue.fieldPath].filter(Boolean).join(" · ")}</Text>
-            <Button size="small" disabled={!issue.nodeId && !issue.objectId} onClick={() => {
-              const targetId = issue.nodeId ?? issue.objectId;
-              if (targetId) {
-                onLocateNode(targetId);
-              }
-            }}>Locate</Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DebugPanel({
-  frames,
-  runStatus,
-  onLocateNode
-}: {
-  frames: MicroflowTraceFrame[];
-  runStatus: "idle" | "running" | "succeeded" | "failed";
-  onLocateNode: (nodeId: string) => void;
-}) {
-  const [activeKey, setActiveKey] = useState("trace");
-
-  if (frames.length === 0) {
-    return <Empty image={<IconPlay />} title={runStatus === "running" ? "Test run is running" : "No trace yet"} description="Run a test to inspect node input, output, duration, variables, and logs." />;
-  }
-
-  return (
-    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
-      <Tabs type="button" size="small" activeKey={activeKey} onChange={setActiveKey}>
-        <Tabs.TabPane itemKey="trace" tab="Trace" />
-        <Tabs.TabPane itemKey="io" tab="Input / Output" />
-        <Tabs.TabPane itemKey="variables" tab="Variables" />
-        <Tabs.TabPane itemKey="logs" tab="Logs" />
-      </Tabs>
-      <div style={{ minHeight: 0, overflow: "auto" }}>
-        {activeKey === "trace" ? (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "180px 90px 80px 160px 160px minmax(180px, 1fr) minmax(120px, .6fr) 84px", gap: 10, padding: "6px 4px", borderBottom: "1px solid var(--semi-color-border)" }}>
-              {["Node", "Status", "ms", "Incoming Edge", "Outgoing Edge", "Output", "Error", "Action"].map(label => <Text key={label} strong size="small">{label}</Text>)}
+    <Space vertical align="start" style={{ width: "100%" }}>
+      {issues.map(issue => (
+        <Card key={issue.id} shadows="hover" style={{ width: "100%" }} bodyStyle={{ padding: 10 }} onClick={() => onSelect(issue)}>
+          <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
+            <div style={{ minWidth: 0 }}>
+              <Text strong>{issue.code}</Text>
+              <br />
+              <Text size="small" type="secondary">{issue.message}</Text>
+              <br />
+              <Text size="small" type="tertiary">{issue.fieldPath ?? issue.objectId ?? issue.flowId ?? issue.actionId}</Text>
             </div>
-            {frames.map(frame => (
-              <div
-                key={frame.frameId}
-                style={{ display: "grid", gridTemplateColumns: "180px 90px 80px 160px 160px minmax(180px, 1fr) minmax(120px, .6fr) 84px", gap: 10, padding: "8px 4px", borderBottom: "1px solid var(--semi-color-border)", alignItems: "center" }}
-              >
-                <Text strong ellipsis={{ showTooltip: true }}>{frame.nodeTitle}</Text>
-                <Tag color={frame.error ? "red" : "green"}>{frame.status}</Tag>
-                <Text>{frame.durationMs}</Text>
-                <Text type="tertiary" ellipsis={{ showTooltip: true }}>{frame.incomingEdgeId ?? "-"}</Text>
-                <Text type="tertiary" ellipsis={{ showTooltip: true }}>{frame.outgoingEdgeId ?? "-"}</Text>
-                <Text type="tertiary" ellipsis={{ showTooltip: true }}>{JSON.stringify(frame.output)}</Text>
-                <Text type={frame.error ? "danger" : "tertiary"} ellipsis={{ showTooltip: true }}>{frame.error?.message ?? "-"}</Text>
-                <Button size="small" onClick={() => onLocateNode(frame.nodeId)}>Locate</Button>
-              </div>
-            ))}
-          </>
-        ) : (
-          <pre style={{ margin: 0, padding: 10, background: "var(--semi-color-fill-0)", borderRadius: 8, whiteSpace: "pre-wrap" }}>
-            {JSON.stringify(frames.map(frame => ({ nodeId: frame.nodeId, input: frame.input, output: frame.output, error: frame.error })), null, 2)}
-          </pre>
-        )}
-      </div>
-    </div>
+            <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
+          </Space>
+        </Card>
+      ))}
+    </Space>
   );
 }
 
-export function MicroflowEditor({
-  schema: initialSchema,
-  apiClient,
-  labels,
-  toolbarPrefix,
-  toolbarSuffix,
-  nodePanelLabels,
-  immersive = false,
-  onPublish,
-  onSaveComplete,
-  onValidateComplete,
-  onTestRunComplete,
-  onSchemaChange
-}: MicroflowEditorProps) {
-  const copy = { ...defaultLabels, ...labels };
-  const client = useMemo(() => apiClient ?? createLocalMicroflowApiClient([initialSchema]), [apiClient, initialSchema]);
-  const [schema, setSchema] = useState<MicroflowSchema>(initialSchema);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(initialSchema.nodes[0]?.id);
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | undefined>();
-  const [issues, setIssues] = useState<MicroflowValidationIssue[]>(() => validateMicroflowSchema(initialSchema));
-  const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
-  const [viewport, setViewport] = useState(initialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
-  const [testRunOpen, setTestRunOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [documentationNode, setDocumentationNode] = useState<MicroflowNodeRegistryEntry>();
-  const [favoriteNodeKeys, setFavoriteNodeKeys] = useState<string[]>(readFavoriteNodeKeys);
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [runStatus, setRunStatus] = useState<"idle" | "running" | "succeeded" | "failed">("idle");
-  const [activeBottomPanel, setActiveBottomPanel] = useState<"problems" | "debug">("problems");
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
-  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
-  const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(immersive);
-  const [gridVisible, setGridVisible] = useState(true);
-  const [canvasLocked, setCanvasLocked] = useState(false);
-  const [publishOpen, setPublishOpen] = useState(false);
-  const [publishVersion, setPublishVersion] = useState(initialSchema.version || "v1");
-  const [publishNote, setPublishNote] = useState("");
-  const [overwriteCurrent, setOverwriteCurrent] = useState(true);
-  const [testInput, setTestInput] = useState<Record<string, string>>(() =>
-    ({ ...Object.fromEntries(initialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`])), simulateError: "false" })
+function DebugPanel({ frames }: { frames: MicroflowTraceFrame[] }) {
+  if (frames.length === 0) {
+    return <Empty title="No trace" description="Run a test to see object/flow trace frames." />;
+  }
+  return (
+    <Space vertical align="start" style={{ width: "100%" }}>
+      {frames.map(frame => (
+        <Card key={frame.id} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+          <Text strong>{frame.objectTitle}</Text>
+          <br />
+          <Text size="small" type="tertiary">{frame.objectId} · {frame.status} · {frame.durationMs}ms</Text>
+        </Card>
+      ))}
+    </Space>
   );
+}
 
-  const selectedNode = schema.nodes.find(node => node.id === selectedNodeId);
-  const selectedEdge = schema.edges.find(edge => edge.id === selectedEdgeId);
-  const nodesById = useMemo(() => new Map(schema.nodes.map(node => [node.id, node])), [schema.nodes]);
-  const editorGraph = useMemo(() => toEditorGraph(schema), [schema]);
-  const errorCount = issues.filter(issue => issue.severity === "error").length;
+export function MicroflowEditor(props: MicroflowEditorProps) {
+  const labels = { ...defaultLabels, ...props.labels };
+  const apiClient = props.apiClient ?? createLocalMicroflowApiClient();
+  const [schema, setSchema] = useState<MicroflowSchema>(() => refreshDerivedState(ensureAuthoringSchema(props.schema)));
+  const [favoriteNodeKeys, setFavoriteNodeKeys] = useState(readFavoriteNodeKeys);
+  const [issues, setIssues] = useState<MicroflowValidationIssue[]>(schema.validation.issues ?? []);
+  const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
+  const [history, setHistory] = useState<MicroflowSchema[]>([]);
+  const [future, setFuture] = useState<MicroflowSchema[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
 
-  useEffect(() => {
-    saveFavoriteNodeKeys(favoriteNodeKeys);
-  }, [favoriteNodeKeys]);
+  const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
+  const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
+  const selectedFlow = schema.editor.selection.flowId ? schema.flows.find(flow => flow.id === schema.editor.selection.flowId) ?? null : null;
 
-  useEffect(() => {
-    const nextInitialSchema = materializeAuthoringSchema(initialSchema);
-    setSchema(nextInitialSchema);
-    setIssues(validateMicroflowSchema(nextInitialSchema));
-    setViewport(nextInitialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
-    setSelectedNodeId(nextInitialSchema.nodes[0]?.id);
-    setPublishVersion(nextInitialSchema.version || "v1");
-    setTestInput({ ...Object.fromEntries(nextInitialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`])), simulateError: "false" });
-    setDirty(false);
-  }, [initialSchema]);
+  const commitSchema = (next: MicroflowSchema) => {
+    const refreshed = refreshDerivedState(next);
+    setHistory(items => [...items.slice(-30), schema]);
+    setFuture([]);
+    setSchema(refreshed);
+    setIssues(validateMicroflowSchema(refreshed));
+    props.onSchemaChange?.(refreshed);
+  };
 
-  function commitSchema(nextSchema: MicroflowSchema) {
-    const materializedSchema = materializeAuthoringSchema(nextSchema);
-    setSchema(materializedSchema);
-    setIssues(validateMicroflowSchema(materializedSchema));
-    setDirty(true);
-    onSchemaChange?.(materializedSchema);
-  }
+  const applyPatch = (patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1]) => {
+    commitSchema(applyEditorGraphPatchToAuthoring(schema, patch));
+  };
 
-  async function handleValidate() {
-    setValidating(true);
-    try {
-      const result = await client.validateMicroflow({ schema });
-      setIssues(result.issues);
-      setActiveBottomPanel("problems");
-      setBottomPanelCollapsed(false);
-      onValidateComplete?.(result);
-      Toast.info(result.valid ? "Validation passed." : `Validation found ${result.issues.length} issue(s).`);
-    } finally {
-      setValidating(false);
+  const handleAddNode = (item: MicroflowNodeRegistryItem, options?: { position?: { x: number; y: number } }) => {
+    const position = options?.position ?? { x: 120 + graph.nodes.length * 36, y: 120 + graph.nodes.length * 18 };
+    const parentLoopObjectId = findLoopAtPosition(graph, position);
+    if ((item.type === "event" && (item.defaultConfig as { eventType?: string }).eventType === "start") && parentLoopObjectId) {
+      Toast.warning("Start Event 不能放入 Loop 内部");
+      return;
     }
-  }
+    if ((item.type === "event" && ["break", "continue"].includes((item.defaultConfig as { eventType?: string }).eventType ?? "")) && !parentLoopObjectId) {
+      Toast.warning("Break / Continue 只能放在 Loop 内");
+      return;
+    }
+    commitSchema(applyEditorGraphPatchToAuthoring(schema, {
+      addObject: { object: createObjectFromRegistry(item, position), parentLoopObjectId },
+      selectedObjectId: undefined,
+      selectedFlowId: undefined
+    }));
+  };
 
-  async function handleSave() {
+  const handleSave = async () => {
     setSaving(true);
     try {
-      const result = await client.saveMicroflow({ schema });
-      setDirty(false);
-      onSaveComplete?.(result);
-      Toast.success(`Saved ${result.nodeCount} nodes and ${result.edgeCount} flows.`);
+      const response = await apiClient.saveMicroflow({ schema });
+      props.onSaveComplete?.(response);
+      Toast.success(`Saved ${response.version}`);
     } finally {
       setSaving(false);
     }
-  }
+  };
 
-  async function handleTestRun() {
-    setTesting(true);
-    setRunStatus("running");
-    setActiveBottomPanel("debug");
-    setBottomPanelCollapsed(false);
+  const handleValidate = async () => {
+    const response = await apiClient.validateMicroflow({ schema });
+    setIssues(response.issues);
+    props.onValidateComplete?.(response);
+    Toast[response.valid ? "success" : "warning"](response.valid ? "Validation passed" : `${response.issues.length} issue(s)`);
+  };
+
+  const handleTestRun = async () => {
+    setRunning(true);
     try {
-      const result = await client.testRunMicroflow({
-        microflowId: schema.id,
-        input: testInput,
-        schema
-      });
-      setTraceFrames(result.frames);
-      setRunStatus(result.status);
-      onTestRunComplete?.(result);
-      setTestRunOpen(false);
-      Toast.success(`Test run ${result.runId} ${result.status}.`);
+      const response = await apiClient.testRunMicroflow({ microflowId: schema.id, input: {}, schema });
+      setTraceFrames(response.frames);
+      props.onTestRunComplete?.(response);
+      Toast[response.status === "succeeded" ? "success" : "error"](response.status);
     } finally {
-      setTesting(false);
+      setRunning(false);
     }
-  }
+  };
 
-  async function handlePublish() {
-    if (onPublish) {
-      await onPublish(schema);
+  const handleUndo = () => {
+    const previous = history.at(-1);
+    if (!previous) {
       return;
     }
-    setPublishOpen(true);
-  }
+    setFuture(items => [schema, ...items]);
+    setHistory(items => items.slice(0, -1));
+    setSchema(previous);
+  };
 
-  async function handleConfirmPublish() {
-    setPublishing(true);
-    try {
-      await client.saveMicroflow({ schema });
-      const result = await client.publishMicroflow(schema.id, {
-        version: publishVersion.trim() || schema.version,
-        releaseNote: publishNote,
-        overwriteCurrent
-      });
-      const nextSchema = { ...schema, version: result.publishedVersion };
-      setSchema(nextSchema);
-      setDirty(false);
-      onSchemaChange?.(nextSchema);
-      setPublishOpen(false);
-      Toast.success(`Published ${result.publishedVersion}.`);
-    } finally {
-      setPublishing(false);
-    }
-  }
-
-  function handleAddNode(entry: MicroflowNodeRegistryEntry, options?: { position?: MicroflowPosition }) {
-    if (!entry.enabled) {
-      Toast.warning(entry.disabledReason ?? "This node is disabled.");
+  const handleRedo = () => {
+    const next = future[0];
+    if (!next) {
       return;
     }
-    const registryKey = getMicroflowNodeRegistryKey(entry);
-    const position = options?.position ?? {
-      x: 320 + schema.nodes.length * 16,
-      y: 120 + schema.nodes.length * 12
-    };
-    const nextNode = createMicroflowNodeFromRegistry(entry, position, `${registryKey.replace(":", "-")}-${Date.now()}`);
-    const loopId = findContainingLoopId(schema.nodes, position);
-    if ((nextNode.type === "breakEvent" || nextNode.type === "continueEvent") && !loopId) {
-      Toast.warning("Break/Continue Event 只能放在 Loop 内。");
-      return;
-    }
-    if (loopId && !["startEvent", "endEvent"].includes(nextNode.type)) {
-      nextNode.parentLoopId = loopId;
-    }
-    commitSchema(applyLegacyGraphPatch(schema, { nodes: [...schema.nodes, nextNode] }));
-    setSelectedNodeId(nextNode.id);
-    setRightPanelCollapsed(false);
-  }
-
-  function handleDropNode(payload: MicroflowNodeDragPayload, position: MicroflowPosition) {
-    const entry = getMicroflowNodeByType(payload.nodeType, payload.activityType);
-    if (!entry) {
-      Toast.error(`Unknown microflow node: ${payload.registryKey}`);
-      return;
-    }
-    const registryKey = getMicroflowNodeRegistryKey(entry);
-    const nextNode = createMicroflowNodeFromRegistry(entry, position, `${registryKey.replace(":", "-")}-${Date.now()}`);
-    const loopId = findContainingLoopId(schema.nodes, position);
-    if ((nextNode.type === "breakEvent" || nextNode.type === "continueEvent") && !loopId) {
-      Toast.warning("Break/Continue Event 只能放在 Loop 内。");
-      return;
-    }
-    if (loopId && !["startEvent", "endEvent"].includes(nextNode.type)) {
-      nextNode.parentLoopId = loopId;
-    }
-    const nodeMap = new Map(schema.nodes.map(node => [node.id, node]));
-    const edgeToSplit = schema.edges.find(edge => {
-      if (!["sequence", "errorHandler"].includes(edge.type)) {
-        return false;
-      }
-      const labelPosition = edgeLabelPosition(edge, nodeMap);
-      return Math.abs(labelPosition.x - position.x) < 70 && Math.abs(labelPosition.y - position.y) < 48;
-    });
-    if (edgeToSplit) {
-      const first = createMicroflowEdge({
-        type: edgeToSplit.type,
-        sourceNodeId: edgeToSplit.sourceNodeId,
-        sourcePortId: edgeToSplit.sourcePortId,
-        targetNodeId: nextNode.id,
-        targetPortId: "in",
-        label: edgeToSplit.type === "errorHandler" ? edgeToSplit.label : undefined,
-        errorHandlingType: edgeToSplit.errorHandlingType
-      });
-      const second = createMicroflowEdge({
-        type: edgeToSplit.type === "errorHandler" ? "sequence" : edgeToSplit.type,
-        sourceNodeId: nextNode.id,
-        sourcePortId: "out",
-        targetNodeId: edgeToSplit.targetNodeId,
-        targetPortId: edgeToSplit.targetPortId,
-        label: edgeToSplit.type === "errorHandler" ? "error scope" : edgeToSplit.label
-      });
-      commitSchema({
-        ...applyLegacyGraphPatch(schema, {
-          nodes: [...schema.nodes, nextNode],
-          edges: schema.edges.filter(edge => edge.id !== edgeToSplit.id).concat(first, second)
-        })
-      });
-      setSelectedNodeId(nextNode.id);
-      setSelectedEdgeId(undefined);
-      setRightPanelCollapsed(false);
-      return;
-    }
-    handleAddNode(entry, { position });
-  }
-
-  function handleNodePatch(nodeId: string, patch: MicroflowNodePatch) {
-    let nextOutputs: MicroflowNodeOutput[] | undefined;
-    const nextNodes = schema.nodes.map(node => {
-      if (node.id !== nodeId) {
-        return node;
-      }
-      const nextNode = {
-        ...node,
-        ...(patch.node ?? {}),
-        config: patch.config ? { ...node.config, ...patch.config } : node.config,
-        documentation: patch.documentation ?? node.documentation,
-        advanced: patch.advanced ?? node.advanced,
-        outputs: patch.outputs ?? node.outputs
-      } as MicroflowNode;
-      nextOutputs = nextNode.outputs;
-      return nextNode;
-    });
-    const outputVariableIds = new Set((nextOutputs ?? []).map(output => output.id));
-    const nextVariables = [
-      ...schema.variables.filter(variable => !outputVariableIds.has(variable.id)),
-      ...variablesFromOutputs(nextOutputs)
-    ];
-    commitSchema(applyLegacyGraphPatch(schema, { nodes: nextNodes, variables: nextVariables }));
-  }
-
-  function handleEdgePatch(edgeId: string, patch: Partial<MicroflowEdge>) {
-    commitSchema(applyLegacyGraphPatch(schema, {
-      edges: schema.edges.map(edge => edge.id === edgeId ? { ...edge, ...patch, kind: patch.type ?? edge.type } as MicroflowEdge : edge)
-    }));
-  }
-
-  function handleCreateEdge(edge: MicroflowEdge) {
-    commitSchema(applyLegacyGraphPatch(schema, { edges: [...schema.edges, edge] }));
-    setSelectedNodeId(undefined);
-    setSelectedEdgeId(edge.id);
-    setRightPanelCollapsed(false);
-  }
-
-  function handleDeleteEdge(edgeId: string) {
-    commitSchema(applyLegacyGraphPatch(schema, { edges: schema.edges.filter(edge => edge.id !== edgeId) }));
-    setSelectedEdgeId(undefined);
-  }
-
-  function handleDuplicateNode(nodeId: string) {
-    const node = schema.nodes.find(item => item.id === nodeId);
-    if (!node) {
-      return;
-    }
-    const nextNode = cloneNode(node);
-    nextNode.id = `${node.id}-copy-${Date.now()}`;
-    nextNode.title = `${node.title} Copy`;
-    nextNode.position = { x: node.position.x + 36, y: node.position.y + 36 };
-    commitSchema(applyLegacyGraphPatch(schema, { nodes: [...schema.nodes, nextNode] }));
-    setSelectedNodeId(nextNode.id);
-  }
-
-  function handleLocateNode(nodeId: string) {
-    const node = schema.nodes.find(item => item.id === nodeId);
-    if (!node) {
-      return;
-    }
-    setSelectedNodeId(nodeId);
-    setRightPanelCollapsed(false);
-    setViewport(current => ({
-      ...current,
-      offset: {
-        x: 360 - node.position.x * current.zoom,
-        y: 180 - node.position.y * current.zoom
-      }
-    }));
-  }
-
-  function handleDeleteSelected() {
-    if (selectedEdgeId) {
-      handleDeleteEdge(selectedEdgeId);
-      return;
-    }
-    if (selectedNodeId) {
-      handleDeleteNode(selectedNodeId);
-    }
-  }
-
-  function handleDeleteNode(nodeId: string) {
-    commitSchema(applyLegacyGraphPatch(schema, {
-      nodes: schema.nodes.filter(node => node.id !== nodeId),
-      edges: schema.edges.filter(edge => edge.sourceNodeId !== nodeId && edge.targetNodeId !== nodeId)
-    }));
-    setSelectedNodeId(undefined);
-  }
-
-  function handleZoom(delta: number) {
-    setViewport(current => ({ ...current, zoom: Math.min(1.6, Math.max(0.35, Math.round((current.zoom + delta) * 100) / 100)) }));
-  }
-
-  function handleFitView() {
-    setViewport(schema.viewport ?? { zoom: 0.58, offset: { x: 24, y: 90 } });
-  }
-
-  function handleAutoArrange() {
-    const arrangedNodes = schema.nodes.map((node, index) => ({
-      ...node,
-      position: {
-        x: 80 + (index % 6) * 260,
-        y: 120 + Math.floor(index / 6) * 170
-      }
-    }));
-    commitSchema(applyLegacyGraphPatch(schema, { nodes: arrangedNodes, viewport: { zoom: 0.72, offset: { x: 24, y: 72 } } }));
-    setViewport({ zoom: 0.72, offset: { x: 24, y: 72 } });
-  }
+    setHistory(items => [...items, schema]);
+    setFuture(items => items.slice(1));
+    setSchema(next);
+  };
 
   return (
-    <MicroflowRuntimeBoundary>
-      <div
-        style={{
-          ...createEditorShellStyle(immersive),
-          gridTemplateRows: bottomPanelCollapsed || immersive ? "60px minmax(0, 1fr) 42px" : "60px minmax(0, 1fr) 260px"
-        }}
-        data-testid="microflow-editor"
-      >
-        <div style={toolbarStyle}>
-          <Space style={{ minWidth: 0, flex: 1 }}>
-            {toolbarPrefix}
-            <Title heading={5} ellipsis={{ showTooltip: true }} style={{ margin: 0, maxWidth: 280 }}>{schema.name}</Title>
-            <Tag color="blue">Microflow</Tag>
-            <Tag>{schema.version}</Tag>
-            {dirty ? <Tag color="orange">Draft changes</Tag> : <Tag color="green">Saved</Tag>}
-            {errorCount > 0 ? <Badge count={errorCount} type="danger" /> : null}
-          </Space>
-          <Space wrap style={{ justifyContent: "flex-end" }}>
-            <Button icon={<IconUndo />} disabled title="History adapter is reserved">
-              {copy.undo}
-            </Button>
-            <Button icon={<IconRedo />} disabled title="History adapter is reserved">
-              {copy.redo}
-            </Button>
-            <Button icon={<IconSearch />} onClick={handleFitView}>
-              {copy.fitView}
-            </Button>
-            <Button icon={<IconRefresh />} onClick={handleAutoArrange}>
-              {copy.format}
-            </Button>
-            <Button icon={<IconTickCircle />} loading={validating} onClick={() => void handleValidate()}>
-              {copy.validate}
-            </Button>
-            <Button icon={<IconSave />} theme="solid" loading={saving} onClick={() => void handleSave()}>
-              {copy.save}
-            </Button>
-            <Button icon={<IconPlay />} type="primary" theme="solid" onClick={() => setTestRunOpen(true)}>
-              {copy.testRun}
-            </Button>
-            <Button icon={<IconCopy />} disabled={!selectedNodeId} onClick={() => selectedNodeId && handleDuplicateNode(selectedNodeId)} />
-            <Button icon={<IconDelete />} type="danger" disabled={!selectedNodeId && !selectedEdgeId} onClick={handleDeleteSelected} />
-            {onPublish ? (
-              <Button type="warning" theme="solid" onClick={() => void handlePublish()}>
-                {copy.publish}
-              </Button>
-            ) : (
-              <Button type="warning" theme="solid" loading={publishing} onClick={() => setPublishOpen(true)}>
-                {copy.publish}
-              </Button>
-            )}
-            <Button icon={<IconSetting />} onClick={() => setSettingsOpen(true)}>
-              {copy.settings}
-            </Button>
-            {toolbarSuffix}
-          </Space>
+    <div style={shellStyle}>
+      <div style={toolbarStyle}>
+        <Space>
+          {props.toolbarPrefix}
+          <Title heading={5} style={{ margin: 0 }}>{schema.displayName || schema.name}</Title>
+          <Tag>{schema.schemaVersion}</Tag>
+          <Tag color={issues.some(issue => issue.severity === "error") ? "red" : "green"}>{issues.length} issues</Tag>
+        </Space>
+        <Space>
+          <Button icon={<IconUndo />} disabled={history.length === 0} onClick={handleUndo}>{labels.undo}</Button>
+          <Button icon={<IconRedo />} disabled={future.length === 0} onClick={handleRedo}>{labels.redo}</Button>
+          <Button icon={<IconRefresh />} onClick={handleValidate}>{labels.validate}</Button>
+          <Button icon={<IconPlay />} loading={running} onClick={handleTestRun}>{labels.testRun}</Button>
+          <Button icon={<IconSave />} loading={saving} type="primary" onClick={handleSave}>{labels.save}</Button>
+          {props.toolbarSuffix}
+        </Space>
+      </div>
+      <div style={bodyStyle}>
+        <div style={panelStyle}>
+          <MicroflowNodePanel
+            favoriteNodeKeys={favoriteNodeKeys}
+            onFavoriteChange={keys => {
+              setFavoriteNodeKeys(keys);
+              saveFavoriteNodeKeys(keys);
+            }}
+            onAddNode={(item, options) => handleAddNode(item, options)}
+            onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
+            labels={props.nodePanelLabels}
+          />
         </div>
-        <div style={createEditorBodyStyle(immersive, leftPanelCollapsed, rightPanelCollapsed)}>
-          <aside style={panelStyle}>
-            {leftPanelCollapsed ? (
-              <Button theme="borderless" icon={<IconChevronDown />} onClick={() => setLeftPanelCollapsed(false)} />
-            ) : (
-              <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <Text strong>{copy.nodePanel}</Text>
-                  <Button size="small" theme="borderless" icon={<IconChevronUp />} onClick={() => setLeftPanelCollapsed(true)} />
-                </div>
-                <MicroflowNodePanel
-                  favoriteNodeKeys={favoriteNodeKeys}
-                  onFavoriteChange={setFavoriteNodeKeys}
-                  onAddNode={(entry, options) => handleAddNode(entry, options)}
-                  onStartDrag={() => undefined}
-                  onShowDocumentation={setDocumentationNode}
-                  labels={nodePanelLabels}
-                />
-              </div>
-            )}
-          </aside>
-          <section style={{ display: "grid", gridTemplateRows: "40px 44px minmax(0, 1fr)", minHeight: 0, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", borderBottom: "1px solid var(--semi-color-border)", background: "var(--semi-color-bg-1)" }}>
-              <Tabs type="button" size="small" activeKey="main">
-                <Tabs.TabPane itemKey="main" tab="Main Flow" />
-                <Tabs.TabPane itemKey="new" tab="+" disabled />
-              </Tabs>
-              <Space>
-                <Tag color={runStatus === "failed" ? "red" : runStatus === "running" ? "orange" : runStatus === "succeeded" ? "green" : "grey"}>{runStatus}</Tag>
-                <Text type="tertiary">{schema.nodes.length} nodes · {schema.edges.length} flows</Text>
-              </Space>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", borderBottom: "1px solid var(--semi-color-border)", background: "var(--semi-color-bg-2)" }}>
-              <Space>
-                <Button size="small" theme="solid" type="primary">Select</Button>
-                <Button size="small" disabled>Pan</Button>
-                <Button size="small" icon={<IconMinus />} onClick={() => handleZoom(-0.1)} />
-                <Tag>{Math.round(viewport.zoom * 100)}%</Tag>
-                <Button size="small" icon={<IconPlus />} onClick={() => handleZoom(0.1)} />
-                <Button size="small" onClick={handleFitView}>{copy.fitView}</Button>
-                <Button size="small" onClick={() => setViewport(current => ({ ...current, offset: { x: 24, y: 90 } }))}>Center</Button>
-              </Space>
-              <Space>
-                <Switch size="small" checked={gridVisible} onChange={setGridVisible} />
-                <Text size="small" type="tertiary">Grid</Text>
-                <Switch size="small" checked={canvasLocked} onChange={setCanvasLocked} />
-                <Text size="small" type="tertiary">Lock</Text>
-              </Space>
-            </div>
-            <div style={{ position: "relative", minHeight: 0, minWidth: 0 }}>
-              <MicroflowCanvas
-                schema={schema}
-                editorGraph={editorGraph}
-                selectedNodeId={selectedNodeId}
-                selectedEdgeId={selectedEdgeId}
-                issues={issues}
-                traceFrames={traceFrames}
-                viewport={viewport}
-                gridVisible={gridVisible}
-                locked={canvasLocked}
-                onSelectNode={nodeId => {
-                  setSelectedNodeId(nodeId);
-                  setSelectedEdgeId(undefined);
-                }}
-                onSelectEdge={edgeId => {
-                  setSelectedEdgeId(edgeId || undefined);
-                  setSelectedNodeId(undefined);
-                }}
-                onSchemaChange={commitSchema}
-                onDropNode={handleDropNode}
-                onCreateEdge={handleCreateEdge}
-                onUpdateEdge={handleEdgePatch}
-                onDeleteEdge={handleDeleteEdge}
-                onViewportChange={setViewport}
-              />
-              <Card bodyStyle={{ padding: 6 }} style={{ position: "absolute", right: 16, bottom: 118, background: "rgba(255,255,255,.9)" }}>
-                <Space vertical spacing={4}>
-                  <Button size="small" icon={<IconPlus />} onClick={() => handleZoom(0.1)} />
-                  <Button size="small" icon={<IconMinus />} onClick={() => handleZoom(-0.1)} />
-                  <Button size="small" onClick={handleFitView}>Fit</Button>
-                  <Button size="small" onClick={() => setViewport(current => ({ ...current, zoom: 1 }))}>100%</Button>
-                </Space>
-              </Card>
-            </div>
-          </section>
-          <aside style={rightPanelStyle}>
-            {rightPanelCollapsed ? (
-              <Button theme="borderless" icon={<IconChevronDown />} onClick={() => setRightPanelCollapsed(false)} />
-            ) : (
-              <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 8 }}>
-                  <Text strong>{copy.properties}</Text>
-                  <Button size="small" theme="borderless" icon={<IconChevronUp />} onClick={() => setRightPanelCollapsed(true)} />
-                </div>
-                <MicroflowPropertyPanel
-                  selectedNode={selectedNode ?? null}
-                  selectedEdge={selectedEdge ?? null}
-                  schema={schema}
-                  validationIssues={issues}
-                  traceFrames={traceFrames.map(frame => ({
-                    nodeId: frame.nodeId,
-                    incomingEdgeId: frame.incomingEdgeId,
-                    outgoingEdgeId: frame.outgoingEdgeId,
-                    status: frame.error ? "failed" : "succeeded",
-                    durationMs: frame.durationMs,
-                    error: frame.error?.message
-                  }))}
-                  onNodeChange={handleNodePatch}
-                  onEdgeChange={handleEdgePatch}
-                  onClose={() => {
-                    setSelectedNodeId(undefined);
-                    setSelectedEdgeId(undefined);
-                  }}
-                  onLocateNode={handleLocateNode}
-                  onDuplicateNode={handleDuplicateNode}
-                  onDeleteNode={handleDeleteNode}
-                  onDeleteEdge={handleDeleteEdge}
-                />
-              </div>
-            )}
-          </aside>
-        </div>
-        <div style={{ borderTop: "1px solid var(--semi-color-border)", background: "var(--semi-color-bg-1)", minHeight: 0, overflow: "hidden" }}>
-          <div style={{ height: 42, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", borderBottom: bottomPanelCollapsed ? "none" : "1px solid var(--semi-color-border)" }}>
-            <Tabs type="button" size="small" activeKey={activeBottomPanel} onChange={key => setActiveBottomPanel(key as "problems" | "debug")}>
-              <Tabs.TabPane itemKey="problems" tab={`${copy.problems} (${issues.length})`} />
-              <Tabs.TabPane itemKey="debug" tab={`${copy.debug} (${traceFrames.length})`} />
-            </Tabs>
-            <Button size="small" theme="borderless" icon={bottomPanelCollapsed ? <IconChevronUp /> : <IconChevronDown />} onClick={() => setBottomPanelCollapsed(value => !value)} />
-          </div>
-          {bottomPanelCollapsed ? null : (
-            <div style={{ height: "calc(100% - 42px)", padding: 10, minHeight: 0, overflow: "hidden" }}>
-              {activeBottomPanel === "problems" ? (
-                <ProblemPanel issues={issues} nodesById={nodesById} onLocateNode={handleLocateNode} />
-              ) : (
-                <DebugPanel frames={traceFrames} runStatus={runStatus} onLocateNode={handleLocateNode} />
-              )}
-            </div>
-          )}
+        <MicroflowCanvas
+          graph={graph}
+          traceFrames={traceFrames}
+          onPatch={patchedGraph => {
+            applyPatch(patchedGraph);
+          }}
+          onDropRegistryItem={(item, position) => handleAddNode(item, { position })}
+        />
+        <div style={rightPanelStyle}>
+          <MicroflowPropertyPanel
+            selectedObject={selectedObject}
+            selectedFlow={selectedFlow}
+            schema={schema}
+            validationIssues={issues}
+            traceFrames={traceFrames}
+            onObjectChange={(objectId, patch: MicroflowNodePatch) => {
+              if (!patch.object) {
+                return;
+              }
+              commitSchema(updateObject(schema, objectId, () => patch.object as MicroflowObject));
+            }}
+            onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
+              commitSchema(updateFlow(schema, flowId, () => patch as MicroflowFlow));
+            }}
+            onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
+            onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
+            onDeleteFlow={flowId => commitSchema(deleteFlow(schema, flowId))}
+            onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined })}
+          />
         </div>
       </div>
-      <Modal
-        visible={testRunOpen}
-        title={copy.testRun}
-        onCancel={() => setTestRunOpen(false)}
-        onOk={() => void handleTestRun()}
-        confirmLoading={testing}
-        okText={copy.testRun}
-      >
-        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-          {schema.parameters.length === 0 ? (
-            <Text type="tertiary">This microflow has no input parameters.</Text>
-          ) : schema.parameters.map(parameter => (
-            <Input
-              key={parameter.id}
-              value={testInput[parameter.name] ?? ""}
-              prefix={`${parameter.name}: ${parameter.type.name}`}
-              onChange={value => setTestInput(current => ({ ...current, [parameter.name]: value }))}
+      <div style={{ minHeight: 0, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-1, #fff)", overflow: "auto", padding: 12 }}>
+        <Tabs type="line">
+          <Tabs.TabPane tab={<Space><IconTickCircle />{labels.problems}<Badge count={issues.length} /></Space>} itemKey="problems">
+            <ProblemPanel
+              issues={issues}
+              onSelect={issue => applyPatch({ selectedObjectId: issue.objectId, selectedFlowId: issue.flowId })}
             />
-          ))}
-          <Input
-            value={testInput.simulateError ?? "false"}
-            prefix="simulateError"
-            onChange={value => setTestInput(current => ({ ...current, simulateError: value }))}
-          />
-        </Space>
-      </Modal>
-      <Modal
-        visible={publishOpen}
-        title={copy.publish}
-        onCancel={() => setPublishOpen(false)}
-        onOk={() => void handleConfirmPublish()}
-        confirmLoading={publishing}
-        okText={copy.publish}
-      >
-        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-          <Input value={publishVersion} onChange={setPublishVersion} prefix="Version" />
-          <Input value={publishNote} onChange={setPublishNote} prefix="Release note" />
-          <Checkbox checked={overwriteCurrent} onChange={event => setOverwriteCurrent(Boolean(event.target.checked))}>
-            Overwrite current published version
-          </Checkbox>
-        </Space>
-      </Modal>
-      <SideSheet
-        visible={settingsOpen}
-        title={copy.settings}
-        width={420}
-        onCancel={() => setSettingsOpen(false)}
-        footer={
-          <Space>
-            <Button onClick={() => setSettingsOpen(false)}>Close</Button>
-            <Button theme="solid" onClick={() => setSettingsOpen(false)}>Apply</Button>
-          </Space>
-        }
-      >
-        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-          <Input value={schema.name} prefix="Name" onChange={name => commitSchema({ ...schema, name })} />
-          <Input value={schema.description ?? ""} prefix="Description" onChange={description => commitSchema({ ...schema, description })} />
-          <Select
-            style={{ width: "100%" }}
-            value={(schema.nodes.find(node => node.type === "endEvent")?.config as { returnType?: { name: string } } | undefined)?.returnType?.name ?? "void"}
-            prefix="Return type"
-            optionList={["void", "Boolean", "String", "Integer", "Object", "List"].map(item => ({ value: item, label: item }))}
-            onChange={value => {
-              const name = String(value);
-              commitSchema({
-                ...schema,
-                nodes: schema.nodes.map(node => node.type === "endEvent"
-                  ? { ...node, config: { ...node.config, returnType: { kind: name === "void" ? "void" : "primitive", name } } }
-                  : node)
-              });
-            }}
-          />
-          <Input value={(schema.variables.map(variable => variable.name).join(", "))} readonly prefix="Variables" />
-          <Text type="tertiary">Settings are persisted through the same MicroflowSchema used by save, validate, test run, and publish.</Text>
-        </Space>
-      </SideSheet>
-      <Modal
-        visible={Boolean(documentationNode)}
-        title={documentationNode?.title ?? "Node documentation"}
-        footer={null}
-        onCancel={() => setDocumentationNode(undefined)}
-      >
-        {documentationNode ? (
-          <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
-            <Text>{documentationNode.documentation.summary ?? documentationNode.description}</Text>
-            <Tag color={documentationNode.enabled ? "green" : "grey"}>
-              {documentationNode.enabled ? "Enabled" : documentationNode.disabledReason ?? "Disabled"}
-            </Tag>
-            <Text type="tertiary">
-              Type: {getMicroflowNodeRegistryKey(documentationNode)}
-            </Text>
-            <Text type="tertiary">
-              Inputs: {(documentationNode.inputs ?? []).map(input => input.title).join(", ") || "-"}
-            </Text>
-            <Text type="tertiary">
-              Outputs: {(documentationNode.outputs ?? []).map(output => output.title).join(", ") || "-"}
-            </Text>
-          </Space>
-        ) : null}
-      </Modal>
-    </MicroflowRuntimeBoundary>
+          </Tabs.TabPane>
+          <Tabs.TabPane tab={labels.debug} itemKey="debug">
+            <DebugPanel frames={traceFrames} />
+          </Tabs.TabPane>
+        </Tabs>
+      </div>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import { validateMicroflowSchema } from "../schema/validator";
-import { buildAuthoringFieldsFromLegacy, flattenObjectCollection, toRuntimeDto } from "../adapters";
+import { ensureAuthoringSchema, flattenObjectCollection, toRuntimeDto } from "../adapters";
 import type {
   CreateMicroflowInput,
   MicroflowListQuery,
@@ -27,14 +27,7 @@ const STORAGE_KEY = "atlas_microflow_resources_v1";
 
 function cloneSchema(schema: MicroflowSchema): MicroflowSchema {
   const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowSchema;
-  if (!cloned.objectCollection || !Array.isArray(cloned.flows) || !cloned.variableIndex) {
-    return {
-      ...cloned,
-      ...buildAuthoringFieldsFromLegacy(cloned),
-      variables: cloned.variables ?? []
-    };
-  }
-  return cloned;
+  return ensureAuthoringSchema(cloned);
 }
 
 function cloneResource(resource: MicroflowResource): MicroflowResource {
@@ -210,15 +203,19 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     schema.description = input.description.trim();
     schema.version = "v0.1";
     if (input.returnType?.kind && input.returnType.kind !== "void") {
-      const endNode = schema.nodes.find(node => node.type === "endEvent");
-      if (endNode?.type === "endEvent") {
-        endNode.config.returnValue = {
-          id: `${id}-return`,
-          language: "mendix",
-          text: "empty",
-          expectedType: input.returnType
-        };
-      }
+      schema.returnType = input.returnType;
+      schema.objectCollection.objects = schema.objectCollection.objects.map(object => object.kind === "endEvent"
+        ? {
+            ...object,
+            returnValue: {
+              id: `${id}-return`,
+              raw: "empty",
+              inferredType: input.returnType,
+              references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+              diagnostics: []
+            }
+          }
+        : object);
     }
     const resource = makeResource(id, {
       schema,
@@ -267,7 +264,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       microflowId: schema.id,
       version: schema.version,
       savedAt: next.updatedAt,
-      nodeCount: schema.objectCollection.objects.length,
+      nodeCount: flattenObjectCollection(schema.objectCollection).length,
       edgeCount: schema.flows.length
     };
   }
@@ -295,7 +292,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     const orderedObjectIds: Array<{ objectId: string; incomingFlowId?: string; outgoingFlowId?: string }> = [];
     const start = runtimeObjects.find(object => object.kind === "startEvent");
     let currentId = start?.id;
-    let incomingEdgeId: string | undefined;
+    let incomingFlowId: string | undefined;
     const visited = new Set<string>();
     while (currentId && !visited.has(currentId)) {
       visited.add(currentId);
@@ -311,8 +308,8 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
           !flow.caseValues.some(caseValue => caseValue.kind === "boolean") ||
           flow.caseValues.some(caseValue => caseValue.kind === "boolean" && caseValue.value === true)
         ));
-      orderedObjectIds.push({ objectId: currentId, incomingFlowId: incomingEdgeId, outgoingFlowId: outgoing?.id });
-      incomingEdgeId = outgoing?.id;
+      orderedObjectIds.push({ objectId: currentId, incomingFlowId, outgoingFlowId: outgoing?.id });
+      incomingFlowId = outgoing?.id;
       currentId = outgoing?.destinationObjectId;
     }
     const traversableObjects: Array<{ objectId: string; incomingFlowId?: string; outgoingFlowId?: string }> = orderedObjectIds.length > 0
@@ -326,8 +323,12 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
         id: `${runId}-${trace.objectId}`,
         frameId: `${runId}-${object.id}`,
         runId,
+        objectId: object.id,
         nodeId: object.id,
+        objectTitle: object.caption ?? object.id,
         nodeTitle: object.caption ?? object.id,
+        incomingFlowId: trace.incomingFlowId,
+        outgoingFlowId: trace.outgoingFlowId,
         incomingEdgeId: trace.incomingFlowId,
         outgoingEdgeId: trace.outgoingFlowId,
         status: failed ? "failed" : "success",
@@ -345,7 +346,9 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
         error: failed ? {
           code: "MF_TEST_REST_ERROR",
           message: "Mock REST call failed. Set simulateError=false to run the success path.",
+          objectId: object.id,
           nodeId: object.id,
+          flowId: trace.outgoingFlowId,
           details: { actionKind: object.kind === "actionActivity" ? object.action.kind : undefined }
         } : undefined
       };

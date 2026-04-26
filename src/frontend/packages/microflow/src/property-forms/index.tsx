@@ -1,11 +1,16 @@
 import { Input, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
-import type { MicroflowExpression, MicroflowNode, MicroflowVariable } from "../schema/types";
+import type {
+  MicroflowActionActivity,
+  MicroflowExpression,
+  MicroflowObject,
+  MicroflowVariableSymbol
+} from "../schema/types";
 
 const { Text } = Typography;
 
 export interface ExpressionEditorProps {
   value: MicroflowExpression;
-  variables: MicroflowVariable[];
+  variables: MicroflowVariableSymbol[];
   issues?: string[];
   onChange: (value: MicroflowExpression) => void;
 }
@@ -15,22 +20,33 @@ export function ExpressionEditor({ value, variables, issues = [], onChange }: Ex
     <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
       <TextArea
         autosize
-        value={value.text}
+        value={value.raw ?? value.text}
         placeholder="Enter expression"
-        onChange={text => onChange({ ...value, text })}
+        onChange={raw => onChange({
+          ...value,
+          raw,
+          text: raw,
+          references: {
+            ...(value.references ?? { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }),
+            variables: value.references?.variables?.length ? value.references.variables : Array.from(raw.matchAll(/\$[A-Za-z_][\w]*/g)).map(match => match[0])
+          }
+        })}
       />
       <Select
         multiple
         style={{ width: "100%" }}
         placeholder="Referenced variables"
-        value={value.referencedVariables ?? []}
-        optionList={variables.map(variable => ({ label: `${variable.name}: ${variable.type.name}`, value: variable.name }))}
+        value={value.references?.variables ?? value.referencedVariables ?? []}
+        optionList={variables.map(variable => ({ label: `${variable.name}: ${variable.dataType.kind}`, value: variable.name }))}
         onChange={selected => {
           const selectedValues = Array.isArray(selected) ? selected.map(String) : [];
-          onChange({ ...value, referencedVariables: selectedValues });
+          onChange({
+            ...value,
+            references: { ...(value.references ?? { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] }), variables: selectedValues },
+            referencedVariables: selectedValues
+          });
         }}
       />
-      <Text type="tertiary">Type hints are reserved for the pluggable expression engine.</Text>
       {issues.map(item => (
         <Text key={item} type="danger">
           {item}
@@ -41,92 +57,76 @@ export function ExpressionEditor({ value, variables, issues = [], onChange }: Ex
 }
 
 export interface MicroflowPropertyFormProps {
-  node?: MicroflowNode;
-  variables: MicroflowVariable[];
+  object?: MicroflowObject;
+  variables: MicroflowVariableSymbol[];
 }
 
-function renderConfigRows(node: MicroflowNode): Array<[string, string]> {
-  if (node.type === "activity") {
+function renderObjectRows(object: MicroflowObject): Array<[string, string]> {
+  if (object.kind === "actionActivity") {
+    const action = object.action;
     return [
-      ["Activity Type", node.config.activityType],
-      ["Entity", node.config.entity ?? ""],
-      ["Association", node.config.association ?? ""],
-      ["Object Variable", node.config.objectVariableName ?? ""],
-      ["List Variable", node.config.listVariableName ?? ""],
-      ["Variable", node.config.variableName ?? ""],
-      ["Output Variable", node.config.resultVariableName ?? ""],
-      ["Target Microflow", node.config.targetMicroflowId ?? ""],
-      ["Method", node.config.method ?? ""],
-      ["URL", node.config.url ?? ""],
-      ["Timeout", node.config.timeoutMs ? `${node.config.timeoutMs}ms` : ""],
-      ["Range", node.config.range ?? ""],
-      ["Limit", node.config.limit ? String(node.config.limit) : ""],
-      ["Sort", node.config.sort ?? ""],
-      ["Refresh Client", node.config.refreshClient === undefined ? "" : String(node.config.refreshClient)],
-      ["With Events", node.config.withEvents === undefined ? "" : String(node.config.withEvents)],
-      ["Log Level", node.config.logLevel ?? ""],
-      ["Message", node.config.messageExpression?.text ?? ""],
-      ["Body", node.config.bodyExpression?.text ?? ""],
-      ["Error Handling", node.config.errorHandling?.mode ?? ""]
-    ].map(([label, value]) => [label, String(value ?? "")] as [string, string]).filter(([, value]) => value.length > 0);
+      ["Action Kind", action.kind],
+      ["Official Type", action.officialType],
+      ["Error Handling", action.errorHandlingType],
+      ["Category", action.editor.category],
+      ["Availability", action.editor.availability],
+      ...(action.kind === "retrieve"
+        ? [
+            ["Output Variable", action.outputVariableName],
+            ["Retrieve Source", action.retrieveSource.kind],
+            ["Entity", action.retrieveSource.kind === "database" ? (action.retrieveSource.entityQualifiedName ?? "") : ""],
+            ["Association", action.retrieveSource.kind === "association" ? (action.retrieveSource.associationQualifiedName ?? "") : ""]
+          ]
+        : []),
+      ...(action.kind === "restCall"
+        ? [
+            ["Method", action.request.method],
+            ["URL", action.request.urlExpression.raw],
+            ["Response Mode", action.response.handling.kind],
+            ["Timeout", String(action.timeoutSeconds)]
+          ]
+        : [])
+    ].filter(([, value]) => value.length > 0);
   }
-
-  if (node.type === "loop") {
+  if (object.kind === "loopedActivity") {
     return [
-      ["Iterable", node.config.iterableVariableName],
-      ["Item Variable", node.config.itemVariableName]
+      ["Loop Source", object.loopSource.kind],
+      ["Error Handling", object.errorHandlingType],
+      ["Nested Collection", object.objectCollection.id]
     ];
   }
-
-  if (node.type === "parameter") {
-    return [
-      ["Name", node.config.parameter.name],
-      ["Type", node.config.parameter.type.name],
-      ["Required", String(node.config.parameter.required)]
-    ];
+  if (object.kind === "parameterObject") {
+    return [["Parameter Id", object.parameterId]];
   }
-
-  if (node.type === "annotation") {
-    return [["Text", node.config.text]];
-  }
-
-  if (node.type === "decision") {
-    return [["Expression", node.config.expression.text]];
-  }
-
-  if (node.type === "merge") {
-    return [["Strategy", node.config.strategy]];
-  }
-
-  if (node.type === "endEvent" && node.config.returnValue) {
-    return [["Return Value", node.config.returnValue.text]];
-  }
-
-  return [["Type", node.type]];
+  return [
+    ["Kind", object.kind],
+    ["Official Type", object.officialType]
+  ];
 }
 
-export function MicroflowPropertyForm({ node }: MicroflowPropertyFormProps) {
-  if (!node) {
-    return <Text type="tertiary">Select a node to inspect its properties.</Text>;
+export function MicroflowPropertyForm({ object }: MicroflowPropertyFormProps) {
+  if (!object) {
+    return <Text type="tertiary">Select an object to inspect AuthoringSchema properties.</Text>;
   }
-
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <Input value={node.title} readonly prefix="Title" />
-      <Input value={node.description ?? ""} readonly prefix="Description" />
-      <Input value={node.type} readonly prefix="Node Type" />
-      <Input value="true" readonly prefix="Enabled" />
-      <Input value={node.propertyForm.formKey} readonly prefix="Form" />
-      {renderConfigRows(node).map(([label, value]) => (
+      <Input value={object.caption ?? object.id} readonly prefix="Title" />
+      <Input value={object.officialType} readonly prefix="Official Type" />
+      <Input value={object.kind} readonly prefix="Object Kind" />
+      {renderObjectRows(object).map(([label, value]) => (
         <Input key={label} value={value} readonly prefix={label} />
       ))}
     </Space>
   );
 }
 
-export const objectActivityFormKey = "objectActivity";
-export const listActivityFormKey = "listActivity";
-export const variableActivityFormKey = "variableActivity";
-export const callActivityFormKey = "callActivity";
-export const integrationActivityFormKey = "integrationActivity";
-export const errorHandlingFormKey = "errorHandling";
+export function isActionActivity(object: MicroflowObject | undefined): object is MicroflowActionActivity {
+  return Boolean(object && object.kind === "actionActivity");
+}
+
+export const objectActivityFormKey = "actionActivity.object";
+export const listActivityFormKey = "actionActivity.list";
+export const variableActivityFormKey = "actionActivity.variable";
+export const callActivityFormKey = "actionActivity.call";
+export const integrationActivityFormKey = "actionActivity.integration";
+export const errorHandlingFormKey = "action.errorHandling";

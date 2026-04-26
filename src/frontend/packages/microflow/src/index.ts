@@ -19,6 +19,7 @@ export {
 } from "./property-panel";
 export * from "./runtime-adapter";
 export * from "./mendix-compat";
+export * from "./variable-index";
 export { MicroflowEditor, type MicroflowEditorLabels, type MicroflowEditorProps } from "./editor";
 export {
   ExpressionEditor,

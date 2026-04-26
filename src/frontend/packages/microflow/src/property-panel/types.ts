@@ -1,57 +1,45 @@
 import type {
-  MicroflowActivityConfig,
-  MicroflowActivityNode,
-  MicroflowAnnotationNode,
-  MicroflowDecisionNode,
-  MicroflowEdge,
-  MicroflowEventNode,
+  MicroflowFlow,
   MicroflowExpression,
-  MicroflowLoopNode,
-  MicroflowMergeNode,
-  MicroflowNode,
-  MicroflowNodeAdvancedConfig,
-  MicroflowNodeDocumentation,
-  MicroflowNodeOutput,
-  MicroflowParameterNode,
+  MicroflowObject,
   MicroflowSchema,
   MicroflowValidationIssue,
-  MicroflowVariable
+  MicroflowVariableSymbol
 } from "../schema";
 
 export type MicroflowPropertyTabKey = "properties" | "documentation" | "errorHandling" | "output" | "advanced";
 
 export interface MicroflowPropertyChangePayload {
-  node?: Partial<MicroflowNode>;
-  config?: Record<string, unknown>;
-  documentation?: MicroflowNodeDocumentation;
-  advanced?: MicroflowNodeAdvancedConfig;
-  outputs?: MicroflowNodeOutput[];
+  object?: Partial<MicroflowObject>;
+  flow?: Partial<MicroflowFlow>;
+  fieldPath?: string;
+  value?: unknown;
 }
 
 export type MicroflowNodePatch = MicroflowPropertyChangePayload;
-export type MicroflowEdgePatch = Partial<MicroflowEdge>;
+export type MicroflowEdgePatch = Partial<MicroflowFlow>;
 
 export interface MicroflowPropertyPanelProps {
-  selectedNode: MicroflowNode | null;
-  selectedEdge?: MicroflowEdge | null;
+  selectedObject: MicroflowObject | null;
+  selectedFlow?: MicroflowFlow | null;
   schema: MicroflowSchema;
   validationIssues: MicroflowValidationIssue[];
-  traceFrames?: Array<{ nodeId: string; incomingEdgeId?: string; outgoingEdgeId?: string; status: string; durationMs: number; error?: string }>;
+  traceFrames?: Array<{ objectId: string; incomingFlowId?: string; outgoingFlowId?: string; status: string; durationMs: number; error?: string }>;
   readonly?: boolean;
-  onNodeChange: (nodeId: string, patch: MicroflowNodePatch) => void;
-  onEdgeChange?: (edgeId: string, patch: MicroflowEdgePatch) => void;
+  onObjectChange: (objectId: string, patch: MicroflowNodePatch) => void;
+  onFlowChange?: (flowId: string, patch: MicroflowEdgePatch) => void;
   onClose: () => void;
-  onLocateNode?: (nodeId: string) => void;
-  onDuplicateNode?: (nodeId: string) => void;
-  onDeleteNode?: (nodeId: string) => void;
-  onDeleteEdge?: (edgeId: string) => void;
+  onLocateObject?: (objectId: string) => void;
+  onDuplicateObject?: (objectId: string) => void;
+  onDeleteObject?: (objectId: string) => void;
+  onDeleteFlow?: (flowId: string) => void;
 }
 
-export interface MicroflowNodeFormProps<TNode extends MicroflowNode = MicroflowNode> {
-  node: TNode;
+export interface MicroflowNodeFormProps<TObject extends MicroflowObject = MicroflowObject> {
+  object: TObject;
   schema: MicroflowSchema;
-  variables: MicroflowVariable[];
-  edges: MicroflowEdge[];
+  variables: MicroflowVariableSymbol[];
+  flows: MicroflowFlow[];
   issues: MicroflowValidationIssue[];
   readonly: boolean;
   onPatch: (patch: MicroflowNodePatch) => void;
@@ -66,7 +54,7 @@ export type MicroflowNodeFormRegistry = Record<string, MicroflowNodeFormRegistry
 
 export interface MicroflowExpressionEditorProps {
   value?: MicroflowExpression;
-  variables: MicroflowVariable[];
+  variables: MicroflowVariableSymbol[];
   required?: boolean;
   readonly?: boolean;
   placeholder?: string;
@@ -76,7 +64,7 @@ export interface MicroflowExpressionEditorProps {
 
 export interface MicroflowVariableSelectorProps {
   value?: string;
-  variables: MicroflowVariable[];
+  variables: MicroflowVariableSymbol[];
   readonly?: boolean;
   placeholder?: string;
   onChange: (value: string) => void;
@@ -88,14 +76,6 @@ export interface MicroflowEntitySelectorProps {
   onChange: (value: string) => void;
 }
 
-export type MicroflowConcreteNode =
-  | MicroflowActivityNode
-  | MicroflowAnnotationNode
-  | MicroflowDecisionNode
-  | MicroflowEventNode
-  | MicroflowLoopNode
-  | MicroflowMergeNode
-  | MicroflowParameterNode;
-
-export type MicroflowActivityFormProps = MicroflowNodeFormProps<MicroflowActivityNode>;
-export type MicroflowConfigPatch = Partial<MicroflowActivityConfig> & Record<string, unknown>;
+export type MicroflowConcreteNode = MicroflowObject;
+export type MicroflowActivityFormProps = MicroflowNodeFormProps<Extract<MicroflowObject, { kind: "actionActivity" }>>;
+export type MicroflowConfigPatch = Partial<MicroflowObject> & Record<string, unknown>;

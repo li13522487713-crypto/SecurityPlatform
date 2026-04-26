@@ -198,8 +198,8 @@ export interface MicroflowParameter {
   id: string;
   stableId?: string;
   name: string;
-  dataType?: MicroflowDataType;
-  type: MicroflowTypeRef;
+  dataType: MicroflowDataType;
+  type?: MicroflowTypeRef;
   required: boolean;
   documentation?: string;
   description?: string;
@@ -1098,6 +1098,21 @@ export interface MicroflowEditorState {
   layoutMode?: "freeform" | "auto";
 }
 
+export interface MicroflowLegacyGraphSchema {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  parameters: MicroflowParameter[];
+  variables: MicroflowVariable[];
+  nodes: MicroflowNode[];
+  edges: MicroflowEdge[];
+  viewport?: {
+    zoom: number;
+    offset: MicroflowPosition;
+  };
+}
+
 export interface MicroflowAuthoringSchema {
   schemaVersion: "1.0.0";
   mendixProfile: "mx11";
@@ -1137,6 +1152,7 @@ export interface MicroflowEditorPort {
   direction: MicroflowPortDirection;
   kind: MicroflowPortKind;
   connectionIndex: number;
+  edgeTypes: MicroflowEdgeKind[];
 }
 
 export interface MicroflowEditorNode {
@@ -1150,6 +1166,8 @@ export interface MicroflowEditorNode {
   position: MicroflowPoint;
   size: MicroflowSize;
   ports: MicroflowEditorPort[];
+  parentObjectId?: string;
+  collectionId: string;
   state: {
     selected: boolean;
     disabled: boolean;
@@ -1201,6 +1219,12 @@ export interface MicroflowEditorGraphPatch {
   selectedFlowId?: string;
   viewport?: MicroflowEditorGraph["viewport"];
   updatedFlows?: Array<{ flowId: string; label?: string; line?: MicroflowLine }>;
+  addObject?: { object: MicroflowObject; parentLoopObjectId?: string };
+  updateObject?: { objectId: string; patch: Partial<MicroflowObject> };
+  deleteObjectId?: string;
+  addFlow?: MicroflowFlow;
+  updateFlow?: { flowId: string; patch: Partial<MicroflowFlow> };
+  deleteFlowId?: string;
 }
 
 export interface MendixCompatText {
@@ -1255,22 +1279,8 @@ export interface MicroflowRuntimeDto {
   variables: MicroflowVariableIndex;
 }
 
-export interface MicroflowSchema extends Omit<MicroflowAuthoringSchema, "variables" | "validation" | "editor"> {
-  id: string;
-  name: string;
+export interface MicroflowSchema extends MicroflowAuthoringSchema {
   version: string;
-  description?: string;
-  parameters: MicroflowParameter[];
-  variables: MicroflowVariable[];
-  variableIndex: MicroflowVariableIndex;
-  validation: MicroflowValidationState;
-  editor: MicroflowEditorState;
-  nodes: MicroflowNode[];
-  edges: MicroflowEdge[];
-  viewport?: {
-    zoom: number;
-    offset: MicroflowPosition;
-  };
 }
 
 export interface MicroflowResource {

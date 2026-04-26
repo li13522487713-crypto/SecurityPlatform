@@ -1,476 +1,513 @@
-import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, Dropdown, Empty, Input, Select, Space, Switch, Tabs, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
-import { IconClose, IconCopy, IconDelete, IconInfoCircle, IconLock, IconMore, IconUnlock } from "@douyinfe/semi-icons";
-import type { MicroflowNodeOutput, MicroflowVariable } from "../schema";
-import { getMicroflowEdgeRegistryItem } from "../node-registry";
-import { findMicroflowObject } from "../adapters";
-import {
-  MicroflowAdvancedSection,
-  MicroflowDocumentationSection,
-  MicroflowErrorHandlingSection,
-  MicroflowOutputSection
-} from "./sections";
-import {
-  getMicroflowNodeFormKey,
-  microflowNodeFormRegistry
-} from "./node-forms";
+import type { ReactNode } from "react";
+import { Empty, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography, Button } from "@douyinfe/semi-ui";
+import { IconCopy, IconDelete, IconClose } from "@douyinfe/semi-icons";
 import type {
-  MicroflowNodeFormProps,
-  MicroflowNodePatch,
-  MicroflowPropertyPanelProps,
-  MicroflowEdgePatch,
-  MicroflowPropertyTabKey
-} from "./types";
+  MicroflowAction,
+  MicroflowActionActivity,
+  MicroflowDataType,
+  MicroflowExpression,
+  MicroflowFlow,
+  MicroflowObject,
+  MicroflowVariableSymbol,
+  MicroflowSequenceFlow
+} from "../schema";
+import type { MicroflowEdgePatch, MicroflowNodePatch, MicroflowPropertyPanelProps } from "./types";
 
 export * from "./controls";
 export * from "./node-forms";
 export * from "./sections";
 export * from "./types";
 
-const { Text } = Typography;
-
-const tabLabels: Record<MicroflowPropertyTabKey, string> = {
-  properties: "属性",
-  documentation: "文档",
-  errorHandling: "错误处理",
-  output: "输出",
-  advanced: "高级"
-};
-
-function nodeTypeLabel(props: MicroflowPropertyPanelProps): string {
-  const node = props.selectedNode;
-  if (!node) {
-    return "";
-  }
-  return node.type === "activity" ? node.config.activityType : node.type;
+export function buildVariablesForPropertyPanel(schema: { variables: Record<string, Record<string, MicroflowVariableSymbol>> }): MicroflowVariableSymbol[] {
+  return Object.values(schema.variables).flatMap(group => Object.values(group));
 }
 
-function nodeIconLabel(type: string): string {
-  return type.slice(0, 1).toUpperCase();
+const { Text, Title } = Typography;
+
+function expression(raw = "", inferredType?: MicroflowDataType): MicroflowExpression {
+  return {
+    raw,
+    inferredType,
+    references: { variables: [], entities: [], attributes: [], associations: [], enumerations: [], functions: [] },
+    diagnostics: []
+  };
 }
 
-function MicroflowPropertyPanelHeader({
-  props,
-  issueCount,
-  dirty,
-  onPatch
-}: {
-  props: MicroflowPropertyPanelProps;
-  issueCount: number;
-  dirty: boolean;
-  onPatch: (patch: MicroflowNodePatch) => void;
-}) {
-  const node = props.selectedNode;
-  if (!node) {
-    return null;
+function objectTitle(object: MicroflowObject): string {
+  if (object.kind === "actionActivity") {
+    return `${object.caption} (${object.action.kind})`;
   }
-  const type = nodeTypeLabel(props);
-  const locked = Boolean(props.readonly || node.locked);
-  const menu = (
-    <Dropdown.Menu>
-      <Dropdown.Item icon={<IconCopy />} onClick={() => props.onDuplicateNode?.(node.id)}>复制节点</Dropdown.Item>
-      <Dropdown.Item disabled>粘贴配置</Dropdown.Item>
-      <Dropdown.Item onClick={() => props.onLocateNode?.(node.id)}>定位到画布</Dropdown.Item>
-      <Dropdown.Item disabled>查看执行记录</Dropdown.Item>
-      <Dropdown.Item type="danger" icon={<IconDelete />} onClick={() => props.onDeleteNode?.(node.id)}>删除节点</Dropdown.Item>
-    </Dropdown.Menu>
+  return object.caption ?? object.kind;
+}
+
+function actionPatch(action: MicroflowAction, patch: Partial<MicroflowAction>): MicroflowAction {
+  return { ...action, ...patch } as MicroflowAction;
+}
+
+function updateAction(activity: MicroflowActionActivity, patch: Partial<MicroflowAction>): MicroflowActionActivity {
+  return { ...activity, action: actionPatch(activity.action, patch) };
+}
+
+function issuesFor(props: MicroflowPropertyPanelProps, objectId?: string, flowId?: string, actionId?: string) {
+  return props.validationIssues.filter(issue =>
+    (objectId && issue.objectId === objectId) ||
+    (flowId && issue.flowId === flowId) ||
+    (actionId && issue.actionId === actionId)
   );
+}
 
+function Header({ props, title, subtitle, onDelete, onDuplicate }: {
+  props: MicroflowPropertyPanelProps;
+  title: string;
+  subtitle: string;
+  onDelete?: () => void;
+  onDuplicate?: () => void;
+}) {
   return (
     <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0, 1fr) auto", gap: 10, alignItems: "center" }}>
-        <span style={{ width: 34, height: 34, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(22, 93, 255, 0.1)", color: "#165dff", fontWeight: 700 }}>
-          {nodeIconLabel(type)}
-        </span>
+      <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
         <div style={{ minWidth: 0 }}>
-          <Space spacing={6}>
-            <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 168 }}>{node.title}</Text>
-            <Tag size="small">v2</Tag>
-            {dirty ? <Tag size="small" color="orange">Dirty</Tag> : null}
-            {issueCount > 0 ? <Badge count={issueCount} type="danger" /> : null}
-          </Space>
-          <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: "block", maxWidth: 230 }}>{node.description || type}</Text>
+          <Title heading={6} style={{ margin: 0 }}>{title}</Title>
+          <Text size="small" type="tertiary">{subtitle}</Text>
         </div>
-        <Space spacing={2}>
-          <Tooltip content={locked ? "解锁节点" : "锁定节点"}>
-            <Button size="small" theme="borderless" icon={locked ? <IconLock /> : <IconUnlock />} onClick={() => onPatch({ node: { locked: !node.locked } })} />
-          </Tooltip>
-          <Tooltip content="复制节点">
-            <Button size="small" theme="borderless" icon={<IconCopy />} onClick={() => props.onDuplicateNode?.(node.id)} />
-          </Tooltip>
-          <Dropdown trigger="click" position="bottomRight" render={menu}>
-            <Button size="small" theme="borderless" icon={<IconMore />} />
-          </Dropdown>
-          <Button size="small" theme="borderless" icon={<IconClose />} onClick={props.onClose} />
+        <Space>
+          {onDuplicate ? <Button icon={<IconCopy />} theme="borderless" onClick={onDuplicate} disabled={props.readonly} /> : null}
+          {onDelete ? <Button icon={<IconDelete />} theme="borderless" type="danger" onClick={onDelete} disabled={props.readonly} /> : null}
+          <Button icon={<IconClose />} theme="borderless" onClick={props.onClose} />
         </Space>
-      </div>
-      {locked ? <Text type="tertiary" size="small" style={{ display: "block", marginTop: 8 }}>节点已锁定，表单进入只读状态。</Text> : null}
+      </Space>
     </div>
   );
 }
 
-function MicroflowPropertyTabs({
-  activeKey,
-  tabs,
-  onChange
-}: {
-  activeKey: MicroflowPropertyTabKey;
-  tabs: MicroflowPropertyTabKey[];
-  onChange: (key: MicroflowPropertyTabKey) => void;
-}) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Tabs type="line" size="small" activeKey={activeKey} onChange={key => onChange(key as MicroflowPropertyTabKey)}>
-      {tabs.map(tab => <Tabs.TabPane key={tab} itemKey={tab} tab={tabLabels[tab]} />)}
-    </Tabs>
+    <label style={{ display: "grid", gap: 6 }}>
+      <Text size="small" strong>{label}</Text>
+      {children}
+    </label>
   );
 }
 
-function conditionValueText(value: import("../schema").MicroflowConditionValue | undefined): string {
-  if (!value) {
-    return "";
-  }
-  if (value.kind === "boolean") {
-    return String(value.value);
-  }
-  if (value.kind === "objectType") {
-    return value.entity;
-  }
-  return value.value;
-}
-
-function parseConditionValue(edgeType: string, text: string): import("../schema").MicroflowConditionValue | undefined {
-  const value = text.trim();
-  if (!value) {
-    return undefined;
-  }
-  if (edgeType === "decisionCondition") {
-    if (value === "true" || value === "是") {
-      return { kind: "boolean", value: true };
-    }
-    if (value === "false" || value === "否") {
-      return { kind: "boolean", value: false };
-    }
-    return { kind: "enumeration", value };
-  }
-  if (edgeType === "objectTypeCondition") {
-    return { kind: "objectType", entity: value as never };
-  }
-  return { kind: "custom", value };
-}
-
-function MicroflowEdgePropertyPanel({
-  props,
-  edge
+function ActionActivityFields({
+  object,
+  readonly,
+  onPatch
 }: {
-  props: MicroflowPropertyPanelProps;
-  edge: NonNullable<MicroflowPropertyPanelProps["selectedEdge"]>;
+  object: MicroflowActionActivity;
+  readonly?: boolean;
+  onPatch: (patch: MicroflowNodePatch) => void;
 }) {
-  const registryItem = getMicroflowEdgeRegistryItem(edge.type);
-  const flow = props.schema.flows.find(item => item.id === edge.id);
-  const source = props.schema.nodes.find(node => node.id === edge.sourceNodeId);
-  const target = props.schema.nodes.find(node => node.id === edge.targetNodeId);
-  const issues = props.validationIssues.filter(issue => issue.edgeId === edge.id || issue.flowId === edge.id);
-  const readonly = Boolean(props.readonly);
-  const patch = (next: MicroflowEdgePatch) => {
-    if (!readonly) {
-      props.onEdgeChange?.(edge.id, next);
-    }
-  };
+  const action = object.action;
+  const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
   return (
-    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr) auto", background: "var(--semi-color-bg-1, #fff)" }}>
-      <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border)" }}>
-        <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-          <Space>
-            <Text strong>{registryItem?.titleZh ?? edge.type}</Text>
-            <Tag color={edge.type === "errorHandler" ? "red" : edge.type === "annotation" ? "grey" : "blue"}>{registryItem?.title ?? edge.type}</Tag>
-            <Button size="small" theme="borderless" icon={<IconClose />} onClick={props.onClose} />
-          </Space>
-          <Text type="tertiary">{registryItem?.description}</Text>
-        </Space>
-      </div>
-      <div style={{ minHeight: 0, overflow: "auto", padding: 14 }}>
-        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-          {issues.length > 0 ? (
-            <div style={{ width: "100%", padding: 10, borderRadius: 10, background: "rgba(249, 57, 32, 0.06)", border: "1px solid rgba(249, 57, 32, 0.18)" }}>
-              {issues.map(issue => <Text key={issue.id} type={issue.severity === "error" ? "danger" : "warning"} size="small" style={{ display: "block" }}>{issue.message}</Text>)}
-            </div>
-          ) : null}
-          <Input readonly prefix="Edge Type" value={`${registryItem?.titleZh ?? edge.type} / ${registryItem?.title ?? edge.type}`} />
-          <Input readonly prefix="Runtime Effect" value={registryItem?.runtimeEffect ?? "-"} />
-          <Input readonly prefix="Official Type" value={flow?.officialType ?? (edge.type === "annotation" ? "Microflows$AnnotationFlow" : "Microflows$SequenceFlow")} />
-          <Input readonly prefix="Flow Kind" value={flow?.kind ?? (edge.type === "annotation" ? "annotation" : "sequence")} />
-          <Input readonly prefix="Source Node" value={source?.title ?? edge.sourceNodeId} />
-          <Input readonly prefix="Target Node" value={target?.title ?? edge.targetNodeId} />
-          <Input readonly prefix="Origin Object ID" value={flow?.originObjectId ?? edge.sourceNodeId} />
-          <Input readonly prefix="Destination Object ID" value={flow?.destinationObjectId ?? edge.targetNodeId} />
-          <Input readonly prefix="Origin Connection Index" value={flow?.kind === "sequence" ? String(flow.originConnectionIndex) : String(flow?.originConnectionIndex ?? "")} />
-          <Input readonly prefix="Destination Connection Index" value={flow?.kind === "sequence" ? String(flow.destinationConnectionIndex) : String(flow?.destinationConnectionIndex ?? "")} />
-          <Input readonly={readonly} prefix="Label" value={edge.label ?? ""} onChange={label => patch({ label })} />
-          <TextArea autosize readonly={readonly} placeholder="Description" value={edge.description ?? ""} onChange={description => patch({ description })} />
-          {flow?.kind === "sequence" ? (
+    <Space vertical align="start" style={{ width: "100%" }}>
+      <Field label="Caption">
+        <Input value={object.caption} disabled={readonly} onChange={caption => patchObject({ ...object, caption })} />
+      </Field>
+      <Field label="Auto Generate Caption">
+        <Switch checked={object.autoGenerateCaption} disabled={readonly} onChange={autoGenerateCaption => patchObject({ ...object, autoGenerateCaption })} />
+      </Field>
+      <Field label="Background Color">
+        <Select
+          value={object.backgroundColor}
+          disabled={readonly}
+          style={{ width: "100%" }}
+          onChange={value => patchObject({ ...object, backgroundColor: String(value) as MicroflowActionActivity["backgroundColor"] })}
+          optionList={["default", "blue", "green", "orange", "red", "purple", "gray"].map(value => ({ label: value, value }))}
+        />
+      </Field>
+      <Field label="Error Handling">
+        <Select
+          value={action.errorHandlingType}
+          disabled={readonly || action.kind === "rollback"}
+          style={{ width: "100%" }}
+          onChange={value => patchObject(updateAction(object, { errorHandlingType: String(value) as MicroflowAction["errorHandlingType"] }))}
+          optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+        />
+      </Field>
+
+      {action.kind === "retrieve" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Retrieve Source</Title>
+          <Field label="Output Variable">
+            <Input value={action.outputVariableName} disabled={readonly} onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName }))} />
+          </Field>
+          <Field label="Source Type">
+            <Select
+              value={action.retrieveSource.kind}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              onChange={value => {
+                const source = String(value) === "association"
+                  ? { kind: "association" as const, officialType: "Microflows$AssociationRetrieveSource" as const, associationQualifiedName: null, startVariableName: "" }
+                  : {
+                      kind: "database" as const,
+                      officialType: "Microflows$DatabaseRetrieveSource" as const,
+                      entityQualifiedName: null,
+                      xPathConstraint: null,
+                      sortItemList: { items: [] },
+                      range: { kind: "all" as const, officialType: "Microflows$ConstantRange" as const, value: "all" as const }
+                    };
+                patchObject(updateAction(object, { retrieveSource: source }));
+              }}
+              optionList={[{ label: "From Database", value: "database" }, { label: "By Association", value: "association" }]}
+            />
+          </Field>
+          {action.retrieveSource.kind === "database" ? (
             <>
-              <Input readonly prefix="isErrorHandler" value={String(flow.isErrorHandler)} />
-              <Text type="tertiary" size="small">caseValues</Text>
-              <TextArea readonly autosize value={JSON.stringify(flow.caseValues, null, 2)} />
-              <Text type="tertiary" size="small">line</Text>
-              <TextArea readonly autosize value={JSON.stringify(flow.line, null, 2)} />
+              <Field label="Entity">
+                <Input
+                  value={action.retrieveSource.entityQualifiedName ?? ""}
+                  disabled={readonly}
+                  onChange={entityQualifiedName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, entityQualifiedName } }))}
+                />
+              </Field>
+              <Field label="XPath Constraint">
+                <TextArea
+                  value={action.retrieveSource.xPathConstraint?.raw ?? ""}
+                  disabled={readonly}
+                  autosize
+                  onChange={raw => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, xPathConstraint: expression(raw, { kind: "boolean" }) } }))}
+                />
+              </Field>
+              <Field label="Range">
+                <Select
+                  value={action.retrieveSource.range.kind}
+                  disabled={readonly}
+                  style={{ width: "100%" }}
+                  onChange={value => {
+                    const kind = String(value);
+                    const range = kind === "custom"
+                      ? { kind: "custom" as const, officialType: "Microflows$CustomRange" as const, limitExpression: expression("10", { kind: "integer" }), offsetExpression: expression("0", { kind: "integer" }) }
+                      : { kind: kind as "all" | "first", officialType: "Microflows$ConstantRange" as const, value: kind as "all" | "first" };
+                    patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, range } }));
+                  }}
+                  optionList={[{ label: "All", value: "all" }, { label: "First", value: "first" }, { label: "Custom", value: "custom" }]}
+                />
+              </Field>
+              <Field label="Sort Items (one per line: Entity.Attribute asc)">
+                <TextArea
+                  autosize
+                  disabled={readonly}
+                  value={action.retrieveSource.sortItemList.items.map(item => `${item.attributeQualifiedName} ${item.direction}`).join("\n")}
+                  onChange={value => patchObject(updateAction(object, {
+                    retrieveSource: {
+                      ...action.retrieveSource,
+                      sortItemList: {
+                        items: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+                          const [attributeQualifiedName, direction] = line.split(/\s+/);
+                          return { attributeQualifiedName, direction: direction === "desc" ? "desc" as const : "asc" as const };
+                        })
+                      }
+                    }
+                  }))}
+                />
+              </Field>
             </>
-          ) : null}
-          {flow?.kind === "annotation" ? (
+          ) : (
             <>
-              <Text type="tertiary" size="small">line</Text>
-              <TextArea readonly autosize value={JSON.stringify(flow.line, null, 2)} />
+              <Field label="Start Variable">
+                <Input
+                  value={action.retrieveSource.startVariableName}
+                  disabled={readonly}
+                  onChange={startVariableName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, startVariableName } }))}
+                />
+              </Field>
+              <Field label="Association">
+                <Input
+                  value={action.retrieveSource.associationQualifiedName ?? ""}
+                  disabled={readonly}
+                  onChange={associationQualifiedName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, associationQualifiedName } }))}
+                />
+              </Field>
             </>
+          )}
+        </>
+      ) : null}
+
+      {action.kind === "commit" || action.kind === "delete" || action.kind === "rollback" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>{action.kind}</Title>
+          <Field label="Object/List Variable">
+            <Input
+              value={action.objectOrListVariableName}
+              disabled={readonly}
+              onChange={objectOrListVariableName => patchObject(updateAction(object, { objectOrListVariableName }))}
+            />
+          </Field>
+          {"withEvents" in action ? (
+            <Field label="With Events">
+              <Switch checked={action.withEvents} disabled={readonly} onChange={withEvents => patchObject(updateAction(object, { withEvents }))} />
+            </Field>
           ) : null}
-          {edge.type === "decisionCondition" || edge.type === "objectTypeCondition" ? (
-            <>
-              <Input
-                readonly={readonly}
-                prefix={edge.type === "decisionCondition" ? "Condition Value" : "Specialization"}
-                value={conditionValueText(edge.conditionValue)}
-                onChange={text => patch({ conditionValue: parseConditionValue(edge.type, text) })}
-              />
-              <Input readonly={readonly} prefix="Branch Order" value={String(edge.branchOrder ?? "")} onChange={branchOrder => patch({ branchOrder: Number(branchOrder) || undefined })} />
-            </>
+          {"refreshInClient" in action ? (
+            <Field label="Refresh In Client">
+              <Switch checked={action.refreshInClient} disabled={readonly} onChange={refreshInClient => patchObject(updateAction(object, { refreshInClient }))} />
+            </Field>
           ) : null}
-          {edge.type === "errorHandler" ? (
-            <>
+        </>
+      ) : null}
+
+      {action.kind === "restCall" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>REST Request</Title>
+          <Field label="Method">
+            <Select
+              value={action.request.method}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              onChange={method => patchObject(updateAction(object, { request: { ...action.request, method: String(method) as typeof action.request.method } }))}
+              optionList={["GET", "POST", "PUT", "PATCH", "DELETE"].map(value => ({ label: value, value }))}
+            />
+          </Field>
+          <Field label="URL Expression">
+            <Input value={action.request.urlExpression.raw} disabled={readonly} onChange={raw => patchObject(updateAction(object, { request: { ...action.request, urlExpression: expression(raw, { kind: "string" }) } }))} />
+          </Field>
+          <Field label="Timeout Seconds">
+            <InputNumber value={action.timeoutSeconds} disabled={readonly} onChange={timeoutSeconds => patchObject(updateAction(object, { timeoutSeconds: Number(timeoutSeconds) }))} />
+          </Field>
+          <Field label="Response Handling">
+            <Select
+              value={action.response.handling.kind}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              onChange={kind => patchObject(updateAction(object, {
+                response: {
+                  ...action.response,
+                  handling: String(kind) === "ignore"
+                    ? { kind: "ignore" }
+                    : { kind: String(kind) as "string" | "json", outputVariableName: action.response.handling.kind === "ignore" ? "Response" : action.response.handling.outputVariableName }
+                }
+              }))}
+              optionList={[{ label: "Ignore", value: "ignore" }, { label: "String", value: "string" }, { label: "JSON", value: "json" }]}
+            />
+          </Field>
+        </>
+      ) : null}
+
+      {action.kind === "logMessage" ? (
+        <>
+          <Field label="Level">
+            <Select
+              value={action.level}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              onChange={level => patchObject(updateAction(object, { level: String(level) as typeof action.level }))}
+              optionList={["trace", "debug", "info", "warning", "error", "critical"].map(value => ({ label: value, value }))}
+            />
+          </Field>
+          <Field label="Template">
+            <TextArea value={action.template.text} autosize disabled={readonly} onChange={text => patchObject(updateAction(object, { template: { ...action.template, text } }))} />
+          </Field>
+        </>
+      ) : null}
+    </Space>
+  );
+}
+
+function ObjectPanel(props: MicroflowPropertyPanelProps) {
+  const object = props.selectedObject;
+  if (!object) {
+    return null;
+  }
+  const issues = issuesFor(props, object.id, undefined, object.kind === "actionActivity" ? object.action.id : undefined);
+  const patch = (next: MicroflowObject) => props.onObjectChange(object.id, { object: next });
+  return (
+    <>
+      <Header
+        props={props}
+        title={objectTitle(object)}
+        subtitle={object.officialType}
+        onDelete={() => props.onDeleteObject?.(object.id)}
+        onDuplicate={() => props.onDuplicateObject?.(object.id)}
+      />
+      <div style={{ padding: 14, display: "grid", gap: 12 }}>
+        {issues.length > 0 ? <Space wrap>{issues.map(issue => <Tag key={issue.id} color={issue.severity === "error" ? "red" : "orange"}>{issue.code}</Tag>)}</Space> : null}
+        <Field label="Kind">
+          <Input value={object.kind} disabled />
+        </Field>
+        <Field label="Caption">
+          <Input value={object.caption ?? ""} disabled={props.readonly} onChange={caption => patch({ ...object, caption })} />
+        </Field>
+        <Field label="Documentation">
+          <TextArea value={object.documentation ?? ""} autosize disabled={props.readonly} onChange={documentation => patch({ ...object, documentation })} />
+        </Field>
+        <Field label="Disabled">
+          <Switch checked={Boolean(object.disabled)} disabled={props.readonly} onChange={disabled => patch({ ...object, disabled })} />
+        </Field>
+        {object.kind === "startEvent" ? (
+          <Field label="Trigger">
+            <Select
+              value={object.trigger.type}
+              disabled={props.readonly}
+              style={{ width: "100%" }}
+              onChange={type => patch({ ...object, trigger: { type: String(type) as typeof object.trigger.type } })}
+              optionList={["manual", "pageEvent", "formSubmit", "workflowCall", "apiCall", "scheduled", "system"].map(value => ({ label: value, value }))}
+            />
+          </Field>
+        ) : null}
+        {object.kind === "endEvent" ? (
+          <Field label="Return Value">
+            <Input value={object.returnValue?.raw ?? ""} disabled={props.readonly} onChange={raw => patch({ ...object, returnValue: raw ? expression(raw) : undefined })} />
+          </Field>
+        ) : null}
+        {object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" ? (
+          <Field label="Split Expression">
+            <Input value={object.splitCondition.expression.raw} disabled={props.readonly} onChange={raw => patch({ ...object, splitCondition: { ...object.splitCondition, expression: expression(raw, { kind: object.splitCondition.resultType }) } })} />
+          </Field>
+        ) : null}
+        {object.kind === "inheritanceSplit" ? (
+          <>
+            <Field label="Input Object Variable">
+              <Input value={object.inputObjectVariableName} disabled={props.readonly} onChange={inputObjectVariableName => patch({ ...object, inputObjectVariableName })} />
+            </Field>
+            <Field label="Allowed Specializations">
+              <TextArea value={object.entity.allowedSpecializations.join("\n")} autosize disabled={props.readonly} onChange={value => patch({ ...object, entity: { ...object.entity, allowedSpecializations: value.split("\n").map(item => item.trim()).filter(Boolean) } })} />
+            </Field>
+          </>
+        ) : null}
+        {object.kind === "loopedActivity" ? (
+          <>
+            <Field label="Loop Source">
               <Select
-                disabled={readonly}
+                value={object.loopSource.kind}
+                disabled={props.readonly}
                 style={{ width: "100%" }}
-                prefix="Error Handling"
-                value={edge.errorHandlingType ?? "customWithRollback"}
-                optionList={["customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-                onChange={value => patch({ errorHandlingType: String(value) as MicroflowEdgePatch["errorHandlingType"] })}
+                onChange={kind => patch({
+                  ...object,
+                  loopSource: String(kind) === "whileCondition"
+                    ? { kind: "whileCondition", officialType: "Microflows$WhileLoopCondition", expression: expression("true", { kind: "boolean" }) }
+                    : { kind: "iterableList", officialType: "Microflows$IterableList", listVariableName: "Items", iteratorVariableName: "Item", currentIndexVariableName: "$currentIndex" }
+                })}
+                optionList={[{ label: "Iterable List", value: "iterableList" }, { label: "While Condition", value: "whileCondition" }]}
               />
-              <Switch disabled={readonly} checked={edge.exposeLatestError ?? true} onChange={exposeLatestError => patch({ exposeLatestError })} /> <Text>Expose latestError</Text>
-              <Switch disabled={readonly} checked={Boolean(edge.exposeLatestHttpResponse)} onChange={exposeLatestHttpResponse => patch({ exposeLatestHttpResponse })} /> <Text>Expose latestHttpResponse</Text>
-              <Switch disabled={readonly} checked={Boolean(edge.exposeLatestSoapFault)} onChange={exposeLatestSoapFault => patch({ exposeLatestSoapFault })} /> <Text>Expose latestSoapFault</Text>
-              <Input readonly={readonly} prefix="Error Variable" value={edge.targetErrorVariableName ?? "latestError"} onChange={targetErrorVariableName => patch({ targetErrorVariableName })} />
-              <Switch disabled={readonly} checked={edge.logError ?? true} onChange={logError => patch({ logError })} /> <Text>Log error</Text>
-            </>
-          ) : null}
-          {edge.type === "annotation" ? (
-            <>
-              <Select disabled={readonly} style={{ width: "100%" }} prefix="Attachment" value={edge.attachmentMode ?? "node"} optionList={["node", "edge", "canvas"].map(value => ({ label: value, value }))} onChange={attachmentMode => patch({ attachmentMode: String(attachmentMode) as MicroflowEdgePatch["attachmentMode"] })} />
-              <Switch disabled={readonly} checked={edge.showInExport ?? true} onChange={showInExport => patch({ showInExport })} /> <Text>Export to documentation</Text>
-            </>
-          ) : null}
-        </Space>
+            </Field>
+            {object.loopSource.kind === "iterableList" ? (
+              <>
+                <Field label="List Variable">
+                  <Input value={object.loopSource.listVariableName} disabled={props.readonly} onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName } })} />
+                </Field>
+                <Field label="Iterator Variable">
+                  <Input value={object.loopSource.iteratorVariableName} disabled={props.readonly} onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName } })} />
+                </Field>
+              </>
+            ) : (
+              <Field label="While Expression">
+                <Input value={object.loopSource.expression.raw} disabled={props.readonly} onChange={raw => patch({ ...object, loopSource: { ...object.loopSource, expression: expression(raw, { kind: "boolean" }) } })} />
+              </Field>
+            )}
+          </>
+        ) : null}
+        {object.kind === "actionActivity" ? (
+          <ActionActivityFields object={object} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
+        ) : null}
       </div>
-      <div style={{ padding: "8px 12px", borderTop: "1px solid var(--semi-color-border)" }}>
-        <Button type="danger" theme="borderless" icon={<IconDelete />} onClick={() => props.onDeleteEdge?.(edge.id)}>删除连线</Button>
-      </div>
-    </div>
+    </>
   );
 }
 
-function createVariableFromOutput(output: MicroflowNodeOutput): MicroflowVariable {
-  return {
-    id: output.id,
-    name: output.name,
-    type: output.type,
-    scope: "node"
-  };
+function flowPatch(flow: MicroflowFlow, patch: MicroflowEdgePatch): MicroflowFlow {
+  return { ...flow, ...patch } as MicroflowFlow;
 }
 
-export function buildVariablesForPropertyPanel(props: MicroflowPropertyPanelProps): MicroflowVariable[] {
-  const outputVariables = props.schema.nodes.flatMap(node => (node.outputs ?? []).map(createVariableFromOutput));
-  const parameterVariables = props.schema.parameters.map(parameter => ({
-    id: parameter.id,
-    name: parameter.name,
-    type: parameter.type,
-    scope: "microflow" as const
-  }));
-  return [
-    ...props.schema.variables,
-    ...parameterVariables,
-    ...outputVariables,
-    { id: "latestError", name: "latestError", type: { kind: "unknown", name: "Error" }, scope: "latestError" }
-  ];
+function FlowPanel(props: MicroflowPropertyPanelProps) {
+  const flow = props.selectedFlow;
+  if (!flow) {
+    return null;
+  }
+  const issues = issuesFor(props, undefined, flow.id);
+  const patch = (next: MicroflowFlow) => props.onFlowChange?.(flow.id, next);
+  return (
+    <>
+      <Header
+        props={props}
+        title={flow.kind === "sequence" ? flow.editor.label ?? "Sequence Flow" : flow.editor.label ?? "Annotation Flow"}
+        subtitle={flow.officialType}
+        onDelete={() => props.onDeleteFlow?.(flow.id)}
+      />
+      <div style={{ padding: 14, display: "grid", gap: 12 }}>
+        {issues.length > 0 ? <Space wrap>{issues.map(issue => <Tag key={issue.id} color={issue.severity === "error" ? "red" : "orange"}>{issue.code}</Tag>)}</Space> : null}
+        <Field label="Origin Object">
+          <Input value={flow.originObjectId} disabled />
+        </Field>
+        <Field label="Destination Object">
+          <Input value={flow.destinationObjectId} disabled />
+        </Field>
+        <Field label="Origin Connection Index">
+          <InputNumber value={flow.originConnectionIndex ?? 0} disabled={props.readonly} onChange={originConnectionIndex => patch(flowPatch(flow, { originConnectionIndex: Number(originConnectionIndex) }))} />
+        </Field>
+        <Field label="Destination Connection Index">
+          <InputNumber value={flow.destinationConnectionIndex ?? 0} disabled={props.readonly} onChange={destinationConnectionIndex => patch(flowPatch(flow, { destinationConnectionIndex: Number(destinationConnectionIndex) }))} />
+        </Field>
+        <Field label="Line Routing">
+          <Select
+            value={flow.line.kind}
+            disabled={props.readonly}
+            style={{ width: "100%" }}
+            onChange={kind => patch(flowPatch(flow, { line: { ...flow.line, kind: String(kind) as typeof flow.line.kind } }))}
+            optionList={["orthogonal", "polyline", "bezier"].map(value => ({ label: value, value }))}
+          />
+        </Field>
+        {flow.kind === "sequence" ? (
+          <>
+            <Field label="Editor Edge Kind">
+              <Select
+                value={flow.editor.edgeKind}
+                disabled={props.readonly}
+                style={{ width: "100%" }}
+                onChange={edgeKind => patch(flowPatch(flow, { editor: { ...flow.editor, edgeKind: String(edgeKind) as MicroflowSequenceFlow["editor"]["edgeKind"] } }))}
+                optionList={["sequence", "decisionCondition", "objectTypeCondition", "errorHandler"].map(value => ({ label: value, value }))}
+              />
+            </Field>
+            <Field label="Error Handler">
+              <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : flow.editor.edgeKind } }))} />
+            </Field>
+            <Field label="Case Values">
+              <TextArea
+                autosize
+                disabled={props.readonly}
+                value={flow.caseValues.map(item => item.kind === "boolean" ? item.persistedValue : item.kind === "enumeration" ? item.value : item.kind === "inheritance" ? item.entityQualifiedName : item.kind).join("\n")}
+                onChange={value => patch(flowPatch(flow, {
+                  caseValues: value.split("\n").map(item => item.trim()).filter(Boolean).map(item => item === "true" || item === "false"
+                    ? { kind: "boolean" as const, officialType: "Microflows$EnumerationCase" as const, value: item === "true", persistedValue: item as "true" | "false" }
+                    : { kind: "enumeration" as const, officialType: "Microflows$EnumerationCase" as const, enumerationQualifiedName: "", value: item })
+                }))}
+              />
+            </Field>
+            <Field label="Label">
+              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Field label="Show In Export">
+              <Switch checked={flow.editor.showInExport} disabled={props.readonly} onChange={showInExport => patch(flowPatch(flow, { editor: { ...flow.editor, showInExport } }))} />
+            </Field>
+            <Field label="Label">
+              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
+            </Field>
+            <Field label="Description">
+              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } }))} />
+            </Field>
+          </>
+        )}
+      </div>
+    </>
+  );
 }
 
 export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
-  const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>("properties");
-  const [dirtyNodeIds, setDirtyNodeIds] = useState<string[]>([]);
-  const selectedNode = props.selectedNode;
-  const selectedEdge = props.selectedEdge;
-  const issues = useMemo(() => selectedNode ? props.validationIssues.filter(issue => issue.nodeId === selectedNode.id) : [], [props.validationIssues, selectedNode]);
-  const variables = useMemo(() => buildVariablesForPropertyPanel(props), [props]);
-  const trace = selectedNode ? props.traceFrames?.find(frame => frame.nodeId === selectedNode.id) : undefined;
-  const formKey = selectedNode ? getMicroflowNodeFormKey(selectedNode) : "";
-  const formItem = selectedNode ? microflowNodeFormRegistry[formKey] : undefined;
-  const selectedObject = selectedNode ? findMicroflowObject(props.schema.objectCollection, selectedNode.id) : undefined;
-  const tabs = formItem?.tabs ?? ["properties", "documentation"];
-  const readonly = Boolean(props.readonly || selectedNode?.locked);
-
-  useEffect(() => {
-    if (!tabs.includes(activeTab)) {
-      setActiveTab(tabs[0] ?? "properties");
-    }
-  }, [activeTab, tabs]);
-
-  if (selectedEdge) {
-    return <MicroflowEdgePropertyPanel props={props} edge={selectedEdge} />;
-  }
-
-  if (!selectedNode) {
+  if (!props.selectedObject && !props.selectedFlow) {
     return (
-      <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-        <Empty
-          image={<IconInfoCircle />}
-          title="请选择一个节点"
-          description="在画布中点击节点后，可在这里配置节点属性。也可以从左侧 Nodes 面板拖拽或双击快速添加。"
-        />
+      <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 24 }}>
+        <Empty title="未选择对象" description="选择画布对象或连线后编辑 AuthoringSchema 字段。" />
       </div>
     );
   }
-
-  const formProps: MicroflowNodeFormProps = {
-    node: selectedNode,
-    schema: props.schema,
-    variables,
-    edges: props.schema.edges,
-    issues,
-    readonly,
-    onPatch: patch => handlePatch(patch)
-  };
-
-  function handlePatch(patch: MicroflowNodePatch) {
-    if (!selectedNode || readonly) {
-      return;
-    }
-    props.onNodeChange(selectedNode.id, patch);
-    setDirtyNodeIds(current => current.includes(selectedNode.id) ? current : [...current, selectedNode.id]);
-  }
-
-  function renderActiveTab() {
-    if (!formItem) {
-      return (
-        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-          <Text type="tertiary">暂不支持该节点配置。</Text>
-          <pre style={{ width: "100%", maxHeight: 280, overflow: "auto", background: "var(--semi-color-fill-0)", padding: 10, borderRadius: 8 }}>
-            {JSON.stringify(selectedNode?.config ?? {}, null, 2)}
-          </pre>
-        </Space>
-      );
-    }
-    if (activeTab === "documentation") {
-      return <MicroflowDocumentationSection props={formProps} />;
-    }
-    if (activeTab === "errorHandling") {
-      return <MicroflowErrorHandlingSection props={formProps} />;
-    }
-    if (activeTab === "output") {
-      return <MicroflowOutputSection props={formProps} />;
-    }
-    if (activeTab === "advanced") {
-      return <MicroflowAdvancedSection props={formProps} />;
-    }
-    return formItem.renderProperties(formProps);
-  }
-
-  function renderActionActivityFields() {
-    if (!selectedNode || selectedObject?.kind !== "actionActivity") {
-      return null;
-    }
-    const action = selectedObject.action;
-    const readonlyAction = readonly;
-    return (
-      <div style={{ width: "100%", padding: 10, borderRadius: 10, background: "var(--semi-color-fill-0)", border: "1px solid var(--semi-color-border)" }}>
-        <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
-          <Text strong>ActionActivity</Text>
-          <Input readonly={readonlyAction} prefix="Caption" value={selectedObject.caption ?? ""} onChange={caption => handlePatch({ node: { title: caption } })} />
-          <Input readonly prefix="Activity Official Type" value={selectedObject.officialType} />
-          <Input readonly prefix="Action Official Type" value={action.officialType} />
-          <Input readonly prefix="Action Kind" value={action.kind} />
-          <Select
-            disabled={readonlyAction}
-            style={{ width: "100%" }}
-            prefix="Error Handling"
-            value={action.errorHandlingType}
-            optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
-            onChange={value => handlePatch({ config: { errorHandling: { mode: String(value) } } })}
-          />
-          {action.kind === "retrieve" ? (
-            <>
-              <Text strong>Retrieve Source</Text>
-              <Select
-                disabled={readonlyAction}
-                style={{ width: "100%" }}
-                prefix="Source"
-                value={action.retrieveSource.kind}
-                optionList={[
-                  { label: "From Database", value: "database" },
-                  { label: "By Association", value: "association" }
-                ]}
-                onChange={value => handlePatch({ config: { retrieveMode: String(value) } })}
-              />
-              {action.retrieveSource.kind === "database" ? (
-                <>
-                  <Input readonly={readonlyAction} prefix="Entity" value={action.retrieveSource.entityQualifiedName ?? ""} onChange={entity => handlePatch({ config: { entity, retrieveMode: "database" } })} />
-                  <Input readonly={readonlyAction} prefix="XPath Constraint" value={action.retrieveSource.xPathConstraint?.text ?? action.retrieveSource.xPathConstraint?.raw ?? ""} onChange={text => handlePatch({ config: { valueExpression: { id: `${selectedNode.id}-xpath`, language: "mendix", text, raw: text } } })} />
-                  <Input readonly prefix="SortItemList" value={action.retrieveSource.sortItemList.items.map(item => `${item.attributeQualifiedName} ${item.direction}`).join(", ")} />
-                  <Select
-                    disabled={readonlyAction}
-                    style={{ width: "100%" }}
-                    prefix="Range"
-                    value={action.retrieveSource.range.kind === "custom" ? "limit" : action.retrieveSource.range.value}
-                    optionList={["all", "first", "limit"].map(value => ({ label: value, value }))}
-                    onChange={range => handlePatch({ config: { range: String(range) } })}
-                  />
-                </>
-              ) : (
-                <>
-                  <Input readonly={readonlyAction} prefix="Start Variable" value={action.retrieveSource.startVariableName} onChange={objectVariableName => handlePatch({ config: { objectVariableName, retrieveMode: "association" } })} />
-                  <Input readonly={readonlyAction} prefix="Association" value={action.retrieveSource.associationQualifiedName ?? ""} onChange={association => handlePatch({ config: { association, retrieveMode: "association" } })} />
-                </>
-              )}
-              <Input readonly={readonlyAction} prefix="Output Variable" value={action.outputVariableName} onChange={resultVariableName => handlePatch({ config: { resultVariableName } })} />
-            </>
-          ) : null}
-          {action.kind === "restCall" ? (
-            <>
-              <Text strong>REST Request / Response</Text>
-              <Select
-                disabled={readonlyAction}
-                style={{ width: "100%" }}
-                prefix="Method"
-                value={action.request.method}
-                optionList={["GET", "POST", "PUT", "PATCH", "DELETE"].map(value => ({ label: value, value }))}
-                onChange={method => handlePatch({ config: { method: String(method) } })}
-              />
-              <Input readonly={readonlyAction} prefix="URL Expression" value={action.request.urlExpression.text} onChange={url => handlePatch({ config: { url } })} />
-              <Input readonly={readonlyAction} prefix="Timeout Seconds" value={String(action.timeoutSeconds)} onChange={timeout => handlePatch({ config: { timeoutMs: (Number(timeout) || 30) * 1000 } })} />
-              <Input readonly prefix="Response Handling" value={action.response.handling.kind} />
-            </>
-          ) : null}
-        </Space>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", background: "var(--semi-color-bg-1, #fff)" }}>
-      <MicroflowPropertyPanelHeader props={props} issueCount={issues.length} dirty={dirtyNodeIds.includes(selectedNode.id)} onPatch={handlePatch} />
-      <div style={{ padding: "0 12px", borderBottom: "1px solid var(--semi-color-border, #e5e6eb)" }}>
-        <MicroflowPropertyTabs activeKey={activeTab} tabs={tabs} onChange={setActiveTab} />
-      </div>
-      <div style={{ minHeight: 0, overflow: "auto", padding: 14 }}>
-        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-          {issues.length > 0 ? (
-            <div style={{ width: "100%", padding: 10, borderRadius: 10, background: "rgba(249, 57, 32, 0.06)", border: "1px solid rgba(249, 57, 32, 0.18)" }}>
-              {issues.map(issue => <Text key={issue.id} type={issue.severity === "error" ? "danger" : "warning"} size="small" style={{ display: "block" }}>{issue.message}</Text>)}
-            </div>
-          ) : null}
-          {trace ? <Tag color={trace.error ? "red" : "green"}>Last run: {trace.status} · {trace.durationMs}ms</Tag> : null}
-          {activeTab === "properties" ? renderActionActivityFields() : null}
-          {renderActiveTab()}
-        </Space>
-      </div>
-      <div style={{ padding: "8px 12px", borderTop: "1px solid var(--semi-color-border, #e5e6eb)", background: "rgba(255,255,255,0.9)" }}>
-        <Text type="tertiary" size="small">配置变更会实时写入 MicroflowSchema，保存与校验使用最新 schema。</Text>
-      </div>
+    <div style={{ height: "100%", minHeight: 0, overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>
+      {props.selectedFlow ? <FlowPanel {...props} /> : <ObjectPanel {...props} />}
     </div>
   );
 }

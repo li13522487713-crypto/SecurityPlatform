@@ -1,6 +1,7 @@
 import { Button, Checkbox, Collapse, Input, Select, Space, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import type { MicroflowNodeAdvancedConfig, MicroflowNodeDocumentation, MicroflowNodeOutput, MicroflowTypeRef } from "../schema";
+import { flattenObjectCollection } from "../adapters";
 import { FieldRow, primitiveType } from "./controls";
 import type { MicroflowNodeFormProps } from "./types";
 
@@ -118,7 +119,7 @@ export function MicroflowErrorHandlingSection({ props }: { props: MicroflowNodeF
           style={{ width: "100%" }}
           value={errorHandling.targetNodeId}
           placeholder="Select node"
-          optionList={props.schema.nodes.filter(node => node.id !== props.node.id).map(node => ({ label: node.title, value: node.id }))}
+          optionList={flattenObjectCollection(props.schema.objectCollection).filter(object => object.id !== props.object.id).map(object => ({ label: object.caption ?? object.id, value: object.id }))}
           onChange={targetNodeId => patchConfig(props, { errorHandling: { ...errorHandling, targetNodeId: String(targetNodeId ?? "") } })}
         />
       </FieldRow>

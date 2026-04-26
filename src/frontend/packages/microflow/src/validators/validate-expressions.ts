@@ -1,17 +1,13 @@
 import type { MicroflowExpression, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { flattenObjects, issue } from "./shared";
-
-function expressionVariables(expression: MicroflowExpression | undefined): string[] {
-  if (!expression) {
-    return [];
-  }
-  return expression.references?.variables ?? expression.referencedVariables ?? [...(expression.text ?? expression.raw ?? "").matchAll(/\$?[A-Za-z_][\w]*/g)].map(match => match[0]);
-}
+import { expressionVariables, flattenVariableIndex, isVariableInScope, resolveExpressionScope } from "../variable-index";
 
 export function validateExpressions(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
-  const available = new Set(Object.values(schema.variableIndex).flatMap(group => Object.values(group).map(symbol => symbol.name)));
+  const allSymbols = flattenVariableIndex(schema.variables);
+  const symbolByName = new Map(allSymbols.map(symbol => [symbol.name, symbol]));
   for (const { object, loopObjectId } of flattenObjects(schema.objectCollection)) {
+    const scope = resolveExpressionScope(schema, object.id);
     const expressions: Array<{ expression?: MicroflowExpression; fieldPath: string }> = [];
     if (object.kind === "endEvent") {
       expressions.push({ expression: object.returnValue, fieldPath: "returnValue" });
@@ -30,11 +26,16 @@ export function validateExpressions(schema: MicroflowSchema): MicroflowValidatio
         if (variable === "$currentIndex" && !loopObjectId && object.kind !== "loopedActivity") {
           issues.push(issue("MF_EXPRESSION_INVALID", "$currentIndex is only valid inside Loop.", { objectId: object.id, fieldPath: item.fieldPath }));
         }
-        if (variable.startsWith("$latest") && !Object.prototype.hasOwnProperty.call(schema.variableIndex.errorVariables, variable)) {
+        if (variable.startsWith("$latest") && !Object.prototype.hasOwnProperty.call(schema.variables.errorVariables, variable)) {
           issues.push(issue("MF_EXPRESSION_INVALID", `${variable} is only valid inside error handler context.`, { objectId: object.id, fieldPath: item.fieldPath }));
         }
-        if (variable.startsWith("$") && !available.has(variable) && !["$currentUser", "$currentIndex"].includes(variable)) {
+        const symbol = symbolByName.get(variable);
+        if (variable.startsWith("$") && !symbol && !["$currentUser", "$currentIndex"].includes(variable)) {
           issues.push(issue("MF_EXPRESSION_INVALID", `Variable "${variable}" is not in scope.`, { objectId: object.id, fieldPath: item.fieldPath }, "warning"));
+          continue;
+        }
+        if (symbol && !isVariableInScope(symbol, variable, scope)) {
+          issues.push(issue("MF_EXPRESSION_INVALID", `Variable "${variable}" is outside the current control-flow scope.`, { objectId: object.id, fieldPath: item.fieldPath }));
         }
       }
     }
