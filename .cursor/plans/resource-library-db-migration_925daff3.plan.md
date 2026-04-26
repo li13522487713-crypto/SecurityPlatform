@@ -58,7 +58,7 @@ isProject: false
 
 ## 一、关键调研结论（决定设计）
 
-- 后端 `DataMigrationController`（[src/backend/Atlas.PlatformHost/Controllers/DataMigrationController.cs](src/backend/Atlas.PlatformHost/Controllers/DataMigrationController.cs)）已暴露 11 个端点（`test-connection`/`jobs`/`precheck`/`start`/`progress`/`validate`/`cutover`/`rollback`/`retry`/`report`/`logs`），**尚缺 `cancel`**。
+- 后端 `DataMigrationController`（[src/backend/Atlas.AppHost/Controllers/DataMigrationController.cs](src/backend/Atlas.AppHost/Controllers/DataMigrationController.cs)）已暴露 11 个端点（`test-connection`/`jobs`/`precheck`/`start`/`progress`/`validate`/`cutover`/`rollback`/`retry`/`report`/`logs`），**尚缺 `cancel`**。
 - `OrmDataMigrationService`（[src/backend/Atlas.Infrastructure/Services/SetupConsole/OrmDataMigrationService.cs](src/backend/Atlas.Infrastructure/Services/SetupConsole/OrmDataMigrationService.cs)）**不是 stub**，但：
   - `DefaultBatchSize = 500`，使用 `Insertable(T[]).ExecuteCommand()` 而不是 `Fastest<T>().BulkCopy`；
   - 在 HTTP 线程里同步跑完全部实体（违反“不能在请求线程跑完整流程”）；
@@ -67,7 +67,7 @@ isProject: false
   - 只支持“整库实体集合”迁移，**不支持按原始表名迁移**，因此 AiDatabase（两张物理表）无法接入。
 - `DbConnectionConfig` DTO 已在 [SetupConsoleModels.cs](src/backend/Atlas.Application/SetupConsole/Models/SetupConsoleModels.cs) 里存在，但缺 `Mode/DataSourceId/VisualConfig/DisplayName`；`DataMigrationProgressDto` 缺 `tables[]`/`currentTableName`/`currentBatchNo`/`elapsedSeconds`/`recentLogs`/`startedAt`/`finishedAt`。
 - `DataMigrationTableProgress` 实体**不存在**，需新增并注册进 [AtlasOrmSchemaCatalog.cs](src/backend/Atlas.Infrastructure/Services/AtlasOrmSchemaCatalog.cs)。
-- `TenantDataSource` 全套 CRUD + `/test` + `/test/{id}` + `/drivers` 已在 [TenantDataSourcesController.cs](src/backend/Atlas.PlatformHost/Controllers/TenantDataSourcesController.cs)；前端暂无对应 service 文件（只有 e2e 直接 HTTP + `shared-react-core` 的类型），**需要新建** `api-tenant-datasource.ts`。
+- `TenantDataSource` 全套 CRUD + `/test` + `/test/{id}` + `/drivers` 已在 [TenantDataSourcesController.cs](src/backend/Atlas.AppHost/Controllers/TenantDataSourcesController.cs)；前端暂无对应 service 文件（只有 e2e 直接 HTTP + `shared-react-core` 的类型），**需要新建** `api-tenant-datasource.ts`。
 - `DataSourceDriverRegistry`（[src/backend/Atlas.Infrastructure/Services/DataSourceDriverRegistry.cs](src/backend/Atlas.Infrastructure/Services/DataSourceDriverRegistry.cs)）支持：SQLite/SqlServer/MySql/PostgreSQL/Oracle/Dm/Kdbndp/Oscar/Access。迁移层要复用它而不是自造 if/else。
 - AiDatabase（[src/backend/Atlas.Domain/AiPlatform/Entities/AiDatabase.cs](src/backend/Atlas.Domain/AiPlatform/Entities/AiDatabase.cs)）没有独立连接串，行数据在主库两张表 `atlas_ai_db_{tenantN}_{dbId}_draft/_online`（由 `AiDatabasePhysicalTableService.BuildTableNames` 生成）。因此"源"需要特殊 Source Mode = `CurrentSystemAiDatabase`，由 Resolver 读出 AiDatabase 实体、解析为表名列表后交给 Runner。
 - 资源库数据库 Tab 不是独立文件，在 [workspace-library-page.tsx](src/frontend/apps/app-web/src/app/pages/workspace-library-page.tsx) 中通过 `activeTab === "database"` 切换；创建入口是 `LibraryCreateDropdown` + `library-create-modal.tsx`。
@@ -184,7 +184,7 @@ Infrastructure：
 
 ### 8. Cancel 端点 + Controller 补齐
 
-- 在 [DataMigrationController.cs](src/backend/Atlas.PlatformHost/Controllers/DataMigrationController.cs) 新增：
+- 在 [DataMigrationController.cs](src/backend/Atlas.AppHost/Controllers/DataMigrationController.cs) 新增：
   - `POST jobs/{jobId}/cancel` → `OrmDataMigrationService.CancelJobAsync`（将 `job.State` 从 `running` → `cancelling`；`created/ready/queued` 直接 `cancelled`）。
 - `start`、`precheck`、`validate`、`cutover` 签名对齐新 DTO；保留旧字段向后兼容。
 - `cutover` 前置校验：`job.State == "validated"` 且 `req.ConfirmBackup && req.ConfirmRestartRequired`；写 runtime 配置失败 → `job.State=cutover_failed`，返回 500，**不能**返回成功。

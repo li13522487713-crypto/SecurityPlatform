@@ -6,14 +6,14 @@
 ## 1. 当前扫描结论
 
 1. 当前 `AiDatabase` 实体路径：`src/backend/Atlas.Domain/AiPlatform/Entities/AiDatabase.cs`。已存在 `StorageMode`、`DriverCode`、`EncryptedDraftConnection`、`EncryptedOnlineConnection`、`PhysicalDatabaseName`、`ProvisionState`、`ProvisionError`，但缺少 `DraftDatabaseName`、`OnlineDatabaseName`、`DialectVersion`，旧 JSON 行模型字段未标记 `Obsolete`。
-2. 当前 `AiDatabase` Controller 路径：`src/backend/Atlas.AppHost/Controllers/AiDatabasesController.cs`；当前运行拓扑以 `AppHost` 为准，历史 `PlatformHost` 副本退役。
+2. 当前 `AiDatabase` Controller 路径：`src/backend/Atlas.AppHost/Controllers/AiDatabasesController.cs`；运行拓扑以 `AppHost` 为唯一 Web 宿主。
 3. 当前 AI 数据库前端列表页路径：`src/frontend/apps/app-web/src/app/pages/workspace-library-page.tsx` 的资源库 `database` Tab；另有 `src/frontend/packages/module-studio-react/src/pages.tsx` 的 Studio 数据库中心。
 4. 当前资源库数据库 Tab 实现路径：`src/frontend/apps/app-web/src/app/pages/workspace-library-page.tsx`，关键符号 `TAB_DEFS`、`handleOpenStructure`、`handleDeleteDatabase`。
 5. 当前路由配置路径：`src/frontend/apps/app-web/src/app/app.tsx`，已存在 `/space/:space_id/database/:databaseId/structure`，渲染 `DatabaseStructurePage`。
 6. 当前 `requestApi` 封装路径：`src/frontend/apps/app-web/src/services/api-core.ts`，底层 `createApiClient` 在 `src/frontend/packages/shared-react-core/src/api/createApiClient.ts`。
 7. 当前 i18n messages 路径：`src/frontend/apps/app-web/src/app/messages.ts`；AI 数据库 API 错误文案另有 `src/frontend/apps/app-web/src/services/ai-database.i18n.ts`。
 8. 当前 `PermissionPolicies` 路径：`src/backend/Atlas.Presentation.Shared/Authorization/PermissionPolicies.cs`，已存在 `DataSourcesView`、`DataSourcesQuery`、`DataSourcesSchemaWrite`。
-9. 当前认证策略注册路径：`src/backend/Atlas.AppHost/Program.cs` 的 `AddAuthorization`；历史兼容宿主 `src/backend/Atlas.PlatformHost/Program.cs` 退役。
+9. 当前认证策略注册路径：`src/backend/Atlas.AppHost/Program.cs` 的 `AddAuthorization`（历史 `Atlas.PlatformHost` 目录已从本仓库删除）。
 10. 当前 `DataSourceDriverRegistry` 路径：`src/backend/Atlas.Infrastructure/Services/DataSourceDriverRegistry.cs`，未知 driver 当前会返回原字符串，需要在 AI 数据库创建/provision 前改为显式拒绝。
 11. 当前 SqlSugar 注册路径：`src/backend/Atlas.Infrastructure/ServiceCollectionExtensions.cs`、`src/backend/Atlas.AppHost/Program.cs`、`src/backend/Atlas.Infrastructure/PlatformServiceCollectionExtensions.cs`。
 12. 当前 `TenantDbConnectionFactory` 与加密方法路径：`src/backend/Atlas.Infrastructure/Services/TenantDbConnectionFactory.cs`，关键符号 `Encrypt`、`Decrypt`。

@@ -65,7 +65,7 @@ pnpm run build:app-web
 powershell -ExecutionPolicy Bypass -File .\scripts\dev-start-app-direct.ps1
 ```
 
-当前默认联调模式为 `AppHost + AppWeb`。如需查看历史 PlatformHost 集成信息，请参考 `docs/联调双模式启动手册.md`。
+当前默认联调模式为 `AppHost + AppWeb`。历史 `Atlas.PlatformHost` 项目已从本仓库物理删除。若需对照旧版双宿主联调说明，可参考 `docs/联调双模式启动手册.md`（与当前树可能不完全一致，以 AppHost 为准）。
 
 ### Docker Compose 部署（封板基线）
 

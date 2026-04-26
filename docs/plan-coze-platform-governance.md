@@ -25,13 +25,13 @@
 | 要求维度（摘自报告22 章） | 结论 | 现状摘要 | 关键路径 |
 | --- | --- | --- | --- |
 | Assistant 非 Workflow 别名，独立产品壳 | **部分实现** | `Agent` + `TeamAgent` 双轨；前端 `AgentWorkbench`、`DevelopPage` 与 Workflow 画布分路由 | [Agent.cs](src/backend/Atlas.Domain/AiPlatform/Entities/Agent.cs)、[TeamAgentEntities.cs](src/backend/Atlas.Domain/AiPlatform/Entities/TeamAgentEntities.cs)、[module-studio-react assistant](src/frontend/packages/module-studio-react/src/assistant/) |
-| 创建入口：低代码 / AI 创建 / 模板 | **部分实现** | 手动 `POST api/v1/agents`、`POST api/v1/ai-assistants`；`TeamAgent` 模板 `from-template` | [AgentsController.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentsController.cs)、[AiAssistantsController.cs](src/backend/Atlas.PlatformHost/Controllers/AiAssistantsController.cs)、[TeamAgentsController.cs](src/backend/Atlas.PlatformHost/Controllers/TeamAgentsController.cs) |
+| 创建入口：低代码 / AI 创建 / 模板 | **部分实现** | 手动 `POST api/v1/agents`、`POST api/v1/ai-assistants`；`TeamAgent` 模板 `from-template` | [AgentsController.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentsController.cs)、[AiAssistantsController.cs](src/backend/Atlas.AppHost/Controllers/AiAssistantsController.cs)、[TeamAgentsController.cs](src/backend/Atlas.AppHost/Controllers/TeamAgentsController.cs) |
 | 技能装配（插件/工作流/知识库/数据库/记忆等） | **部分实现** |多表绑定：`AgentPluginBinding`、`AgentKnowledgeLink`、`AgentWorkflowBinding`（含 Skill 角色）、`AgentDatabaseBinding`、`AgentVariableBinding` 等 | [AgentBindings.cs](src/backend/Atlas.Domain/AiPlatform/Entities/Agent/AgentBindings.cs)、[agent-workbench.tsx](src/frontend/packages/module-studio-react/src/assistant/agent-workbench.tsx) |
 | 触发器、卡片与 Assistant 强绑定 | **缺失/旁路** | 触发器多在 Workflow / app-web gateway；未见 `AgentTrigger`/`AgentCard` 一等实体 | 历史基线原指向 `CozeWorkflowCompatControllerBase`，当前已切到 app-web gateway |
-| 发布渠道（飞书/微信/Web SDK 等） | **部分实现** | `WorkspacePublishChannel` 类型字符串；`AgentPublication` 嵌入发布；抖音/豆包未见域对齐 | [WorkspacePublishChannel.cs](src/backend/Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs)、[AgentPublication.cs](src/backend/Atlas.Domain/AiPlatform/Entities/AgentPublication.cs)、[WorkspacePublishChannelsController.cs](src/backend/Atlas.PlatformHost/Controllers/WorkspacePublishChannelsController.cs) |
+| 发布渠道（飞书/微信/Web SDK 等） | **部分实现** | `WorkspacePublishChannel` 类型字符串；`AgentPublication` 嵌入发布；抖音/豆包未见域对齐 | [WorkspacePublishChannel.cs](src/backend/Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs)、[AgentPublication.cs](src/backend/Atlas.Domain/AiPlatform/Entities/AgentPublication.cs)、[WorkspacePublishChannelsController.cs](src/backend/Atlas.AppHost/Controllers/WorkspacePublishChannelsController.cs) |
 | Assistant 调试台（提示词/技能/渠道一体） | **部分实现** | `AgentChatController` 对话/流式；`AgentDebugPanel`；无统一「渠道回包」联调 API | [AgentChatController.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentChatController.cs) |
 | 独立前端域包 `assistant-*` | **缺失** | 能力落在 `@atlas/module-studio-react` | [module-studio-react/package.json](src/frontend/packages/module-studio-react/package.json) |
-| Runtime：`publish` / `channel` / `collaborator` / `logs` | **部分实现** | `publish`、`publications`、`embed-token` 有；协作者兼容层桩；专用 Agent 日志 API 不明确 | [AiAssistantsController.cs](src/backend/Atlas.PlatformHost/Controllers/AiAssistantsController.cs)、Coze 兼容 `list_collaborators` 空列表 |
+| Runtime：`publish` / `channel` / `collaborator` / `logs` | **部分实现** | `publish`、`publications`、`embed-token` 有；协作者兼容层桩；专用 Agent 日志 API 不明确 | [AiAssistantsController.cs](src/backend/Atlas.AppHost/Controllers/AiAssistantsController.cs)、Coze 兼容 `list_collaborators` 空列表 |
 
 **差距小结**：内核（`Agent` 绑定 + IDE + 对话 + 发布记录）已具备；**渠道真接入、协作者真数据、一体化调试与运维日志、AI 创建链、抖音/豆包** 仍为缺口。
 
@@ -70,8 +70,8 @@
 
 | 要求维度 | 结论 | 现状摘要 | 关键路径 |
 | --- | --- | --- | --- |
-| 登录主路径 | **已实现** | JWT Bearer + Cookie `access_token` 回退 | [Program.cs](src/backend/Atlas.PlatformHost/Program.cs)、[AuthController.cs](src/backend/Atlas.PlatformHost/Controllers/AuthController.cs) |
-| OIDC / SSO 脚手架 | **部分实现** | `AddOpenIdConnect` 多 scheme、`SsoController`、`OidcLink` | 同上、[SsoController.cs](src/backend/Atlas.PlatformHost/Controllers/SsoController.cs)、[OidcOptions.cs](src/backend/Atlas.Infrastructure/Security/OidcOptions.cs)、[OidcLink.cs](src/backend/Atlas.Domain/Identity/Entities/OidcLink.cs) |
+| 登录主路径 | **已实现** | JWT Bearer + Cookie `access_token` 回退 | [Program.cs](src/backend/Atlas.AppHost/Program.cs)、[AuthController.cs](src/backend/Atlas.AppHost/Controllers/AuthController.cs) |
+| OIDC / SSO 脚手架 | **部分实现** | `AddOpenIdConnect` 多 scheme、`SsoController`、`OidcLink` | 同上、[SsoController.cs](src/backend/Atlas.AppHost/Controllers/SsoController.cs)、[OidcOptions.cs](src/backend/Atlas.Infrastructure/Security/OidcOptions.cs)、[OidcLink.cs](src/backend/Atlas.Domain/Identity/Entities/OidcLink.cs) |
 | SAML | **缺失** | 仓库未见 SAML 实现 | - |
 | 租户自助多 IdP | **部分实现** | 部署级 `Providers[]`；无租户级 IdP 领域 CRUD | [OidcOptions.cs](src/backend/Atlas.Infrastructure/Security/OidcOptions.cs) |
 | 私网连接 / IP 白名单 / 网络策略 | **缺失（租户级）** | 前端插件表单可能存在 `privateNetwork` 类 UI，非企业网络策略 | - |
@@ -119,7 +119,7 @@
 | **目标** | 在仓库文档中固定「Assistant ≡ `Agent` + `AiAssistantsController`」产品映射，避免与 `TeamAgent`、Coze `Bot` 混用。 |
 | **现状基线** | [plan-coze-atlas-round2.md](plan-coze-atlas-round2.md) 已写智能体=`Agent`。 |
 | **修改范围** | 文档（可选：根 `README` 或 `docs/coze/` 下说明页，**不强制改 contracts**）。 |
-| **涉及文件** | [Agent.cs](src/backend/Atlas.Domain/AiPlatform/Entities/Agent.cs)、[AiAssistantsController.cs](src/backend/Atlas.PlatformHost/Controllers/AiAssistantsController.cs)（实施时）、本文件。 |
+| **涉及文件** | [Agent.cs](src/backend/Atlas.Domain/AiPlatform/Entities/Agent.cs)、[AiAssistantsController.cs](src/backend/Atlas.AppHost/Controllers/AiAssistantsController.cs)（实施时）、本文件。 |
 | **契约影响** | 无（仅澄清语义）。 |
 | **库表变更** | 无。 |
 | **验证** | 文档审阅。 |
@@ -131,8 +131,8 @@
 | --- | --- |
 | **目标** | `WorkspacePublishChannel` 从「类型 + 占位 Reauthorize」升级为可插拔 **Connector**（至少 Web SDK / 微信 / 飞书其一端到端打通）；与 `AgentPublication` 建立可选关联或发布快照引用。 |
 | **现状基线** | [WorkspacePublishChannel.cs](src/backend/Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs)、[WorkspaceFolderService.cs](src/backend/Atlas.Infrastructure/Services/Coze/WorkspaceFolderService.cs) 内 `WorkspacePublishChannelService`、`ReauthorizeAsync` 占位。 |
-| **修改范围** | Domain（可选版本/快照实体）、Infrastructure（Connector接口与实现）、PlatformHost（Controller）、前端 Publish Center。 |
-| **涉及文件** | [WorkspacePublishChannelsController.cs](src/backend/Atlas.PlatformHost/Controllers/WorkspacePublishChannelsController.cs)、[publish-center-page.tsx](src/frontend/packages/module-studio-react/src/publish/publish-center-page.tsx)。 |
+| **修改范围** | Domain（可选版本/快照实体）、Infrastructure（Connector接口与实现）、AppHost（Controller）、前端 Publish Center。 |
+| **涉及文件** | [WorkspacePublishChannelsController.cs](src/backend/Atlas.AppHost/Controllers/WorkspacePublishChannelsController.cs)、[publish-center-page.tsx](src/frontend/packages/module-studio-react/src/publish/publish-center-page.tsx)。 |
 | **契约影响** | **是**：新增/变更渠道 API 时同步 [contracts.md](contracts.md) 与 `.http`。 |
 | **库表变更** | **可能**：渠道发布版本、OAuth state、回执字段。 |
 | **验证** | `dotnet build`；相关 `dotnet test`；`pnpm run build` /针对性 E2E（若有）。 |
@@ -193,7 +193,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | **目标** | SAML SP/IdP 集成或与 OIDC 并列；租户管理员可配置 IdP（脱敏存储证书/元数据）。 |
-| **现状基线** | [Program.cs](src/backend/Atlas.PlatformHost/Program.cs) OIDC；[OidcOptions.cs](src/backend/Atlas.Infrastructure/Security/OidcOptions.cs)。 |
+| **现状基线** | [Program.cs](src/backend/Atlas.AppHost/Program.cs)（OIDC 等以 AppHost 为准；历史 PlatformHost 已删除）；[OidcOptions.cs](src/backend/Atlas.Infrastructure/Security/OidcOptions.cs)。 |
 | **修改范围** | Infrastructure Security + Admin UI + 密钥保管。 |
 | **契约影响** | **是**。 |
 | **库表变更** | **是**（`TenantIdentityProvider` 等）。 |
@@ -247,7 +247,7 @@
 | 前端 | `cd src/frontend && pnpm run build` |
 | 前端测试 | `pnpm run test:unit`（改 UI 时） |
 | 国际化 | `pnpm run i18n:check`（用户可见文案） |
-| API | 更新对应 `src/backend/Atlas.PlatformHost/Bosch.http/` 或 `Atlas.AppHost/Bosch.http/` |
+| API | 更新对应 `src/backend/Atlas.AppHost/Bosch.http/` 或 `Atlas.AppHost/Bosch.http/` |
 | 契约 | 凡对外 REST 变更，更新 [contracts.md](contracts.md) |
 
 ---
@@ -270,10 +270,10 @@
 - [src/backend/Atlas.Domain/AiPlatform/Entities/Agent/AgentBindings.cs](src/backend/Atlas.Domain/AiPlatform/Entities/Agent/AgentBindings.cs)
 - [src/backend/Atlas.Domain/AiPlatform/Entities/AgentPublication.cs](src/backend/Atlas.Domain/AiPlatform/Entities/AgentPublication.cs)
 - [src/backend/Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs](src/backend/Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs)
-- [src/backend/Atlas.PlatformHost/Controllers/AiAssistantsController.cs](src/backend/Atlas.PlatformHost/Controllers/AiAssistantsController.cs)
+- [src/backend/Atlas.AppHost/Controllers/AiAssistantsController.cs](src/backend/Atlas.AppHost/Controllers/AiAssistantsController.cs)
 - [src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentsController.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentsController.cs)
 - [src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentChatController.cs](src/backend/Atlas.Presentation.Shared/Controllers/Ai/AgentChatController.cs)
-- [src/backend/Atlas.PlatformHost/Controllers/TeamAgentsController.cs](src/backend/Atlas.PlatformHost/Controllers/TeamAgentsController.cs)
+- [src/backend/Atlas.AppHost/Controllers/TeamAgentsController.cs](src/backend/Atlas.AppHost/Controllers/TeamAgentsController.cs)
 - [src/frontend/packages/module-studio-react/src/assistant/agent-workbench.tsx](src/frontend/packages/module-studio-react/src/assistant/agent-workbench.tsx)
 - [src/frontend/packages/module-studio-react/src/publish/publish-center-page.tsx](src/frontend/packages/module-studio-react/src/publish/publish-center-page.tsx)
 
@@ -298,8 +298,8 @@
 
 ### 6.4 认证 / SSO
 
-- [src/backend/Atlas.PlatformHost/Program.cs](src/backend/Atlas.PlatformHost/Program.cs)
-- [src/backend/Atlas.PlatformHost/Controllers/SsoController.cs](src/backend/Atlas.PlatformHost/Controllers/SsoController.cs)
+- [src/backend/Atlas.AppHost/Program.cs](src/backend/Atlas.AppHost/Program.cs)
+- [src/backend/Atlas.AppHost/Controllers/SsoController.cs](src/backend/Atlas.AppHost/Controllers/SsoController.cs)
 - [src/backend/Atlas.Infrastructure/Security/OidcOptions.cs](src/backend/Atlas.Infrastructure/Security/OidcOptions.cs)
 
 ---

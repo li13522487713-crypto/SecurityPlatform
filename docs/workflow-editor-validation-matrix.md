@@ -106,7 +106,7 @@
 | dingtalk_create_approval | 创建钉钉工作流实例 | 是 | 是 | 是 |
 | feishu_sync_third_party_approval | 模式 B：把本地状态推到飞书审批中心（external_instances+check） | 是 | 是 | 是（飞书 90001-90099 → ApprovalSubmitFailed） |
 | external_query_approval_status | 跨 Provider 查询并对账外部审批状态 | 是 | 是 | 是（dingtalk processInstanceId / feishu instance_code / wecom sp_no 三套适配） |
-| external_process_callback | 把死信回调显式重投到 ConnectorCallbackInboxService | 是 | 是 | 是（历史 PlatformHost 内部用，退役后由 AppHost/Connector 回调链路承载） |
+| external_process_callback | 把死信回调显式重投到 ConnectorCallbackInboxService | 是 | 是 | 是（原历史兼容宿主已删；现由 AppHost/Connector 回调链路承载） |
 
 ## 连线规则矩阵
 

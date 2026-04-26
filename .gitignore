@@ -398,11 +398,6 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Local SQLite runtime data (must not be committed)
-src/backend/Atlas.PlatformHost/*.db
-src/backend/Atlas.PlatformHost/*.db-shm
-src/backend/Atlas.PlatformHost/*.db-wal
-src/backend/Atlas.PlatformHost/backups/
-src/backend/Atlas.PlatformHost/setup-state.json
 src/backend/Atlas.AppHost/*.db
 src/backend/Atlas.AppHost/*.db-shm
 src/backend/Atlas.AppHost/*.db-wal
@@ -424,5 +419,4 @@ docs/test-reports/
 src/frontend/tmp/
 tmp/
 /output/playwright/workflow-debug
-/src/backend/Atlas.PlatformHost/uploads/00000000-0000-0000-0000-000000000001
 /src/backend/Atlas.AppHost/uploads/00000000-0000-0000-0000-000000000001

@@ -71,7 +71,7 @@ pnpm run format
 | AppHost | 5002 | Application runtime host |
 | **AppWeb** | **5181** | **New: Independent application frontend** |
 
-AppWeb 当前仅支持直连 `AppHost` 的运行模式；历史 PlatformHost 前端链路已下线。
+AppWeb 当前仅支持直连 `AppHost` 的运行模式；历史 `Atlas.PlatformHost` 与对应前端链路已不在本仓库中。
 
 ### API Testing
 - Use `.http` files in `src/backend/Atlas.AppHost/Bosch.http/` for testing endpoints
@@ -102,7 +102,7 @@ Each major feature is organized as a separate bounded context with:
 - **Domain Layer:** `Atlas.Domain.{Context}` - Entities inheriting from `TenantEntity`
 - **Application Layer:** `Atlas.Application.{Context}` - DTOs, validators, AutoMapper profiles, service interfaces
 - **Infrastructure:** Service implementations in `Atlas.Infrastructure/Services/{Context}*Service.cs`
-- **Presentation:** Controllers in `Atlas.AppHost/Controllers/`（如需历史兼容再同步 PlatformHost）
+- **Presentation:** Controllers in `Atlas.AppHost/Controllers/`
 
 **Current Contexts:** Assets, Audit, Alert, plus cross-cutting concerns (Auth, Users, Roles, Permissions, Departments, Menus)
 
@@ -317,7 +317,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 8. **Register Services** in `Atlas.Infrastructure/ServiceCollectionExtensions.cs`
    - Add repository and service DI registrations
 
-9. **Add Controller** in `Atlas.AppHost/Controllers/`（如需历史兼容再同步 PlatformHost）
+9. **Add Controller** in `Atlas.AppHost/Controllers/`
    - `{Entity}Controller : ControllerBase`
    - Use `[Authorize]` attributes for access control
    - Inject query/command services via constructor

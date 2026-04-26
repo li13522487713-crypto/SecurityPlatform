@@ -8,8 +8,8 @@
 - 后端：.NET 10、ASP.NET Core、SqlSugar、SQLite、Hangfire、YARP、OpenTelemetry、Semantic Kernel、WorkflowCore / DSL、MassTransit、Qdrant / MinIO。
 - 前端：React 18、TypeScript、Semi Design、Rsbuild、pnpm monorepo。
 - 当前运行拓扑：后端统一收敛到 `src/backend/Atlas.AppHost`，端口 `5002`；前端只有 `src/frontend/apps/app-web`，端口 `5181`。
-- 历史状态：`PlatformHost` 仅保留兼容资产；`Atlas.WebApp` 已删除，不再使用 Legacy 启动与构建命令。
-- `PlatformHost` 禁止新增或保留业务逻辑、Controller、服务注册、迁移引擎、API 契约或前端依赖；所有运行时/API/迁移/数据源逻辑必须落在 `Atlas.AppHost` 或下层 Application / Infrastructure / Presentation.Shared。发现 `PlatformHost` 中存在逻辑实现时，必须迁出到权威宿主或删除，不能继续维护双实现。
+- 历史：`Atlas.PlatformHost` 已从本仓库物理删除，不再存在兼容宿主；`Atlas.WebApp` 已删除，不再使用 Legacy 启动与构建命令。
+- 所有运行时 / API / 迁移 / 数据源逻辑必须落在 `Atlas.AppHost` 或下层 Application / Infrastructure / Presentation.Shared，不得再引入第二套 Web 宿主。
 - 关键文档：`docs/contracts.md`、`docs/plan-*.md`、`docs/workflow-editor-validation-matrix.md`、`docs/coze/`、`等保2.0要求清单.md`。
 
 ## 2. 目录与边界
@@ -121,8 +121,8 @@ pnpm run format
 - 禁止在循环内执行数据库操作；使用批量查询/更新/删除与字典/集合聚合。
 - 控制器遵循 RESTful：资源名复数，路径表示资源层级，HTTP 动词表达动作；禁止 `/create`、`/update` 等动词路径。
 - 所有 API 路由必须包含版本前缀，例如 `api/v1`。
-- 新增或修改 API 端点必须更新 `src/backend/Atlas.AppHost/Bosch.http/` 下的 `.http` 示例；禁止把新 API 或迁移兼容逻辑同步到 `PlatformHost`。
-- `/api/v1/setup-console/*`、`/api/v1/setup-console/migration/*` 与 `/api/v1/tenant-datasources/*` 的权威宿主是 `Atlas.AppHost`；迁移引擎不得在 `PlatformHost` 实现。setup-console 端点必须保持 `X-Setup-Console-Token`、IP 限流、审计 IP/UA、免普通登录态的安全模型。
+- 新增或修改 API 端点必须更新 `src/backend/Atlas.AppHost/Bosch.http/` 下的 `.http` 示例。
+- `/api/v1/setup-console/*`、`/api/v1/setup-console/migration/*` 与 `/api/v1/tenant-datasources/*` 的权威宿主是 `Atlas.AppHost`。setup-console 端点必须保持 `X-Setup-Console-Token`、IP 限流、审计 IP/UA、免普通登录态的安全模型。
 - 修改 API 契约时同步更新后端 DTO、前端类型/API client、mock/adapter、测试和 `docs/contracts.md`。
 - 当前仓库已废止 `Idempotency-Key` 与 `X-CSRF-TOKEN` 作为写接口公共前置要求；不得把它们写回实现、测试或契约文档。
 

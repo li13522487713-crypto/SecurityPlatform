@@ -62,8 +62,8 @@ flowchart LR
   - `src/backend/Atlas.Domain/AiPlatform/Entities/WorkspacePublishChannel.cs`（追加 ChannelRelease 子实体）
   - `src/backend/Atlas.Application/AiPlatform/Services/IWorkspaceChannelReleaseService.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/AiPlatform/WorkspaceChannelReleaseService.cs`（新增）
-  - [src/backend/Atlas.PlatformHost/Controllers/WorkspacePublishChannelsController.cs](../src/backend/Atlas.PlatformHost/Controllers/WorkspacePublishChannelsController.cs)
-  - `src/backend/Atlas.PlatformHost/Bosch.http/WorkspacePublishChannels.http`（追加 release 用例）
+  - [src/backend/Atlas.AppHost/Controllers/WorkspacePublishChannelsController.cs](../src/backend/Atlas.AppHost/Controllers/WorkspacePublishChannelsController.cs)
+  - `src/backend/Atlas.AppHost/Bosch.http/WorkspacePublishChannels.http`（追加 release 用例）
   - `tests/Atlas.SecurityPlatform.Tests/AiPlatform/Channels/WorkspaceChannelReleaseTests.cs`（新增）
 - **DB**：新表 `WorkspaceChannelRelease`（Id, ChannelId, AgentPublicationId, ReleaseNo, ReleasedBy, ReleasedAt, Status, RollbackOf）；通过 `AtlasOrmSchemaCatalog` + `DatabaseInitializerHostedService` add-table-if-missing
 - **契约**：[docs/contracts.md](contracts.md) 加 release 路由
@@ -80,7 +80,7 @@ flowchart LR
   - `src/backend/Atlas.Infrastructure/Services/AiPlatform/Channels/WebSdkChannelConnector.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/AiPlatform/Channels/OpenApiChannelConnector.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/AiPlatform/Channels/Signatures/HmacChannelSigner.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Controllers/Channels/PublicChannelEndpointsController.cs`（新增）
+  - `src/backend/Atlas.AppHost/Controllers/Channels/PublicChannelEndpointsController.cs`（新增）
   - `tests/Atlas.SecurityPlatform.Tests/AiPlatform/Channels/WebSdkChannelConnectorTests.cs`、`OpenApiChannelConnectorTests.cs`（新增）
 - **DB**：复用 `WorkspacePublishChannel.SecretJson`（已加密），无需新表
 - **契约**：是
@@ -99,7 +99,7 @@ flowchart LR
   - `src/backend/Atlas.Domain/AiPlatform/Entities/Channels/FeishuChannelCredential.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Repositories/AiPlatform/FeishuChannelCredentialRepository.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/AiPlatform/Channels/Feishu/{FeishuApiClient,FeishuChannelConnector}.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Controllers/Channels/FeishuWebhookController.cs`（新增）
+  - `src/backend/Atlas.AppHost/Controllers/Channels/FeishuWebhookController.cs`（新增）
   - `src/frontend/packages/module-studio-react/src/publish/feishu-publish-tab.tsx`（新增）
   - [src/frontend/apps/app-web/src/app/messages.ts](../src/frontend/apps/app-web/src/app/messages.ts)（i18n keys）
   - `tests/Atlas.SecurityPlatform.Tests/AiPlatform/Channels/Feishu*Tests.cs`（新增）
@@ -118,7 +118,7 @@ flowchart LR
 - **主要文件**：
   - `src/backend/Atlas.Domain/AiPlatform/Entities/Channels/WechatMpChannelCredential.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/AiPlatform/Channels/Wechat/{WechatMpApiClient,WechatMpChannelConnector}.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Controllers/Channels/WechatMpWebhookController.cs`（新增）
+  - `src/backend/Atlas.AppHost/Controllers/Channels/WechatMpWebhookController.cs`（新增）
   - `src/frontend/packages/module-studio-react/src/publish/wechat-mp-publish-tab.tsx`（新增）
   - `tests/Atlas.SecurityPlatform.Tests/AiPlatform/Channels/WechatMp*Tests.cs`（新增）
 - **DB**：新表 `WechatMpChannelCredential`
@@ -208,7 +208,7 @@ flowchart LR
 - **主要文件**：
   - `src/backend/Atlas.Domain/Identity/Entities/Organization.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/OrganizationService.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Controllers/OrganizationsController.cs`（新增或追加）
+  - `src/backend/Atlas.AppHost/Controllers/OrganizationsController.cs`（新增或追加）
   - `src/backend/Atlas.Infrastructure/Hosting/DatabaseInitializerHostedService.cs`（追加 backfill）
   - [src/backend/Atlas.Domain/AiPlatform/Entities/WorkspaceEntities.cs](../src/backend/Atlas.Domain/AiPlatform/Entities/WorkspaceEntities.cs)
 - **DB**：是 — 新表 `Organization`；`Workspace` 增列 `OrganizationId`（nullable → backfill → non-null 三阶段）
@@ -225,8 +225,8 @@ flowchart LR
   - 跨组织迁移 API（`PATCH /api/v1/workspaces/{wsId}/move`）+ 事务（更新 OrgId + PDP 失效 + Audit）
 - **主要文件**：
   - `src/backend/Atlas.Application/Tenancy/ITenantContext.cs`、`TenantContext.cs`
-  - `src/backend/Atlas.PlatformHost/Middlewares/TenantOrganizationMiddleware.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Auth/JwtTokenService.cs`
+  - `src/backend/Atlas.AppHost/Middlewares/TenantOrganizationMiddleware.cs`（新增）
+  - `src/backend/Atlas.AppHost/Auth/JwtTokenService.cs`
   - `src/backend/Atlas.Domain/Identity/Entities/{OrganizationMember,OrganizationRole}.cs`（新增）
 - **DB**：是 — 新表 OrganizationMember / OrganizationRole；`Workspace.OrganizationId` 转 non-null
 - **契约**：是 — JWT 字段；可选 `/api/v1/orgs/{orgId}/...` 路由
@@ -245,7 +245,7 @@ flowchart LR
   - `src/backend/Atlas.Domain/Identity/Entities/MemberInvitation.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/MemberInvitationService.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/Notifications/SmtpEmailSender.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Controllers/MemberInvitationsController.cs`（新增）
+  - `src/backend/Atlas.AppHost/Controllers/MemberInvitationsController.cs`（新增）
   - [src/backend/Atlas.Domain/Identity/Entities/UserAccount.cs](../src/backend/Atlas.Domain/Identity/Entities/UserAccount.cs) + `AuthController.cs`
 - **DB**：是 — 新表 MemberInvitation；UserAccount 增列 Status
 - **契约**：是
@@ -261,7 +261,7 @@ flowchart LR
 - **主要文件**：
   - `src/backend/Atlas.Domain/Identity/Entities/ResourceOwnershipTransfer.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/OffboardService.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Controllers/OffboardController.cs`（新增）
+  - `src/backend/Atlas.AppHost/Controllers/OffboardController.cs`（新增）
 - **DB**：是 — 新表 ResourceOwnershipTransfer
 - **契约**：是
 - **依赖**：S10 + S11
@@ -280,9 +280,9 @@ flowchart LR
   - `src/backend/Atlas.Infrastructure/Security/Saml/SamlAuthenticationHandler.cs`（新增）
   - `src/backend/Atlas.Domain/Identity/Entities/TenantIdentityProvider.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/TenantIdentityProviderService.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Controllers/TenantIdentityProvidersController.cs`（新增）
+  - `src/backend/Atlas.AppHost/Controllers/TenantIdentityProvidersController.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Security/DynamicOidcSchemeProvider.cs`（新增）
-  - [src/backend/Atlas.PlatformHost/Program.cs](../src/backend/Atlas.PlatformHost/Program.cs)（替换 AddOpenIdConnect 静态注册）
+  - [src/backend/Atlas.AppHost/Program.cs](../src/backend/Atlas.AppHost/Program.cs)（替换 AddOpenIdConnect 静态注册）
 - **DB**：是 — 新表 TenantIdentityProvider
 - **契约**：是
 - **依赖**：S9 + S10
@@ -295,7 +295,7 @@ flowchart LR
   - SAML SP metadata / login / ACS / SLO 全链路（路由 `/sso/saml/{tenantId}/...`）
   - `SsoLoginPolicyService`：首次登录自动加入默认组织 / 空间（IdP 映射规则）
 - **主要文件**：
-  - `src/backend/Atlas.PlatformHost/Controllers/Sso/SamlSpController.cs`（新增）
+  - `src/backend/Atlas.AppHost/Controllers/Sso/SamlSpController.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Services/Sso/SsoLoginPolicyService.cs`（新增）
   - [src/backend/Atlas.Infrastructure/Services/UserCommandService.cs](../src/backend/Atlas.Infrastructure/Services/UserCommandService.cs)（首次登录创建 + join）
   - `tests/Atlas.SecurityPlatform.Tests/Sso/SamlSpTests.cs`（新增，mock IdP metadata + ACS round-trip）
@@ -314,7 +314,7 @@ flowchart LR
   - `TenantDataResidencyPolicy`（region + storage endpoint mapping）+ 存储端点解析器真实拒绝跨区
 - **主要文件**：
   - `src/backend/Atlas.Domain/Identity/Entities/{TenantNetworkPolicy,TenantDataResidencyPolicy}.cs`（新增）
-  - `src/backend/Atlas.PlatformHost/Middlewares/TenantNetworkPolicyMiddleware.cs`（新增）
+  - `src/backend/Atlas.AppHost/Middlewares/TenantNetworkPolicyMiddleware.cs`（新增）
   - `src/backend/Atlas.Infrastructure/Storage/ObjectStorageEndpointResolver.cs`（重构 + 接 policy）
 - **DB**：是 — 2 张策略表
 - **契约**：是
@@ -354,7 +354,7 @@ flowchart LR
 | 前端构建 | `cd src/frontend && pnpm run build`（涉及前端时） |
 | 前端单测 | `pnpm run test:unit`（涉及前端时） |
 | i18n | `pnpm run i18n:check` 0 缺失（涉及用户可见文案时） |
-| API 用例 | `src/backend/Atlas.PlatformHost/Bosch.http/` 或 `Atlas.AppHost/Bosch.http/` 同步用例 |
+| API 用例 | `src/backend/Atlas.AppHost/Bosch.http/` 或 `Atlas.AppHost/Bosch.http/` 同步用例 |
 | 契约 | 凡对外 REST 变更同步 [docs/contracts.md](contracts.md) |
 | 零占位 | 全文搜索 `TODO` / `NotImplementedException` / 空集合返回 stub，本 session 涉及文件 0 命中 |
 | Schema | 新增表 / 列同步进 `AtlasOrmSchemaCatalog` + `DatabaseInitializerHostedService` add-if-missing |
@@ -386,7 +386,7 @@ R1 把"前端组件已写但没挂"+"后端读路径没真正切换"（B1–B4 /
   4. `Atlas.Identity.SsoExtensions.Residency`：`DataResidencyEndpointResolver`（按 `TenantDataResidencyPolicy.AllowedRegions` 路由后端服务调用）。
   5. `Atlas.Identity.SsoExtensions.Mail`：MailKit SMTP 实现替换 `SmtpInvitationEmailSender` 占位。
 - **依赖边界**：`Atlas.Identity.SsoExtensions` 仅依赖 `Atlas.Application` + `Atlas.Core` + `Atlas.Domain.Identity`；**禁止** 反向引用 `Atlas.Infrastructure`，也不让 `Atlas.Infrastructure` 顶层堆运行时插件（避免 DI 循环 + 镜像膨胀）。
-- **DI 注入入口**：在 `Atlas.PlatformHost.Program.cs` 由 `services.AddIdentitySsoExtensions(configuration)` 单点开关；未启用时不影响现有登录流程（OIDC / SAML 走 stub / 501）。
+- **DI 注入入口**：在 `src/backend/Atlas.AppHost/Program.cs` 中由 `services.AddIdentitySsoExtensions(configuration)` 单点开关；未启用时不影响现有登录流程（OIDC / SAML 走 stub / 501）。
 - **回退**：库可单独 `<PackageReference Remove="..." />` 临时关闭，保持治理快照可回退；`SamlSpController` 占位行为保留作 fallback。
 
 本批（R1）**不创建** `Atlas.Identity.SsoExtensions`；仅作约定备案。R2 起按上述顺序按需逐个落地。

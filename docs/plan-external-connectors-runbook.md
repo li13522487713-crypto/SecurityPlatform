@@ -1,6 +1,6 @@
 # External Collaboration Connector 端到端联调 Runbook
 
-> v4 报告 27-31 章 P0 落地的端到端验证手册。所有步骤均在 `Atlas.PlatformHost` 启动后通过 [Bosch.http/Connectors.http](../src/backend/Atlas.PlatformHost/Bosch.http/Connectors.http) + 前端 `/org/:orgId/workspaces/:workspaceId/settings/connectors/*` 完成。
+> v4 报告 27-31 章 P0 落地的端到端验证手册。所有步骤在 **`Atlas.AppHost`（端口 5002）** 启动后，通过下文列出的 `POST /api/v1/connectors/*` 等端点 + 前端 `/org/:orgId/workspaces/:workspaceId/settings/connectors/*` 完成。Bosch 样例在 `src/backend/Atlas.AppHost/Bosch.http/` 下按主题拆分；`Connectors.http` 历史文件已随 `Atlas.PlatformHost` 删除，可用手册 § 引用或自补 `.http` 段落。
 
 ## 0. 前置条件
 
