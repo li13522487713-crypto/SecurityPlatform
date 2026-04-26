@@ -1,6 +1,7 @@
 import type { MicroflowExpression, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 import { flattenObjects, issue } from "./shared";
 import { expressionVariables, flattenVariableIndex, isVariableInScope, resolveExpressionScope } from "../variable-index";
+import { validateExpression } from "../expressions";
 
 export function validateExpressions(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
@@ -22,6 +23,7 @@ export function validateExpressions(schema: MicroflowSchema): MicroflowValidatio
       expressions.push({ expression: object.action.request.urlExpression, fieldPath: "action.request.urlExpression" });
     }
     for (const item of expressions) {
+      issues.push(...validateExpression(schema, item.expression, { objectId: object.id, fieldPath: item.fieldPath }));
       for (const variable of expressionVariables(item.expression)) {
         if (variable === "$currentIndex" && !loopObjectId && object.kind !== "loopedActivity") {
           issues.push(issue("MF_EXPRESSION_INVALID", "$currentIndex is only valid inside Loop.", { objectId: object.id, fieldPath: item.fieldPath }));

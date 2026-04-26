@@ -3,6 +3,7 @@ import {
   microflowActionRegistryByActivityType,
   type MicroflowNodeRegistryEntry
 } from "../node-registry";
+import { buildVariableIndex } from "../variables";
 import type {
   MicroflowAction,
   MicroflowAnnotationFlow,
@@ -208,25 +209,24 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       iconKey: entry.iconKey
     }
   };
-  if (entry.type === "event") {
-    const eventType = String(config.eventType ?? "start");
-    if (eventType === "start") {
-      return { ...base, kind: "startEvent", officialType: "Microflows$StartEvent", trigger: { type: "manual" } };
-    }
-    if (eventType === "end") {
-      return { ...base, kind: "endEvent", officialType: "Microflows$EndEvent", endBehavior: { type: "normalReturn" } };
-    }
-    if (eventType === "error") {
-      return {
-        ...base,
-        kind: "errorEvent",
-        officialType: "Microflows$ErrorEvent",
-        error: { sourceVariableName: "$latestError", messageExpression: expression("$latestError") }
-      };
-    }
-    if (eventType === "break") {
-      return { ...base, kind: "breakEvent", officialType: "Microflows$BreakEvent" };
-    }
+  if (entry.type === "startEvent") {
+    return { ...base, kind: "startEvent", officialType: "Microflows$StartEvent", trigger: { type: "manual" } };
+  }
+  if (entry.type === "endEvent") {
+    return { ...base, kind: "endEvent", officialType: "Microflows$EndEvent", endBehavior: { type: "normalReturn" } };
+  }
+  if (entry.type === "errorEvent") {
+    return {
+      ...base,
+      kind: "errorEvent",
+      officialType: "Microflows$ErrorEvent",
+      error: { sourceVariableName: "$latestError", messageExpression: expression("$latestError") }
+    };
+  }
+  if (entry.type === "breakEvent") {
+    return { ...base, kind: "breakEvent", officialType: "Microflows$BreakEvent" };
+  }
+  if (entry.type === "continueEvent") {
     return { ...base, kind: "continueEvent", officialType: "Microflows$ContinueEvent" };
   }
   if (entry.type === "decision") {
@@ -533,15 +533,17 @@ export function applyEditorGraphPatchToAuthoring(schema: MicroflowSchema, patch:
   if (patch.deleteFlowId) {
     next = deleteFlow(next, patch.deleteFlowId);
   }
-  if (patch.viewport || patch.selectedObjectId !== undefined || patch.selectedFlowId !== undefined) {
+  const hasSelectedObject = Object.prototype.hasOwnProperty.call(patch, "selectedObjectId");
+  const hasSelectedFlow = Object.prototype.hasOwnProperty.call(patch, "selectedFlowId");
+  if (patch.viewport || hasSelectedObject || hasSelectedFlow) {
     next = {
       ...next,
       editor: {
         ...next.editor,
         viewport: patch.viewport ?? next.editor.viewport,
         selection: {
-          objectId: patch.selectedObjectId ?? next.editor.selection.objectId,
-          flowId: patch.selectedFlowId ?? next.editor.selection.flowId
+          objectId: hasSelectedObject ? patch.selectedObjectId : next.editor.selection.objectId,
+          flowId: hasSelectedFlow ? patch.selectedFlowId : next.editor.selection.flowId
         }
       }
     };
@@ -591,7 +593,7 @@ export function deleteParameter(schema: MicroflowSchema, parameterId: string): M
 export function refreshDerivedState(schema: MicroflowSchema): MicroflowSchema {
   return {
     ...schema,
-    variables: rebuildVariableIndex(schema),
+    variables: buildVariableIndex(schema),
     validation: schema.validation,
     editor: {
       ...schema.editor,

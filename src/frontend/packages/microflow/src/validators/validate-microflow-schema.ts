@@ -27,5 +27,4 @@ export function validateMicroflowSchema(schema: MicroflowSchema): MicroflowValid
   ];
   return validators.flatMap(validator => validator.validate(schema));
 }
-export { validateMicroflowSchema } from "../schema/validator";
 export type { MicroflowValidationIssue, MicroflowValidator } from "./validator-types";

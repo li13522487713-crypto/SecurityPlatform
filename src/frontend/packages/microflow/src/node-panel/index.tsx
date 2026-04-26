@@ -15,6 +15,9 @@ import {
 import type { MicroflowActivityType, MicroflowNodeType } from "../schema";
 import {
   defaultMicroflowNodeRegistry,
+  canDragRegistryItem,
+  createDragPayloadFromRegistryItem,
+  getDisabledDragReason,
   getMicroflowNodeRegistryKey,
   groupMicroflowNodesByCategory,
   searchMicroflowNodes,
@@ -163,17 +166,6 @@ function categoryKeyFromEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodeP
     return "parameters";
   }
   return "annotations";
-}
-
-function createDragPayload(item: MicroflowNodeRegistryItem): MicroflowNodeDragPayload {
-  return {
-    nodeType: item.type,
-    activityType: item.activityType,
-    registryKey: getMicroflowNodeRegistryKey(item),
-    title: item.title,
-    defaultConfig: item.defaultConfig,
-    sourcePanel: "microflow-node-panel"
-  };
 }
 
 function iconTone(item: MicroflowNodeRegistryItem): { background: string; color: string } {
@@ -348,7 +340,8 @@ export function MicroflowNodeCard({
   onContextMenu: (item: MicroflowNodeRegistryItem, point: { x: number; y: number }) => void;
   onStartDrag?: (payload: MicroflowNodeDragPayload) => void;
 }) {
-  const disabled = !item.enabled;
+  const disabledReason = getDisabledDragReason(item);
+  const disabled = Boolean(disabledReason);
   const key = getMicroflowNodeRegistryKey(item);
   const cardStyle: CSSProperties = {
     ...cardBaseStyle,
@@ -381,9 +374,10 @@ export function MicroflowNodeCard({
             event.preventDefault();
             return;
           }
-          const payload = createDragPayload(item);
+          const payload = createDragPayloadFromRegistryItem(item);
           event.dataTransfer.effectAllowed = "copy";
           event.dataTransfer.setData("application/x-atlas-microflow-node", JSON.stringify(payload));
+          event.dataTransfer.setData("application/json", JSON.stringify(payload));
           event.dataTransfer.setData("text/plain", payload.registryKey);
           onStartDrag?.(payload);
         }}
@@ -793,8 +787,8 @@ export function MicroflowNodePanel({
   }
 
   function handleAdd(item: MicroflowNodeRegistryItem, source: "doubleClick" | "contextMenu" = "doubleClick") {
-    if (!item.enabled) {
-      Toast.warning(item.disabledReason ?? labels.disabled);
+    if (!canDragRegistryItem(item)) {
+      Toast.warning(getDisabledDragReason(item) ?? labels.disabled);
       return;
     }
     onAddNode(item, { source });

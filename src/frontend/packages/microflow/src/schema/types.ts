@@ -992,6 +992,11 @@ export interface MicroflowSequenceFlow {
     colorToken?: string;
     selected?: boolean;
   };
+  exposeLatestError?: boolean;
+  exposeLatestSoapFault?: boolean;
+  exposeLatestHttpResponse?: boolean;
+  targetErrorVariableName?: string;
+  logError?: boolean;
 }
 
 export interface MicroflowAnnotationFlow {
@@ -1010,6 +1015,7 @@ export interface MicroflowAnnotationFlow {
     showInExport: boolean;
     selected?: boolean;
   };
+  attachmentMode?: "node" | "edge" | "canvas";
 }
 
 export type MicroflowFlow = MicroflowSequenceFlow | MicroflowAnnotationFlow;
@@ -1152,6 +1158,8 @@ export interface MicroflowEditorPort {
   direction: MicroflowPortDirection;
   kind: MicroflowPortKind;
   connectionIndex: number;
+  cardinality?: MicroflowPortCardinality;
+  position?: MicroflowPoint;
   edgeTypes: MicroflowEdgeKind[];
 }
 

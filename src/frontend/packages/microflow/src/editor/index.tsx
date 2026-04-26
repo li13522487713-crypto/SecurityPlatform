@@ -12,6 +12,7 @@ import {
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
 import {
   applyEditorGraphPatchToAuthoring,
+  addParameter,
   createAnnotationFlow,
   createObjectFromRegistry,
   createSequenceFlow,
@@ -22,18 +23,24 @@ import {
   findObject,
   moveObject,
   refreshDerivedState,
+  splitFlowWithObject,
   toEditorGraph,
   updateFlow,
   updateObject
 } from "../adapters";
+import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { validateMicroflowSchema } from "../schema/validator";
 import type {
+  MicroflowCaseValue,
+  MicroflowDataType,
   MicroflowEditorEdge,
   MicroflowEditorGraph,
   MicroflowEditorGraphPatch,
   MicroflowEditorNode,
+  MicroflowEditorPort,
   MicroflowFlow,
   MicroflowObject,
+  MicroflowParameter,
   MicroflowSchema,
   MicroflowValidationIssue
 } from "../schema/types";
@@ -92,6 +99,8 @@ const defaultLabels: MicroflowEditorLabels = {
   debug: "Debug"
 };
 
+const unknownDataType: MicroflowDataType = { kind: "unknown", reason: "new parameter" };
+
 function readFavoriteNodeKeys(): string[] {
   if (typeof window === "undefined") {
     return defaultFavoriteNodeKeys;
@@ -114,7 +123,7 @@ function saveFavoriteNodeKeys(keys: string[]): void {
 function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
   try {
     const parsed = JSON.parse(value) as MicroflowNodeDragPayload;
-    return parsed.sourcePanel === "microflow-node-panel" ? parsed : undefined;
+    return parsed.dragType === "microflow-node" || parsed.sourcePanel === "microflow-node-panel" || parsed.sourcePanel === "nodes" ? parsed : undefined;
   } catch {
     return undefined;
   }
@@ -172,6 +181,13 @@ function screenToCanvas(container: HTMLDivElement | null, event: { clientX: numb
   return {
     x: ((event.clientX - (rect?.left ?? 0)) - graph.viewport.x) / graph.viewport.zoom,
     y: ((event.clientY - (rect?.top ?? 0)) - graph.viewport.y) / graph.viewport.zoom
+  };
+}
+
+function snapCanvasPoint(point: { x: number; y: number }, gridSize = 12) {
+  return {
+    x: Math.round(point.x / gridSize) * gridSize,
+    y: Math.round(point.y / gridSize) * gridSize
   };
 }
 
@@ -277,23 +293,129 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
   return createSequenceFlow({ originObjectId: sourceObjectId, destinationObjectId: targetObjectId });
 }
 
+function caseValueFromPort(sourcePort: MicroflowEditorPort, source?: MicroflowObject): MicroflowCaseValue[] {
+  if (source?.kind === "exclusiveSplit") {
+    const label = sourcePort.label.toLowerCase();
+    if (label === "true" || sourcePort.kind === "decisionOut" && sourcePort.connectionIndex === 1) {
+      return [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: true, persistedValue: "true" }];
+    }
+    if (label === "false" || sourcePort.kind === "decisionOut") {
+      return [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }];
+    }
+  }
+  if (source?.kind === "inheritanceSplit") {
+    const entityQualifiedName = source.entity.allowedSpecializations[sourcePort.connectionIndex] ?? "";
+    return entityQualifiedName
+      ? [{ kind: "inheritance", officialType: "Microflows$InheritanceCase", entityQualifiedName }]
+      : [{ kind: "fallback", officialType: "Microflows$NoCase" }];
+  }
+  return [];
+}
+
+function createFlowFromPorts(schema: MicroflowSchema, sourcePort: MicroflowEditorPort, targetPort: MicroflowEditorPort): MicroflowFlow {
+  const source = findObject(schema, sourcePort.objectId);
+  const target = findObject(schema, targetPort.objectId);
+  if (!source || !target) {
+    return createSequenceFlow({ originObjectId: sourcePort.objectId, destinationObjectId: targetPort.objectId });
+  }
+  const edgeKind = inferEdgeKindFromPorts(source, target, sourcePort);
+  if (edgeKind === "annotation") {
+    return createAnnotationFlow({
+      originObjectId: sourcePort.objectId,
+      destinationObjectId: targetPort.objectId,
+      label: "annotation"
+    });
+  }
+  return createSequenceFlow({
+    originObjectId: sourcePort.objectId,
+    destinationObjectId: targetPort.objectId,
+    originConnectionIndex: sourcePort.connectionIndex,
+    destinationConnectionIndex: targetPort.connectionIndex,
+    edgeKind: edgeKind === "errorHandler" ? "errorHandler" : edgeKind,
+    isErrorHandler: edgeKind === "errorHandler",
+    caseValues: edgeKind === "decisionCondition" || edgeKind === "objectTypeCondition" ? caseValueFromPort(sourcePort, source) : [],
+    label: edgeKind === "errorHandler" ? "Error" : sourcePort.label
+  });
+}
+
+function absolutePortPosition(node: MicroflowEditorNode, port: MicroflowEditorPort) {
+  const relative = port.position ?? {
+    x: port.direction === "input" ? 0 : node.size.width,
+    y: node.size.height / 2
+  };
+  return {
+    x: node.position.x + relative.x,
+    y: node.position.y + relative.y
+  };
+}
+
+function connectionPath(source: { x: number; y: number }, target: { x: number; y: number }) {
+  const mid = (source.x + target.x) / 2;
+  return `M ${source.x} ${source.y} C ${mid} ${source.y}, ${mid} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function distanceToSegment(point: { x: number; y: number }, source: { x: number; y: number }, target: { x: number; y: number }) {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) {
+    return Math.hypot(point.x - source.x, point.y - source.y);
+  }
+  const t = Math.max(0, Math.min(1, ((point.x - source.x) * dx + (point.y - source.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (source.x + t * dx), point.y - (source.y + t * dy));
+}
+
+function findNearestFlowAtPoint(graph: MicroflowEditorGraph, point: { x: number; y: number }, threshold = 18): string | undefined {
+  const nodeById = new Map(graph.nodes.map(node => [node.objectId, node]));
+  let nearest: { flowId: string; distance: number } | undefined;
+  for (const edge of graph.edges) {
+    const source = nodeById.get(edge.sourceNodeId.replace(/^node-/, ""));
+    const target = nodeById.get(edge.targetNodeId.replace(/^node-/, ""));
+    if (!source || !target || edge.edgeKind === "annotation") {
+      continue;
+    }
+    const sourcePort = source.ports.find(port => port.id === edge.sourcePortId) ?? source.ports.find(port => port.direction === "output");
+    const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
+    const distance = distanceToSegment(
+      point,
+      sourcePort ? absolutePortPosition(source, sourcePort) : { x: source.position.x + source.size.width, y: source.position.y + source.size.height / 2 },
+      targetPort ? absolutePortPosition(target, targetPort) : { x: target.position.x, y: target.position.y + target.size.height / 2 }
+    );
+    if (distance <= threshold && (!nearest || distance < nearest.distance)) {
+      nearest = { flowId: edge.flowId, distance };
+    }
+  }
+  return nearest?.flowId;
+}
+
 function NodeCard({
   node,
   selected,
   connecting,
+  connectionMode,
+  validTargetPortIds,
+  invalidTargetPortIds,
   trace,
   onPointerDown,
   onSelect,
-  onConnect
+  onConnect,
+  onStartConnection,
+  onFinishConnection
 }: {
   node: MicroflowEditorNode;
   selected: boolean;
   connecting: boolean;
+  connectionMode: boolean;
+  validTargetPortIds: Set<string>;
+  invalidTargetPortIds: Set<string>;
   trace?: MicroflowTraceFrame;
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onSelect: () => void;
   onConnect: () => void;
+  onStartConnection: (port: MicroflowEditorPort, event: PointerEvent<HTMLButtonElement>) => void;
+  onFinishConnection: (port: MicroflowEditorPort, event: PointerEvent<HTMLButtonElement>) => void;
 }) {
+  const showPorts = selected || connecting || connectionMode;
   return (
     <div
       onClick={event => {
@@ -336,6 +458,52 @@ function NodeCard({
       </Space>
       {trace ? <Tag color={trace.status === "failed" ? "red" : "green"} style={{ marginTop: 8 }}>{trace.status} {trace.durationMs}ms</Tag> : null}
       {node.state.hasError ? <Badge dot type="danger" style={{ position: "absolute", right: -3, top: -3 }} /> : null}
+      {showPorts ? node.ports.map(port => {
+        const relative = port.position ?? { x: port.direction === "input" ? 0 : node.size.width, y: node.size.height / 2 };
+        const valid = validTargetPortIds.has(port.id);
+        const invalid = invalidTargetPortIds.has(port.id);
+        const color = port.kind === "errorOut"
+          ? "#f93920"
+          : port.kind === "annotation"
+            ? "#86909c"
+            : valid
+              ? "#00b42a"
+              : invalid
+                ? "#f93920"
+                : "#165dff";
+        return (
+          <button
+            key={port.id}
+            type="button"
+            title={port.label}
+            aria-label={port.label}
+            onPointerDown={event => {
+              event.stopPropagation();
+              if (port.direction === "output") {
+                onStartConnection(port, event);
+              }
+            }}
+            onPointerUp={event => {
+              event.stopPropagation();
+              if (port.direction === "input") {
+                onFinishConnection(port, event);
+              }
+            }}
+            style={{
+              position: "absolute",
+              left: relative.x - 6,
+              top: relative.y - 6,
+              width: 12,
+              height: 12,
+              borderRadius: 999,
+              border: `2px solid ${color}`,
+              background: valid ? "#e8ffea" : invalid ? "#fff1f0" : "var(--semi-color-bg-2, #fff)",
+              cursor: port.direction === "output" ? "crosshair" : connectionMode ? "copy" : "default",
+              padding: 0
+            }}
+          />
+        );
+      }) : null}
     </div>
   );
 }
@@ -358,23 +526,23 @@ function EdgeLayer({
         if (!source || !target) {
           return null;
         }
-        const x1 = source.position.x + source.size.width;
-        const y1 = source.position.y + source.size.height / 2;
-        const x2 = target.position.x;
-        const y2 = target.position.y + target.size.height / 2;
-        const mid = (x1 + x2) / 2;
+        const sourcePort = source.ports.find(port => port.id === edge.sourcePortId) ?? source.ports.find(port => port.direction === "output");
+        const targetPort = target.ports.find(port => port.id === edge.targetPortId) ?? target.ports.find(port => port.direction === "input");
+        const sourcePosition = sourcePort ? absolutePortPosition(source, sourcePort) : { x: source.position.x + source.size.width, y: source.position.y + source.size.height / 2 };
+        const targetPosition = targetPort ? absolutePortPosition(target, targetPort) : { x: target.position.x, y: target.position.y + target.size.height / 2 };
+        const mid = (sourcePosition.x + targetPosition.x) / 2;
         const selected = selectedFlowId === edge.flowId;
         return (
           <g key={edge.id} style={{ pointerEvents: "auto" }} onClick={event => { event.stopPropagation(); onSelect(edge.flowId); }}>
             <path
-              d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
+              d={connectionPath(sourcePosition, targetPosition)}
               fill="none"
               stroke={selected ? "#165dff" : edge.style.colorToken}
               strokeWidth={selected ? 3 : 2}
               strokeDasharray={edge.style.strokeType === "dashed" ? "6 4" : edge.style.strokeType === "dotted" ? "2 4" : undefined}
             />
-            <circle cx={x2} cy={y2} r={4} fill={selected ? "#165dff" : edge.style.colorToken} />
-            {edge.label ? <text x={mid} y={(y1 + y2) / 2 - 8} fontSize={12} fill="#4e5969">{edge.label}</text> : null}
+            <circle cx={targetPosition.x} cy={targetPosition.y} r={4} fill={selected ? "#165dff" : edge.style.colorToken} />
+            {edge.label ? <text x={mid} y={(sourcePosition.y + targetPosition.y) / 2 - 8} fontSize={12} fill="#4e5969">{edge.label}</text> : null}
           </g>
         );
       })}
@@ -387,20 +555,53 @@ function MicroflowCanvas({
   graph,
   traceFrames,
   onPatch,
-  onDropRegistryItem
+  onDropRegistryItem,
+  onConnectPorts
 }: {
   schema: MicroflowSchema;
   graph: MicroflowEditorGraph;
   traceFrames: MicroflowTraceFrame[];
   onPatch: (schemaPatch: MicroflowEditorGraphPatch) => void;
-  onDropRegistryItem: (item: MicroflowNodeRegistryItem, position: { x: number; y: number }) => void;
+  onDropRegistryItem: (item: MicroflowNodeRegistryItem, position: { x: number; y: number }, insertFlowId?: string) => void;
+  onConnectPorts: (sourcePort: MicroflowEditorPort, targetPort: MicroflowEditorPort) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ objectId: string; offsetX: number; offsetY: number } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<string | undefined>();
+  const [dropActive, setDropActive] = useState(false);
+  const [connectionDraft, setConnectionDraft] = useState<{ sourceNodeId: string; sourcePort: MicroflowEditorPort; target: { x: number; y: number } }>();
   const traceByObject = useMemo(() => new Map(traceFrames.map(frame => [frame.objectId, frame])), [traceFrames]);
   const selectedFlowId = graph.selection.flowId;
   const selectedObjectId = graph.selection.objectId;
+  const nodeByObjectId = useMemo(() => new Map(graph.nodes.map(node => [node.objectId, node])), [graph.nodes]);
+  const validTargetPortIds = useMemo(() => {
+    if (!connectionDraft) {
+      return new Set<string>();
+    }
+    const result = new Set<string>();
+    for (const node of graph.nodes) {
+      for (const port of node.ports) {
+        if (canConnectPorts(schema, connectionDraft.sourcePort, port).allowed) {
+          result.add(port.id);
+        }
+      }
+    }
+    return result;
+  }, [connectionDraft, graph.nodes, schema]);
+  const invalidTargetPortIds = useMemo(() => {
+    if (!connectionDraft) {
+      return new Set<string>();
+    }
+    const result = new Set<string>();
+    for (const node of graph.nodes) {
+      for (const port of node.ports) {
+        if (port.direction === "input" && !validTargetPortIds.has(port.id)) {
+          result.add(port.id);
+        }
+      }
+    }
+    return result;
+  }, [connectionDraft, graph.nodes, validTargetPortIds]);
 
   const emitPatch = (patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1]) => {
     onPatch(patch);
@@ -411,28 +612,60 @@ function MicroflowCanvas({
       ref={containerRef}
       style={canvasStyle}
       onClick={() => emitPatch({ selectedObjectId: undefined, selectedFlowId: undefined })}
-      onDragOver={event => event.preventDefault()}
+      onDragEnter={event => {
+        event.preventDefault();
+        setDropActive(true);
+      }}
+      onDragOver={event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        setDropActive(true);
+      }}
+      onDragLeave={event => {
+        if (event.currentTarget === event.target) {
+          setDropActive(false);
+        }
+      }}
       onDrop={(event: DragEvent<HTMLDivElement>) => {
         event.preventDefault();
-        const payload = parseDragPayload(event.dataTransfer.getData("application/json") || event.dataTransfer.getData("text/plain"));
-        if (!payload) {
+        setDropActive(false);
+        const payload = parseDragPayload(event.dataTransfer.getData("application/x-atlas-microflow-node") || event.dataTransfer.getData("application/json"));
+        const registryKey = payload?.registryKey ?? event.dataTransfer.getData("text/plain");
+        if (!registryKey) {
           return;
         }
-        const entry = microflowNodeRegistryByKey.get(payload.registryKey);
+        const entry = microflowNodeRegistryByKey.get(registryKey);
         if (!entry) {
           return;
         }
-        onDropRegistryItem(entry, screenToCanvas(containerRef.current, event, graph));
+        const position = snapCanvasPoint(screenToCanvas(containerRef.current, event, graph));
+        onDropRegistryItem(entry, position, findNearestFlowAtPoint(graph, position));
       }}
       onPointerMove={event => {
+        if (connectionDraft) {
+          setConnectionDraft({ ...connectionDraft, target: screenToCanvas(containerRef.current, event, graph) });
+          return;
+        }
         if (!drag) {
           return;
         }
         const position = screenToCanvas(containerRef.current, event, graph);
         emitPatch({ movedNodes: [{ objectId: drag.objectId, position: { x: position.x - drag.offsetX, y: position.y - drag.offsetY } }] });
       }}
-      onPointerUp={() => setDrag(null)}
+      onPointerUp={() => {
+        setDrag(null);
+        setConnectionDraft(undefined);
+      }}
+      onKeyDown={event => {
+        if (event.key === "Escape") {
+          setConnectionDraft(undefined);
+        }
+      }}
+      tabIndex={0}
     >
+      {dropActive ? (
+        <div style={{ position: "absolute", inset: 12, border: "2px dashed #165dff", borderRadius: 12, pointerEvents: "none", zIndex: 2 }} />
+      ) : null}
       <div
         style={{
           position: "absolute",
@@ -443,12 +676,27 @@ function MicroflowCanvas({
         }}
       >
         <EdgeLayer graph={graph} selectedFlowId={selectedFlowId} onSelect={flowId => emitPatch({ selectedObjectId: undefined, selectedFlowId: flowId })} />
+        {connectionDraft ? (() => {
+          const sourceNode = nodeByObjectId.get(connectionDraft.sourceNodeId);
+          if (!sourceNode) {
+            return null;
+          }
+          const sourcePosition = absolutePortPosition(sourceNode, connectionDraft.sourcePort);
+          return (
+            <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}>
+              <path d={connectionPath(sourcePosition, connectionDraft.target)} fill="none" stroke="#165dff" strokeWidth={2} strokeDasharray="6 4" />
+            </svg>
+          );
+        })() : null}
         {graph.nodes.map(node => (
           <NodeCard
             key={node.id}
             node={node}
             selected={node.objectId === selectedObjectId}
             connecting={connectingFrom === node.objectId}
+            connectionMode={Boolean(connectionDraft)}
+            validTargetPortIds={validTargetPortIds}
+            invalidTargetPortIds={invalidTargetPortIds}
             trace={traceByObject.get(node.objectId)}
             onSelect={() => {
               if (connectingFrom && connectingFrom !== node.objectId) {
@@ -459,7 +707,24 @@ function MicroflowCanvas({
               emitPatch({ selectedObjectId: node.objectId, selectedFlowId: undefined });
             }}
             onConnect={() => setConnectingFrom(connectingFrom === node.objectId ? undefined : node.objectId)}
+            onStartConnection={(port, event) => {
+              const position = screenToCanvas(containerRef.current, event, graph);
+              setConnectingFrom(undefined);
+              setConnectionDraft({ sourceNodeId: node.objectId, sourcePort: port, target: position });
+            }}
+            onFinishConnection={(port) => {
+              if (!connectionDraft) {
+                return;
+              }
+              if (canConnectPorts(schema, connectionDraft.sourcePort, port).allowed) {
+                onConnectPorts(connectionDraft.sourcePort, port);
+              }
+              setConnectionDraft(undefined);
+            }}
             onPointerDown={event => {
+              if (connectionDraft) {
+                return;
+              }
               event.stopPropagation();
               const position = screenToCanvas(containerRef.current, event, graph);
               setDrag({ objectId: node.objectId, offsetX: position.x - node.position.x, offsetY: position.y - node.position.y });
@@ -523,17 +788,19 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const [future, setFuture] = useState<MicroflowSchema[]>([]);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
   const selectedFlow = schema.editor.selection.flowId ? schema.flows.find(flow => flow.id === schema.editor.selection.flowId) ?? null : null;
 
-  const commitSchema = (next: MicroflowSchema) => {
+  const commitSchema = (next: MicroflowSchema, markDirty = true) => {
     const refreshed = refreshDerivedState(next);
     setHistory(items => [...items.slice(-30), schema]);
     setFuture([]);
     setSchema(refreshed);
     setIssues(validateMicroflowSchema(refreshed));
+    setDirty(markDirty);
     props.onSchemaChange?.(refreshed);
   };
 
@@ -541,7 +808,30 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     commitSchema(applyEditorGraphPatchToAuthoring(schema, patch));
   };
 
-  const handleAddNode = (item: MicroflowNodeRegistryItem, options?: { position?: { x: number; y: number } }) => {
+  function createParameterForNode(item: MicroflowNodeRegistryItem, position: { x: number; y: number }): MicroflowSchema {
+    const parameterId = `param-${Date.now()}`;
+    const parameterName = `input${schema.parameters.length + 1}`;
+    const parameter: MicroflowParameter = {
+      id: parameterId,
+      stableId: parameterId,
+      name: parameterName,
+      dataType: unknownDataType,
+      type: { kind: "unknown", name: "Unknown" },
+      required: true,
+      documentation: item.documentation.summary
+    };
+    const objectId = `parameter-object-${parameterId}`;
+    const next = addParameter(schema, parameter, position);
+    return {
+      ...next,
+      editor: {
+        ...next.editor,
+        selection: { objectId, flowId: undefined }
+      }
+    };
+  }
+
+  const handleAddNode = (item: MicroflowNodeRegistryItem, options?: { position?: { x: number; y: number }; insertFlowId?: string }) => {
     const position = options?.position ?? { x: 120 + graph.nodes.length * 36, y: 120 + graph.nodes.length * 18 };
     const parentLoopObjectId = findLoopAtPosition(graph, position);
     if ((item.type === "event" && (item.defaultConfig as { eventType?: string }).eventType === "start") && parentLoopObjectId) {
@@ -552,9 +842,29 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
       Toast.warning("Break / Continue 只能放在 Loop 内");
       return;
     }
+    if (item.type === "parameter") {
+      commitSchema(createParameterForNode(item, position));
+      return;
+    }
+    const object = createObjectFromRegistry(item, position);
+    if (options?.insertFlowId) {
+      const flow = schema.flows.find(item => item.id === options.insertFlowId);
+      if (flow?.kind === "annotation") {
+        Toast.warning("AnnotationFlow 暂不支持插入节点");
+        return;
+      }
+      commitSchema({
+        ...splitFlowWithObject(schema, options.insertFlowId, object),
+        editor: {
+          ...schema.editor,
+          selection: { objectId: object.id, flowId: undefined }
+        }
+      });
+      return;
+    }
     commitSchema(applyEditorGraphPatchToAuthoring(schema, {
-      addObject: { object: createObjectFromRegistry(item, position), parentLoopObjectId },
-      selectedObjectId: undefined,
+      addObject: { object, parentLoopObjectId },
+      selectedObjectId: object.id,
       selectedFlowId: undefined
     }));
   };
@@ -564,6 +874,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     try {
       const response = await apiClient.saveMicroflow({ schema });
       props.onSaveComplete?.(response);
+      setDirty(false);
       Toast.success(`Saved ${response.version}`);
     } finally {
       setSaving(false);
@@ -597,6 +908,8 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     setFuture(items => [schema, ...items]);
     setHistory(items => items.slice(0, -1));
     setSchema(previous);
+    setIssues(validateMicroflowSchema(previous));
+    setDirty(true);
   };
 
   const handleRedo = () => {
@@ -607,6 +920,8 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     setHistory(items => [...items, schema]);
     setFuture(items => items.slice(1));
     setSchema(next);
+    setIssues(validateMicroflowSchema(next));
+    setDirty(true);
   };
 
   return (
@@ -616,6 +931,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           {props.toolbarPrefix}
           <Title heading={5} style={{ margin: 0 }}>{schema.displayName || schema.name}</Title>
           <Tag>{schema.schemaVersion}</Tag>
+          {dirty ? <Tag color="orange">dirty</Tag> : null}
           <Tag color={issues.some(issue => issue.severity === "error") ? "red" : "green"}>{issues.length} issues</Tag>
         </Space>
         <Space>
@@ -647,7 +963,20 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           onPatch={patchedGraph => {
             applyPatch(patchedGraph);
           }}
-          onDropRegistryItem={(item, position) => handleAddNode(item, { position })}
+          onDropRegistryItem={(item, position, insertFlowId) => handleAddNode(item, { position, insertFlowId })}
+          onConnectPorts={(sourcePort, targetPort) => {
+            const check = canConnectPorts(schema, sourcePort, targetPort);
+            if (!check.allowed) {
+              Toast.warning(check.message ?? "Cannot connect these ports.");
+              return;
+            }
+            const flow = createFlowFromPorts(schema, sourcePort, targetPort);
+            commitSchema(applyEditorGraphPatchToAuthoring(schema, {
+              addFlow: flow,
+              selectedObjectId: undefined,
+              selectedFlowId: flow.id
+            }));
+          }}
         />
         <div style={rightPanelStyle}>
           <MicroflowPropertyPanel

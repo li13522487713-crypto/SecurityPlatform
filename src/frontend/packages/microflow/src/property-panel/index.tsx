@@ -434,6 +434,9 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
         <Field label="Destination Object">
           <Input value={flow.destinationObjectId} disabled />
         </Field>
+        <Field label="Runtime Effect">
+          <Input value={flow.kind === "annotation" ? "annotationOnly" : flow.kind === "sequence" && flow.isErrorHandler ? "errorFlow" : "controlFlow"} disabled />
+        </Field>
         <Field label="Origin Connection Index">
           <InputNumber value={flow.originConnectionIndex ?? 0} disabled={props.readonly} onChange={originConnectionIndex => patch(flowPatch(flow, { originConnectionIndex: Number(originConnectionIndex) }))} />
         </Field>
@@ -463,6 +466,22 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
             <Field label="Error Handler">
               <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : flow.editor.edgeKind } }))} />
             </Field>
+            {flow.isErrorHandler ? (
+              <>
+                <Field label="Expose latestError">
+                  <Switch checked={flow.exposeLatestError ?? true} disabled={props.readonly} onChange={exposeLatestError => patch(flowPatch(flow, { exposeLatestError }))} />
+                </Field>
+                <Field label="Expose latestHttpResponse">
+                  <Switch checked={Boolean(flow.exposeLatestHttpResponse)} disabled={props.readonly} onChange={exposeLatestHttpResponse => patch(flowPatch(flow, { exposeLatestHttpResponse }))} />
+                </Field>
+                <Field label="Expose latestSoapFault">
+                  <Switch checked={Boolean(flow.exposeLatestSoapFault)} disabled={props.readonly} onChange={exposeLatestSoapFault => patch(flowPatch(flow, { exposeLatestSoapFault }))} />
+                </Field>
+                <Field label="Error variable name">
+                  <Input value={flow.targetErrorVariableName ?? ""} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
+                </Field>
+              </>
+            ) : null}
             <Field label="Case Values">
               <TextArea
                 autosize
@@ -483,6 +502,15 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
           <>
             <Field label="Show In Export">
               <Switch checked={flow.editor.showInExport} disabled={props.readonly} onChange={showInExport => patch(flowPatch(flow, { editor: { ...flow.editor, showInExport } }))} />
+            </Field>
+            <Field label="Attachment Mode">
+              <Select
+                value={flow.attachmentMode ?? "edge"}
+                disabled={props.readonly}
+                style={{ width: "100%" }}
+                onChange={attachmentMode => patch(flowPatch(flow, { attachmentMode: String(attachmentMode) as "node" | "edge" | "canvas" }))}
+                optionList={["node", "edge", "canvas"].map(value => ({ label: value, value }))}
+              />
             </Field>
             <Field label="Label">
               <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />

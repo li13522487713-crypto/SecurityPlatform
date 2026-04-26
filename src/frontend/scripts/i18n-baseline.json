@@ -10,7 +10,8 @@
     "M7-lowcode-studio-shared-transition": "从独立 lowcode-studio-web 抽出的共享壳，先保持现有词条与文案，后续再按包级 i18n 契约统一收口"
   },
   "allowedCjkPackages": [
-    "lowcode-studio-react"
+    "lowcode-studio-react",
+    "microflow"
   ],
   "allowedCjkFiles": [
     "packages/library-module-react/src/copy.ts",

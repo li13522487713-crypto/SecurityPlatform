@@ -3,11 +3,13 @@ import type {
   MicroflowActivityConfig,
   MicroflowActivityType,
   MicroflowErrorHandlingType,
+  MicroflowActionKind,
   MicroflowNode,
   MicroflowNodeAvailability,
   MicroflowNodeCategory,
   MicroflowNodeKind,
   MicroflowNodeType,
+  MicroflowObjectKind,
   MicroflowPort,
   MicroflowPortCardinality,
   MicroflowPortKind,
@@ -18,6 +20,7 @@ import type {
   MicroflowRuntimeNodeDto,
   MicroflowValidationIssue
 } from "../schema/types";
+import { microflowActionRegistryByActivityType } from "./action-registry";
 
 export type MicroflowNodePanelCategoryKey =
   | "events"
@@ -43,12 +46,15 @@ export interface MicroflowNodeFavoriteState {
 }
 
 export interface MicroflowNodeDragPayload {
+  dragType: "microflow-node";
   nodeType: MicroflowNodeType;
+  objectKind: MicroflowObjectKind;
   activityType?: MicroflowActivityType;
+  actionKind?: MicroflowActionKind;
   registryKey: string;
   title: string;
   defaultConfig: Record<string, unknown>;
-  sourcePanel: "microflow-node-panel";
+  sourcePanel: "nodes" | "microflow-node-panel";
 }
 
 export type MicroflowNodeFilterKey = "all" | "favorites" | "enabled" | MicroflowNodePanelCategoryKey;
@@ -494,6 +500,62 @@ export const defaultMicroflowNodeRegistry = microflowNodeRegistries;
 
 export function getMicroflowNodeRegistryKey(entry: Pick<MicroflowNodeRegistryEntry, "type" | "activityType">): string {
   return entry.activityType ? `${entry.type}:${entry.activityType}` : entry.type;
+}
+
+export function objectKindFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntry, "type">): MicroflowObjectKind {
+  const map: Record<MicroflowNodeType, MicroflowObjectKind> = {
+    startEvent: "startEvent",
+    endEvent: "endEvent",
+    errorEvent: "errorEvent",
+    breakEvent: "breakEvent",
+    continueEvent: "continueEvent",
+    decision: "exclusiveSplit",
+    objectTypeDecision: "inheritanceSplit",
+    merge: "exclusiveMerge",
+    loop: "loopedActivity",
+    parameter: "parameterObject",
+    annotation: "annotation",
+    activity: "actionActivity"
+  };
+  return map[entry.type];
+}
+
+export function actionKindFromActivityType(activityType?: MicroflowActivityType): MicroflowActionKind | undefined {
+  if (!activityType) {
+    return undefined;
+  }
+  return microflowActionRegistryByActivityType.get(activityType)?.kind;
+}
+
+export function getDisabledDragReason(entry: MicroflowNodeRegistryEntry): string | undefined {
+  if (!entry.enabled) {
+    return entry.disabledReason ?? entry.availabilityReason ?? "Node is disabled.";
+  }
+  if (entry.availability === "nanoflowOnlyDisabled") {
+    return entry.availabilityReason ?? "Nanoflow-only node cannot be used in Microflow.";
+  }
+  if (entry.availability === "requiresConnector") {
+    return entry.availabilityReason ?? "Connector is required before this node can be used.";
+  }
+  return undefined;
+}
+
+export function canDragRegistryItem(entry: MicroflowNodeRegistryEntry): boolean {
+  return !getDisabledDragReason(entry);
+}
+
+export function createDragPayloadFromRegistryItem(entry: MicroflowNodeRegistryEntry): MicroflowNodeDragPayload {
+  return {
+    dragType: "microflow-node",
+    nodeType: entry.type,
+    objectKind: objectKindFromRegistryItem(entry),
+    activityType: entry.activityType,
+    actionKind: actionKindFromActivityType(entry.activityType),
+    registryKey: getMicroflowNodeRegistryKey(entry),
+    title: entry.title,
+    defaultConfig: JSON.parse(JSON.stringify(entry.defaultConfig)) as Record<string, unknown>,
+    sourcePanel: "nodes"
+  };
 }
 
 function categoryKeyForEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodePanelCategoryKey {

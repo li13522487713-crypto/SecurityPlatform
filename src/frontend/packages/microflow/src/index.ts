@@ -20,6 +20,9 @@ export {
 export * from "./runtime-adapter";
 export * from "./mendix-compat";
 export * from "./variable-index";
+export * from "./metadata";
+export * from "./variables";
+export * from "./expressions";
 export { MicroflowEditor, type MicroflowEditorLabels, type MicroflowEditorProps } from "./editor";
 export {
   ExpressionEditor,
