@@ -11,6 +11,7 @@
     "./editor": "./src/editor/index.tsx",
     "./node-registry": "./src/node-registry/index.ts",
     "./node-panel": "./src/node-panel/index.tsx",
+    "./property-panel": "./src/property-panel/index.tsx",
     "./property-forms": "./src/property-forms/index.tsx",
     "./runtime-adapter": "./src/runtime-adapter/index.ts",
     "./mendix-compat": "./src/mendix-compat/index.ts"

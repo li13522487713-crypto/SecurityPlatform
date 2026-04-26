@@ -113,11 +113,55 @@ export interface MicroflowPropertyFormMetadata {
   sections: string[];
 }
 
+export interface MicroflowNodeDocumentation {
+  business?: string;
+  technical?: string;
+  inputs?: string;
+  outputs?: string;
+  notes?: string;
+  example?: string;
+  tags?: string[];
+}
+
+export interface MicroflowNodeOutput {
+  id: string;
+  name: string;
+  type: MicroflowTypeRef;
+  source: string;
+  downstreamAvailable: boolean;
+}
+
+export interface MicroflowNodeAdvancedConfig {
+  timeoutMs?: number;
+  retryEnabled?: boolean;
+  retryCount?: number;
+  retryIntervalMs?: number;
+  verboseLogging?: boolean;
+  ignoreNonCriticalErrors?: boolean;
+  permissionContext?: string;
+  transactionBoundary?: "inherit" | "requiresNew" | "none";
+  performanceTag?: string;
+  followRedirects?: boolean;
+}
+
+export interface MicroflowAttributeAssignment {
+  id: string;
+  attribute: string;
+  expression: MicroflowExpression;
+}
+
 export interface MicroflowNodeBase<TKind extends MicroflowNodeKind = MicroflowNodeKind, TConfig extends object = Record<string, unknown>> {
   id: string;
   type: TKind;
   title: string;
   description?: string;
+  alias?: string;
+  enabled?: boolean;
+  locked?: boolean;
+  documentation?: MicroflowNodeDocumentation;
+  tags?: string[];
+  outputs?: MicroflowNodeOutput[];
+  advanced?: MicroflowNodeAdvancedConfig;
   category: MicroflowNodeCategory;
   position: MicroflowPosition;
   ports: MicroflowPort[];
@@ -132,6 +176,12 @@ export interface MicroflowNodeBase<TKind extends MicroflowNodeKind = MicroflowNo
 export interface MicroflowEventConfig {
   returnValue?: MicroflowExpression;
   errorName?: string;
+  startTrigger?: "manual" | "pageEvent" | "formSubmit" | "workflowCall" | "apiCall";
+  allowExternalCall?: boolean;
+  logExecution?: boolean;
+  endType?: "normal" | "returnValue" | "throwError";
+  returnType?: MicroflowTypeRef;
+  returnVariableName?: string;
 }
 
 export interface MicroflowDecisionConfig {
@@ -145,6 +195,10 @@ export interface MicroflowMergeConfig {
 export interface MicroflowLoopConfig {
   iterableVariableName: string;
   itemVariableName: string;
+  loopType?: "list" | "condition";
+  indexVariableName?: string;
+  skipWhenEmpty?: boolean;
+  note?: string;
 }
 
 export interface MicroflowActivityConfig {
@@ -175,15 +229,44 @@ export interface MicroflowActivityConfig {
   errorHandling?: MicroflowErrorHandling;
   supportsErrorFlow?: boolean;
   reserved?: boolean;
+  retrieveMode?: "association" | "database";
+  notFoundStrategy?: "empty" | "throw" | "errorFlow";
+  sortRules?: Array<{ id: string; attribute: string; direction: "asc" | "desc" }>;
+  assignments?: MicroflowAttributeAssignment[];
+  commitImmediately?: boolean;
+  validateObject?: boolean;
+  deleteList?: boolean;
+  deleteConfirmation?: string;
+  rollbackScope?: "object" | "list" | "transaction";
+  readonly?: boolean;
+  callMode?: "sync" | "async";
+  parameterMappings?: Array<{ id: string; parameterName: string; expression: MicroflowExpression }>;
+  bodyType?: "none" | "json" | "form" | "text";
+  responseMapping?: string;
+  logContextVariables?: boolean;
+  logTraceId?: boolean;
+  pageOpenMode?: "current" | "modal" | "newWindow";
+  pageTitle?: string;
+  pageParameterMappings?: Array<{ id: string; parameterName: string; expression: MicroflowExpression }>;
+  closeMode?: "current" | "modal" | "back";
+  closeResult?: string;
+  errorDescription?: string;
+  errorLogEnabled?: boolean;
+  customErrorMicroflowId?: string;
 }
 
 export interface MicroflowParameterConfig {
   parameter: MicroflowParameter;
+  defaultValue?: MicroflowExpression;
+  exampleValue?: string;
 }
 
 export interface MicroflowAnnotationConfig {
   text: string;
   color?: string;
+  title?: string;
+  pinned?: boolean;
+  exportToDocumentation?: boolean;
 }
 
 export type MicroflowEventNode = MicroflowNodeBase<

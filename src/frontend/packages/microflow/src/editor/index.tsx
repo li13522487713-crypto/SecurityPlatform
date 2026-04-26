@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
-import { Badge, Button, Card, Divider, Empty, Input, Modal, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Badge, Button, Card, Empty, Input, Modal, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
-  IconDelete,
   IconPlay,
   IconSave,
   IconSearch,
@@ -11,6 +10,7 @@ import {
   IconRedo
 } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
+import { MicroflowPropertyPanel, type MicroflowNodePatch } from "../property-panel";
 import {
   createMicroflowNodeFromRegistry,
   getMicroflowNodeByType,
@@ -18,10 +18,9 @@ import {
   type MicroflowNodeDragPayload,
   type MicroflowNodeRegistryEntry
 } from "../node-registry";
-import { MicroflowPropertyForm } from "../property-forms";
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
 import { validateMicroflowSchema } from "../schema/validator";
-import type { MicroflowEdge, MicroflowNode, MicroflowSchema, MicroflowValidationIssue, MicroflowPosition } from "../schema/types";
+import type { MicroflowEdge, MicroflowNode, MicroflowNodeOutput, MicroflowSchema, MicroflowValidationIssue, MicroflowPosition, MicroflowVariable } from "../schema/types";
 
 const { Text, Title } = Typography;
 
@@ -128,6 +127,19 @@ function parseNodeDragPayload(data: string): MicroflowNodeDragPayload | undefine
   } catch {
     return undefined;
   }
+}
+
+function cloneNode<TNode extends MicroflowNode>(node: TNode): TNode {
+  return JSON.parse(JSON.stringify(node)) as TNode;
+}
+
+function variablesFromOutputs(outputs: MicroflowNodeOutput[] | undefined): MicroflowVariable[] {
+  return (outputs ?? []).filter(output => output.name.trim().length > 0).map(output => ({
+    id: output.id,
+    name: output.name,
+    type: output.type,
+    scope: "node"
+  }));
 }
 
 const shellStyle: CSSProperties = {
@@ -473,7 +485,7 @@ function MicroflowCanvas({
   );
 }
 
-function ProblemPanel({ issues }: { issues: MicroflowValidationIssue[] }) {
+function ProblemPanel({ issues, onSelectNode }: { issues: MicroflowValidationIssue[]; onSelectNode: (nodeId: string) => void }) {
   if (issues.length === 0) {
     return <Empty image={<IconTickCircle />} title="No validation issues" description="The current schema passes basic validation." />;
   }
@@ -481,7 +493,15 @@ function ProblemPanel({ issues }: { issues: MicroflowValidationIssue[] }) {
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
       {issues.map(issue => (
-        <div key={issue.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div
+          key={issue.id}
+          style={{ display: "flex", gap: 8, alignItems: "center", cursor: issue.nodeId ? "pointer" : "default" }}
+          onClick={() => {
+            if (issue.nodeId) {
+              onSelectNode(issue.nodeId);
+            }
+          }}
+        >
           <Tag color={issue.severity === "error" ? "red" : "orange"}>{issue.severity}</Tag>
           <Text>{issue.message}</Text>
           {issue.nodeId ? <Text type="tertiary">node: {issue.nodeId}</Text> : null}
@@ -491,7 +511,7 @@ function ProblemPanel({ issues }: { issues: MicroflowValidationIssue[] }) {
   );
 }
 
-function DebugPanel({ frames }: { frames: MicroflowTraceFrame[] }) {
+function DebugPanel({ frames, onSelectNode }: { frames: MicroflowTraceFrame[]; onSelectNode: (nodeId: string) => void }) {
   if (frames.length === 0) {
     return <Empty image={<IconPlay />} title="No trace yet" description="Run a test to inspect node input, output, duration, and errors." />;
   }
@@ -499,7 +519,11 @@ function DebugPanel({ frames }: { frames: MicroflowTraceFrame[] }) {
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
       {frames.map(frame => (
-        <div key={frame.frameId} style={{ display: "grid", gridTemplateColumns: "180px 80px 1fr", gap: 12, width: "100%" }}>
+        <div
+          key={frame.frameId}
+          style={{ display: "grid", gridTemplateColumns: "180px 80px 1fr", gap: 12, width: "100%", cursor: "pointer" }}
+          onClick={() => onSelectNode(frame.nodeId)}
+        >
           <Text strong>{frame.nodeTitle}</Text>
           <Tag color={frame.error ? "red" : "green"}>{frame.durationMs}ms</Tag>
           <Text type="tertiary" ellipsis={{ showTooltip: true }}>
@@ -546,6 +570,7 @@ export function MicroflowEditor({
 
   function commitSchema(nextSchema: MicroflowSchema) {
     setSchema(nextSchema);
+    setIssues(validateMicroflowSchema(nextSchema));
     onSchemaChange?.(nextSchema);
   }
 
@@ -605,14 +630,71 @@ export function MicroflowEditor({
     handleAddNode(entry, { position });
   }
 
+  function handleNodePatch(nodeId: string, patch: MicroflowNodePatch) {
+    let nextOutputs: MicroflowNodeOutput[] | undefined;
+    const nextNodes = schema.nodes.map(node => {
+      if (node.id !== nodeId) {
+        return node;
+      }
+      const nextNode = {
+        ...node,
+        ...(patch.node ?? {}),
+        config: patch.config ? { ...node.config, ...patch.config } : node.config,
+        documentation: patch.documentation ?? node.documentation,
+        advanced: patch.advanced ?? node.advanced,
+        outputs: patch.outputs ?? node.outputs
+      } as MicroflowNode;
+      nextOutputs = nextNode.outputs;
+      return nextNode;
+    });
+    const outputVariableIds = new Set((nextOutputs ?? []).map(output => output.id));
+    const nextVariables = [
+      ...schema.variables.filter(variable => !outputVariableIds.has(variable.id)),
+      ...variablesFromOutputs(nextOutputs)
+    ];
+    commitSchema({ ...schema, nodes: nextNodes, variables: nextVariables });
+  }
+
+  function handleDuplicateNode(nodeId: string) {
+    const node = schema.nodes.find(item => item.id === nodeId);
+    if (!node) {
+      return;
+    }
+    const nextNode = cloneNode(node);
+    nextNode.id = `${node.id}-copy-${Date.now()}`;
+    nextNode.title = `${node.title} Copy`;
+    nextNode.position = { x: node.position.x + 36, y: node.position.y + 36 };
+    commitSchema({ ...schema, nodes: [...schema.nodes, nextNode] });
+    setSelectedNodeId(nextNode.id);
+  }
+
+  function handleLocateNode(nodeId: string) {
+    const node = schema.nodes.find(item => item.id === nodeId);
+    if (!node) {
+      return;
+    }
+    setSelectedNodeId(nodeId);
+    setViewport(current => ({
+      ...current,
+      offset: {
+        x: 360 - node.position.x * current.zoom,
+        y: 180 - node.position.y * current.zoom
+      }
+    }));
+  }
+
   function handleDeleteSelected() {
     if (!selectedNodeId) {
       return;
     }
+    handleDeleteNode(selectedNodeId);
+  }
+
+  function handleDeleteNode(nodeId: string) {
     commitSchema({
       ...schema,
-      nodes: schema.nodes.filter(node => node.id !== selectedNodeId),
-      edges: schema.edges.filter(edge => edge.sourceNodeId !== selectedNodeId && edge.targetNodeId !== selectedNodeId)
+      nodes: schema.nodes.filter(node => node.id !== nodeId),
+      edges: schema.edges.filter(edge => edge.sourceNodeId !== nodeId && edge.targetNodeId !== nodeId)
     });
     setSelectedNodeId(undefined);
   }
@@ -681,14 +763,22 @@ export function MicroflowEditor({
             onViewportChange={setViewport}
           />
           <aside style={rightPanelStyle}>
-            <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
-                <Title heading={6} style={{ margin: 0 }}>{copy.properties}</Title>
-                <Button icon={<IconDelete />} type="danger" theme="borderless" disabled={!selectedNodeId} onClick={handleDeleteSelected} />
-              </div>
-              <Divider margin="8px" />
-              <MicroflowPropertyForm node={selectedNode} variables={schema.variables} />
-            </Space>
+            <MicroflowPropertyPanel
+              selectedNode={selectedNode ?? null}
+              schema={schema}
+              validationIssues={issues}
+              traceFrames={traceFrames.map(frame => ({
+                nodeId: frame.nodeId,
+                status: frame.error ? "failed" : "succeeded",
+                durationMs: frame.durationMs,
+                error: frame.error?.message
+              }))}
+              onNodeChange={handleNodePatch}
+              onClose={() => setSelectedNodeId(undefined)}
+              onLocateNode={handleLocateNode}
+              onDuplicateNode={handleDuplicateNode}
+              onDeleteNode={handleDeleteNode}
+            />
           </aside>
           <aside style={{ ...rightPanelStyle, borderLeft: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-0, #f7f8fa)" }}>
             <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
@@ -710,10 +800,10 @@ export function MicroflowEditor({
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 12, padding: 12, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>
           <Card title={`${copy.problems} (${issues.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
-            <ProblemPanel issues={issues} />
+            <ProblemPanel issues={issues} onSelectNode={setSelectedNodeId} />
           </Card>
           <Card title={`${copy.debug} (${traceFrames.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
-            <DebugPanel frames={traceFrames} />
+            <DebugPanel frames={traceFrames} onSelectNode={setSelectedNodeId} />
           </Card>
         </div>
       </div>
