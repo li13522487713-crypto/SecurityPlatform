@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
-import { Badge, Button, Card, Empty, Input, Modal, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Badge, Button, Card, Checkbox, Drawer, Empty, Input, Modal, Select, Space, Switch, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
+  IconChevronDown,
+  IconChevronUp,
+  IconCopy,
+  IconDelete,
+  IconMinus,
+  IconPlus,
   IconPlay,
+  IconRefresh,
   IconSave,
   IconSearch,
   IconSetting,
@@ -147,7 +154,7 @@ const shellStyle: CSSProperties = {
   display: "grid",
   gridTemplateRows: "60px minmax(0, 1fr) 220px",
   height: "100%",
-  minHeight: 720,
+  minHeight: 0,
   background: "var(--semi-color-bg-0, #f7f8fa)",
   color: "var(--semi-color-text-0, #1d2129)"
 };
@@ -158,14 +165,16 @@ const toolbarStyle: CSSProperties = {
   justifyContent: "space-between",
   padding: "8px 12px",
   borderBottom: "1px solid var(--semi-color-border, #e5e6eb)",
-  background: "var(--semi-color-bg-2, #fff)"
+  background: "var(--semi-color-bg-2, #fff)",
+  minWidth: 0,
+  overflow: "hidden"
 };
 
 const bodyStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "280px minmax(760px, 1fr) 360px 260px",
+  gridTemplateColumns: "300px minmax(520px, 1fr) 400px",
   minHeight: 0,
-  overflow: "auto"
+  overflow: "hidden"
 };
 
 const panelStyle: CSSProperties = {
@@ -195,16 +204,14 @@ const canvasViewportStyle: CSSProperties = {
 function createEditorShellStyle(immersive: boolean): CSSProperties {
   return {
     ...shellStyle,
-    gridTemplateRows: immersive ? "56px minmax(0, 1fr)" : shellStyle.gridTemplateRows,
-    minHeight: immersive ? 0 : shellStyle.minHeight
+    gridTemplateRows: immersive ? "56px minmax(0, 1fr)" : shellStyle.gridTemplateRows
   };
 }
 
-function createEditorBodyStyle(immersive: boolean): CSSProperties {
+function createEditorBodyStyle(immersive: boolean, leftCollapsed: boolean, rightCollapsed: boolean): CSSProperties {
   return {
     ...bodyStyle,
-    gridTemplateColumns: immersive ? "300px minmax(720px, 1fr) 420px" : bodyStyle.gridTemplateColumns,
-    overflow: immersive ? "hidden" : bodyStyle.overflow
+    gridTemplateColumns: `${leftCollapsed ? "44px" : immersive ? "300px" : "300px"} minmax(420px, 1fr) ${rightCollapsed ? "44px" : immersive ? "420px" : "400px"}`
   };
 }
 
@@ -268,6 +275,20 @@ function edgePath(edge: MicroflowEdge, nodesById: Map<string, MicroflowNode>): s
   };
   const distance = Math.max(80, Math.abs(end.x - start.x) / 2);
   return `M ${start.x} ${start.y} C ${start.x + distance} ${start.y}, ${end.x - distance} ${end.y}, ${end.x} ${end.y}`;
+}
+
+function edgeLabelPosition(edge: MicroflowEdge, nodesById: Map<string, MicroflowNode>): MicroflowPosition {
+  const source = nodesById.get(edge.sourceNodeId);
+  const target = nodesById.get(edge.targetNodeId);
+  if (!source || !target) {
+    return { x: 0, y: 0 };
+  }
+  const sourceSize = nodeSize(source);
+  const targetSize = nodeSize(target);
+  return {
+    x: (source.position.x + sourceSize.width + target.position.x) / 2,
+    y: (source.position.y + sourceSize.height / 2 + target.position.y + targetSize.height / 2) / 2 - 8
+  };
 }
 
 function createIssueMap(issues: MicroflowValidationIssue[]): Map<string, MicroflowValidationIssue[]> {
@@ -361,24 +382,35 @@ function MicroflowNodeCard({
 function MicroflowCanvas({
   schema,
   selectedNodeId,
+  selectedEdgeId,
   issues,
+  traceFrames,
   viewport,
+  gridVisible,
+  locked,
   onSelectNode,
+  onSelectEdge,
   onSchemaChange,
   onDropNode,
   onViewportChange
 }: {
   schema: MicroflowSchema;
   selectedNodeId?: string;
+  selectedEdgeId?: string;
   issues: MicroflowValidationIssue[];
+  traceFrames: MicroflowTraceFrame[];
   viewport: { zoom: number; offset: MicroflowPosition };
+  gridVisible: boolean;
+  locked: boolean;
   onSelectNode: (nodeId: string) => void;
+  onSelectEdge: (edgeId: string) => void;
   onSchemaChange: (schema: MicroflowSchema) => void;
   onDropNode: (payload: MicroflowNodeDragPayload, position: MicroflowPosition) => void;
   onViewportChange: (viewport: { zoom: number; offset: MicroflowPosition }) => void;
 }) {
   const nodesById = useMemo(() => new Map(schema.nodes.map(node => [node.id, node])), [schema.nodes]);
   const issueMap = useMemo(() => createIssueMap(issues), [issues]);
+  const errorNodeIds = useMemo(() => new Set(traceFrames.filter(frame => frame.error).map(frame => frame.nodeId)), [traceFrames]);
   const dragRef = useRef<{ nodeId: string; startPointer: MicroflowPosition; startPosition: MicroflowPosition }>();
 
   function updateNodePosition(nodeId: string, position: MicroflowPosition) {
@@ -393,7 +425,7 @@ function MicroflowCanvas({
       style={canvasViewportStyle}
       onPointerMove={event => {
         const drag = dragRef.current;
-        if (!drag) {
+        if (!drag || locked) {
           return;
         }
         updateNodePosition(drag.nodeId, {
@@ -426,7 +458,9 @@ function MicroflowCanvas({
         const nextZoom = Math.min(1.4, Math.max(0.45, viewport.zoom - event.deltaY * 0.001));
         onViewportChange({ ...viewport, zoom: nextZoom });
       }}
+      onClick={() => onSelectEdge("")}
     >
+      {!gridVisible ? <div style={{ position: "absolute", inset: 0, background: "var(--semi-color-fill-0)" }} /> : null}
       <div
         style={{
           ...canvasLayerStyle,
@@ -446,13 +480,18 @@ function MicroflowCanvas({
                 <path
                   d={edgePath(edge, nodesById)}
                   fill="none"
-                  stroke={style.stroke}
-                  strokeWidth={edge.type === "error" ? 2.4 : 1.8}
+                  stroke={selectedEdgeId === edge.id ? "#165dff" : style.stroke}
+                  strokeWidth={selectedEdgeId === edge.id ? 3 : edge.type === "error" ? 2.4 : 1.8}
                   strokeDasharray={style.dash}
                   markerEnd="url(#microflow-arrow)"
+                  style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                  onClick={event => {
+                    event.stopPropagation();
+                    onSelectEdge(edge.id);
+                  }}
                 />
                 {edge.label ? (
-                  <text x="50%" y="50%" fill={style.stroke} fontSize={12}>
+                  <text {...edgeLabelPosition(edge, nodesById)} fill={style.stroke} fontSize={12}>
                     {edge.label}
                   </text>
                 ) : null}
@@ -465,9 +504,15 @@ function MicroflowCanvas({
             key={node.id}
             node={node}
             selected={node.id === selectedNodeId}
-            issues={issueMap.get(node.id) ?? []}
+            issues={errorNodeIds.has(node.id) ? [
+              ...(issueMap.get(node.id) ?? []),
+              { id: `trace-error:${node.id}`, code: "TRACE_ERROR", severity: "error", message: "Last test run failed on this node.", nodeId: node.id }
+            ] : issueMap.get(node.id) ?? []}
             onSelect={onSelectNode}
             onDragStart={(nodeId, pointer) => {
+              if (locked) {
+                return;
+              }
               const current = nodesById.get(nodeId);
               if (current) {
                 dragRef.current = { nodeId, startPointer: pointer, startPosition: current.position };
@@ -502,53 +547,102 @@ function MicroflowCanvas({
   );
 }
 
-function ProblemPanel({ issues, onSelectNode }: { issues: MicroflowValidationIssue[]; onSelectNode: (nodeId: string) => void }) {
+function ProblemPanel({
+  issues,
+  nodesById,
+  onLocateNode
+}: {
+  issues: MicroflowValidationIssue[];
+  nodesById: Map<string, MicroflowNode>;
+  onLocateNode: (nodeId: string) => void;
+}) {
+  const [filter, setFilter] = useState<"all" | "error" | "warning" | "info">("all");
+  const filtered = filter === "all" ? issues : issues.filter(issue => issue.severity === filter);
+
   if (issues.length === 0) {
     return <Empty image={<IconTickCircle />} title="No validation issues" description="The current schema passes basic validation." />;
   }
 
   return (
-    <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-      {issues.map(issue => (
-        <div
-          key={issue.id}
-          style={{ display: "flex", gap: 8, alignItems: "center", cursor: issue.nodeId ? "pointer" : "default" }}
-          onClick={() => {
-            if (issue.nodeId) {
-              onSelectNode(issue.nodeId);
-            }
-          }}
-        >
-          <Tag color={issue.severity === "error" ? "red" : "orange"}>{issue.severity}</Tag>
-          <Text>{issue.message}</Text>
-          {issue.nodeId ? <Text type="tertiary">node: {issue.nodeId}</Text> : null}
+    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
+      <Tabs type="button" size="small" activeKey={filter} onChange={key => setFilter(key as typeof filter)}>
+        <Tabs.TabPane itemKey="all" tab={`All ${issues.length}`} />
+        <Tabs.TabPane itemKey="error" tab={`Errors ${issues.filter(issue => issue.severity === "error").length}`} />
+        <Tabs.TabPane itemKey="warning" tab={`Warnings ${issues.filter(issue => issue.severity === "warning").length}`} />
+        <Tabs.TabPane itemKey="info" tab={`Info ${issues.filter(issue => issue.severity === "info").length}`} />
+      </Tabs>
+      <div style={{ minHeight: 0, overflow: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "82px 160px minmax(220px, 1fr) minmax(160px, .8fr) 84px", gap: 10, padding: "6px 4px", borderBottom: "1px solid var(--semi-color-border)" }}>
+          {["Type", "Node", "Problem", "Details", "Action"].map(label => <Text key={label} strong size="small">{label}</Text>)}
         </div>
-      ))}
-    </Space>
+        {filtered.map(issue => (
+          <div
+            key={issue.id}
+            style={{ display: "grid", gridTemplateColumns: "82px 160px minmax(220px, 1fr) minmax(160px, .8fr) 84px", gap: 10, padding: "8px 4px", borderBottom: "1px solid var(--semi-color-border)", alignItems: "center" }}
+          >
+            <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
+            <Text ellipsis={{ showTooltip: true }}>{issue.nodeId ? nodesById.get(issue.nodeId)?.title ?? issue.nodeId : issue.edgeId ?? "Schema"}</Text>
+            <Text ellipsis={{ showTooltip: true }}>{issue.message}</Text>
+            <Text type="tertiary" ellipsis={{ showTooltip: true }}>{issue.code}</Text>
+            <Button size="small" disabled={!issue.nodeId} onClick={() => issue.nodeId && onLocateNode(issue.nodeId)}>Locate</Button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
-function DebugPanel({ frames, onSelectNode }: { frames: MicroflowTraceFrame[]; onSelectNode: (nodeId: string) => void }) {
+function DebugPanel({
+  frames,
+  runStatus,
+  onLocateNode
+}: {
+  frames: MicroflowTraceFrame[];
+  runStatus: "idle" | "running" | "succeeded" | "failed";
+  onLocateNode: (nodeId: string) => void;
+}) {
+  const [activeKey, setActiveKey] = useState("trace");
+
   if (frames.length === 0) {
-    return <Empty image={<IconPlay />} title="No trace yet" description="Run a test to inspect node input, output, duration, and errors." />;
+    return <Empty image={<IconPlay />} title={runStatus === "running" ? "Test run is running" : "No trace yet"} description="Run a test to inspect node input, output, duration, variables, and logs." />;
   }
 
   return (
-    <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-      {frames.map(frame => (
-        <div
-          key={frame.frameId}
-          style={{ display: "grid", gridTemplateColumns: "180px 80px 1fr", gap: 12, width: "100%", cursor: "pointer" }}
-          onClick={() => onSelectNode(frame.nodeId)}
-        >
-          <Text strong>{frame.nodeTitle}</Text>
-          <Tag color={frame.error ? "red" : "green"}>{frame.durationMs}ms</Tag>
-          <Text type="tertiary" ellipsis={{ showTooltip: true }}>
-            input {JSON.stringify(frame.input)} output {JSON.stringify(frame.output)}
-          </Text>
-        </div>
-      ))}
-    </Space>
+    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
+      <Tabs type="button" size="small" activeKey={activeKey} onChange={setActiveKey}>
+        <Tabs.TabPane itemKey="trace" tab="Trace" />
+        <Tabs.TabPane itemKey="io" tab="Input / Output" />
+        <Tabs.TabPane itemKey="variables" tab="Variables" />
+        <Tabs.TabPane itemKey="logs" tab="Logs" />
+      </Tabs>
+      <div style={{ minHeight: 0, overflow: "auto" }}>
+        {activeKey === "trace" ? (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "180px 90px 80px minmax(180px, 1fr) minmax(180px, 1fr) minmax(120px, .6fr) 84px", gap: 10, padding: "6px 4px", borderBottom: "1px solid var(--semi-color-border)" }}>
+              {["Node", "Status", "ms", "Input", "Output", "Error", "Action"].map(label => <Text key={label} strong size="small">{label}</Text>)}
+            </div>
+            {frames.map(frame => (
+              <div
+                key={frame.frameId}
+                style={{ display: "grid", gridTemplateColumns: "180px 90px 80px minmax(180px, 1fr) minmax(180px, 1fr) minmax(120px, .6fr) 84px", gap: 10, padding: "8px 4px", borderBottom: "1px solid var(--semi-color-border)", alignItems: "center" }}
+              >
+                <Text strong ellipsis={{ showTooltip: true }}>{frame.nodeTitle}</Text>
+                <Tag color={frame.error ? "red" : "green"}>{frame.error ? "failed" : "succeeded"}</Tag>
+                <Text>{frame.durationMs}</Text>
+                <Text type="tertiary" ellipsis={{ showTooltip: true }}>{JSON.stringify(frame.input)}</Text>
+                <Text type="tertiary" ellipsis={{ showTooltip: true }}>{JSON.stringify(frame.output)}</Text>
+                <Text type={frame.error ? "danger" : "tertiary"} ellipsis={{ showTooltip: true }}>{frame.error?.message ?? "-"}</Text>
+                <Button size="small" onClick={() => onLocateNode(frame.nodeId)}>Locate</Button>
+              </div>
+            ))}
+          </>
+        ) : (
+          <pre style={{ margin: 0, padding: 10, background: "var(--semi-color-fill-0)", borderRadius: 8, whiteSpace: "pre-wrap" }}>
+            {JSON.stringify(frames.map(frame => ({ nodeId: frame.nodeId, input: frame.input, output: frame.output, error: frame.error })), null, 2)}
+          </pre>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -570,58 +664,132 @@ export function MicroflowEditor({
   const client = useMemo(() => apiClient ?? createLocalMicroflowApiClient([initialSchema]), [apiClient, initialSchema]);
   const [schema, setSchema] = useState<MicroflowSchema>(initialSchema);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(initialSchema.nodes[0]?.id);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | undefined>();
   const [issues, setIssues] = useState<MicroflowValidationIssue[]>(() => validateMicroflowSchema(initialSchema));
   const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
   const [viewport, setViewport] = useState(initialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
   const [testRunOpen, setTestRunOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [documentationNode, setDocumentationNode] = useState<MicroflowNodeRegistryEntry>();
   const [favoriteNodeKeys, setFavoriteNodeKeys] = useState<string[]>(readFavoriteNodeKeys);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [runStatus, setRunStatus] = useState<"idle" | "running" | "succeeded" | "failed">("idle");
+  const [activeBottomPanel, setActiveBottomPanel] = useState<"problems" | "debug">("problems");
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [bottomPanelCollapsed, setBottomPanelCollapsed] = useState(immersive);
+  const [gridVisible, setGridVisible] = useState(true);
+  const [canvasLocked, setCanvasLocked] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishVersion, setPublishVersion] = useState(initialSchema.version || "v1");
+  const [publishNote, setPublishNote] = useState("");
+  const [overwriteCurrent, setOverwriteCurrent] = useState(true);
   const [testInput, setTestInput] = useState<Record<string, string>>(() =>
-    Object.fromEntries(initialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`]))
+    ({ ...Object.fromEntries(initialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`])), simulateError: "false" })
   );
 
   const selectedNode = schema.nodes.find(node => node.id === selectedNodeId);
+  const nodesById = useMemo(() => new Map(schema.nodes.map(node => [node.id, node])), [schema.nodes]);
+  const errorCount = issues.filter(issue => issue.severity === "error").length;
 
   useEffect(() => {
     saveFavoriteNodeKeys(favoriteNodeKeys);
   }, [favoriteNodeKeys]);
 
+  useEffect(() => {
+    setSchema(initialSchema);
+    setIssues(validateMicroflowSchema(initialSchema));
+    setViewport(initialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
+    setSelectedNodeId(initialSchema.nodes[0]?.id);
+    setPublishVersion(initialSchema.version || "v1");
+    setTestInput({ ...Object.fromEntries(initialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`])), simulateError: "false" });
+    setDirty(false);
+  }, [initialSchema]);
+
   function commitSchema(nextSchema: MicroflowSchema) {
     setSchema(nextSchema);
     setIssues(validateMicroflowSchema(nextSchema));
+    setDirty(true);
     onSchemaChange?.(nextSchema);
   }
 
   async function handleValidate() {
-    const result = await client.validateMicroflow({ schema });
-    setIssues(result.issues);
-    onValidateComplete?.(result);
-    Toast.info(result.valid ? "Validation passed." : `Validation found ${result.issues.length} issue(s).`);
+    setValidating(true);
+    try {
+      const result = await client.validateMicroflow({ schema });
+      setIssues(result.issues);
+      setActiveBottomPanel("problems");
+      setBottomPanelCollapsed(false);
+      onValidateComplete?.(result);
+      Toast.info(result.valid ? "Validation passed." : `Validation found ${result.issues.length} issue(s).`);
+    } finally {
+      setValidating(false);
+    }
   }
 
   async function handleSave() {
-    const result = await client.saveMicroflow({ schema });
-    onSaveComplete?.(result);
-    Toast.success(`Saved ${result.nodeCount} nodes and ${result.edgeCount} flows.`);
+    setSaving(true);
+    try {
+      const result = await client.saveMicroflow({ schema });
+      setDirty(false);
+      onSaveComplete?.(result);
+      Toast.success(`Saved ${result.nodeCount} nodes and ${result.edgeCount} flows.`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleTestRun() {
-    const result = await client.testRunMicroflow({
-      microflowId: schema.id,
-      input: testInput,
-      schema
-    });
-    setTraceFrames(result.frames);
-    onTestRunComplete?.(result);
-    setTestRunOpen(false);
-    Toast.success(`Test run ${result.runId} ${result.status}.`);
+    setTesting(true);
+    setRunStatus("running");
+    setActiveBottomPanel("debug");
+    setBottomPanelCollapsed(false);
+    try {
+      const result = await client.testRunMicroflow({
+        microflowId: schema.id,
+        input: testInput,
+        schema
+      });
+      setTraceFrames(result.frames);
+      setRunStatus(result.status);
+      onTestRunComplete?.(result);
+      setTestRunOpen(false);
+      Toast.success(`Test run ${result.runId} ${result.status}.`);
+    } finally {
+      setTesting(false);
+    }
   }
 
   async function handlePublish() {
-    if (!onPublish) {
+    if (onPublish) {
+      await onPublish(schema);
       return;
     }
-    await onPublish(schema);
+    setPublishOpen(true);
+  }
+
+  async function handleConfirmPublish() {
+    setPublishing(true);
+    try {
+      await client.saveMicroflow({ schema });
+      const result = await client.publishMicroflow(schema.id, {
+        version: publishVersion.trim() || schema.version,
+        releaseNote: publishNote,
+        overwriteCurrent
+      });
+      const nextSchema = { ...schema, version: result.publishedVersion };
+      setSchema(nextSchema);
+      setDirty(false);
+      onSchemaChange?.(nextSchema);
+      setPublishOpen(false);
+      Toast.success(`Published ${result.publishedVersion}.`);
+    } finally {
+      setPublishing(false);
+    }
   }
 
   function handleAddNode(entry: MicroflowNodeRegistryEntry, options?: { position?: MicroflowPosition }) {
@@ -637,6 +805,7 @@ export function MicroflowEditor({
     const nextNode = createMicroflowNodeFromRegistry(entry, position, `${registryKey.replace(":", "-")}-${Date.now()}`);
     commitSchema({ ...schema, nodes: [...schema.nodes, nextNode] });
     setSelectedNodeId(nextNode.id);
+    setRightPanelCollapsed(false);
   }
 
   function handleDropNode(payload: MicroflowNodeDragPayload, position: MicroflowPosition) {
@@ -692,6 +861,7 @@ export function MicroflowEditor({
       return;
     }
     setSelectedNodeId(nodeId);
+    setRightPanelCollapsed(false);
     setViewport(current => ({
       ...current,
       offset: {
@@ -717,123 +887,218 @@ export function MicroflowEditor({
     setSelectedNodeId(undefined);
   }
 
+  function handleZoom(delta: number) {
+    setViewport(current => ({ ...current, zoom: Math.min(1.6, Math.max(0.35, Math.round((current.zoom + delta) * 100) / 100)) }));
+  }
+
+  function handleFitView() {
+    setViewport(schema.viewport ?? { zoom: 0.58, offset: { x: 24, y: 90 } });
+  }
+
+  function handleAutoArrange() {
+    const arrangedNodes = schema.nodes.map((node, index) => ({
+      ...node,
+      position: {
+        x: 80 + (index % 6) * 260,
+        y: 120 + Math.floor(index / 6) * 170
+      }
+    }));
+    commitSchema({ ...schema, nodes: arrangedNodes, viewport: { zoom: 0.72, offset: { x: 24, y: 72 } } });
+    setViewport({ zoom: 0.72, offset: { x: 24, y: 72 } });
+  }
+
   return (
     <MicroflowRuntimeBoundary>
-      <div style={createEditorShellStyle(immersive)} data-testid="microflow-editor">
+      <div
+        style={{
+          ...createEditorShellStyle(immersive),
+          gridTemplateRows: bottomPanelCollapsed || immersive ? "60px minmax(0, 1fr) 42px" : "60px minmax(0, 1fr) 260px"
+        }}
+        data-testid="microflow-editor"
+      >
         <div style={toolbarStyle}>
-          <Space>
+          <Space style={{ minWidth: 0, flex: 1 }}>
             {toolbarPrefix}
-            <Title heading={5} style={{ margin: 0 }}>{schema.name}</Title>
+            <Title heading={5} ellipsis={{ showTooltip: true }} style={{ margin: 0, maxWidth: 280 }}>{schema.name}</Title>
             <Tag color="blue">Microflow</Tag>
+            <Tag>{schema.version}</Tag>
+            {dirty ? <Tag color="orange">Draft changes</Tag> : <Tag color="green">Saved</Tag>}
+            {errorCount > 0 ? <Badge count={errorCount} type="danger" /> : null}
           </Space>
-          <Space>
-            <Button icon={<IconUndo />} disabled>
+          <Space wrap style={{ justifyContent: "flex-end" }}>
+            <Button icon={<IconUndo />} disabled title="History adapter is reserved">
               {copy.undo}
             </Button>
-            <Button icon={<IconRedo />} disabled>
+            <Button icon={<IconRedo />} disabled title="History adapter is reserved">
               {copy.redo}
             </Button>
-            <Button icon={<IconSearch />} onClick={() => setViewport({ zoom: 0.78, offset: { x: 24, y: 80 } })}>
+            <Button icon={<IconSearch />} onClick={handleFitView}>
               {copy.fitView}
             </Button>
-            <Button onClick={() => setViewport({ zoom: 0.58, offset: { x: 24, y: 90 } })}>
+            <Button icon={<IconRefresh />} onClick={handleAutoArrange}>
               {copy.format}
             </Button>
-            <Button icon={<IconTickCircle />} onClick={() => void handleValidate()}>
+            <Button icon={<IconTickCircle />} loading={validating} onClick={() => void handleValidate()}>
               {copy.validate}
             </Button>
-            <Button icon={<IconSave />} theme="solid" onClick={() => void handleSave()}>
+            <Button icon={<IconSave />} theme="solid" loading={saving} onClick={() => void handleSave()}>
               {copy.save}
             </Button>
             <Button icon={<IconPlay />} type="primary" theme="solid" onClick={() => setTestRunOpen(true)}>
               {copy.testRun}
             </Button>
+            <Button icon={<IconCopy />} disabled={!selectedNodeId} onClick={() => selectedNodeId && handleDuplicateNode(selectedNodeId)} />
+            <Button icon={<IconDelete />} type="danger" disabled={!selectedNodeId} onClick={handleDeleteSelected} />
             {onPublish ? (
               <Button type="warning" theme="solid" onClick={() => void handlePublish()}>
                 {copy.publish}
               </Button>
-            ) : null}
-            <Button icon={<IconSetting />} onClick={() => Toast.info("Settings drawer is reserved for runtime and parameter configuration.")}>
+            ) : (
+              <Button type="warning" theme="solid" loading={publishing} onClick={() => setPublishOpen(true)}>
+                {copy.publish}
+              </Button>
+            )}
+            <Button icon={<IconSetting />} onClick={() => setSettingsOpen(true)}>
               {copy.settings}
             </Button>
             {toolbarSuffix}
           </Space>
         </div>
-        <div style={createEditorBodyStyle(immersive)}>
+        <div style={createEditorBodyStyle(immersive, leftPanelCollapsed, rightPanelCollapsed)}>
           <aside style={panelStyle}>
-            <MicroflowNodePanel
-              favoriteNodeKeys={favoriteNodeKeys}
-              onFavoriteChange={setFavoriteNodeKeys}
-              onAddNode={(entry, options) => handleAddNode(entry, options)}
-              onStartDrag={() => undefined}
-              onShowDocumentation={setDocumentationNode}
-              labels={nodePanelLabels}
-            />
+            {leftPanelCollapsed ? (
+              <Button theme="borderless" icon={<IconChevronDown />} onClick={() => setLeftPanelCollapsed(false)} />
+            ) : (
+              <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text strong>{copy.nodePanel}</Text>
+                  <Button size="small" theme="borderless" icon={<IconChevronUp />} onClick={() => setLeftPanelCollapsed(true)} />
+                </div>
+                <MicroflowNodePanel
+                  favoriteNodeKeys={favoriteNodeKeys}
+                  onFavoriteChange={setFavoriteNodeKeys}
+                  onAddNode={(entry, options) => handleAddNode(entry, options)}
+                  onStartDrag={() => undefined}
+                  onShowDocumentation={setDocumentationNode}
+                  labels={nodePanelLabels}
+                />
+              </div>
+            )}
           </aside>
-          <MicroflowCanvas
-            schema={schema}
-            selectedNodeId={selectedNodeId}
-            issues={issues}
-            viewport={viewport}
-            onSelectNode={setSelectedNodeId}
-            onSchemaChange={commitSchema}
-            onDropNode={handleDropNode}
-            onViewportChange={setViewport}
-          />
-          <aside style={rightPanelStyle}>
-            <MicroflowPropertyPanel
-              selectedNode={selectedNode ?? null}
-              schema={schema}
-              validationIssues={issues}
-              traceFrames={traceFrames.map(frame => ({
-                nodeId: frame.nodeId,
-                status: frame.error ? "failed" : "succeeded",
-                durationMs: frame.durationMs,
-                error: frame.error?.message
-              }))}
-              onNodeChange={handleNodePatch}
-              onClose={() => setSelectedNodeId(undefined)}
-              onLocateNode={handleLocateNode}
-              onDuplicateNode={handleDuplicateNode}
-              onDeleteNode={handleDeleteNode}
-            />
-          </aside>
-          {immersive ? null : (
-            <aside style={{ ...rightPanelStyle, borderLeft: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-0, #f7f8fa)" }}>
-              <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-                <Title heading={6} style={{ margin: 0 }}>Region Guide</Title>
-                {[
-                  "Toolbar saves drafts, validates, runs tests, publishes, formats, and opens settings.",
-                  "Node panel groups Mendix-style events, decisions, activities, loops, parameters, and annotations.",
-                  "Canvas supports selection, dragging, zooming, fit view, minimap, sequence flows, error flows, and annotation flows.",
-                  "Property panel changes with the selected node and exposes configuration plus error handling.",
-                  "Problem panel lists validation issues and debug panel shows test-run trace frames with nodeId."
-                ].map((item, index) => (
-                  <div key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                    <Tag color="blue">{index + 1}</Tag>
-                    <Text type="tertiary">{item}</Text>
-                  </div>
-                ))}
+          <section style={{ display: "grid", gridTemplateRows: "40px 44px minmax(0, 1fr)", minHeight: 0, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", borderBottom: "1px solid var(--semi-color-border)", background: "var(--semi-color-bg-1)" }}>
+              <Tabs type="button" size="small" activeKey="main">
+                <Tabs.TabPane itemKey="main" tab="Main Flow" />
+                <Tabs.TabPane itemKey="new" tab="+" disabled />
+              </Tabs>
+              <Space>
+                <Tag color={runStatus === "failed" ? "red" : runStatus === "running" ? "orange" : runStatus === "succeeded" ? "green" : "grey"}>{runStatus}</Tag>
+                <Text type="tertiary">{schema.nodes.length} nodes · {schema.edges.length} flows</Text>
               </Space>
-            </aside>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", borderBottom: "1px solid var(--semi-color-border)", background: "var(--semi-color-bg-2)" }}>
+              <Space>
+                <Button size="small" theme="solid" type="primary">Select</Button>
+                <Button size="small" disabled>Pan</Button>
+                <Button size="small" icon={<IconMinus />} onClick={() => handleZoom(-0.1)} />
+                <Tag>{Math.round(viewport.zoom * 100)}%</Tag>
+                <Button size="small" icon={<IconPlus />} onClick={() => handleZoom(0.1)} />
+                <Button size="small" onClick={handleFitView}>{copy.fitView}</Button>
+                <Button size="small" onClick={() => setViewport(current => ({ ...current, offset: { x: 24, y: 90 } }))}>Center</Button>
+              </Space>
+              <Space>
+                <Switch size="small" checked={gridVisible} onChange={setGridVisible} />
+                <Text size="small" type="tertiary">Grid</Text>
+                <Switch size="small" checked={canvasLocked} onChange={setCanvasLocked} />
+                <Text size="small" type="tertiary">Lock</Text>
+              </Space>
+            </div>
+            <div style={{ position: "relative", minHeight: 0, minWidth: 0 }}>
+              <MicroflowCanvas
+                schema={schema}
+                selectedNodeId={selectedNodeId}
+                selectedEdgeId={selectedEdgeId}
+                issues={issues}
+                traceFrames={traceFrames}
+                viewport={viewport}
+                gridVisible={gridVisible}
+                locked={canvasLocked}
+                onSelectNode={nodeId => {
+                  setSelectedNodeId(nodeId);
+                  setSelectedEdgeId(undefined);
+                }}
+                onSelectEdge={edgeId => {
+                  setSelectedEdgeId(edgeId || undefined);
+                  setSelectedNodeId(undefined);
+                }}
+                onSchemaChange={commitSchema}
+                onDropNode={handleDropNode}
+                onViewportChange={setViewport}
+              />
+              <Card bodyStyle={{ padding: 6 }} style={{ position: "absolute", right: 16, bottom: 118, background: "rgba(255,255,255,.9)" }}>
+                <Space vertical spacing={4}>
+                  <Button size="small" icon={<IconPlus />} onClick={() => handleZoom(0.1)} />
+                  <Button size="small" icon={<IconMinus />} onClick={() => handleZoom(-0.1)} />
+                  <Button size="small" onClick={handleFitView}>Fit</Button>
+                  <Button size="small" onClick={() => setViewport(current => ({ ...current, zoom: 1 }))}>100%</Button>
+                </Space>
+              </Card>
+            </div>
+          </section>
+          <aside style={rightPanelStyle}>
+            {rightPanelCollapsed ? (
+              <Button theme="borderless" icon={<IconChevronDown />} onClick={() => setRightPanelCollapsed(false)} />
+            ) : (
+              <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr)", minHeight: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 8 }}>
+                  <Text strong>{copy.properties}</Text>
+                  <Button size="small" theme="borderless" icon={<IconChevronUp />} onClick={() => setRightPanelCollapsed(true)} />
+                </div>
+                <MicroflowPropertyPanel
+                  selectedNode={selectedNode ?? null}
+                  schema={schema}
+                  validationIssues={issues}
+                  traceFrames={traceFrames.map(frame => ({
+                    nodeId: frame.nodeId,
+                    status: frame.error ? "failed" : "succeeded",
+                    durationMs: frame.durationMs,
+                    error: frame.error?.message
+                  }))}
+                  onNodeChange={handleNodePatch}
+                  onClose={() => setSelectedNodeId(undefined)}
+                  onLocateNode={handleLocateNode}
+                  onDuplicateNode={handleDuplicateNode}
+                  onDeleteNode={handleDeleteNode}
+                />
+              </div>
+            )}
+          </aside>
+        </div>
+        <div style={{ borderTop: "1px solid var(--semi-color-border)", background: "var(--semi-color-bg-1)", minHeight: 0, overflow: "hidden" }}>
+          <div style={{ height: 42, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px", borderBottom: bottomPanelCollapsed ? "none" : "1px solid var(--semi-color-border)" }}>
+            <Tabs type="button" size="small" activeKey={activeBottomPanel} onChange={key => setActiveBottomPanel(key as "problems" | "debug")}>
+              <Tabs.TabPane itemKey="problems" tab={`${copy.problems} (${issues.length})`} />
+              <Tabs.TabPane itemKey="debug" tab={`${copy.debug} (${traceFrames.length})`} />
+            </Tabs>
+            <Button size="small" theme="borderless" icon={bottomPanelCollapsed ? <IconChevronUp /> : <IconChevronDown />} onClick={() => setBottomPanelCollapsed(value => !value)} />
+          </div>
+          {bottomPanelCollapsed ? null : (
+            <div style={{ height: "calc(100% - 42px)", padding: 10, minHeight: 0, overflow: "hidden" }}>
+              {activeBottomPanel === "problems" ? (
+                <ProblemPanel issues={issues} nodesById={nodesById} onLocateNode={handleLocateNode} />
+              ) : (
+                <DebugPanel frames={traceFrames} runStatus={runStatus} onLocateNode={handleLocateNode} />
+              )}
+            </div>
           )}
         </div>
-        {immersive ? null : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 12, padding: 12, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>
-            <Card title={`${copy.problems} (${issues.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
-              <ProblemPanel issues={issues} onSelectNode={setSelectedNodeId} />
-            </Card>
-            <Card title={`${copy.debug} (${traceFrames.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
-              <DebugPanel frames={traceFrames} onSelectNode={setSelectedNodeId} />
-            </Card>
-          </div>
-        )}
       </div>
       <Modal
         visible={testRunOpen}
         title={copy.testRun}
         onCancel={() => setTestRunOpen(false)}
         onOk={() => void handleTestRun()}
+        confirmLoading={testing}
         okText={copy.testRun}
       >
         <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
@@ -847,8 +1112,63 @@ export function MicroflowEditor({
               onChange={value => setTestInput(current => ({ ...current, [parameter.name]: value }))}
             />
           ))}
+          <Input
+            value={testInput.simulateError ?? "false"}
+            prefix="simulateError"
+            onChange={value => setTestInput(current => ({ ...current, simulateError: value }))}
+          />
         </Space>
       </Modal>
+      <Modal
+        visible={publishOpen}
+        title={copy.publish}
+        onCancel={() => setPublishOpen(false)}
+        onOk={() => void handleConfirmPublish()}
+        confirmLoading={publishing}
+        okText={copy.publish}
+      >
+        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+          <Input value={publishVersion} onChange={setPublishVersion} prefix="Version" />
+          <Input value={publishNote} onChange={setPublishNote} prefix="Release note" />
+          <Checkbox checked={overwriteCurrent} onChange={event => setOverwriteCurrent(Boolean(event.target.checked))}>
+            Overwrite current published version
+          </Checkbox>
+        </Space>
+      </Modal>
+      <Drawer
+        visible={settingsOpen}
+        title={copy.settings}
+        width={420}
+        onCancel={() => setSettingsOpen(false)}
+        footer={
+          <Space>
+            <Button onClick={() => setSettingsOpen(false)}>Close</Button>
+            <Button theme="solid" onClick={() => setSettingsOpen(false)}>Apply</Button>
+          </Space>
+        }
+      >
+        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+          <Input value={schema.name} prefix="Name" onChange={name => commitSchema({ ...schema, name })} />
+          <Input value={schema.description ?? ""} prefix="Description" onChange={description => commitSchema({ ...schema, description })} />
+          <Select
+            style={{ width: "100%" }}
+            value={(schema.nodes.find(node => node.type === "endEvent")?.config as { returnType?: { name: string } } | undefined)?.returnType?.name ?? "void"}
+            prefix="Return type"
+            optionList={["void", "Boolean", "String", "Integer", "Object", "List"].map(item => ({ value: item, label: item }))}
+            onChange={value => {
+              const name = String(value);
+              commitSchema({
+                ...schema,
+                nodes: schema.nodes.map(node => node.type === "endEvent"
+                  ? { ...node, config: { ...node.config, returnType: { kind: name === "void" ? "void" : "primitive", name } } }
+                  : node)
+              });
+            }}
+          />
+          <Input value={(schema.variables.map(variable => variable.name).join(", "))} readonly prefix="Variables" />
+          <Text type="tertiary">Settings are persisted through the same MicroflowSchema used by save, validate, test run, and publish.</Text>
+        </Space>
+      </Drawer>
       <Modal
         visible={Boolean(documentationNode)}
         title={documentationNode?.title ?? "Node documentation"}

@@ -116,7 +116,6 @@ export function MicroflowEditorPage() {
       }
       Toast.success(t("microflowPublishSuccess"));
       setPublishOpen(false);
-      backToLibrary();
     } finally {
       setPublishing(false);
     }

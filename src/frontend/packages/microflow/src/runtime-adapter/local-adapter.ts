@@ -279,9 +279,11 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     const schema = request.schema ?? this.resources.get(request.microflowId)?.schema ?? sampleMicroflowSchema;
     const startedAt = Date.now();
     const runId = `run-${startedAt}`;
+    const simulateError = String(request.input.simulateError ?? "").toLowerCase() === "true";
     const traversableNodes = schema.nodes.filter(node => node.type !== "annotation" && node.type !== "parameter");
     const frames = traversableNodes.map((node, index): MicroflowTraceFrame => {
       const durationMs = 8 + index * 3;
+      const failed = simulateError && node.type === "activity" && node.config.activityType === "callRest";
       return {
         frameId: `${runId}-${node.id}`,
         runId,
@@ -291,19 +293,27 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
         durationMs,
         input: index === 0 ? request.input : { previousNodeId: traversableNodes[index - 1]?.id },
         output: {
-          status: "ok",
+          status: failed ? "failed" : "ok",
           nodeType: node.type,
           activityType: node.type === "activity" ? node.config.activityType : undefined
-        }
+        },
+        error: failed ? {
+          code: "MF_TEST_REST_ERROR",
+          message: "Mock REST call failed. Set simulateError=false to run the success path.",
+          nodeId: node.id,
+          details: { url: node.config.url }
+        } : undefined
       };
     });
+    const failedFrame = frames.find(frame => frame.error);
     this.traces.set(runId, frames);
     return {
       runId,
-      status: "succeeded",
+      status: failedFrame ? "failed" : "succeeded",
       startedAt: new Date(startedAt).toISOString(),
       durationMs: frames.reduce((total, frame) => total + frame.durationMs, 0),
-      frames
+      frames,
+      error: failedFrame?.error
     };
   }
 
