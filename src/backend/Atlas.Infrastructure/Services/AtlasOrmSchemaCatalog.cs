@@ -19,7 +19,7 @@ using SqlSugar;
 namespace Atlas.Infrastructure.Services;
 
 /// <summary>
-/// AppHost / PlatformHost 共享的 ORM Schema 目录。
+/// AppHost 使用的 ORM Schema 目录。
 /// 将所有运行时实体集中在一处，避免 setup 初始化、运行时兜底建表和宿主自愈之间出现漂移。
 /// </summary>
 public static class AtlasOrmSchemaCatalog

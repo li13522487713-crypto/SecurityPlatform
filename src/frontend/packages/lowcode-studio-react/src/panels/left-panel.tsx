@@ -10,7 +10,7 @@ import { useLowcodeStudioHost } from '../host';
 /**
  * 左侧 5 Tab 面板（M07 C07-2 / C07-5 / C07-6 / C07-7）。
  *
- * 全部接通真实后端 API（PlatformHost /api/v1/lowcode/*）：
+ * 全部接通 AppHost 真实后端 API（/api/v1/lowcode/*）：
  *  - 组件 → GET /components/registry
  *  - 模板 → GET /templates
  *  - 结构 → GET /apps/{id}/pages

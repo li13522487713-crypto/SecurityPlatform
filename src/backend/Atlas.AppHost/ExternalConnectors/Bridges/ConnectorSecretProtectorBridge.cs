@@ -9,7 +9,7 @@ namespace Atlas.AppHost.ExternalConnectors.Bridges;
 /// 让 Atlas.Infrastructure.ExternalConnectors 不必直接依赖 Atlas.Infrastructure。
 ///
 /// master key 优先取 ExternalConnectors:DataProtectionKey；
-/// 缺省时回退 Security:SetupConsole:MigrationProtectorKey 与开发默认 key（同 PlatformHost 桥接保持一致，便于跨进程读写同一份密文）。
+/// 缺省时回退 Security:SetupConsole:MigrationProtectorKey 与开发默认 key（与既有密文格式保持一致）。
 /// 生产环境必须显式配置；否则连接器密钥与本地数据库泄漏等价。
 /// </summary>
 public sealed class ConnectorSecretProtectorBridge : ISecretProtector

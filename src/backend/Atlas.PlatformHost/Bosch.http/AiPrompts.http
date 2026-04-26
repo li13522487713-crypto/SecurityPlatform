@@ -1,7 +1,0 @@
-@baseUrl = http://localhost:5001
-@tenantId = 00000000-0000-0000-0000-000000000001
-
-### 说明
-## Atlas.PlatformHost
-## 提示词接口已于 2026-04-22 下线（暂停维护）
-## 请不要再调用 /api/v1/ai-prompts

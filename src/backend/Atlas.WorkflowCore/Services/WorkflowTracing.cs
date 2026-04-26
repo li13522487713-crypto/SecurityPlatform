@@ -10,7 +10,7 @@ namespace Atlas.WorkflowCore.Services;
 /// <remarks>
 /// 已在 OBS-145（v1.5）启用 Activity.SetTag：
 /// - 无需引入 OpenTelemetry NuGet 包；System.Diagnostics 是 BCL
-/// - Activity.Current 为 null 时 SetTag 安全跳过；上层 OTel pipeline（AppHost / PlatformHost
+/// - Activity.Current 为 null 时 SetTag 安全跳过；上层 OTel pipeline（AppHost
 ///   AddSource("lowcode.runtime") 之外的 source）若需采集，需在 pipeline 中 AddSource("Atlas.WorkflowCore")。
 /// </remarks>
 public static class WorkflowTracing

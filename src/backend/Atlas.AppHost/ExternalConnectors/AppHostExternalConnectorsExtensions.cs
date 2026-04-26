@@ -16,10 +16,10 @@ public static class AppHostExternalConnectorsExtensions
     /// <summary>
     /// 在 AppHost.Program.cs 中调用一次：装配数据平面所需的 ExternalConnectors 能力。
     ///
-    /// 与 PlatformHost 的关键差异：
-    /// 1. AddExternalConnectorsCore(includeHostedServices: false)：目录全量同步与回调重试两类后台 Job 仅在 PlatformHost 运行，
-    ///    避免双进程并发执行造成的数据竞态。
-    /// 2. 注入 AppHostConnectorJwtIssuerNoop：AppHost 不签发 JWT、不持有会话仓储依赖；OAuth 回调入口仅在 PlatformHost。
+    /// AppHost 连接器注册约束：
+    /// 1. AddExternalConnectorsCore(includeHostedServices: false)：默认不启用目录全量同步与回调重试后台 Job，
+    ///    多实例部署时需由单一 worker 承担。
+    /// 2. 注入 AppHostConnectorJwtIssuerNoop：AppHost 默认不签发连接器 JWT；如启用 OAuth 回调需替换为真实签发实现。
     ///
     /// 包含的能力：连接器 provider（WeCom/Feishu/DingTalk）、工作流插件节点（ExternalSendMessage / ExternalCreateApproval 等）、
     /// 审批通知 Sender（接入 IApprovalNotificationSender 总线）、审批 fan-out 处理器。

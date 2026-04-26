@@ -1,9 +1,0 @@
-@baseUrl = http://localhost:5000
-@tenantId = 00000000-0000-0000-0000-000000000001
-
-### Health
-GET {{baseUrl}}/api/v1/health
-
-### Health（重复探针）
-GET {{baseUrl}}/api/v1/health
-

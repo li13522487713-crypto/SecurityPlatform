@@ -6,7 +6,7 @@ namespace Atlas.Application.LowCode.Abstractions;
 /// Preview HMR 推送信号抽象（M08 S08-3）。
 ///
 /// Application / Infrastructure 层依赖此接口；具体 SignalR 实现位于
-/// <c>Atlas.Presentation.Shared.Hubs.LowCodePreviewBroadcaster</c>，由 PlatformHost / AppHost
+/// <c>Atlas.Presentation.Shared.Hubs.LowCodePreviewBroadcaster</c>，由 AppHost
 /// 在启动时通过 adapter 注册到本接口。
 ///
 /// 设计目的：让 AppDefinitionCommandService 等设计态写入服务能在 ReplaceDraft / AutoSave

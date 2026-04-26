@@ -42,9 +42,6 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Localization;
 using System.IO.Compression;
-using Atlas.PlatformHost.ExternalConnectors;
-using Atlas.PlatformHost.ReverseProxy;
-using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 var setupStateFilePath = builder.Configuration["Setup:StateFilePath"];
@@ -281,9 +278,6 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(Atlas.Application.ExternalConnectors.Validators.ManualBindingRequestValidator).Assembly,
     typeof(Atlas.Presentation.Shared.Validators.ChangePasswordViewModelValidator).Assembly,
 ]);
-
-// ─── External Collaboration Connector（v4 报告 27-31 章）───
-builder.Services.AddPlatformExternalConnectors();
 
 // ─── Security validation (production) ───
 var securityOptions = builder.Configuration.GetSection("Security").Get<SecurityOptions>() ?? new SecurityOptions();
@@ -611,11 +605,6 @@ builder.Services.AddWorkflowCoreDsl(options =>
 });
 builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
 
-// ─── YARP Reverse Proxy ───
-builder.Services.AddSingleton<AppHostProxyConfigProvider>();
-builder.Services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<AppHostProxyConfigProvider>());
-builder.Services.AddReverseProxy();
-
 // ─── Health Checks ───
 builder.Services.AddHealthChecks();
 
@@ -711,7 +700,6 @@ if (runHangfireServer)
 }
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
 app.MapHub<Atlas.Presentation.Shared.Hubs.LowCodePreviewHub>("/hubs/lowcode-preview");
-app.MapReverseProxy();
 app.MapGet("/", () => Results.Ok(new
 {
     host = "PlatformHost",

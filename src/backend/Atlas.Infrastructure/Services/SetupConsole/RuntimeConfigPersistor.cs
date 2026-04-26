@@ -10,7 +10,7 @@ namespace Atlas.Infrastructure.Services.SetupConsole;
 /// - 与 <c>SetupController.PersistRuntimeConfigAsync</c> 共享同一格式：
 ///   <c>{ "Database": { "ConnectionString": "...", "DbType": "..." } }</c>
 /// - 由 <see cref="OrmDataMigrationService.CutoverJobAsync"/> 在切主成功时调用；
-///   PlatformHost / AppHost 重启后会从 <c>appsettings.runtime.json</c> 自动回灌新连接串。
+///   AppHost 重启后会从 <c>appsettings.runtime.json</c> 自动回灌新连接串。
 /// </summary>
 public sealed class RuntimeConfigPersistor
 {

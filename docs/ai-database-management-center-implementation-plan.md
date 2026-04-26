@@ -74,7 +74,7 @@ SQL 编辑器继续复用该包；SQL 格式化在 app-web 新增纯函数工具
 ## 10. 当前 AiDatabase Controller 路径
 
 - AppHost：`src/backend/Atlas.AppHost/Controllers/AiDatabasesController.cs`
-- 兼容资产：`src/backend/Atlas.PlatformHost/Controllers/AiDatabasesController.cs`
+- 历史兼容资产（退役）：`src/backend/Atlas.PlatformHost/Controllers/AiDatabasesController.cs`
 
 AppHost 是当前权威后端入口。调整创建流程时保持现有 CRUD、records、bulk、imports、mode、channel-config 兼容。
 
@@ -85,7 +85,7 @@ AppHost 是当前权威后端入口。调整创建流程时保持现有 CRUD、r
 - 服务接口：`src/backend/Atlas.Application/System/Abstractions/ITenantDataSourceService.cs`
 - 服务实现：`src/backend/Atlas.Infrastructure/Services/TenantDataSourceService.cs`
 - 仓储：`src/backend/Atlas.Infrastructure/Repositories/TenantDataSourceRepository.cs`
-- 控制器兼容资产：`src/backend/Atlas.PlatformHost/Controllers/TenantDataSourcesController.cs`
+- 历史控制器兼容资产（退役）：`src/backend/Atlas.PlatformHost/Controllers/TenantDataSourcesController.cs`
 
 本次不修改 `TenantDataSource` 表结构，不把独立 AI 数据库物理实例混入租户数据源通用表。
 

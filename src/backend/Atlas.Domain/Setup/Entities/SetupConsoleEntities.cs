@@ -139,7 +139,7 @@ public sealed class SystemSetupState : TenantEntity
 
     /// <summary>
     /// BootstrapAdmin 密码的 PBKDF2 哈希（M8/A3）。
-    /// PlatformHost 启动时把 appsettings 中明文密码哈希后写入；登录时不再明文比对。
+    /// AppHost 启动时把 appsettings 中明文密码哈希后写入；登录时不再明文比对。
     /// </summary>
     [SugarColumn(IsNullable = true)]
     public string? BootstrapPasswordHash { get; private set; }

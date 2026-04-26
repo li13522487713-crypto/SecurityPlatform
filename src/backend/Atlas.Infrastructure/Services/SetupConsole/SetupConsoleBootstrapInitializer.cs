@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace Atlas.Infrastructure.Services.SetupConsole;
 
 /// <summary>
-/// PlatformHost 启动钩子（M8/A3）：把 appsettings 中的 BootstrapAdmin 明文密码哈希后落库，
+/// AppHost 启动钩子（M8/A3）：把 appsettings 中的 BootstrapAdmin 明文密码哈希后落库，
 /// 后续 SetupRecoveryKeyService 二次认证时用 PBKDF2 比对，不再明文比对。
 ///
 /// - Setup 完成（已有 atlas.db）后才会执行；否则跳过等下次重启。

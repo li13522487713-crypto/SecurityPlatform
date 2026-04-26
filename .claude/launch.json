@@ -9,12 +9,6 @@
       "port": 5181
     },
     {
-      "name": "PlatformHost (.NET :5001)",
-      "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "src/backend/Atlas.PlatformHost"],
-      "port": 5001
-    },
-    {
       "name": "AppHost (.NET :5002)",
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "src/backend/Atlas.AppHost"],

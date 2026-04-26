@@ -6,7 +6,7 @@ namespace Atlas.AppHost.ExternalConnectors.Bridges;
 
 /// <summary>
 /// 把 IUserAccountRepository 桥接为 ILocalUserDirectory；按 mobile/email/id 反查本地账户。
-/// AppHost 端复用同一套 SqlSugar 仓储，绑定查询结果与 PlatformHost 一致。
+/// AppHost 端复用同一套 SqlSugar 仓储，绑定查询结果与 AppHost 业务用户一致。
 /// </summary>
 public sealed class ConnectorLocalUserDirectoryBridge : ILocalUserDirectory
 {

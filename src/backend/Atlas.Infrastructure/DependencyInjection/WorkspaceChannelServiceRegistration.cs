@@ -9,7 +9,7 @@ namespace Atlas.Infrastructure.DependencyInjection;
 /// 工作空间渠道发布基础设施 DI（M-G02）。
 /// 仅注册渠道注册中心；具体 IWorkspaceChannelConnector 实现（Web SDK / Open API / 飞书 / 微信公众号）
 /// 由各自 case 在专属注册扩展中按需 AddSingleton&lt;IWorkspaceChannelConnector, XxxConnector&gt;()。
-/// 使用 TryAdd 以容忍多入口（AppHost / PlatformHost）重复调用。
+/// 使用 TryAdd 以容忍AppHost 内重复调用。
 /// </summary>
 public static class WorkspaceChannelServiceRegistration
 {

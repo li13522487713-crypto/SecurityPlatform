@@ -13,7 +13,7 @@ namespace Atlas.AppHost.Controllers;
 /// 运行时 Schema 拉取（M08 S08-1，**运行时 runtime 前缀** /api/runtime/apps/{appId}/schema）。
 ///
 /// 强约束（PLAN.md §1.3 #1）：
-/// - 运行时只读端点严禁混入设计态写操作；写操作必须经 PlatformHost 设计态控制器（/api/v1/lowcode/*）。
+/// - 运行时只读端点严禁混入设计态写操作；写操作必须经 AppHost 设计态控制器（/api/v1/lowcode/*）。
 /// </summary>
 [ApiController]
 [Route("api/runtime/apps/{appId:long}")]

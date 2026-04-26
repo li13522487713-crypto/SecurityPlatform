@@ -151,10 +151,10 @@ DTO：见 [`api-home-content.mock.ts`](../src/frontend/apps/app-web/src/services
 | `api-tasks.mock.ts` | `Atlas.AppHost/Controllers/WorkspaceTasksController.cs` |
 | `api-evaluations.mock.ts` | `Atlas.AppHost/Controllers/EvaluationsController.cs` |
 | `api-publish-channels.mock.ts` | `Atlas.AppHost/Controllers/PublishChannelsController.cs` |
-| `api-templates-market.mock.ts` | 复用 `Atlas.PlatformHost/Controllers/MarketController.cs`（或新增） |
-| `api-community.mock.ts` | `Atlas.PlatformHost/Controllers/CommunityController.cs` |
-| `api-platform-general.mock.ts` | `Atlas.PlatformHost/Controllers/PlatformGeneralController.cs` |
-| `api-me-settings.mock.ts` | `Atlas.PlatformHost/Controllers/MeSettingsController.cs` |
+| `api-templates-market.mock.ts` | 复用 `Atlas.AppHost/Controllers/MarketSummaryController.cs`（或新增） |
+| `api-community.mock.ts` | `Atlas.AppHost/Controllers/CommunityController.cs` |
+| `api-platform-general.mock.ts` | `Atlas.AppHost/Controllers/PlatformGeneralController.cs` |
+| `api-me-settings.mock.ts` | `Atlas.AppHost/Controllers/MeSettingsController.cs` |
 
 每个端点同步：
 - `.http` 文件覆盖请求示例

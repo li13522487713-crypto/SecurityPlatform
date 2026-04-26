@@ -39,7 +39,7 @@ flowchart LR
 - `src/backend/Atlas.Infrastructure/Services/AiPlatform/AiDatabaseProvisionService.cs`
 - `src/backend/Atlas.Infrastructure/Services/DatabaseStructure/*`
 - `src/backend/Atlas.AppHost/Controllers/DatabaseStructureController.cs`
-- `src/backend/Atlas.PlatformHost/Controllers/DatabaseStructureController.cs`
+- `src/backend/Atlas.PlatformHost/Controllers/DatabaseStructureController.cs`（历史兼容资产，退役）
 - `src/backend/Atlas.AppHost/Bosch.http/DatabaseStructure.http`
 
 ## 5. 前端文件清单

@@ -12,7 +12,7 @@ if (-not (Test-Path $solutionPath)) {
   throw "未找到解决方案文件: $solutionPath"
 }
 
-Write-Warning "scripts/build-webapi.ps1 已迁移为构建分离后宿主（PlatformHost/AppHost）与整个解决方案。"
+Write-Warning "scripts/build-webapi.ps1 已迁移为构建 AppHost 与整个解决方案。"
 
 $args = @("build", $solutionPath, "-m:1", "/v:m")
 if ($NoRestore) {

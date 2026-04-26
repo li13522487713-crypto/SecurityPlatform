@@ -8,12 +8,12 @@ namespace Atlas.Presentation.Shared.Hubs;
 /// Preview HMR Hub（M08 S08-3，路径 <c>/hubs/lowcode-preview</c>）。
 ///
 /// - 客户端通过 JoinApp 加入 appId connection group。
-/// - 设计态 autosave / replaceDraft 触发时，PlatformHost 后端 → 推送 schemaDiff 到该 group。
+/// - 设计态 autosave / replaceDraft 触发时，AppHost 后端 → 推送 schemaDiff 到该 group。
 /// - 仅承载传输信令；具体 schema diff 计算由调用方完成。
 ///
 /// 强约束（PLAN.md §M08 C08-9）：
 /// - 调试预览壳（lowcode-preview-web 5184）通过本 Hub 实现毫秒级热更新，不需要重新发布。
-/// - Hub 同时挂载在 PlatformHost / AppHost：PlatformHost 触发推送，AppHost 与 PlatformHost 共享 SignalR backplane（默认内存，多实例需要 Redis backplane）。
+/// - Hub 挂载在 AppHost：设计态写入触发推送，多实例需要 Redis backplane。
 /// </summary>
 [Authorize]
 public sealed class LowCodePreviewHub : Hub

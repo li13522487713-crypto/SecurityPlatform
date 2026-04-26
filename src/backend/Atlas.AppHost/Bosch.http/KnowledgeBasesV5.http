@@ -1,5 +1,5 @@
 ### 知识库专题（v5 §32-44）扩展接口烟测（AppHost 镜像版本）
-### 与 PlatformHost 镜像，端口 5002；覆盖 jobs/bindings/permissions/versions/retrieval-logs/provider-configs/document-scope parse|index/PUT 全部 stanza。
+### AppHost 权威端口 5002；覆盖 jobs/bindings/permissions/versions/retrieval-logs/provider-configs/document-scope parse|index/PUT 全部 stanza。
 
 @baseUrl = http://localhost:5002
 @tenantId = 00000000-0000-0000-0000-000000000001

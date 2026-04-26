@@ -9,7 +9,7 @@ namespace Atlas.AppHost.ExternalConnectors.Bridges;
 /// 给 Hangfire job 用的 TenantContextWriter。
 /// Hangfire job 没有 HttpContext，这里通过 IHttpContextAccessor 显式构造一个临时 HttpContext.Items 容器，
 /// 让现有的 HttpContextTenantProvider 能读到 TenantId。
-/// AppHost 端虽然不跑目录全量同步 HostedService（仅 PlatformHost 跑），但保留同一桥接以满足 ConnectorRecurringJobScheduler 等场景的 DI 完整性。
+/// AppHost 保留同一桥接以满足 ConnectorRecurringJobScheduler 等场景的 DI 完整性。
 /// </summary>
 public sealed class ConnectorTenantContextWriterBridge : ITenantContextWriter
 {

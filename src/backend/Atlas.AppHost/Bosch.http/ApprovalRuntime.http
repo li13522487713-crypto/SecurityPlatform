@@ -1,0 +1,239 @@
+@baseUrl = http://localhost:5002
+@token =
+@tenantId =
+@username = admin
+@password = P@ssw0rd!
+@idempotencyKey = {{$guid}}
+
+### 登录获取令牌（可选）
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@token = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token（执行写接口前建议先调用）
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 发起流程实例
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-001",
+  "dataJson": "{\"leaveType\":\"sick\",\"startDate\":\"2026-02-01\",\"endDate\":\"2026-02-03\",\"reason\":\"感冒\"}"
+}
+
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-no-idempotency",
+  "dataJson": "{\"leaveType\":\"annual\"}"
+}
+
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-no-csrf",
+  "dataJson": "{\"leaveType\":\"annual\"}"
+}
+
+### 安全负例：幂等冲突（同 key 不同 payload，第二次应返回 409）
+@idemConflictStart = runtime-conflict-start-001
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-conflict-A",
+  "dataJson": "{\"reason\":\"冲突A\"}"
+}
+
+###
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-conflict-B",
+  "dataJson": "{\"reason\":\"冲突B\"}"
+}
+
+### 获取我发起的流程实例（需要权限: approval:flow:view）
+GET {{baseUrl}}/api/v1/approval/instances/my?pageIndex=1&pageSize=10&status=Running
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 管理端实例分页查询（支持流程/状态/发起人/时间区间过滤）
+GET {{baseUrl}}/api/v1/approval/instances/admin?pageIndex=1&pageSize=10&definitionId={definitionId}&status=Running&initiatorUserId={initiatorUserId}&businessKey=leave&startedFrom=2026-01-01T00:00:00Z&startedTo=2026-12-31T23:59:59Z
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取流程实例详情（需要权限: approval:flow:view）
+GET {{baseUrl}}/api/v1/approval/instances/{instanceId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取流程实例历史事件（需要权限: approval:flow:view）
+GET {{baseUrl}}/api/v1/approval/instances/{instanceId}/history?pageIndex=1&pageSize=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 导出流程实例历史（CSV）
+GET {{baseUrl}}/api/v1/approval/instances/{instanceId}/history/export
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 取消流程实例
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/cancellation
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{}
+
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/cancellation
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{}
+
+### 预览流程实例（需要权限: approval:flow:view）
+GET {{baseUrl}}/api/v1/approval/instances/{instanceId}/preview
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 打印流程实例（需要权限: approval:flow:view）
+GET {{baseUrl}}/api/v1/approval/instances/{instanceId}/print-view
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 撤回流程
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 29,
+  "comment": "撤回流程"
+}
+
+### 转办任务
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 21,
+  "targetAssigneeValue": "200",
+  "comment": "转办给其他处理人"
+}
+
+### 加签
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 25,
+  "additionalAssigneeValues": ["300", "301"],
+  "comment": "加签审批人"
+}
+
+### 打回修改
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 18,
+  "comment": "打回修改，请补充材料"
+}
+
+### 退回任意节点
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 23,
+  "targetNodeId": "approve1",
+  "comment": "退回至第一个审批节点"
+}
+
+### 撤销同意
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 32,
+  "comment": "撤销之前的同意"
+}
+
+### 提交草稿（激活流程）
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/submission
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 挂起流程实例
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/suspension
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 激活（恢复）流程实例
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/activation
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 强制终止流程实例（管理员操作，需要权限: approval:flow:manage）
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/termination
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+"管理员强制终止该流程"
+
+### 暂存草稿
+POST {{baseUrl}}/api/v1/approval/instances/draft
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": 1,
+  "businessKey": "draft-001",
+  "dataJson": "{\"leaveType\":\"annual\",\"reason\":\"休息\"}"
+}

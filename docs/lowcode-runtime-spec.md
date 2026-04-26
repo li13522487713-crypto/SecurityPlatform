@@ -2,7 +2,7 @@
 
 > 范围：低代码运行时（runtime data plane）端点契约 + 协议帧 + 安全约束。
 >
-> 端点前缀双套：设计态 `/api/v1/lowcode/*`（PlatformHost 5001） / 运行时 `/api/runtime/*`（AppHost 5002），**禁止混用**。
+> 端点前缀双套：设计态 `/api/v1/lowcode/*`（AppHost 5002） / 运行时 `/api/runtime/*`（AppHost 5002），**禁止混用**。
 
 ## §1 Schema 字段全集（M01）
 

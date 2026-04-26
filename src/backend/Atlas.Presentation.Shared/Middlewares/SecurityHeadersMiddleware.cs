@@ -32,7 +32,7 @@ public sealed class SecurityHeadersMiddleware
         //    （nonce 由当前请求生成并通过 HttpContext.Items["csp-nonce"] 暴露给视图）；
         //    生产模式下严禁 unsafe-eval（即使开发模式 hot-reload 需要也走 nonce 模式）；
         //  - style-src：保留 'unsafe-inline' —— Semi UI 依赖运行时注入 style；后续将迁移到 nonce 化样式；
-        //  - connect-src：扩展为 'self' https://*.atlas.local，允许调 PlatformHost / AppHost 跨子域；
+        //  - connect-src：扩展为 'self' https://*.atlas.local，允许调 AppHost 跨子域；
         //  - frame-ancestors：保持 'none'（禁止被外站 iframe 嵌入）；
         //  - 嵌入 SDK / hosted app 的下游页面应在自己的 CSP 中允许 cdn.atlas.local 加载 atlas-lowcode SDK。
         var nonce = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_');

@@ -16,13 +16,13 @@
 
 ### 1.2 数据库目录权限
 
-- [ ] `atlas.db` 所在目录仅 PlatformHost / AppHost 服务账号可读写（其它账号禁止）
+- [ ] `atlas.db` 所在目录仅 AppHost 服务账号可读写（其它账号禁止）
 - [ ] `backups/` 目录已创建，磁盘空间 ≥ 30 天 × 平均每日备份大小 × 2
 - [ ] `appsettings.runtime.json`（M5 持久化首装数据库连接 / M9 切主后更新）目录可写
 
 ### 1.3 网络与防火墙
 
-- [ ] PlatformHost 5001 仅运维内网可达（互联网不可直连）
+- [ ] AppHost 5002 仅运维内网可达（互联网不可直连）
 - [ ] `/setup-console` 前端入口由公司 SSO / VPN / 跳板机保护，不暴露公网
 - [ ] 控制台所在主机已启用 fail2ban 或同等 IP 限流方案（与 M10/D4 IP 限流叠加）
 
@@ -120,8 +120,7 @@ Get-Content (Get-ChildItem -Path 'logs' -Filter '*.log' | Sort-Object LastWriteT
 - [ ] 执行 `POST /api/v1/setup-console/migration/jobs/{id}/cutover`，`keepSourceReadonlyForDays=7`
 - [ ] `appsettings.runtime.json`（M9/C5 RuntimeConfigPersistor）已自动更新为新连接串
 - [ ] 文件已 git commit / 备份（防止重启时丢失）
-- [ ] 重启 PlatformHost：`Restart-Service Atlas.PlatformHost` 或对应 systemd / docker
-- [ ] 重启 AppHost：同上
+- [ ] 重启 AppHost：`Restart-Service Atlas.AppHost` 或对应 systemd / docker
 - [ ] 业务页面登录冒烟：登录 / 工作空间 / 智能体列表 / 工作流列表 各点 1 次
 
 ### 5.3 切主后 24 小时观察期

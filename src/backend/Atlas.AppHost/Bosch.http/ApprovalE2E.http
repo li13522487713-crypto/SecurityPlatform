@@ -1,0 +1,115 @@
+@baseUrl = http://localhost:5002
+@token =
+@tenantId =
+
+### 场景1：获取防伪令牌（所有写接口前置）
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 场景2：创建流程定义（草稿）
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "E2E-请假流程",
+  "category": "人事",
+  "description": "端到端验收流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"E2E-请假流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"直属领导审批\",\"approverConfig\":{\"setType\":5,\"signType\":1,\"noHeaderAction\":1,\"nodeApproveList\":[]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 场景3：校验流程定义（语义 + 结构）
+POST {{baseUrl}}/api/v1/approval/flows/validation
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "E2E-请假流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"E2E-请假流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"直属领导审批\",\"approverConfig\":{\"setType\":5,\"signType\":1,\"noHeaderAction\":1,\"nodeApproveList\":[]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 场景4：发布流程
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/publication
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "remark": "E2E 首次发布"
+}
+
+### 场景5：发起流程实例
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": "{flowId}",
+  "businessKey": "e2e-leave-001",
+  "dataJson": "{\"reason\":\"年假\",\"days\":2}"
+}
+
+### 场景6：待办审批（同意）
+POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "taskId": "{taskId}",
+  "approved": true,
+  "comment": "同意申请"
+}
+
+### 场景7：管理端查询实例（含过滤）
+GET {{baseUrl}}/api/v1/approval/instances/admin?pageIndex=1&pageSize=10&businessKey=e2e-leave-001
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 场景8：流程定义导出 + 导入
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/export
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+POST {{baseUrl}}/api/v1/approval/flows/import
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "E2E-导入流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"E2E-导入流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"审批\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"1001\",\"name\":\"管理员\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 场景9：版本对比 + 幂等冲突校验
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions/{targetVersion}/compare
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "E2E-冲突流程A",
+  "definitionJson": "{\"meta\":{\"flowName\":\"E2E-冲突流程A\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"审批A\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"1001\",\"name\":\"A\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+###
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "E2E-冲突流程B",
+  "definitionJson": "{\"meta\":{\"flowName\":\"E2E-冲突流程B\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"审批B\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"1002\",\"name\":\"B\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}

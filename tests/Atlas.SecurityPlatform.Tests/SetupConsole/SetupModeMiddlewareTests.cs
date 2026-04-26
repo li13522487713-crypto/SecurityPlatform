@@ -31,7 +31,7 @@ public sealed class SetupModeMiddlewareTests
         var provider = Substitute.For<ISetupStateProvider>();
         provider.IsReady.Returns(false);
 
-        await middleware.InvokeAsync(context, provider, new PlatformRuntimeRegistrationMarker(false));
+        await middleware.InvokeAsync(context, provider);
 
         Assert.True(nextCalled.Value);
     }
@@ -47,7 +47,7 @@ public sealed class SetupModeMiddlewareTests
         var provider = Substitute.For<ISetupStateProvider>();
         provider.IsReady.Returns(false);
 
-        await middleware.InvokeAsync(context, provider, new PlatformRuntimeRegistrationMarker(false));
+        await middleware.InvokeAsync(context, provider);
 
         Assert.False(nextCalled.Value);
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
@@ -63,7 +63,7 @@ public sealed class SetupModeMiddlewareTests
         var provider = Substitute.For<ISetupStateProvider>();
         provider.IsReady.Returns(false);
 
-        await middleware.InvokeAsync(context, provider, new PlatformRuntimeRegistrationMarker(false));
+        await middleware.InvokeAsync(context, provider);
 
         Assert.True(nextCalled.Value); // SPA 静态资源放行，由前端自行处理
     }
@@ -76,39 +76,21 @@ public sealed class SetupModeMiddlewareTests
         var provider = Substitute.For<ISetupStateProvider>();
         provider.IsReady.Returns(true);
 
-        await middleware.InvokeAsync(context, provider, new PlatformRuntimeRegistrationMarker(true));
+        await middleware.InvokeAsync(context, provider);
 
         Assert.True(nextCalled.Value);
     }
 
     [Fact]
-    public async Task Ready_NotFullyRegistered_AllowsConsolePathsButBlocksOthers()
-    {
-        // 已 ready 但运行时未注册（setup 完成但未重启）：控制台路径仍可访问，业务路径返回 503 提示重启
-        var middleware = BuildMiddleware(out var nextCalled);
-        var context = BuildContext("/api/v1/users");
-        var provider = Substitute.For<ISetupStateProvider>();
-        provider.IsReady.Returns(true);
-
-        await middleware.InvokeAsync(context, provider, new PlatformRuntimeRegistrationMarker(false));
-
-        Assert.False(nextCalled.Value);
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
-        var body = ReadBody(context);
-        Assert.Contains("PLATFORM_RESTART_REQUIRED", body);
-    }
-
-    [Fact]
-    public async Task Ready_NotFullyRegistered_AllowsSetupConsolePath()
+    public async Task Ready_PassesThroughForSetupConsolePath()
     {
         var middleware = BuildMiddleware(out var nextCalled);
         var context = BuildContext("/api/v1/setup-console/overview");
         var provider = Substitute.For<ISetupStateProvider>();
         provider.IsReady.Returns(true);
 
-        await middleware.InvokeAsync(context, provider, new PlatformRuntimeRegistrationMarker(false));
+        await middleware.InvokeAsync(context, provider);
 
-        // 控制台路径在已 ready 且未完整注册场景下也应放行（运维场景重新打开控制台）
         Assert.True(nextCalled.Value);
     }
 

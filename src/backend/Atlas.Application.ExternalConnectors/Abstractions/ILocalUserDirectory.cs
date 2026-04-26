@@ -2,7 +2,7 @@ namespace Atlas.Application.ExternalConnectors.Abstractions;
 
 /// <summary>
 /// 连接器层用到的本地用户最小查询能力。
-/// 由 PlatformHost / AppHost 桥接到现有 IUserAccountRepository，避免连接器层反向依赖 Application.Identity 模块。
+/// 由 AppHost 桥接到现有 IUserAccountRepository，避免连接器层反向依赖 Application.Identity 模块。
 /// </summary>
 public interface ILocalUserDirectory
 {

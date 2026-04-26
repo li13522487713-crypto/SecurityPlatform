@@ -14,7 +14,7 @@ public static class AiCoreServiceRegistration
 {
     /// <summary>
     /// AI 共享核心层：模型调用抽象、RAG 管道、向量检索、文档解析、代码执行。
-    /// PlatformHost 和 AppHost 均需注册。
+    /// AppHost 需注册。
     /// </summary>
     public static IServiceCollection AddAiCoreInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {

@@ -1,5 +1,5 @@
 /**
- * Studio API 客户端：仅访问设计态 /api/v1/lowcode/* 端点（PlatformHost）。
+ * Studio API 客户端：仅访问 AppHost 设计态 /api/v1/lowcode/* 端点。
  *
  * 强约束（PLAN.md §1.3 #2）：
  * - Studio 内禁止直调任何 /api/runtime/* 运行时端点；运行时调用一律由 lowcode-runtime-web

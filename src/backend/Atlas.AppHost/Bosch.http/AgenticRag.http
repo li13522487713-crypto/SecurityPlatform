@@ -1,0 +1,32 @@
+### Agentic RAG API
+
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Agentic RAG 查询
+POST {{baseUrl}}/api/v2/agentic-rag/query
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "query": "请总结知识库中与等保2.0审计相关的要求",
+  "knowledgeBaseIds": [1],
+  "topK": 5
+}

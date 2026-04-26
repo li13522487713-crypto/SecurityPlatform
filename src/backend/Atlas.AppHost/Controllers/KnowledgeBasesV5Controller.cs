@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.AppHost.Controllers;
 
 /// <summary>
-/// 知识库专题（v5 §32-44）扩展接口（AppHost 镜像版）：与 PlatformHost 完全对称的 jobs / bindings / permissions /
+/// 知识库专题（v5 §32-44）扩展接口（AppHost 权威版）：提供 jobs / bindings / permissions /
 /// versions / retrieval-logs / provider-configs / table / image API，便于 AppHost 内部 Workflow / Agent / App 调用。
 /// </summary>
 [ApiController]

@@ -47,8 +47,8 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 平台配置根目录：支持通过环境变量 ATLAS_PLATFORM_CONFIG_ROOT 覆盖，
-// 默认值兼容开发环境的相对目录布局。
+// 共享配置根目录：支持通过环境变量 ATLAS_PLATFORM_CONFIG_ROOT 覆盖；
+// 默认读取当前 AppHost 内容根目录。
 var platformConfigRoot = Environment.GetEnvironmentVariable("ATLAS_PLATFORM_CONFIG_ROOT");
 if (string.IsNullOrWhiteSpace(platformConfigRoot))
 {
@@ -56,7 +56,7 @@ if (string.IsNullOrWhiteSpace(platformConfigRoot))
 }
 if (string.IsNullOrWhiteSpace(platformConfigRoot))
 {
-    platformConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.PlatformHost"));
+    platformConfigRoot = builder.Environment.ContentRootPath;
 }
 else
 {
@@ -551,7 +551,7 @@ app.Run();
 
 static string ResolvePlatformConfigRoot(string configuredRoot, string contentRootPath)
 {
-    var fallbackRoot = Path.GetFullPath(Path.Combine(contentRootPath, "..", "Atlas.PlatformHost"));
+    var fallbackRoot = contentRootPath;
     var candidates = new List<string>();
 
     if (Path.IsPathRooted(configuredRoot))

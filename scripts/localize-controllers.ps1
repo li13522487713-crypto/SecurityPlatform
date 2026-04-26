@@ -1,6 +1,5 @@
 $ErrorActionPreference = 'Stop'
 $controllerDirs = @(
-    (Join-Path $PSScriptRoot '..\src\backend\Atlas.PlatformHost\Controllers'),
     (Join-Path $PSScriptRoot '..\src\backend\Atlas.AppHost\Controllers')
 )
 

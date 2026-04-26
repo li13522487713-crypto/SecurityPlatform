@@ -6,14 +6,14 @@
 ## 1. 当前扫描结论
 
 1. 当前 `AiDatabase` 实体路径：`src/backend/Atlas.Domain/AiPlatform/Entities/AiDatabase.cs`。已存在 `StorageMode`、`DriverCode`、`EncryptedDraftConnection`、`EncryptedOnlineConnection`、`PhysicalDatabaseName`、`ProvisionState`、`ProvisionError`，但缺少 `DraftDatabaseName`、`OnlineDatabaseName`、`DialectVersion`，旧 JSON 行模型字段未标记 `Obsolete`。
-2. 当前 `AiDatabase` Controller 路径：`src/backend/Atlas.AppHost/Controllers/AiDatabasesController.cs` 与历史兼容 `src/backend/Atlas.PlatformHost/Controllers/AiDatabasesController.cs`。当前运行拓扑以 `AppHost` 为准。
+2. 当前 `AiDatabase` Controller 路径：`src/backend/Atlas.AppHost/Controllers/AiDatabasesController.cs`；当前运行拓扑以 `AppHost` 为准，历史 `PlatformHost` 副本退役。
 3. 当前 AI 数据库前端列表页路径：`src/frontend/apps/app-web/src/app/pages/workspace-library-page.tsx` 的资源库 `database` Tab；另有 `src/frontend/packages/module-studio-react/src/pages.tsx` 的 Studio 数据库中心。
 4. 当前资源库数据库 Tab 实现路径：`src/frontend/apps/app-web/src/app/pages/workspace-library-page.tsx`，关键符号 `TAB_DEFS`、`handleOpenStructure`、`handleDeleteDatabase`。
 5. 当前路由配置路径：`src/frontend/apps/app-web/src/app/app.tsx`，已存在 `/space/:space_id/database/:databaseId/structure`，渲染 `DatabaseStructurePage`。
 6. 当前 `requestApi` 封装路径：`src/frontend/apps/app-web/src/services/api-core.ts`，底层 `createApiClient` 在 `src/frontend/packages/shared-react-core/src/api/createApiClient.ts`。
 7. 当前 i18n messages 路径：`src/frontend/apps/app-web/src/app/messages.ts`；AI 数据库 API 错误文案另有 `src/frontend/apps/app-web/src/services/ai-database.i18n.ts`。
 8. 当前 `PermissionPolicies` 路径：`src/backend/Atlas.Presentation.Shared/Authorization/PermissionPolicies.cs`，已存在 `DataSourcesView`、`DataSourcesQuery`、`DataSourcesSchemaWrite`。
-9. 当前认证策略注册路径：`src/backend/Atlas.AppHost/Program.cs` 的 `AddAuthorization`；历史兼容宿主为 `src/backend/Atlas.PlatformHost/Program.cs`。
+9. 当前认证策略注册路径：`src/backend/Atlas.AppHost/Program.cs` 的 `AddAuthorization`；历史兼容宿主 `src/backend/Atlas.PlatformHost/Program.cs` 退役。
 10. 当前 `DataSourceDriverRegistry` 路径：`src/backend/Atlas.Infrastructure/Services/DataSourceDriverRegistry.cs`，未知 driver 当前会返回原字符串，需要在 AI 数据库创建/provision 前改为显式拒绝。
 11. 当前 SqlSugar 注册路径：`src/backend/Atlas.Infrastructure/ServiceCollectionExtensions.cs`、`src/backend/Atlas.AppHost/Program.cs`、`src/backend/Atlas.Infrastructure/PlatformServiceCollectionExtensions.cs`。
 12. 当前 `TenantDbConnectionFactory` 与加密方法路径：`src/backend/Atlas.Infrastructure/Services/TenantDbConnectionFactory.cs`，关键符号 `Encrypt`、`Decrypt`。
@@ -41,7 +41,7 @@
 仓库已存在结构管理初版：
 
 - 后端：`src/backend/Atlas.Infrastructure/Services/DatabaseStructure/*`、`src/backend/Atlas.Application/AiPlatform/Models/DatabaseStructureModels.cs`、`src/backend/Atlas.Application/AiPlatform/Abstractions/IDatabaseStructureService.cs`。
-- Controller：仅 `src/backend/Atlas.PlatformHost/Controllers/DatabaseStructureController.cs`，而权威宿主 `AppHost` 缺失。
+- Controller：权威宿主为 `src/backend/Atlas.AppHost/Controllers/DatabaseStructureController.cs`。
 - 前端：`src/frontend/apps/app-web/src/services/api-database-structure.ts`、`src/frontend/apps/app-web/src/app/pages/database-structure-page.tsx`、`data-type-options.ts`。
 
 主要缺口：
@@ -60,7 +60,7 @@
 3. PostgreSQL 采用“同一 admin connection 指向的 database 内创建独立 schema”方案：每个 AI 数据库创建 `draft` 与 `online` 两个 schema，业务连接串复用 admin connection 的 database，但连接后由方言使用 schema 限定对象名。该方案比动态 `CREATE DATABASE` 更易落地，权限要求更低。
 4. SQLite 每个 AI 数据库创建两个 `.db` 文件；MySQL 每个 AI 数据库创建两个 database；PostgreSQL 每个 AI 数据库创建两个 schema。
 5. 所有结构写操作仅 draft；online 只 provision 和连接测试，不开放 UI 编辑。
-6. `DatabaseStructureController` 必须迁入/复制到 `AppHost`，`PlatformHost` 只保留兼容。
+6. `DatabaseStructureController` 以 `AppHost` 实现为准，`PlatformHost` 副本退役。
 7. 前端所有 AI 数据库 ID 类型改为 string，重点清理结构管理链路与资源库操作链路的 `Number(id)`。
 
 ## 4. 需要修改的文件清单
@@ -132,7 +132,7 @@
 ## 7. 高风险点
 
 - ID string 改造会触达前端 Studio adapter 与 module 类型，必须避免大范围破坏。
-- 现有 `DatabaseStructureController` 只在 `PlatformHost`，必须补 `AppHost`，否则 app-web 无法调用。
+- 现有 `DatabaseStructureController` 已在 `AppHost`，app-web 统一调用 AppHost。
 - 可视化 DDL 拼接的 `defaultValue/dataType/options` 必须后端白名单与 tokenizer 双重校验。
 - 未知 driver 必须在创建前失败，避免持久化 Pending 脏数据。
 - 密码、连接串、admin connection 必须全程加密或 mask，不得进入响应、日志、文档示例的真实值。

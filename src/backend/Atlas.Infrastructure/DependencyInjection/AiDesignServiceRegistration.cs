@@ -16,7 +16,7 @@ public static class AiDesignServiceRegistration
 {
     /// <summary>
     /// AI 平台设计态层：Agent 定义管理、模型配置、知识库管理、评测、
-    /// AI 工作流设计、Prompt 模板、插件管理等。仅 PlatformHost 注册。
+    /// AI 工作流设计、Prompt 模板、插件管理等。由 AppHost 统一注册。
     /// </summary>
     public static IServiceCollection AddAiPlatformDesignInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {

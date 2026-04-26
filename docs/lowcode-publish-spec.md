@@ -37,7 +37,7 @@ inst.unmount();
 
 ## 3. 端点双套
 
-### 设计态（PlatformHost / `/api/v1/lowcode/apps/{id}`）
+### 设计态（AppHost / `/api/v1/lowcode/apps/{id}`）
 - `POST /publish/{kind}`            发布（hosted / embedded-sdk / preview）
 - `GET  /artifacts`                 列出产物
 - `POST /publish/rollback`          按 artifactId 撤回

@@ -17,7 +17,7 @@ namespace Atlas.Infrastructure.Services.SetupConsole;
 /// - ConsoleToken 30 分钟过期；持久化到 <c>setup_console_token</c> 表。
 /// - 校验通过：恢复密钥 hash 匹配 <see cref="SystemSetupState.RecoveryKeyHash"/>，
 ///   或 BootstrapAdmin 凭证（密码用 PBKDF2 哈希后存到 <see cref="SystemSetupState.BootstrapPasswordHash"/>，
-///   PlatformHost 启动时由 <c>SetupConsoleBootstrapInitializer</c> 自动哈希；运行时 timing-safe 比对）。
+///   AppHost 启动时由 <c>SetupConsoleBootstrapInitializer</c> 自动哈希；运行时 timing-safe 比对）。
 /// - 仅存哈希；明文 token 仅在颁发时返回客户端一次。
 /// - 多实例部署时所有实例共享 token 生命周期。
 /// </summary>
