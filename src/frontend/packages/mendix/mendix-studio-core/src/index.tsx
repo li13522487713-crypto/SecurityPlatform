@@ -1,962 +1,102 @@
-import { useMemo, useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  Collapse,
-  Divider,
-  Empty,
-  Input,
-  InputNumber,
-  Select,
-  SideSheet,
-  Space,
-  Table,
-  Tag,
-  TextArea,
-  Toast,
-  Typography
-} from "@douyinfe/semi-ui";
-import {
-  IconArrowRight,
-  IconPlus,
-  IconSave,
-  IconSearch,
-  IconHome,
-  IconCode,
-  IconPlay,
-  IconUpload,
-  IconSetting,
-  IconUndo,
-  IconRedo,
-  IconDesktop,
-  IconMonitorStroked,
-  IconPhone,
-  IconEdit
-} from "@douyinfe/semi-icons";
-import { createLocalMicroflowApiClient, MicroflowEditor, sampleMicroflowSchema } from "@atlas/microflow";
-import { DebugTracePanel } from "@atlas/mendix-debug";
-import { createRuntimeExecutor, RuntimeRenderer } from "@atlas/mendix-runtime";
-import type { LowCodeAppSchema, WidgetSchema, WidgetType } from "@atlas/mendix-schema";
-import { validateLowCodeAppSchema } from "@atlas/mendix-validator";
-import { useMendixStudioStore, type MendixStudioTab } from "./store";
+import "./studio.css";
 
-const { Text, Title } = Typography;
+import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
+import { IconArrowRight } from "@douyinfe/semi-icons";
 
-const WIDGET_TOOLBOX: WidgetType[] = [
-  "container",
-  "dataView",
-  "textBox",
-  "textArea",
-  "numberInput",
-  "dropDown",
-  "button",
-  "label"
-];
+import { StudioHeader } from "./components/studio-header";
+import { AppExplorer } from "./components/app-explorer";
+import { WidgetToolbox } from "./components/widget-toolbox";
+import { WorkbenchTabs } from "./components/workbench-tabs";
+import { WorkbenchToolbar } from "./components/workbench-toolbar";
+import { PageDesignerCanvas } from "./components/page-designer-canvas";
+import { WidgetStructurePanel } from "./components/widget-structure-panel";
+import { PropertiesPanel } from "./components/properties-panel";
+import { RightInspectorRail } from "./components/right-inspector-rail";
+import { BottomPanel } from "./components/bottom-panel";
+import { RuntimePreview } from "./components/runtime-preview";
+import { useMendixStudioStore } from "./store";
 
-function updateSchema(mutator: (schema: LowCodeAppSchema) => void) {
-  const current = useMendixStudioStore.getState().appSchema;
-  const next = JSON.parse(JSON.stringify(current)) as LowCodeAppSchema;
-  mutator(next);
-  useMendixStudioStore.getState().setAppSchema(next);
-}
-
-function AppExplorer() {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const setActiveTab = useMendixStudioStore(state => state.setActiveTab);
-  const setSelected = useMendixStudioStore(state => state.setSelected);
-
-  const firstModule = app.modules[0];
-  const firstPage = firstModule.pages[0];
-  const firstMicroflow = firstModule.microflows[0];
-  const firstWorkflow = firstModule.workflows[0];
-
-  return (
-    <Space vertical style={{ width: "100%" }}>
-      <Button block onClick={() => setActiveTab("domainModel")}>Domain Model</Button>
-      <Button
-        block
-        onClick={() => {
-          setSelected("page", firstPage?.pageId ?? "");
-          setActiveTab("pageBuilder");
-        }}
-      >
-        Pages
-      </Button>
-      <Button
-        block
-        onClick={() => {
-          setSelected("microflow", firstMicroflow?.microflowId ?? "");
-          setActiveTab("microflowDesigner");
-        }}
-      >
-        Microflows
-      </Button>
-      <Button
-        block
-        onClick={() => {
-          setSelected("workflow", firstWorkflow?.workflowId ?? "");
-          setActiveTab("workflowDesigner");
-        }}
-      >
-        Workflows
-      </Button>
-      <Button block onClick={() => setActiveTab("securityEditor")}>Security</Button>
-      <Button block onClick={() => setActiveTab("runtimePreview")}>Runtime Preview</Button>
-      <Divider />
-      <Text type="tertiary">Modules</Text>
-      {app.modules.map(module => (
-        <Badge key={module.moduleId} count={module.pages.length + module.microflows.length + module.workflows.length}>
-          <Tag>{module.name}</Tag>
-        </Badge>
-      ))}
-    </Space>
-  );
-}
-
-function DomainModelDesigner() {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const module = app.modules[0];
-  const [newEntityName, setNewEntityName] = useState("");
-  const [newEnumName, setNewEnumName] = useState("");
-
-  return (
-    <Space vertical style={{ width: "100%" }}>
-      <Card title="Entities">
-        <Space style={{ marginBottom: 8 }}>
-          <Input value={newEntityName} onChange={setNewEntityName} placeholder="New Entity Name" />
-          <Button
-            icon={<IconPlus />}
-            onClick={() => {
-              const name = newEntityName.trim();
-              if (!name) {
-                Toast.warning("请输入实体名称");
-                return;
-              }
-              updateSchema(schema => {
-                schema.modules[0].domainModel.entities.push({
-                  entityId: `ent_${Date.now()}`,
-                  moduleId: schema.modules[0].moduleId,
-                  name,
-                  entityType: "persistable",
-                  attributes: [],
-                  associations: [],
-                  accessRules: [],
-                  validationRules: [],
-                  eventHandlers: [],
-                  systemMembers: { storeOwner: true, storeCreatedDate: true, storeChangedDate: true }
-                });
-              });
-              setNewEntityName("");
-            }}
-          >
-            Add Entity
-          </Button>
-        </Space>
-        <Collapse>
-          {module.domainModel.entities.map(entity => (
-            <Collapse.Panel key={entity.entityId} itemKey={entity.entityId} header={entity.name}>
-              <Space vertical style={{ width: "100%" }}>
-                <Button
-                  size="small"
-                  onClick={() =>
-                    updateSchema(schema => {
-                      const target = schema.modules[0].domainModel.entities.find(item => item.entityId === entity.entityId);
-                      if (!target) {
-                        return;
-                      }
-                      target.attributes.push({
-                        attributeId: `attr_${Date.now()}`,
-                        entityId: target.entityId,
-                        name: `Field${target.attributes.length + 1}`,
-                        attributeType: "String",
-                        dataType: { kind: "String" }
-                      });
-                    })
-                  }
-                >
-                  Add Attribute
-                </Button>
-                {entity.attributes.map(attribute => (
-                  <Space key={attribute.attributeId}>
-                    <Text>{attribute.name}</Text>
-                    <Select
-                      value={attribute.attributeType}
-                      onChange={value =>
-                        updateSchema(schema => {
-                          const targetEntity = schema.modules[0].domainModel.entities.find(item => item.entityId === entity.entityId);
-                          const targetAttribute = targetEntity?.attributes.find(item => item.attributeId === attribute.attributeId);
-                          if (!targetAttribute) {
-                            return;
-                          }
-                          targetAttribute.attributeType = value as typeof targetAttribute.attributeType;
-                          targetAttribute.dataType =
-                            value === "Decimal"
-                              ? { kind: "Decimal", precision: 18, scale: 2 }
-                              : value === "DateTime"
-                                ? { kind: "DateTime" }
-                                : value === "Boolean"
-                                  ? { kind: "Boolean" }
-                                  : value === "Integer"
-                                    ? { kind: "Integer" }
-                                    : value === "Long"
-                                      ? { kind: "Long" }
-                                      : value === "Enumeration"
-                                        ? { kind: "Enumeration", enumerationRef: { kind: "enumeration", id: "enum_purchase_status" } }
-                                        : value === "Binary"
-                                          ? { kind: "Binary" }
-                                          : { kind: "String" };
-                        })
-                      }
-                      optionList={[
-                        { value: "String", label: "String" },
-                        { value: "Boolean", label: "Boolean" },
-                        { value: "Integer", label: "Integer" },
-                        { value: "Long", label: "Long" },
-                        { value: "Decimal", label: "Decimal" },
-                        { value: "DateTime", label: "DateTime" },
-                        { value: "Enumeration", label: "Enumeration" },
-                        { value: "Binary", label: "Binary" },
-                        { value: "AutoNumber", label: "AutoNumber" }
-                      ]}
-                    />
-                    <Button
-                      type="danger"
-                      theme="borderless"
-                      onClick={() =>
-                        updateSchema(schema => {
-                          const targetEntity = schema.modules[0].domainModel.entities.find(item => item.entityId === entity.entityId);
-                          if (!targetEntity) {
-                            return;
-                          }
-                          const referenced = schema.modules[0].pages.some(page =>
-                            JSON.stringify(page.rootWidget).includes(attribute.attributeId)
-                          );
-                          if (referenced) {
-                            Toast.warning("该属性已被页面引用，不能删除");
-                            return;
-                          }
-                          targetEntity.attributes = targetEntity.attributes.filter(item => item.attributeId !== attribute.attributeId);
-                        })
-                      }
-                    >
-                      Delete
-                    </Button>
-                  </Space>
-                ))}
-              </Space>
-            </Collapse.Panel>
-          ))}
-        </Collapse>
-      </Card>
-
-      <Card title="Associations">
-        <Button
-          icon={<IconPlus />}
-          onClick={() =>
-            updateSchema(schema => {
-              const entities = schema.modules[0].domainModel.entities;
-              if (entities.length < 2) {
-                Toast.warning("至少需要两个实体");
-                return;
-              }
-              schema.modules[0].domainModel.associations.push({
-                associationId: `assoc_${Date.now()}`,
-                moduleId: schema.modules[0].moduleId,
-                name: `${entities[0].name}_${entities[1].name}`,
-                fromEntityRef: { kind: "entity", id: entities[0].entityId },
-                toEntityRef: { kind: "entity", id: entities[1].entityId },
-                owner: "default",
-                cardinality: "oneToMany"
-              });
-            })
-          }
-        >
-          Add Association
-        </Button>
-        {module.domainModel.associations.map(association => (
-          <Tag key={association.associationId}>{association.name}</Tag>
-        ))}
-      </Card>
-
-      <Card title="Enumerations">
-        <Space>
-          <Input value={newEnumName} onChange={setNewEnumName} placeholder="New Enumeration Name" />
-          <Button
-            onClick={() => {
-              const name = newEnumName.trim();
-              if (!name) {
-                return;
-              }
-              updateSchema(schema => {
-                schema.modules[0].domainModel.enumerations.push({
-                  enumerationId: `enum_${Date.now()}`,
-                  moduleId: schema.modules[0].moduleId,
-                  name,
-                  values: [{ key: "Value1", caption: "Value1" }]
-                });
-              });
-              setNewEnumName("");
-            }}
-          >
-            Add Enumeration
-          </Button>
-        </Space>
-        {module.domainModel.enumerations.map(enumeration => (
-          <Card key={enumeration.enumerationId} size="small" style={{ marginTop: 8 }}>
-            <Text strong>{enumeration.name}</Text>
-            <Space vertical>
-              {enumeration.values.map(value => (
-                <Input
-                  key={value.key}
-                  value={value.caption}
-                  onChange={next =>
-                    updateSchema(schema => {
-                      const target = schema.modules[0].domainModel.enumerations.find(item => item.enumerationId === enumeration.enumerationId);
-                      const targetValue = target?.values.find(item => item.key === value.key);
-                      if (targetValue) {
-                        targetValue.caption = next;
-                      }
-                    })
-                  }
-                />
-              ))}
-            </Space>
-          </Card>
-        ))}
-      </Card>
-    </Space>
-  );
-}
-
-function walkWidgets(widget: WidgetSchema, output: WidgetSchema[]) {
-  output.push(widget);
-  widget.children?.forEach(child => walkWidgets(child, output));
-  Object.values(widget.slots ?? {}).forEach(slot => slot.forEach(child => walkWidgets(child, output)));
-}
-
-function PageBuilder() {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const [selectedWidgetId, setSelectedWidgetId] = useState<string>("");
-  const page = app.modules[0].pages[0];
-  const widgets: WidgetSchema[] = [];
-  walkWidgets(page.rootWidget, widgets);
-  const selectedWidget = widgets.find(widget => widget.widgetId === selectedWidgetId) ?? page.rootWidget;
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 300px", gap: 12 }}>
-      <Card title="Toolbox">
-        <Space vertical style={{ width: "100%" }}>
-          {WIDGET_TOOLBOX.map(type => (
-            <Button
-              key={type}
-              block
-              onClick={() =>
-                updateSchema(schema => {
-                  const root = schema.modules[0].pages[0].rootWidget;
-                  root.children = root.children ?? [];
-                  root.children.push({
-                    widgetId: `widget_${Date.now()}`,
-                    widgetType: type,
-                    props: { caption: type },
-                    children: type === "container" || type === "dataView" ? [] : undefined
-                  } as WidgetSchema);
-                })
-              }
-            >
-              Add {type}
-            </Button>
-          ))}
-        </Space>
-      </Card>
-      <Card title="Component Tree">
-        <Space vertical>
-          {widgets.map(widget => (
-            <Button key={widget.widgetId} theme={widget.widgetId === selectedWidget.widgetId ? "solid" : "borderless"} onClick={() => setSelectedWidgetId(widget.widgetId)}>
-              {widget.widgetType} / {widget.widgetId}
-            </Button>
-          ))}
-        </Space>
-      </Card>
-      <Card title="Properties">
-        <Space vertical style={{ width: "100%" }}>
-          <Input
-            value={String(selectedWidget.props.caption ?? selectedWidget.props.text ?? "")}
-            onChange={value =>
-              updateSchema(schema => {
-                const all: WidgetSchema[] = [];
-                walkWidgets(schema.modules[0].pages[0].rootWidget, all);
-                const target = all.find(item => item.widgetId === selectedWidget.widgetId);
-                if (!target) {
-                  return;
-                }
-                target.props.caption = value;
-                if (target.widgetType === "label") {
-                  target.props.text = value;
-                }
-              })
-            }
-            placeholder="caption"
-          />
-          {(selectedWidget.widgetType === "textBox" || selectedWidget.widgetType === "textArea" || selectedWidget.widgetType === "numberInput" || selectedWidget.widgetType === "dropDown") && (
-            <Select
-              value={(selectedWidget as { fieldBinding?: { attributeRef?: { id: string } } }).fieldBinding?.attributeRef?.id ?? ""}
-              onChange={value =>
-                updateSchema(schema => {
-                  const all: WidgetSchema[] = [];
-                  walkWidgets(schema.modules[0].pages[0].rootWidget, all);
-                  const target = all.find(item => item.widgetId === selectedWidget.widgetId);
-                  if (!target || !("fieldBinding" in target)) {
-                    return;
-                  }
-                  target.fieldBinding = {
-                    bindingType: "value",
-                    source: "attribute",
-                    attributeRef: { kind: "attribute", id: String(value) }
-                  };
-                })
-              }
-              optionList={app.modules[0].domainModel.entities[0].attributes.map(attribute => ({
-                label: attribute.name,
-                value: attribute.attributeId
-              }))}
-              placeholder="Bind attribute"
-            />
-          )}
-          {selectedWidget.widgetType === "button" && (
-            <Select
-              value={(selectedWidget as { action?: { microflowRef?: { id: string } } }).action?.microflowRef?.id ?? ""}
-              onChange={value =>
-                updateSchema(schema => {
-                  const all: WidgetSchema[] = [];
-                  walkWidgets(schema.modules[0].pages[0].rootWidget, all);
-                  const target = all.find(item => item.widgetId === selectedWidget.widgetId);
-                  if (!target || target.widgetType !== "button") {
-                    return;
-                  }
-                  target.action = {
-                    actionType: "callMicroflow",
-                    microflowRef: { kind: "microflow", id: String(value) },
-                    arguments: [{ name: "Request", value: "$Request" }]
-                  };
-                })
-              }
-              optionList={app.modules[0].microflows.map(microflow => ({
-                label: microflow.name,
-                value: microflow.microflowId
-              }))}
-              placeholder="Bind microflow"
-            />
-          )}
-          <Text type="tertiary">Visibility Expression</Text>
-          <TextArea
-            rows={3}
-            value={selectedWidget.visibility?.expression.source ?? ""}
-            onChange={value =>
-              updateSchema(schema => {
-                const all: WidgetSchema[] = [];
-                walkWidgets(schema.modules[0].pages[0].rootWidget, all);
-                const target = all.find(item => item.widgetId === selectedWidget.widgetId);
-                if (!target) {
-                  return;
-                }
-                target.visibility = value.trim().length > 0
-                  ? {
-                      expression: {
-                        source: value,
-                        ast: { type: "literal", value: true },
-                        dependencies: [],
-                        validation: []
-                      }
-                    }
-                  : undefined;
-              })
-            }
-          />
-        </Space>
-      </Card>
-    </div>
-  );
-}
-
-function MicroflowDesigner() {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const [useAdvancedEditor, setUseAdvancedEditor] = useState(false);
-  const microflow = app.modules[0].microflows[0];
-  const apiClient = useMemo(() => createLocalMicroflowApiClient([sampleMicroflowSchema]), []);
-
-  if (useAdvancedEditor) {
-    return (
-      <Space vertical style={{ width: "100%" }}>
-        <Button onClick={() => setUseAdvancedEditor(false)}>返回 MVP 列表编辑器</Button>
-        <div style={{ height: 680 }}>
-          <MicroflowEditor schema={sampleMicroflowSchema} apiClient={apiClient} />
-        </div>
-      </Space>
-    );
-  }
-
-  return (
-    <Space vertical style={{ width: "100%" }}>
-      <Space>
-        <Button onClick={() => setUseAdvancedEditor(true)}>打开高级微流编辑器 (@atlas/microflow)</Button>
-        <Button
-          icon={<IconPlus />}
-          onClick={() =>
-            updateSchema(schema => {
-              schema.modules[0].microflows[0].nodes.push({
-                nodeId: `mf_node_${Date.now()}`,
-                type: "showMessage",
-                caption: "Show Message",
-                position: { x: 320, y: 280 },
-                message: "Hello Mendix"
-              });
-            })
-          }
-        >
-          Add Node
-        </Button>
-      </Space>
-      <Table
-        size="small"
-        pagination={false}
-        dataSource={microflow.nodes}
-        rowKey="nodeId"
-        columns={[
-          { title: "nodeId", dataIndex: "nodeId" },
-          {
-            title: "type",
-            render: (_, row) => (
-              <Select
-                value={row.type}
-                optionList={[
-                  { value: "startEvent", label: "startEvent" },
-                  { value: "endEvent", label: "endEvent" },
-                  { value: "decision", label: "decision" },
-                  { value: "retrieveObject", label: "retrieveObject" },
-                  { value: "changeObject", label: "changeObject" },
-                  { value: "commitObject", label: "commitObject" },
-                  { value: "createVariable", label: "createVariable" },
-                  { value: "changeVariable", label: "changeVariable" },
-                  { value: "showMessage", label: "showMessage" },
-                  { value: "validationFeedback", label: "validationFeedback" },
-                  { value: "callWorkflow", label: "callWorkflow" },
-                  { value: "callMicroflow", label: "callMicroflow" }
-                ]}
-                onChange={value =>
-                  updateSchema(schema => {
-                    const node = schema.modules[0].microflows[0].nodes.find(item => item.nodeId === row.nodeId);
-                    if (node) {
-                      node.type = value as typeof node.type;
-                    }
-                  })
-                }
-              />
-            )
-          },
-          { title: "caption", dataIndex: "caption" },
-          {
-            title: "position",
-            render: (_, row) => `${row.position.x},${row.position.y}`
-          }
-        ]}
-      />
-      <Card title="Edges">
-        <Button
-          icon={<IconPlus />}
-          onClick={() =>
-            updateSchema(schema => {
-              const nodes = schema.modules[0].microflows[0].nodes;
-              if (nodes.length >= 2) {
-                schema.modules[0].microflows[0].edges.push({
-                  edgeId: `edge_${Date.now()}`,
-                  fromNodeId: nodes[nodes.length - 2].nodeId,
-                  toNodeId: nodes[nodes.length - 1].nodeId
-                });
-              }
-            })
-          }
-        >
-          Add Edge
-        </Button>
-        {microflow.edges.map(edge => (
-          <Tag key={edge.edgeId}>{edge.fromNodeId} → {edge.toNodeId} ({edge.outcome ?? "sequence"})</Tag>
-        ))}
-      </Card>
-    </Space>
-  );
-}
-
-function WorkflowDesigner() {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const workflow = app.modules[0].workflows[0];
-  return (
-    <Space vertical style={{ width: "100%" }}>
-      <Card title="Workflow Nodes">
-        <Button
-          icon={<IconPlus />}
-          onClick={() =>
-            updateSchema(schema => {
-              schema.modules[0].workflows[0].nodes.push({
-                nodeId: `wf_node_${Date.now()}`,
-                type: "annotation",
-                caption: "Annotation",
-                position: { x: 400, y: 320 }
-              });
-            })
-          }
-        >
-          Add Node
-        </Button>
-        <Table
-          size="small"
-          pagination={false}
-          dataSource={workflow.nodes}
-          rowKey="nodeId"
-          columns={[
-            { title: "nodeId", dataIndex: "nodeId" },
-            { title: "type", dataIndex: "type" },
-            { title: "caption", dataIndex: "caption" },
-            {
-              title: "outcomes",
-              render: (_, row) =>
-                row.type === "userTask"
-                  ? row.outcomes.map(outcome => outcome.key).join(", ")
-                  : row.type === "decision"
-                    ? (row.outcomes ?? []).join(", ")
-                    : "-"
-            }
-          ]}
-        />
-      </Card>
-      <Card title="Workflow Edges">
-        <Button
-          icon={<IconPlus />}
-          onClick={() =>
-            updateSchema(schema => {
-              const nodes = schema.modules[0].workflows[0].nodes;
-              if (nodes.length < 2) {
-                return;
-              }
-              schema.modules[0].workflows[0].edges.push({
-                edgeId: `wf_edge_${Date.now()}`,
-                fromNodeId: nodes[nodes.length - 2].nodeId,
-                toNodeId: nodes[nodes.length - 1].nodeId,
-                sequence: schema.modules[0].workflows[0].edges.length + 1
-              });
-            })
-          }
-        >
-          Add Edge
-        </Button>
-        {workflow.edges.map(edge => (
-          <Tag key={edge.edgeId}>
-            {edge.fromNodeId} → {edge.toNodeId}
-            {edge.decisionOutcome ? ` / decision=${edge.decisionOutcome}` : ""}
-            {edge.taskOutcome ? ` / task=${edge.taskOutcome}` : ""}
-          </Tag>
-        ))}
-      </Card>
-    </Space>
-  );
-}
-
-function SecurityEditor() {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const security = app.security;
-  return (
-    <Space vertical style={{ width: "100%" }}>
-      <Card title="Security Notes">
-        <ul style={{ margin: 0, paddingInlineStart: 16 }}>
-          <li>Page Access 只控制页面访问，不等于数据安全。</li>
-          <li>Microflow Access 只控制客户端入口执行，不等于实体数据权限。</li>
-          <li>Entity Access 才是数据读写核心。</li>
-          <li>后端 Runtime 必须强校验，不能只靠前端隐藏。</li>
-        </ul>
-      </Card>
-      <Card title="User Roles">
-        {security.userRoles.map(role => (
-          <Tag key={role.roleId}>{role.name}</Tag>
-        ))}
-      </Card>
-      <Card title="Module Roles">
-        {security.moduleRoles.map(role => (
-          <Tag key={role.roleId}>{role.name}</Tag>
-        ))}
-      </Card>
-      <Card title="Page Access Matrix">
-        {security.pageAccessRules.map(rule => (
-          <Text key={rule.pageRef.id}>{rule.pageRef.id}: {rule.roleRefs.map(role => role.id).join(", ")}</Text>
-        ))}
-      </Card>
-      <Card title="Microflow Access Matrix">
-        {security.microflowAccessRules.map(rule => (
-          <Text key={rule.microflowRef.id}>{rule.microflowRef.id}: {rule.roleRefs.map(role => role.id).join(", ")}</Text>
-        ))}
-      </Card>
-      <Card title="Entity Access Matrix">
-        {security.entityAccessRules.map(rule => (
-          <Card key={rule.ruleId} size="small">
-            <Space vertical style={{ width: "100%" }}>
-              <Text>Rule: {rule.ruleId}</Text>
-              <Input value={rule.xpathConstraint ?? ""} readOnly />
-              {rule.memberAccess.map(access => (
-                <Text key={access.attributeRef.id}>{access.attributeRef.id} / R:{String(access.read)} W:{String(access.write)}</Text>
-              ))}
-            </Space>
-          </Card>
-        ))}
-      </Card>
-    </Space>
-  );
-}
-
-function RuntimePreviewPane() {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const runtimeObject = useMendixStudioStore(state => state.runtimeObject);
-  const setRuntimeObject = useMendixStudioStore(state => state.setRuntimeObject);
-  const setLatestActionResponse = useMendixStudioStore(state => state.setLatestActionResponse);
-  const setLatestTrace = useMendixStudioStore(state => state.setLatestTrace);
-  const latestActionResponse = useMendixStudioStore(state => state.latestActionResponse);
-  const executor = useMemo(() => createRuntimeExecutor(), []);
-
-  return (
-    <Space vertical style={{ width: "100%" }}>
-      <Card title="Runtime Model">
-        <Space>
-          <InputNumber
-            value={Number(runtimeObject.Amount ?? 0)}
-            onNumberChange={value => setRuntimeObject({ ...runtimeObject, Amount: Number(value ?? 0) })}
-          />
-          <Input
-            value={String(runtimeObject.Reason ?? "")}
-            onChange={value => setRuntimeObject({ ...runtimeObject, Reason: value })}
-          />
-          <Tag color="blue">Status: {String(runtimeObject.Status ?? "")}</Tag>
-        </Space>
-      </Card>
-      <Card title="Runtime Renderer">
-        <RuntimeRenderer
-          app={app}
-          pageId="page_purchase_request_edit"
-          objectState={runtimeObject}
-          executor={executor}
-          onStateChange={setRuntimeObject}
-          onActionResponse={response => {
-            setLatestActionResponse(response);
-            if (response.traceId) {
-              setLatestTrace(executor.getTrace(response.traceId));
-            }
-          }}
-        />
-      </Card>
-      {latestActionResponse ? (
-        <Card title="Action Response">
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{JSON.stringify(latestActionResponse, null, 2)}</pre>
-        </Card>
-      ) : null}
-    </Space>
-  );
-}
-
-function PropertiesPane() {
-  const selectedKind = useMendixStudioStore(state => state.selectedKind);
-  const selectedId = useMendixStudioStore(state => state.selectedId);
-  const appSchema = useMendixStudioStore(state => state.appSchema);
-  return (
-    <Card title="Properties">
-      <Text>Selected kind: {selectedKind ?? "-"}</Text>
-      <Text>Selected id: {selectedId ?? "-"}</Text>
-      <Divider />
-      <Text type="tertiary">App Name</Text>
-      <Input
-        value={appSchema.name}
-        onChange={value =>
-          updateSchema(schema => {
-            schema.name = value;
-          })
-        }
-      />
-    </Card>
-  );
-}
-
-function ErrorsPane() {
-  const errors = useMendixStudioStore(state => state.validationErrors);
-  return (
-    <Card title={`Validation Errors (${errors.length})`} size="small">
-      {errors.length === 0 ? (
-        <Text type="success">No errors</Text>
-      ) : (
-        <Space vertical>
-          {errors.map((error, index) => (
-            <Text key={`${error.code}_${index}`} type={error.severity === "error" ? "danger" : "warning"}>
-              [{error.code}] {error.message} ({error.target.kind}:{error.target.id})
-            </Text>
-          ))}
-        </Space>
-      )}
-    </Card>
-  );
-}
-
-function EditorWorkspace() {
-  const activeTab = useMendixStudioStore(state => state.activeTab);
-  if (activeTab === "domainModel") {
-    return <DomainModelDesigner />;
-  }
-  if (activeTab === "pageBuilder") {
-    return <PageBuilder />;
-  }
-  if (activeTab === "microflowDesigner") {
-    return <MicroflowDesigner />;
-  }
-  if (activeTab === "workflowDesigner") {
-    return <WorkflowDesigner />;
-  }
-  if (activeTab === "securityEditor") {
-    return <SecurityEditor />;
-  }
-  return <RuntimePreviewPane />;
-}
+const { Text } = Typography;
 
 export function MendixStudioApp({ appId }: { appId?: string }) {
-  const app = useMendixStudioStore(state => state.appSchema);
-  const loadSampleApp = useMendixStudioStore(state => state.loadSampleApp);
-  const setValidationErrors = useMendixStudioStore(state => state.setValidationErrors);
   const activeTab = useMendixStudioStore(state => state.activeTab);
-  const [debugVisible, setDebugVisible] = useState(false);
-  const latestTrace = useMendixStudioStore(state => state.latestTrace);
 
   return (
-    <div style={{ display: "flex", height: "100vh", width: "100vw", overflow: "hidden", backgroundColor: "#f4f5f7" }}>
-      {/* 深色侧边栏 */}
-      <div style={{ width: 64, backgroundColor: "#1c1f23", display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", flexShrink: 0 }}>
-        <div style={{ color: "#fff", fontWeight: "bold", fontSize: 18, marginBottom: 24 }}>mx</div>
-        <Space vertical spacing={24}>
-          <IconSearch style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
-          <IconHome style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
-          <div style={{ backgroundColor: "rgba(255,255,255,0.1)", padding: 8, borderRadius: 8 }}>
-            <IconCode style={{ color: "#fff", fontSize: 20 }} />
-          </div>
-          <IconPlay style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
-          <IconUpload style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
-          <IconSetting style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
-        </Space>
-      </div>
+    <div
+      className="mendix-studio-root"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        width: "100%",
+        overflow: "hidden",
+        background: "#f0f2f5"
+      }}
+      data-app-id={appId}
+    >
+      {/* 顶部 Header */}
+      <StudioHeader />
 
       {/* 主体区域 */}
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-        {/* 全局顶栏 */}
-        <div style={{ height: 48, backgroundColor: "#fff", borderBottom: "1px solid var(--semi-color-border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <Text strong style={{ fontSize: 16, marginRight: 16 }}>Lowcode Studio</Text>
-            <Tag color="blue" size="large" style={{ borderRadius: 4 }}>应用: {app.name} ∨</Tag>
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden"
+        }}
+      >
+        {/* App Explorer */}
+        <AppExplorer />
+
+        {/* 中间工作台 */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden"
+          }}
+        >
+          {/* Tab 栏 */}
+          <WorkbenchTabs />
+
+          {/* 工具栏 */}
+          <WorkbenchToolbar />
+
+          {/* 内容区（Toolbox + Canvas + Structure） */}
+          <div
+            style={{
+              display: "flex",
+              flex: 1,
+              minHeight: 0,
+              overflow: "hidden"
+            }}
+          >
+            {/* 只在 pageBuilder Tab 显示 Widget Toolbox */}
+            {activeTab === "pageBuilder" && <WidgetToolbox />}
+
+            {/* 中央画布 */}
+            <PageDesignerCanvas />
+
+            {/* 组件结构树（仅 page 时有意义，其他 tab 也保留） */}
+            <WidgetStructurePanel />
           </div>
-          <Space>
-            <Button icon={<IconSave />} theme="borderless" type="tertiary" onClick={() => Toast.success("Schema saved in memory")}>保存</Button>
-            <Button icon={<IconArrowRight />} theme="borderless" type="tertiary" onClick={() => {
-              const errors = validateLowCodeAppSchema(app);
-              setValidationErrors(errors);
-              Toast.info(`校验完成，${errors.length} 条结果`);
-            }}>校验</Button>
-            <Button theme="borderless" type="tertiary" onClick={() => useMendixStudioStore.getState().setActiveTab("runtimePreview")}>预览</Button>
-            <Button theme="borderless" type="tertiary" onClick={() => setDebugVisible(true)}>Debug Trace</Button>
-            <Button theme="borderless" type="tertiary" onClick={loadSampleApp}>示例数据加载</Button>
-          </Space>
+
+          {/* 底部 Errors + Debug Trace */}
+          <BottomPanel />
         </div>
 
-        {/* 三列工作区 */}
-        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          {/* 左侧资源树 (App Explorer) */}
-          <div style={{ width: 260, backgroundColor: "#fff", borderRight: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--semi-color-border)" }}>
-              <Text strong>App Explorer</Text>
-            </div>
-            <div style={{ padding: 12, borderBottom: "1px solid var(--semi-color-border)" }}>
-              <Input prefix={<IconSearch />} placeholder="搜索 (按 K)" />
-            </div>
-            <div style={{ flex: 1, overflow: "auto", padding: 12 }}>
-              <AppExplorer />
-            </div>
-          </div>
+        {/* 右侧属性面板 */}
+        <PropertiesPanel />
 
-          {/* 中间画布及底部日志 */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, backgroundColor: "#f4f5f7" }}>
-            {/* 多页签 */}
-            <div style={{ display: "flex", backgroundColor: "#fff", borderBottom: "1px solid var(--semi-color-border)", padding: "0 8px" }}>
-              <div style={{ padding: "8px 16px", borderBottom: "2px solid #1677ff", color: "#1677ff", fontWeight: 500, backgroundColor: "#e8f3ff" }}>
-                {activeTab}
-              </div>
-            </div>
-            
-            {/* 画布工具条 */}
-            <div style={{ padding: "8px 16px", backgroundColor: "#fff", borderBottom: "1px solid var(--semi-color-border)", display: "flex", justifyContent: "space-between" }}>
-              <Space>
-                <Button theme="borderless" icon={<IconUndo />} />
-                <Button theme="borderless" icon={<IconRedo />} />
-                <Divider layout="vertical" />
-                <Button theme="borderless" icon={<IconDesktop />} />
-                <Button theme="borderless" icon={<IconMonitorStroked />} />
-                <Button theme="borderless" icon={<IconPhone />} />
-                <Divider layout="vertical" />
-                <Select defaultValue="响应式" style={{ width: 100 }} />
-                <Select defaultValue="1280px" style={{ width: 100 }} />
-                <Select defaultValue="100%" style={{ width: 80 }} />
-              </Space>
-              <Button icon={<IconPlay />} type="primary" theme="light">运行预览</Button>
-            </div>
-
-            {/* 编辑区 */}
-            <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-              <Card bodyStyle={{ padding: 0, minHeight: "100%", backgroundColor: "#fff" }}>
-                <EditorWorkspace />
-              </Card>
-            </div>
-
-            {/* 底部面板 */}
-            <div style={{ height: 240, backgroundColor: "#fff", borderTop: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-              <div style={{ display: "flex", padding: "0 16px", borderBottom: "1px solid var(--semi-color-border)", backgroundColor: "#fafafa" }}>
-                <div style={{ padding: "8px 16px", borderBottom: "2px solid #1677ff", color: "#1677ff", fontWeight: 500 }}>
-                  错误 / 日志
-                </div>
-              </div>
-              <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-                <ErrorsPane />
-              </div>
-            </div>
-          </div>
-
-          {/* 右侧属性面板 */}
-          <div style={{ width: 320, backgroundColor: "#fff", borderLeft: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-            <div style={{ display: "flex", borderBottom: "1px solid var(--semi-color-border)" }}>
-              <div style={{ flex: 1, textAlign: "center", padding: "12px 0", borderBottom: "2px solid #1677ff", color: "#1677ff", fontWeight: 500 }}>属性</div>
-              <div style={{ flex: 1, textAlign: "center", padding: "12px 0" }}>事件</div>
-            </div>
-            <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-              <PropertiesPane />
-            </div>
-          </div>
-
-          {/* 最右侧悬浮工具条 */}
-          <div style={{ width: 48, backgroundColor: "#fff", borderLeft: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", flexShrink: 0 }}>
-            <Space vertical spacing={24}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "#1677ff" }}>
-                <IconSetting style={{ fontSize: 18 }} />
-                <Text size="small" style={{ color: "#1677ff", fontSize: 10, marginTop: 4 }}>属性</Text>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "var(--semi-color-text-2)" }}>
-                <IconEdit style={{ fontSize: 18 }} />
-                <Text size="small" type="tertiary" style={{ fontSize: 10, marginTop: 4 }}>样式</Text>
-              </div>
-            </Space>
-          </div>
-        </div>
+        {/* 最右侧 Inspector Rail */}
+        <RightInspectorRail />
       </div>
 
-      <SideSheet visible={debugVisible} title="Debug Trace Drawer" width={680} onCancel={() => setDebugVisible(false)}>
-        <DebugTracePanel trace={latestTrace} />
-      </SideSheet>
+      {/* 运行预览侧拉板 */}
+      <RuntimePreview />
     </div>
   );
 }
@@ -969,15 +109,107 @@ export function MendixStudioIndexPage({
   onOpen: (appId: string) => void;
 }) {
   return (
-    <Card title="Mendix Studio">
-      <Space vertical style={{ width: "100%" }}>
-        <Text type="tertiary">workspace: {workspaceId}</Text>
-        <Button theme="solid" type="primary" onClick={() => onOpen("app_procurement")}>
-          打开采购审批示例
-        </Button>
-        <Text>入口已挂载在资源中心微流 Tab 左侧，可直接跳转。</Text>
-      </Space>
-    </Card>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #f0f4ff 0%, #e8f3ff 100%)"
+      }}
+    >
+      <Card
+        style={{
+          width: 480,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.12)",
+          borderRadius: 12,
+          border: "none"
+        }}
+        bodyStyle={{ padding: "40px 40px 32px" }}
+      >
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              background: "#1677ff",
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 16
+            }}
+          >
+            mx
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#1c2a3a" }}>Lowcode Studio</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Mendix-compatible low-code IDE</div>
+          </div>
+        </div>
+
+        <Text type="tertiary" style={{ display: "block", marginBottom: 20, fontSize: 13 }}>
+          工作区: <strong style={{ color: "#374151" }}>{workspaceId}</strong>
+        </Text>
+
+        <Space vertical style={{ width: "100%" }} spacing={12}>
+          {/* 示例应用 */}
+          <div
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              padding: "16px 20px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              background: "#fff"
+            }}
+            onClick={() => onOpen("app_procurement")}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLDivElement).style.borderColor = "#1677ff";
+              (e.currentTarget as HTMLDivElement).style.boxShadow = "0 0 0 3px rgba(22,119,255,0.12)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLDivElement).style.borderColor = "#e5e7eb";
+              (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "#1c2a3a", marginBottom: 4 }}>
+                  Procurement Approval（示例）
+                </div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  采购审批工作流 · Domain Model · Microflow · Workflow
+                </div>
+              </div>
+              <IconArrowRight style={{ color: "#1677ff", fontSize: 18, flexShrink: 0 }} />
+            </div>
+          </div>
+
+          {/* 新建按钮 */}
+          <Button
+            theme="light"
+            type="primary"
+            block
+            style={{ height: 40, fontSize: 14 }}
+            onClick={() => {
+              Toast.info({ content: "新建应用功能开发中", duration: 2 });
+            }}
+          >
+            + 新建应用
+          </Button>
+        </Space>
+
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #f0f2f5" }}>
+          <Text type="tertiary" size="small">
+            Mendix Studio Core · Atlas Security Platform · v0.0.0
+          </Text>
+        </div>
+      </Card>
+    </div>
   );
 }
 

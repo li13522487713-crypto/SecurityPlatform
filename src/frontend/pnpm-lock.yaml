@@ -9,6 +9,10 @@ overrides:
   react-dom: 18.2.0
   styled-components: 6.4.0
   '@swc/helpers': 0.5.21
+  '@douyinfe/semi-ui': 2.94.0
+  '@douyinfe/semi-icons': 2.94.0
+  '@douyinfe/semi-foundation': 2.94.0
+  '@douyinfe/semi-illustrations': 2.94.0
 
 importers:
 
@@ -94,7 +98,7 @@ importers:
         version: link:../../packages/arch/bot-space-api
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-foundation/foundation-sdk':
         specifier: workspace:*
         version: link:../../packages/foundation/foundation-sdk
@@ -114,16 +118,16 @@ importers:
         specifier: workspace:*
         version: link:../../packages/workflow/adapter/playground
       '@douyinfe/semi-foundation':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@remix-run/router':
         specifier: ^1.23.2
@@ -202,10 +206,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/lowcode-schema
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -251,10 +255,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/lowcode-schema
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@microsoft/signalr':
         specifier: ^9.0.0
@@ -300,10 +304,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/lowcode-web-sdk
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
     devDependencies:
       '@rsbuild/core':
@@ -376,10 +380,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/lowcode-versioning-client
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@microsoft/signalr':
         specifier: ^9.0.0
@@ -1444,7 +1448,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -1482,7 +1486,7 @@ importers:
         specifier: workspace:*
         version: link:../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -1708,7 +1712,7 @@ importers:
         version: link:../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -1808,7 +1812,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -2087,7 +2091,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../../arch/foundation-sdk
@@ -2149,10 +2153,10 @@ importers:
         specifier: workspace:*
         version: link:../../../workflow/base
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@flowgram-adapter/free-layout-editor':
         specifier: workspace:*
@@ -2328,7 +2332,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../../arch/foundation-sdk
@@ -2378,7 +2382,7 @@ importers:
         specifier: workspace:*
         version: link:../../../workflow/base
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@flowgram-adapter/free-layout-editor':
         specifier: workspace:*
@@ -2515,7 +2519,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -2547,10 +2551,10 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -2727,7 +2731,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -2750,7 +2754,7 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -2836,7 +2840,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -2930,7 +2934,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -3184,7 +3188,7 @@ importers:
         specifier: workspace:*
         version: link:../chat-background-shared
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -3240,7 +3244,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/eslint-config':
         specifier: workspace:*
         version: link:../../../config/eslint-config
@@ -3327,7 +3331,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -3344,7 +3348,7 @@ importers:
         specifier: workspace:*
         version: link:../../studio/stores/bot-detail
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       classnames:
         specifier: ^2.3.2
@@ -3700,7 +3704,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -3750,7 +3754,7 @@ importers:
         specifier: workspace:*
         version: link:../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -3881,7 +3885,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -4021,7 +4025,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -4175,7 +4179,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -4231,8 +4235,8 @@ importers:
         specifier: workspace:*
         version: link:../../workflow/components
       '@douyinfe/semi-foundation':
-        specifier: 2.36.1-alpha.2
-        version: 2.36.1-alpha.2
+        specifier: 2.94.0
+        version: 2.94.0
       ahooks:
         specifier: ^3.7.8
         version: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -4398,7 +4402,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -4451,8 +4455,8 @@ importers:
         specifier: workspace:*
         version: link:../../workflow/components
       '@douyinfe/semi-foundation':
-        specifier: 2.36.1-alpha.2
-        version: 2.36.1-alpha.2
+        specifier: 2.94.0
+        version: 2.94.0
       ahooks:
         specifier: ^3.7.8
         version: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -4579,7 +4583,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -4626,7 +4630,7 @@ importers:
         specifier: workspace:*
         version: link:../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -4757,7 +4761,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -4839,7 +4843,7 @@ importers:
         version: link:../../arch/bot-flags
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -4976,7 +4980,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/eslint-config':
         specifier: workspace:*
         version: link:../../../config/eslint-config
@@ -5212,7 +5216,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/eslint-config':
         specifier: workspace:*
         version: link:../../../config/eslint-config
@@ -5478,7 +5482,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -5624,7 +5628,7 @@ importers:
         version: link:../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -5724,7 +5728,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -5744,7 +5748,7 @@ importers:
         specifier: workspace:*
         version: link:../../studio/mockset-shared
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -5897,7 +5901,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -6006,7 +6010,7 @@ importers:
         version: link:../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -6218,7 +6222,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/fetch-stream':
         specifier: workspace:*
         version: link:../../arch/fetch-stream
@@ -6271,10 +6275,10 @@ importers:
         specifier: workspace:*
         version: link:../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -6402,7 +6406,7 @@ importers:
         version: link:../space-bot
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -6541,7 +6545,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/fetch-stream':
         specifier: workspace:*
         version: link:../../arch/fetch-stream
@@ -6657,10 +6661,10 @@ importers:
         specifier: workspace:*
         version: link:../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@flowgram-adapter/free-layout-editor':
         specifier: workspace:*
@@ -6863,7 +6867,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -6883,10 +6887,10 @@ importers:
         specifier: workspace:*
         version: link:../../studio/components
       '@douyinfe/semi-foundation':
-        specifier: 2.36.1-alpha.2
-        version: 2.36.1-alpha.2
+        specifier: 2.94.0
+        version: 2.94.0
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -7129,7 +7133,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -7417,7 +7421,7 @@ importers:
         version: link:../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -7511,7 +7515,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -8198,7 +8202,7 @@ importers:
     dependencies:
       '@bytedance/calypso':
         specifier: 0.1.0-beta.8
-        version: 0.1.0-beta.8(@babel/runtime@7.29.2)(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@mui/material@5.18.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.1.0-beta.8(@babel/runtime@7.29.2)(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@mui/material@5.18.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
     devDependencies:
       '@coze-arch/bot-typings':
         specifier: workspace:*
@@ -8707,7 +8711,7 @@ importers:
     devDependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/eslint-config':
         specifier: workspace:*
         version: link:../../../config/eslint-config
@@ -8792,7 +8796,7 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-studio/studio-i18n-resource-adapter':
         specifier: workspace:*
         version: link:../resources/studio-i18n-resource
@@ -9540,7 +9544,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../arch/foundation-sdk
@@ -9719,7 +9723,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/eslint-config':
         specifier: workspace:*
         version: link:../../../../config/eslint-config
@@ -9745,7 +9749,7 @@ importers:
         specifier: workspace:*
         version: link:../chat-core
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@testing-library/jest-dom':
         specifier: ^6.1.5
@@ -9815,7 +9819,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-common/chat-area-utils':
         specifier: workspace:*
         version: link:../utils
@@ -9838,7 +9842,7 @@ importers:
         specifier: workspace:*
         version: link:../../uploader-adapter
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       mitt:
         specifier: ^3.0.1
@@ -9887,7 +9891,7 @@ importers:
         specifier: workspace:*
         version: link:../../../components/scroll-view
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@storybook/addon-essentials':
         specifier: ^7.6.7
@@ -10166,7 +10170,7 @@ importers:
         version: link:../../../arch/bot-typings
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -10189,14 +10193,14 @@ importers:
         specifier: workspace:*
         version: link:../chat-uikit-shared
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       bowser:
         specifier: 2.11.0
         version: 2.11.0
@@ -10373,7 +10377,7 @@ importers:
         specifier: workspace:*
         version: link:../chat-core
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -10438,7 +10442,7 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -10680,7 +10684,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -10715,11 +10719,11 @@ importers:
         specifier: workspace:*
         version: link:../../../workflow/sdk
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
         version: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -10822,7 +10826,7 @@ importers:
         version: link:../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -10919,7 +10923,7 @@ importers:
         version: link:../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-common/chat-area':
         specifier: workspace:*
         version: link:../chat-area
@@ -11181,7 +11185,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -11539,7 +11543,7 @@ importers:
         version: link:../../arch/bot-api
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       classnames:
         specifier: ^2.3.2
         version: 2.5.1
@@ -11670,7 +11674,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -11785,7 +11789,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -12049,7 +12053,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -12072,7 +12076,7 @@ importers:
         specifier: workspace:*
         version: link:../../studio/components
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -12281,7 +12285,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -12426,7 +12430,7 @@ importers:
   packages/components/bot-icons:
     dependencies:
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -12466,14 +12470,14 @@ importers:
         specifier: workspace:*
         version: link:../../arch/i18n
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
         version: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -12569,7 +12573,7 @@ importers:
         specifier: workspace:*
         version: link:../../arch/i18n
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       classnames:
         specifier: ^2.3.2
@@ -12648,8 +12652,8 @@ importers:
         specifier: workspace:*
         version: link:../bot-semi
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       classnames:
         specifier: ^2.3.2
         version: 2.5.1
@@ -12713,7 +12717,7 @@ importers:
         version: link:../bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -12813,7 +12817,7 @@ importers:
         version: link:../bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -12989,7 +12993,7 @@ importers:
         version: link:../bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -13006,10 +13010,10 @@ importers:
         specifier: workspace:*
         version: link:../../data/common/utils
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -13034,8 +13038,8 @@ importers:
         specifier: workspace:*
         version: link:../../../config/vitest-config
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@storybook/addon-essentials':
         specifier: ^7.6.7
         version: 7.6.24(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -13225,7 +13229,7 @@ importers:
         specifier: workspace:*
         version: link:../../../arch/logger
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       lodash-es:
         specifier: ^4.17.21
@@ -13329,7 +13333,7 @@ importers:
         version: link:../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -13343,8 +13347,8 @@ importers:
         specifier: workspace:*
         version: link:../../knowledge/knowledge-resource-processor-core
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
         version: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -13441,7 +13445,7 @@ importers:
         version: link:../../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../../arch/i18n
@@ -13586,7 +13590,7 @@ importers:
         version: link:../../../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../../arch/i18n
@@ -13957,7 +13961,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -14025,7 +14029,7 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/premium/premium-store-adapter
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -14129,7 +14133,7 @@ importers:
         version: link:../../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -14232,7 +14236,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -14273,11 +14277,11 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/components
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
         version: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -14456,7 +14460,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../../arch/foundation-sdk
@@ -14527,10 +14531,10 @@ importers:
         specifier: ^3.2.1
         version: 3.2.2(react@18.2.0)
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -14631,7 +14635,7 @@ importers:
         version: link:../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/pdfjs-shadow':
         specifier: workspace:*
         version: link:../../../arch/pdfjs-shadow
@@ -14707,7 +14711,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -14727,7 +14731,7 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -14791,7 +14795,7 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/stores/bot-detail
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@rollup/plugin-commonjs':
         specifier: ^24.0.0
@@ -14902,7 +14906,7 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/components
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -14991,7 +14995,7 @@ importers:
         version: link:../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -15076,7 +15080,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -15194,7 +15198,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -15250,14 +15254,14 @@ importers:
         specifier: ^3.2.1
         version: 3.2.2(react@18.2.0)
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
         version: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -15442,7 +15446,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -15504,7 +15508,7 @@ importers:
         specifier: workspace:*
         version: link:../../../studio/premium/premium-store-adapter
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -15602,7 +15606,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -15683,10 +15687,10 @@ importers:
         specifier: workspace:*
         version: link:../../json-link-preview
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -15742,7 +15746,7 @@ importers:
         version: link:../../../arch/bot-typings
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/eslint-config':
         specifier: workspace:*
         version: link:../../../../config/eslint-config
@@ -15817,7 +15821,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -15958,14 +15962,14 @@ importers:
         specifier: workspace:*
         version: link:../../studio/user-store
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@testing-library/jest-dom':
         specifier: ^6.1.5
         version: 6.9.1
@@ -16070,7 +16074,7 @@ importers:
         specifier: workspace:*
         version: link:../../../config/vitest-config
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@types/json-schema':
         specifier: ~7.0.15
@@ -16109,10 +16113,10 @@ importers:
   packages/external-connectors-react:
     devDependencies:
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@testing-library/jest-dom':
         specifier: ^6.1.5
@@ -16283,7 +16287,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -16374,7 +16378,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../arch/foundation-sdk
@@ -16459,7 +16463,7 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -16608,7 +16612,7 @@ importers:
         version: link:../../arch/bot-api
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-foundation/account-adapter':
         specifier: workspace:*
         version: link:../account-adapter
@@ -16657,7 +16661,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -16751,7 +16755,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../arch/foundation-sdk
@@ -16942,7 +16946,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -16959,7 +16963,7 @@ importers:
         specifier: workspace:*
         version: link:../space-store
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       classnames:
         specifier: ^2.3.2
@@ -17288,7 +17292,7 @@ importers:
         version: link:../../arch/bot-hooks
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -17370,7 +17374,7 @@ importers:
         version: link:../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -17466,10 +17470,10 @@ importers:
         specifier: workspace:*
         version: link:../shared-react-core
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@types/react':
         specifier: ^19.2.13
@@ -17584,10 +17588,10 @@ importers:
         specifier: workspace:*
         version: link:../lowcode-schema
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@18.2.37))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -17797,10 +17801,10 @@ importers:
         specifier: workspace:*
         version: link:../lowcode-versioning-client
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@microsoft/signalr':
         specifier: ^9.0.0
@@ -17884,7 +17888,7 @@ importers:
         specifier: workspace:*
         version: link:../mendix-schema
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@18.2.37))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -17913,10 +17917,10 @@ importers:
         specifier: workspace:*
         version: link:../../workflow/render
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram-adapter/common':
         specifier: workspace:*
@@ -17953,7 +17957,7 @@ importers:
         specifier: workspace:*
         version: link:../mendix-schema
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@18.2.37))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -17997,10 +18001,10 @@ importers:
         specifier: workspace:*
         version: link:../mendix-microflow
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -18041,10 +18045,10 @@ importers:
         specifier: workspace:*
         version: link:../shared-react-core
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -18066,10 +18070,10 @@ importers:
         specifier: workspace:*
         version: link:../shared-react-core
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -18091,10 +18095,10 @@ importers:
         specifier: workspace:*
         version: link:../shared-react-core
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react:
         specifier: 18.2.0
@@ -18203,7 +18207,7 @@ importers:
         version: link:../../components/bot-icons
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -18297,7 +18301,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -18424,7 +18428,7 @@ importers:
         version: link:../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -18482,7 +18486,7 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-project-ide/biz-plugin':
         specifier: workspace:*
         version: link:../biz-plugin
@@ -18558,7 +18562,7 @@ importers:
         version: link:../../arch/bot-typings
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -18777,7 +18781,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -18871,7 +18875,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/fetch-stream':
         specifier: workspace:*
         version: link:../../arch/fetch-stream
@@ -19242,7 +19246,7 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -19421,7 +19425,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -19453,7 +19457,7 @@ importers:
         specifier: workspace:*
         version: link:../bot-utils
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -19581,7 +19585,7 @@ importers:
         version: link:../../arch/bot-store
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -19974,7 +19978,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/eslint-config':
         specifier: workspace:*
         version: link:../../../../config/eslint-config
@@ -20118,7 +20122,7 @@ importers:
         version: link:../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -20257,7 +20261,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -20310,7 +20314,7 @@ importers:
         specifier: 1.3.5
         version: 1.3.5(axios@1.15.0(debug@4.4.3))(debug@4.4.3)
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -20540,7 +20544,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -20622,7 +20626,7 @@ importers:
         version: link:../../arch/bot-api
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -21154,7 +21158,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -21400,7 +21404,7 @@ importers:
         version: link:../../../arch/bot-tea
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -21503,7 +21507,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -21790,7 +21794,7 @@ importers:
         version: link:../../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -21813,7 +21817,7 @@ importers:
         specifier: workspace:*
         version: link:../../entity-adapter
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       ahooks:
         specifier: ^3.7.8
@@ -21908,7 +21912,7 @@ importers:
         version: link:../../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../../arch/foundation-sdk
@@ -22117,7 +22121,7 @@ importers:
         version: 6.41.0
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -22245,7 +22249,7 @@ importers:
         version: link:../../../arch/bot-hooks
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -22560,7 +22564,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/foundation-sdk':
         specifier: workspace:*
         version: link:../../arch/foundation-sdk
@@ -22601,7 +22605,7 @@ importers:
         specifier: workspace:*
         version: link:../adapter/resources
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@flowgram-adapter/free-layout-editor':
         specifier: workspace:*
@@ -22759,7 +22763,7 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -22889,7 +22893,7 @@ importers:
         version: link:../../components/bot-semi
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -23065,7 +23069,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -23088,7 +23092,7 @@ importers:
         specifier: workspace:*
         version: link:../variable
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@flowgram-adapter/common':
         specifier: workspace:*
@@ -23273,7 +23277,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/hooks':
         specifier: workspace:*
         version: link:../../arch/hooks
@@ -23443,14 +23447,14 @@ importers:
         specifier: workspace:*
         version: link:../variable
       '@douyinfe/semi-icons':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-illustrations':
-        specifier: ^2.36.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram-adapter/common':
         specifier: workspace:*
         version: link:../../common/flowgram-adapter/common
@@ -23733,7 +23737,7 @@ importers:
         version: link:../../arch/bot-flags
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/report-tti':
         specifier: workspace:*
         version: link:../../arch/report-tti
@@ -23873,13 +23877,13 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram-adapter/free-layout-editor':
         specifier: workspace:*
         version: link:../../common/flowgram-adapter/free-layout-editor
@@ -24030,7 +24034,7 @@ importers:
         version: link:../../arch/bot-utils
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../arch/i18n
@@ -24059,10 +24063,10 @@ importers:
         specifier: workspace:*
         version: link:../variable
       '@douyinfe/semi-icons':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(react@18.2.0)
       '@douyinfe/semi-ui':
-        specifier: ^2.82.0
+        specifier: 2.94.0
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram-adapter/common':
         specifier: workspace:*
@@ -24172,7 +24176,7 @@ importers:
     dependencies:
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -24291,7 +24295,7 @@ importers:
         version: 6.41.0
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-editor/editor':
         specifier: 0.1.0-alpha.dd871b
         version: 0.1.0-alpha.dd871b(@babel/core@7.29.0)(@babel/template@7.28.6)(@codemirror/autocomplete@6.20.1)(@codemirror/language@6.12.3)(@codemirror/merge@6.12.1)(@codemirror/state@6.6.0)(@codemirror/view@6.41.0)(@lezer/common@1.5.2)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.8.3)(vue@3.5.32(typescript@5.8.3))
@@ -24349,7 +24353,7 @@ importers:
         version: link:../../../arch/bot-api
       '@coze-arch/coze-design':
         specifier: 0.0.6-alpha.346d77
-        version: 0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        version: 0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@coze-arch/i18n':
         specifier: workspace:*
         version: link:../../../arch/i18n
@@ -24445,8 +24449,8 @@ importers:
         specifier: workspace:*
         version: link:../base
       '@douyinfe/semi-ui':
-        specifier: ~2.72.3
-        version: 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 2.94.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram-adapter/common':
         specifier: workspace:*
         version: link:../../common/flowgram-adapter/common
@@ -26008,70 +26012,20 @@ packages:
     peerDependencies:
       react: 18.2.0
 
-  '@douyinfe/semi-animation-react@2.53.2':
-    resolution: {integrity: sha512-lRJkdoK/FAA5hfmb+ePUP4QCJWgA5wwSNgvNHBplgl1Mhzc2vIGcrpWNPIDb6Zfx/jD/vnjggIjipQfKasvqsQ==}
-
-  '@douyinfe/semi-animation-react@2.72.3':
-    resolution: {integrity: sha512-OfThQVe3rP1v70Y4SSC5dkrLzNy7QkedbqfQvknqKB2onP7lGB6ePc3K3vACBxEKKL6dXzTlMs6XoR5SBD6iyA==}
-
   '@douyinfe/semi-animation-react@2.94.0':
     resolution: {integrity: sha512-Flc3ZuSSlDXpQ7r9wPw0JBu4uREgM6zeP0QXiG30ArTGJuz+msFZ4XrITI6X6w4Ng0bKRvMC2beIhTNAwEdBBw==}
-
-  '@douyinfe/semi-animation-styled@2.53.2':
-    resolution: {integrity: sha512-hszJo3oRzngK9mvin6iHMzn5nPC6/x4XIIi4deojlhFCWGM54PW9OEmf/Cf0ztGM3z1hEIyaHOX70gb1m45A+Q==}
-
-  '@douyinfe/semi-animation-styled@2.72.3':
-    resolution: {integrity: sha512-ME6DE8UdBRHf00OCgxoA9jjZef/2c/QWpUy7vtkwUIfwENCanpU61apoLk5jprTLG7y/Zq8Vjm4O5h0eMep1pw==}
 
   '@douyinfe/semi-animation-styled@2.94.0':
     resolution: {integrity: sha512-JD86eis5MzGPUXtOZ2sHOSDwZmbzKi650HGEqYm/1PKFAnPFL1qn9AzvmyMwkzuaN6jTsVTj9PSgdLst3CATUg==}
 
-  '@douyinfe/semi-animation@2.12.0':
-    resolution: {integrity: sha512-OAfL9Nk38ZPqfdKm9k4cvVXXzm16ALI4LxGNZ0qfe2RCLLnYGB/hNzTctoTDjYD35dFv0yroh3qsXtZuP2xNdg==}
-
-  '@douyinfe/semi-animation@2.53.2':
-    resolution: {integrity: sha512-T965+DlxXGh60sAnDW2G6zZH2J7Hr7vLNivlUvGLD/f8UAWPAr7xpgWWmgNHeUoUIJO/Rh2L1TGV8XeQDU48RQ==}
-
-  '@douyinfe/semi-animation@2.72.3':
-    resolution: {integrity: sha512-mZcYZHEIdgPN5cm+jZv8YLRWce3i7VrjZsytEue2DR0/EABFGfiMA4o91TanCTz5NrRZY+iNMyLMDeu6CrvQOQ==}
-
   '@douyinfe/semi-animation@2.94.0':
     resolution: {integrity: sha512-OOrGPVO+qexifqnz3xL7uDX4ndffDNrCdzzEBIuajOZNRl/C0VNi3xyVI41sOMspdnTAwM6xEnPfKh4abMNPyg==}
-
-  '@douyinfe/semi-foundation@2.36.1-alpha.2':
-    resolution: {integrity: sha512-G4CGubV+/+Gm+INcxw4UkfDCUlVgN9OOV4Uc2pGbF5JauFxMzX2j5p2erDPvn6dIgPnQqwtw6xkahRGAEZwODA==}
-
-  '@douyinfe/semi-foundation@2.53.2':
-    resolution: {integrity: sha512-8/zMDbr9UvKzGE7IhBHVY4u6tfjwzcoQlG1fawjD51qCDshntEZtgU/P6SfHYejZwezBsVSIRCThP7hnZTpJkw==}
-
-  '@douyinfe/semi-foundation@2.72.3':
-    resolution: {integrity: sha512-ZOMFVryVldh2vsPj7Gf7mE7kqpCngRiPw5N1Ltm2Qr0NGOpwuRir23PYpdMQAAWQUF1BIe3EPrdxrp+lIV9GDA==}
 
   '@douyinfe/semi-foundation@2.94.0':
     resolution: {integrity: sha512-izvUsD2ykcJvtgLZbDfJLRIM1nR0drwytPyHBdfjK6kNfjP2yqcwuE3KhTIa8U1P+rWC7HqxgcURpDrs2ZKq+A==}
 
-  '@douyinfe/semi-icons@2.53.2':
-    resolution: {integrity: sha512-ZIxNBrZn3tAd347f3FbcvQSJpr5oX7b/BoUTGK16Mkguqp6Kd9gzWTURixRxIfBaCkZ5ftvS+m9x1jSx6RnkkA==}
-    peerDependencies:
-      react: 18.2.0
-
-  '@douyinfe/semi-icons@2.72.3':
-    resolution: {integrity: sha512-ZsbHin7dJXX4JWpKykqJhH4hlNi9uTHKUi2ylpyMpIl08ROetojkDKj6TcTd9mRMILGpQHCH7hd5uYGo1xb3ew==}
-    peerDependencies:
-      react: 18.2.0
-
   '@douyinfe/semi-icons@2.94.0':
     resolution: {integrity: sha512-Hn6Bm8umITAxw5xZlslrFXf+UBUWU5OD9YSNDN46H+OKnZFwbnYV628DBWSewBrvCItxUGMXHnLal4h1ZIb6qQ==}
-    peerDependencies:
-      react: 18.2.0
-
-  '@douyinfe/semi-illustrations@2.53.2':
-    resolution: {integrity: sha512-vYgt4eQcnYCPWgJQg7QUIrz2teKoZ3Iwg/rLcpgL6NT4YKY7TDNeUN1ROwO1FpGqaBv2Mcfcr5BNo1siOJDIdg==}
-    peerDependencies:
-      react: 18.2.0
-
-  '@douyinfe/semi-illustrations@2.72.3':
-    resolution: {integrity: sha512-jfsH/4TogOFQ5dWUdm6X6fVLQzGTjBFVHRyiqSrUnLWVuSqQaUtMRJguxEtcFN9D+fjdvG6sToqTHOygQsAp8Q==}
     peerDependencies:
       react: 18.2.0
 
@@ -26079,9 +26033,6 @@ packages:
     resolution: {integrity: sha512-nXi4bysh4GsO/DxoNUmCd5NlRYeYZb7pqXcGZFj+PpxbPoG7Qn4jqhrUUFrJNppvven9nS0SgabDAHnT3o+jaQ==}
     peerDependencies:
       react: 18.2.0
-
-  '@douyinfe/semi-json-viewer-core@2.72.3':
-    resolution: {integrity: sha512-nzHqlTjS8tyFgfrlAVxCqV4P82JYoUw+bmVs5/05/65vLKLVo5KnDn6VGUfRzFcXJ68d4vMWv5qcrEG/E2aG+Q==}
 
   '@douyinfe/semi-json-viewer-core@2.94.0':
     resolution: {integrity: sha512-pi4+Oi2zvsc0S3smWz58RNbfB73NgfO68fntKsVbLV1lTwNFuDxSswT8n8SXDZhtKoYgPVMmE3eMTc2nkXnvng==}
@@ -26091,26 +26042,8 @@ packages:
     peerDependencies:
       webpack: ^5
 
-  '@douyinfe/semi-theme-default@2.53.2':
-    resolution: {integrity: sha512-2RhUGg3T6wmNicRpfDo/SNHuq3jqNKk/FjSMtquM2S/q/L1DPa6ONrjPfED0vsD/uMHCfrJmH38tjT2OnxmKEA==}
-
-  '@douyinfe/semi-theme-default@2.72.3':
-    resolution: {integrity: sha512-qCR5OCztuIWyLhntcj61kXp02dZCKC4H/12p394rGOkpie8E/MkBQMFvVxFPsasuN3MWWdUNefYsERe4cjXuhw==}
-
   '@douyinfe/semi-theme-default@2.94.0':
     resolution: {integrity: sha512-jZT9ObtNn0ydqEwscr+szkevL26HqIMZ1VTwFYLjP1xCVzHbP5lEkCFX/7Sf6Hh4UZVwQgJCwPaqWbsoA6dmJg==}
-
-  '@douyinfe/semi-ui@2.53.2':
-    resolution: {integrity: sha512-JS+H869MeF+lKXxzNcmWmx26em+8jPq1eUyevojt0Q36juAA0F4cDQpQ3Juv0cplkFHB92ScieadFUkwyZub4g==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
-
-  '@douyinfe/semi-ui@2.72.3':
-    resolution: {integrity: sha512-7QsusUkzD7gDST3dEPLq1jvaderR8d9RM/Y1h31weZUM1DBVCUIVGDYW6oVFsUKzMAPdeOlTvnFJmPlEL+7k6g==}
-    peerDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0
 
   '@douyinfe/semi-ui@2.94.0':
     resolution: {integrity: sha512-Ugw/luthTeiVIFz0McOj5dxZ1N7vG3x4tF6hY66msE9bKLlmWGvBCX8/ApNUYa1V3rVP2Mv4K933yc+m3D4GlA==}
@@ -43412,10 +43345,10 @@ snapshots:
 
   '@bufbuild/protobuf@2.11.0': {}
 
-  '@bytedance/calypso@0.1.0-beta.8(@babel/runtime@7.29.2)(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@mui/material@5.18.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@bytedance/calypso@0.1.0-beta.8(@babel/runtime@7.29.2)(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@mui/material@5.18.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@douyinfe/semi-icons': 2.53.2(react@18.2.0)
-      '@douyinfe/semi-ui': 2.53.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@douyinfe/semi-icons': 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui': 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@textea/json-viewer': 3.5.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@mui/material@5.18.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@emotion/styled@11.11.0(@emotion/react@11.11.1(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react@18.2.0))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.37)(immer@10.2.0)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@volcengine/imagex-react': 2.1.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -43465,8 +43398,11 @@ snapshots:
       - '@babel/runtime'
       - '@emotion/react'
       - '@emotion/styled'
+      - '@floating-ui/dom'
       - '@mui/material'
+      - '@tiptap/suggestion'
       - '@types/react'
+      - '@types/react-dom'
       - bufferutil
       - canvas
       - immer
@@ -43556,12 +43492,12 @@ snapshots:
     dependencies:
       react: 18.2.0
 
-  '@coze-arch/coze-design@0.0.6-alpha.346d77(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@coze-arch/coze-design@0.0.6-alpha.346d77(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@coze-arch/arco-icon': 0.0.6-alpha.346d77
       '@coze-arch/arco-illustration': 0.0.6-alpha.346d77
       '@coze-arch/semi-theme-hand01': 0.0.6-alpha.346d77
-      '@douyinfe/semi-ui': 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@douyinfe/semi-ui': 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       class-variance-authority: 0.7.1
       clsx: 1.2.1
@@ -43574,15 +43510,42 @@ snapshots:
       tailwind-merge: 1.14.0
       ui-box: 5.4.1(react@18.2.0)
     transitivePeerDependencies:
+      - '@floating-ui/dom'
+      - '@tiptap/suggestion'
       - '@types/react'
+      - '@types/react-dom'
       - supports-color
 
-  '@coze-arch/coze-design@0.0.6-alpha.346d77(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+  '@coze-arch/coze-design@0.0.6-alpha.346d77(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@coze-arch/arco-icon': 0.0.6-alpha.346d77
       '@coze-arch/arco-illustration': 0.0.6-alpha.346d77
       '@coze-arch/semi-theme-hand01': 0.0.6-alpha.346d77
-      '@douyinfe/semi-ui': 2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@douyinfe/semi-ui': 2.94.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      ahooks: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      class-variance-authority: 0.7.1
+      clsx: 1.2.1
+      date-fns: 2.30.0
+      lodash-es: 4.18.1
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      react-helmet: 6.1.0(react@18.2.0)
+      react-markdown: 8.0.7(@types/react@18.2.37)(react@18.2.0)
+      tailwind-merge: 1.14.0
+      ui-box: 5.4.1(react@18.2.0)
+    transitivePeerDependencies:
+      - '@floating-ui/dom'
+      - '@tiptap/suggestion'
+      - '@types/react'
+      - '@types/react-dom'
+      - supports-color
+
+  '@coze-arch/coze-design@0.0.6-alpha.346d77(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      '@coze-arch/arco-icon': 0.0.6-alpha.346d77
+      '@coze-arch/arco-illustration': 0.0.6-alpha.346d77
+      '@coze-arch/semi-theme-hand01': 0.0.6-alpha.346d77
+      '@douyinfe/semi-ui': 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       ahooks: 3.9.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       class-variance-authority: 0.7.1
       clsx: 1.2.1
@@ -43595,7 +43558,10 @@ snapshots:
       tailwind-merge: 1.14.0
       ui-box: 5.4.1(react@18.2.0)
     transitivePeerDependencies:
+      - '@floating-ui/dom'
+      - '@tiptap/suggestion'
       - '@types/react'
+      - '@types/react-dom'
       - supports-color
 
   '@coze-arch/pkg-root-webpack-plugin@1.0.0-alpha.48aa2e':
@@ -44257,88 +44223,17 @@ snapshots:
       react: 18.2.0
       tslib: 2.8.1
 
-  '@douyinfe/semi-animation-react@2.53.2':
-    dependencies:
-      '@douyinfe/semi-animation': 2.53.2
-      '@douyinfe/semi-animation-styled': 2.53.2
-      classnames: 2.5.1
-
-  '@douyinfe/semi-animation-react@2.72.3':
-    dependencies:
-      '@douyinfe/semi-animation': 2.72.3
-      '@douyinfe/semi-animation-styled': 2.72.3
-      classnames: 2.5.1
-
   '@douyinfe/semi-animation-react@2.94.0':
     dependencies:
       '@douyinfe/semi-animation': 2.94.0
       '@douyinfe/semi-animation-styled': 2.94.0
       classnames: 2.5.1
 
-  '@douyinfe/semi-animation-styled@2.53.2': {}
-
-  '@douyinfe/semi-animation-styled@2.72.3': {}
-
   '@douyinfe/semi-animation-styled@2.94.0': {}
-
-  '@douyinfe/semi-animation@2.12.0':
-    dependencies:
-      '@babel/runtime-corejs3': 7.29.2
-      bezier-easing: 2.1.0
-
-  '@douyinfe/semi-animation@2.53.2':
-    dependencies:
-      bezier-easing: 2.1.0
-
-  '@douyinfe/semi-animation@2.72.3':
-    dependencies:
-      bezier-easing: 2.1.0
 
   '@douyinfe/semi-animation@2.94.0':
     dependencies:
       bezier-easing: 2.1.0
-
-  '@douyinfe/semi-foundation@2.36.1-alpha.2':
-    dependencies:
-      '@douyinfe/semi-animation': 2.12.0
-      async-validator: 3.5.2
-      classnames: 2.5.1
-      date-fns: 2.30.0
-      date-fns-tz: 1.3.8(date-fns@2.30.0)
-      lodash: 4.18.1
-      memoize-one: 5.2.1
-      scroll-into-view-if-needed: 2.2.31
-
-  '@douyinfe/semi-foundation@2.53.2':
-    dependencies:
-      '@douyinfe/semi-animation': 2.53.2
-      async-validator: 3.5.2
-      classnames: 2.5.1
-      date-fns: 2.30.0
-      date-fns-tz: 1.3.8(date-fns@2.30.0)
-      fast-copy: 3.0.2
-      lodash: 4.18.1
-      memoize-one: 5.2.1
-      scroll-into-view-if-needed: 2.2.31
-
-  '@douyinfe/semi-foundation@2.72.3':
-    dependencies:
-      '@douyinfe/semi-animation': 2.72.3
-      '@douyinfe/semi-json-viewer-core': 2.72.3
-      '@mdx-js/mdx': 3.1.1
-      async-validator: 3.5.2
-      classnames: 2.5.1
-      date-fns: 2.30.0
-      date-fns-tz: 1.3.8(date-fns@2.30.0)
-      fast-copy: 3.0.2
-      lodash: 4.18.1
-      lottie-web: 5.13.0
-      memoize-one: 5.2.1
-      prismjs: 1.30.0
-      remark-gfm: 4.0.1
-      scroll-into-view-if-needed: 2.2.31
-    transitivePeerDependencies:
-      - supports-color
 
   '@douyinfe/semi-foundation@2.94.0':
     dependencies:
@@ -44359,36 +44254,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@douyinfe/semi-icons@2.53.2(react@18.2.0)':
-    dependencies:
-      classnames: 2.5.1
-      react: 18.2.0
-
-  '@douyinfe/semi-icons@2.72.3(react@18.2.0)':
-    dependencies:
-      classnames: 2.5.1
-      react: 18.2.0
-
   '@douyinfe/semi-icons@2.94.0(react@18.2.0)':
     dependencies:
       classnames: 2.5.1
       react: 18.2.0
 
-  '@douyinfe/semi-illustrations@2.53.2(react@18.2.0)':
-    dependencies:
-      react: 18.2.0
-
-  '@douyinfe/semi-illustrations@2.72.3(react@18.2.0)':
-    dependencies:
-      react: 18.2.0
-
   '@douyinfe/semi-illustrations@2.94.0(react@18.2.0)':
     dependencies:
       react: 18.2.0
-
-  '@douyinfe/semi-json-viewer-core@2.72.3':
-    dependencies:
-      jsonc-parser: 3.3.1
 
   '@douyinfe/semi-json-viewer-core@2.94.0':
     dependencies:
@@ -44408,68 +44281,7 @@ snapshots:
       - sass
       - supports-color
 
-  '@douyinfe/semi-theme-default@2.53.2':
-    dependencies:
-      glob: 7.2.3
-
-  '@douyinfe/semi-theme-default@2.72.3': {}
-
   '@douyinfe/semi-theme-default@2.94.0': {}
-
-  '@douyinfe/semi-ui@2.53.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@dnd-kit/core': 6.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@dnd-kit/sortable': 7.0.2(@dnd-kit/core@6.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)
-      '@dnd-kit/utilities': 3.2.2(react@18.2.0)
-      '@douyinfe/semi-animation': 2.53.2
-      '@douyinfe/semi-animation-react': 2.53.2
-      '@douyinfe/semi-foundation': 2.53.2
-      '@douyinfe/semi-icons': 2.53.2(react@18.2.0)
-      '@douyinfe/semi-illustrations': 2.53.2(react@18.2.0)
-      '@douyinfe/semi-theme-default': 2.53.2
-      async-validator: 3.5.2
-      classnames: 2.5.1
-      copy-text-to-clipboard: 2.2.0
-      date-fns: 2.30.0
-      date-fns-tz: 1.3.8(date-fns@2.30.0)
-      fast-copy: 3.0.2
-      lodash: 4.18.1
-      prop-types: 15.8.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      react-resizable: 3.1.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react-window: 1.8.11(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      scroll-into-view-if-needed: 2.2.31
-      utility-types: 3.11.0
-
-  '@douyinfe/semi-ui@2.72.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
-    dependencies:
-      '@dnd-kit/core': 6.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      '@dnd-kit/sortable': 7.0.2(@dnd-kit/core@6.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)
-      '@dnd-kit/utilities': 3.2.2(react@18.2.0)
-      '@douyinfe/semi-animation': 2.72.3
-      '@douyinfe/semi-animation-react': 2.72.3
-      '@douyinfe/semi-foundation': 2.72.3
-      '@douyinfe/semi-icons': 2.72.3(react@18.2.0)
-      '@douyinfe/semi-illustrations': 2.72.3(react@18.2.0)
-      '@douyinfe/semi-theme-default': 2.72.3
-      async-validator: 3.5.2
-      classnames: 2.5.1
-      copy-text-to-clipboard: 2.2.0
-      date-fns: 2.30.0
-      date-fns-tz: 1.3.8(date-fns@2.30.0)
-      fast-copy: 3.0.2
-      jsonc-parser: 3.3.1
-      lodash: 4.18.1
-      prop-types: 15.8.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      react-resizable: 3.1.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react-window: 1.8.11(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      scroll-into-view-if-needed: 2.2.31
-      utility-types: 3.11.0
-    transitivePeerDependencies:
-      - supports-color
 
   '@douyinfe/semi-ui@2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
@@ -44588,6 +44400,53 @@ snapshots:
       '@tiptap/extensions': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)
       '@tiptap/pm': 3.22.3
       '@tiptap/react': 3.22.3(@floating-ui/dom@1.7.6)(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@tiptap/starter-kit': 3.22.3
+      async-validator: 3.5.2
+      classnames: 2.5.1
+      copy-text-to-clipboard: 2.2.0
+      date-fns: 2.30.0
+      date-fns-tz: 1.3.8(date-fns@2.30.0)
+      fast-copy: 3.0.2
+      jsonc-parser: 3.3.1
+      lodash: 4.18.1
+      prop-types: 15.8.1
+      prosemirror-state: 1.4.4
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      react-resizable: 3.1.3(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      react-window: 1.8.11(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      scroll-into-view-if-needed: 2.2.31
+      utility-types: 3.11.0
+    transitivePeerDependencies:
+      - '@floating-ui/dom'
+      - '@tiptap/suggestion'
+      - '@types/react'
+      - '@types/react-dom'
+      - supports-color
+
+  '@douyinfe/semi-ui@2.94.0(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      '@dnd-kit/core': 6.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@dnd-kit/sortable': 7.0.2(@dnd-kit/core@6.3.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react@18.2.0)
+      '@dnd-kit/utilities': 3.2.2(react@18.2.0)
+      '@douyinfe/semi-animation': 2.94.0
+      '@douyinfe/semi-animation-react': 2.94.0
+      '@douyinfe/semi-foundation': 2.94.0
+      '@douyinfe/semi-icons': 2.94.0(react@18.2.0)
+      '@douyinfe/semi-illustrations': 2.94.0(react@18.2.0)
+      '@douyinfe/semi-theme-default': 2.94.0
+      '@tiptap/core': 3.22.3(@tiptap/pm@3.22.3)
+      '@tiptap/extension-document': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))
+      '@tiptap/extension-hard-break': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))
+      '@tiptap/extension-image': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))
+      '@tiptap/extension-mention': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))
+      '@tiptap/extension-paragraph': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))
+      '@tiptap/extension-text': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))
+      '@tiptap/extension-text-align': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))
+      '@tiptap/extension-text-style': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))
+      '@tiptap/extensions': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)
+      '@tiptap/pm': 3.22.3
+      '@tiptap/react': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@tiptap/starter-kit': 3.22.3
       async-validator: 3.5.2
       classnames: 2.5.1
@@ -50394,6 +50253,23 @@ snapshots:
       '@tiptap/core': 3.22.3(@tiptap/pm@3.22.3)
       '@tiptap/pm': 3.22.3
       '@types/react': 19.2.14
+      '@types/react-dom': 19.2.3(@types/react@19.2.14)
+      '@types/use-sync-external-store': 0.0.6
+      fast-equals: 5.4.0
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+      use-sync-external-store: 1.6.0(react@18.2.0)
+    optionalDependencies:
+      '@tiptap/extension-bubble-menu': 3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)
+      '@tiptap/extension-floating-menu': 3.22.3(@floating-ui/dom@1.7.6)(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)
+    transitivePeerDependencies:
+      - '@floating-ui/dom'
+
+  '@tiptap/react@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      '@tiptap/core': 3.22.3(@tiptap/pm@3.22.3)
+      '@tiptap/pm': 3.22.3
+      '@types/react': 18.2.37
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
       '@types/use-sync-external-store': 0.0.6
       fast-equals: 5.4.0
