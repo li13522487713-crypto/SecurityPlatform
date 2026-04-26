@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Empty, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography, Button, Tabs } from "@douyinfe/semi-ui";
 import { IconCopy, IconDelete, IconClose } from "@douyinfe/semi-icons";
 import type {
@@ -1801,7 +1801,7 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
   );
 }
 
-export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
+export const MicroflowPropertyPanel = memo(function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
   if (!props.selectedObject && !props.selectedFlow) {
     return (
       <div style={{ height: "100%", display: "grid", placeItems: "center", padding: 24 }}>
@@ -1814,4 +1814,4 @@ export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
       {props.selectedFlow ? <FlowPanel {...props} /> : <ObjectPanel {...props} />}
     </div>
   );
-}
+});

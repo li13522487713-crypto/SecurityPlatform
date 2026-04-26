@@ -139,6 +139,7 @@ export function authoringToFlowGram(
   const objects = new Map(flattenObjectCollection(schema.objectCollection).map(object => [object.id, object]));
   const issueIndex = buildIssueIndex(issues);
   const graphNodes = new Map(graph.nodes.map(node => [node.objectId, node]));
+  const flowById = new Map(collectFlowsRecursive(schema as MicroflowSchema).map(flow => [flow.id, flow]));
 
   const nodes: WorkflowNodeJSON[] = graph.nodes.map(node => {
     const object = objects.get(node.objectId);
@@ -190,7 +191,7 @@ export function authoringToFlowGram(
   });
 
   const edges: WorkflowEdgeJSON[] = graph.edges.map(edge => {
-    const flow = collectFlowsRecursive(schema as MicroflowSchema).find(item => item.id === edge.flowId);
+    const flow = flowById.get(edge.flowId);
     const flowIssues = issueIndex.get(edge.flowId) ?? [];
     const data: FlowGramMicroflowEdgeData = {
       flowId: edge.flowId,

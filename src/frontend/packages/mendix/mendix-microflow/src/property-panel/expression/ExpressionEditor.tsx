@@ -1,5 +1,5 @@
 import { Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getEntityAttributes, type MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowDataType, MicroflowExpression, MicroflowSchema, MicroflowVariableIndex } from "../../schema";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
@@ -7,6 +7,17 @@ import { getVariablesForExpressionFromIndex, type MicroflowExpressionScopeContex
 import { ExpressionDiagnostics } from "./ExpressionDiagnostics";
 
 const { Text } = Typography;
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs, value]);
+
+  return debounced;
+}
 
 function appendToken(raw: string, token: string): string {
   if (!raw.trim()) {
@@ -49,16 +60,17 @@ export function ExpressionEditor({
   mode?: "inline" | "multiline";
 }) {
   const raw = expressionRaw(value);
+  const debouncedRaw = useDebouncedValue(raw, 200);
   const context: MicroflowExpressionScopeContext = { objectId: objectId ?? "", actionId, fieldPath };
   const variables = useMemo(() => objectId ? getVariablesForExpressionFromIndex(schema, variableIndex, context) : [], [actionId, fieldPath, objectId, schema, variableIndex]);
   const validation = useMemo(() => validateExpression({
-    expression: raw,
+    expression: debouncedRaw,
     schema,
     metadata,
     variableIndex,
     context: { objectId, actionId, flowId, fieldPath, expectedType, required },
-  }), [actionId, expectedType, fieldPath, flowId, metadata, objectId, raw, required, schema, variableIndex]);
-  const insertOptions = variables.flatMap(variable => {
+  }), [actionId, debouncedRaw, expectedType, fieldPath, flowId, metadata, objectId, required, schema, variableIndex]);
+  const insertOptions = useMemo(() => variables.flatMap(variable => {
     const variableOption = {
       label: `$${variable.name} (${expressionTypeLabel(variable.dataType)})`,
       value: `$${variable.name}`,
@@ -73,7 +85,7 @@ export function ExpressionEditor({
         value: `$${variable.name}/${attribute.name}`,
       })),
     ];
-  });
+  }), [metadata, variables]);
   const nextExpression = (nextRaw: string) => onChange(createMicroflowExpression(nextRaw, validation.inferredType));
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>

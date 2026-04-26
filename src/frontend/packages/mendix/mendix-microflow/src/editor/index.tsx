@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { Badge, Button, Card, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { Badge, Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Tooltip, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconCopy,
@@ -10,7 +10,9 @@ import {
   IconSetting,
   IconTickCircle,
   IconUndo,
-  IconRedo
+  IconRedo,
+  IconMore,
+  IconChevronRight
 } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
@@ -49,6 +51,8 @@ import { MicroflowMetadataProvider } from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import { MicroflowTestRunModal, type MicroflowRunSession, type MicroflowRuntimeLog, type MicroflowTestRunInput } from "../debug";
+import { useDebouncedMicroflowValidation } from "../performance";
+import { useMicroflowShortcuts } from "./shortcuts";
 import type {
   MicroflowCaseValue,
   MicroflowEditorEdge,
@@ -66,11 +70,15 @@ import type {
 const { Text, Title } = Typography;
 
 const favoriteStorageKey = "atlas_microflow_node_panel_favorites";
+const leftPanelStorageKey = "atlas_microflow_panel_left_open";
 const rightPanelStorageKey = "atlas_microflow_panel_right_open";
 const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
+const bottomTabStorageKey = "atlas_microflow_panel_bottom_tab";
 const RAIL_WIDTH_PX = 44;
+const LEFT_PANEL_EXPANDED_PX = 300;
+const RIGHT_PANEL_EXPANDED_PX = 380;
 const BOTTOM_STRIP_HEIGHT_PX = 40;
-const BOTTOM_PANEL_EXPANDED_PX = 220;
+const BOTTOM_PANEL_EXPANDED_PX = 260;
 const MOVE_HISTORY_DEBOUNCE_MS = 250;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
 
@@ -243,6 +251,25 @@ function writeStoredBoolean(key: string, value: boolean): void {
   }
 }
 
+function readStoredBottomTab(): "problems" | "debug" | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+  const raw = window.localStorage.getItem(bottomTabStorageKey);
+  return raw === "debug" || raw === "problems" ? raw : undefined;
+}
+
+function writeStoredBottomTab(value: "problems" | "debug"): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(bottomTabStorageKey, value);
+  } catch {
+    /* ignore */
+  }
+}
+
 function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
   try {
     const parsed = JSON.parse(value) as MicroflowNodeDragPayload;
@@ -256,9 +283,12 @@ const toolbarStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
+  gap: 8,
   padding: "8px 12px",
   borderBottom: "1px solid var(--semi-color-border, #e5e6eb)",
-  background: "var(--semi-color-bg-2, #fff)"
+  background: "var(--semi-color-bg-2, #fff)",
+  minWidth: 0,
+  overflow: "hidden"
 };
 
 const panelStyle: CSSProperties = {
@@ -266,7 +296,8 @@ const panelStyle: CSSProperties = {
   overflow: "auto",
   borderRight: "1px solid var(--semi-color-border, #e5e6eb)",
   background: "var(--semi-color-bg-1, #fff)",
-  padding: 12
+  padding: 12,
+  minWidth: 0
 };
 
 const propertyPaneStyle: CSSProperties = {
@@ -866,7 +897,17 @@ function LegacyHtmlMicroflowCanvas({
   );
 }
 
-function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]; onSelect: (issue: MicroflowValidationIssue) => void }) {
+function ProblemPanel({
+  issues,
+  status,
+  lastValidatedAt,
+  onSelect,
+}: {
+  issues: MicroflowValidationIssue[];
+  status?: string;
+  lastValidatedAt?: Date;
+  onSelect: (issue: MicroflowValidationIssue) => void;
+}) {
   const [severityFilter, setSeverityFilter] = useState<"all" | MicroflowValidationIssue["severity"]>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [keyword, setKeyword] = useState("");
@@ -896,6 +937,8 @@ function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]
           <Tag color={summary.errors > 0 ? "red" : "green"}>{summary.errors} errors</Tag>
           <Tag color={summary.warnings > 0 ? "orange" : "grey"}>{summary.warnings} warnings</Tag>
           <Tag color={summary.infos > 0 ? "blue" : "grey"}>{summary.infos} info</Tag>
+          {status === "validating" ? <Tag color="blue">Validating...</Tag> : null}
+          {lastValidatedAt ? <Tag color="grey">Last {lastValidatedAt.toLocaleTimeString()}</Tag> : null}
         </Space>
         <Space>
           <Input
@@ -929,7 +972,8 @@ function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]
           />
         </Space>
       </Space>
-      {issues.length === 0 ? <Empty title="No problems" description="Schema validation passed." /> : null}
+      {status === "validating" && issues.length === 0 ? <Empty title="Validating" description="Schema validation is running in the background." /> : null}
+      {status !== "validating" && issues.length === 0 ? <Empty title="No problems" description="Schema validation passed." /> : null}
       {issues.length > 0 && filteredIssues.length === 0 ? <Empty title="No matching problems" description="Adjust filters to see validation issues." /> : null}
       {filteredIssues.map(issue => (
         <div key={issue.id} role="button" tabIndex={0} onClick={() => onSelect(issue)} onKeyDown={event => {
@@ -1143,7 +1187,18 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const pendingMoveSchemaRef = useRef<MicroflowSchema | undefined>();
   const shellRef = useRef<HTMLDivElement>(null);
   const [favoriteNodeKeys, setFavoriteNodeKeys] = useState(readFavoriteNodeKeys);
-  const [issues, setIssues] = useState<MicroflowValidationIssue[]>(schema.validation.issues ?? []);
+  const [validationTrigger, setValidationTrigger] = useState(0);
+  const {
+    issues,
+    setIssues,
+    validationStatus,
+    lastValidatedAt,
+    runValidationNow,
+  } = useDebouncedMicroflowValidation({
+    schema,
+    trigger: validationTrigger,
+    initialIssues: schema.validation.issues ?? [],
+  });
   const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
   const [runSession, setRunSession] = useState<MicroflowRunSession>();
   const [activeTraceFrameId, setActiveTraceFrameId] = useState<string>();
@@ -1151,6 +1206,13 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [leftOpen, setLeftOpen] = useState(() => {
+    if (!persistAuxPanelState) {
+      return true;
+    }
+    const stored = readStoredBoolean(leftPanelStorageKey);
+    return stored !== undefined ? stored : true;
+  });
   const [rightOpen, setRightOpen] = useState(() => {
     if (!persistAuxPanelState) {
       return rightPanelFallback;
@@ -1165,7 +1227,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     const stored = readStoredBoolean(bottomPanelStorageKey);
     return stored !== undefined ? stored : bottomPanelFallback;
   });
-  const [bottomTab, setBottomTab] = useState<"problems" | "debug">("problems");
+  const [bottomTab, setBottomTab] = useState<"problems" | "debug">(() => readStoredBottomTab() ?? "problems");
 
   const shellStyle = useMemo((): CSSProperties => ({
     display: "grid",
@@ -1178,14 +1240,16 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   }), [bottomOpen]);
 
   const bodyStyle = useMemo((): CSSProperties => {
-    const rightCol = rightOpen ? 400 : RAIL_WIDTH_PX;
+    const leftCol = leftOpen ? LEFT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
+    const rightCol = rightOpen ? RIGHT_PANEL_EXPANDED_PX : RAIL_WIDTH_PX;
     return {
       display: "grid",
-      gridTemplateColumns: `300px minmax(520px, 1fr) ${rightCol}px`,
+      gridTemplateColumns: `${leftCol}px minmax(320px, 1fr) ${rightCol}px`,
       minHeight: 0,
+      minWidth: 0,
       overflow: "hidden"
     };
-  }, [rightOpen]);
+  }, [leftOpen, rightOpen]);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
@@ -1262,7 +1326,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     setSchema(refreshed);
     latestSchemaRef.current = refreshed;
     if (!options.skipValidate) {
-      setIssues(validateMicroflowSchema(refreshed));
+      setValidationTrigger(value => value + 1);
     }
     if (!options.skipDirty) {
       setDirty(!microflowSchemasEqual(refreshed, savedSchemaRef.current));
@@ -1357,8 +1421,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   };
 
   const handleValidate = async () => {
-    const localValidation = validateMicroflowSchema({ schema, options: { mode: "edit", includeWarnings: true, includeInfo: true } });
-    setIssues(localValidation.issues);
+    runValidationNow(schema);
     const response = await apiClient.validateMicroflow({ schema });
     setIssues(response.issues);
     props.onValidateComplete?.(response);
@@ -1547,9 +1610,11 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     if (!persistAuxPanelState) {
       return;
     }
+    writeStoredBoolean(leftPanelStorageKey, leftOpen);
     writeStoredBoolean(rightPanelStorageKey, rightOpen);
     writeStoredBoolean(bottomPanelStorageKey, bottomOpen);
-  }, [rightOpen, bottomOpen, persistAuxPanelState]);
+    writeStoredBottomTab(bottomTab);
+  }, [leftOpen, rightOpen, bottomOpen, bottomTab, persistAuxPanelState]);
 
   const rightRailStyle: CSSProperties = {
     width: RAIL_WIDTH_PX,
@@ -1566,40 +1631,126 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
   };
 
+  const focusNodeSearch = useCallback(() => {
+    setLeftOpen(true);
+    window.setTimeout(() => {
+      const input = shellRef.current?.querySelector<HTMLInputElement>(".microflow-node-search-input input, input.microflow-node-search-input");
+      input?.focus();
+      input?.select();
+    }, 0);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    applyPatch(
+      { selectedObjectId: undefined, selectedFlowId: undefined, selectedCollectionId: undefined },
+      { pushHistory: false, skipDirty: true, skipValidate: true },
+    );
+  }, [schema]);
+
+  useMicroflowShortcuts({
+    containerRef: shellRef,
+    readonly: props.readonly,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onSave: () => void handleSave(),
+    onSearch: focusNodeSearch,
+    onDeleteSelection: handleDeleteSelection,
+    onEscape: clearSelection,
+  });
+
   return (
-    <div ref={shellRef} style={shellStyle} tabIndex={0} onKeyDown={handleEditorKeyDown}>
+    <div ref={shellRef} style={shellStyle} tabIndex={0}>
       <div style={toolbarStyle}>
-        <Space>
+        <Space style={{ minWidth: 0, overflow: "hidden" }}>
           {props.toolbarPrefix}
           <Title heading={5} style={{ margin: 0 }}>{schema.displayName || schema.name}</Title>
           <Tag>{schema.schemaVersion}</Tag>
           {dirty ? <Tag color="orange">dirty</Tag> : null}
-          <Tag color={issues.some(issue => issue.severity === "error") ? "red" : "green"}>{issues.length} issues</Tag>
+          <Tag color={validationStatus === "validating" ? "blue" : issues.some(issue => issue.severity === "error") ? "red" : "green"}>
+            {validationStatus === "validating" ? "validating..." : `${issues.length} issues`}
+          </Tag>
           {runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
         </Space>
-        <Space>
-          <Button icon={<IconUndo />} disabled={!historyState.canUndo} onClick={handleUndo}>{labels.undo}</Button>
-          <Button icon={<IconRedo />} disabled={!historyState.canRedo} onClick={handleRedo}>{labels.redo}</Button>
-          <Button icon={<IconRefresh />} onClick={handleValidate}>{labels.validate}</Button>
-          <Button icon={<IconPlay />} loading={running} onClick={handleTestRun}>{labels.testRun}</Button>
-          {runSession ? <Button icon={<IconDelete />} theme="borderless" type="danger" onClick={clearTestRun}>Clear Debug</Button> : null}
-          <Button icon={<IconSave />} loading={saving} type="primary" onClick={handleSave}>{labels.save}</Button>
+        <Space wrap style={{ justifyContent: "flex-end", rowGap: 4 }}>
+          <Tooltip content={historyState.canUndo ? labels.undo : "No history to undo"}>
+            <Button aria-label={labels.undo} icon={<IconUndo />} disabled={!historyState.canUndo} onClick={handleUndo} />
+          </Tooltip>
+          <Tooltip content={historyState.canRedo ? labels.redo : "No history to redo"}>
+            <Button aria-label={labels.redo} icon={<IconRedo />} disabled={!historyState.canRedo} onClick={handleRedo} />
+          </Tooltip>
+          <Tooltip content={labels.validate}>
+            <Button aria-label={labels.validate} icon={<IconRefresh />} loading={validationStatus === "validating"} onClick={handleValidate}>{labels.validate}</Button>
+          </Tooltip>
+          <Tooltip content={labels.testRun}>
+            <Button aria-label={labels.testRun} icon={<IconPlay />} loading={running} onClick={handleTestRun}>{labels.testRun}</Button>
+          </Tooltip>
+          <Tooltip content={dirty ? labels.save : "No unsaved changes"}>
+            <Button aria-label={labels.save} icon={<IconSave />} loading={saving} type="primary" onClick={handleSave}>{labels.save}</Button>
+          </Tooltip>
+          <Dropdown
+            trigger="click"
+            position="bottomRight"
+            render={(
+              <Dropdown.Menu>
+                <Dropdown.Item icon={<IconDelete />} disabled={props.readonly || !schema.editor.selection.objectId && !schema.editor.selection.flowId} onClick={handleDeleteSelection}>删除选择</Dropdown.Item>
+                <Dropdown.Item icon={<IconRefresh />} onClick={handleAutoLayout}>{labels.format}</Dropdown.Item>
+                <Dropdown.Item onClick={focusNodeSearch}>搜索节点</Dropdown.Item>
+                <Dropdown.Item onClick={() => setLeftOpen(open => !open)}>{leftOpen ? "折叠节点面板" : "展开节点面板"}</Dropdown.Item>
+                <Dropdown.Item onClick={() => setRightOpen(open => !open)}>{rightOpen ? "折叠属性面板" : "展开属性面板"}</Dropdown.Item>
+                <Dropdown.Item onClick={() => setBottomOpen(open => !open)}>{bottomOpen ? "折叠底部面板" : "展开底部面板"}</Dropdown.Item>
+                {runSession ? <Dropdown.Item type="danger" icon={<IconDelete />} onClick={clearTestRun}>清空调试</Dropdown.Item> : null}
+              </Dropdown.Menu>
+            )}
+          >
+            <Button aria-label={labels.more} icon={<IconMore />} theme="borderless">{labels.more}</Button>
+          </Dropdown>
           {props.toolbarSuffix}
         </Space>
       </div>
       <div style={bodyStyle}>
-        <div style={panelStyle}>
-          <MicroflowNodePanel
-            favoriteNodeKeys={favoriteNodeKeys}
-            onFavoriteChange={keys => {
-              setFavoriteNodeKeys(keys);
-              saveFavoriteNodeKeys(keys);
+        {leftOpen ? (
+          <div style={panelStyle}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+              <Text strong>{labels.nodePanel}</Text>
+              <Tooltip content="折叠节点面板">
+                <Button aria-label="折叠节点面板" size="small" theme="borderless" icon={<IconChevronDown style={{ transform: "rotate(90deg)" }} />} onClick={() => setLeftOpen(false)} />
+              </Tooltip>
+            </div>
+            <MicroflowNodePanel
+              favoriteNodeKeys={favoriteNodeKeys}
+              onFavoriteChange={keys => {
+                setFavoriteNodeKeys(keys);
+                saveFavoriteNodeKeys(keys);
+              }}
+              onAddNode={(item, options) => handleAddNode(item, options)}
+              onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
+              labels={props.nodePanelLabels}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            aria-label="展开节点面板"
+            title={labels.nodePanel}
+            style={{
+              border: 0,
+              borderRight: "1px solid var(--semi-color-border, #e5e6eb)",
+              background: "var(--semi-color-bg-2, #fff)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              gap: 8,
+              padding: "12px 0",
+              cursor: "pointer",
+              color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
             }}
-            onAddNode={(item, options) => handleAddNode(item, options)}
-            onShowDocumentation={item => Modal.info({ title: item.title, content: item.documentation.summary })}
-            labels={props.nodePanelLabels}
-          />
-        </div>
+            onClick={() => setLeftOpen(true)}
+          >
+            <IconChevronRight />
+            <Text size="small" strong style={{ writingMode: "vertical-rl", textOrientation: "mixed", letterSpacing: 1 }}>{labels.nodePanel}</Text>
+          </button>
+        )}
         <FlowGramMicroflowCanvas
           schema={schema}
           validationIssues={issues}
@@ -1713,6 +1864,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           <div
             role="button"
             tabIndex={0}
+            aria-label={rightOpen ? "折叠属性面板" : "展开属性面板"}
             title={labels.properties}
             style={rightRailStyle}
             onClick={() => setRightOpen(open => !open)}
@@ -1756,6 +1908,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
             onChange={key => setBottomTab(key as "problems" | "debug")}
             tabBarExtraContent={
               <Button
+                aria-label="折叠底部面板"
                 theme="borderless"
                 icon={<IconChevronDown />}
                 onClick={() => setBottomOpen(false)}
@@ -1767,6 +1920,8 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
               <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
                 <ProblemPanel
                   issues={issues}
+                  status={validationStatus}
+                  lastValidatedAt={lastValidatedAt}
                   onSelect={issue => {
                     const selectedFlowId = issue.flowId ?? issue.edgeId;
                     const selectedObjectId = selectedFlowId ? undefined : issue.objectId ?? issue.nodeId;
@@ -1813,6 +1968,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
         >
           <button
             type="button"
+            aria-label="展开问题面板"
             style={{
               flex: 1,
               display: "flex",
@@ -1837,6 +1993,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           </button>
           <button
             type="button"
+            aria-label="展开调试面板"
             style={{
               flex: 1,
               display: "flex",

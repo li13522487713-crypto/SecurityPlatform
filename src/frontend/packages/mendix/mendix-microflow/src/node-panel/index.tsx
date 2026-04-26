@@ -29,6 +29,8 @@ import {
 } from "../node-registry";
 
 const { Text } = Typography;
+const nodePanelCategoryStorageKey = "atlas_microflow_node_panel_categories";
+const nodePanelGroupStorageKey = "atlas_microflow_node_panel_groups";
 
 export interface MicroflowNodePanelLabels {
   nodesTab: string;
@@ -144,6 +146,29 @@ const cardBaseStyle: CSSProperties = {
   transition: "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
   userSelect: "none"
 };
+
+function readStoredStringList(key: string, fallback: string[]): string[] {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "null") as unknown;
+    return Array.isArray(parsed) && parsed.every(item => typeof item === "string") ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredStringList(key: string, value: string[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+}
 
 function isCategoryFilter(filterKey: MicroflowNodeFilterKey): filterKey is MicroflowNodePanelCategoryKey {
   return ["events", "decisions", "activities", "loop", "parameters", "annotations"].includes(filterKey);
@@ -293,7 +318,7 @@ export function MicroflowNodeSearch({
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 36px", gap: 8 }}>
-      <Input prefix={<IconSearch />} value={value} onChange={onChange} placeholder={labels.searchPlaceholder} showClear />
+      <Input className="microflow-node-search-input" prefix={<IconSearch />} value={value} onChange={onChange} placeholder={labels.searchPlaceholder} showClear />
       <Popover
         trigger="click"
         position="bottomRight"
@@ -751,8 +776,8 @@ export function MicroflowNodePanel({
   const [activeTab, setActiveTab] = useState<"nodes" | "components" | "templates">("nodes");
   const [keyword, setKeyword] = useState("");
   const [filterKey, setFilterKey] = useState<MicroflowNodeFilterKey>("all");
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(["events", "decisions", "activities"]);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(["activities:object"]);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, ["events", "decisions", "activities"]));
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(() => readStoredStringList(nodePanelGroupStorageKey, ["activities:object"]));
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
   const grouped = useMemo(() => MicroflowNodePanelRegistryAdapter({
@@ -771,6 +796,14 @@ export function MicroflowNodePanel({
     setExpandedCategories(grouped.map(category => category.category.key));
     setExpandedGroups(grouped.flatMap(category => category.groups.map(group => `${category.category.key}:${group.key}`)));
   }, [grouped, keyword]);
+
+  useEffect(() => {
+    if (keyword.trim()) {
+      return;
+    }
+    writeStoredStringList(nodePanelCategoryStorageKey, expandedCategories);
+    writeStoredStringList(nodePanelGroupStorageKey, expandedGroups);
+  }, [expandedCategories, expandedGroups, keyword]);
 
   useEffect(() => {
     if (!contextMenu) {
