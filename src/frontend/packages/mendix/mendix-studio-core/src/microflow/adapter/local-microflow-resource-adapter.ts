@@ -6,11 +6,13 @@ import type { MicroflowReference } from "../references/microflow-reference-types
 import { createDefaultMicroflowSchema } from "../schema/create-default-microflow-schema";
 import { diffMicroflowSchemas } from "../versions/microflow-version-diff";
 import type { MicroflowPublishedSnapshot, MicroflowVersionDetail, MicroflowVersionDiff, MicroflowVersionSummary } from "../versions/microflow-version-types";
-import type { MicroflowResourceAdapter } from "./microflow-resource-adapter";
+import type { GetMicroflowReferencesRequest } from "../contracts/api/microflow-reference-api-contract";
+import type { MicroflowResourceAdapter, SaveMicroflowSchemaOptions } from "./microflow-resource-adapter";
 import { readStoredMicroflowResources, writeStoredMicroflowResources, type StoredMicroflowResources } from "./microflow-resource-storage";
 import type {
   MicroflowCreateInput,
   MicroflowDuplicateInput,
+  MicroflowPublishStatus,
   MicroflowResource,
   MicroflowResourceListResult,
   MicroflowResourcePatch,
@@ -276,6 +278,7 @@ function createMockReferences(resourceId: string, referencedVersion?: string): M
       id: `${resourceId}-mf-ref`,
       targetMicroflowId: resourceId,
       sourceType: "microflow",
+      active: true,
       sourceName: "OrderFulfillment 调用微流",
       sourceId: "mf-parent-flow",
       sourceVersion: "1.3.0",
@@ -288,6 +291,7 @@ function createMockReferences(resourceId: string, referencedVersion?: string): M
       id: `${resourceId}-page-ref`,
       targetMicroflowId: resourceId,
       sourceType: "button",
+      active: true,
       sourceName: "订单详情页提交按钮",
       sourcePath: "/pages/order/detail",
       sourceVersion: "draft",
@@ -300,6 +304,7 @@ function createMockReferences(resourceId: string, referencedVersion?: string): M
       id: `${resourceId}-workflow-ref`,
       targetMicroflowId: resourceId,
       sourceType: "workflow",
+      active: true,
       sourceName: "订单审批工作流活动",
       sourceId: "wf-order-approval",
       sourceVersion: "2.1.0",
@@ -359,12 +364,22 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     const tags = query.tags ?? [];
     const sortBy = query.sortBy ?? "updatedAt";
     const sortOrder = query.sortOrder ?? "desc";
+    const pageIndex = query.pageIndex;
+    const pageSize = query.pageSize;
     const items = [...this.resources.values()]
+      .filter(resource => (query.workspaceId ? resource.workspaceId === query.workspaceId : true))
       .filter(resource => !query.status?.length || query.status.includes(resource.status))
+      .filter(resource => {
+        if (!query.publishStatus?.length) {
+          return true;
+        }
+        const ps: MicroflowPublishStatus = resource.publishStatus ?? "neverPublished";
+        return query.publishStatus!.includes(ps);
+      })
       .filter(resource => !query.favoriteOnly || resource.favorite)
       .filter(resource => !query.ownerId || resource.ownerId === query.ownerId || resource.createdBy === query.ownerId)
       .filter(resource => !query.moduleId || resource.moduleId === query.moduleId)
-      .filter(resource => !tags.length || tags.every(tag => resource.tags.includes(tag)))
+      .filter(resource => !tags.length || tags.some(tag => resource.tags.includes(tag)))
       .filter(resource => isInRange(resource.updatedAt, query.updatedFrom, query.updatedTo))
       .filter(resource => {
         if (!keyword) {
@@ -380,9 +395,21 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
         if (sortBy === "referenceCount") {
           return direction * (left.referenceCount - right.referenceCount);
         }
-        return direction * (new Date(left[sortBy]).getTime() - new Date(right[sortBy]).getTime());
+        return direction * (new Date(left[sortBy as "updatedAt" | "createdAt"]).getTime() - new Date(right[sortBy as "updatedAt" | "createdAt"]).getTime());
       });
-    return { items: clone(items), total: items.length };
+    const total = items.length;
+    if (pageIndex != null && pageIndex >= 1 && pageSize != null && pageSize > 0) {
+      const start = (pageIndex - 1) * pageSize;
+      const page = items.slice(start, start + pageSize);
+      return {
+        items: clone(page),
+        total,
+        pageIndex,
+        pageSize,
+        hasMore: start + page.length < total
+      };
+    }
+    return { items: clone(items), total };
   }
 
   async getMicroflow(id: string): Promise<MicroflowResource | undefined> {
@@ -416,7 +443,8 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     return clone(next);
   }
 
-  async saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema | MicroflowSchema): Promise<MicroflowResource> {
+  async saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema | MicroflowSchema, _options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource> {
+    void _options;
     const current = this.requireResource(id);
     const timestamp = nowIso();
     const nextSchema = clone(schema) as MicroflowSchema;
@@ -594,9 +622,17 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     };
   }
 
-  async getMicroflowReferences(id: string): Promise<MicroflowReference[]> {
+  async getMicroflowReferences(id: string, query?: GetMicroflowReferencesRequest): Promise<MicroflowReference[]> {
     const current = this.requireResource(id);
-    return clone(this.references.get(id) ?? (current.referenceCount > 0 ? createMockReferences(id, current.latestPublishedVersion) : []));
+    const list = this.references.get(id) ?? (current.referenceCount > 0 ? createMockReferences(id, current.latestPublishedVersion) : []);
+    let filtered = list.filter(ref => (query?.includeInactive ? true : ref.active !== false));
+    if (query?.sourceType?.length) {
+      filtered = filtered.filter(r => query.sourceType!.includes(r.sourceType));
+    }
+    if (query?.impactLevel?.length) {
+      filtered = filtered.filter(r => query.impactLevel!.includes(r.impactLevel));
+    }
+    return clone(filtered);
   }
 
   async getMicroflowVersions(id: string): Promise<MicroflowVersionSummary[]> {

@@ -1,0 +1,54 @@
+# 前端 Adapter → HTTP API 映射（冻结）
+
+> **说明**：`MicroflowResourceAdapter` / `MicroflowRuntimeAdapter` / `MicroflowMetadataAdapter` 的**方法签名**以 TypeScript 接口为准，返回**业务 DTO**；`MicroflowApiResponse` 由 **HTTP 客户端层** 解析 Envelope 后剥除。
+
+## ResourceAdapter
+
+| 方法 | HTTP | 请求 | 响应 data |
+|------|------|------|-----------|
+| `listMicroflows` | `GET /api/microflows` | `ListMicroflowsRequest` as query | `MicroflowApiPageResult<MicroflowResource>`（客户端常映射为 `MicroflowResourceListResult`） |
+| `getMicroflow` | `GET /api/microflows/{id}` | — | `MicroflowResource` |
+| `createMicroflow` | `POST /api/microflows` | `CreateMicroflowRequest` | `MicroflowResource` |
+| `updateMicroflow` | `PATCH /api/microflows/{id}` | `UpdateMicroflowResourceRequest` | `MicroflowResource` |
+| `saveMicroflowSchema` | `PUT /api/microflows/{id}/schema` | `SaveMicroflowSchemaRequest` + 第三参 `SaveMicroflowSchemaOptions` 对齐 | `SaveMicroflowSchemaResponse`（可再合并入 `getMicroflow` 的缓存策略，由产品决定） |
+| `duplicateMicroflow` | `POST /api/microflows/{id}/duplicate` | `DuplicateMicroflowRequest` | `MicroflowResource` |
+| `renameMicroflow` | `POST /api/microflows/{id}/rename` | `RenameMicroflowRequest` | `MicroflowResource` |
+| `toggleFavorite` | `POST /api/microflows/{id}/favorite` | `ToggleFavoriteMicroflowRequest` | `MicroflowResource` |
+| `archiveMicroflow` | `POST /api/microflows/{id}/archive` | — | `MicroflowResource` |
+| `restoreMicroflow` | `POST /api/microflows/{id}/restore` | — | `MicroflowResource` |
+| `deleteMicroflow` | `DELETE /api/microflows/{id}` | — | `{ id }` |
+| `publishMicroflow` | `POST /api/microflows/{id}/publish` | `PublishMicroflowApiRequest` | `MicroflowPublishResult` |
+| `getMicroflowReferences` | `GET /api/microflows/{id}/references` | `GetMicroflowReferencesRequest` 作为 query | `MicroflowReference[]` |
+| `getMicroflowVersions` | `GET /api/microflows/{id}/versions` | — | `MicroflowVersionSummary[]` |
+| `getMicroflowVersionDetail` | `GET /api/microflows/{id}/versions/{versionId}` | — | `MicroflowVersionDetail` |
+| `rollbackMicroflowVersion` | `POST /api/.../rollback` | `RollbackMicroflowVersionRequest` | `MicroflowResource` |
+| `duplicateMicroflowVersion` | `POST /api/.../duplicate` | `DuplicateMicroflowVersionRequest` | `MicroflowResource` |
+| `compareMicroflowVersion` | `GET /api/.../compare-current` | — | `MicroflowVersionDiff` |
+| `analyzeMicroflowPublishImpact` | `GET /api/microflows/{id}/impact` | `AnalyzeMicroflowImpactRequest` 或对齐 `MicroflowPublishInput.version` 等 | `MicroflowPublishImpactAnalysis` |
+
+## RuntimeAdapter
+
+| 方法 | HTTP | 说明 |
+|------|------|------|
+| `validateMicroflow` | `POST /api/microflows/{id}/validate` | 与 REST `ValidateMicroflowRequest` 对齐；`@atlas/microflow` 内旧 client 的 `ValidateMicroflowRequest` 仅 schema，接入网关时需包一层 `mode`。 |
+| `testRunMicroflow` | `POST /api/microflows/{id}/test-run` | `TestRunMicroflowApiRequest`；响应取 `session`。 |
+| `cancelMicroflowRun` | `POST /api/microflows/runs/{runId}/cancel` | — |
+| `getMicroflowRunTrace` | `GET /api/microflows/runs/{runId}/trace` | 返回 `trace[]` 或从 `GetMicroflowRunTraceResponse` 拆 `trace`（若客户端已返回合并结构）。 |
+| `toRuntimeDto` | 本地/边缘 | 无需 HTTP；`MicroflowRuntimeDto` 不持久化为 FlowGram。 |
+
+## MicroflowMetadataAdapter
+
+| 方法 | HTTP | 说明 |
+|------|------|------|
+| `getMetadataCatalog` / `refreshMetadataCatalog` | `GET /api/microflow-metadata` | 响应为 catalog + 必填 `updatedAt`。 |
+| `getEntity` | `GET /api/microflow-metadata/entities/{qualifiedName}` | — |
+| `getEnumeration` | `GET /api/microflow-metadata/enumerations/{qualifiedName}` | — |
+| `getMicroflowRefs` | `GET /api/microflow-metadata/microflows` 或 本地过滤 catalog | — |
+
+## 错误码
+
+见 `api-error-code-contract.md`；`MICROFLOW_*` 与 `MicroflowApiError` 一致。
+
+## 本地 adapter
+
+- `local-microflow-resource-adapter` 直接返回 DTO，**不**包 `MicroflowApiResponse`；`listMicroflows` 在提供 `pageIndex`+`pageSize` 时给出 `hasMore`；`tags` 为 OR 语义；`getMicroflowReferences` 支持 query 过滤。

@@ -15,7 +15,6 @@
     "@atlas/library-module-react": "workspace:*",
     "@atlas/lowcode-studio-react": "workspace:*",
     "@atlas/mendix-studio-core": "workspace:*",
-    "@atlas/microflow": "workspace:*",
     "@atlas/module-admin-react": "workspace:*",
     "@atlas/module-explore-react": "workspace:*",
     "@atlas/module-studio-react": "workspace:*",

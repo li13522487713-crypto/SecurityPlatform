@@ -11,7 +11,8 @@
   "scripts": {
     "build": "echo 'mendix-studio-core: source-only package, no build step'",
     "lint": "echo 'mendix-studio-core: lint via root pipeline'",
-    "test": "vitest --run --passWithNoTests"
+    "test": "vitest --run --passWithNoTests",
+    "verify-contracts": "vitest run src/microflow/contracts/microflow-contracts.spec.ts"
   },
   "peerDependencies": {
     "react": "^18.2.0",

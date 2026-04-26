@@ -1,5 +1,6 @@
 export * from "./adapter";
 export * from "./context";
+export * from "./contracts";
 export * from "./editor";
 export * from "./publish";
 export * from "./references";

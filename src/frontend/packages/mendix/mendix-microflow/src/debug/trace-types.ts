@@ -5,6 +5,7 @@ import type {
   MicroflowVariableIndex,
 } from "../schema";
 import type { MicroflowMetadataCatalog } from "../metadata";
+import type { MicroflowRuntimeErrorCode } from "./runtime-error-codes";
 
 export type MicroflowRunStatus =
   | "idle"
@@ -29,7 +30,7 @@ export interface MicroflowRuntimeVariableValue {
 }
 
 export interface MicroflowRuntimeError {
-  code: string;
+  code: MicroflowRuntimeErrorCode;
   message: string;
   objectId?: string;
   actionId?: string;
@@ -76,6 +77,8 @@ export interface MicroflowTraceFrame {
   error?: MicroflowRuntimeError;
   variablesSnapshot?: Record<string, MicroflowRuntimeVariableValue>;
   message?: string;
+  /** 本步是否经 ErrorHandler 控制流连线进入或离开（与 runtime-trace 契约一致） */
+  errorHandlerVisited?: boolean;
 }
 
 export interface MicroflowVariableSnapshot {

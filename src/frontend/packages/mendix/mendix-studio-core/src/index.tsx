@@ -285,3 +285,5 @@ export function MendixStudioIndexPage({
 export { useMendixStudioStore };
 export { SAMPLE_PROCUREMENT_APP } from "./sample-app";
 export * from "./microflow";
+/** 微流编辑器由 @atlas/microflow 实现，经本包再导出以作为统一对外 API。 */
+export { MicroflowEditor, type MicroflowEditorProps } from "@atlas/microflow";

@@ -30,7 +30,7 @@ function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowMod
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [moduleId, setModuleId] = useState("sales");
-  const [tags, setTags] = useState("order, demo");
+  const [tags, setTags] = useState("order, sample");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
@@ -64,7 +64,7 @@ function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowMod
         <Input value={name} onChange={setName} placeholder="OrderProcessing" prefix="名称" />
         <Input value={description} onChange={setDescription} placeholder="描述" prefix="描述" />
         <Input value={moduleId} onChange={setModuleId} placeholder="sales" prefix="模块" />
-        <Input value={tags} onChange={setTags} placeholder="order, demo" prefix="标签" />
+        <Input value={tags} onChange={setTags} placeholder="order, crm" prefix="标签" />
       </Space>
     </Modal>
   );

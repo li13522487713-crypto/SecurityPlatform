@@ -31,6 +31,8 @@ export interface MicroflowReference {
   referenceKind: MicroflowReferenceKind;
   impactLevel: MicroflowImpactLevel;
   description?: string;
+  /** 与 `GetMicroflowReferencesRequest.includeInactive` 配合；未指定时由前端视为 `true`。 */
+  active?: boolean;
   canNavigate?: boolean;
 }
 

@@ -17,7 +17,7 @@ export function createLargeMicroflowSample(nodeCount = 120): MicroflowSchema {
   }
 
   const objects = [...schema.objectCollection.objects];
-  const flows = [...schema.objectCollection.flows];
+  const rootFlows = [...(schema.flows ?? [])];
   let previousObjectId = objects.at(-1)?.id;
 
   for (let index = 0; index < nodeCount; index += 1) {
@@ -29,7 +29,7 @@ export function createLargeMicroflowSample(nodeCount = 120): MicroflowSchema {
     }, `large-node-${index}`);
     objects.push(object);
     if (previousObjectId) {
-      flows.push(createSequenceFlow({
+      rootFlows.push(createSequenceFlow({
         originObjectId: previousObjectId,
         destinationObjectId: object.id,
       }));
@@ -41,8 +41,8 @@ export function createLargeMicroflowSample(nodeCount = 120): MicroflowSchema {
     ...schema,
     objectCollection: {
       ...schema.objectCollection,
-      objects,
-      flows,
+      objects
     },
+    flows: rootFlows
   };
 }

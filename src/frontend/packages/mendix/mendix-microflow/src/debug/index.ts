@@ -1,3 +1,4 @@
+export * from "./runtime-error-codes";
 export * from "./trace-types";
 export * from "./trace-utils";
 export * from "./trace-highlighting";

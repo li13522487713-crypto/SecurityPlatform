@@ -7,6 +7,7 @@ import type {
   MicroflowSequenceFlow,
 } from "../schema";
 import {
+  collectRuntimeFlows,
   collectRuntimeObjects,
   getFlowTargetObject,
   getNextNormalFlow,
@@ -27,6 +28,15 @@ import type {
 } from "./trace-types";
 
 const MAX_STEPS = 500;
+
+function isErrorHandlerFlowId(schema: MockTestRunMicroflowInput["schema"], flowId?: string): boolean {
+  if (!flowId) {
+    return false;
+  }
+  return collectRuntimeFlows(schema).some(
+    (f): f is MicroflowSequenceFlow => f.kind === "sequence" && f.id === flowId && f.isErrorHandler
+  );
+}
 
 interface ExecutionState {
   runId: string;
@@ -69,7 +79,7 @@ export function mockTestRunMicroflow(input: MockTestRunMicroflowInput): Promise<
 
   if (validation.summary.errorCount > 0) {
     const error: MicroflowRuntimeError = {
-      code: "MF_TEST_VALIDATION_FAILED",
+      code: "RUNTIME_VALIDATION_BLOCKED",
       message: `Test run blocked by ${validation.summary.errorCount} validation error(s).`,
       details: validation.issues.filter(issue => issue.severity === "error").map(issue => `${issue.code}: ${issue.message}`).join("\n"),
     };
@@ -79,7 +89,7 @@ export function mockTestRunMicroflow(input: MockTestRunMicroflowInput): Promise<
 
   const start = getStartEvent(input.schema);
   if (!start) {
-    const error: MicroflowRuntimeError = { code: "MF_TEST_START_NOT_FOUND", message: "No StartEvent found in the microflow." };
+    const error: MicroflowRuntimeError = { code: "RUNTIME_START_NOT_FOUND", message: "No StartEvent found in the microflow." };
     return Promise.resolve(finishSession(input, { ...state, error }, "failed", error));
   }
 
@@ -102,7 +112,7 @@ function executeFromObject(
     state.steps += 1;
     if (state.steps > MAX_STEPS) {
       state.error = {
-        code: "MF_TEST_MAX_STEPS_EXCEEDED",
+        code: "RUNTIME_MAX_STEPS_EXCEEDED",
         message: `Mock runtime stopped after ${MAX_STEPS} steps to prevent an infinite loop.`,
         objectId: current.id,
         flowId: incoming,
@@ -129,7 +139,7 @@ function executeFromObject(
     }
     if (current.kind === "errorEvent") {
       state.error = {
-        code: "MF_TEST_ERROR_EVENT",
+        code: "RUNTIME_MICROFLOW_ERROR_EVENT",
         message: "Mock runtime reached an ErrorEvent.",
         objectId: current.id,
         flowId: incoming,
@@ -164,6 +174,7 @@ function executeFromObject(
       output: selected.output,
       loop,
       message: selected.message,
+      errorHandlerVisited: selected.errorHandlerVisited
     });
     if (frameError && !selected.flow) {
       state.error = frameError;
@@ -225,7 +236,14 @@ function selectOutgoingFlow(
   input: MockTestRunMicroflowInput,
   state: ExecutionState,
   object: MicroflowObject,
-): { flow?: MicroflowSequenceFlow; selectedCaseValue?: MicroflowTraceFrame["selectedCaseValue"]; error?: MicroflowRuntimeError; output?: Record<string, unknown>; message?: string } {
+): {
+  flow?: MicroflowSequenceFlow;
+  selectedCaseValue?: MicroflowTraceFrame["selectedCaseValue"];
+  error?: MicroflowRuntimeError;
+  output?: Record<string, unknown>;
+  message?: string;
+  errorHandlerVisited?: boolean;
+} {
   if (object.kind === "exclusiveSplit") {
     const result = selectDecisionFlow(input.schema, object, input.options);
     if (result.warning) {
@@ -244,7 +262,7 @@ function selectOutgoingFlow(
   if (isRestError) {
     const errorFlow = getOutgoingErrorHandlerFlows(input.schema, object.id)[0];
     const error: MicroflowRuntimeError = {
-      code: "MF_TEST_REST_ERROR",
+      code: "RUNTIME_REST_CALL_FAILED",
       message: "Mock REST call failed by test option simulateRestError.",
       objectId: object.id,
       actionId: object.action.id,
@@ -265,7 +283,12 @@ function selectOutgoingFlow(
       rawValue: { status: 500, body: "mock error" },
       source: "restResponse",
     };
-    return { flow: errorFlow, error, output: { errorHandled: Boolean(errorFlow) } };
+    return {
+      flow: errorFlow,
+      error,
+      output: { errorHandled: Boolean(errorFlow) },
+      errorHandlerVisited: Boolean(errorFlow)
+    };
   }
   return { flow: getNextNormalFlow(input.schema, object.id), output: actionOutput(object) };
 }
@@ -342,6 +365,7 @@ function pushFrame(
     error?: MicroflowRuntimeError;
     loop?: LoopContext;
     message?: string;
+    errorHandlerVisited?: boolean;
   },
 ): void {
   const startedAt = state.startedAtMs + state.trace.length * 14;
@@ -349,6 +373,9 @@ function pushFrame(
   const actionId = object.kind === "actionActivity" ? object.action.id : undefined;
   const frameId = `${state.runId}-${state.trace.length + 1}`;
   const snapshot = { ...state.values };
+  const errorHandlerVisited =
+    options.errorHandlerVisited ??
+    (isErrorHandlerFlowId(input.schema, options.incomingFlowId) || isErrorHandlerFlowId(input.schema, options.outgoingFlowId));
   const frame: MicroflowTraceFrame = {
     id: frameId,
     frameId,
@@ -365,6 +392,7 @@ function pushFrame(
     outgoingEdgeId: options.outgoingFlowId,
     selectedCaseValue: options.selectedCaseValue,
     loopIteration: options.loop,
+    errorHandlerVisited,
     status: options.status,
     startedAt: new Date(startedAt).toISOString(),
     endedAt: new Date(endedAt).toISOString(),
