@@ -211,6 +211,7 @@ import { MarketPluginsPage } from "./pages/market-plugins-page";
 import { CommunityWorksPage } from "./pages/community-works-page";
 import { OpenApiPage } from "./pages/open-api-page";
 import { DocsPage } from "./pages/docs-page";
+import { MicroflowDemoPage } from "./pages/microflow-demo-page";
 import { MeProfilePage } from "./pages/me-profile-page";
 import { MeSettingsPage } from "./pages/me-settings-page";
 import { MeNotificationsPage } from "./pages/me-notifications-page";
@@ -3112,6 +3113,13 @@ export const appRoutes = [
       { path: ":projectId/editor", element: <AppEditorRoute /> },
       { path: ":projectId/publish", element: <AppPublishRoute /> }
     ]
+  },
+  {
+    path: "/microflow",
+    element: <PlatformShellLayout />,
+    handle: WORKSPACE_SHELL_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [{ index: true, element: <MicroflowDemoPage /> }]
   },
   {
     path: "/workflow/:workflowId/editor",

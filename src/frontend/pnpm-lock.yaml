@@ -56,6 +56,9 @@ importers:
       '@atlas/lowcode-studio-react':
         specifier: workspace:*
         version: link:../../packages/lowcode-studio-react
+      '@atlas/microflow':
+        specifier: workspace:*
+        version: link:../../packages/microflow
       '@atlas/module-admin-react':
         specifier: workspace:*
         version: link:../../packages/module-admin-react
@@ -17871,6 +17874,31 @@ importers:
       vitest:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/microflow:
+    dependencies:
+      '@douyinfe/semi-icons':
+        specifier: ^2.82.0
+        version: 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      react-dom:
+        specifier: 18.2.0
+        version: 18.2.0(react@18.2.0)
+    devDependencies:
+      '@types/react':
+        specifier: 18.2.37
+        version: 18.2.37
+      '@types/react-dom':
+        specifier: 18.2.15
+        version: 18.2.15
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
 
   packages/module-admin-react:
     dependencies:

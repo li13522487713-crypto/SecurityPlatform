@@ -113,11 +113,18 @@ public sealed class DatabaseManagementController : ControllerBase
         [FromBody] DatabaseCenterSqlRequest request,
         CancellationToken cancellationToken)
     {
-        _sqlSafetyValidator.ValidateSqlEditorExecute(request.Sql);
-        var result = IsSelectSql(request.Sql)
-            ? await QuerySqlAsync(request, cancellationToken)
-            : await ExecuteMutationSqlAsync(request, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(result, HttpContext.TraceIdentifier));
+        try
+        {
+            _sqlSafetyValidator.ValidateSqlEditorExecute(request.Sql);
+            var result = IsSelectSql(request.Sql)
+                ? await QuerySqlAsync(request, cancellationToken)
+                : await ExecuteMutationSqlAsync(request, cancellationToken);
+            return Ok(ApiResponse<object>.Ok(result, HttpContext.TraceIdentifier));
+        }
+        catch (SqlSafetyException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ErrorCodes.ValidationError, ex.Message, HttpContext.TraceIdentifier));
+        }
     }
 
     [HttpPost("sql/preview")]
@@ -126,9 +133,16 @@ public sealed class DatabaseManagementController : ControllerBase
         [FromBody] DatabaseCenterSqlRequest request,
         CancellationToken cancellationToken)
     {
-        _sqlSafetyValidator.ValidateSelectOnly(request.Sql);
-        var result = await QuerySqlAsync(request, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(result, HttpContext.TraceIdentifier));
+        try
+        {
+            _sqlSafetyValidator.ValidateSelectOnly(request.Sql);
+            var result = await QuerySqlAsync(request, cancellationToken);
+            return Ok(ApiResponse<object>.Ok(result, HttpContext.TraceIdentifier));
+        }
+        catch (SqlSafetyException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ErrorCodes.ValidationError, ex.Message, HttpContext.TraceIdentifier));
+        }
     }
 
     private async Task<object> QuerySqlAsync(DatabaseCenterSqlRequest request, CancellationToken cancellationToken)

@@ -239,7 +239,9 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         {
             if (!IsDatetimeColumnDefinition(definition.Definition))
             {
-                throw new BusinessException($"系统内置审计字段 {definition.Name} 必须使用 DATETIME 类型。", ErrorCodes.ValidationError);
+                throw new BusinessException(
+                    $"SQL 建表失败：{definition.Name} 是系统内置审计字段，类型固定为 DATETIME，不能改成其他类型。请删除该字段让系统自动添加，或写成 {definition.Name} DATETIME。",
+                    ErrorCodes.ValidationError);
             }
         }
 
@@ -270,7 +272,7 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         var openIndex = sql.IndexOf('(', StringComparison.Ordinal);
         if (openIndex < 0)
         {
-            throw new InvalidOperationException("CREATE TABLE statement must contain a column list.");
+            throw new BusinessException("SQL 建表失败：CREATE TABLE 语句必须包含字段列表，例如 CREATE TABLE demo (id INTEGER PRIMARY KEY)。", ErrorCodes.ValidationError);
         }
 
         var depth = 0;
@@ -310,7 +312,7 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
             }
         }
 
-        throw new InvalidOperationException("CREATE TABLE statement has an unclosed column list.");
+        throw new BusinessException("SQL 建表失败：字段列表括号没有闭合，请检查 CREATE TABLE (...) 的右括号。", ErrorCodes.ValidationError);
     }
 
     private static IReadOnlyList<SqlColumnDefinition> ExtractColumnDefinitions(string createTablePrefix)

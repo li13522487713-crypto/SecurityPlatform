@@ -42,7 +42,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         var statement = SingleStatement(sql);
         if (!StartsWithKeywordSequence(statement, "CREATE", "TABLE"))
         {
-            throw new SqlSafetyException("SQL_CREATE_TABLE_REQUIRED", "Only CREATE TABLE statements are allowed.");
+            throw new SqlSafetyException("SQL_CREATE_TABLE_REQUIRED", "SQL 建表失败：这里只允许执行一条 CREATE TABLE 语句。");
         }
 
         EnsureNoForbidden(statement, allowedLeadingCreate: "TABLE");
@@ -53,7 +53,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         var statement = SingleStatement(sql);
         if (!StartsWithCreateView(statement))
         {
-            throw new SqlSafetyException("SQL_CREATE_VIEW_REQUIRED", "Only CREATE VIEW statements are allowed.");
+            throw new SqlSafetyException("SQL_CREATE_VIEW_REQUIRED", "SQL 建视图失败：这里只允许执行 CREATE VIEW 或 CREATE OR REPLACE VIEW 语句。");
         }
 
         EnsureNoForbidden(statement, allowedLeadingCreate: "VIEW");
@@ -61,7 +61,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         var asIndex = tokens.FindIndex(token => string.Equals(token, "AS", StringComparison.OrdinalIgnoreCase));
         if (asIndex < 0 || tokens.Skip(asIndex + 1).All(token => !string.Equals(token, "SELECT", StringComparison.OrdinalIgnoreCase) && !string.Equals(token, "WITH", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new SqlSafetyException("SQL_CREATE_VIEW_SELECT_REQUIRED", "CREATE VIEW must contain a SELECT query.");
+            throw new SqlSafetyException("SQL_CREATE_VIEW_SELECT_REQUIRED", "SQL 建视图失败：CREATE VIEW 必须包含 AS SELECT 查询。");
         }
     }
 
@@ -71,7 +71,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         var tokens = TokenizeExecutableText(statement).ToList();
         if (tokens.Count == 0 || (!string.Equals(tokens[0], "SELECT", StringComparison.OrdinalIgnoreCase) && !string.Equals(tokens[0], "WITH", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new SqlSafetyException("SQL_SELECT_REQUIRED", "Only SELECT statements are allowed.");
+            throw new SqlSafetyException("SQL_SELECT_REQUIRED", "SQL 预览失败：这里只允许 SELECT 或 WITH 查询。");
         }
 
         EnsureNoForbidden(statement, allowedLeadingCreate: null);
@@ -83,7 +83,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         var tokens = TokenizeExecutableText(statement).ToList();
         if (tokens.Count == 0)
         {
-            throw new SqlSafetyException("SQL_EMPTY", "SQL statement cannot be empty.");
+            throw new SqlSafetyException("SQL_EMPTY", "SQL 执行失败：SQL 内容不能为空。");
         }
 
         if (string.Equals(tokens[0], "SELECT", StringComparison.OrdinalIgnoreCase) ||
@@ -101,7 +101,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
             return;
         }
 
-        throw new SqlSafetyException("SQL_EDITOR_STATEMENT_FORBIDDEN", "Only SELECT and INSERT INTO statements are allowed.");
+        throw new SqlSafetyException("SQL_EDITOR_STATEMENT_FORBIDDEN", "SQL 执行失败：SQL 编辑器只允许 SELECT/WITH 查询或 INSERT INTO 插入数据。建表请使用“SQL 建表”，建视图请使用“新建视图”。");
     }
 
     public IReadOnlyList<string> SplitStatementsSafely(string sql)
@@ -280,7 +280,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
 
         if (state is ScannerState.SingleQuoted or ScannerState.DoubleQuoted or ScannerState.BacktickQuoted or ScannerState.BracketQuoted or ScannerState.BlockComment)
         {
-            throw new SqlSafetyException("SQL_UNCLOSED_LITERAL_OR_COMMENT", "SQL contains an unclosed literal or comment.");
+            throw new SqlSafetyException("SQL_UNCLOSED_LITERAL_OR_COMMENT", "SQL 校验失败：字符串、标识符或注释没有闭合，请检查引号、反引号、中括号或 /* */ 注释。");
         }
 
         result.Add(builder.ToString());
@@ -322,12 +322,12 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         var statements = SplitStatementsSafely(sql);
         if (statements.Count == 0)
         {
-            throw new SqlSafetyException("SQL_EMPTY", "SQL statement cannot be empty.");
+            throw new SqlSafetyException("SQL_EMPTY", "SQL 校验失败：SQL 内容不能为空。");
         }
 
         if (statements.Count != 1)
         {
-            throw new SqlSafetyException("SQL_MULTIPLE_STATEMENTS_FORBIDDEN", "Multiple SQL statements are not allowed.");
+            throw new SqlSafetyException("SQL_MULTIPLE_STATEMENTS_FORBIDDEN", "SQL 校验失败：一次只能执行一条 SQL，请拆成多次执行。");
         }
 
         return statements[0];
@@ -348,12 +348,12 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
                     continue;
                 }
 
-                throw new SqlSafetyException("SQL_FORBIDDEN_KEYWORD", "Dangerous SQL keyword detected.");
+                throw new SqlSafetyException("SQL_FORBIDDEN_KEYWORD", $"SQL 校验失败：检测到不允许的关键字 {token}。");
             }
 
             if (IsForbiddenFunction(token))
             {
-                throw new SqlSafetyException("SQL_FORBIDDEN_FUNCTION", "Dangerous SQL function detected.");
+                throw new SqlSafetyException("SQL_FORBIDDEN_FUNCTION", $"SQL 校验失败：检测到不允许的函数 {token}。");
             }
 
             if (string.Equals(token, "CREATE", StringComparison.OrdinalIgnoreCase))
@@ -369,7 +369,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
                     continue;
                 }
 
-                throw new SqlSafetyException("SQL_FORBIDDEN_CREATE", "Only the requested CREATE statement is allowed.");
+                throw new SqlSafetyException("SQL_FORBIDDEN_CREATE", "SQL 校验失败：当前入口不允许执行该 CREATE 语句。建表请使用“SQL 建表”，建视图请使用“新建视图”。");
             }
         }
 
@@ -378,13 +378,13 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         {
             if (executable.Contains(phrase, StringComparison.Ordinal))
             {
-                throw new SqlSafetyException("SQL_FORBIDDEN_PHRASE", "Dangerous SQL phrase detected.");
+                throw new SqlSafetyException("SQL 校验失败：检测到不允许的高危 SQL 片段。", "SQL_FORBIDDEN_PHRASE");
             }
         }
 
         if (ContainsCopyToProgram(tokens))
         {
-            throw new SqlSafetyException("SQL_FORBIDDEN_PHRASE", "Dangerous SQL phrase detected.");
+            throw new SqlSafetyException("SQL 校验失败：检测到不允许的高危 SQL 片段。", "SQL_FORBIDDEN_PHRASE");
         }
     }
 
