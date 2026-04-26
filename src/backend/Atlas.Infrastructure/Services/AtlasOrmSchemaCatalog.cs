@@ -244,7 +244,6 @@ public static class AtlasOrmSchemaCatalog
         typeof(LeakageEvent),
         typeof(EvidencePackage),
         typeof(ExternalShareApproval),
-        typeof(AppDesignerSnapshot),
         typeof(Atlas.Domain.LogicFlow.Flows.LogicFlowDefinition),
         typeof(Atlas.Domain.LogicFlow.Flows.FlowNodeBinding),
         typeof(Atlas.Domain.LogicFlow.Flows.FlowEdgeDefinition),

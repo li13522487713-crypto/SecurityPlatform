@@ -27,7 +27,6 @@ public static class PlatformServiceRegistration
         services.AddScoped<WorkspaceRoleRepository>();
         services.AddScoped<WorkspaceMemberRepository>();
         services.AddScoped<WorkspaceResourcePermissionRepository>();
-        services.AddScoped<IPlatformQueryService, PlatformQueryService>();
         services.AddScoped<ICapabilityRegistry, CapabilityRegistry>();
         services.AddScoped<INavigationProjectionService, NavigationProjectionService>();
         services.AddScoped<IAppBridgeQueryService, AppBridgeService>();
@@ -43,7 +42,6 @@ public static class PlatformServiceRegistration
         services.AddScoped<IAppManifestCommandService, AppManifestCommandService>();
         services.AddScoped<IAppBootstrapService, AppBootstrapService>();
         services.AddScoped<IAppReleaseCommandService, AppReleaseCommandService>();
-        services.AddScoped<IReleaseBundleQueryService, ReleaseBundleQueryService>();
         services.AddScoped<IAppPermissionQueryService, AppPermissionQueryService>();
         services.AddScoped<IAppPermissionCommandService, AppPermissionCommandService>();
         services.AddScoped<IResourceCenterQueryService, ResourceCenterQueryService>();
@@ -53,7 +51,6 @@ public static class PlatformServiceRegistration
         services.AddScoped<IDebugLayerQueryService, DebugLayerQueryService>();
         services.AddScoped<IRuntimeContextQueryService, RuntimeContextQueryService>();
         services.AddScoped<IRuntimeExecutionQueryService, RuntimeExecutionQueryService>();
-        services.AddScoped<IAppDesignerSnapshotService, AppDesignerSnapshotService>();
         services.AddScoped<IWorkspaceIdeService, WorkspaceIdeService>();
         services.AddScoped<IWorkspacePortalService, WorkspacePortalService>();
         return services;
