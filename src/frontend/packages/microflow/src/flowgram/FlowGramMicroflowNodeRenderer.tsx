@@ -75,10 +75,23 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         {data.runtimeState && data.runtimeState !== "idle" ? <Tag color="green">{data.runtimeState}</Tag> : null}
         {validationTag}
       </div>
+      {data.objectKind === "loopedActivity" && data.loopSummary ? (
+        <div className="microflow-flowgram-node__loop-body" aria-label="Loop body summary">
+          <Typography.Text type="tertiary" size="small">
+            {data.loopSummary.childCount === 0 ? "Empty body" : `${data.loopSummary.childCount} body nodes`}
+          </Typography.Text>
+          {data.loopSummary.childCount > 0 ? (
+            <div className="microflow-flowgram-node__loop-stats">
+              <Tag size="small">Actions {data.loopSummary.actionCount}</Tag>
+              <Tag size="small">Events {data.loopSummary.eventCount}</Tag>
+              <Tag size="small">Flows {data.loopSummary.flowCount}</Tag>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {ports.map(port => (
         <WorkflowPortRender key={port.id} entity={port} />
       ))}
     </div>
   );
 }
-

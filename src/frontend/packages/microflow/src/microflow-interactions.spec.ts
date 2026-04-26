@@ -158,6 +158,29 @@ describe("microflow editor interactions", () => {
     expect(deleted.editor.selection.objectId).toBeUndefined();
   });
 
+  it("projects loop body summary to FlowGram and resizes loop containers during auto layout", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "summary-loop");
+    const loopAction = createObjectFromRegistry(registry("activity:objectChange"), { x: 220, y: 180 }, "summary-child");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const flow = createSequenceFlow({ originObjectId: loopAction.id, destinationObjectId: loopAction.id });
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [loopAction] } }], [flow]);
+    const json = authoringToFlowGram(schema, validateMicroflowSchema(schema), []);
+    const loopNode = json.nodes.find(node => node.id === loop.id);
+    expect(loopNode?.data).toMatchObject({
+      objectId: loop.id,
+      loopSummary: {
+        childCount: 1,
+        actionCount: 1,
+        flowCount: 1,
+      },
+    });
+
+    const patch = createAutoLayoutPatch(schema);
+    expect(patch.resizedNodes?.some(item => item.objectId === loop.id && item.size.height > loop.size.height)).toBe(true);
+  });
+
   it("offers enumeration cases and validates duplicate enum values", () => {
     const decision = {
       ...createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "enum-decision"),

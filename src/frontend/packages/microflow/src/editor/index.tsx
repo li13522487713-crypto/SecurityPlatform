@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
 import { Badge, Button, Card, Empty, Modal, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconCopy, IconDelete, IconPlay, IconRefresh, IconSave, IconTickCircle, IconUndo, IconRedo } from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
@@ -910,11 +910,13 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     if (!previous) {
       return;
     }
+    const restored = refreshDerivedState(previous);
     setFuture(items => [schema, ...items]);
     setHistory(items => items.slice(0, -1));
-    setSchema(previous);
-    setIssues(validateMicroflowSchema(previous));
+    setSchema(restored);
+    setIssues(validateMicroflowSchema(restored));
     setDirty(true);
+    props.onSchemaChange?.(restored);
   };
 
   const handleRedo = () => {
@@ -922,11 +924,13 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     if (!next) {
       return;
     }
+    const restored = refreshDerivedState(next);
     setHistory(items => [...items, schema]);
     setFuture(items => items.slice(1));
-    setSchema(next);
-    setIssues(validateMicroflowSchema(next));
+    setSchema(restored);
+    setIssues(validateMicroflowSchema(restored));
     setDirty(true);
+    props.onSchemaChange?.(restored);
   };
 
   const handleAutoLayout = () => {
@@ -938,6 +942,30 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     commitSchema(applyEditorGraphPatchToAuthoring(schema, patch));
     Toast.success("Auto layout applied.");
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [future, history, schema]);
 
   return (
     <div style={shellStyle}>

@@ -69,3 +69,17 @@
   margin-top: 10px;
 }
 
+.microflow-flowgram-node__loop-body {
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px dashed rgba(114, 46, 209, 0.28);
+  border-radius: 6px;
+  background: rgba(114, 46, 209, 0.04);
+}
+
+.microflow-flowgram-node__loop-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}

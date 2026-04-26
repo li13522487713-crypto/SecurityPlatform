@@ -64,6 +64,7 @@ export function createAutoLayoutPatch(schema: MicroflowSchema): MicroflowEditorG
   }
 
   const movedNodes: MicroflowEditorGraphPatch["movedNodes"] = [];
+  const resizedNodes: MicroflowEditorGraphPatch["resizedNodes"] = [];
   for (const [layer, nodes] of byLayer.entries()) {
     const ordered = [...nodes].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
     ordered.forEach((node, index) => {
@@ -77,7 +78,24 @@ export function createAutoLayoutPatch(schema: MicroflowSchema): MicroflowEditorG
     });
   }
 
-  return { movedNodes };
+  for (const node of rootNodes) {
+    if (node.nodeKind !== "loopedActivity") {
+      continue;
+    }
+    const childCount = graph.nodes.filter(child => child.parentObjectId === node.objectId).length;
+    if (childCount === 0) {
+      continue;
+    }
+    resizedNodes.push({
+      objectId: node.objectId,
+      size: {
+        width: Math.max(node.size.width, 260),
+        height: Math.max(node.size.height, 132 + Math.min(childCount, 6) * 34),
+      },
+    });
+  }
+
+  return { movedNodes, resizedNodes };
 }
 
 function editorNodeIdToObjectId(editorNodeId: string): string {

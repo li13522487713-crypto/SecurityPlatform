@@ -4,6 +4,7 @@ import { flattenObjectCollection, toEditorGraph } from "../../adapters";
 import type {
   MicroflowAuthoringSchema,
   MicroflowObject,
+  MicroflowObjectCollection,
   MicroflowSchema,
   MicroflowTraceFrame,
   MicroflowValidationIssue,
@@ -30,9 +31,42 @@ function subtitleForObject(object: MicroflowObject): string | undefined {
     return object.action.kind;
   }
   if (object.kind === "loopedActivity") {
-    return object.iteratorVariableName ? `iterator: ${object.iteratorVariableName}` : "Loop";
+    return object.loopSource.kind === "iterableList" ? `iterator: ${object.loopSource.iteratorVariableName}` : "While condition";
   }
   return object.officialType;
+}
+
+function collectCollectionObjectIds(collection: MicroflowObjectCollection): Set<string> {
+  const ids = new Set<string>();
+  for (const object of collection.objects) {
+    ids.add(object.id);
+    if (object.kind === "loopedActivity") {
+      for (const childId of collectCollectionObjectIds(object.objectCollection)) {
+        ids.add(childId);
+      }
+    }
+  }
+  return ids;
+}
+
+function loopSummaryForObject(
+  object: MicroflowObject | undefined,
+  schema: MicroflowSchema | MicroflowAuthoringSchema,
+): FlowGramMicroflowNodeData["loopSummary"] {
+  if (object?.kind !== "loopedActivity") {
+    return undefined;
+  }
+  const childObjects = flattenObjectCollection(object.objectCollection);
+  const descendantIds = collectCollectionObjectIds(object.objectCollection);
+  const flowCount = schema.flows.filter(flow => descendantIds.has(flow.originObjectId) && descendantIds.has(flow.destinationObjectId)).length;
+  return {
+    childCount: childObjects.length,
+    flowCount,
+    nestedLoopCount: childObjects.filter(child => child.kind === "loopedActivity").length,
+    actionCount: childObjects.filter(child => child.kind === "actionActivity").length,
+    eventCount: childObjects.filter(child => child.kind.endsWith("Event")).length,
+    annotationCount: childObjects.filter(child => child.kind === "annotation").length,
+  };
 }
 
 function validationState(issues: MicroflowValidationIssue[]): "valid" | "warning" | "error" {
@@ -92,6 +126,7 @@ export function authoringToFlowGram(
       objectKind: object?.kind ?? node.kind,
       collectionId: node.collectionId,
       parentObjectId: node.parentObjectId,
+      loopSummary: loopSummaryForObject(object, schema),
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
       title: object ? titleForObject(object) : node.title,
       subtitle: object ? subtitleForObject(object) : node.subtitle,

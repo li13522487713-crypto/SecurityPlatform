@@ -80,6 +80,12 @@
   stroke: rgba(134, 144, 156, 0.72);
 }
 
+.microflow-flowgram-minimap-node-nested {
+  opacity: 0.72;
+  stroke-width: 3;
+  stroke-dasharray: 10 8;
+}
+
 .microflow-flowgram-minimap-viewport {
   fill: rgba(22, 93, 255, 0.08);
   stroke: rgba(22, 93, 255, 0.84);

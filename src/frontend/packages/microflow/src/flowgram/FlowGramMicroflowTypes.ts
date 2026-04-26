@@ -15,6 +15,14 @@ export interface FlowGramMicroflowNodeData {
   objectKind: MicroflowObjectKind;
   collectionId: string;
   parentObjectId?: string;
+  loopSummary?: {
+    childCount: number;
+    flowCount: number;
+    nestedLoopCount: number;
+    actionCount: number;
+    eventCount: number;
+    annotationCount: number;
+  };
   actionKind?: MicroflowActionKind;
   title: string;
   subtitle?: string;

@@ -3,8 +3,10 @@ import { useMemo, useState, type DragEvent } from "react";
 import { Button, Space } from "@douyinfe/semi-ui";
 import { IconMinus, IconPlus, IconRefresh, IconUndo, IconRedo, IconTreeTriangleDown, IconMapPin } from "@douyinfe/semi-icons";
 import {
+  type FlowNodeEntity,
   PlaygroundReactRenderer,
   WorkflowResetLayoutService,
+  WorkflowSelectService,
   usePlayground,
   useService,
 } from "@flowgram-adapter/free-layout-editor";
@@ -91,24 +93,25 @@ function snapPoint(point: MicroflowPoint, gridSize = 16): MicroflowPoint {
   };
 }
 
-function FlowGramMicroflowMiniMap({ schema }: { schema: MicroflowSchema }) {
+function FlowGramMicroflowMiniMap({ schema, onFocusNode }: { schema: MicroflowSchema; onFocusNode: (objectId: string) => void }) {
   const graph = useMemo(() => toEditorGraph(schema), [schema]);
   const rootNodes = graph.nodes.filter(node => !node.parentObjectId);
+  const nodeById = useMemo(() => new Map(graph.nodes.map(node => [node.objectId, node])), [graph.nodes]);
   const bounds = useMemo(() => {
-    if (rootNodes.length === 0) {
+    if (graph.nodes.length === 0) {
       return { minX: 0, minY: 0, width: 1, height: 1 };
     }
-    const minX = Math.min(...rootNodes.map(node => node.position.x - node.size.width / 2));
-    const minY = Math.min(...rootNodes.map(node => node.position.y - node.size.height / 2));
-    const maxX = Math.max(...rootNodes.map(node => node.position.x + node.size.width / 2));
-    const maxY = Math.max(...rootNodes.map(node => node.position.y + node.size.height / 2));
+    const minX = Math.min(...graph.nodes.map(node => node.position.x - node.size.width / 2));
+    const minY = Math.min(...graph.nodes.map(node => node.position.y - node.size.height / 2));
+    const maxX = Math.max(...graph.nodes.map(node => node.position.x + node.size.width / 2));
+    const maxY = Math.max(...graph.nodes.map(node => node.position.y + node.size.height / 2));
     return {
       minX,
       minY,
       width: Math.max(1, maxX - minX),
       height: Math.max(1, maxY - minY),
     };
-  }, [rootNodes]);
+  }, [graph.nodes]);
   const viewBox = `${bounds.minX - 80} ${bounds.minY - 80} ${bounds.width + 160} ${bounds.height + 160}`;
   const viewport = graph.viewport;
   const viewportWidth = 520 / Math.max(0.2, viewport.zoom);
@@ -118,8 +121,8 @@ function FlowGramMicroflowMiniMap({ schema }: { schema: MicroflowSchema }) {
     <div className="microflow-flowgram-minimap" aria-label="Microflow minimap">
       <svg viewBox={viewBox} role="img">
         {graph.edges.map(edge => {
-          const source = rootNodes.find(node => `node-${node.objectId}` === edge.sourceNodeId);
-          const target = rootNodes.find(node => `node-${node.objectId}` === edge.targetNodeId);
+          const source = nodeById.get(editorNodeIdToObjectId(edge.sourceNodeId));
+          const target = nodeById.get(editorNodeIdToObjectId(edge.targetNodeId));
           if (!source || !target) {
             return null;
           }
@@ -143,6 +146,35 @@ function FlowGramMicroflowMiniMap({ schema }: { schema: MicroflowSchema }) {
             height={node.size.height}
             rx={node.nodeKind === "exclusiveSplit" || node.nodeKind === "inheritanceSplit" ? 4 : 10}
             className={`microflow-flowgram-minimap-node microflow-flowgram-minimap-node-${node.nodeKind}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onFocusNode(node.objectId)}
+            onKeyDown={event => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onFocusNode(node.objectId);
+              }
+            }}
+          />
+        ))}
+        {graph.nodes.filter(node => node.parentObjectId).map(node => (
+          <rect
+            key={node.objectId}
+            x={node.position.x - Math.min(node.size.width, 120) / 2}
+            y={node.position.y - Math.min(node.size.height, 72) / 2}
+            width={Math.min(node.size.width, 120)}
+            height={Math.min(node.size.height, 72)}
+            rx={6}
+            className={`microflow-flowgram-minimap-node microflow-flowgram-minimap-node-nested microflow-flowgram-minimap-node-${node.nodeKind}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onFocusNode(node.objectId)}
+            onKeyDown={event => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onFocusNode(node.objectId);
+              }
+            }}
           />
         ))}
         <rect
@@ -157,8 +189,13 @@ function FlowGramMicroflowMiniMap({ schema }: { schema: MicroflowSchema }) {
   );
 }
 
+function editorNodeIdToObjectId(editorNodeId: string): string {
+  return editorNodeId.startsWith("node-") ? editorNodeId.slice(5) : editorNodeId;
+}
+
 function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const playground = usePlayground();
+  const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
   const [pendingCaseLine, setPendingCaseLine] = useState<FlowGramMicroflowPendingLine>();
   const [miniMapVisible, setMiniMapVisible] = useState(true);
   const bridge = useFlowGramMicroflowBridge({
@@ -199,6 +236,14 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     props.onDropRegistryItem?.(item, snapPoint({ x: rawPosition.x, y: rawPosition.y }));
   };
 
+  const focusNodeFromMiniMap = (objectId: string) => {
+    const node = playground.entityManager.getEntityById<FlowNodeEntity>(objectId);
+    if (node) {
+      void selectService.selectNodeAndScrollToView(node, true);
+    }
+    props.onSelectionChange({ objectId, flowId: undefined });
+  };
+
   return (
     <div className="microflow-flowgram-canvas" onDragOver={handleDragOver} onDrop={handleDrop}>
       <PlaygroundReactRenderer />
@@ -212,7 +257,7 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
         miniMapVisible={miniMapVisible}
         onToggleMiniMap={() => setMiniMapVisible(value => !value)}
       />
-      {miniMapVisible ? <FlowGramMicroflowMiniMap schema={props.schema} /> : null}
+      {miniMapVisible ? <FlowGramMicroflowMiniMap schema={props.schema} onFocusNode={focusNodeFromMiniMap} /> : null}
       <FlowGramMicroflowCaseEditor
         visible={Boolean(pendingCaseLine)}
         kind={pendingCaseLine?.caseKind ?? "boolean"}
