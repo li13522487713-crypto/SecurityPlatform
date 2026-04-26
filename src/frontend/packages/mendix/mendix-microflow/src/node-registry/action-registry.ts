@@ -38,6 +38,8 @@ export interface MicroflowActionRegistryItem {
   supportsErrorHandling: boolean;
   supportedErrorHandlingTypes: MicroflowErrorHandlingType[];
   propertyTabs: MicroflowPropertyTabKey[];
+  /** 与 {@link resolveActionRuntimeSupportLevel} 对齐的注册表元数据。P0 恒为 supported。 */
+  runtimeSupportLevel: MicroflowActionRuntimeSupportLevel;
   createsActionActivity: true;
   createAction: (input: { id: string; config?: Partial<LegacyMicroflowActivityConfig>; caption?: string }) => MicroflowAction;
   validate: (action: MicroflowAction) => MicroflowValidationIssue[];
@@ -103,6 +105,28 @@ function baseAction(
 type GenericActionConfig = Record<string, unknown>;
 
 const unknownType: MicroflowDataType = { kind: "unknown", reason: "registry default" };
+
+const P0_ACTION_KINDS = new Set<MicroflowActionKind>([
+  "retrieve",
+  "createObject",
+  "changeMembers",
+  "commit",
+  "delete",
+  "rollback",
+  "createVariable",
+  "changeVariable",
+  "callMicroflow",
+  "restCall",
+  "logMessage"
+]);
+
+export type MicroflowActionRuntimeSupportLevel =
+  | "supported"
+  | "modeledOnly"
+  | "unsupported"
+  | "requiresConnector"
+  | "nanoflowOnly"
+  | "deprecated";
 const stringType: MicroflowDataType = { kind: "string" };
 const integerType: MicroflowDataType = { kind: "integer" };
 const booleanType: MicroflowDataType = { kind: "boolean" };
@@ -422,7 +446,8 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
       officialType: "Microflows$CreateVariableAction",
       variableName: String(config.variableName ?? "variable"),
       dataType: { kind: "unknown", reason: "registry default" },
-      initialValue: expression("", { kind: "unknown", reason: "registry default" })
+      initialValue: expression("", { kind: "unknown", reason: "registry default" }),
+      readonly: false
     };
   }
   if (item.actionKind === "changeVariable") {
@@ -430,8 +455,8 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
       ...base,
       kind: "changeVariable",
       officialType: "Microflows$ChangeVariableAction",
-      variableName: String(config.variableName ?? "variable"),
-      valueExpression: expression("")
+      targetVariableName: String(config.variableName ?? "variable"),
+      newValueExpression: expression("")
     };
   }
   if (item.actionKind === "restCall") {
@@ -466,16 +491,13 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
     ...base,
     kind: item.actionKind,
     officialType: item.officialType,
-    ...(genericActionDefaults[item.actionKind] ? cloneRecord(genericActionDefaults[item.actionKind]) : {}),
+    ...cloneRecord((genericActionDefaults[item.actionKind] ?? {}) as GenericActionConfig),
     legacyActivityType: item.legacyActivityType,
     legacyConfig: config
   } as MicroflowAction;
 }
 
 function validateAction(action: MicroflowAction): MicroflowValidationIssue[] {
-  if (action.kind === "retrieve" && !("outputVariableName" in action)) {
-    return [issue("MF_ACTION_RETRIEVE_OUTPUT_REQUIRED", "Retrieve action requires outputVariableName.", action.id)];
-  }
   if (action.kind === "restCall" && !action.request.method) {
     return [issue("MF_ACTION_REST_METHOD_REQUIRED", "REST call action requires method.", action.id)];
   }
@@ -507,7 +529,20 @@ function action(input: {
 }): MicroflowActionRegistryItem {
   const availability = input.availability ?? "supported";
   const supportsErrorHandling = input.supportsErrorHandling ?? !["client", "logging", "metrics", "variable"].includes(input.category);
-  const item = {
+  const runtimeSupportLevel: MicroflowActionRuntimeSupportLevel = P0_ACTION_KINDS.has(input.key)
+    ? "supported"
+    : availability === "hidden"
+      ? "modeledOnly"
+      : availability === "nanoflowOnlyDisabled"
+        ? "nanoflowOnly"
+        : availability === "requiresConnector"
+          ? "requiresConnector"
+          : availability === "deprecated"
+            ? "deprecated"
+            : availability === "beta"
+              ? "modeledOnly"
+              : "modeledOnly";
+  const item: MicroflowActionRegistryItem = {
     key: input.key,
     kind: input.key,
     actionKind: input.key,
@@ -534,10 +569,11 @@ function action(input: {
     supportsErrorHandling,
     supportedErrorHandlingTypes: supportsErrorHandling ? ["rollback", "customWithRollback", "customWithoutRollback"] : [],
     propertyTabs: supportsErrorHandling ? ["properties", "documentation", "errorHandling", "output", "advanced"] : ["properties", "documentation", "output"],
-    createsActionActivity: true as const,
-    createAction: ({ id, config, caption }) => createConcreteAction(item, id, { ...item.defaultConfig, ...config }, caption),
+    runtimeSupportLevel,
+    createsActionActivity: true,
+    createAction: ({ id, config, caption }: { id: string; config?: Partial<LegacyMicroflowActivityConfig>; caption?: string }) => createConcreteAction(item, id, { ...item.defaultConfig, ...config }, caption),
     validate: validateAction,
-    toRuntimeDto: createdAction => ({
+    toRuntimeDto: (createdAction: MicroflowAction) => ({
       nodeId: createdAction.id,
       type: "activity",
       kind: "activity",
@@ -556,7 +592,7 @@ function action(input: {
       }
     })
   };
-  return item as MicroflowActionRegistryItem;
+  return item;
 }
 
 export const defaultMicroflowActionRegistry: MicroflowActionRegistryItem[] = [

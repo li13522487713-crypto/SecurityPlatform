@@ -300,9 +300,11 @@ function applyActionEffects(input: MockTestRunMicroflowInput, state: ExecutionSt
   const action = object.action;
   if (action.kind === "retrieve") {
     const isList = action.retrieveSource.kind === "database" && action.retrieveSource.range.kind === "all";
+    const entityQ =
+      action.retrieveSource.kind === "database" ? action.retrieveSource.entityQualifiedName ?? "Mock.Entity" : "Mock.Association";
     state.values[action.outputVariableName] = {
       name: action.outputVariableName,
-      type: isList ? { kind: "list", itemType: { kind: "object", entityQualifiedName: action.retrieveSource.entityQualifiedName ?? "Mock.Entity" } } : { kind: "object", entityQualifiedName: action.retrieveSource.kind === "database" ? action.retrieveSource.entityQualifiedName ?? "Mock.Entity" : "Mock.Association" },
+      type: isList ? { kind: "list", itemType: { kind: "object", entityQualifiedName: entityQ } } : { kind: "object", entityQualifiedName: entityQ },
       valuePreview: isList ? "[mock object, mock object]" : "{ mock: true }",
       rawValue: isList ? [{ id: 1 }, { id: 2 }] : { id: 1 },
       source: "retrieve",
@@ -318,20 +320,21 @@ function applyActionEffects(input: MockTestRunMicroflowInput, state: ExecutionSt
     };
   }
   if (action.kind === "createVariable") {
+    const iv = action.initialValue;
     state.values[action.variableName] = {
       name: action.variableName,
       type: action.dataType,
-      valuePreview: action.initialValue.raw || previewForType(action.dataType),
-      rawValue: action.initialValue.raw,
+      valuePreview: (iv && "raw" in iv ? iv.raw : undefined) || previewForType(action.dataType),
+      rawValue: iv && "raw" in iv ? iv.raw : undefined,
       source: "createVariable",
     };
   }
   if (action.kind === "changeVariable") {
-    state.values[action.variableName] = {
-      name: action.variableName,
-      type: state.values[action.variableName]?.type ?? { kind: "unknown", reason: "mock changeVariable" },
-      valuePreview: action.valueExpression.raw,
-      rawValue: action.valueExpression.raw,
+    state.values[action.targetVariableName] = {
+      name: action.targetVariableName,
+      type: state.values[action.targetVariableName]?.type ?? { kind: "unknown", reason: "mock changeVariable" },
+      valuePreview: action.newValueExpression.raw,
+      rawValue: action.newValueExpression.raw,
       source: "changeVariable",
     };
   }

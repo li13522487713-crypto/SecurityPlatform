@@ -42,7 +42,7 @@ export function AttributeSelector({
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled || !resolvedEntity}
       value={value}
       key={version}

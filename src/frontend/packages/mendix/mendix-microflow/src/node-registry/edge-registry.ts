@@ -344,10 +344,10 @@ export function canConnectPorts(schema: MicroflowSchema, sourcePort: MicroflowEd
   if (edgeKind === "errorHandler" && !supportsErrorFlow(source)) {
     return fail("MF_CONNECT_ERROR_UNSUPPORTED", "Source object does not support custom error handling.", edgeKind);
   }
-  if (edgeKind !== "annotation" && sourcePort.cardinality === "one" && hasOutgoing(schema, sourcePort)) {
+  if (sourcePort.cardinality === "one" && hasOutgoing(schema, sourcePort)) {
     return fail("MF_CONNECT_SOURCE_CARDINALITY", "Source port already has an outgoing flow.", edgeKind);
   }
-  if (edgeKind !== "annotation" && targetPort.cardinality === "one" && hasIncoming(schema, targetPort)) {
+  if (targetPort.cardinality === "one" && hasIncoming(schema, targetPort)) {
     return fail("MF_CONNECT_TARGET_CARDINALITY", "Target port already has an incoming flow.", edgeKind);
   }
   if (edgeKind === "decisionCondition" && source.kind === "exclusiveSplit") {

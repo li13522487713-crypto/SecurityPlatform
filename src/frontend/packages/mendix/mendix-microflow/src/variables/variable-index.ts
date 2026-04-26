@@ -319,7 +319,7 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
       dataType: action.dataType,
       source: { kind: "createVariable", objectId: object.id, actionId: action.id },
       scope: downstream,
-      readonly: false,
+      readonly: action.readonly ?? false,
     }), "action.variableName");
   }
   if (action.kind === "callMicroflow" && action.returnValue.storeResult && action.returnValue.outputVariableName) {

@@ -1,14 +1,17 @@
-import type { MicroflowAction, MicroflowDataType, MicroflowExpression } from "@atlas/microflow/schema";
+import type { MicroflowAction, MicroflowDataType, MicroflowExpression, MicroflowDiscriminatedRuntimeP0ActionDto } from "@atlas/microflow/schema";
 
 /**
  * 前端 v1 运行时 DTO 契约：与 toRuntimeDto() 产出的 MicroflowRuntimeDto 配套。
  * 业务主数据仍为 MicroflowAuthoringSchema；本组类型供后端按字段落地或二次映射，不包含 FlowGram JSON。
+ * P0 动作为强类型：见 `MicroflowRuntimeDto.p0RuntimeActionBlocks` 与 {@link MicroflowDiscriminatedRuntimeP0ActionDto}。
  */
 export type {
   MicroflowRuntimeDto,
   MicroflowRuntimeNodeDto,
   MicroflowRuntimeEdgeDto
 } from "@atlas/microflow/schema";
+
+export type { MicroflowDiscriminatedRuntimeP0ActionDto };
 
 export { toRuntimeDto } from "@atlas/microflow/adapters";
 

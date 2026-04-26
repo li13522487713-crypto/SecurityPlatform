@@ -52,6 +52,15 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       if (!dto.objectCollection || !Array.isArray(dto.flows)) {
         errors.push(`${item.key}: toRuntimeDto 缺少 objectCollection 或 flows`);
       }
+      if (!Array.isArray((dto as { p0RuntimeActionBlocks?: unknown }).p0RuntimeActionBlocks)) {
+        errors.push(`${item.key}: toRuntimeDto 缺少 p0RuntimeActionBlocks 数组`);
+      } else {
+        const badP0 = (dto as { p0RuntimeActionBlocks: Array<{ supportLevel: string; action?: { supportLevel?: string } }> }).p0RuntimeActionBlocks
+          .filter(b => b.supportLevel === "supported" && b.action && b.action.supportLevel !== "supported");
+        if (badP0.length > 0) {
+          errors.push(`${item.key}: p0RuntimeActionBlocks 中含非法 supportLevel`);
+        }
+      }
       const plan = toExecutionPlan(dto);
       if (plan.schemaId !== schema.id || plan.nodes.length < 1) {
         errors.push(`${item.key}: toExecutionPlan 与 schema 不一致或 nodes 为空`);

@@ -556,7 +556,7 @@ function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryIte
 
 export const microflowActionNodePanelRegistries: MicroflowNodeRegistryEntry[] = defaultMicroflowActionRegistry
   .filter(item => item.availability !== "hidden")
-  .map(nodePanelEntryFromActionRegistry) as MicroflowNodeRegistryEntry[];
+  .map(nodePanelEntryFromActionRegistry) as unknown as MicroflowNodeRegistryEntry[];
 
 export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = microflowObjectNodeRegistries;
 export const microflowNodePanelRegistries: MicroflowNodeRegistryEntry[] = [
@@ -666,7 +666,7 @@ export function createNodeDragPayloadFromNodeRegistry(entry: MicroflowNodeRegist
 }
 
 export function createNodeDragPayloadFromActionRegistry(entry: MicroflowActionRegistryItem): MicroflowNodeDragPayload {
-  const panelEntry = nodePanelEntryFromActionRegistry(entry) as MicroflowNodeRegistryEntry;
+  const panelEntry = nodePanelEntryFromActionRegistry(entry) as unknown as MicroflowNodeRegistryEntry;
   return createNodeDragPayloadFromNodeRegistry(panelEntry);
 }
 

@@ -2,12 +2,15 @@ import { Button, Checkbox, Input, Select, Space, Switch, TextArea, Typography } 
 import { IconPlus } from "@douyinfe/semi-icons";
 import type {
   LegacyMicroflowActivityConfig,
+  LegacyMicroflowActivityNode,
   LegacyMicroflowAnnotationNode,
   LegacyMicroflowDecisionNode,
   LegacyMicroflowEventNode,
   LegacyMicroflowLoopNode,
   LegacyMicroflowMergeNode,
+  LegacyMicroflowNode,
   LegacyMicroflowParameterNode,
+  MicroflowObject,
   MicroflowTypeRef
 } from "../schema";
 import {
@@ -22,7 +25,9 @@ import {
   primitiveType
 } from "./controls";
 import { MicroflowBasicSection } from "./sections";
-import type { MicroflowActivityFormProps, MicroflowNodeFormProps, MicroflowNodeFormRegistry, MicroflowNodeFormRegistryItem } from "./types";
+import type { MicroflowNodeFormProps, MicroflowNodeFormRegistry, MicroflowNodeFormRegistryItem } from "./types";
+
+type LegacyActivityFormProps = MicroflowNodeFormProps<LegacyMicroflowActivityNode>;
 
 const { Text } = Typography;
 
@@ -37,11 +42,11 @@ function updateEventConfig(props: MicroflowNodeFormProps<LegacyMicroflowEventNod
   props.onPatch({ config: patch });
 }
 
-function updateActivityConfig(props: MicroflowActivityFormProps, patch: Partial<LegacyMicroflowActivityConfig>) {
+function updateActivityConfig(props: LegacyActivityFormProps, patch: Partial<LegacyMicroflowActivityConfig>) {
   props.onPatch({ config: patch });
 }
 
-function assignmentEditor(props: MicroflowActivityFormProps, entity?: string) {
+function assignmentEditor(props: LegacyActivityFormProps, entity?: string) {
   const assignments = props.node.config.assignments ?? [];
   return (
     <FieldRow label="Attribute assignments">
@@ -78,10 +83,10 @@ function assignmentEditor(props: MicroflowActivityFormProps, entity?: string) {
 }
 
 export function MicroflowStartEventForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowNodeFormProps<LegacyMicroflowEventNode>;
+  const props = rawProps as unknown as MicroflowNodeFormProps<LegacyMicroflowEventNode>;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Start event type">
         <Select
           disabled={props.readonly}
@@ -106,7 +111,7 @@ export function MicroflowStartEventForm(rawProps: MicroflowNodeFormProps) {
       <FieldRow label="Input parameter preview">
         <Space vertical align="start" spacing={4}>
           {props.schema.parameters.length === 0 ? <Text type="tertiary">No input parameters.</Text> : props.schema.parameters.map(parameter => (
-            <Text key={parameter.id} type="tertiary">{parameter.name}: {parameter.type.name}</Text>
+            <Text key={parameter.id} type="tertiary">{parameter.name}: {parameter.type?.name ?? "?"}</Text>
           ))}
         </Space>
       </FieldRow>
@@ -115,10 +120,10 @@ export function MicroflowStartEventForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowEndEventForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowNodeFormProps<LegacyMicroflowEventNode>;
+  const props = rawProps as unknown as MicroflowNodeFormProps<LegacyMicroflowEventNode>;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="End type">
         <Select
           disabled={props.readonly}
@@ -157,10 +162,10 @@ export function MicroflowEndEventForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowDecisionForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowNodeFormProps<LegacyMicroflowDecisionNode>;
+  const props = rawProps as unknown as MicroflowNodeFormProps<LegacyMicroflowDecisionNode>;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Condition expression" required>
         <ExpressionEditor
           required
@@ -182,12 +187,13 @@ export function MicroflowDecisionForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowMergeForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowNodeFormProps<LegacyMicroflowMergeNode>;
-  const incoming = props.edges.filter(edge => edge.targetNodeId === props.node.id).length;
-  const outgoing = props.edges.filter(edge => edge.sourceNodeId === props.node.id).length;
+  const props = rawProps as unknown as MicroflowNodeFormProps<LegacyMicroflowMergeNode>;
+  const edgeList = props.edges ?? [];
+  const incoming = edgeList.filter(edge => edge.targetNodeId === props.node.id).length;
+  const outgoing = edgeList.filter(edge => edge.sourceNodeId === props.node.id).length;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Merge strategy">
         <Select
           disabled={props.readonly}
@@ -207,10 +213,10 @@ export function MicroflowMergeForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowLoopForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowNodeFormProps<LegacyMicroflowLoopNode>;
+  const props = rawProps as unknown as MicroflowNodeFormProps<LegacyMicroflowLoopNode>;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Loop type">
         <Select disabled={props.readonly} style={{ width: "100%" }} value={props.node.config.loopType ?? "list"} optionList={[{ label: "For each list", value: "list" }, { label: "Conditional loop", value: "condition" }]} onChange={loopType => props.onPatch({ config: { loopType } })} />
       </FieldRow>
@@ -234,16 +240,19 @@ export function MicroflowLoopForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowParameterForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowNodeFormProps<LegacyMicroflowParameterNode>;
+  const props = rawProps as unknown as MicroflowNodeFormProps<LegacyMicroflowParameterNode>;
   const parameter = props.node.config.parameter;
+  if (!parameter) {
+    return <Text type="tertiary">Parameter config is missing.</Text>;
+  }
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Parameter name" required error={!parameter.name ? "Parameter name is required." : undefined}>
         <Input readonly={props.readonly} value={parameter.name} onChange={name => props.onPatch({ config: { parameter: { ...parameter, name } } })} />
       </FieldRow>
       <FieldRow label="Parameter type" required>
-        <Select disabled={props.readonly} style={{ width: "100%" }} value={parameter.type.name} optionList={["String", "Boolean", "Integer", "Decimal", "DateTime", "Object", "List"].map(name => ({ label: name, value: name }))} onChange={name => props.onPatch({ config: { parameter: { ...parameter, type: typeRef(String(name)) } } })} />
+        <Select disabled={props.readonly} style={{ width: "100%" }} value={parameter.type?.name ?? "String"} optionList={["String", "Boolean", "Integer", "Decimal", "DateTime", "Object", "List"].map(name => ({ label: name, value: name }))} onChange={name => props.onPatch({ config: { parameter: { ...parameter, type: typeRef(String(name)) } } })} />
       </FieldRow>
       <FieldRow label="Required">
         <Switch disabled={props.readonly} checked={parameter.required} onChange={required => props.onPatch({ config: { parameter: { ...parameter, required } } })} />
@@ -259,10 +268,10 @@ export function MicroflowParameterForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowAnnotationForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowNodeFormProps<LegacyMicroflowAnnotationNode>;
+  const props = rawProps as unknown as MicroflowNodeFormProps<LegacyMicroflowAnnotationNode>;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Title">
         <Input readonly={props.readonly} value={props.node.config.title ?? ""} onChange={title => props.onPatch({ config: { title } })} />
       </FieldRow>
@@ -283,11 +292,11 @@ export function MicroflowAnnotationForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowObjectRetrieveForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   const config = props.node.config;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Retrieve mode">
         <Select disabled={props.readonly} style={{ width: "100%" }} value={config.retrieveMode ?? "database"} optionList={[{ label: "By association", value: "association" }, { label: "From database", value: "database" }]} onChange={retrieveMode => updateActivityConfig(props, { retrieveMode: String(retrieveMode) as LegacyMicroflowActivityConfig["retrieveMode"] })} />
       </FieldRow>
@@ -322,10 +331,10 @@ export function MicroflowObjectRetrieveForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowObjectCreateForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Entity" required error={!props.node.config.entity ? "Entity is required." : undefined}>
         <EntitySelector value={props.node.config.entity} readonly={props.readonly} onChange={entity => updateActivityConfig(props, { entity })} />
       </FieldRow>
@@ -344,10 +353,10 @@ export function MicroflowObjectCreateForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowObjectChangeForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Target object variable" required error={!props.node.config.objectVariableName ? "Target object is required." : undefined}>
         <VariableSelector value={props.node.config.objectVariableName} variables={props.variables} readonly={props.readonly} onChange={objectVariableName => updateActivityConfig(props, { objectVariableName })} />
       </FieldRow>
@@ -369,10 +378,10 @@ export function MicroflowObjectChangeForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowObjectCommitForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Target object variable" required>
         <VariableSelector value={props.node.config.objectVariableName} variables={props.variables} readonly={props.readonly} onChange={objectVariableName => updateActivityConfig(props, { objectVariableName })} />
       </FieldRow>
@@ -387,10 +396,10 @@ export function MicroflowObjectCommitForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowObjectDeleteForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Target object variable" required>
         <VariableSelector value={props.node.config.objectVariableName} variables={props.variables} readonly={props.readonly} onChange={objectVariableName => updateActivityConfig(props, { objectVariableName })} />
       </FieldRow>
@@ -408,10 +417,10 @@ export function MicroflowObjectDeleteForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowObjectRollbackForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Target object variable" required>
         <VariableSelector value={props.node.config.objectVariableName} variables={props.variables} readonly={props.readonly} onChange={objectVariableName => updateActivityConfig(props, { objectVariableName })} />
       </FieldRow>
@@ -424,10 +433,10 @@ export function MicroflowObjectRollbackForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowVariableCreateForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Variable name" required>
         <Input readonly={props.readonly} value={props.node.config.variableName ?? ""} onChange={variableName => updateActivityConfig(props, { variableName })} />
       </FieldRow>
@@ -445,10 +454,10 @@ export function MicroflowVariableCreateForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowVariableChangeForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Target variable" required>
         <VariableSelector value={props.node.config.variableName} variables={props.variables} readonly={props.readonly} onChange={variableName => updateActivityConfig(props, { variableName })} />
       </FieldRow>
@@ -461,10 +470,10 @@ export function MicroflowVariableChangeForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowCallMicroflowForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Target microflow" required>
         <Input readonly={props.readonly} value={props.node.config.targetMicroflowId ?? ""} onChange={targetMicroflowId => updateActivityConfig(props, { targetMicroflowId })} />
       </FieldRow>
@@ -480,11 +489,11 @@ export function MicroflowCallMicroflowForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowCallRestForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   const config = props.node.config;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Method" required>
         <Select disabled={props.readonly} style={{ width: "100%" }} value={config.method ?? "GET"} optionList={["GET", "POST", "PUT", "PATCH", "DELETE"].map(method => ({ label: method, value: method }))} onChange={method => updateActivityConfig(props, { method: String(method) as LegacyMicroflowActivityConfig["method"] })} />
       </FieldRow>
@@ -514,10 +523,10 @@ export function MicroflowCallRestForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowLogMessageForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Log level">
         <Select disabled={props.readonly} style={{ width: "100%" }} value={props.node.config.logLevel ?? "info"} optionList={["debug", "info", "warn", "error"].map(level => ({ label: level, value: level }))} onChange={logLevel => updateActivityConfig(props, { logLevel: String(logLevel) as LegacyMicroflowActivityConfig["logLevel"] })} />
       </FieldRow>
@@ -535,10 +544,10 @@ export function MicroflowLogMessageForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowShowPageForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Page" required>
         <Input readonly={props.readonly} value={props.node.config.pageName ?? ""} onChange={pageName => updateActivityConfig(props, { pageName })} />
       </FieldRow>
@@ -554,10 +563,10 @@ export function MicroflowShowPageForm(rawProps: MicroflowNodeFormProps) {
 }
 
 export function MicroflowClosePageForm(rawProps: MicroflowNodeFormProps) {
-  const props = rawProps as MicroflowActivityFormProps;
+  const props = rawProps as unknown as LegacyActivityFormProps;
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <FieldRow label="Close mode">
         <Select disabled={props.readonly} style={{ width: "100%" }} value={props.node.config.closeMode ?? "current"} optionList={[{ label: "Current page", value: "current" }, { label: "Specific modal", value: "modal" }, { label: "Back", value: "back" }]} onChange={closeMode => updateActivityConfig(props, { closeMode: String(closeMode) as LegacyMicroflowActivityConfig["closeMode"] })} />
       </FieldRow>
@@ -571,9 +580,9 @@ export function MicroflowClosePageForm(rawProps: MicroflowNodeFormProps) {
 function unsupportedForm(props: MicroflowNodeFormProps) {
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
-      <MicroflowBasicSection props={props} />
+      <MicroflowBasicSection props={props as unknown as MicroflowNodeFormProps} />
       <Text type="tertiary">This node type does not have a dedicated form yet.</Text>
-      <TextArea readonly autosize={{ minRows: 6 }} value={JSON.stringify(props.node.config, null, 2)} />
+      <TextArea readonly autosize={{ minRows: 6 }} value={JSON.stringify((props.node as unknown as LegacyMicroflowNode).config, null, 2)} />
     </Space>
   );
 }
@@ -582,8 +591,9 @@ function registryItem(renderProperties: (props: MicroflowNodeFormProps) => JSX.E
   return { renderProperties, tabs };
 }
 
-export function getMicroflowNodeFormKey(node: MicroflowNodeFormProps["node"]): string {
-  return node.type === "activity" ? `activity:${node.config.activityType}` : node.type;
+export function getMicroflowNodeFormKey(node: MicroflowObject | LegacyMicroflowNode): string {
+  const n = node as unknown as LegacyMicroflowNode;
+  return n.type === "activity" ? `activity:${n.config.activityType}` : n.type;
 }
 
 export const microflowNodeFormRegistry: MicroflowNodeFormRegistry = {

@@ -48,6 +48,10 @@ export interface MicroflowNodeFormProps<TObject = MicroflowObject> {
   schema: MicroflowAuthoringSchema;
   variables: MicroflowVariableSymbol[];
   flows: MicroflowFlow[];
+  /**
+   * 旧 demo 图边列表，仅 `node-forms` 中合并等少数表单读取；未传时视为空。
+   */
+  edges?: Array<{ id?: string; sourceNodeId: string; targetNodeId: string }>;
   issues: MicroflowValidationIssue[];
   readonly: boolean;
   onPatch: (patch: MicroflowNodePatch) => void;

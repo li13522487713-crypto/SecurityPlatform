@@ -1,4 +1,4 @@
-import type { MicroflowCaseValue, MicroflowDataType } from "@atlas/microflow/schema";
+import type { MicroflowCaseValue, MicroflowDataType, MicroflowDiscriminatedRuntimeP0ActionDto } from "@atlas/microflow/schema";
 import type { MicroflowRuntimeErrorHandlingDto, MicroflowRuntimeMetadataRefDto } from "../runtime-dto-contract";
 
 /**
@@ -34,7 +34,14 @@ export interface MicroflowExecutionNode {
   actionKind?: string;
   officialType: string;
   caption?: string;
-  config: unknown;
+  /** 精简快照（无嵌套子集合/FlowGram）；P0 强类型见 p0ActionRuntime。 */
+  config: {
+    objectKind: string;
+    officialType: string;
+    caption?: string;
+  };
+  /** P0 动作的结构化运行期 config；非 P0 为 undefined。 */
+  p0ActionRuntime?: MicroflowDiscriminatedRuntimeP0ActionDto;
   errorHandling?: MicroflowRuntimeErrorHandlingDto;
   collectionId?: string;
   parentLoopObjectId?: string;

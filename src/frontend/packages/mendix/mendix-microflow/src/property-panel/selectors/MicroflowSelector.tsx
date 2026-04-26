@@ -37,7 +37,7 @@ export function MicroflowSelector({
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled}
       value={value}
       key={version}

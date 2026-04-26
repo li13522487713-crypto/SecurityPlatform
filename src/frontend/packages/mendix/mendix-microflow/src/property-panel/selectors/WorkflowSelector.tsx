@@ -26,7 +26,7 @@ export function WorkflowSelector({ value, onChange, contextEntityQualifiedName, 
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled}
       value={value}
       key={version}

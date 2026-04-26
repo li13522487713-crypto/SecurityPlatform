@@ -6,11 +6,13 @@ import type {
   MicroflowActionActivity,
   MicroflowCaseValue,
   MicroflowDataType,
+  MicroflowDatabaseRetrieveSource,
   MicroflowExpression,
   MicroflowFlow,
   MicroflowIterableListLoopSource,
   MicroflowObject,
   MicroflowParameter,
+  MicroflowSortItem,
   MicroflowVariableSymbol,
   MicroflowWhileLoopCondition,
   MicroflowSequenceFlow
@@ -35,10 +37,10 @@ import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelecto
 import type { MicroflowEdgePatch, MicroflowNodeFormRegistry, MicroflowNodePatch, MicroflowPropertyPanelProps } from "./types";
 import { countIssuesBySeverity, getIssuesForField, getIssuesForFlow, getIssuesForObject, updateParameter } from "./utils";
 
-export * from "./controls";
 export * from "./types";
-export * from "./common";
 export * from "./utils";
+export { createExpression, primitiveType, FieldLabel, FieldRow, KeyValueEditor } from "./controls";
+export * from "./common";
 export * from "./selectors";
 export * from "./expression";
 
@@ -228,7 +230,7 @@ function updateObjectAdvanced(object: MicroflowObject, patch: Record<string, unk
         ...patch,
       },
     },
-  } as MicroflowObject;
+  } as unknown as MicroflowObject;
 }
 
 function dataTypeLabel(dataType?: MicroflowDataType): string {
@@ -242,7 +244,7 @@ function dataTypeLabel(dataType?: MicroflowDataType): string {
     return `object:${dataType.entityQualifiedName}`;
   }
   if (dataType.kind === "list") {
-    return `list:${dataType.elementType.kind}`;
+    return `list:${dataTypeLabel(dataType.itemType)}`;
   }
   return dataType.kind;
 }
@@ -653,7 +655,7 @@ function ActionActivityFields({
               </Field>
               <Field label="XPath Constraint">
                 <ExpressionEditor
-                  value={action.retrieveSource.xPathConstraint}
+                  value={action.retrieveSource.xPathConstraint ?? undefined}
                   schema={schema}
                   metadata={effectiveCatalog}
                   variableIndex={variableIndex}
@@ -682,7 +684,7 @@ function ActionActivityFields({
               </Field>
               <Field label="Sort Items (one per line: Entity.Attribute asc)">
                 <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
-                  {action.retrieveSource.sortItemList.items.map((item, index) => (
+                  {(action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items.map((item, index) => (
                     <div key={`${item.attributeQualifiedName}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 92px auto", gap: 6, width: "100%" }}>
                       <AttributeSelector
                         entityQualifiedName={action.retrieveSource.kind === "database" ? action.retrieveSource.entityQualifiedName ?? undefined : undefined}
@@ -692,7 +694,7 @@ function ActionActivityFields({
                           retrieveSource: {
                             ...action.retrieveSource,
                             sortItemList: {
-                              items: action.retrieveSource.sortItemList.items.map((row, rowIndex) => rowIndex === index ? { ...row, attributeQualifiedName: attributeQualifiedName ?? "" } : row),
+                              items: (action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items.map((row: MicroflowSortItem, rowIndex: number) => rowIndex === index ? { ...row, attributeQualifiedName: attributeQualifiedName ?? "" } : row),
                             },
                           },
                         }))}
@@ -705,7 +707,7 @@ function ActionActivityFields({
                           retrieveSource: {
                             ...action.retrieveSource,
                             sortItemList: {
-                              items: action.retrieveSource.sortItemList.items.map((row, rowIndex) => rowIndex === index ? { ...row, direction: String(direction) === "desc" ? "desc" : "asc" } : row),
+                              items: (action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items.map((row: MicroflowSortItem, rowIndex: number) => rowIndex === index ? { ...row, direction: String(direction) === "desc" ? "desc" : "asc" } : row),
                             },
                           },
                         }))}
@@ -713,7 +715,7 @@ function ActionActivityFields({
                       <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
                         retrieveSource: {
                           ...action.retrieveSource,
-                          sortItemList: { items: action.retrieveSource.sortItemList.items.filter((_, rowIndex) => rowIndex !== index) },
+                          sortItemList: { items: (action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items.filter((_: unknown, rowIndex: number) => rowIndex !== index) },
                         },
                       }))}>Delete</Button>
                     </div>
@@ -721,7 +723,7 @@ function ActionActivityFields({
                   <Button disabled={readonly || !action.retrieveSource.entityQualifiedName} onClick={() => patchObject(updateAction(object, {
                     retrieveSource: {
                       ...action.retrieveSource,
-                      sortItemList: { items: [...action.retrieveSource.sortItemList.items, { attributeQualifiedName: "", direction: "asc" }] },
+                      sortItemList: { items: [...(action.retrieveSource as MicroflowDatabaseRetrieveSource).sortItemList.items, { attributeQualifiedName: "", direction: "asc" as const }] },
                     },
                   }))}>Add sort item</Button>
                 </Space>
@@ -854,7 +856,7 @@ function ActionActivityFields({
                     }))}
                   />
                   <ExpressionEditor
-                    value={change.valueExpression}
+                    value={change.valueExpression ?? expression("")}
                     schema={schema}
                     metadata={effectiveCatalog}
                     variableIndex={variableIndex}
@@ -863,7 +865,7 @@ function ActionActivityFields({
                     fieldPath={`action.memberChanges.${index}.valueExpression`}
                     expectedType={getAttributeByQualifiedName(effectiveCatalog, change.memberQualifiedName)?.type}
                     required={change.assignmentKind !== "clear"}
-                    disabled={readonly}
+                    readonly={readonly || change.assignmentKind === "clear"}
                     placeholder="Expression"
                     onChange={valueExpression => patchObject(updateAction(object, {
                       memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row),
@@ -951,7 +953,15 @@ function ActionActivityFields({
                   />
                 </div>
               ))}
-              <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { request: { ...action.request, headers: [...action.request.headers, { key: "", valueExpression: expression("", { kind: "string" }) }] } }))}>Add header</Button>
+              <Button
+                disabled={readonly}
+                onClick={() => patchObject(updateAction(object, {
+                  request: {
+                    ...action.request,
+                    headers: [...action.request.headers, { id: `hdr-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }],
+                  },
+                }))}
+              >Add header</Button>
             </Space>
           </Field>
           <Field label="Query Parameters">
@@ -973,7 +983,15 @@ function ActionActivityFields({
                   />
                 </div>
               ))}
-              <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { request: { ...action.request, queryParameters: [...action.request.queryParameters, { key: "", valueExpression: expression("", { kind: "string" }) }] } }))}>Add query</Button>
+              <Button
+                disabled={readonly}
+                onClick={() => patchObject(updateAction(object, {
+                  request: {
+                    ...action.request,
+                    queryParameters: [...action.request.queryParameters, { id: `q-${Date.now()}`, key: "", valueExpression: expression("", { kind: "string" }) }],
+                  },
+                }))}
+              >Add query</Button>
             </Space>
           </Field>
           <Field label="Body Type">
@@ -1148,13 +1166,16 @@ function ActionActivityFields({
           <Field label="Variable Name">
             <Input value={action.variableName} disabled={readonly} onChange={variableName => patchObject(updateAction(object, { variableName }))} />
           </Field>
+          <Field label="Read only">
+            <Switch checked={action.readonly} disabled={readonly} onChange={readOnly => patchObject(updateAction(object, { readonly: readOnly }))} />
+          </Field>
           <Field label="Data Type">
             <DataTypeSelector value={action.dataType} disabled={readonly} onChange={dataType => patchObject(updateAction(object, { dataType }))} />
             <FieldError issues={getIssuesForField(issues, "action.dataType")} />
           </Field>
           <Field label="Initial Value">
             <ExpressionEditor
-              value={action.initialValue}
+              value={action.initialValue ?? expression("", action.dataType)}
               schema={schema}
               metadata={effectiveCatalog}
               variableIndex={variableIndex}
@@ -1176,26 +1197,26 @@ function ActionActivityFields({
             <VariableSelector
               schema={schema}
               objectId={object.id}
-              fieldPath="action.variableName"
-              value={action.variableName}
+              fieldPath="action.targetVariableName"
+              value={action.targetVariableName}
               disabled={readonly}
-              onChange={variableName => patchObject(updateAction(object, { variableName: variableName ?? "" }))}
+              onChange={targetVariableName => patchObject(updateAction(object, { targetVariableName: targetVariableName ?? "" }))}
             />
-            <FieldError issues={getIssuesForField(issues, "action.variableName")} />
+            <FieldError issues={getIssuesForField(issues, "action.targetVariableName")} />
           </Field>
           <Field label="New Value Expression">
             <ExpressionEditor
-              value={action.valueExpression}
+              value={action.newValueExpression}
               schema={schema}
               metadata={effectiveCatalog}
               variableIndex={variableIndex}
               objectId={object.id}
               actionId={action.id}
-              fieldPath="action.valueExpression"
-              expectedType={resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id, actionId: action.id, fieldPath: "action.variableName" }, action.variableName)?.dataType}
+              fieldPath="action.newValueExpression"
+              expectedType={resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id, actionId: action.id, fieldPath: "action.targetVariableName" }, action.targetVariableName)?.dataType}
               required
               readonly={readonly}
-              onChange={valueExpression => patchObject(updateAction(object, { valueExpression }))}
+              onChange={newValueExpression => patchObject(updateAction(object, { newValueExpression }))}
             />
           </Field>
         </>
@@ -1328,22 +1349,39 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                     value={object.splitCondition.resultType}
                     disabled={props.readonly}
                     style={{ width: "100%" }}
-                    onChange={resultType => patch({
-                      ...object,
-                      splitCondition: {
-                        ...object.splitCondition,
-                        resultType: String(resultType) as "boolean" | "enumeration",
-                        expression: expression(object.splitCondition.expression.raw, String(resultType) === "enumeration"
-                          ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
-                          : { kind: "boolean" }),
-                      },
-                    })}
+                    onChange={resultType => {
+                      if (object.splitCondition.kind !== "expression") {
+                        return;
+                      }
+                      const sc = object.splitCondition;
+                      const rt = String(resultType) as "boolean" | "enumeration";
+                      patch({
+                        ...object,
+                        splitCondition: rt === "enumeration"
+                          ? {
+                            kind: "expression",
+                            resultType: "enumeration",
+                            expression: sc.expression,
+                            enumerationQualifiedName: sc.enumerationQualifiedName
+                          }
+                          : { kind: "expression", resultType: "boolean", expression: expression(sc.expression.raw, { kind: "boolean" }) }
+                      });
+                    }}
                     optionList={[{ label: "boolean", value: "boolean" }, { label: "enumeration", value: "enumeration" }]}
                   />
                 </Field>
                 {object.splitCondition.resultType === "enumeration" ? (
                   <Field label="Enumeration Type">
-                    <EnumerationSelector value={object.splitCondition.enumerationQualifiedName} disabled={props.readonly} onChange={enumerationQualifiedName => patch({ ...object, splitCondition: { ...object.splitCondition, enumerationQualifiedName } })} />
+                    <EnumerationSelector
+                      value={object.splitCondition.enumerationQualifiedName}
+                      disabled={props.readonly}
+                      onChange={enumerationQualifiedName => {
+                        if (object.splitCondition.kind !== "expression") {
+                          return;
+                        }
+                        patch({ ...object, splitCondition: { ...object.splitCondition, enumerationQualifiedName } });
+                      }}
+                    />
                     <FieldError issues={getIssuesForField(issues, "splitCondition.enumerationQualifiedName")} />
                   </Field>
                 ) : null}
@@ -1372,7 +1410,16 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
               </>
             ) : (
               <Field label="Rule Reference">
-                <Input value={object.splitCondition.ruleQualifiedName} disabled={props.readonly} onChange={ruleQualifiedName => patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } })} />
+                <Input
+                  value={object.splitCondition.ruleQualifiedName}
+                  disabled={props.readonly}
+                  onChange={ruleQualifiedName => {
+                    if (object.splitCondition.kind !== "rule") {
+                      return;
+                    }
+                    patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } });
+                  }}
+                />
               </Field>
             )}
           </>
@@ -1771,7 +1818,7 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
               <InputNumber value={flow.editor.branchOrder ?? 0} disabled={props.readonly} onChange={branchOrder => patch(flowPatch(flow, { editor: { ...flow.editor, branchOrder: Number(branchOrder) } }))} />
             </Field>
             <Field label="Label">
-              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
+              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
             </Field>
           </>
         ) : (
@@ -1789,10 +1836,10 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
               />
             </Field>
             <Field label="Label">
-              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
+              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
             </Field>
             <Field label="Description">
-              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } }))} />
+              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
             </Field>
           </>
         )}
@@ -1801,10 +1848,10 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
         {activeTab === "documentation" ? (
           <>
             <Field label="Label">
-              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
+              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
             </Field>
             <Field label="Description">
-              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } }))} />
+              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
             </Field>
           </>
         ) : null}

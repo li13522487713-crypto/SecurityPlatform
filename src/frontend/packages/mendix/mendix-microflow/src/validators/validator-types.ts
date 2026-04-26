@@ -1,6 +1,5 @@
-import type { MicroflowAuthoringSchema, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowAuthoringSchema, MicroflowVariableIndex, MicroflowValidationIssue } from "../schema/types";
 import type { MicroflowMetadataCatalog } from "../metadata";
-import type { MicroflowVariableIndex } from "../variables";
 import type { MicroflowValidationCode } from "./validation-codes";
 
 export type { MicroflowValidationIssue };

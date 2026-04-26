@@ -34,11 +34,13 @@
     "./versioning": "./src/versioning/index.ts",
     "./samples": "./src/samples/index.ts",
     "./mendix-compat": "./src/mendix-compat/index.ts",
-    "./performance": "./src/performance/index.ts"
+    "./performance": "./src/performance/index.ts",
+    "./runtime": "./src/runtime/index.ts"
   },
   "scripts": {
     "build": "echo 'microflow: source-only package, no build step'",
-    "lint": "echo 'microflow: no package-local lint configured yet'"
+    "lint": "echo 'microflow: no package-local lint configured yet'",
+    "typecheck": "tsc --noEmit -p ."
   },
   "peerDependencies": {
     "react": "^18.2.0",

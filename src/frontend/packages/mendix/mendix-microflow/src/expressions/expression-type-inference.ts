@@ -36,25 +36,27 @@ function rawExpression(expression: MicroflowExpression | string | undefined): st
 }
 
 function inferMemberType(variable: MicroflowVariableSymbol, memberName: string, metadata: MicroflowMetadataCatalog): MicroflowDataType {
-  if (variable.dataType.kind === "list") {
+  const dataType = variable.dataType;
+  if (dataType.kind === "list") {
     return { kind: "unknown", reason: "list member access" };
   }
-  if (variable.dataType.kind !== "object") {
+  if (dataType.kind !== "object") {
     return { kind: "unknown", reason: "member access on non-object" };
   }
-  const entity = getEntityByQualifiedName(metadata, variable.dataType.entityQualifiedName);
-  const attribute = entity?.attributes.find(item => item.name === memberName || item.qualifiedName.endsWith(`.${memberName}`)) ?? getAttributeByQualifiedName(metadata, `${variable.dataType.entityQualifiedName}.${memberName}`);
+  const entityQn = dataType.entityQualifiedName;
+  const entity = getEntityByQualifiedName(metadata, entityQn);
+  const attribute = entity?.attributes.find(item => item.name === memberName || item.qualifiedName.endsWith(`.${memberName}`)) ?? getAttributeByQualifiedName(metadata, `${entityQn}.${memberName}`);
   if (attribute) {
     return attribute.type;
   }
-  const association = getAssociationByQualifiedName(metadata, `${variable.dataType.entityQualifiedName}_${memberName}`)
-    ?? metadata.associations.find(item => item.name === memberName && (item.sourceEntityQualifiedName === variable.dataType.entityQualifiedName || item.targetEntityQualifiedName === variable.dataType.entityQualifiedName));
+  const association = getAssociationByQualifiedName(metadata, `${entityQn}_${memberName}`)
+    ?? metadata.associations.find(item => item.name === memberName && (item.sourceEntityQualifiedName === entityQn || item.targetEntityQualifiedName === entityQn));
   if (association) {
-    const target = getTargetEntityByAssociation(metadata, association.qualifiedName, variable.dataType.entityQualifiedName);
+    const target = getTargetEntityByAssociation(metadata, association.qualifiedName, entityQn);
     const targetType: MicroflowDataType = target ? { kind: "object", entityQualifiedName: target.qualifiedName } : { kind: "unknown", reason: "association target" };
     return association.multiplicity === "oneToMany" || association.multiplicity === "manyToMany" ? { kind: "list", itemType: targetType } : targetType;
   }
-  return { kind: "unknown", reason: `${variable.dataType.entityQualifiedName}/${memberName}` };
+  return { kind: "unknown", reason: `${entityQn}/${memberName}` };
 }
 
 export function inferExpressionType(input: {
@@ -131,7 +133,9 @@ export function inferExpressionType(
   const parse = parseExpressionReferences(raw);
   const memberAccess = parse.references.find(reference => reference.kind === "memberAccess");
   if (memberAccess && inputOrExpression.objectId) {
-    const variable = resolveVariableReferenceFromIndex(inputOrExpression.schema, index, inputOrExpression, memberAccess.variableName);
+    const { schema, actionId, fieldPath } = inputOrExpression;
+    const objectId = inputOrExpression.objectId;
+    const variable = resolveVariableReferenceFromIndex(schema, index, { objectId, actionId, fieldPath }, memberAccess.variableName);
     if (!variable) {
       return { inferredType: { kind: "unknown", reason: memberAccess.variableName }, confidence: "low", diagnostics };
     }
@@ -149,7 +153,9 @@ export function inferExpressionType(
   }
   const variableOnly = raw.match(/^\$([A-Za-z_][A-Za-z0-9_]*)$/);
   if (variableOnly && inputOrExpression.objectId) {
-    const variable = resolveVariableReferenceFromIndex(inputOrExpression.schema, index, inputOrExpression, variableOnly[1]);
+    const { schema, actionId, fieldPath } = inputOrExpression;
+    const objectId = inputOrExpression.objectId;
+    const variable = resolveVariableReferenceFromIndex(schema, index, { objectId, actionId, fieldPath }, variableOnly[1]);
     return { inferredType: variable?.dataType ?? { kind: "unknown", reason: variableOnly[1] }, confidence: variable ? "high" : "low", diagnostics };
   }
   if (inputOrExpression.expectedType?.kind === "enumeration" && /^[A-Za-z_][A-Za-z0-9_.]*$|^'.*'$/.test(raw)) {

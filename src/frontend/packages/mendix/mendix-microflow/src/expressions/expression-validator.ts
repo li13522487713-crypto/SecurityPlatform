@@ -20,15 +20,17 @@ function isSystemErrorVariable(name: string): boolean {
 }
 
 function memberExists(variable: MicroflowVariableSymbol, memberName: string, metadata: MicroflowMetadataCatalog): boolean {
-  if (variable.dataType.kind !== "object") {
+  const dataType = variable.dataType;
+  if (dataType.kind !== "object") {
     return false;
   }
-  const entity = getEntityByQualifiedName(metadata, variable.dataType.entityQualifiedName);
+  const entityQn = dataType.entityQualifiedName;
+  const entity = getEntityByQualifiedName(metadata, entityQn);
   return Boolean(
     entity?.attributes.some(attribute => attribute.name === memberName || attribute.qualifiedName.endsWith(`.${memberName}`)) ||
-    getAttributeByQualifiedName(metadata, `${variable.dataType.entityQualifiedName}.${memberName}`) ||
-    getAssociationByQualifiedName(metadata, `${variable.dataType.entityQualifiedName}_${memberName}`) ||
-    metadata.associations.some(association => association.name === memberName && (association.sourceEntityQualifiedName === variable.dataType.entityQualifiedName || association.targetEntityQualifiedName === variable.dataType.entityQualifiedName))
+    getAttributeByQualifiedName(metadata, `${entityQn}.${memberName}`) ||
+    getAssociationByQualifiedName(metadata, `${entityQn}_${memberName}`) ||
+    metadata.associations.some(association => association.name === memberName && (association.sourceEntityQualifiedName === entityQn || association.targetEntityQualifiedName === entityQn))
   );
 }
 

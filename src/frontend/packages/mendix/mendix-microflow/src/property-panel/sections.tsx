@@ -1,6 +1,6 @@
 import { Button, Checkbox, Collapse, Input, Select, Space, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
-import type { MicroflowNodeAdvancedConfig, MicroflowNodeDocumentation, MicroflowNodeOutput, MicroflowTypeRef } from "../schema";
+import type { LegacyMicroflowNode, MicroflowNodeAdvancedConfig, MicroflowNodeDocumentation, MicroflowNodeOutput, MicroflowObject, MicroflowTypeRef } from "../schema";
 import { flattenObjectCollection } from "../adapters";
 import { FieldRow, primitiveType } from "./controls";
 import type { MicroflowNodeFormProps } from "./types";
@@ -12,7 +12,8 @@ export function patchConfig<T extends object>(props: MicroflowNodeFormProps, con
 }
 
 export function MicroflowBasicSection({ props }: { props: MicroflowNodeFormProps }) {
-  const { node, readonly, onPatch } = props;
+  const { node: rawNode, readonly, onPatch } = props;
+  const node = rawNode as unknown as LegacyMicroflowNode;
   const typeLabel = node.type === "activity" ? node.config.activityType : node.type;
   return (
     <Collapse defaultActiveKey={["basic"]} style={{ width: "100%" }}>
@@ -51,7 +52,14 @@ export function MicroflowBasicSection({ props }: { props: MicroflowNodeFormProps
 }
 
 export function MicroflowDocumentationSection({ props }: { props: MicroflowNodeFormProps }) {
-  const doc: MicroflowNodeDocumentation = props.node.documentation ?? {};
+  const n = props.node as unknown as LegacyMicroflowNode;
+  const rawDoc = n.documentation;
+  const doc: MicroflowNodeDocumentation =
+    rawDoc && typeof rawDoc === "object" && !Array.isArray(rawDoc)
+      ? (rawDoc as MicroflowNodeDocumentation)
+      : typeof rawDoc === "string"
+        ? { summary: rawDoc }
+        : {};
   const update = (patch: MicroflowNodeDocumentation) => props.onPatch({ documentation: { ...doc, ...patch } });
   return (
     <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
@@ -78,10 +86,11 @@ export function MicroflowDocumentationSection({ props }: { props: MicroflowNodeF
 }
 
 export function MicroflowErrorHandlingSection({ props }: { props: MicroflowNodeFormProps }) {
-  if (props.node.type !== "activity") {
+  const n = props.node as unknown as LegacyMicroflowNode;
+  if (n.type !== "activity") {
     return <Text type="tertiary">This node does not expose error handling.</Text>;
   }
-  const config = props.node.config;
+  const config = n.config;
   const errorHandling = config.errorHandling ?? { mode: "rollback" as const, errorVariableName: "latestError" };
   return (
     <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
@@ -135,7 +144,8 @@ function outputTypeName(type?: MicroflowTypeRef): string {
 }
 
 export function MicroflowOutputSection({ props }: { props: MicroflowNodeFormProps }) {
-  const outputs: MicroflowNodeOutput[] = props.node.outputs ?? inferNodeOutputs(props);
+  const n = props.node as unknown as LegacyMicroflowNode;
+  const outputs: MicroflowNodeOutput[] = n.outputs ?? inferNodeOutputs({ ...props, node: n as unknown as MicroflowObject });
   const updateOutputs = (nextOutputs: MicroflowNodeOutput[]) => props.onPatch({ outputs: nextOutputs });
   return (
     <Space vertical align="start" spacing={8} style={{ width: "100%" }}>
@@ -165,7 +175,8 @@ export function MicroflowOutputSection({ props }: { props: MicroflowNodeFormProp
 }
 
 export function MicroflowAdvancedSection({ props }: { props: MicroflowNodeFormProps }) {
-  const advanced: MicroflowNodeAdvancedConfig = props.node.advanced ?? {};
+  const n = props.node as unknown as LegacyMicroflowNode;
+  const advanced: MicroflowNodeAdvancedConfig = n.advanced ?? {};
   const update = (patch: MicroflowNodeAdvancedConfig) => props.onPatch({ advanced: { ...advanced, ...patch } });
   return (
     <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
@@ -206,7 +217,7 @@ export function MicroflowAdvancedSection({ props }: { props: MicroflowNodeFormPr
       <FieldRow label="Performance tag">
         <Input readonly={props.readonly} value={advanced.performanceTag ?? ""} onChange={performanceTag => update({ performanceTag })} />
       </FieldRow>
-      {props.node.type === "activity" && props.node.config.activityType === "callRest" ? (
+      {n.type === "activity" && n.config.activityType === "callRest" ? (
         <FieldRow label="Follow redirects">
           <Switch disabled={props.readonly} checked={advanced.followRedirects ?? true} onChange={followRedirects => update({ followRedirects })} />
         </FieldRow>
@@ -216,7 +227,8 @@ export function MicroflowAdvancedSection({ props }: { props: MicroflowNodeFormPr
 }
 
 function inferNodeOutputs(props: MicroflowNodeFormProps): MicroflowNodeOutput[] {
-  const { node } = props;
+  const { node: raw } = props;
+  const node = raw as unknown as LegacyMicroflowNode;
   if (node.type === "activity") {
     if (node.config.activityType === "objectRetrieve" && node.config.listVariableName) {
       return [{ id: `${node.id}-retrieve`, name: node.config.listVariableName, type: { kind: "list", name: node.config.entity ?? "Object" }, source: "Retrieve result", downstreamAvailable: true }];

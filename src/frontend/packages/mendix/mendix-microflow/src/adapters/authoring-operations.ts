@@ -435,7 +435,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
             sortItemList: { items: [] },
             range: { kind: "first", officialType: "Microflows$ConstantRange", value: "first" }
           }
-    };
+    } as MicroflowAction;
   }
   if (kind === "createObject") {
     return {
@@ -446,7 +446,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       outputVariableName: String(config.resultVariableName ?? "object"),
       memberChanges: [],
       commit: { enabled: false, withEvents: true, refreshInClient: false }
-    };
+    } as MicroflowAction;
   }
   if (kind === "changeMembers") {
     return {
@@ -457,7 +457,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       memberChanges: [],
       commit: { enabled: false, withEvents: true, refreshInClient: false },
       validateObject: true
-    };
+    } as MicroflowAction;
   }
   if (kind === "commit") {
     return {
@@ -467,7 +467,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       objectOrListVariableName: String(config.objectVariableName ?? "object"),
       withEvents: Boolean(config.withEvents ?? true),
       refreshInClient: Boolean(config.refreshClient ?? false)
-    };
+    } as MicroflowAction;
   }
   if (kind === "delete") {
     return {
@@ -477,7 +477,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       objectOrListVariableName: String(config.objectVariableName ?? "object"),
       withEvents: Boolean(config.withEvents ?? true),
       deleteBehavior: "deleteOnly"
-    };
+    } as MicroflowAction;
   }
   if (kind === "rollback") {
     return {
@@ -486,7 +486,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       officialType: "Microflows$RollbackAction",
       objectOrListVariableName: String(config.objectVariableName ?? "object"),
       refreshInClient: Boolean(config.refreshClient ?? false)
-    };
+    } as MicroflowAction;
   }
   if (kind === "callMicroflow") {
     return {
@@ -497,7 +497,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       parameterMappings: [],
       returnValue: { storeResult: false },
       callMode: "sync"
-    };
+    } as MicroflowAction;
   }
   if (kind === "restCall") {
     return {
@@ -513,7 +513,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       },
       response: { handling: { kind: "ignore" } },
       timeoutSeconds: 30
-    };
+    } as MicroflowAction;
   }
   if (kind === "logMessage") {
     return {
@@ -525,7 +525,27 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       template: { text: String(config.message ?? "Log message"), arguments: [] },
       includeContextVariables: false,
       includeTraceId: true
-    };
+    } as MicroflowAction;
+  }
+  if (kind === "createVariable") {
+    return {
+      ...base,
+      kind: "createVariable",
+      officialType: "Microflows$CreateVariableAction",
+      variableName: String(config.variableName ?? "variable"),
+      dataType: { kind: "unknown", reason: "defaultActionFromRegistry" },
+      initialValue: undefined,
+      readonly: false
+    } as MicroflowAction;
+  }
+  if (kind === "changeVariable") {
+    return {
+      ...base,
+      kind: "changeVariable",
+      officialType: "Microflows$ChangeVariableAction",
+      targetVariableName: String(config.variableName ?? "variable"),
+      newValueExpression: expression("")
+    } as MicroflowAction;
   }
   return {
     ...base,

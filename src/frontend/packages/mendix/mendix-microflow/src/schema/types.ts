@@ -622,7 +622,7 @@ export interface MicroflowContinueEvent extends MicroflowObjectBase {
 
 export interface MicroflowParameterMapping {
   parameterName: string;
-  parameterType: MicroflowDataType;
+  parameterType?: MicroflowDataType;
   argumentExpression: MicroflowExpression;
 }
 
@@ -793,7 +793,8 @@ export interface MicroflowMemberChange {
   id: string;
   memberQualifiedName: string;
   memberKind: "attribute" | "associationReference" | "associationReferenceSet";
-  valueExpression: MicroflowExpression;
+  /** 当 assignmentKind 为 `clear` 时可为空。 */
+  valueExpression?: MicroflowExpression;
   assignmentKind: "set" | "add" | "remove" | "clear";
 }
 
@@ -865,14 +866,15 @@ export interface MicroflowCreateVariableAction extends MicroflowActionBase {
   officialType: "Microflows$CreateVariableAction";
   variableName: string;
   dataType: MicroflowDataType;
-  initialValue: MicroflowExpression;
+  initialValue?: MicroflowExpression;
+  readonly: boolean;
 }
 
 export interface MicroflowChangeVariableAction extends MicroflowActionBase {
   kind: "changeVariable";
   officialType: "Microflows$ChangeVariableAction";
-  variableName: string;
-  valueExpression: MicroflowExpression;
+  targetVariableName: string;
+  newValueExpression: MicroflowExpression;
 }
 
 export interface MicroflowRestCallAction extends MicroflowActionBase {
@@ -903,16 +905,19 @@ export interface MicroflowRestCallAction extends MicroflowActionBase {
 }
 
 export interface MicroflowHttpHeader {
+  id: string;
   key: string;
   valueExpression: MicroflowExpression;
 }
 
 export interface MicroflowHttpQueryParameter {
+  id: string;
   key: string;
   valueExpression: MicroflowExpression;
 }
 
 export interface MicroflowFormField {
+  id: string;
   key: string;
   valueExpression: MicroflowExpression;
 }
@@ -945,6 +950,7 @@ export interface MicroflowGenericAction extends MicroflowActionBase {
     | MicroflowRestCallAction["kind"]
     | MicroflowLogMessageAction["kind"]
   >;
+  /** P1/P2 modeledOnly；不得用于 P0 kind（类型层已排除）。 */
   [key: string]: unknown;
 }
 
@@ -1529,6 +1535,120 @@ export interface MendixCompatMicroflow {
   stableId?: string;
 }
 
+/**
+ * 与 P0 强类型动作一一对应的运行时 DTO 联合（无 editor/inputs/outputs 等设计器字段）。
+ * @see mapAuthoringP0ToRuntimeDtos
+ */
+export type MicroflowDiscriminatedRuntimeP0ActionDto =
+  | RuntimeRetrieveP0Dto
+  | RuntimeCreateObjectP0Dto
+  | RuntimeChangeMembersP0Dto
+  | RuntimeCommitP0Dto
+  | RuntimeDeleteP0Dto
+  | RuntimeRollbackP0Dto
+  | RuntimeCreateVariableP0Dto
+  | RuntimeChangeVariableP0Dto
+  | RuntimeCallMicroflowP0Dto
+  | RuntimeRestCallP0Dto
+  | RuntimeLogMessageP0Dto;
+
+export type MicroflowRuntimeP0Block =
+  | { objectId: string; supportLevel: "supported"; action: MicroflowDiscriminatedRuntimeP0ActionDto }
+  | { objectId: string; supportLevel: "error"; code: "MF_P0_MALFORMED"; actionKind: string; message: string };
+
+type RuntimeP0Base = { actionId: string; officialType: string; supportLevel: "supported" };
+
+export type RuntimeRetrieveP0Dto = RuntimeP0Base & {
+  actionKind: "retrieve";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    outputVariableName: string;
+    retrieveSource: MicroflowAssociationRetrieveSource | MicroflowDatabaseRetrieveSource;
+  };
+};
+
+export type RuntimeCreateObjectP0Dto = RuntimeP0Base & {
+  actionKind: "createObject";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    entityQualifiedName: string;
+    outputVariableName: string;
+    memberChanges: MicroflowMemberChange[];
+    commit: MicroflowCreateObjectAction["commit"];
+  };
+};
+
+export type RuntimeChangeMembersP0Dto = RuntimeP0Base & {
+  actionKind: "changeMembers";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    changeVariableName: string;
+    memberChanges: MicroflowMemberChange[];
+    commit: MicroflowChangeMembersAction["commit"];
+    validateObject: boolean;
+  };
+};
+
+export type RuntimeCommitP0Dto = RuntimeP0Base & {
+  actionKind: "commit";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: { objectOrListVariableName: string; withEvents: boolean; refreshInClient: boolean };
+};
+
+export type RuntimeDeleteP0Dto = RuntimeP0Base & {
+  actionKind: "delete";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: { objectOrListVariableName: string; withEvents: boolean; deleteBehavior: "deleteOnly" | "deleteAndRefreshClient" };
+};
+
+export type RuntimeRollbackP0Dto = RuntimeP0Base & {
+  actionKind: "rollback";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: { objectOrListVariableName: string; refreshInClient: boolean };
+};
+
+export type RuntimeCreateVariableP0Dto = RuntimeP0Base & {
+  actionKind: "createVariable";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: { variableName: string; dataType: MicroflowDataType; initialValue?: MicroflowExpression; readonly: boolean };
+};
+
+export type RuntimeChangeVariableP0Dto = RuntimeP0Base & {
+  actionKind: "changeVariable";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: { targetVariableName: string; newValueExpression: MicroflowExpression };
+};
+
+export type RuntimeCallMicroflowP0Dto = RuntimeP0Base & {
+  actionKind: "callMicroflow";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    targetMicroflowId: string;
+    targetMicroflowQualifiedName?: string;
+    parameterMappings: MicroflowParameterMapping[];
+    returnValue: MicroflowCallMicroflowAction["returnValue"];
+    callMode: "sync" | "asyncReserved";
+  };
+};
+
+export type RuntimeRestCallP0Dto = RuntimeP0Base & {
+  actionKind: "restCall";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: { request: MicroflowRestCallAction["request"]; response: MicroflowRestCallAction["response"]; timeoutSeconds: number };
+};
+
+export type RuntimeLogMessageP0Dto = RuntimeP0Base & {
+  actionKind: "logMessage";
+  errorHandlingType: MicroflowErrorHandlingType;
+  config: {
+    level: MicroflowLogMessageAction["level"];
+    logNodeName: string;
+    template: MicroflowLogMessageAction["template"];
+    includeContextVariables: boolean;
+    includeTraceId: boolean;
+  };
+};
+
 export interface MicroflowRuntimeDto {
   microflowId: string;
   schemaVersion: string;
@@ -1538,6 +1658,7 @@ export interface MicroflowRuntimeDto {
   objectCollection: MicroflowObjectCollection;
   flows: MicroflowFlow[];
   variables: MicroflowVariableIndex;
+  p0RuntimeActionBlocks: MicroflowRuntimeP0Block[];
 }
 
 /**

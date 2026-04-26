@@ -4,6 +4,8 @@
 
 TypeScript 定义见 `@atlas/microflow`（`schema/types.ts`）中的 `MicroflowAuthoringSchema`。
 
+**P0 动作**（retrieve … logMessage 共 11 种）在 `ActionActivity.action` 上必须为**强类型** `Microflow*Action` 成员，不得落在 `MicroflowGenericAction`；P1/P2 可使用 Generic（kind 已排除 P0）。
+
 ## 必选顶层字段（冻结）
 
 | 字段 | 说明 |

@@ -93,13 +93,16 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
     }
     if (action.kind === "changeMembers" || action.kind === "createObject") {
       action.memberChanges.forEach((change, index) => {
+        if (change.assignmentKind === "clear" || !change.valueExpression) {
+          return;
+        }
         targets.push({
           expression: change.valueExpression,
           objectId: object.id,
           actionId: action.id,
           fieldPath: `action.memberChanges.${index}.valueExpression`,
           expectedType: getAttributeByQualifiedName(metadata, change.memberQualifiedName)?.type,
-          required: change.assignmentKind !== "clear",
+          required: true,
         });
       });
     }
@@ -145,7 +148,7 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
         expectedType: { kind: "string" },
       });
     }
-    if (action.kind === "createVariable") {
+    if (action.kind === "createVariable" && action.initialValue) {
       targets.push({
         expression: action.initialValue,
         objectId: object.id,
@@ -156,11 +159,11 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
     }
     if (action.kind === "changeVariable") {
       targets.push({
-        expression: action.valueExpression,
+        expression: action.newValueExpression,
         objectId: object.id,
         actionId: action.id,
-        fieldPath: "action.valueExpression",
-        expectedType: resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id, actionId: action.id, fieldPath: "action.variableName" }, action.variableName)?.dataType,
+        fieldPath: "action.newValueExpression",
+        expectedType: resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id, actionId: action.id, fieldPath: "action.targetVariableName" }, action.targetVariableName)?.dataType,
         required: true,
       });
     }
@@ -171,7 +174,7 @@ export function validateExpressions(schema: MicroflowSchema, context: MicroflowV
         actionId: action.id,
         fieldPath: `action.parameterMappings.${index}.argumentExpression`,
         expectedType: mapping.parameterType,
-        required: mapping.parameterType.kind !== "void",
+        required: mapping.parameterType != null && mapping.parameterType.kind !== "void",
       }));
     }
   }

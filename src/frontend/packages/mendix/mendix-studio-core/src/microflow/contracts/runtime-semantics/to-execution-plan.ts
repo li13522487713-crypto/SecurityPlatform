@@ -1,5 +1,6 @@
 import { collectRuntimeFlows, collectRuntimeObjects, getStartEvent } from "@atlas/microflow/debug";
 import { toRuntimeDto } from "@atlas/microflow/adapters";
+import { tryMapP0ActionToDiscriminatedDto } from "@atlas/microflow/runtime";
 import type {
   MicroflowAction,
   MicroflowAnnotationFlow,
@@ -18,10 +19,6 @@ import type {
   MicroflowExecutionPlan,
   MicroflowUnsupportedActionDescriptor,
 } from "./runtime-execution-plan";
-
-function stableClone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
 
 function addUniqueRef(refs: MicroflowRuntimeMetadataRefDto[], ref: MicroflowRuntimeMetadataRefDto): void {
   if (!ref.qualifiedName) {
@@ -148,14 +145,20 @@ function addNodesFromCollection(
       }
     }
 
+    const p0 = object.kind === "actionActivity" ? tryMapP0ActionToDiscriminatedDto(object.action) : undefined;
     const node: MicroflowExecutionNode = {
       objectId: object.id,
       actionId: object.kind === "actionActivity" ? object.action.id : undefined,
       kind: object.kind,
       actionKind: object.kind === "actionActivity" ? object.action.kind : undefined,
       officialType: object.officialType,
-      caption: object.caption,
-      config: stableClone(object) as unknown,
+      caption: "caption" in object ? object.caption : undefined,
+      config: {
+        objectKind: object.kind,
+        officialType: object.officialType,
+        caption: "caption" in object ? object.caption : undefined
+      },
+      p0ActionRuntime: p0 ?? undefined,
       errorHandling: err,
       collectionId,
       parentLoopObjectId

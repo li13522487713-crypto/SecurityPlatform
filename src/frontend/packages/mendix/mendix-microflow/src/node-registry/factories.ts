@@ -35,7 +35,7 @@ export function createObjectFromNodeRegistry(input: CreateObjectFromNodeRegistry
     ? {
         id: object.parameterId,
         name: object.parameterName ?? "input",
-        dataType: { kind: "unknown", reason: "registry default" },
+        dataType: { kind: "unknown" as const, reason: "registry default" },
         required: true
       }
     : undefined;

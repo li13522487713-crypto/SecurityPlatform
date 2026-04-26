@@ -22,7 +22,7 @@ export function PageSelector({ value, onChange, disabled, placeholder = "Select 
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled}
       value={value}
       key={version}

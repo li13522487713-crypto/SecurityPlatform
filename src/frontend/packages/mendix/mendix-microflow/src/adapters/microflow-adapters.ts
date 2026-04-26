@@ -43,6 +43,7 @@ import type {
   MicroflowVariable,
   MicroflowVariableIndex
 } from "../schema/types";
+import { mapAuthoringP0ToRuntimeBlocks } from "../runtime/map-authoring-p0-runtime";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
 
 const defaultLineStyle: MicroflowLine["style"] = {
@@ -450,6 +451,26 @@ function makeAction(node: Extract<LegacyMicroflowNode, { type: "activity" }>): M
       callMode: config.callMode === "async" ? "asyncReserved" : "sync"
     };
   }
+  if (config.activityType === "variableCreate") {
+    return {
+      ...base,
+      kind: "createVariable",
+      officialType: "Microflows$CreateVariableAction",
+      variableName: config.variableName ?? "variable",
+      dataType: config.variableType ? toMicroflowDataType(config.variableType) : { kind: "string" },
+      initialValue: config.valueExpression ?? expression(""),
+      readonly: Boolean(config.readonly)
+    };
+  }
+  if (config.activityType === "variableChange") {
+    return {
+      ...base,
+      kind: "changeVariable",
+      officialType: "Microflows$ChangeVariableAction",
+      targetVariableName: config.variableName ?? "",
+      newValueExpression: config.valueExpression ?? expression("")
+    };
+  }
   if (config.activityType === "callRest") {
     return {
       ...base,
@@ -458,8 +479,8 @@ function makeAction(node: Extract<LegacyMicroflowNode, { type: "activity" }>): M
       request: {
         method: config.method ?? "GET",
         urlExpression: expression(config.url ?? ""),
-        headers: (config.headers ?? []).map(header => ({ key: header.key, valueExpression: expression(header.value) })),
-        queryParameters: (config.query ?? []).map(query => ({ key: query.key, valueExpression: expression(query.value) })),
+        headers: (config.headers ?? []).map((header, i) => ({ id: `hdr-${i}`, key: header.key, valueExpression: expression(header.value) })),
+        queryParameters: (config.query ?? []).map((query, i) => ({ id: `q-${i}`, key: query.key, valueExpression: expression(query.value) })),
         body: config.bodyType === "json"
           ? { kind: "json", expression: config.bodyExpression ?? expression("") }
           : config.bodyType === "text"
@@ -1355,6 +1376,7 @@ export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntime
     parameters: schema.parameters,
     objectCollection: schema.objectCollection,
     flows: schema.flows,
-    variables: schema.variables ?? buildVariableIndex(schema.parameters, schema.objectCollection, schema.flows)
+    variables: schema.variables ?? buildVariableIndex(schema.parameters, schema.objectCollection, schema.flows),
+    p0RuntimeActionBlocks: mapAuthoringP0ToRuntimeBlocks(schema)
   };
 }

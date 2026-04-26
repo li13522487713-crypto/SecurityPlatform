@@ -27,7 +27,7 @@ export function EnumerationSelector({
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled}
       value={value}
       key={version}
@@ -77,7 +77,7 @@ export function EnumerationValueSelector({
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled || !enumerationQualifiedName}
       value={value}
       key={version}

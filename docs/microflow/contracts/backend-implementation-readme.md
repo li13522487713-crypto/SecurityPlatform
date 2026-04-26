@@ -13,6 +13,7 @@
 
 ## P0 可先交付
 
+- 优先级：消费 `toRuntimeDto().p0RuntimeActionBlocks` 与 `toExecutionPlan().nodes[].p0ActionRuntime` 中的 **P0 强类型 DTO**（非 `unknown` blob）；`MicroflowGenericAction` 仅对应 P1/P2 modeledOnly。
 - 微流资源 + Schema 存取 + 列表。
 - 发布 + 只读发布快照 + 基础版本树。
 - 元数据全量 `GET`。

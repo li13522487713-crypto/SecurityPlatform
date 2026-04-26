@@ -8,6 +8,7 @@
 ## 内容
 
 - 含 `microflowId`、`schemaVersion`、`name`、`returnType`、`parameters`、**objectCollection**、**flows**、**variables**（VariableIndex）。
+- 含 **`p0RuntimeActionBlocks`**：与 P0 动作一一对应的强类型块（`MicroflowDiscriminatedRuntimeP0ActionDto`），无 `editor` / 设计器元数据；解析失败时含 `supportLevel: "error"` 与 `MF_P0_MALFORMED` 语义。
 - **不含** FlowGram / WorkflowJSON。
 
 ## 补充契约类型

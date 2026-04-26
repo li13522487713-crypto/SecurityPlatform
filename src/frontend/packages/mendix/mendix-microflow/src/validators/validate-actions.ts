@@ -1,9 +1,10 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { isMicroflowP0ActionStronglyTyped, isP0ActionKind } from "../schema/authoring/p0-action-guards";
 import { flattenObjects, issue } from "./shared";
 import type { MicroflowValidatorContext } from "./validator-types";
 
-function textField(action: { [key: string]: unknown }, key: string): string {
-  const value = action[key];
+function textField(action: object, key: string): string {
+  const value = (action as Record<string, unknown>)[key];
   return typeof value === "string" ? value.trim() : "";
 }
 
@@ -40,23 +41,29 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
     if (!action.id || !action.kind || !action.officialType) {
       issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "Action must have id, kind and officialType.", { objectId: object.id, actionId: action.id, fieldPath: "action" }));
     }
+    if (isP0ActionKind(action.kind) && !isMicroflowP0ActionStronglyTyped(action)) {
+      issues.push(issue("MF_ACTION_P0_MUST_BE_STRONGLY_TYPED", "P0 动作必须满足强类型结构（非 GenericAction/松散 JSON）。", { objectId: object.id, actionId: action.id, fieldPath: "action" }));
+    }
     if (action.kind === "retrieve") {
       if (!action.outputVariableName.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RetrieveAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
+        issues.push(issue("MF_RETRIEVE_OUTPUT_MISSING", "RetrieveAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
       }
-      if (action.retrieveSource.kind === "database" && !action.retrieveSource.entityQualifiedName) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "DatabaseRetrieveSource.entityQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.entityQualifiedName" }));
+      if (action.retrieveSource.kind === "database" && !String(action.retrieveSource.entityQualifiedName ?? "").trim()) {
+        issues.push(issue("MF_RETRIEVE_ENTITY_MISSING", "DatabaseRetrieveSource.entityQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.entityQualifiedName" }));
       }
       if (action.retrieveSource.kind === "association" && !action.retrieveSource.startVariableName.trim()) {
         issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "AssociationRetrieveSource.startVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.startVariableName" }));
       }
+      if (action.retrieveSource.kind === "association" && !String(action.retrieveSource.associationQualifiedName ?? "").trim()) {
+        issues.push(issue("MF_RETRIEVE_ASSOCIATION_MISSING", "AssociationRetrieveSource.associationQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.retrieveSource.associationQualifiedName" }));
+      }
     }
     if (action.kind === "createObject") {
       if (!action.entityQualifiedName.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "CreateObjectAction.entityQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.entityQualifiedName" }));
+        issues.push(issue("MF_CREATE_OBJECT_ENTITY_MISSING", "CreateObjectAction.entityQualifiedName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.entityQualifiedName" }));
       }
       if (!action.outputVariableName.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "CreateObjectAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
+        issues.push(issue("MF_CREATE_OBJECT_OUTPUT_MISSING", "CreateObjectAction.outputVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.outputVariableName" }));
       }
     }
     if (action.editor.availability === "nanoflowOnlyDisabled") {
@@ -72,20 +79,26 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
     }
     if (action.kind === "changeMembers") {
       if (!action.changeVariableName.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeMembersAction.changeVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.changeVariableName" }));
+        issues.push(issue("MF_CHANGE_OBJECT_TARGET_MISSING", "ChangeMembersAction.changeVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.changeVariableName" }));
       }
       if (action.memberChanges.length === 0) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeMembersAction.memberChanges must include at least one member change.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }));
+        issues.push(issue("MF_CHANGE_OBJECT_NO_MEMBERS", "ChangeMembersAction.memberChanges must include at least one member change.", { objectId: object.id, actionId: action.id, fieldPath: "action.memberChanges" }));
       }
     }
     if (action.kind === "commit" || action.kind === "delete" || action.kind === "rollback") {
       if (!action.objectOrListVariableName.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", `${action.officialType} requires objectOrListVariableName.`, { objectId: object.id, actionId: action.id, fieldPath: "action.objectOrListVariableName" }));
+        const code =
+          action.kind === "commit"
+            ? "MF_COMMIT_VARIABLE_MISSING"
+            : action.kind === "delete"
+              ? "MF_DELETE_VARIABLE_MISSING"
+              : "MF_ROLLBACK_VARIABLE_MISSING";
+        issues.push(issue(code, `${action.officialType} requires objectOrListVariableName.`, { objectId: object.id, actionId: action.id, fieldPath: "action.objectOrListVariableName" }));
       }
     }
     if (action.kind === "callMicroflow") {
       if (!action.targetMicroflowId.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "MicroflowCallAction.targetMicroflowId is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId" }));
+        issues.push(issue("MF_CALL_MICROFLOW_TARGET_MISSING", "MicroflowCallAction.targetMicroflowId is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetMicroflowId" }));
       }
       if (action.returnValue.storeResult && !action.returnValue.outputVariableName?.trim()) {
         issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "MicroflowCallAction.returnValue.outputVariableName is required when storeResult=true.", { objectId: object.id, actionId: action.id, fieldPath: "action.returnValue.outputVariableName" }));
@@ -147,18 +160,34 @@ export function validateActions(schema: MicroflowSchema, _context: MicroflowVali
       required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "RestOperationCall.consumedRestServiceQualifiedName is required.", object.id, action.id, "action.consumedRestServiceQualifiedName", Boolean(textField(action, "consumedRestServiceQualifiedName")));
       required(issues, "MF_ACTION_REQUIRED_FIELD_MISSING", "RestOperationCall.operationName is required.", object.id, action.id, "action.operationName", Boolean(textField(action, "operationName")));
     }
+    if (action.kind === "restCall" && !action.request.method) {
+      issues.push(issue("MF_REST_METHOD_MISSING", "RestCallAction.request.method is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.request.method" }));
+    }
     if (action.kind === "restCall" && !(action.request.urlExpression.raw ?? action.request.urlExpression.text ?? "").trim()) {
-      issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RestCallAction.request.urlExpression is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.request.urlExpression" }));
+      issues.push(issue("MF_REST_URL_MISSING", "RestCallAction.request.urlExpression is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.request.urlExpression" }));
     }
     if (action.kind === "restCall" && action.timeoutSeconds <= 0) {
       issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RestCallAction.timeoutSeconds must be greater than 0.", { objectId: object.id, actionId: action.id, fieldPath: "action.timeoutSeconds" }));
+    }
+    if (action.kind === "createVariable") {
+      if (!action.variableName.trim()) {
+        issues.push(issue("MF_CREATE_VARIABLE_NAME_MISSING", "CreateVariableAction.variableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.variableName" }));
+      }
+    }
+    if (action.kind === "changeVariable") {
+      if (!action.targetVariableName.trim()) {
+        issues.push(issue("MF_CHANGE_VARIABLE_TARGET_MISSING", "ChangeVariableAction.targetVariableName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.targetVariableName" }));
+      }
+      if (!expressionText(action.newValueExpression)) {
+        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "ChangeVariableAction.newValueExpression is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.newValueExpression" }));
+      }
     }
     if (action.kind === "logMessage") {
       if (!action.logNodeName.trim()) {
         issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "LogMessageAction.logNodeName is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.logNodeName" }));
       }
       if (!action.template.text.trim()) {
-        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "LogMessageAction.template.text is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.template.text" }));
+        issues.push(issue("MF_LOG_MESSAGE_EMPTY", "LogMessageAction.template.text is required.", { objectId: object.id, actionId: action.id, fieldPath: "action.template.text" }));
       }
     }
     if (action.kind === "generateDocument") {

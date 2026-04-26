@@ -50,7 +50,7 @@ export function EntitySelector({
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled}
       value={resolvedValue}
       key={version}

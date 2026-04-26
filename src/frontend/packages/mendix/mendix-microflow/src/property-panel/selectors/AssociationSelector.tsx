@@ -38,7 +38,7 @@ export function AssociationSelector({
   return (
     <Select
       filter
-      allowClear
+      showClear
       disabled={disabled || !resolvedStart}
       value={value}
       key={version}

@@ -1,6 +1,6 @@
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { normalizeMicroflowSchema } from "../schema/legacy/legacy-migration";
-import type { MicroflowAuthoringSchema, MicroflowValidationIssue, MicroflowValidator } from "../schema/types";
+import type { MicroflowAuthoringSchema, MicroflowValidationIssue } from "../schema/types";
 import { buildVariableIndex } from "../variables";
 import { validateActions } from "./validate-actions";
 import { validateDecisions } from "./validate-decisions";
@@ -19,6 +19,7 @@ import type {
   MicroflowValidationInput,
   MicroflowValidationResult,
   MicroflowValidationSummary,
+  MicroflowValidator,
   MicroflowValidatorContext,
 } from "./validator-types";
 

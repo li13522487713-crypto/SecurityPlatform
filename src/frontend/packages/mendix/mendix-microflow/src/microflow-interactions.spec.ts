@@ -98,13 +98,14 @@ describe("microflow editor interactions", () => {
     expect(json.nodes.length).toBeGreaterThan(0);
     expect(json.edges.length).toBeGreaterThan(0);
     expect(json.nodes[0]?.data).toHaveProperty("objectId");
-    expect(json.edges[0]?.data).toHaveProperty("flowId");
+    const firstEdge = json.edges[0] as { data?: object } | undefined;
+    expect(firstEdge?.data).toHaveProperty("flowId");
     const actionNode = json.nodes.find(node => (node.data as { actionKind?: string }).actionKind);
     expect(actionNode?.data).toHaveProperty("action");
     const semanticEdge = json.edges.find(edge => {
-      const data = edge.data as { edgeKind?: string; caseValues?: unknown[]; isErrorHandler?: boolean };
-      return data.edgeKind === "decisionCondition" || data.edgeKind === "objectTypeCondition" || data.isErrorHandler;
-    });
+      const data = (edge as { data?: { edgeKind?: string; isErrorHandler?: boolean } }).data;
+      return data && (data.edgeKind === "decisionCondition" || data.edgeKind === "objectTypeCondition" || data.isErrorHandler);
+    }) as { data?: object } | undefined;
     if (semanticEdge) {
       expect(semanticEdge.data).toHaveProperty("caseValues");
       expect(semanticEdge.data).toHaveProperty("isErrorHandler");
@@ -208,13 +209,13 @@ describe("microflow editor interactions", () => {
       throw new Error("Expected decision and target ports.");
     }
     const flow = createMicroflowFlowFromPorts(schema, source, target, {
-      caseValues: [{ kind: "boolean", value: false, persistedValue: "false" }],
+      caseValues: [{ kind: "boolean", officialType: "Microflows$EnumerationCase", value: false, persistedValue: "false" }],
       label: "否",
     });
     expect(flow.kind).toBe("sequence");
     expect(flow.editor.edgeKind).toBe("decisionCondition");
     expect(flow.editor.label).toBe("否");
-    expect(flow.caseValues[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
+    expect((flow.caseValues ?? [])[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
   });
 
   it("creates an auto layout patch from root flow order", () => {
