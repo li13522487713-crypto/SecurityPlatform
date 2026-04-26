@@ -517,14 +517,26 @@ export function WorkspaceProjectsPage() {
                   shadows="hover"
                   style={{ borderRadius: 16, cursor: "pointer", border: "1px solid rgba(15, 23, 42, 0.06)" }}
                   bodyStyle={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}
-                  onClick={() => handleOpenFolder(item.id)}
                   data-testid={`coze-projects-folder-${item.id}`}
                 >
-                  <Space align="center" spacing={12}>
-                    <IconFolder size="large" style={{ color: "#1677ff" }} />
-                    <Typography.Text strong style={{ fontSize: 16 }}>{item.name}</Typography.Text>
-                  </Space>
-                  <IconMore style={{ color: "#86909c" }} />
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleOpenFolder(item.id)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        handleOpenFolder(item.id);
+                      }
+                    }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}
+                  >
+                    <Space align="center" spacing={12}>
+                      <IconFolder size="large" style={{ color: "#1677ff" }} />
+                      <Typography.Text strong style={{ fontSize: 16 }}>{item.name}</Typography.Text>
+                    </Space>
+                    <IconMore style={{ color: "#86909c" }} />
+                  </div>
                 </Card>
               ))}
             </div>

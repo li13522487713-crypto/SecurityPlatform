@@ -234,7 +234,7 @@ export async function getAiDatabaseRecordsPaged(
   environment: AiDatabaseRecordEnvironment = AiDatabaseRecordEnvironment.Draft
 ): Promise<PagedResult<AiDatabaseRecordListItem>> {
   const response = await requestApi<ApiResponse<PagedResult<AiDatabaseRecordListItem>>>(
-    `/ai-databases/${id}/records?${toQuery(request, { environment })}`
+    `/ai-databases/${id}/records?${toQuery(request, { environment: String(environment) })}`
   );
   if (!response.data) {
     throw new Error(response.message || aiDatabaseMessage("getRecordsFailed"));
@@ -281,7 +281,8 @@ export async function deleteAiDatabaseRecordWithEnvironment(
   recordId: number,
   environment: AiDatabaseRecordEnvironment
 ): Promise<void> {
-  const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/records/${recordId}?${toQuery({}, { environment })}`, {
+  const query = new URLSearchParams({ environment: String(environment) }).toString();
+  const response = await requestApi<ApiResponse<object>>(`/ai-databases/${id}/records/${recordId}?${query}`, {
     method: "DELETE"
   });
   if (!response.success) {

@@ -526,7 +526,7 @@ function SpaceShellChrome() {
       return;
     }
     let cancelled = false;
-    void initI18nInstance({ language: cozeLocale })
+    void initI18nInstance({ lng: cozeLocale })
       .then(() => {
         I18n.setLang(cozeLocale);
         if (!cancelled) setCozeI18nReady(true);

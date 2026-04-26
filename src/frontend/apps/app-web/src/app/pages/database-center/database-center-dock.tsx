@@ -42,8 +42,17 @@ export function DatabaseCenterDock({ labels, source, selectedObject, structure, 
       dataIndex: "name",
       width: 180,
       render: (_value: unknown, record) => (
-        <Button theme="borderless" size="small" onClick={() => onSelectObject(record)}>
-          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 140 }}>{record.name}</Text>
+        <Button
+          theme="borderless"
+          size="small"
+          disabled={!record}
+          onClick={() => {
+            if (record) {
+              onSelectObject(record);
+            }
+          }}
+        >
+          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 140 }}>{record?.name ?? "-"}</Text>
         </Button>
       )
     },
@@ -65,7 +74,7 @@ export function DatabaseCenterDock({ labels, source, selectedObject, structure, 
       <DockCard title={`${labels.tableList} - ${structure?.schemaName ?? "-"}`} visible={visibleCards.tables} onClose={() => hide("tables")}>
         <div className="database-center-table-scroll">
           <Table
-            rowKey={record => [record.schema, record.objectType, record.name, record.id].filter(Boolean).join(":")}
+            rowKey={record => [record?.schema, record?.objectType, record?.name, record?.id].filter(Boolean).join(":")}
             size="small"
             pagination={false}
             columns={tableColumns}

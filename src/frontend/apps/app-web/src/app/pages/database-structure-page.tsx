@@ -60,18 +60,26 @@ export function DatabaseStructurePage() {
       dataIndex: "name",
       width: 220,
       render: (_: unknown, record) => (
-        <Button theme="borderless" onClick={() => setDetailTarget(record)}>
-          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{record.name}</Text>
+        <Button
+          theme="borderless"
+          disabled={!record}
+          onClick={() => {
+            if (record) {
+              setDetailTarget(record);
+            }
+          }}
+        >
+          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{record?.name ?? "-"}</Text>
         </Button>
       )
     },
     { title: t("databaseStructureColumnType"), dataIndex: "objectType", width: 120 },
-    { title: "schema", dataIndex: "schema", width: 120, render: (value: unknown) => value || "-" },
-    { title: t("databaseStructureColumnEngine"), dataIndex: "engine", width: 140, render: (_: unknown, record) => record.engine || record.algorithm || "-" },
-    { title: t("databaseStructureColumnRows"), dataIndex: "rowCount", width: 120, render: (value: unknown) => value ?? "-" },
-    { title: t("databaseStructureColumnCreatedAt"), dataIndex: "createdAt", width: 180, render: (value: unknown) => value || "-" },
-    { title: t("databaseStructureColumnUpdatedAt"), dataIndex: "updatedAt", width: 180, render: (value: unknown) => value || "-" },
-    { title: t("databaseStructureColumnComment"), dataIndex: "comment", width: 260, render: (value: unknown) => <Text ellipsis={{ showTooltip: true }}>{value || "-"}</Text> },
+    { title: "schema", dataIndex: "schema", width: 120, render: (value: unknown) => (value == null ? "-" : String(value)) },
+    { title: t("databaseStructureColumnEngine"), dataIndex: "engine", width: 140, render: (_: unknown, record) => (record?.engine || record?.algorithm || "-") },
+    { title: t("databaseStructureColumnRows"), dataIndex: "rowCount", width: 120, render: (value: unknown) => (value == null ? "-" : String(value)) },
+    { title: t("databaseStructureColumnCreatedAt"), dataIndex: "createdAt", width: 180, render: (value: unknown) => (value == null ? "-" : String(value)) },
+    { title: t("databaseStructureColumnUpdatedAt"), dataIndex: "updatedAt", width: 180, render: (value: unknown) => (value == null ? "-" : String(value)) },
+    { title: t("databaseStructureColumnComment"), dataIndex: "comment", width: 260, render: (value: unknown) => <Text ellipsis={{ showTooltip: true }}>{value == null ? "-" : String(value)}</Text> },
     {
       title: t("databaseStructureColumnActions"),
       width: 150,
@@ -80,11 +88,11 @@ export function DatabaseStructurePage() {
         <Dropdown
           render={
             <Dropdown.Menu>
-              <Dropdown.Item onClick={() => setDetailTarget(record)}>{t("databaseStructureActionStructure")}</Dropdown.Item>
-              <Dropdown.Item onClick={() => setDetailTarget(record)}>{t("databaseStructureActionPreview")}</Dropdown.Item>
-              <Dropdown.Item onClick={() => setDetailTarget(record)}>{t("databaseStructureActionDdl")}</Dropdown.Item>
+              <Dropdown.Item onClick={() => record && setDetailTarget(record)}>{t("databaseStructureActionStructure")}</Dropdown.Item>
+              <Dropdown.Item onClick={() => record && setDetailTarget(record)}>{t("databaseStructureActionPreview")}</Dropdown.Item>
+              <Dropdown.Item onClick={() => record && setDetailTarget(record)}>{t("databaseStructureActionDdl")}</Dropdown.Item>
               <Dropdown.Item disabled>{t("databaseStructureActionSqlQuery")}</Dropdown.Item>
-              {record.objectType === "table" || record.objectType === "view" ? (
+              {record && (record.objectType === "table" || record.objectType === "view") ? (
                 <Dropdown.Item disabled={record.canDrop === false} type="danger" onClick={() => setDeleteTarget(record)}>{t("databaseStructureActionDelete")}</Dropdown.Item>
               ) : null}
             </Dropdown.Menu>
@@ -123,9 +131,9 @@ export function DatabaseStructurePage() {
           <Button icon={<IconArrowLeft />} theme="borderless" onClick={() => navigate(-1)}>{t("databaseStructureBack")}</Button>
           <Space>
             <Title heading={3} style={{ margin: 0 }}>{database?.name ?? databaseId}</Title>
-            <Tag color="blue">{database?.driverCode ?? "SQLite"}</Tag>
+            <Tag color="blue">{database?.id ?? "-"}</Tag>
             <Tag color="green">draft</Tag>
-            <Tag color={database?.provisionState === "Ready" ? "green" : "orange"}>{database?.provisionState ?? "Pending"}</Tag>
+            <Tag color="orange">{database?.queryMode != null ? String(database.queryMode) : "-"}</Tag>
           </Space>
           <Text type="tertiary">{t("databaseStructureBreadcrumb")}</Text>
         </Space>
@@ -154,7 +162,7 @@ export function DatabaseStructurePage() {
       <Spin spinning={loading}>
         <div className="database-center-table-scroll">
           <Table
-            rowKey={record => `${record.schema ?? ""}.${record.name}`}
+            rowKey={record => `${record?.schema ?? ""}.${record?.name ?? ""}`}
             columns={columns}
             dataSource={objects}
             pagination={false}
@@ -166,7 +174,6 @@ export function DatabaseStructurePage() {
       <CreateTableDrawer
         visible={createTableVisible}
         databaseId={databaseId}
-        driverCode={database?.driverCode}
         onClose={() => setCreateTableVisible(false)}
         onCreated={load}
       />

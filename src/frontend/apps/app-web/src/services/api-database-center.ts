@@ -308,28 +308,29 @@ function toProvisionMode(driverCode: string, provisionMode?: string | null): num
   return 4;
 }
 
-function normalizeSource(source: Record<string, unknown>): DatabaseCenterSourceSummary {
-  const id = String(source.id ?? source.sourceId ?? "");
-    return {
-      id,
-      aiDatabaseId: (source.aiDatabaseId ?? source.databaseId) as string | null | undefined,
-      name: String(source.name ?? ""),
-    sourceKind: String(source.sourceKind ?? "AiDatabase"),
-    driverCode: String(source.driverCode ?? ""),
-    environment: normalizeEnvironment(source.environment),
-    status: (source.status ?? source.provisionState) as string | null | undefined,
-    readOnly: source.readOnly as boolean | null | undefined,
-    address: source.address as string | null | undefined,
-    workspaceId: source.workspaceId as string | null | undefined,
-    description: source.description as string | null | undefined,
-    hostProfileId: source.hostProfileId as string | null | undefined,
-    hostProfileName: source.hostProfileName as string | null | undefined,
-    physicalDatabaseName: (source.physicalDatabaseName ?? source.databaseName) as string | null | undefined,
-    defaultSchemaName: (source.defaultSchemaName ?? source.schemaName) as string | null | undefined,
-    maskedConnectionSummary: source.maskedConnectionSummary as string | null | undefined,
-    provisionState: (source.provisionState ?? source.status) as string | null | undefined,
-    updatedAt: source.updatedAt as string | null | undefined,
-    createdAt: source.createdAt as string | null | undefined
+function normalizeSource(source: DatabaseCenterSourceSummary | Record<string, unknown>): DatabaseCenterSourceSummary {
+  const raw = source as Record<string, unknown>;
+  const id = String(raw.id ?? raw.sourceId ?? "");
+  return {
+    id,
+    aiDatabaseId: (raw.aiDatabaseId ?? raw.databaseId) as string | null | undefined,
+    name: String(raw.name ?? ""),
+    sourceKind: String(raw.sourceKind ?? "AiDatabase"),
+    driverCode: String(raw.driverCode ?? ""),
+    environment: normalizeEnvironment(raw.environment),
+    status: (raw.status ?? raw.provisionState) as string | null | undefined,
+    readOnly: raw.readOnly as boolean | null | undefined,
+    address: raw.address as string | null | undefined,
+    workspaceId: raw.workspaceId as string | null | undefined,
+    description: raw.description as string | null | undefined,
+    hostProfileId: raw.hostProfileId as string | null | undefined,
+    hostProfileName: raw.hostProfileName as string | null | undefined,
+    physicalDatabaseName: (raw.physicalDatabaseName ?? raw.databaseName) as string | null | undefined,
+    defaultSchemaName: (raw.defaultSchemaName ?? raw.schemaName) as string | null | undefined,
+    maskedConnectionSummary: raw.maskedConnectionSummary as string | null | undefined,
+    provisionState: (raw.provisionState ?? raw.status) as string | null | undefined,
+    updatedAt: raw.updatedAt as string | null | undefined,
+    createdAt: raw.createdAt as string | null | undefined
   };
 }
 

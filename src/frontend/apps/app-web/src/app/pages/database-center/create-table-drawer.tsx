@@ -80,25 +80,24 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
                 <Text type="tertiary" size="small">{labels.dragTemplateHint}</Text>
                 <Space wrap>
                   {fieldTemplates.map(template => (
-                    <Tag
+                    <span
                       key={template.id}
                       draggable
-                      onDragStart={event => {
+                      onDragStart={(event: DragEvent<HTMLSpanElement>) => {
                         event.dataTransfer.setData("application/x-field-template", JSON.stringify(template));
                       }}
                     >
-                      {template.name} / {template.dataType}
-                    </Tag>
+                      <Tag>{template.name} / {template.dataType}</Tag>
+                    </span>
                   ))}
                   {typeOptions.map(option => (
-                    <Tag
+                    <span
                       key={option.value}
-                      color="blue"
                       draggable
-                      onDragStart={event => event.dataTransfer.setData("application/x-data-type", option.value)}
+                      onDragStart={(event: DragEvent<HTMLSpanElement>) => event.dataTransfer.setData("application/x-data-type", option.value)}
                     >
-                      {option.value}
-                    </Tag>
+                      <Tag color="blue">{option.value}</Tag>
+                    </span>
                   ))}
                 </Space>
               </div>

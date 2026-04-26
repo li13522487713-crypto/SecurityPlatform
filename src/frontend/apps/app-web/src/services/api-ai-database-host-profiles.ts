@@ -120,16 +120,17 @@ export async function updateAiDatabaseHostProfile(id: string, request: AiDatabas
   unwrapVoid(response, "更新托管配置失败");
 }
 
-function normalizeProfile(profile: AiDatabaseHostProfile & Record<string, unknown>): AiDatabaseHostProfile {
-  const testStatus = String(profile.status ?? profile.testStatus ?? "");
+function normalizeProfile(profile: AiDatabaseHostProfile): AiDatabaseHostProfile {
+  const raw = profile as AiDatabaseHostProfile & Record<string, unknown>;
+  const testStatus = String(raw.status ?? raw.testStatus ?? "");
   return {
     ...profile,
-    isActive: Boolean(profile.isActive ?? profile.isEnabled),
+    isActive: Boolean(raw.isActive ?? raw.isEnabled),
     status: profile.status ?? testStatus,
     lastTestSuccess: profile.lastTestSuccess ?? (testStatus ? testStatus === "Success" : null),
-    lastTestedAt: profile.lastTestedAt ?? (profile.lastTestAt as string | null | undefined),
-    defaultDatabaseName: profile.defaultDatabaseName ?? (profile.adminDatabase as string | null | undefined),
-    defaultSchemaName: profile.defaultSchemaName ?? (profile.defaultSchema as string | null | undefined),
+    lastTestedAt: profile.lastTestedAt ?? (raw.lastTestAt as string | null | undefined),
+    defaultDatabaseName: profile.defaultDatabaseName ?? (raw.adminDatabase as string | null | undefined),
+    defaultSchemaName: profile.defaultSchemaName ?? (raw.defaultSchema as string | null | undefined),
     sqliteRootPath: profile.sqliteRootPath as string | null | undefined,
     updatedAt: profile.updatedAt ?? null
   };

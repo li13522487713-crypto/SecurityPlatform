@@ -65,7 +65,7 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
 
     setMigrationSource({
       resourceType: "database",
-      resourceId: source.aiDatabaseId,
+      resourceId: Number(source.aiDatabaseId),
       name: source.name,
       description: source.description ?? undefined,
       updatedAt: source.updatedAt ?? source.createdAt ?? new Date().toISOString(),
@@ -73,7 +73,6 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
       subType: "table",
       typeLabel: labels.aiDatabases,
       source: "custom",
-      environment: source.environment,
       status: source.provisionState ?? source.status ?? undefined
     });
   }

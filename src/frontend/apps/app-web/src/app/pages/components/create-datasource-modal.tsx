@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Input, Modal, Select, Spin, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Input, Modal, Select, Spin, Tabs, TextArea, Toast, Typography } from "@douyinfe/semi-ui";
 import { useAppI18n } from "../../i18n";
 import {
   createTenantDataSource,
@@ -261,9 +261,9 @@ export function CreateDataSourceModal({
           {mode === "raw" ? (
             <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <Typography.Text strong>{t("setupConnectionString")}</Typography.Text>
-              <Input.TextArea
+              <TextArea
                 value={connectionString}
-                onChange={setConnectionString}
+                onChange={value => setConnectionString(String(value))}
                 autosize={{ minRows: 4, maxRows: 8 }}
                 placeholder={selectedDriver?.connectionStringExample ?? ""}
               />
@@ -285,12 +285,12 @@ export function CreateDataSourceModal({
                     {field.required ? " *" : ""}
                   </Typography.Text>
                   {field.multiline ? (
-                    <Input.TextArea
+                    <TextArea
                       value={visualConfig[field.key] ?? ""}
                       onChange={value =>
                         setVisualConfig(current => ({
                           ...current,
-                          [field.key]: value
+                          [field.key]: String(value)
                         }))
                       }
                       autosize={{ minRows: 3, maxRows: 6 }}

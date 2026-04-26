@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Form, Input, Modal, Select, Space, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, Form, Input, Modal, Select, Space, TextArea, Toast, Typography } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import {
   chatflowEditorPath,
@@ -311,14 +311,14 @@ export function LibraryCreateModal({ visible, createType, onClose, onCreated }: 
                   {t("cozeLibraryCreateDatabaseBaseHint")}
                 </Typography.Text>
                 <Form.Slot label={t("cozeLibraryCreateName")}>
-                  <Form.Input
+                  <Input
                     value={name}
                     onChange={v => setName(v)}
                     placeholder={t("cozeLibraryCreateNameRequired")}
                   />
                 </Form.Slot>
                 <Form.Slot label={t("cozeLibraryCreateDescription")}>
-                  <Form.TextArea
+                  <TextArea
                     value={description}
                     onChange={v => setDescription(v)}
                     rows={3}
@@ -411,7 +411,7 @@ export function LibraryCreateModal({ visible, createType, onClose, onCreated }: 
               </Form.Slot>
             ) : null}
             <Form.Slot label={t("cozeLibraryCreateName")}>
-              <Form.Input
+              <Input
                 value={name}
                 onChange={v => setName(v)}
                 placeholder={t("cozeLibraryCreateNameRequired")}
@@ -420,15 +420,15 @@ export function LibraryCreateModal({ visible, createType, onClose, onCreated }: 
             {showVoice ? (
               <>
                 <Form.Slot label={t("cozeLibraryCreateVoiceLanguage")}>
-                  <Form.Input value={voiceLanguage} onChange={v => setVoiceLanguage(v)} />
+                  <Input value={voiceLanguage} onChange={v => setVoiceLanguage(v)} />
                 </Form.Slot>
                 <Form.Slot label={t("cozeLibraryCreateVoiceGender")}>
-                  <Form.Input value={voiceGender} onChange={v => setVoiceGender(v)} />
+                  <Input value={voiceGender} onChange={v => setVoiceGender(v)} />
                 </Form.Slot>
               </>
             ) : null}
             <Form.Slot label={t("cozeLibraryCreateDescription")}>
-              <Form.TextArea
+              <TextArea
                 value={description}
                 onChange={v => setDescription(v)}
                 rows={flowMode ? 3 : 2}

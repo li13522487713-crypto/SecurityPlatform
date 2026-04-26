@@ -10,8 +10,32 @@ import {
   createModelConfig,
   testModelConfigConnection,
   createModelConfigPromptTestStream,
-  type ModelConfigDto
+  type ModelConfigCreateRequest,
+  type ModelConfigDto,
+  type ModelConfigUpdateRequest
 } from "../../services/api-model-config";
+
+type ModelConfigFormValues = {
+  name: string;
+  providerType: string;
+  baseUrl: string;
+  defaultModel: string;
+  apiKey: string;
+};
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function readModelConfigForm(values: Record<string, unknown>): ModelConfigFormValues {
+  return {
+    name: stringValue(values.name).trim(),
+    providerType: stringValue(values.providerType).trim(),
+    baseUrl: stringValue(values.baseUrl).trim(),
+    defaultModel: stringValue(values.defaultModel).trim(),
+    apiKey: stringValue(values.apiKey)
+  };
+}
 
 export function WorkspaceSettingsModelsPage() {
   const { t } = useAppI18n();
@@ -88,7 +112,7 @@ export function WorkspaceSettingsModelsPage() {
 
   const handleTestConnection = async () => {
     if (!formApi.current) return;
-    const values = formApi.current.getValues();
+    const values = readModelConfigForm(formApi.current.getValues());
     if (!values.providerType || !values.baseUrl || !values.defaultModel) {
       Toast.warning("请先填写完整提供商、BaseURL和模型标识");
       return;
@@ -100,7 +124,7 @@ export function WorkspaceSettingsModelsPage() {
         modelConfigId: editingModel?.id,
         providerType: values.providerType,
         baseUrl: values.baseUrl,
-        apiKey: values.apiKey || "",
+        apiKey: values.apiKey,
         model: values.defaultModel
       });
       setConnectionResult({ success: result.success, latencyMs: result.latencyMs, error: result.errorMessage });
@@ -120,7 +144,7 @@ export function WorkspaceSettingsModelsPage() {
 
   const handleTestPrompt = async () => {
     if (!formApi.current) return;
-    const values = formApi.current.getValues();
+    const values = readModelConfigForm(formApi.current.getValues());
     if (!values.providerType || !values.baseUrl || !values.defaultModel) {
       Toast.warning("请先填写完整配置");
       return;
@@ -137,7 +161,7 @@ export function WorkspaceSettingsModelsPage() {
         modelConfigId: editingModel?.id,
         providerType: values.providerType,
         baseUrl: values.baseUrl,
-        apiKey: values.apiKey || "",
+        apiKey: values.apiKey,
         model: values.defaultModel,
         prompt,
         enableReasoning: false,
@@ -188,24 +212,31 @@ export function WorkspaceSettingsModelsPage() {
     }
   };
 
-  const handleSubmit = async (values: Record<string, string | boolean>) => {
+  const handleSubmit = async (rawValues: Record<string, unknown>) => {
+    const values = readModelConfigForm(rawValues);
     setSubmitting(true);
     try {
       if (editingModel) {
-        await updateModelConfig(editingModel.id, {
+        const request: ModelConfigUpdateRequest = {
           name: values.name,
-          apiKey: values.apiKey || "",
+          apiKey: values.apiKey,
           baseUrl: values.baseUrl,
           defaultModel: values.defaultModel,
           isEnabled: editingModel.isEnabled,
           supportsEmbedding: editingModel.supportsEmbedding,
           modelId: values.defaultModel,
           workspaceId: workspace.id
-        });
+        };
+        await updateModelConfig(editingModel.id, request);
         Toast.success("模型配置已更新");
       } else {
-        await createModelConfig({
-          ...values,
+        const request: ModelConfigCreateRequest = {
+          name: values.name,
+          providerType: values.providerType,
+          apiKey: values.apiKey,
+          baseUrl: values.baseUrl,
+          defaultModel: values.defaultModel,
+          modelId: values.defaultModel,
           workspaceId: workspace.id,
           supportsEmbedding: false,
           enableStreaming: true,
@@ -218,7 +249,8 @@ export function WorkspaceSettingsModelsPage() {
           topP: 1.0,
           frequencyPenalty: 0.0,
           presencePenalty: 0.0
-        });
+        };
+        await createModelConfig(request);
         Toast.success(t("cozeCreateSuccess"));
       }
       setIsSideSheetVisible(false);
@@ -238,7 +270,7 @@ export function WorkspaceSettingsModelsPage() {
       title: t("cozeSettingsPublishColumnStatus"),
       dataIndex: "isEnabled",
       render: (value: boolean, record) => (
-        <Switch checked={value} onChange={next => void handleToggle(record, next)} />
+        <Switch checked={value} disabled={!record} onChange={next => record && void handleToggle(record, next)} />
       )
     },
     { title: t("cozeSettingsPublishColumnUpdatedAt"), dataIndex: "createdAt" },
@@ -246,7 +278,7 @@ export function WorkspaceSettingsModelsPage() {
       title: t("cozeCommonAction"),
       dataIndex: "action",
       render: (_, record) => (
-        <Button type="tertiary" size="small" onClick={() => handleOpenEdit(record)}>
+        <Button type="tertiary" size="small" disabled={!record} onClick={() => record && handleOpenEdit(record)}>
           编辑
         </Button>
       )

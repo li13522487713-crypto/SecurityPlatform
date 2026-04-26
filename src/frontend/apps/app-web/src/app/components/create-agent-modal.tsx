@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Avatar, Form, Modal, TabPane, Tabs, Toast } from "@douyinfe/semi-ui";
+import { Avatar, Form, Modal, TabPane, Tabs, TextArea, Toast } from "@douyinfe/semi-ui";
 import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
 import { createAiAssistantInWorkspace } from "../../services/api-ai-assistant";
@@ -173,17 +173,13 @@ export function CreateAgentModal({ visible, workspaceId, onClose, onCreated }: C
           </div>
         </TabPane>
         <TabPane tab={t("cozeCreateAgentTabAi")} itemKey="ai">
-          <Form labelPosition="top" labelWidth="100%">
-            <Form.TextArea
-              field="prompt"
-              noLabel
-              placeholder={t("cozeCreateAgentAiPromptPlaceholder")}
-              maxLength={500}
-              rows={6}
-              value={aiPrompt}
-              onChange={value => setAiPrompt(value)}
-            />
-          </Form>
+          <TextArea
+            placeholder={t("cozeCreateAgentAiPromptPlaceholder")}
+            maxCount={500}
+            rows={6}
+            value={aiPrompt}
+            onChange={value => setAiPrompt(String(value))}
+          />
         </TabPane>
       </Tabs>
     </Modal>

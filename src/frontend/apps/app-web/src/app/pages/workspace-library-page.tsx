@@ -356,7 +356,7 @@ export function WorkspaceLibraryPage() {
           if (record.subType === "datasource") {
             await deleteTenantDataSource(record.resourceId);
           } else {
-            await deleteAiDatabase(record.resourceId);
+            await deleteAiDatabase(String(record.resourceId));
           }
           Toast.success(t("cozeLibraryDeleteDatabaseSuccess"));
           await load();
@@ -607,9 +607,13 @@ export function WorkspaceLibraryPage() {
           <Table
             columns={columns}
             dataSource={items}
-            rowKey={record => `${record.resourceType}-${record.resourceId}`}
+            rowKey={record => `${record?.resourceType ?? "unknown"}-${record?.resourceId ?? ""}`}
             onRow={record => ({
-              onClick: () => handleOpen(record),
+              onClick: () => {
+                if (record) {
+                  handleOpen(record);
+                }
+              },
               style: { cursor: "pointer" }
             })}
             pagination={{

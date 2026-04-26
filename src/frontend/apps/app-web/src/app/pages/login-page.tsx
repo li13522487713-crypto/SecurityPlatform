@@ -246,9 +246,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { t } = useAppI18n();
-  const runtimeEnv = import.meta.env;
-  const defaultUsername =
-    String(runtimeEnv?.VITE_DEFAULT_USERNAME ?? "").trim() || HARDCODED_DEFAULT_USERNAME;
+  const defaultUsername = HARDCODED_DEFAULT_USERNAME;
   const defaultPassword = HARDCODED_DEFAULT_PASSWORD;
   const [username, setUsername] = useState(defaultUsername);
   const [password, setPassword] = useState(defaultPassword);
@@ -492,7 +490,7 @@ export function LoginPage() {
 
                   {/* Agreement checkbox */}
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                    <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+                    <Checkbox checked={agreed} onChange={(e) => setAgreed(Boolean(e.target.checked))} />
                     <Text style={{ fontSize: 12, color: "#4e5969", lineHeight: 1.6 }}>
                       {t("appLoginAgreementText")}{" "}
                       <a href="#" style={{ color: "#1664ff", textDecoration: "none" }}>{t("appLoginAgreementTerms")}</a>、

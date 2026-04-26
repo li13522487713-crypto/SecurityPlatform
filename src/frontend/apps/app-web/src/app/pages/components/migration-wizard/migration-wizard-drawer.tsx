@@ -12,6 +12,7 @@ import {
   Space,
   Steps,
   Table,
+  TextArea,
   Tabs,
   Toast,
   Typography
@@ -609,7 +610,12 @@ export function MigrationWizardDrawer({ visible, source, onClose, onTargetCreate
               pagination={false}
               scroll={{ x: 980 }}
               onRow={record => ({
-                onClick: () => handleTargetSelect([record.id]),
+                onClick: () => {
+                  if (!record) {
+                    return;
+                  }
+                  handleTargetSelect([record.id]);
+                },
                 style: { cursor: "pointer" }
               })}
               rowSelection={{
@@ -663,9 +669,9 @@ export function MigrationWizardDrawer({ visible, source, onClose, onTargetCreate
               </ConfigField>
               {config.scopeMode === "table" ? (
                 <ConfigField label={t("setupConsoleMigrationSelectedTables")}>
-                  <Input.TextArea
+                  <TextArea
                     value={config.selectedTablesText}
-                    onChange={value => updateConfig(current => ({ ...current, selectedTablesText: value }))}
+                    onChange={value => updateConfig(current => ({ ...current, selectedTablesText: String(value) }))}
                     placeholder={t("setupConsoleMigrationSelectedTablesPlaceholder")}
                     autosize={{ minRows: 3, maxRows: 6 }}
                   />
@@ -684,7 +690,7 @@ export function MigrationWizardDrawer({ visible, source, onClose, onTargetCreate
                     }))}
                     optionList={MODULE_OPTIONS.map(item => ({
                       value: item.value,
-                      label: t(item.labelKey)
+                      label: t(item.labelKey as never)
                     }))}
                     style={{ width: 360 }}
                   />

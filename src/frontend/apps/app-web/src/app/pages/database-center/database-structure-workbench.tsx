@@ -91,11 +91,11 @@ export function DatabaseStructureWorkbench({
       name: detailObject.name,
       objectType: detailObject.objectType,
       schema: detailObject.schema ?? schemaName,
-      rowCount: detailObject.rowCount,
-      comment: detailObject.comment,
-      engine: detailObject.engine,
-      createdAt: detailObject.createdAt,
-      updatedAt: detailObject.updatedAt,
+      rowCount: detailObject.rowCount ?? undefined,
+      comment: detailObject.comment ?? undefined,
+      engine: detailObject.engine ?? undefined,
+      createdAt: detailObject.createdAt ?? undefined,
+      updatedAt: detailObject.updatedAt ?? undefined,
       canPreview: detailObject.canPreview ?? true,
       canDrop: detailObject.canDrop ?? true
     }

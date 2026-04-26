@@ -20,8 +20,16 @@ export function TableObjectList({ labels, objects, onSelectObject, onDeleteObjec
       dataIndex: "name",
       width: 220,
       render: (_value: unknown, record) => (
-        <Button theme="borderless" onClick={() => onSelectObject(record, "structure")}>
-          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{record.name}</Text>
+        <Button
+          theme="borderless"
+          disabled={!record}
+          onClick={() => {
+            if (record) {
+              onSelectObject(record, "structure");
+            }
+          }}
+        >
+          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{record?.name ?? "-"}</Text>
         </Button>
       )
     },
@@ -46,17 +54,17 @@ export function TableObjectList({ labels, objects, onSelectObject, onDeleteObjec
       width: 138,
       fixed: "right",
       render: (_value: unknown, record) => {
-        const actionable = record.objectType === "table" || record.objectType === "view";
+        const actionable = record ? (record.objectType === "table" || record.objectType === "view") : false;
         return (
           <Dropdown
             trigger="click"
             position="bottomRight"
             render={
               <Dropdown.Menu>
-                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "structure")}>{labels.editStructure}</Dropdown.Item>
-                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "preview")}>{labels.queryData}</Dropdown.Item>
-                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "ddl")}>{labels.viewDdl}</Dropdown.Item>
-                <Dropdown.Item disabled={!actionable || !onDeleteObject} type="danger" onClick={() => onDeleteObject?.(record)}>{labels.deleteObject}</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable} onClick={() => record && onSelectObject(record, "structure")}>{labels.editStructure}</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable} onClick={() => record && onSelectObject(record, "preview")}>{labels.queryData}</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable} onClick={() => record && onSelectObject(record, "ddl")}>{labels.viewDdl}</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable || !onDeleteObject} type="danger" onClick={() => record && onDeleteObject?.(record)}>{labels.deleteObject}</Dropdown.Item>
               </Dropdown.Menu>
             }
           >
@@ -75,7 +83,7 @@ export function TableObjectList({ labels, objects, onSelectObject, onDeleteObjec
     <Space vertical align="start" style={{ width: "100%" }}>
       <div className="database-center-table-scroll">
         <Table
-          rowKey={record => [record.schema, record.objectType, record.name, record.id].filter(Boolean).join(":")}
+          rowKey={record => [record?.schema, record?.objectType, record?.name, record?.id].filter(Boolean).join(":")}
           size="small"
           pagination={false}
           columns={columns}
@@ -84,7 +92,7 @@ export function TableObjectList({ labels, objects, onSelectObject, onDeleteObjec
           onRow={record => ({
             onContextMenu: event => {
               event.preventDefault();
-              if (record.objectType === "table" || record.objectType === "view") {
+              if (record && (record.objectType === "table" || record.objectType === "view")) {
                 onSelectObject(record, "preview");
               }
             }

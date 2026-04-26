@@ -61,13 +61,21 @@ const WORKSPACE_STATE_LABEL_KEY: Record<WorkspaceSetupState, AppMessageKey> = {
 };
 
 const MIGRATION_STATE_LABEL_KEY: Record<DataMigrationState, AppMessageKey> = {
+  created: "setupConsoleMigrationStatePending",
   pending: "setupConsoleMigrationStatePending",
   prechecking: "setupConsoleMigrationStatePrechecking",
   ready: "setupConsoleMigrationStateReady",
+  queued: "setupConsoleMigrationStatePending",
   running: "setupConsoleMigrationStateRunning",
+  cancelling: "setupConsoleMigrationStateRunning",
+  cancelled: "setupConsoleMigrationStateFailed",
+  succeeded: "setupConsoleMigrationStateCutoverCompleted",
   validating: "setupConsoleMigrationStateValidating",
+  validation_failed: "setupConsoleMigrationStateFailed",
+  validated: "setupConsoleMigrationStateCutoverReady",
   "cutover-ready": "setupConsoleMigrationStateCutoverReady",
   "cutover-completed": "setupConsoleMigrationStateCutoverCompleted",
+  "cutover-failed": "setupConsoleMigrationStateFailed",
   failed: "setupConsoleMigrationStateFailed",
   "rolled-back": "setupConsoleMigrationStateRolledBack"
 };
@@ -259,6 +267,7 @@ function MigrationCard({
   onJumpToTab: (tab: "system-init" | "workspace-init" | "migration") => void;
 }) {
   const { t } = useAppI18n();
+  const migrationState = migration?.state as DataMigrationState | undefined;
 
   return (
     <div data-testid="setup-console-migration-card">
@@ -283,10 +292,10 @@ function MigrationCard({
             <Text type="tertiary">
               {t("setupConsoleMigrationColumnState")}:{" "}
               <StateBadge
-                variant={isMigrationDone(migration.state) ? "success" : "info"}
+                variant={isMigrationDone(migration.state as DataMigrationState) ? "success" : "info"}
                 testId="setup-console-migration-state-badge"
               >
-                {t(MIGRATION_STATE_LABEL_KEY[migration.state])}
+                {t(migrationState ? MIGRATION_STATE_LABEL_KEY[migrationState] : "setupConsoleMigrationStatePending")}
               </StateBadge>
             </Text>
             <Text type="tertiary">
@@ -308,7 +317,7 @@ function CatalogCard({ catalog }: { catalog: SetupConsoleOverviewDto["catalogSum
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleChange = useCallback(
-    async (keys: string | string[]) => {
+    async (keys: string | string[] | undefined) => {
       const next = Array.isArray(keys) ? keys : keys ? [keys] : [];
       setActiveKeys(next);
       const newlyOpened = next.find((key) => !details[key]);

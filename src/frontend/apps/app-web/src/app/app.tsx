@@ -21,6 +21,8 @@ import type { ExploreModuleApi } from "@atlas/module-explore-react";
 import type {
   DevelopFocus,
   DevelopResourceSummary,
+  StudioDatabaseDetail,
+  StudioDatabaseUpsertRequest,
   StudioModuleApi
 } from "@atlas/module-studio-react";
 import {
@@ -65,6 +67,7 @@ import {
   workspaceChatPath,
   workspaceDevelopPath,
   workspaceModelConfigsPath,
+  workspaceProjectsPath,
   workspaceResourcesPath,
   selectWorkspacePath,
   orgWorkspacesPath,
@@ -189,6 +192,7 @@ import { SetupConsolePage } from "./pages/setup-console";
 import { PlatformShellLayout, SpaceShellLayout, readLastWorkspaceId, rememberLastWorkspaceId } from "./layouts/workspace-shell";
 import { EditorShellLayout } from "./layouts/editor-shell";
 import { WorkspaceSwitcher } from "./components/workspace-switcher";
+import { GlobalCreateModal } from "./components/global-create-modal";
 import {
   AgentEditorRoute,
   AgentPublishRoute,
@@ -545,7 +549,9 @@ const realLibraryApi: LibraryKnowledgeApi = {
       workflowId: detail.workflowId ? Number(detail.workflowId) : null
     };
   },
-  downloadDatabaseTemplate: downloadAiDatabaseTemplate,
+  downloadDatabaseTemplate: async databaseId => {
+    await downloadAiDatabaseTemplate(String(databaseId));
+  },
   publishPlugin: publishAiPlugin
 };
 
@@ -556,6 +562,21 @@ const realLibraryApi: LibraryKnowledgeApi = {
 const libraryApi: LibraryKnowledgeApi = readLibraryMockFlag()
   ? createMockLibraryApi({ tickIntervalMs: 800, withFailures: true })
   : realLibraryApi;
+
+function normalizeStudioDatabaseRequest(request: StudioDatabaseUpsertRequest): Parameters<typeof createAiDatabase>[0] {
+  return {
+    ...request,
+    workspaceId: request.workspaceId != null ? String(request.workspaceId) : undefined
+  };
+}
+
+function toStudioDatabaseDetail(detail: Awaited<ReturnType<typeof getAiDatabaseById>>): StudioDatabaseDetail {
+  return {
+    ...detail,
+    id: Number(detail.id),
+    workspaceId: detail.workspaceId != null ? Number(detail.workspaceId) : undefined
+  };
+}
 
 function LoadingPage() {
   return <PageShell loading />;
@@ -1245,9 +1266,14 @@ export function createStudioApi(appKey: string, workspaceId?: string): StudioMod
         botId: item.botId
       }));
     },
-    createDatabase: createAiDatabase,
-    updateDatabase: updateAiDatabase,
-    getDatabaseDetail: getAiDatabaseById,
+    createDatabase: async request => {
+      const id = await createAiDatabase(normalizeStudioDatabaseRequest(request));
+      return Number(id);
+    },
+    updateDatabase: async (id, request) => {
+      await updateAiDatabase(id, normalizeStudioDatabaseRequest(request));
+    },
+    getDatabaseDetail: async id => toStudioDatabaseDetail(await getAiDatabaseById(id)),
     listDatabaseRecords: (id, params) =>
       getAiDatabaseRecordsPaged(id, {
         pageIndex: params?.pageIndex ?? 1,
@@ -3230,9 +3256,8 @@ function ConnectorDetailRoute() {
 
 const appRouter = createBrowserRouter(appRoutes, {
   future: {
-    v7_startTransition: true,
-    v7_relativeSplatPath: true,
-  },
+    v7_relativeSplatPath: true
+  }
 });
 
 export function AppRouter() {

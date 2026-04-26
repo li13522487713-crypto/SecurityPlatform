@@ -147,18 +147,29 @@ export function WorkspaceHomePage() {
                   shadows="hover"
                   style={{ borderRadius: 16, cursor: "pointer", border: "1px solid rgba(15, 23, 42, 0.06)" }}
                   bodyStyle={{ padding: 20 }}
-                  onClick={() => navigate(card.link)}
                   data-testid={`coze-home-tutorial-${card.id}`}
                 >
-                  <Space align="start" spacing={14}>
-                    <div className="coze-tutorial-card__icon" aria-hidden>
-                      {card.iconKey === "intro" ? "?" : card.iconKey === "quickstart" ? ">" : "i"}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <Typography.Text strong style={{ fontSize: 15, color: "#1d2129" }}>{card.title}</Typography.Text>
-                      <Typography.Text type="tertiary" style={{ fontSize: 13 }}>{card.description}</Typography.Text>
-                    </div>
-                  </Space>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(card.link)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        navigate(card.link);
+                      }
+                    }}
+                  >
+                    <Space align="start" spacing={14}>
+                      <div className="coze-tutorial-card__icon" aria-hidden>
+                        {card.iconKey === "intro" ? "?" : card.iconKey === "quickstart" ? ">" : "i"}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <Typography.Text strong style={{ fontSize: 15, color: "#1d2129" }}>{card.title}</Typography.Text>
+                        <Typography.Text type="tertiary" style={{ fontSize: 13 }}>{card.description}</Typography.Text>
+                      </div>
+                    </Space>
+                  </div>
                 </Card>
               ))}
             </div>

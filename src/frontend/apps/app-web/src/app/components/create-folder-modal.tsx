@@ -60,7 +60,6 @@ export function CreateFolderModal({ visible, workspaceId, onClose, onCreated }: 
           label={t("cozeCreateFolderNameLabel")}
           placeholder={t("cozeCreateFolderNamePlaceholder")}
           maxLength={40}
-          showCount
           showClear
           required
         />
@@ -69,7 +68,7 @@ export function CreateFolderModal({ visible, workspaceId, onClose, onCreated }: 
           label={t("cozeCreateFolderDescLabel")}
           placeholder={t("cozeCreateFolderDescPlaceholder")}
           maxLength={800}
-          showCount
+          showCounter
           rows={4}
         />
       </Form>

@@ -15,7 +15,8 @@ import {
   type MeGeneralSettings,
   type MePublishChannelItem
 } from "../../services/api-me-settings";
-import { getProfileDetail, updateProfile, type UserProfileDetail } from "../../services/api-profile";
+import type { UserProfileDetail } from "@atlas/shared-react-core/types";
+import { getProfileDetail, updateProfile } from "../../services/api-profile";
 
 const TAB_KEYS: MeSettingsTab[] = ["account", "general", "channels", "datasource"];
 

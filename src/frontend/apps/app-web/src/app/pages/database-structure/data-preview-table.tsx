@@ -5,6 +5,11 @@ import type { PreviewDataResponse } from "../../../services/api-database-structu
 const { Text } = Typography;
 
 export function DataPreviewTable({ data }: { data: PreviewDataResponse }) {
+  const rows = data.rows.map((row, index) => ({
+    __rowKey: String(index),
+    ...row
+  }));
+
   const columns: ColumnProps<Record<string, unknown>>[] = data.columns.map(column => ({
     title: column.name,
     dataIndex: column.name,
@@ -22,9 +27,9 @@ export function DataPreviewTable({ data }: { data: PreviewDataResponse }) {
   return (
     <div className="database-center-table-scroll">
       <Table
-        rowKey={(_, index) => String(index ?? "")}
+        rowKey="__rowKey"
         columns={columns}
-        dataSource={data.rows}
+        dataSource={rows}
         pagination={false}
         size="small"
         scroll={{ x: Math.max(720, columns.length * 180) }}
