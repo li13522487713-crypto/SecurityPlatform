@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using Atlas.AppHost;
 using Atlas.AppHost.ExternalConnectors;
+using Atlas.AppHost.Middleware;
 using Atlas.AppHost.Sdk.Health;
 using Atlas.Core.Setup;
 using Atlas.AppHost.Sdk.Hosting;
@@ -435,6 +436,8 @@ if (appSetupStateProvider.IsReady)
 // ─── Middleware pipeline ───
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<AppSetupModeMiddleware>();
+// M10/D5：在控制台路径上把 IP/UA 注入 SetupConsoleAuditContext，便于审计 fallback。
+app.UseMiddleware<SetupConsoleAuditEnricherMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

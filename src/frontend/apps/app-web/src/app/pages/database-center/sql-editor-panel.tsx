@@ -18,9 +18,10 @@ interface SqlEditorPanelProps {
   sourceId: string;
   schema?: string;
   environment: DatabaseCenterEnvironment;
+  compact?: boolean;
 }
 
-export function SqlEditorPanel({ labels, sourceId, schema, environment }: SqlEditorPanelProps) {
+export function SqlEditorPanel({ labels, sourceId, schema, environment, compact = false }: SqlEditorPanelProps) {
   const [sql, setSql] = useState("SELECT * FROM demo_table LIMIT 20;");
   const [limit, setLimit] = useState(50);
   const [executing, setExecuting] = useState(false);
@@ -55,11 +56,11 @@ export function SqlEditorPanel({ labels, sourceId, schema, environment }: SqlEdi
           prefix={labels.limit}
           value={limit}
           style={{ width: 150 }}
-          onChange={value => setLimit(Number(value) || 50)}
+          onChange={value => setLimit(typeof value === "number" ? value : 50)}
           optionList={[20, 50, 100, 200].map(value => ({ value, label: String(value) }))}
         />
       </Space>
-      <SqlCodeEditor value={sql} onChange={setSql} height={260} />
+      <SqlCodeEditor value={sql} onChange={setSql} height={compact ? 128 : 260} />
       {result ? (
         <Space vertical align="start" style={{ width: "100%" }}>
           <Space>

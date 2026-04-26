@@ -8,7 +8,6 @@ using Atlas.Application.Assets.Mappings;
 using Atlas.Application.Options;
 using Atlas.Application.Resources;
 using Atlas.Infrastructure;
-using Atlas.PlatformHost.Middleware;
 using Atlas.Presentation.Shared.Middlewares;
 using Hangfire;
 using Hangfire.Storage.SQLite;
@@ -659,8 +658,6 @@ app.UseHttpLogging();
 app.UseRequestLocalization();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<SetupModeMiddleware>();
-// M10/D5：在控制台路径上把 IP/UA 注入 SetupConsoleAuditContext，便于审计 fallback。
-app.UseMiddleware<SetupConsoleAuditEnricherMiddleware>();
 app.UseMiddleware<XssProtectionMiddleware>();
 app.UseRateLimiter();
 app.UseMiddleware<ApiVersionRewriteMiddleware>();

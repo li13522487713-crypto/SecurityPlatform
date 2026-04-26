@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/v2/migration-governance")]

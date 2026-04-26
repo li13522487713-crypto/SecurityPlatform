@@ -1,6 +1,6 @@
 using Atlas.Infrastructure.Services.SetupConsole;
 
-namespace Atlas.PlatformHost.Middleware;
+namespace Atlas.AppHost.Middleware;
 
 /// <summary>
 /// 控制台审计 IP/UA 注入中间件（M10/D5）。

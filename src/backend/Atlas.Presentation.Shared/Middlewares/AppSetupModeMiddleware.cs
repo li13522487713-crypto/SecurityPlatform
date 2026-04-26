@@ -11,7 +11,7 @@ namespace Atlas.Presentation.Shared.Middlewares;
 ///   <item>应用 setup 已完成但运行时能力尚未完全注册 → 返回 503 APP_RESTART_REQUIRED</item>
 ///   <item>应用 setup 已完成且运行时已就绪 → 放行</item>
 /// </list>
-/// 白名单路径：/api/v1/setup、/health、/internal/health。
+/// 白名单路径：/api/v1/setup、/api/v1/setup-console、/health、/internal/health。
 /// 注册位置应在 ExceptionHandling 之后、Authentication 之前。
 /// </summary>
 public sealed class AppSetupModeMiddleware
@@ -24,6 +24,7 @@ public sealed class AppSetupModeMiddleware
     private static readonly string[] AllowedPathPrefixes =
     [
         "/api/v1/setup",
+        "/api/v1/setup-console",
         "/health",
         "/internal/health"
     ];

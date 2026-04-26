@@ -1819,6 +1819,7 @@ Service 约束：`ContentJson` 长度 ≤ 32 KB；不合法 Slot 返回 `VALIDAT
 ### 12.1 总体设计
 
 - 路由前缀：`/api/v1/setup-console/*`
+- 权威宿主：`Atlas.AppHost (5002)`；`PlatformHost` 不再承载 setup-console / migration / tenant-datasources 运行时逻辑。
 - 入口：`/setup-console`（前端永久免登录路由，`SetupModeMiddleware` M5 放行 `auth/recover` + 带 `X-Setup-Console-Token` 请求头的全部端点）
 - 二次认证：恢复密钥（首装时一次性下发的 24 字符 base32 字符串）或 BootstrapAdmin 凭证
 - 控制台 token：30 分钟过期，每次写操作 + 周期性自动 `refreshAuth`

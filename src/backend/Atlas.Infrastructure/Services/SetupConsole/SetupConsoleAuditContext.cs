@@ -4,7 +4,7 @@ namespace Atlas.Infrastructure.Services.SetupConsole;
 /// 控制台审计上下文（M10/D5）。
 ///
 /// 跨 Controller / 服务/ Writer 共享当前请求的客户端 IP 与 UA，
-/// 由 <see cref="Atlas.PlatformHost.Middleware.SetupConsoleAuditEnricherMiddleware"/> 在请求进入控制台路径时写入；
+/// 由 <see cref="Atlas.AppHost.Middleware.SetupConsoleAuditEnricherMiddleware"/> 在请求进入控制台路径时写入；
 /// 由 <see cref="SetupConsoleAuditWriter"/> 在调用方未显式传 ipAddress / userAgent 时回退读取。
 ///
 /// 用普通可变 POCO 表达 per-request scoped 状态：

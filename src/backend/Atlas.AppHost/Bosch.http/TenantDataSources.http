@@ -1,0 +1,69 @@
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@sourceId = 1
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 查询租户数据源
+GET {{baseUrl}}/api/v1/tenant-datasources
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询支持的驱动与可视化字段定义
+GET {{baseUrl}}/api/v1/tenant-datasources/drivers
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建 SQLite 数据源
+POST {{baseUrl}}/api/v1/tenant-datasources
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "tenantIdValue": "{{tenantId}}",
+  "name": "SQLite-DS",
+  "connectionString": "Data Source=tenant_a.db",
+  "dbType": "SQLite",
+  "ownershipScope": "Platform",
+  "mode": "raw"
+}
+
+### 测试已保存数据源连通性
+POST {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### SQL 预览查询
+POST {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}/query
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "sql": "SELECT * FROM sqlite_master LIMIT 10"
+}
+
+### 获取数据源表结构
+GET {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除数据源
+DELETE {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

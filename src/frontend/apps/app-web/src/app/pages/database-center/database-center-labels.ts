@@ -79,6 +79,59 @@ export interface DatabaseCenterLabels {
   sqlCreateTable: string;
   viewSelectSql: string;
   previewSuccess: string;
+  overview: string;
+  dataSourceManagement: string;
+  aiDatabases: string;
+  backupManagement: string;
+  auditLogs: string;
+  settingsCenter: string;
+  globalActions: string;
+  importDdl: string;
+  connected: string;
+  disconnected: string;
+  allDrivers: string;
+  allStatuses: string;
+  allEnvironments: string;
+  updatedAt: string;
+  actions: string;
+  editStructure: string;
+  queryData: string;
+  viewDdl: string;
+  openSqlWindow: string;
+  deleteObject: string;
+  functions: string;
+  events: string;
+  tableList: string;
+  viewList: string;
+  dataPreview: string;
+  storedProcedures: string;
+  searchSchemas: string;
+  searchTablesFields: string;
+  autoLayout: string;
+  fitCanvas: string;
+  zoomIn: string;
+  zoomOut: string;
+  connectionInfo: string;
+  configInfo: string;
+  performanceMonitor: string;
+  recentLogs: string;
+  objectStats: string;
+  close: string;
+  download: string;
+  noObjectSelected: string;
+  deleteConfirmTitle: string;
+  deleteConfirmContent: string;
+  dangerConfirm: string;
+  dragTemplateHint: string;
+  fieldTemplates: string;
+  moveUp: string;
+  moveDown: string;
+  guideSourcesHint: string;
+  guideSchemasHint: string;
+  guideStructureHint: string;
+  guideDetailsHint: string;
+  guideGlobalActionsHint: string;
+  importDdlHint: string;
 }
 
 export const defaultDatabaseCenterLabels: DatabaseCenterLabels = {
@@ -161,5 +214,58 @@ export const defaultDatabaseCenterLabels: DatabaseCenterLabels = {
   previewSql: "预览 SQL",
   sqlCreateTable: "SQL 建表语句",
   viewSelectSql: "视图 SELECT",
-  previewSuccess: "预览成功"
+  previewSuccess: "预览成功",
+  overview: "概览",
+  dataSourceManagement: "数据源管理",
+  aiDatabases: "AI 数据库",
+  backupManagement: "备份管理",
+  auditLogs: "审计日志",
+  settingsCenter: "设置中心",
+  globalActions: "全局操作",
+  importDdl: "导入 DDL",
+  connected: "已连接",
+  disconnected: "连接失败",
+  allDrivers: "全部类型",
+  allStatuses: "全部状态",
+  allEnvironments: "全部环境",
+  updatedAt: "更新时间",
+  actions: "操作",
+  editStructure: "编辑结构",
+  queryData: "查询数据",
+  viewDdl: "查看 DDL",
+  openSqlWindow: "打开 SQL 窗口",
+  deleteObject: "删除对象",
+  functions: "函数",
+  events: "事件",
+  tableList: "表列表",
+  viewList: "视图",
+  dataPreview: "数据预览",
+  storedProcedures: "存储过程",
+  searchSchemas: "搜索 Schema / 对象",
+  searchTablesFields: "搜索表或字段",
+  autoLayout: "自动布局",
+  fitCanvas: "适应画布",
+  zoomIn: "放大",
+  zoomOut: "缩小",
+  connectionInfo: "连接信息",
+  configInfo: "配置信息",
+  performanceMonitor: "性能监控",
+  recentLogs: "最近连接日志",
+  objectStats: "对象统计",
+  close: "关闭",
+  download: "下载",
+  noObjectSelected: "请选择表或视图",
+  deleteConfirmTitle: "危险删除确认",
+  deleteConfirmContent: "删除后不可恢复，请输入对象名称并勾选确认。",
+  dangerConfirm: "我确认删除该对象",
+  dragTemplateHint: "可从字段模板拖入字段，字段行支持上下移动排序，数据类型可拖放到类型单元格。",
+  fieldTemplates: "字段模板",
+  moveUp: "上移",
+  moveDown: "下移",
+  guideSourcesHint: "展示所有类型的数据源及连接状态，支持快速筛选与管理",
+  guideSchemasHint: "按实例展示 Schema、表、视图、函数、触发器和事件",
+  guideStructureHint: "一体化维护 ER 图、表结构、SQL、数据预览与 DDL",
+  guideDetailsHint: "展示当前实例配置、连接状态和快捷操作",
+  guideGlobalActionsHint: "提供刷新、导入 DDL、新建数据库等统一入口",
+  importDdlHint: "当前导入 DDL 支持 Draft 环境下单条 CREATE TABLE 语句；多语句迁移请使用迁移任务能力。"
 };

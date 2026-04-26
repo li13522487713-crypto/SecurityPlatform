@@ -121,6 +121,21 @@ export interface DatabaseCenterSqlResult {
   truncated?: boolean;
 }
 
+export interface DatabaseCenterConnectionTestResult {
+  success: boolean;
+  message?: string | null;
+  testedAt?: string | null;
+  traceId?: string | null;
+}
+
+export interface DatabaseCenterConnectionLog {
+  id: string;
+  sourceId: string;
+  success: boolean;
+  message?: string | null;
+  createdAt?: string | null;
+}
+
 export interface DatabaseCenterCreateDatabaseRequest {
   name: string;
   description?: string | null;
@@ -165,6 +180,21 @@ export async function listDatabaseCenterSources(query: DatabaseCenterSourceQuery
 export async function getDatabaseCenterSource(id: string): Promise<DatabaseCenterSourceDetail> {
   const response = await requestApi<ApiResponse<Record<string, unknown>>>(`/database-center/sources/${encodeURIComponent(id)}/instance-summary`);
   return normalizeSource(unwrap(response, "获取数据库资源详情失败")) as DatabaseCenterSourceDetail;
+}
+
+export async function testDatabaseCenterSource(id: string): Promise<DatabaseCenterConnectionTestResult> {
+  const response = await requestApi<ApiResponse<DatabaseCenterConnectionTestResult>>(
+    `/database-center/sources/${encodeURIComponent(id)}/test`,
+    { method: "POST" }
+  );
+  return unwrap(response, "测试数据源连接失败");
+}
+
+export async function listDatabaseCenterConnectionLogs(id: string): Promise<DatabaseCenterConnectionLog[]> {
+  const response = await requestApi<ApiResponse<DatabaseCenterConnectionLog[]>>(
+    `/database-center/sources/${encodeURIComponent(id)}/connection-logs`
+  );
+  return unwrap(response, "获取连接日志失败");
 }
 
 export async function listDatabaseCenterSchemas(sourceId: string, environment: DatabaseCenterEnvironment = "Draft"): Promise<DatabaseCenterSchemaSummary[]> {

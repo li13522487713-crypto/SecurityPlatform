@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Button, Input, Select, SideSheet, Space, Switch, Tabs, Toast, Typography } from "@douyinfe/semi-ui";
+import { useMemo, useState, type DragEvent } from "react";
+import { Button, Input, Select, SideSheet, Space, Switch, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconDelete, IconPlus, IconSave, IconTickCircle } from "@douyinfe/semi-icons";
 import {
   createTableSql,
@@ -23,6 +23,11 @@ interface CreateTableDrawerProps {
 }
 
 const typeOptions = ["INTEGER", "TEXT", "REAL", "NUMERIC", "BLOB", "DATETIME"].map(value => ({ value, label: value }));
+const fieldTemplates: TableColumnDesignDto[] = [
+  { id: "tpl-id", name: "id", dataType: "INTEGER", nullable: false, primaryKey: true, autoIncrement: true },
+  { id: "tpl-name", name: "name", dataType: "TEXT", length: 100, nullable: false, primaryKey: false, autoIncrement: false },
+  { id: "tpl-created", name: "created_at", dataType: "DATETIME", nullable: false, primaryKey: false, autoIncrement: false, defaultValue: "CURRENT_TIMESTAMP" }
+];
 
 function defaultColumns(): TableColumnDesignDto[] {
   return [
@@ -53,6 +58,38 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
               <Button icon={<IconPlus />} onClick={addColumn}>{labels.addColumn}</Button>
             </Space>
             <Space vertical align="start" style={{ width: "100%" }}>
+              <div className="database-center-template-strip">
+                <Text strong>{labels.fieldTemplates}</Text>
+                <Text type="tertiary" size="small">{labels.dragTemplateHint}</Text>
+                <Space wrap>
+                  {fieldTemplates.map(template => (
+                    <Tag
+                      key={template.id}
+                      draggable
+                      onDragStart={event => {
+                        event.dataTransfer.setData("application/x-field-template", JSON.stringify(template));
+                      }}
+                    >
+                      {template.name} / {template.dataType}
+                    </Tag>
+                  ))}
+                  {typeOptions.map(option => (
+                    <Tag
+                      key={option.value}
+                      color="blue"
+                      draggable
+                      onDragStart={event => event.dataTransfer.setData("application/x-data-type", option.value)}
+                    >
+                      {option.value}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+              <div
+                className="database-center-designer-dropzone"
+                onDragOver={event => event.preventDefault()}
+                onDrop={dropTemplate}
+              >
               {columns.map((column, index) => (
                 <div key={column.id || `${column.name}-${index}`} className="database-center-designer-row">
                   <Input
@@ -60,11 +97,13 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
                     value={column.name}
                     onChange={value => updateColumn(index, { name: value })}
                   />
-                  <Select
-                    value={column.dataType}
-                    optionList={typeOptions}
-                    onChange={value => updateColumn(index, { dataType: String(value) })}
-                  />
+                  <div onDragOver={event => event.preventDefault()} onDrop={event => dropDataType(event, index)}>
+                    <Select
+                      value={column.dataType}
+                      optionList={typeOptions}
+                      onChange={value => updateColumn(index, { dataType: String(value) })}
+                    />
+                  </div>
                   <Input
                     placeholder={labels.defaultValue}
                     value={column.defaultValue ?? ""}
@@ -82,9 +121,14 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
                     <Text>{labels.nullable}</Text>
                     <Switch disabled={column.primaryKey} checked={column.nullable} onChange={checked => updateColumn(index, { nullable: checked })} />
                   </Space>
-                  <Button icon={<IconDelete />} type="danger" disabled={columns.length <= 1} onClick={() => removeColumn(index)} />
+                  <Space>
+                    <Button size="small" disabled={index === 0} onClick={() => moveColumn(index, -1)}>{labels.moveUp}</Button>
+                    <Button size="small" disabled={index === columns.length - 1} onClick={() => moveColumn(index, 1)}>{labels.moveDown}</Button>
+                    <Button icon={<IconDelete />} type="danger" disabled={columns.length <= 1} onClick={() => removeColumn(index)} />
+                  </Space>
                 </div>
               ))}
+              </div>
             </Space>
             <Space>
               <Button icon={<IconTickCircle />} loading={loading} disabled={!validVisual} onClick={() => void previewVisual()}>{labels.previewSql}</Button>
@@ -119,6 +163,44 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
 
   function removeColumn(index: number) {
     setColumns(current => current.filter((_column, currentIndex) => currentIndex !== index));
+  }
+
+  function moveColumn(index: number, offset: -1 | 1) {
+    setColumns(current => {
+      const next = [...current];
+      const target = index + offset;
+      if (target < 0 || target >= next.length) return current;
+      const [item] = next.splice(index, 1);
+      next.splice(target, 0, item);
+      return next;
+    });
+  }
+
+  function dropTemplate(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData("application/x-field-template");
+    if (!raw) return;
+    try {
+      const template = JSON.parse(raw) as TableColumnDesignDto;
+      setColumns(current => [
+        ...current,
+        {
+          ...template,
+          id: `tpl-${Date.now()}-${current.length}`,
+          name: current.some(item => item.name === template.name) ? `${template.name}_${current.length + 1}` : template.name
+        }
+      ]);
+    } catch {
+      Toast.error(labels.loadFailed);
+    }
+  }
+
+  function dropDataType(event: DragEvent<HTMLElement>, index: number) {
+    event.preventDefault();
+    const type = event.dataTransfer.getData("application/x-data-type");
+    if (type) {
+      updateColumn(index, { dataType: type });
+    }
   }
 
   function visualPayload() {

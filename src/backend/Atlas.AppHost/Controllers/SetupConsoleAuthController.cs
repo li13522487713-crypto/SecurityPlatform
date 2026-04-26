@@ -6,7 +6,7 @@ using Atlas.Infrastructure.Services.SetupConsole;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.AppHost.Controllers;
 
 /// <summary>
 /// 系统初始化与迁移控制台 - 二次认证。

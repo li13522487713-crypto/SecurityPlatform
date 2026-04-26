@@ -1,5 +1,6 @@
-import { Button, Empty, Input, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
-import { IconPlus, IconRefresh, IconSearch, IconSetting } from "@douyinfe/semi-icons";
+import { Button, Dropdown, Empty, Input, Select, Space, Spin, Tag, Typography } from "@douyinfe/semi-ui";
+import { IconMore, IconPlus, IconRefresh, IconSearch, IconSetting } from "@douyinfe/semi-icons";
+import { useMemo, useState } from "react";
 import type { DatabaseCenterSourceSummary } from "../../../services/api-database-center";
 import type { DatabaseCenterLabels } from "./database-center-labels";
 
@@ -30,6 +31,23 @@ export function DatabaseSourcePanel({
   onOpenCreate,
   onOpenHostProfiles
 }: DatabaseSourcePanelProps) {
+  const [driverFilter, setDriverFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [environmentFilter, setEnvironmentFilter] = useState("all");
+  const driverOptions = useMemo(
+    () => Array.from(new Set(sources.map(item => item.driverCode).filter(Boolean))).map(value => ({ value, label: value })),
+    [sources]
+  );
+  const visibleSources = useMemo(
+    () => sources.filter(source => {
+      const status = source.status ?? source.provisionState ?? "Pending";
+      return (driverFilter === "all" || source.driverCode === driverFilter)
+        && (statusFilter === "all" || status === statusFilter)
+        && (environmentFilter === "all" || source.environment === environmentFilter);
+    }),
+    [driverFilter, environmentFilter, sources, statusFilter]
+  );
+
   return (
     <aside className="database-center-panel">
       <div className="database-center-panel__header">
@@ -48,20 +66,62 @@ export function DatabaseSourcePanel({
             value={keyword}
             onChange={onKeywordChange}
           />
+          <Space spacing={6} wrap>
+            <Select
+              size="small"
+              value={driverFilter}
+              style={{ width: 108 }}
+              optionList={[{ value: "all", label: labels.allDrivers }, ...driverOptions]}
+              onChange={value => setDriverFilter(String(value))}
+            />
+            <Select
+              size="small"
+              value={statusFilter}
+              style={{ width: 108 }}
+              optionList={[
+                { value: "all", label: labels.allStatuses },
+                { value: "Ready", label: "Ready" },
+                { value: "Pending", label: "Pending" },
+                { value: "Failed", label: "Failed" }
+              ]}
+              onChange={value => setStatusFilter(String(value))}
+            />
+            <Select
+              size="small"
+              value={environmentFilter}
+              style={{ width: 108 }}
+              optionList={[
+                { value: "all", label: labels.allEnvironments },
+                { value: "Draft", label: "Draft" },
+                { value: "Online", label: "Online" }
+              ]}
+              onChange={value => setEnvironmentFilter(String(value))}
+            />
+          </Space>
           <Spin spinning={loading}>
             <Space vertical align="start" style={{ width: "100%" }}>
-              {sources.length === 0 ? <Empty description={labels.noSource} /> : null}
-              {sources.map(source => (
+              {visibleSources.length === 0 ? <Empty description={labels.noSource} /> : null}
+              {visibleSources.map(source => {
+                const status = source.status ?? source.provisionState ?? "Pending";
+                const isReady = status === "Ready";
+                return (
                 <button
                   key={source.id}
                   type="button"
                   className={`database-center-source${source.id === selectedSourceId ? " database-center-source--active" : ""}`}
                   onClick={() => onSelectSource(source.id)}
+                  onContextMenu={event => {
+                    event.preventDefault();
+                    onSelectSource(source.id);
+                  }}
                 >
                   <Space vertical align="start" spacing={4} style={{ width: "100%" }}>
                     <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                      <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{source.name}</Text>
-                      <Tag color={(source.status ?? source.provisionState) === "Ready" ? "green" : "orange"}>{source.status ?? source.provisionState ?? "Pending"}</Tag>
+                      <Space spacing={6} style={{ minWidth: 0 }}>
+                        <span className={`database-center-driver database-center-driver--${source.driverCode.toLowerCase()}`}>{source.driverCode.slice(0, 2).toUpperCase()}</span>
+                        <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 148 }}>{source.name}</Text>
+                      </Space>
+                      <Tag color={isReady ? "green" : "red"}>{isReady ? labels.connected : labels.disconnected}</Tag>
                     </Space>
                     <Space spacing={4} wrap>
                       <Tag>{source.driverCode}</Tag>
@@ -71,9 +131,25 @@ export function DatabaseSourcePanel({
                     <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }}>
                       {source.maskedConnectionSummary || source.address || source.physicalDatabaseName || source.description || source.id}
                     </Text>
+                    <Space style={{ justifyContent: "space-between", width: "100%" }}>
+                      <Text type="tertiary" size="small">{labels.updatedAt}: {source.updatedAt ? String(source.updatedAt).slice(0, 19) : "-"}</Text>
+                      <Dropdown
+                        trigger="click"
+                        render={
+                          <Dropdown.Menu>
+                            <Dropdown.Item onClick={() => onSelectSource(source.id)}>{labels.editStructure}</Dropdown.Item>
+                            <Dropdown.Item onClick={onOpenHostProfiles}>{labels.hostProfiles}</Dropdown.Item>
+                            <Dropdown.Item onClick={onRefresh}>{labels.refresh}</Dropdown.Item>
+                          </Dropdown.Menu>
+                        }
+                      >
+                        <Button theme="borderless" size="small" icon={<IconMore />} onClick={event => event.stopPropagation()} />
+                      </Dropdown>
+                    </Space>
                   </Space>
                 </button>
-              ))}
+                );
+              })}
             </Space>
           </Spin>
         </Space>

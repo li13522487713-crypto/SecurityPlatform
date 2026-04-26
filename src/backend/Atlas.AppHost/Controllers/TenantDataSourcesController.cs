@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.AppHost.Controllers;
 
 /// <summary>
 /// 租户数据源管理（等保2.0 数据隔离）

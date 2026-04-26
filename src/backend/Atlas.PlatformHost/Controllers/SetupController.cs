@@ -13,7 +13,7 @@ namespace Atlas.PlatformHost.Controllers;
 /// 平台安装向导控制器（已 Deprecated，由 <c>SetupConsoleController</c>（M5）替代）。
 /// setup 未完成时，此控制器仍是唯一可访问的业务端点（由 SetupModeMiddleware 保证），
 /// 但所有响应附加 <c>Deprecation: true</c>，6 个月窗口后 (2026-10) 整体移除。
-/// 新接入方请使用 <c>/api/v1/setup-console/*</c>。
+/// 新接入方请使用 AppHost 承载的 <c>/api/v1/setup-console/*</c>。
 /// </summary>
 [ApiController]
 [Route("api/v1/setup")]

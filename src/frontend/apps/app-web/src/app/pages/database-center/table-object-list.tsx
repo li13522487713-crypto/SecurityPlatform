@@ -8,11 +8,12 @@ interface TableObjectListProps {
   labels: DatabaseCenterLabels;
   objects: DatabaseCenterObjectSummary[];
   onSelectObject: (object: DatabaseCenterObjectSummary, action?: "structure" | "preview" | "ddl") => void;
+  onDeleteObject?: (object: DatabaseCenterObjectSummary) => void;
 }
 
 const { Text } = Typography;
 
-export function TableObjectList({ labels, objects, onSelectObject }: TableObjectListProps) {
+export function TableObjectList({ labels, objects, onSelectObject, onDeleteObject }: TableObjectListProps) {
   const columns: ColumnProps<DatabaseCenterObjectSummary>[] = [
     {
       title: labels.name,
@@ -36,9 +37,9 @@ export function TableObjectList({ labels, objects, onSelectObject }: TableObject
       render: (value: unknown) => <Text type="tertiary">{value ? String(value) : "-"}</Text>
     },
     {
-      title: "",
+      title: labels.actions,
       dataIndex: "_actions",
-      width: 120,
+      width: 138,
       render: (_value: unknown, record) => {
         const actionable = record.objectType === "table" || record.objectType === "view";
         return (
@@ -47,13 +48,14 @@ export function TableObjectList({ labels, objects, onSelectObject }: TableObject
             position="bottomRight"
             render={
               <Dropdown.Menu>
-                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "structure")}>编辑结构</Dropdown.Item>
-                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "preview")}>查询数据</Dropdown.Item>
-                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "ddl")}>查看 DDL</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "structure")}>{labels.editStructure}</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "preview")}>{labels.queryData}</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable} onClick={() => onSelectObject(record, "ddl")}>{labels.viewDdl}</Dropdown.Item>
+                <Dropdown.Item disabled={!actionable || !onDeleteObject} type="danger" onClick={() => onDeleteObject?.(record)}>{labels.deleteObject}</Dropdown.Item>
               </Dropdown.Menu>
             }
           >
-            <Button theme="borderless" size="small" icon={<IconChevronDown />}>操作</Button>
+            <Button theme="borderless" size="small" icon={<IconChevronDown />}>{labels.actions}</Button>
           </Dropdown>
         );
       }
