@@ -29,6 +29,7 @@ import {
   updateObject
 } from "../adapters";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
+import { FlowGramMicroflowCanvas } from "../flowgram";
 import { validateMicroflowSchema } from "../schema/validator";
 import type {
   MicroflowCaseValue,
@@ -550,7 +551,8 @@ function EdgeLayer({
   );
 }
 
-function MicroflowCanvas({
+// Legacy HTML/SVG canvas retained only as a rollback reference. The editor shell renders FlowGramMicroflowCanvas by default.
+function LegacyHtmlMicroflowCanvas({
   schema,
   graph,
   traceFrames,
@@ -956,27 +958,20 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
             labels={props.nodePanelLabels}
           />
         </div>
-        <MicroflowCanvas
+        <FlowGramMicroflowCanvas
           schema={schema}
-          graph={graph}
-          traceFrames={traceFrames}
-          onPatch={patchedGraph => {
-            applyPatch(patchedGraph);
+          validationIssues={issues}
+          runtimeTrace={traceFrames}
+          onSchemaChange={nextSchema => {
+            commitSchema(nextSchema);
           }}
-          onDropRegistryItem={(item, position, insertFlowId) => handleAddNode(item, { position, insertFlowId })}
-          onConnectPorts={(sourcePort, targetPort) => {
-            const check = canConnectPorts(schema, sourcePort, targetPort);
-            if (!check.allowed) {
-              Toast.warning(check.message ?? "Cannot connect these ports.");
-              return;
-            }
-            const flow = createFlowFromPorts(schema, sourcePort, targetPort);
-            commitSchema(applyEditorGraphPatchToAuthoring(schema, {
-              addFlow: flow,
-              selectedObjectId: undefined,
-              selectedFlowId: flow.id
-            }));
+          onSelectionChange={selection => {
+            applyPatch({
+              selectedObjectId: selection.objectId,
+              selectedFlowId: selection.flowId
+            });
           }}
+          onDropRegistryItem={(item, position) => handleAddNode(item, { position })}
         />
         <div style={rightPanelStyle}>
           <MicroflowPropertyPanel

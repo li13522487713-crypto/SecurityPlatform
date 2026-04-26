@@ -1,0 +1,12 @@
+.microflow-flowgram-node .workflow-point-bg {
+  border-color: #165dff;
+}
+
+.microflow-flowgram-node--end .workflow-point-bg {
+  border-color: #d73135;
+}
+
+.microflow-flowgram-node--annotation .workflow-point-bg {
+  border-color: #86909c;
+}
+

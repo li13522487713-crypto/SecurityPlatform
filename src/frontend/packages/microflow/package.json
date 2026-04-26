@@ -27,8 +27,12 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
+    "@coze-workflow/render": "workspace:*",
     "@douyinfe/semi-icons": "^2.82.0",
-    "@douyinfe/semi-ui": "^2.82.0"
+    "@douyinfe/semi-ui": "^2.82.0",
+    "@flowgram-adapter/common": "workspace:*",
+    "@flowgram-adapter/free-layout-editor": "workspace:*",
+    "inversify": "^6.2.2"
   },
   "devDependencies": {
     "@types/react": "18.2.37",

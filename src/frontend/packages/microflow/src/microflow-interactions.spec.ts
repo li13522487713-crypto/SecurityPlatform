@@ -3,6 +3,8 @@ import { createObjectFromRegistry, createSequenceFlow, toEditorGraph } from "./a
 import { canConnectPorts, defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "./node-registry";
 import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
 import { buildVariableIndex } from "./variables";
+import { authoringToFlowGram } from "./flowgram/adapters/authoring-to-flowgram";
+import { createMicroflowFlowFromPorts } from "./flowgram/adapters/flowgram-edge-factory";
 import type { MicroflowObject, MicroflowSchema } from "./schema";
 
 function registry(key: string) {
@@ -70,6 +72,34 @@ describe("microflow editor interactions", () => {
     const truePort = graph.nodes.find(node => node.objectId === decision.id)?.ports.find(port => port.label === "True");
     const target = graph.nodes.find(node => node.objectId === second.id)?.ports.find(port => port.direction === "input");
     expect(truePort && target ? canConnectPorts(schema, truePort, target).allowed : true).toBe(false);
+  });
+
+  it("derives FlowGram JSON from AuthoringSchema without losing flow semantics", () => {
+    const json = authoringToFlowGram(sampleMicroflowSchema, validateMicroflowSchema(sampleMicroflowSchema), []);
+    expect(json.nodes.length).toBeGreaterThan(0);
+    expect(json.edges.length).toBeGreaterThan(0);
+    expect(json.nodes[0]?.data).toHaveProperty("objectId");
+    expect(json.edges[0]?.data).toHaveProperty("flowId");
+  });
+
+  it("creates a boolean decision condition flow from FlowGram ports", () => {
+    const decision = createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "decision-flowgram");
+    const change = createObjectFromRegistry(registry("activity:objectChange"), { x: 200, y: 0 }, "change-flowgram");
+    const schema = schemaWith([decision, change]);
+    const graph = toEditorGraph(schema);
+    const source = graph.nodes.find(node => node.objectId === decision.id)?.ports.find(port => port.kind === "decisionOut");
+    const target = graph.nodes.find(node => node.objectId === change.id)?.ports.find(port => port.direction === "input");
+    if (!source || !target) {
+      throw new Error("Expected decision and target ports.");
+    }
+    const flow = createMicroflowFlowFromPorts(schema, source, target, {
+      caseValues: [{ kind: "boolean", value: false, persistedValue: "false" }],
+      label: "否",
+    });
+    expect(flow.kind).toBe("sequence");
+    expect(flow.editor.edgeKind).toBe("decisionCondition");
+    expect(flow.editor.label).toBe("否");
+    expect(flow.caseValues[0]).toMatchObject({ kind: "boolean", value: false, persistedValue: "false" });
   });
 
   it("builds variable index and validates scoped expression errors", () => {
