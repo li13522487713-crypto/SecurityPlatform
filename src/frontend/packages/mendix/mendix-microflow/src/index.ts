@@ -47,6 +47,8 @@ export * from "./expressions";
 export * from "./flowgram";
 export * from "./debug";
 export * from "./versioning";
+export * from "./history";
+export * from "./layout";
 export { MicroflowEditor, type MicroflowEditorLabels, type MicroflowEditorProps } from "./editor";
 export {
   ExpressionEditor,

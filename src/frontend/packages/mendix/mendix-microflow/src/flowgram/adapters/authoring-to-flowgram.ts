@@ -94,11 +94,28 @@ function runtimeStateForObject(objectId: string, trace: MicroflowTraceFrame[] = 
   if (frame.status === "running") {
     return "running";
   }
-  return "visited";
+  if (frame.status === "skipped") {
+    return "skipped";
+  }
+  return "success";
 }
 
-function runtimeStateForFlow(flowId: string, trace: MicroflowTraceFrame[] = []): FlowGramMicroflowEdgeData["runtimeState"] {
-  return trace.some(item => item.incomingFlowId === flowId || item.outgoingFlowId === flowId) ? "visited" : "idle";
+function runtimeStateForFlow(flow: MicroflowFlow | undefined, trace: MicroflowTraceFrame[] = []): FlowGramMicroflowEdgeData["runtimeState"] {
+  if (!flow) {
+    return "idle";
+  }
+  const visitedFrame = trace.find(item => item.incomingFlowId === flow.id || item.outgoingFlowId === flow.id);
+  if (visitedFrame?.error && visitedFrame.outgoingFlowId === flow.id) {
+    return "errorHandlerVisited";
+  }
+  if (visitedFrame?.selectedCaseValue && visitedFrame.outgoingFlowId === flow.id) {
+    return "selectedCase";
+  }
+  if (visitedFrame) {
+    return "visited";
+  }
+  const selectedSibling = trace.some(item => item.objectId === flow.originObjectId && item.selectedCaseValue && item.outgoingFlowId !== flow.id);
+  return selectedSibling ? "skipped" : "idle";
 }
 
 export function authoringToFlowGram(
@@ -169,7 +186,7 @@ export function authoringToFlowGram(
       caseValues: flow?.kind === "sequence" ? flow.caseValues : [],
       label: flow ? flowCaseLabel(flow) : edge.label,
       description: flow?.editor.description,
-      runtimeState: runtimeStateForFlow(edge.flowId, trace),
+      runtimeState: runtimeStateForFlow(flow, trace),
       validationState: validationStateFromIssues(flowIssues),
     };
     return {

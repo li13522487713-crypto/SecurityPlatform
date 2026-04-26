@@ -18,3 +18,22 @@
 .microflow-flowgram-line.is-warning {
   stroke: #f77234;
 }
+
+.microflow-flowgram-line.is-runtime-visited,
+.microflow-flowgram-line.is-runtime-selectedCase {
+  stroke: #00a870;
+  stroke-width: 2.5px;
+}
+
+.microflow-flowgram-line.is-runtime-errorHandlerVisited {
+  stroke: #d73135;
+  stroke-width: 3px;
+}
+
+.microflow-flowgram-line.is-runtime-skipped {
+  opacity: 0.28;
+}
+
+.microflow-flowgram-line.is-runtime-failed {
+  stroke: #d73135;
+}

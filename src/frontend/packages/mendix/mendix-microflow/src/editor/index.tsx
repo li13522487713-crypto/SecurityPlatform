@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Badge, Button, Card, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
@@ -25,7 +25,6 @@ import {
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
 import {
   applyEditorGraphPatchToAuthoring,
-  createAutoLayoutPatch,
   createAnnotationFlow,
   createObjectFromRegistry,
   createSequenceFlow,
@@ -42,11 +41,14 @@ import {
   updateFlow,
   updateObject
 } from "../adapters";
+import { MicroflowHistoryManager, labelForHistoryReason, microflowSchemasEqual, type MicroflowHistoryReason, type MicroflowHistorySelection, type MicroflowHistoryState } from "../history";
+import { applyAutoLayout } from "../layout";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
 import { MicroflowMetadataProvider } from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
+import { MicroflowTestRunModal, type MicroflowRunSession, type MicroflowRuntimeLog, type MicroflowTestRunInput } from "../debug";
 import type {
   MicroflowCaseValue,
   MicroflowEditorEdge,
@@ -69,7 +71,74 @@ const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
 const RAIL_WIDTH_PX = 44;
 const BOTTOM_STRIP_HEIGHT_PX = 40;
 const BOTTOM_PANEL_EXPANDED_PX = 220;
+const MOVE_HISTORY_DEBOUNCE_MS = 250;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
+
+type MicroflowSchemaChangeSource = "propertyPanel" | "flowgram" | "nodePanel" | "autolayout" | "history" | "runtime";
+
+interface MicroflowSchemaChangeOptions {
+  pushHistory?: boolean;
+  historyLabel?: string;
+  preserveSelection?: boolean;
+  skipValidate?: boolean;
+  skipDirty?: boolean;
+  source?: MicroflowSchemaChangeSource;
+}
+
+function mapSchemaChangeReason(reason: string | MicroflowHistoryReason): MicroflowHistoryReason {
+  switch (reason) {
+    case "flowgramNodeMove":
+      return "moveNode";
+    case "flowgramLineAdd":
+      return "addFlow";
+    case "flowgramLineDelete":
+      return "deleteFlow";
+    case "updateParameter":
+    case "updateParameterObject":
+    case "propertyPanel":
+      return "updateNodeProperty";
+    default:
+      return isMicroflowHistoryReason(reason) ? reason : "bulkUpdate";
+  }
+}
+
+function isMicroflowHistoryReason(value: string): value is MicroflowHistoryReason {
+  return [
+    "init",
+    "addNode",
+    "deleteNode",
+    "moveNode",
+    "addFlow",
+    "deleteFlow",
+    "updateFlow",
+    "updateFlowCase",
+    "updateNodeProperty",
+    "updateActionProperty",
+    "updateEdgeProperty",
+    "addLoopNode",
+    "deleteLoopNode",
+    "addLoopFlow",
+    "deleteLoopFlow",
+    "autoLayout",
+    "bulkUpdate",
+    "schemaMigration",
+  ].includes(value);
+}
+
+function isEditableElement(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function selectionExists(schema: MicroflowSchema, selection?: MicroflowHistorySelection): MicroflowHistorySelection {
+  const objectId = selection?.objectId && findObjectWithCollection(schema, selection.objectId) ? selection.objectId : undefined;
+  const flowId = !objectId && selection?.flowId && findFlowWithCollection(schema, selection.flowId) ? selection.flowId : undefined;
+  const collectionId = objectId
+    ? findObjectWithCollection(schema, objectId)?.collectionId
+    : flowId
+      ? findFlowWithCollection(schema, flowId)?.collectionId
+      : selection?.collectionId;
+  return { objectId, flowId, collectionId };
+}
 
 export interface MicroflowEditorProps {
   schema: MicroflowSchema;
@@ -84,6 +153,7 @@ export interface MicroflowEditorProps {
   defaultBottomPanelOpen?: boolean;
   /** 是否把右/底面板开关持久化到 localStorage（默认 true） */
   persistAuxPanelState?: boolean;
+  readonly?: boolean;
   onPublish?: (schema: MicroflowSchema) => Promise<void> | void;
   onSaveComplete?: (response: SaveMicroflowResponse) => void;
   onValidateComplete?: (response: ValidateMicroflowResponse) => void;
@@ -888,21 +958,168 @@ function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]
   );
 }
 
-function DebugPanel({ frames }: { frames: MicroflowTraceFrame[] }) {
-  if (frames.length === 0) {
+function DebugPanel({
+  session,
+  activeFrameId,
+  onSelectFrame,
+  onSelectFlow,
+  onSelectError,
+  onClear,
+  onRerun,
+}: {
+  session?: MicroflowRunSession;
+  activeFrameId?: string;
+  onSelectFrame: (frame: MicroflowTraceFrame) => void;
+  onSelectFlow: (flowId: string) => void;
+  onSelectError: (error: NonNullable<MicroflowTraceFrame["error"]>) => void;
+  onClear: () => void;
+  onRerun: () => void;
+}) {
+  const [variableKeyword, setVariableKeyword] = useState("");
+  const [logObjectFilter, setLogObjectFilter] = useState("all");
+  const activeFrame = activeFrameId ? session?.trace.find(frame => frame.id === activeFrameId) : session?.trace.at(-1);
+  if (!session || session.trace.length === 0) {
     return <Empty title="No trace" description="Run a test to see object/flow trace frames." />;
   }
+  const errors = [session.error, ...session.trace.map(frame => frame.error)].filter(Boolean) as NonNullable<MicroflowTraceFrame["error"]>[];
+  const objectIds = [...new Set(session.logs.map(item => item.objectId).filter(Boolean))] as string[];
+  const logs = session.logs.filter(item => logObjectFilter === "all" || item.objectId === logObjectFilter);
+  const variables = Object.values(activeFrame?.variablesSnapshot ?? {}).filter(variable =>
+    !variableKeyword.trim() || variable.name.toLowerCase().includes(variableKeyword.trim().toLowerCase())
+  );
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
-      {frames.map(frame => (
-        <Card key={frame.id} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
-          <Text strong>{frame.objectTitle}</Text>
-          <br />
-          <Text size="small" type="tertiary">{frame.objectId} · {frame.status} · {frame.durationMs}ms</Text>
-        </Card>
-      ))}
+      <Space style={{ width: "100%", justifyContent: "space-between" }}>
+        <Space>
+          <Tag color={session.status === "success" ? "green" : "red"}>{session.status}</Tag>
+          <Tag>{session.trace.length} frames</Tag>
+          <Tag color={errors.length > 0 ? "red" : "grey"}>{errors.length} errors</Tag>
+        </Space>
+        <Space>
+          <Button size="small" onClick={onRerun}>重新运行</Button>
+          <Button size="small" type="danger" theme="borderless" onClick={onClear}>清空</Button>
+        </Space>
+      </Space>
+      <Tabs type="line" style={{ width: "100%" }}>
+        <Tabs.TabPane tab="执行轨迹" itemKey="trace">
+          <Space vertical align="start" style={{ width: "100%" }}>
+            {session.trace.map((frame, index) => (
+              <Card
+                key={frame.id}
+                shadows="hover"
+                style={{
+                  width: "100%",
+                  borderColor: frame.id === activeFrameId ? "var(--semi-color-primary)" : undefined,
+                  opacity: frame.status === "skipped" ? 0.58 : 1,
+                }}
+                bodyStyle={{ padding: 10 }}
+              >
+                <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
+                  <button
+                    type="button"
+                    style={{ textAlign: "left", border: "none", background: "transparent", padding: 0, cursor: "pointer", flex: 1 }}
+                    onClick={() => onSelectFrame(frame)}
+                  >
+                    <Text strong>{index + 1}. {frame.objectTitle ?? frame.objectId}</Text>
+                    <br />
+                    <Text size="small" type="tertiary">
+                      {frame.objectId} · {frame.status} · {frame.durationMs}ms
+                      {frame.selectedCaseValue ? ` · case ${caseValueLabel(frame.selectedCaseValue)}` : ""}
+                      {frame.loopIteration ? ` · loop index ${frame.loopIteration.index}` : ""}
+                    </Text>
+                    {frame.error ? <><br /><Text size="small" type="danger">{frame.error.message}</Text></> : null}
+                  </button>
+                  <Space>
+                    {frame.incomingFlowId ? <Button size="small" onClick={() => onSelectFlow(frame.incomingFlowId as string)}>in</Button> : null}
+                    {frame.outgoingFlowId ? <Button size="small" onClick={() => onSelectFlow(frame.outgoingFlowId as string)}>out</Button> : null}
+                    <Tag color={frame.status === "failed" ? "red" : frame.status === "success" ? "green" : frame.status === "running" ? "blue" : "grey"}>{frame.status}</Tag>
+                  </Space>
+                </Space>
+              </Card>
+            ))}
+          </Space>
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="输入 / 输出" itemKey="io">
+          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify({ input: session.input, output: session.output }, null, 2)}</pre>
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="变量" itemKey="variables">
+          <Space vertical align="start" style={{ width: "100%" }}>
+            <Input size="small" placeholder="搜索变量名" value={variableKeyword} onChange={setVariableKeyword} style={{ width: 220 }} />
+            {variables.length === 0 ? <Empty title="No variables" /> : variables.map(variable => (
+              <Card key={`${activeFrame?.id}-${variable.name}`} style={{ width: "100%" }} bodyStyle={{ padding: 8 }}>
+                <Text strong>{variable.name}</Text>
+                <br />
+                <Text size="small" type="tertiary">{variable.type.kind} · {variable.source ?? "runtime"}</Text>
+                <br />
+                <Text size="small">{variable.valuePreview}</Text>
+              </Card>
+            ))}
+          </Space>
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="日志" itemKey="logs">
+          <Space vertical align="start" style={{ width: "100%" }}>
+            <Select
+              size="small"
+              value={logObjectFilter}
+              onChange={value => setLogObjectFilter(String(value))}
+              style={{ width: 220 }}
+              optionList={[{ label: "All objects", value: "all" }, ...objectIds.map(id => ({ label: id, value: id }))]}
+            />
+            {logs.length === 0 ? <Empty title="No logs" /> : logs.map(item => (
+              <LogRow key={item.id} log={item} onSelect={() => item.objectId ? onSelectFrame({ id: item.id, runId: session.id, objectId: item.objectId, actionId: item.actionId, status: "success", startedAt: item.timestamp, durationMs: 0 }) : undefined} />
+            ))}
+          </Space>
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="错误" itemKey="errors">
+          <Space vertical align="start" style={{ width: "100%" }}>
+            {errors.length === 0 ? <Empty title="No errors" /> : errors.map(error => (
+              <Card key={`${error.code}-${error.objectId ?? error.flowId ?? ""}`} style={{ width: "100%" }} bodyStyle={{ padding: 10 }}>
+                <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
+                  <div>
+                    <Text strong type="danger">{error.code}</Text>
+                    <br />
+                    <Text size="small">{error.message}</Text>
+                    <br />
+                    <Text size="small" type="tertiary">{[error.objectId, error.actionId, error.flowId].filter(Boolean).join(" · ")}</Text>
+                  </div>
+                  <Button size="small" onClick={() => onSelectError(error)}>定位</Button>
+                </Space>
+              </Card>
+            ))}
+          </Space>
+        </Tabs.TabPane>
+      </Tabs>
     </Space>
   );
+}
+
+function LogRow({ log, onSelect }: { log: MicroflowRuntimeLog; onSelect: () => void }) {
+  const color = log.level === "error" || log.level === "critical" ? "red" : log.level === "warning" ? "orange" : log.level === "info" ? "blue" : "grey";
+  return (
+    <Card style={{ width: "100%" }} bodyStyle={{ padding: 8 }}>
+      <button type="button" onClick={onSelect} style={{ textAlign: "left", border: "none", background: "transparent", padding: 0, cursor: "pointer", width: "100%" }}>
+        <Space>
+          <Tag color={color}>{log.level}</Tag>
+          <Text size="small" type="tertiary">{log.objectId}</Text>
+        </Space>
+        <br />
+        <Text size="small">{log.message}</Text>
+      </button>
+    </Card>
+  );
+}
+
+function caseValueLabel(value: MicroflowCaseValue): string {
+  if (value.kind === "boolean") {
+    return String(value.value);
+  }
+  if (value.kind === "enumeration") {
+    return value.value;
+  }
+  if (value.kind === "inheritance") {
+    return value.entityQualifiedName;
+  }
+  return value.kind;
 }
 
 export function MicroflowEditor(props: MicroflowEditorProps) {
@@ -913,11 +1130,24 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const bottomPanelFallback = props.defaultBottomPanelOpen ?? (props.immersive === true);
 
   const [schema, setSchema] = useState<MicroflowSchema>(() => refreshDerivedState(ensureAuthoringSchema(props.schema)));
+  const historyManagerRef = useRef<MicroflowHistoryManager | null>(null);
+  if (!historyManagerRef.current) {
+    historyManagerRef.current = new MicroflowHistoryManager();
+    historyManagerRef.current.init(schema);
+  }
+  const historyManager = historyManagerRef.current;
+  const [historyState, setHistoryState] = useState<MicroflowHistoryState>(() => historyManager.getState());
+  const savedSchemaRef = useRef<MicroflowSchema>(schema);
+  const latestSchemaRef = useRef<MicroflowSchema>(schema);
+  const moveHistoryTimerRef = useRef<number | undefined>();
+  const pendingMoveSchemaRef = useRef<MicroflowSchema | undefined>();
+  const shellRef = useRef<HTMLDivElement>(null);
   const [favoriteNodeKeys, setFavoriteNodeKeys] = useState(readFavoriteNodeKeys);
   const [issues, setIssues] = useState<MicroflowValidationIssue[]>(schema.validation.issues ?? []);
   const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
-  const [history, setHistory] = useState<MicroflowSchema[]>([]);
-  const [future, setFuture] = useState<MicroflowSchema[]>([]);
+  const [runSession, setRunSession] = useState<MicroflowRunSession>();
+  const [activeTraceFrameId, setActiveTraceFrameId] = useState<string>();
+  const [testRunModalOpen, setTestRunModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -961,20 +1191,93 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
   const selectedFlow = schema.editor.selection.flowId ? findFlowWithCollection(schema, schema.editor.selection.flowId)?.flow ?? null : null;
 
-  const commitSchema = (next: MicroflowSchema, markDirty = true) => {
-    const refreshed = refreshDerivedState(next);
-    if (markDirty) {
-      setHistory(items => [...items.slice(-30), schema]);
-      setFuture([]);
-      setDirty(true);
+  const refreshHistoryState = () => setHistoryState(historyManager.getState());
+
+  const flushPendingMoveHistory = () => {
+    if (moveHistoryTimerRef.current !== undefined) {
+      window.clearTimeout(moveHistoryTimerRef.current);
+      moveHistoryTimerRef.current = undefined;
     }
+    const pendingSchema = pendingMoveSchemaRef.current;
+    if (!pendingSchema) {
+      return;
+    }
+    pendingMoveSchemaRef.current = undefined;
+    historyManager.push(pendingSchema, "moveNode", labelForHistoryReason("moveNode"));
+    refreshHistoryState();
+  };
+
+  const clearRuntimeState = () => {
+    setRunSession(undefined);
+    setTraceFrames([]);
+    setActiveTraceFrameId(undefined);
+  };
+
+  const commitSchema = (
+    next: MicroflowSchema,
+    reason: MicroflowHistoryReason | string = "bulkUpdate",
+    options: MicroflowSchemaChangeOptions = {},
+  ) => {
+    const historyReason = mapSchemaChangeReason(reason);
+    const source = options.source;
+    if (historyReason !== "moveNode") {
+      flushPendingMoveHistory();
+    }
+    const nextWithSelection = options.preserveSelection
+      ? {
+          ...next,
+          editor: {
+            ...next.editor,
+            selection: schema.editor.selection,
+            selectedObjectId: schema.editor.selectedObjectId,
+            selectedFlowId: schema.editor.selectedFlowId,
+            selectedCollectionId: schema.editor.selectedCollectionId,
+          },
+        }
+      : next;
+    const refreshed = refreshDerivedState(nextWithSelection);
+    const shouldPushHistory = options.pushHistory !== false && source !== "history" && !historyManager.getState().isRestoring;
+
+    if (shouldPushHistory) {
+      if (historyReason === "moveNode") {
+        pendingMoveSchemaRef.current = refreshed;
+        if (moveHistoryTimerRef.current !== undefined) {
+          window.clearTimeout(moveHistoryTimerRef.current);
+        }
+        moveHistoryTimerRef.current = window.setTimeout(() => {
+          moveHistoryTimerRef.current = undefined;
+          const pendingSchema = pendingMoveSchemaRef.current;
+          pendingMoveSchemaRef.current = undefined;
+          if (pendingSchema) {
+            historyManager.push(pendingSchema, "moveNode", options.historyLabel ?? labelForHistoryReason("moveNode"));
+            refreshHistoryState();
+          }
+        }, MOVE_HISTORY_DEBOUNCE_MS);
+      } else {
+        historyManager.push(refreshed, historyReason, options.historyLabel ?? labelForHistoryReason(historyReason));
+        refreshHistoryState();
+      }
+    }
+
     setSchema(refreshed);
-    setIssues(validateMicroflowSchema(refreshed));
+    latestSchemaRef.current = refreshed;
+    if (!options.skipValidate) {
+      setIssues(validateMicroflowSchema(refreshed));
+    }
+    if (!options.skipDirty) {
+      setDirty(!microflowSchemasEqual(refreshed, savedSchemaRef.current));
+    }
+    if (!options.skipDirty && source !== "runtime") {
+      clearRuntimeState();
+    }
     props.onSchemaChange?.(refreshed);
   };
 
-  const applyPatch = (patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1], markDirty = true) => {
-    commitSchema(applyEditorGraphPatchToAuthoring(schema, patch), markDirty);
+  const applyPatch = (
+    patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1],
+    options: MicroflowSchemaChangeOptions & { reason?: MicroflowHistoryReason | string } = {},
+  ) => {
+    commitSchema(applyEditorGraphPatchToAuthoring(schema, patch), options.reason ?? "bulkUpdate", options);
   };
 
   const quickAddPosition = (): MicroflowPoint => {
@@ -1022,7 +1325,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           ...schema.editor,
           selection: { objectId: object.id, flowId: undefined }
         }
-      });
+      }, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
       return;
     }
     const result = addMicroflowObjectFromDragPayload({ schema, payload, position: authoringPosition, parentLoopObjectId });
@@ -1030,7 +1333,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
       Toast.warning(result.blockedReason);
       return;
     }
-    commitSchema(result.schema);
+    commitSchema(result.schema, parentLoopObjectId ? "addLoopNode" : "addNode", { source: "nodePanel" });
     for (const warning of result.warnings) {
       Toast.warning(warning);
     }
@@ -1043,6 +1346,9 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     try {
       const response = await apiClient.saveMicroflow({ schema });
       props.onSaveComplete?.(response);
+      savedSchemaRef.current = schema;
+      historyManager.replaceCurrent(schema, "bulkUpdate");
+      refreshHistoryState();
       setDirty(false);
       Toast.success(`Saved ${response.version}`);
     } finally {
@@ -1068,10 +1374,22 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
       Toast.error(`Test run blocked by ${validation.summary.errorCount} validation error(s).`);
       return;
     }
+    if (validation.summary.warningCount > 0) {
+      Toast.warning(`Test run allowed with ${validation.summary.warningCount} warning(s).`);
+    }
+    setTestRunModalOpen(true);
+  };
+
+  const handleExecuteTestRun = async (input: MicroflowTestRunInput) => {
     setRunning(true);
     try {
-      const response = await apiClient.testRunMicroflow({ microflowId: schema.id, input: {}, schema });
+      const response = await apiClient.testRunMicroflow({ microflowId: schema.id, input: input.parameters, options: input.options, schema });
+      setRunSession(response.session);
       setTraceFrames(response.frames);
+      setActiveTraceFrameId(response.frames[0]?.id);
+      setTestRunModalOpen(false);
+      setBottomOpen(true);
+      setBottomTab("debug");
       props.onTestRunComplete?.(response);
       Toast[response.status === "succeeded" ? "success" : "error"](response.status);
     } finally {
@@ -1079,67 +1397,151 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     }
   };
 
-  const handleUndo = () => {
-    const previous = history.at(-1);
-    if (!previous) {
+  const clearTestRun = () => {
+    setRunSession(undefined);
+    setTraceFrames([]);
+    setActiveTraceFrameId(undefined);
+  };
+
+  const selectTraceFrame = (frame: MicroflowTraceFrame) => {
+    setActiveTraceFrameId(frame.id);
+    setRightOpen(true);
+    applyPatch({
+      selectedObjectId: frame.objectId,
+      selectedFlowId: undefined,
+      selectedCollectionId: frame.collectionId ?? findObjectWithCollection(schema, frame.objectId)?.collectionId,
+    }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" });
+  };
+
+  const selectTraceFlow = (flowId: string) => {
+    setRightOpen(true);
+    const located = findFlowWithCollection(schema, flowId);
+    applyPatch({
+      selectedObjectId: undefined,
+      selectedFlowId: flowId,
+      selectedCollectionId: located?.collectionId,
+    }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" });
+  };
+
+  const selectTraceError = (error: NonNullable<MicroflowTraceFrame["error"]>) => {
+    if (error.flowId) {
+      selectTraceFlow(error.flowId);
       return;
     }
-    const restored = refreshDerivedState(previous);
-    setFuture(items => [schema, ...items]);
-    setHistory(items => items.slice(0, -1));
-    setSchema(restored);
-    setIssues(validateMicroflowSchema(restored));
-    setDirty(true);
-    props.onSchemaChange?.(restored);
+    if (error.objectId) {
+      const frame = runSession?.trace.find(item => item.objectId === error.objectId);
+      if (frame) {
+        selectTraceFrame(frame);
+      } else {
+        setRightOpen(true);
+        applyPatch(
+          { selectedObjectId: error.objectId, selectedFlowId: undefined, selectedCollectionId: findObjectWithCollection(schema, error.objectId)?.collectionId },
+          { pushHistory: false, skipDirty: true, skipValidate: true, source: "runtime" },
+        );
+      }
+    }
+  };
+
+  const handleUndo = () => {
+    flushPendingMoveHistory();
+    const restored = historyManager.undo();
+    if (!restored) {
+      return;
+    }
+    const nextSchema = refreshDerivedState({
+      ...restored.schema,
+      editor: {
+        ...restored.schema.editor,
+        selection: selectionExists(restored.schema as MicroflowSchema, restored.selection),
+      },
+    } as MicroflowSchema);
+    commitSchema(nextSchema, restored.snapshot.reason, { pushHistory: false, source: "history" });
+    historyManager.finishRestoring();
+    refreshHistoryState();
   };
 
   const handleRedo = () => {
-    const next = future[0];
-    if (!next) {
+    flushPendingMoveHistory();
+    const restored = historyManager.redo();
+    if (!restored) {
       return;
     }
-    const restored = refreshDerivedState(next);
-    setHistory(items => [...items, schema]);
-    setFuture(items => items.slice(1));
-    setSchema(restored);
-    setIssues(validateMicroflowSchema(restored));
-    setDirty(true);
-    props.onSchemaChange?.(restored);
+    const nextSchema = refreshDerivedState({
+      ...restored.schema,
+      editor: {
+        ...restored.schema.editor,
+        selection: selectionExists(restored.schema as MicroflowSchema, restored.selection),
+      },
+    } as MicroflowSchema);
+    commitSchema(nextSchema, restored.snapshot.reason, { pushHistory: false, source: "history" });
+    historyManager.finishRestoring();
+    refreshHistoryState();
   };
 
   const handleAutoLayout = () => {
-    const patch = createAutoLayoutPatch(schema);
-    if (!patch.movedNodes?.length) {
+    const result = applyAutoLayout({ schema, options: { direction: "LR", fitViewAfterLayout: true } });
+    if (result.changedObjectIds.length === 0) {
       Toast.warning("No nodes to layout.");
       return;
     }
-    commitSchema(applyEditorGraphPatchToAuthoring(schema, patch));
+    commitSchema(result.nextSchema, "autoLayout", { source: "autolayout" });
     Toast.success("Auto layout applied.");
   };
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!event.ctrlKey && !event.metaKey) {
-        return;
-      }
-      const target = event.target instanceof HTMLElement ? event.target : null;
-      if (target?.closest("input, textarea, [contenteditable='true']")) {
-        return;
-      }
-      const key = event.key.toLowerCase();
-      if (key === "z" && !event.shiftKey) {
-        event.preventDefault();
-        handleUndo();
-        return;
-      }
-      if (key === "y" || (key === "z" && event.shiftKey)) {
-        event.preventDefault();
-        handleRedo();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [future, history, schema]);
+  const handleDeleteSelection = () => {
+    if (props.readonly) {
+      return;
+    }
+    const selection = schema.editor.selection;
+    if (selection.flowId) {
+      const located = findFlowWithCollection(schema, selection.flowId);
+      commitSchema(deleteFlow(schema, selection.flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow");
+      return;
+    }
+    if (selection.objectId) {
+      const located = findObjectWithCollection(schema, selection.objectId);
+      commitSchema(deleteObject(schema, selection.objectId), located?.parentLoopObjectId ? "deleteLoopNode" : "deleteNode");
+    }
+  };
+
+  const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (isEditableElement(event.target)) {
+      return;
+    }
+    const key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && key === "z" && !event.shiftKey) {
+      event.preventDefault();
+      handleUndo();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && (key === "y" || (key === "z" && event.shiftKey))) {
+      event.preventDefault();
+      handleRedo();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && key === "s") {
+      event.preventDefault();
+      void handleSave();
+      return;
+    }
+    if ((key === "delete" || key === "backspace") && !props.readonly) {
+      event.preventDefault();
+      handleDeleteSelection();
+      return;
+    }
+    if (key === "escape") {
+      applyPatch(
+        { selectedObjectId: undefined, selectedFlowId: undefined, selectedCollectionId: undefined },
+        { pushHistory: false, skipDirty: true, skipValidate: true },
+      );
+    }
+  };
+
+  useEffect(() => () => {
+    if (moveHistoryTimerRef.current !== undefined) {
+      window.clearTimeout(moveHistoryTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!persistAuxPanelState) {
@@ -1165,7 +1567,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   };
 
   return (
-    <div style={shellStyle}>
+    <div ref={shellRef} style={shellStyle} tabIndex={0} onKeyDown={handleEditorKeyDown}>
       <div style={toolbarStyle}>
         <Space>
           {props.toolbarPrefix}
@@ -1173,12 +1575,14 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           <Tag>{schema.schemaVersion}</Tag>
           {dirty ? <Tag color="orange">dirty</Tag> : null}
           <Tag color={issues.some(issue => issue.severity === "error") ? "red" : "green"}>{issues.length} issues</Tag>
+          {runSession ? <Tag color={runSession.status === "success" ? "green" : "red"}>{runSession.status} · {runSession.trace.length} frames</Tag> : null}
         </Space>
         <Space>
-          <Button icon={<IconUndo />} disabled={history.length === 0} onClick={handleUndo}>{labels.undo}</Button>
-          <Button icon={<IconRedo />} disabled={future.length === 0} onClick={handleRedo}>{labels.redo}</Button>
+          <Button icon={<IconUndo />} disabled={!historyState.canUndo} onClick={handleUndo}>{labels.undo}</Button>
+          <Button icon={<IconRedo />} disabled={!historyState.canRedo} onClick={handleRedo}>{labels.redo}</Button>
           <Button icon={<IconRefresh />} onClick={handleValidate}>{labels.validate}</Button>
           <Button icon={<IconPlay />} loading={running} onClick={handleTestRun}>{labels.testRun}</Button>
+          {runSession ? <Button icon={<IconDelete />} theme="borderless" type="danger" onClick={clearTestRun}>Clear Debug</Button> : null}
           <Button icon={<IconSave />} loading={saving} type="primary" onClick={handleSave}>{labels.save}</Button>
           {props.toolbarSuffix}
         </Space>
@@ -1200,22 +1604,44 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           schema={schema}
           validationIssues={issues}
           runtimeTrace={traceFrames}
-          onSchemaChange={nextSchema => {
-            commitSchema(nextSchema);
+          readonly={props.readonly}
+          onSchemaChange={(nextSchema, reason) => {
+            commitSchema(nextSchema, reason, { source: "flowgram" });
           }}
           onSelectionChange={selection => {
             applyPatch({
               selectedObjectId: selection.objectId,
               selectedFlowId: selection.flowId,
               selectedCollectionId: selection.collectionId
-            }, false);
+            }, { pushHistory: false, skipDirty: true, skipValidate: true, source: "flowgram" });
           }}
           onDropRegistryItem={(item, position, payload) => handleAddNode(item, { position, payload, source: "drop" })}
-          canUndo={history.length > 0}
-          canRedo={future.length > 0}
+          canUndo={historyState.canUndo}
+          canRedo={historyState.canRedo}
           onUndo={handleUndo}
           onRedo={handleRedo}
           onAutoLayout={handleAutoLayout}
+          onViewportChange={viewport => {
+            commitSchema(
+              { ...schema, editor: { ...schema.editor, viewport, zoom: viewport.zoom } },
+              "bulkUpdate",
+              { pushHistory: false, skipDirty: true, skipValidate: true, preserveSelection: true, source: "flowgram" },
+            );
+          }}
+          onToggleMiniMap={visible => {
+            commitSchema(
+              { ...schema, editor: { ...schema.editor, showMiniMap: visible } },
+              "bulkUpdate",
+              { historyLabel: "Toggle minimap", skipValidate: true, preserveSelection: true, source: "flowgram" },
+            );
+          }}
+          onToggleGrid={enabled => {
+            commitSchema(
+              { ...schema, editor: { ...schema.editor, gridEnabled: enabled } },
+              "bulkUpdate",
+              { historyLabel: "Toggle grid", skipValidate: true, preserveSelection: true, source: "flowgram" },
+            );
+          }}
         />
         <div
           style={{
@@ -1236,16 +1662,19 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
                   schema={schema}
                   validationIssues={issues}
                   traceFrames={traceFrames}
-                  onSchemaChange={(nextSchema) => commitSchema(nextSchema)}
+                  onSchemaChange={(nextSchema, reason) => commitSchema(nextSchema, reason, { source: "propertyPanel" })}
                   onObjectChange={(objectId, patch: MicroflowNodePatch) => {
                     if (!patch.object) {
                       return;
                     }
-                    commitSchema(updateObject(schema, objectId, () => patch.object as MicroflowObject));
+                    const object = patch.object as MicroflowObject;
+                    const reason = object.kind === "actionActivity" ? "updateActionProperty" : "updateNodeProperty";
+                    commitSchema(updateObject(schema, objectId, () => object), reason, { source: "propertyPanel" });
                   }}
                   onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
+                    const located = findFlowWithCollection(schema, flowId);
+                    const reason = "caseValues" in patch ? "updateFlowCase" : "updateEdgeProperty";
                     commitSchema(updateFlow(schema, flowId, flow => {
-                      const next = { ...flow, ...patch } as MicroflowFlow;
                       if (flow.kind === "sequence") {
                         const partial = patch as Partial<Extract<MicroflowFlow, { kind: "sequence" }>>;
                         return {
@@ -1262,12 +1691,21 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
                         line: partial.line ?? flow.line,
                         editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
                       };
-                    }));
+                    }), located?.parentLoopObjectId ? "updateFlow" : reason, { source: "propertyPanel" });
                   }}
-                  onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
-                  onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
-                  onDeleteFlow={flowId => commitSchema(deleteFlow(schema, flowId))}
-                  onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, false)}
+                  onDuplicateObject={objectId => {
+                    const located = findObjectWithCollection(schema, objectId);
+                    commitSchema(duplicateObject(schema, objectId), located?.parentLoopObjectId ? "addLoopNode" : "addNode", { source: "propertyPanel" });
+                  }}
+                  onDeleteObject={objectId => {
+                    const located = findObjectWithCollection(schema, objectId);
+                    commitSchema(deleteObject(schema, objectId), located?.parentLoopObjectId ? "deleteLoopNode" : "deleteNode", { source: "propertyPanel" });
+                  }}
+                  onDeleteFlow={flowId => {
+                    const located = findFlowWithCollection(schema, flowId);
+                    commitSchema(deleteFlow(schema, flowId), located?.parentLoopObjectId ? "deleteLoopFlow" : "deleteFlow", { source: "propertyPanel" });
+                  }}
+                  onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, { pushHistory: false, skipDirty: true, skipValidate: true })}
                 />
               </MicroflowMetadataProvider>
             </div>
@@ -1338,14 +1776,25 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
                         ? findObjectWithCollection(schema, selectedObjectId)?.collectionId
                         : issue.collectionId;
                     setRightOpen(true);
-                    applyPatch({ selectedObjectId, selectedFlowId, selectedCollectionId }, false);
+                    applyPatch(
+                      { selectedObjectId, selectedFlowId, selectedCollectionId },
+                      { pushHistory: false, skipDirty: true, skipValidate: true },
+                    );
                   }}
                 />
               </div>
             </Tabs.TabPane>
             <Tabs.TabPane tab={labels.debug} itemKey="debug">
               <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
-                <DebugPanel frames={traceFrames} />
+                <DebugPanel
+                  session={runSession}
+                  activeFrameId={activeTraceFrameId}
+                  onSelectFrame={selectTraceFrame}
+                  onSelectFlow={selectTraceFlow}
+                  onSelectError={selectTraceError}
+                  onClear={clearTestRun}
+                  onRerun={handleTestRun}
+                />
               </div>
             </Tabs.TabPane>
           </Tabs>
@@ -1409,6 +1858,13 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           </button>
         </div>
       )}
+      <MicroflowTestRunModal
+        visible={testRunModalOpen}
+        schema={schema}
+        running={running}
+        onCancel={() => setTestRunModalOpen(false)}
+        onRun={handleExecuteTestRun}
+      />
     </div>
   );
 }

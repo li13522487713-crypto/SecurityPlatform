@@ -8,6 +8,12 @@ import type {
   MicroflowValidationIssue,
   PublishMicroflowPayload
 } from "../schema/types";
+import type {
+  MicroflowRunSession,
+  MicroflowRuntimeError,
+  MicroflowTestRunOptions,
+  MicroflowTraceFrame,
+} from "../debug/trace-types";
 
 export interface SaveMicroflowRequest {
   schema: MicroflowSchema;
@@ -32,48 +38,20 @@ export interface ValidateMicroflowResponse {
 }
 
 export interface TestRunMicroflowRequest {
-  microflowId: string;
+  microflowId?: string;
   input: Record<string, unknown>;
-  schema?: MicroflowSchema;
-}
-
-export interface MicroflowRuntimeError {
-  code: string;
-  message: string;
-  objectId?: string;
-  nodeId?: string;
-  flowId?: string;
-  details?: Record<string, unknown>;
-}
-
-export interface MicroflowTraceFrame {
-  id: string;
-  frameId: string;
-  runId: string;
-  objectId: string;
-  nodeId: string;
-  objectTitle: string;
-  nodeTitle: string;
-  incomingFlowId?: string;
-  outgoingFlowId?: string;
-  incomingEdgeId?: string;
-  outgoingEdgeId?: string;
-  status: "success" | "failed" | "skipped" | "running";
-  startedAt: string;
-  durationMs: number;
-  input: Record<string, unknown>;
-  output: Record<string, unknown>;
-  error?: MicroflowRuntimeError;
-  variablesSnapshot?: Record<string, unknown>;
+  schema: MicroflowSchema;
+  options?: MicroflowTestRunOptions;
 }
 
 export interface TestRunMicroflowResponse {
   runId: string;
-  status: "succeeded" | "failed";
+  status: "succeeded" | "failed" | "cancelled";
   startedAt: string;
   durationMs: number;
   frames: MicroflowTraceFrame[];
   error?: MicroflowRuntimeError;
+  session: MicroflowRunSession;
 }
 
 export interface PublishMicroflowResponse {
@@ -93,6 +71,8 @@ export interface MicroflowApiClient {
   loadMicroflow(id: string): Promise<MicroflowSchema>;
   validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse>;
   testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse>;
+  cancelMicroflowRun(runId: string): Promise<void>;
+  getMicroflowRunTrace(runId: string): Promise<MicroflowTraceFrame[]>;
   publishMicroflow(id: string, payload?: PublishMicroflowPayload): Promise<PublishMicroflowResponse>;
   duplicateMicroflow(id: string): Promise<MicroflowResource>;
   deleteMicroflow(id: string): Promise<void>;
@@ -125,3 +105,10 @@ export interface MicroflowPublishService {
 export interface MicroflowTraceService {
   getTrace(runId: string): Promise<MicroflowTraceFrame[]>;
 }
+
+export type {
+  MicroflowRunSession,
+  MicroflowRuntimeError,
+  MicroflowTestRunOptions,
+  MicroflowTraceFrame,
+};

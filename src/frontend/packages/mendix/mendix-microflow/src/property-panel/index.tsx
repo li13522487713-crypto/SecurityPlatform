@@ -100,14 +100,28 @@ function Header({ props, title, subtitle, onDelete, onDuplicate }: {
     : props.selectedObject
       ? getIssuesForObject(props.validationIssues, props.selectedObject.id, props.selectedObject.kind === "actionActivity" ? props.selectedObject.action.id : undefined)
       : []);
+  const runtimeStatus = props.selectedFlow
+    ? runtimeStatusForFlow(props.traceFrames ?? [], props.selectedFlow.id)
+    : props.selectedObject
+      ? runtimeStatusForObject(props.traceFrames ?? [], props.selectedObject.id)
+      : undefined;
   return (
     <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
       <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
         <div style={{ minWidth: 0 }}>
           <Title heading={6} style={{ margin: 0 }}>{title}</Title>
           <Text size="small" type="tertiary">{subtitle}</Text>
+          {runtimeStatus ? (
+            <>
+              <br />
+              <Text size="small" type={runtimeStatus.status === "failed" ? "danger" : "tertiary"}>
+                最近执行：{runtimeStatus.status} · {runtimeStatus.durationMs ?? 0}ms{runtimeStatus.errorMessage ? ` · ${runtimeStatus.errorMessage}` : ""}
+              </Text>
+            </>
+          ) : null}
         </div>
         <Space>
+          {runtimeStatus ? <Tag color={runtimeStatus.status === "failed" ? "red" : runtimeStatus.status === "success" || runtimeStatus.status === "visited" ? "green" : "grey"}>{runtimeStatus.status}</Tag> : <Tag color="grey">notRun</Tag>}
           {counts.errors > 0 ? <Tag color="red">{counts.errors} error</Tag> : null}
           {counts.warnings > 0 ? <Tag color="orange">{counts.warnings} warning</Tag> : null}
           {onDuplicate ? <Button icon={<IconCopy />} theme="borderless" onClick={onDuplicate} disabled={props.readonly} /> : null}
@@ -117,6 +131,26 @@ function Header({ props, title, subtitle, onDelete, onDuplicate }: {
       </Space>
     </div>
   );
+}
+
+function runtimeStatusForObject(frames: MicroflowPropertyPanelProps["traceFrames"], objectId: string) {
+  const frame = [...(frames ?? [])].reverse().find(item => item.objectId === objectId);
+  if (!frame) {
+    return undefined;
+  }
+  return { status: frame.status, durationMs: frame.durationMs, errorMessage: frame.error?.message };
+}
+
+function runtimeStatusForFlow(frames: MicroflowPropertyPanelProps["traceFrames"], flowId: string) {
+  const frame = [...(frames ?? [])].reverse().find(item => item.incomingFlowId === flowId || item.outgoingFlowId === flowId);
+  if (!frame) {
+    return undefined;
+  }
+  return {
+    status: frame.outgoingFlowId === flowId || frame.incomingFlowId === flowId ? "visited" : "notRun",
+    durationMs: frame.durationMs,
+    errorMessage: frame.error?.flowId === flowId ? frame.error.message : undefined,
+  };
 }
 
 function Field({ label, children, issues }: { label: string; children: ReactNode; issues?: ReturnType<typeof getIssuesForField> }) {

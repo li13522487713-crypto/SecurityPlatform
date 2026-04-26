@@ -15,6 +15,10 @@
   outline-offset: -2px;
 }
 
+.microflow-flowgram-canvas.is-grid-hidden {
+  background: #f7f9fc;
+}
+
 .microflow-flowgram-toolbar {
   position: absolute;
   top: 12px;

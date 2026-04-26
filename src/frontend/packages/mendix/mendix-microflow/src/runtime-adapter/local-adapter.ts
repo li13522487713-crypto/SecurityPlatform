@@ -1,5 +1,8 @@
 import { validateMicroflowSchema } from "../schema/validator";
-import { ensureAuthoringSchema, flattenObjectCollection, toRuntimeDto } from "../adapters";
+import { ensureAuthoringSchema, flattenObjectCollection } from "../adapters";
+import { mockMicroflowMetadataCatalog } from "../metadata";
+import { buildVariableIndex } from "../variables";
+import { mockTestRunMicroflow } from "../debug";
 import type {
   CreateMicroflowInput,
   MicroflowListQuery,
@@ -16,6 +19,7 @@ import { sampleMicroflowSchema } from "../schema/sample";
 import type {
   MicroflowApiClient,
   MicroflowTraceFrame,
+  MicroflowRunSession,
   PublishMicroflowResponse,
   SaveMicroflowRequest,
   SaveMicroflowResponse,
@@ -164,6 +168,7 @@ function defaultResources(): MicroflowResource[] {
 export class LocalMicroflowApiClient implements MicroflowApiClient {
   private readonly resources = new Map<string, MicroflowResource>();
   private readonly traces = new Map<string, MicroflowTraceFrame[]>();
+  private readonly sessions = new Map<string, MicroflowRunSession>();
 
   constructor(initialSchemas: MicroflowSchema[] = [sampleMicroflowSchema]) {
     const restored = this.restoreResources();
@@ -316,87 +321,32 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 
   async testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse> {
-    const schema = request.schema ?? this.resources.get(request.microflowId)?.schema ?? sampleMicroflowSchema;
-    const runtimeDto = toRuntimeDto(schema);
-    const startedAt = Date.now();
-    const runId = `run-${startedAt}`;
-    const simulateError = String(request.input.simulateError ?? "").toLowerCase() === "true";
-    const runtimeObjects = flattenObjectCollection(runtimeDto.objectCollection);
-    const objectsById = new Map(runtimeObjects.map(object => [object.id, object]));
-    const orderedObjectIds: Array<{ objectId: string; incomingFlowId?: string; outgoingFlowId?: string }> = [];
-    const start = runtimeObjects.find(object => object.kind === "startEvent");
-    let currentId = start?.id;
-    let incomingFlowId: string | undefined;
-    const visited = new Set<string>();
-    while (currentId && !visited.has(currentId)) {
-      visited.add(currentId);
-      const current = objectsById.get(currentId);
-      if (!current || current.kind === "annotation" || current.kind === "parameterObject") {
-        break;
-      }
-      const failedRest = simulateError && current.kind === "actionActivity" && current.action.kind === "restCall";
-      const outgoing = failedRest
-        ? runtimeDto.flows.find(flow => flow.kind === "sequence" && flow.originObjectId === currentId && flow.isErrorHandler)
-        : runtimeDto.flows.find(flow => flow.kind === "sequence" && flow.originObjectId === currentId && !flow.isErrorHandler && (
-          flow.caseValues.length === 0 ||
-          !flow.caseValues.some(caseValue => caseValue.kind === "boolean") ||
-          flow.caseValues.some(caseValue => caseValue.kind === "boolean" && caseValue.value === true)
-        ));
-      orderedObjectIds.push({ objectId: currentId, incomingFlowId, outgoingFlowId: outgoing?.id });
-      incomingFlowId = outgoing?.id;
-      currentId = outgoing?.destinationObjectId;
-    }
-    const traversableObjects: Array<{ objectId: string; incomingFlowId?: string; outgoingFlowId?: string }> = orderedObjectIds.length > 0
-      ? orderedObjectIds
-      : runtimeObjects.filter(object => object.kind !== "annotation" && object.kind !== "parameterObject").map(object => ({ objectId: object.id }));
-    const frames = traversableObjects.map((trace, index): MicroflowTraceFrame => {
-      const object = objectsById.get(trace.objectId) ?? runtimeObjects[index];
-      const durationMs = 8 + index * 3;
-      const failed = simulateError && object?.kind === "actionActivity" && object.action.kind === "restCall";
-      return {
-        id: `${runId}-${trace.objectId}`,
-        frameId: `${runId}-${object.id}`,
-        runId,
-        objectId: object.id,
-        nodeId: object.id,
-        objectTitle: object.caption ?? object.id,
-        nodeTitle: object.caption ?? object.id,
-        incomingFlowId: trace.incomingFlowId,
-        outgoingFlowId: trace.outgoingFlowId,
-        incomingEdgeId: trace.incomingFlowId,
-        outgoingEdgeId: trace.outgoingFlowId,
-        status: failed ? "failed" : "success",
-        startedAt: new Date(startedAt + index * 12).toISOString(),
-        durationMs,
-        input: index === 0 ? request.input : { previousObjectId: traversableObjects[index - 1]?.objectId, incomingFlowId: trace.incomingFlowId },
-        output: {
-          status: failed ? "failed" : "ok",
-          objectKind: object.kind,
-          actionKind: object.kind === "actionActivity" ? object.action.kind : undefined,
-          runtimeFlowCount: runtimeDto.flows.length,
-          outgoingFlowId: trace.outgoingFlowId,
-          caseValues: runtimeDto.flows.find(flow => flow.id === trace.outgoingFlowId && flow.kind === "sequence")?.caseValues
-        },
-        error: failed ? {
-          code: "MF_TEST_REST_ERROR",
-          message: "Mock REST call failed. Set simulateError=false to run the success path.",
-          objectId: object.id,
-          nodeId: object.id,
-          flowId: trace.outgoingFlowId,
-          details: { actionKind: object.kind === "actionActivity" ? object.action.kind : undefined }
-        } : undefined
-      };
+    const schema = request.schema ?? this.resources.get(request.microflowId ?? "")?.schema ?? sampleMicroflowSchema;
+    const session = await mockTestRunMicroflow({
+      schema,
+      metadata: mockMicroflowMetadataCatalog,
+      variableIndex: buildVariableIndex(schema, mockMicroflowMetadataCatalog),
+      parameters: request.input,
+      options: request.options,
     });
-    const failedFrame = frames.find(frame => frame.error);
-    this.traces.set(runId, frames);
+    this.traces.set(session.id, session.trace);
+    this.sessions.set(session.id, session);
     return {
-      runId,
-      status: failedFrame ? "failed" : "succeeded",
-      startedAt: new Date(startedAt).toISOString(),
-      durationMs: frames.reduce((total, frame) => total + frame.durationMs, 0),
-      frames,
-      error: failedFrame?.error
+      runId: session.id,
+      status: session.status === "success" ? "succeeded" : session.status === "cancelled" ? "cancelled" : "failed",
+      startedAt: session.startedAt,
+      durationMs: session.trace.reduce((total, frame) => total + frame.durationMs, 0),
+      frames: session.trace,
+      error: session.error ?? session.trace.find(frame => frame.error)?.error,
+      session,
     };
+  }
+
+  async cancelMicroflowRun(runId: string): Promise<void> {
+    const session = this.sessions.get(runId);
+    if (session) {
+      this.sessions.set(runId, { ...session, status: "cancelled", endedAt: nowIso() });
+    }
   }
 
   async publishMicroflow(id: string, payload: PublishMicroflowPayload = { version: "v1", releaseNote: "", overwriteCurrent: true }): Promise<PublishMicroflowResponse> {
@@ -497,6 +447,10 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
 
   async getTrace(runId: string): Promise<MicroflowTraceFrame[]> {
     return [...(this.traces.get(runId) ?? [])];
+  }
+
+  async getMicroflowRunTrace(runId: string): Promise<MicroflowTraceFrame[]> {
+    return this.getTrace(runId);
   }
 
   private compareResources(a: MicroflowResource, b: MicroflowResource, sortBy: MicroflowResourceSortKey): number {

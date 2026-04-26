@@ -1269,7 +1269,7 @@ export interface MicroflowTraceFrame {
   durationMs: number;
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;
-  error?: string | { code: string; message: string; objectId?: string; nodeId?: string; flowId?: string; details?: Record<string, unknown> };
+  error?: string | { code: string; message: string; objectId?: string; nodeId?: string; actionId?: string; flowId?: string; details?: unknown };
   variablesSnapshot?: Record<string, unknown>;
 }
 

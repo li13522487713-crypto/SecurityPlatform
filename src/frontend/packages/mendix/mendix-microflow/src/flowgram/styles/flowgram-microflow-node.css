@@ -28,6 +28,26 @@
   box-shadow: 0 0 0 2px rgba(247, 114, 52, 0.14), 0 8px 24px rgba(31, 35, 41, 0.08);
 }
 
+.microflow-flowgram-node.is-runtime-success {
+  border-color: #00a870;
+  box-shadow: 0 0 0 2px rgba(0, 168, 112, 0.14), 0 8px 24px rgba(31, 35, 41, 0.08);
+}
+
+.microflow-flowgram-node.is-runtime-running {
+  border-color: #165dff;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.16), 0 8px 24px rgba(31, 35, 41, 0.08);
+}
+
+.microflow-flowgram-node.is-runtime-failed {
+  border-color: #d73135;
+  box-shadow: 0 0 0 2px rgba(215, 49, 53, 0.18), 0 8px 24px rgba(31, 35, 41, 0.08);
+}
+
+.microflow-flowgram-node.is-runtime-skipped {
+  opacity: 0.48;
+  filter: grayscale(0.6);
+}
+
 .microflow-flowgram-node--start {
   border-left: 4px solid #00a870;
 }

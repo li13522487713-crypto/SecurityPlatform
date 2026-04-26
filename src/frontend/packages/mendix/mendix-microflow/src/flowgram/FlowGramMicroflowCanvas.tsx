@@ -48,6 +48,9 @@ export interface FlowGramMicroflowCanvasProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onAutoLayout?: () => void;
+  onViewportChange?: (viewport: MicroflowSchema["editor"]["viewport"]) => void;
+  onToggleMiniMap?: (visible: boolean) => void;
+  onToggleGrid?: (enabled: boolean) => void;
 }
 
 function readNodeDragPayload(dataTransfer: DataTransfer): MicroflowNodeDragPayload | undefined {
@@ -190,8 +193,9 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
   const containerRef = useRef<HTMLDivElement>(null);
   const [pendingCaseLine, setPendingCaseLine] = useState<FlowGramMicroflowPendingLine>();
-  const [miniMapVisible, setMiniMapVisible] = useState(true);
   const [dropActive, setDropActive] = useState(false);
+  const miniMapVisible = props.schema.editor.showMiniMap !== false;
+  const gridEnabled = props.schema.editor.gridEnabled !== false;
   const bridge = useFlowGramMicroflowBridge({
     schema: props.schema,
     issues: props.validationIssues,
@@ -264,10 +268,31 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     props.onSelectionChange({ objectId, flowId: undefined });
   };
 
+  const fitViewportToSchema = () => {
+    const graph = toEditorGraph(props.schema);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || graph.nodes.length === 0) {
+      props.onViewportChange?.({ x: 0, y: 0, zoom: 1 });
+      return;
+    }
+    const minX = Math.min(...graph.nodes.map(node => node.position.x - node.size.width / 2));
+    const minY = Math.min(...graph.nodes.map(node => node.position.y - node.size.height / 2));
+    const maxX = Math.max(...graph.nodes.map(node => node.position.x + node.size.width / 2));
+    const maxY = Math.max(...graph.nodes.map(node => node.position.y + node.size.height / 2));
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+    const zoom = Math.max(0.2, Math.min(1.2, Math.min((rect.width - 120) / width, (rect.height - 120) / height)));
+    props.onViewportChange?.({
+      x: Math.round(rect.width / 2 - (minX + width / 2) * zoom),
+      y: Math.round(rect.height / 2 - (minY + height / 2) * zoom),
+      zoom,
+    });
+  };
+
   return (
     <div
       ref={containerRef}
-      className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}`}
+      className={`microflow-flowgram-canvas${dropActive ? " is-drop-active" : ""}${gridEnabled ? "" : " is-grid-hidden"}`}
       onDragEnter={event => {
         if (readNodeDragPayload(event.dataTransfer) && !props.readonly) {
           setDropActive(true);
@@ -289,8 +314,13 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
         onRedo={props.onRedo}
         onAutoLayout={props.onAutoLayout}
         readonly={props.readonly}
+        viewport={props.schema.editor.viewport}
+        onViewportChange={viewport => props.onViewportChange?.(viewport)}
+        onFitView={fitViewportToSchema}
+        gridEnabled={gridEnabled}
+        onToggleGrid={() => props.onToggleGrid?.(!gridEnabled)}
         miniMapVisible={miniMapVisible}
-        onToggleMiniMap={() => setMiniMapVisible(value => !value)}
+        onToggleMiniMap={() => props.onToggleMiniMap?.(!miniMapVisible)}
       />
       {miniMapVisible ? <FlowGramMicroflowMiniMap schema={props.schema} onFocusNode={focusNodeFromMiniMap} /> : null}
       <FlowGramMicroflowCaseEditor

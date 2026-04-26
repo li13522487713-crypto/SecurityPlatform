@@ -59,6 +59,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         selected ? "is-selected" : "",
         data.disabled ? "is-disabled" : "",
         data.validationState !== "valid" ? `is-${data.validationState}` : "",
+        data.runtimeState && data.runtimeState !== "idle" ? `is-runtime-${data.runtimeState}` : "",
       ].filter(Boolean).join(" ")}
       onClick={event => selectNode(event)}
       data-microflow-object-id={data.objectId}
@@ -79,7 +80,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       </div>
       <div className="microflow-flowgram-node__meta">
         {data.actionKind ? <Tag size="small">{data.actionKind}</Tag> : null}
-        {data.runtimeState && data.runtimeState !== "idle" ? <Tag color="green">{data.runtimeState}</Tag> : null}
+        {data.runtimeState && data.runtimeState !== "idle" ? <Tag color={data.runtimeState === "failed" ? "red" : data.runtimeState === "running" ? "blue" : data.runtimeState === "skipped" ? "grey" : "green"}>{data.runtimeState}</Tag> : null}
         {validationTag}
       </div>
       {data.objectKind === "loopedActivity" && data.loopSummary ? (

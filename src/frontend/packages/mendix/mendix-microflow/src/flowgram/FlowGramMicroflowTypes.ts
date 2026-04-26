@@ -37,7 +37,7 @@ export interface FlowGramMicroflowNodeData {
   officialType: string;
   disabled: boolean;
   validationState: "valid" | "warning" | "error";
-  runtimeState?: "idle" | "visited" | "running" | "failed" | "skipped";
+  runtimeState?: "idle" | "success" | "visited" | "running" | "failed" | "skipped";
   issueCount: number;
 }
 
@@ -49,7 +49,7 @@ export interface FlowGramMicroflowEdgeData {
   caseValues: MicroflowCaseValue[];
   label?: string;
   description?: string;
-  runtimeState?: "idle" | "visited" | "failed" | "skipped";
+  runtimeState?: "idle" | "visited" | "failed" | "skipped" | "errorHandlerVisited" | "selectedCase";
   validationState: "valid" | "warning" | "error";
 }
 
