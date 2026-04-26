@@ -5,6 +5,7 @@ import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
 import { buildVariableIndex } from "./variables";
 import { authoringToFlowGram } from "./flowgram/adapters/authoring-to-flowgram";
 import { createMicroflowFlowFromPorts } from "./flowgram/adapters/flowgram-edge-factory";
+import { flowGramPositionPatch, flowGramSelectionPatch } from "./flowgram/adapters/flowgram-to-authoring-patch";
 import {
   enumerationCaseValue,
   fallbackCaseValue,
@@ -87,6 +88,38 @@ describe("microflow editor interactions", () => {
     expect(json.edges.length).toBeGreaterThan(0);
     expect(json.nodes[0]?.data).toHaveProperty("objectId");
     expect(json.edges[0]?.data).toHaveProperty("flowId");
+    const actionNode = json.nodes.find(node => (node.data as { actionKind?: string }).actionKind);
+    expect(actionNode?.data).toHaveProperty("action");
+    const semanticEdge = json.edges.find(edge => {
+      const data = edge.data as { edgeKind?: string; caseValues?: unknown[]; isErrorHandler?: boolean };
+      return data.edgeKind === "decisionCondition" || data.edgeKind === "objectTypeCondition" || data.isErrorHandler;
+    });
+    if (semanticEdge) {
+      expect(semanticEdge.data).toHaveProperty("caseValues");
+      expect(semanticEdge.data).toHaveProperty("isErrorHandler");
+    }
+  });
+
+  it("creates AuthoringSchema patches from FlowGram move, resize, and selection changes", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "flowgram-patch-start");
+    const schema = schemaWith([start]);
+    const json = authoringToFlowGram(schema, [], []);
+    const node = json.nodes.find(item => item.id === start.id);
+    if (!node) {
+      throw new Error("Expected FlowGram node.");
+    }
+    node.meta = {
+      ...node.meta,
+      position: { x: 96, y: 64 },
+      size: { width: 180, height: 80 },
+    };
+    const patch = flowGramPositionPatch(schema, json);
+    expect(patch.movedNodes).toEqual([{ objectId: start.id, position: { x: 96, y: 64 } }]);
+    expect(patch.resizedNodes).toEqual([{ objectId: start.id, size: { width: 180, height: 80 } }]);
+    const next = applyEditorGraphPatchToAuthoring(schema, patch);
+    expect(next.objectCollection.objects[0]?.relativeMiddlePoint).toEqual({ x: 96, y: 64 });
+    expect(next.objectCollection.objects[0]?.size).toEqual({ width: 180, height: 80 });
+    expect(flowGramSelectionPatch({ objectId: start.id })).toEqual({ selectedObjectId: start.id, selectedFlowId: undefined });
   });
 
   it("creates a boolean decision condition flow from FlowGram ports", () => {

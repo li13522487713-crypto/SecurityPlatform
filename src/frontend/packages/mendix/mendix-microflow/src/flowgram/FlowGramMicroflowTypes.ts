@@ -1,5 +1,6 @@
 import type {
   MicroflowActionKind,
+  MicroflowAction,
   MicroflowCaseValue,
   MicroflowFlow,
   MicroflowObjectKind,
@@ -24,6 +25,7 @@ export interface FlowGramMicroflowNodeData {
     annotationCount: number;
   };
   actionKind?: MicroflowActionKind;
+  action?: MicroflowAction;
   title: string;
   subtitle?: string;
   documentation?: string;

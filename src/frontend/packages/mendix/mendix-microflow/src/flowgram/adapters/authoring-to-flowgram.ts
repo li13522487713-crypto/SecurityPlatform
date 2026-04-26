@@ -11,6 +11,7 @@ import type {
 } from "../../schema";
 import { flowCaseLabel } from "./flowgram-case-options";
 import { microflowPortsToFlowGramPorts } from "./flowgram-port-factory";
+import { validationStateFromIssues } from "./flowgram-validation-sync";
 import type { FlowGramMicroflowEdgeData, FlowGramMicroflowIssueIndex, FlowGramMicroflowNodeData } from "../FlowGramMicroflowTypes";
 
 function titleForObject(object: MicroflowObject): string {
@@ -69,16 +70,6 @@ function loopSummaryForObject(
   };
 }
 
-function validationState(issues: MicroflowValidationIssue[]): "valid" | "warning" | "error" {
-  if (issues.some(issue => issue.severity === "error")) {
-    return "error";
-  }
-  if (issues.length > 0) {
-    return "warning";
-  }
-  return "valid";
-}
-
 export function buildIssueIndex(issues: MicroflowValidationIssue[]): FlowGramMicroflowIssueIndex {
   const index: FlowGramMicroflowIssueIndex = new Map();
   for (const issue of issues) {
@@ -128,12 +119,13 @@ export function authoringToFlowGram(
       parentObjectId: node.parentObjectId,
       loopSummary: loopSummaryForObject(object, schema),
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
+      action: object?.kind === "actionActivity" ? object.action : undefined,
       title: object ? titleForObject(object) : node.title,
       subtitle: object ? subtitleForObject(object) : node.subtitle,
       documentation: object?.documentation,
       officialType: object?.officialType ?? node.nodeKind,
       disabled: Boolean(object && "disabled" in object && object.disabled),
-      validationState: validationState(objectIssues),
+      validationState: validationStateFromIssues(objectIssues),
       runtimeState: runtimeStateForObject(node.objectId, trace),
       issueCount: objectIssues.length,
     };
@@ -165,7 +157,7 @@ export function authoringToFlowGram(
       label: flow ? flowCaseLabel(flow) : edge.label,
       description: flow?.editor.description,
       runtimeState: runtimeStateForFlow(edge.flowId, trace),
-      validationState: validationState(flowIssues),
+      validationState: validationStateFromIssues(flowIssues),
     };
     return {
       id: edge.flowId,

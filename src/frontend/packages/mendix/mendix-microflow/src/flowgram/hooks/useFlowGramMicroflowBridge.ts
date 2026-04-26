@@ -18,6 +18,7 @@ import {
   findNewFlowGramEdge,
   flowGramPositionPatch,
 } from "../adapters/flowgram-to-authoring-patch";
+import { selectionFromFlowGramEntityId } from "../adapters/flowgram-selection-sync";
 import { createMicroflowFlowFromPorts } from "../adapters/flowgram-edge-factory";
 import { getCaseEditorKind } from "../adapters/flowgram-case-options";
 import { FlowGramMicroflowBridgeService } from "../FlowGramMicroflowEvents";
@@ -44,6 +45,8 @@ export function useFlowGramMicroflowBridge(params: {
   const bridgeService = useService<FlowGramMicroflowBridgeService>(FlowGramMicroflowBridgeService);
   const reloadingRef = useRef(false);
   const latestSchemaRef = useRef(params.schema);
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   latestSchemaRef.current = params.schema;
   bridgeService.setSchema(params.schema);
 
@@ -61,14 +64,14 @@ export function useFlowGramMicroflowBridge(params: {
 
   useEffect(() => {
     const disposable = doc.onContentChange(() => {
-      if (reloadingRef.current || params.readonly) {
+      if (reloadingRef.current || paramsRef.current.readonly) {
         return;
       }
       const json = doc.toJSON() as WorkflowJSON;
       const schema = latestSchemaRef.current;
       const deletedFlowId = findDeletedFlowId(schema, json);
       if (deletedFlowId) {
-        params.onSchemaChange(
+        paramsRef.current.onSchemaChange(
           applyEditorGraphPatchToAuthoring(schema, { deleteFlowId: deletedFlowId } as MicroflowEditorGraphPatch),
           "flowgramLineDelete",
         );
@@ -79,7 +82,7 @@ export function useFlowGramMicroflowBridge(params: {
         const sourcePort = portById(schema, newEdge.sourcePortID === undefined ? undefined : String(newEdge.sourcePortID));
         const targetPort = portById(schema, newEdge.targetPortID === undefined ? undefined : String(newEdge.targetPortID));
         if (!sourcePort || !targetPort || !canConnectPorts(schema, sourcePort, targetPort).allowed) {
-          Toast.warning("当前端口连接不合法。");
+          Toast.warning("The selected ports cannot be connected.");
           reloadingRef.current = true;
           void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace))).finally(() => {
             reloadingRef.current = false;
@@ -88,7 +91,7 @@ export function useFlowGramMicroflowBridge(params: {
         }
         const caseKind = getCaseEditorKind(schema, sourcePort.objectId);
         if (caseKind) {
-          params.onPendingCaseLine({
+          paramsRef.current.onPendingCaseLine({
             caseKind,
             sourcePortId: sourcePort.id,
             targetPortId: targetPort.id,
@@ -103,7 +106,7 @@ export function useFlowGramMicroflowBridge(params: {
         }
         const flow = createFlowFromFlowGramEdge(schema, newEdge);
         if (flow) {
-          params.onSchemaChange(
+          paramsRef.current.onSchemaChange(
             applyEditorGraphPatchToAuthoring(schema, { addFlow: flow, selectedFlowId: flow.id, selectedObjectId: undefined } as MicroflowEditorGraphPatch),
             "flowgramLineAdd",
           );
@@ -111,29 +114,21 @@ export function useFlowGramMicroflowBridge(params: {
         return;
       }
       const patch = flowGramPositionPatch(schema, json);
-      if (patch.movedNodes?.length) {
-        params.onSchemaChange(applyEditorGraphPatchToAuthoring(schema, patch), "flowgramNodeMove");
+      if (patch.movedNodes?.length || patch.resizedNodes?.length) {
+        paramsRef.current.onSchemaChange(applyEditorGraphPatchToAuthoring(schema, patch), "flowgramNodeMove");
       }
     });
     return () => disposable.dispose();
-  }, [doc, params]);
+  }, [doc]);
 
   useEffect(() => {
     const disposable = selectService.onSelectionChanged(() => {
       const selection = selectService.selection?.[0];
       const id = selection?.id as string | undefined;
-      if (!id) {
-        params.onSelectionChange({});
-        return;
-      }
-      if (latestSchemaRef.current.flows.some(flow => flow.id === id)) {
-        params.onSelectionChange({ flowId: id });
-        return;
-      }
-      params.onSelectionChange({ objectId: id });
+      paramsRef.current.onSelectionChange(selectionFromFlowGramEntityId(latestSchemaRef.current, id));
     });
     return () => disposable.dispose();
-  }, [params, selectService]);
+  }, [selectService]);
 
   return {
     createCaseFlow(caseValues: MicroflowCaseValue[], label: string, pending: FlowGramMicroflowPendingLine) {
@@ -143,7 +138,7 @@ export function useFlowGramMicroflowBridge(params: {
         return;
       }
       const flow = createMicroflowFlowFromPorts(latestSchemaRef.current, sourcePort, targetPort, { caseValues, label });
-      params.onSchemaChange(
+      paramsRef.current.onSchemaChange(
         applyEditorGraphPatchToAuthoring(latestSchemaRef.current, {
           addFlow: flow,
           selectedFlowId: flow.id,

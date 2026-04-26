@@ -7,9 +7,9 @@ import {
   type WorkflowNodeRenderProps,
   useNodeRender,
 } from "@flowgram-adapter/free-layout-editor";
-import { WorkflowPortRender } from "@coze-workflow/render";
 
 import type { FlowGramMicroflowNodeData } from "./FlowGramMicroflowTypes";
+import { FlowGramMicroflowPortRenderer } from "./FlowGramMicroflowPortRenderer";
 import "./styles/flowgram-microflow-node.css";
 
 function readNodeData(props: WorkflowNodeRenderProps): FlowGramMicroflowNodeData {
@@ -90,7 +90,7 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         </div>
       ) : null}
       {ports.map(port => (
-        <WorkflowPortRender key={port.id} entity={port} />
+        <FlowGramMicroflowPortRenderer key={port.id} port={port} />
       ))}
     </div>
   );

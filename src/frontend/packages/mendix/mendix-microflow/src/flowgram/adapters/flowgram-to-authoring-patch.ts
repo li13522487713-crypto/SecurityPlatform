@@ -1,7 +1,14 @@
 import type { WorkflowEdgeJSON, WorkflowJSON } from "@flowgram-adapter/free-layout-editor";
 
 import { toEditorGraph } from "../../adapters";
-import type { MicroflowEditorGraphPatch, MicroflowEditorPort, MicroflowFlow, MicroflowSchema } from "../../schema";
+import type {
+  MicroflowEditorGraphPatch,
+  MicroflowEditorPort,
+  MicroflowFlow,
+  MicroflowSchema,
+  MicroflowSize,
+} from "../../schema";
+import type { FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
 import { createMicroflowFlowFromPorts } from "./flowgram-edge-factory";
 
 function edgeKey(edge: Pick<WorkflowEdgeJSON, "sourceNodeID" | "targetNodeID" | "sourcePortID" | "targetPortID">): string {
@@ -17,21 +24,37 @@ function portById(schema: MicroflowSchema, portId?: string): MicroflowEditorPort
 
 export function flowGramPositionPatch(schema: MicroflowSchema, json: WorkflowJSON): MicroflowEditorGraphPatch {
   const nodes = new Map(toEditorGraph(schema).nodes.map(node => [node.objectId, node]));
+  const movedNodes: NonNullable<MicroflowEditorGraphPatch["movedNodes"]> = [];
+  const resizedNodes: NonNullable<MicroflowEditorGraphPatch["resizedNodes"]> = [];
+  for (const node of json.nodes ?? []) {
+    const previous = nodes.get(node.id);
+    const position = node.meta?.position;
+    const size = (node.meta as { size?: MicroflowSize } | undefined)?.size;
+    if (!previous) {
+      continue;
+    }
+    if (position && (previous.position.x !== position.x || previous.position.y !== position.y)) {
+      movedNodes.push({ objectId: node.id, position });
+    }
+    if (size && (previous.size.width !== size.width || previous.size.height !== size.height)) {
+      resizedNodes.push({ objectId: node.id, size });
+    }
+  }
   return {
-    movedNodes: (json.nodes ?? [])
-      .map(node => {
-        const previous = nodes.get(node.id);
-        const position = node.meta?.position;
-        if (!previous || !position) {
-          return undefined;
-        }
-        if (previous.position.x === position.x && previous.position.y === position.y) {
-          return undefined;
-        }
-        return { objectId: node.id, position };
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    movedNodes,
+    resizedNodes,
   };
+}
+
+export function flowGramSelectionPatch(selection: FlowGramMicroflowSelection): MicroflowEditorGraphPatch {
+  return {
+    selectedObjectId: selection.objectId,
+    selectedFlowId: selection.flowId,
+  };
+}
+
+export function flowGramViewportPatch(viewport?: MicroflowEditorGraphPatch["viewport"]): MicroflowEditorGraphPatch {
+  return viewport ? { viewport } : {};
 }
 
 export function findNewFlowGramEdge(schema: MicroflowSchema, json: WorkflowJSON): WorkflowEdgeJSON | undefined {

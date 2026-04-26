@@ -10,3 +10,10 @@
   border-color: #86909c;
 }
 
+.microflow-flowgram-node:not(:hover):not(.is-selected) .workflow-point-bg {
+  opacity: 0.42;
+}
+
+.microflow-flowgram-node:has([data-port-id$="error"]) .workflow-point-bg {
+  border-color: #d73135;
+}

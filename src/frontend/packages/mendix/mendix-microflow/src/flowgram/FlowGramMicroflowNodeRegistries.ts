@@ -11,49 +11,25 @@ import {
   type WorkflowNodeRegistry,
 } from "@flowgram-adapter/free-layout-editor";
 
-import type { MicroflowObjectKind } from "../schema";
-
-const objectKinds: MicroflowObjectKind[] = [
-  "startEvent",
-  "endEvent",
-  "errorEvent",
-  "breakEvent",
-  "continueEvent",
-  "exclusiveSplit",
-  "inheritanceSplit",
-  "exclusiveMerge",
-  "actionActivity",
-  "loopedActivity",
-  "parameterObject",
-  "annotation",
-];
-
-function fallbackPorts(kind: MicroflowObjectKind): Array<{ type: "input" | "output"; portID: string }> {
-  if (kind === "startEvent") {
-    return [{ type: "output", portID: "out" }];
-  }
-  if (kind === "endEvent" || kind === "errorEvent" || kind === "breakEvent" || kind === "continueEvent") {
-    return [{ type: "input", portID: "in" }];
-  }
-  if (kind === "annotation" || kind === "parameterObject") {
-    return [];
-  }
-  return [{ type: "input", portID: "in" }, { type: "output", portID: "out" }];
-}
+import { defaultMicroflowObjectNodeRegistry, objectKindFromRegistryItem } from "../node-registry";
+import { flowGramPortsForObjectKind } from "./adapters/flowgram-port-factory";
 
 export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] {
-  return objectKinds.map(kind => ({
-    type: kind,
-    meta: {
-      nodeDTOType: kind,
-      size: kind === "annotation" ? { width: 240, height: 120 } : { width: 220, height: 92 },
-      useDynamicPort: true,
-      defaultPorts: fallbackPorts(kind),
-    },
-    formMeta: {
-      render: () => null,
-    },
-  } as unknown as WorkflowNodeRegistry));
+  return defaultMicroflowObjectNodeRegistry.map(item => {
+    const kind = objectKindFromRegistryItem(item);
+    return ({
+      type: kind,
+      meta: {
+        nodeDTOType: kind,
+        size: { width: item.render.width, height: item.render.height },
+        useDynamicPort: true,
+        defaultPorts: flowGramPortsForObjectKind(kind),
+      },
+      formMeta: {
+        render: () => null,
+      },
+    } as unknown as WorkflowNodeRegistry);
+  });
 }
 
 @injectable()

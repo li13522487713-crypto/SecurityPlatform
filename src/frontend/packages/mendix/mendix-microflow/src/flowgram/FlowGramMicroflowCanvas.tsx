@@ -1,22 +1,19 @@
 import { useMemo, useState, type DragEvent } from "react";
 
-import { Button, Space } from "@douyinfe/semi-ui";
-import { IconMinus, IconPlus, IconRefresh, IconUndo, IconRedo, IconTreeTriangleDown, IconMapPin } from "@douyinfe/semi-icons";
 import {
   type FlowNodeEntity,
   PlaygroundReactRenderer,
-  WorkflowResetLayoutService,
   WorkflowSelectService,
   usePlayground,
   useService,
 } from "@flowgram-adapter/free-layout-editor";
-import { WorkflowRenderProvider } from "@coze-workflow/render";
 
 import { microflowNodeRegistryByKey, type MicroflowNodeDragPayload, type MicroflowNodeRegistryItem } from "../node-registry";
 import type { MicroflowPoint, MicroflowSchema, MicroflowTraceFrame, MicroflowValidationIssue } from "../schema";
 import { toEditorGraph } from "../adapters";
-import { FlowGramMicroflowContainerModule } from "./FlowGramMicroflowPlugins";
 import { FlowGramMicroflowCaseEditor } from "./FlowGramMicroflowCaseEditor";
+import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";
+import { FlowGramMicroflowToolbar } from "./FlowGramMicroflowToolbar";
 import { getCaseOptionsForSource } from "./adapters/flowgram-case-options";
 import type { FlowGramMicroflowPendingLine, FlowGramMicroflowSelection } from "./FlowGramMicroflowTypes";
 import { useFlowGramMicroflowBridge } from "./hooks/useFlowGramMicroflowBridge";
@@ -38,43 +35,6 @@ export interface FlowGramMicroflowCanvasProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onAutoLayout?: () => void;
-}
-
-interface FlowGramMicroflowToolbarProps extends Pick<FlowGramMicroflowCanvasProps, "canUndo" | "canRedo" | "onUndo" | "onRedo" | "onAutoLayout" | "readonly"> {
-  miniMapVisible: boolean;
-  onToggleMiniMap: () => void;
-}
-
-function FlowGramMicroflowToolbar(props: FlowGramMicroflowToolbarProps) {
-  const playground = usePlayground();
-  const resetLayout = useService<WorkflowResetLayoutService>(WorkflowResetLayoutService);
-  const fitView = () => {
-    const service = resetLayout as WorkflowResetLayoutService & { fitView?: () => void };
-    service.fitView?.();
-  };
-  return (
-    <div className="microflow-flowgram-toolbar">
-      <Space>
-        <Button icon={<IconPlus />} size="small" onClick={() => playground.config.zoomin()} />
-        <Button icon={<IconMinus />} size="small" onClick={() => playground.config.zoomout()} />
-        <Button icon={<IconRefresh />} size="small" onClick={fitView} />
-        <Button icon={<IconUndo />} size="small" disabled={!props.canUndo} onClick={props.onUndo} />
-        <Button icon={<IconRedo />} size="small" disabled={!props.canRedo} onClick={props.onRedo} />
-        <Button
-          icon={<IconMapPin />}
-          size="small"
-          theme={props.miniMapVisible ? "solid" : "light"}
-          onClick={props.onToggleMiniMap}
-        />
-        <Button icon={<IconTreeTriangleDown />} size="small" disabled={props.readonly} onClick={() => {
-          props.onAutoLayout?.();
-          requestAnimationFrame(fitView);
-        }}>
-          Auto
-        </Button>
-      </Space>
-    </div>
-  );
 }
 
 function readNodeDragPayload(dataTransfer: DataTransfer): MicroflowNodeDragPayload | undefined {
@@ -281,8 +241,8 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
 
 export function FlowGramMicroflowCanvas(props: FlowGramMicroflowCanvasProps) {
   return (
-    <WorkflowRenderProvider containerModules={[FlowGramMicroflowContainerModule]}>
+    <FlowGramMicroflowProvider>
       <FlowGramMicroflowCanvasInner {...props} />
-    </WorkflowRenderProvider>
+    </FlowGramMicroflowProvider>
   );
 }

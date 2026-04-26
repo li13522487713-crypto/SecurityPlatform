@@ -2,3 +2,19 @@
   stroke-linecap: round;
 }
 
+.microflow-flowgram-line--errorHandler {
+  stroke: #d73135;
+}
+
+.microflow-flowgram-line--annotation {
+  stroke: #86909c;
+  stroke-dasharray: 6 6;
+}
+
+.microflow-flowgram-line.is-error {
+  stroke: #d73135;
+}
+
+.microflow-flowgram-line.is-warning {
+  stroke: #f77234;
+}

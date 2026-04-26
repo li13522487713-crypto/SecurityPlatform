@@ -1,6 +1,5 @@
-import type { WorkflowNodeJSON } from "@flowgram-adapter/free-layout-editor";
-
-import type { MicroflowEditorPort } from "../../schema";
+import { defaultMicroflowObjectNodeRegistry, objectKindFromRegistryItem } from "../../node-registry";
+import type { MicroflowEditorPort, MicroflowObjectKind, MicroflowPort } from "../../schema";
 
 export interface FlowGramPortDescriptor {
   type: "input" | "output";
@@ -18,6 +17,23 @@ export function microflowPortToFlowGramPort(port: MicroflowEditorPort): FlowGram
 
 export function microflowPortsToFlowGramPorts(ports: MicroflowEditorPort[]): FlowGramPortDescriptor[] {
   return ports.map(microflowPortToFlowGramPort);
+}
+
+export function registryPortToFlowGramPort(port: MicroflowPort): FlowGramPortDescriptor {
+  return {
+    type: port.direction,
+    portID: port.id,
+    disabled: port.cardinality === "none",
+  };
+}
+
+export function registryPortsToFlowGramPorts(ports: MicroflowPort[]): FlowGramPortDescriptor[] {
+  return ports.map(registryPortToFlowGramPort);
+}
+
+export function flowGramPortsForObjectKind(kind: MicroflowObjectKind): FlowGramPortDescriptor[] {
+  const registryItem = defaultMicroflowObjectNodeRegistry.find(item => objectKindFromRegistryItem(item) === kind);
+  return registryItem ? registryPortsToFlowGramPorts(registryItem.ports) : [];
 }
 
 export function connectionIndexFromPortId(portId?: string): number {

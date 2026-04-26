@@ -1,7 +1,9 @@
 export * from "./FlowGramMicroflowCanvas";
+export * from "./FlowGramMicroflowLineRenderer";
+export * from "./FlowGramMicroflowNodeRenderer";
+export * from "./FlowGramMicroflowPortRenderer";
+export * from "./FlowGramMicroflowProvider";
+export * from "./FlowGramMicroflowToolbar";
 export * from "./FlowGramMicroflowTypes";
-export * from "./adapters/authoring-to-flowgram";
-export * from "./adapters/flowgram-to-authoring-patch";
-export * from "./adapters/flowgram-edge-factory";
-export * from "./adapters/flowgram-port-factory";
-
+export * from "./adapters";
+export * from "./hooks";
