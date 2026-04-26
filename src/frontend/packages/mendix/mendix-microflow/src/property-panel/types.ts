@@ -32,6 +32,7 @@ export interface MicroflowPropertyPanelProps {
   validationIssues: MicroflowValidationIssue[];
   traceFrames?: MicroflowTraceFrame[];
   readonly?: boolean;
+  onSchemaChange?: (nextSchema: MicroflowSchema, reason: string) => void;
   onObjectChange: (objectId: string, patch: MicroflowNodePatch) => void;
   onFlowChange?: (flowId: string, patch: MicroflowEdgePatch) => void;
   onClose: () => void;

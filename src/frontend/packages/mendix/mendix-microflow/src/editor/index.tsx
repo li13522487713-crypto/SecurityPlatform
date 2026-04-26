@@ -15,6 +15,8 @@ import {
 import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
 import {
+  addMicroflowObjectFromDragPayload,
+  createDragPayloadFromRegistryItem,
   getMicroflowNodeRegistryKey,
   microflowNodeRegistryByKey,
   type MicroflowNodeDragPayload,
@@ -23,7 +25,6 @@ import {
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
 import {
   applyEditorGraphPatchToAuthoring,
-  addParameter,
   createAutoLayoutPatch,
   createAnnotationFlow,
   createObjectFromRegistry,
@@ -43,10 +44,10 @@ import {
 } from "../adapters";
 import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind } from "../node-registry";
 import { FlowGramMicroflowCanvas } from "../flowgram";
+import { MicroflowMetadataProvider } from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
 import type {
   MicroflowCaseValue,
-  MicroflowDataType,
   MicroflowEditorEdge,
   MicroflowEditorGraph,
   MicroflowEditorGraphPatch,
@@ -54,7 +55,7 @@ import type {
   MicroflowEditorPort,
   MicroflowFlow,
   MicroflowObject,
-  MicroflowParameter,
+  MicroflowPoint,
   MicroflowSchema,
   MicroflowValidationIssue
 } from "../schema/types";
@@ -122,8 +123,6 @@ const defaultLabels: MicroflowEditorLabels = {
   problems: "Problems",
   debug: "Debug"
 };
-
-const unknownDataType: MicroflowDataType = { kind: "unknown", reason: "new parameter" };
 
 function readFavoriteNodeKeys(): string[] {
   if (typeof window === "undefined") {
@@ -900,31 +899,20 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     commitSchema(applyEditorGraphPatchToAuthoring(schema, patch), markDirty);
   };
 
-  function createParameterForNode(item: MicroflowNodeRegistryItem, position: { x: number; y: number }): MicroflowSchema {
-    const parameterId = `param-${Date.now()}`;
-    const parameterName = `input${schema.parameters.length + 1}`;
-    const parameter: MicroflowParameter = {
-      id: parameterId,
-      stableId: parameterId,
-      name: parameterName,
-      dataType: unknownDataType,
-      type: { kind: "unknown", name: "Unknown" },
-      required: true,
-      documentation: item.documentation.summary
-    };
-    const objectId = `parameter-object-${parameterId}`;
-    const next = addParameter(schema, parameter, position);
+  const quickAddPosition = (): MicroflowPoint => {
+    const viewport = schema.editor.viewport ?? { x: 0, y: 0, zoom: 1 };
+    const indexOffset = graph.nodes.length * 18;
     return {
-      ...next,
-      editor: {
-        ...next.editor,
-        selection: { objectId, flowId: undefined }
-      }
+      x: Math.round(((360 - viewport.x) / Math.max(0.2, viewport.zoom) + indexOffset) / 16) * 16,
+      y: Math.round(((220 - viewport.y) / Math.max(0.2, viewport.zoom) + indexOffset / 2) / 16) * 16
     };
-  }
+  };
 
-  const handleAddNode = (item: MicroflowNodeRegistryItem, options?: { position?: { x: number; y: number }; insertFlowId?: string }) => {
-    const position = options?.position ?? { x: 120 + graph.nodes.length * 36, y: 120 + graph.nodes.length * 18 };
+  const handleAddNode = (
+    item: MicroflowNodeRegistryItem,
+    options?: { source?: "doubleClick" | "contextMenu" | "drop"; position?: { x: number; y: number }; insertFlowId?: string; payload?: MicroflowNodeDragPayload }
+  ) => {
+    const position = options?.position ?? quickAddPosition();
     const parentLoopObjectId = findLoopAtPosition(graph, position);
     const eventType = String(item.type) === "event" ? (item.defaultConfig as { eventType?: string }).eventType : undefined;
     if (eventType && ["start", "end"].includes(eventType) && parentLoopObjectId) {
@@ -935,12 +923,9 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
       Toast.warning("Break / Continue can only be placed inside Loop.");
       return;
     }
-    if (item.type === "parameter") {
-      commitSchema(createParameterForNode(item, position));
-      return;
-    }
-    const object = createObjectFromRegistry(item, position);
+    const payload = options?.payload ?? createDragPayloadFromRegistryItem(item);
     if (options?.insertFlowId) {
+      const object = createObjectFromRegistry(item, position);
       const flow = schema.flows.find(item => item.id === options.insertFlowId);
       if (flow?.kind === "annotation") {
         Toast.warning("AnnotationFlow 暂不支持插入节点");
@@ -955,11 +940,15 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
       });
       return;
     }
-    commitSchema(applyEditorGraphPatchToAuthoring(schema, {
-      addObject: { object, parentLoopObjectId },
-      selectedObjectId: object.id,
-      selectedFlowId: undefined
-    }));
+    const result = addMicroflowObjectFromDragPayload({ schema, payload, position, parentLoopObjectId });
+    if (result.blockedReason) {
+      Toast.warning(result.blockedReason);
+      return;
+    }
+    commitSchema(result.schema);
+    for (const warning of result.warnings) {
+      Toast.warning(warning);
+    }
   };
 
   const handleSave = async () => {
@@ -1123,7 +1112,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
               selectedFlowId: selection.flowId
             }, false);
           }}
-          onDropRegistryItem={(item, position) => handleAddNode(item, { position })}
+          onDropRegistryItem={(item, position, payload) => handleAddNode(item, { position, payload, source: "drop" })}
           canUndo={history.length > 0}
           canRedo={future.length > 0}
           onUndo={handleUndo}
@@ -1142,44 +1131,47 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
         >
           {rightOpen ? (
             <div style={propertyPaneStyle}>
-              <MicroflowPropertyPanel
-                selectedObject={selectedObject}
-                selectedFlow={selectedFlow}
-                schema={schema}
-                validationIssues={issues}
-                traceFrames={traceFrames}
-                onObjectChange={(objectId, patch: MicroflowNodePatch) => {
-                  if (!patch.object) {
-                    return;
-                  }
-                  commitSchema(updateObject(schema, objectId, () => patch.object as MicroflowObject));
-                }}
-                onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
-                  commitSchema(updateFlow(schema, flowId, flow => {
-                    const next = { ...flow, ...patch } as MicroflowFlow;
-                    if (flow.kind === "sequence") {
-                      const partial = patch as Partial<Extract<MicroflowFlow, { kind: "sequence" }>>;
+              <MicroflowMetadataProvider>
+                <MicroflowPropertyPanel
+                  selectedObject={selectedObject}
+                  selectedFlow={selectedFlow}
+                  schema={schema}
+                  validationIssues={issues}
+                  traceFrames={traceFrames}
+                  onSchemaChange={(nextSchema) => commitSchema(nextSchema)}
+                  onObjectChange={(objectId, patch: MicroflowNodePatch) => {
+                    if (!patch.object) {
+                      return;
+                    }
+                    commitSchema(updateObject(schema, objectId, () => patch.object as MicroflowObject));
+                  }}
+                  onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
+                    commitSchema(updateFlow(schema, flowId, flow => {
+                      const next = { ...flow, ...patch } as MicroflowFlow;
+                      if (flow.kind === "sequence") {
+                        const partial = patch as Partial<Extract<MicroflowFlow, { kind: "sequence" }>>;
+                        return {
+                          ...flow,
+                          ...partial,
+                          line: partial.line ?? flow.line,
+                          editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
+                        };
+                      }
+                      const partial = patch as Partial<Extract<MicroflowFlow, { kind: "annotation" }>>;
                       return {
                         ...flow,
                         ...partial,
                         line: partial.line ?? flow.line,
                         editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
                       };
-                    }
-                    const partial = patch as Partial<Extract<MicroflowFlow, { kind: "annotation" }>>;
-                    return {
-                      ...flow,
-                      ...partial,
-                      line: partial.line ?? flow.line,
-                      editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
-                    };
-                  }));
-                }}
-                onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
-                onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
-                onDeleteFlow={flowId => commitSchema(deleteFlow(schema, flowId))}
-                onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, false)}
-              />
+                    }));
+                  }}
+                  onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
+                  onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
+                  onDeleteFlow={flowId => commitSchema(deleteFlow(schema, flowId))}
+                  onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, false)}
+                />
+              </MicroflowMetadataProvider>
             </div>
           ) : null}
           <div

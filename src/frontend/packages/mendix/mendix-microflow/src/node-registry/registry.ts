@@ -48,13 +48,19 @@ export interface MicroflowNodeFavoriteState {
 
 export interface MicroflowNodeDragPayload {
   dragType: "microflow-node";
+  source: "node-panel";
+  registryKind: "node" | "action";
   nodeType: MicroflowNodeType;
   objectKind: MicroflowObjectKind;
   activityType?: MicroflowActivityType;
   actionKind?: MicroflowActionKind;
   registryKey: string;
   title: string;
-  defaultConfig: Record<string, unknown>;
+  titleZh?: string;
+  description?: string;
+  iconKey?: string;
+  availability: MicroflowNodeAvailability;
+  defaultConfig?: unknown;
   sourcePanel: "nodes" | "microflow-node-panel";
 }
 
@@ -165,6 +171,7 @@ const decisionFalse = port("false", "False", "output", "decisionOut", "one", ["d
 const objectTypeOut = port("objectType", "Object Type", "output", "objectTypeOut", "oneOrMore", ["objectTypeCondition"]);
 const errorOut = port("error", "Error", "output", "errorOut", "zeroOrOne", ["errorHandler"]);
 const annotationOut = port("note", "Note", "output", "annotation", "zeroOrMore", ["annotation"]);
+const annotationIn = port("noteIn", "Note", "input", "annotation", "zeroOrMore", ["annotation"]);
 
 function cloneConfig<TConfig extends object>(config: TConfig): TConfig {
   return JSON.parse(JSON.stringify(config)) as TConfig;
@@ -486,7 +493,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     availability: "supported",
     availabilityReason: undefined,
     defaultConfig: { parameter: { id: "parameter", name: "input", required: true, type: { kind: "unknown", name: "Unknown" } } },
-    ports: [annotationOut],
+    ports: [annotationOut, annotationIn],
     documentation: doc("Input data supplied by callers and referenced by expressions or activities."),
     render: { iconKey: "parameter", shape: "roundedRect", tone: "info", width: 158, height: 70 },
     propertyForm: { formKey: "parameter", sections: ["General"] },
@@ -504,7 +511,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
     availability: "supported",
     availabilityReason: undefined,
     defaultConfig: { text: "Describe the intent of this part of the microflow." },
-    ports: [annotationOut],
+    ports: [annotationOut, annotationIn],
     documentation: doc("Canvas-only documentation connected through annotation flows."),
     render: { iconKey: "annotation", shape: "annotation", tone: "neutral", width: 220, height: 100 },
     propertyForm: { formKey: "annotation", sections: ["General"] },
@@ -638,19 +645,34 @@ export function canDragRegistryItem(entry: MicroflowNodeRegistryEntry): boolean 
   return !getDisabledDragReason(entry);
 }
 
-export function createDragPayloadFromRegistryItem(entry: MicroflowNodeRegistryEntry): MicroflowNodeDragPayload {
+export function createNodeDragPayloadFromNodeRegistry(entry: MicroflowNodeRegistryEntry): MicroflowNodeDragPayload {
   return {
     dragType: "microflow-node",
+    source: "node-panel",
+    registryKind: entry.actionKind || entry.activityType ? "action" : "node",
     nodeType: entry.type,
     objectKind: objectKindFromRegistryItem(entry),
     activityType: entry.activityType,
-    actionKind: actionKindFromActivityType(entry.activityType),
+    actionKind: entry.actionKind ?? actionKindFromActivityType(entry.activityType),
     registryKey: getMicroflowNodeRegistryKey(entry),
     title: entry.title,
+    titleZh: entry.titleZh,
+    description: entry.description,
+    iconKey: entry.iconKey,
+    availability: entry.availability,
     defaultConfig: JSON.parse(JSON.stringify(entry.defaultConfig)) as Record<string, unknown>,
     sourcePanel: "nodes"
   };
 }
+
+export function createNodeDragPayloadFromActionRegistry(entry: MicroflowActionRegistryItem): MicroflowNodeDragPayload {
+  const panelEntry = nodePanelEntryFromActionRegistry(entry);
+  return createNodeDragPayloadFromNodeRegistry(panelEntry);
+}
+
+export const createDragPayloadFromRegistryItem = createNodeDragPayloadFromNodeRegistry;
+export const canDragMicroflowRegistryItem = canDragRegistryItem;
+export const getMicroflowDragDisabledReason = getDisabledDragReason;
 
 function categoryKeyForEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodePanelCategoryKey {
   if (entry.group === "Events") {

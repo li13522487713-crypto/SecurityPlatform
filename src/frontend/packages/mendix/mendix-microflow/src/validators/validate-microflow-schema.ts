@@ -6,6 +6,7 @@ import { validateEvents } from "./validate-events";
 import { validateExpressions } from "./validate-expressions";
 import { validateFlows } from "./validate-flows";
 import { validateLoop } from "./validate-loop";
+import { validateMetadataReferences } from "./validate-metadata-references";
 import { validateObjectCollection } from "./validate-object-collection";
 import { validateReachability } from "./validate-reachability";
 import { validateRoot } from "./validate-root";
@@ -20,6 +21,7 @@ export function validateMicroflowSchema(schema: MicroflowSchema): MicroflowValid
     { validate: validateDecisions },
     { validate: validateLoop },
     { validate: validateActions },
+    { validate: validateMetadataReferences },
     { validate: validateVariables },
     { validate: validateExpressions },
     { validate: validateErrorHandling },

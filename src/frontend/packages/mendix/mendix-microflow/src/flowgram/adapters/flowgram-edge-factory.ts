@@ -8,7 +8,6 @@ import type {
   MicroflowSchema,
 } from "../../schema";
 import { booleanCaseValue, fallbackCaseValue, inheritanceCaseValue } from "./flowgram-case-options";
-import { connectionIndexFromPortId } from "./flowgram-port-factory";
 
 export function defaultCaseValuesForPorts(sourcePort: MicroflowEditorPort, source?: MicroflowObject): MicroflowCaseValue[] {
   if (sourcePort.kind === "decisionOut") {
@@ -39,21 +38,25 @@ export function createMicroflowFlowFromPorts(
   }
   const edgeKind = inferEdgeKindFromPorts(source, target, sourcePort);
   if (edgeKind === "annotation") {
-    return createAnnotationFlow({
+    return {
+      ...createAnnotationFlow({
       originObjectId: source.id,
       destinationObjectId: target.id,
       label: options?.label ?? "Annotation",
-    });
+      }),
+      originConnectionIndex: sourcePort.connectionIndex,
+      destinationConnectionIndex: targetPort.connectionIndex,
+    };
   }
   const caseValues = options?.caseValues ?? defaultCaseValuesForPorts(sourcePort, source);
   return createSequenceFlow({
     originObjectId: source.id,
     destinationObjectId: target.id,
-    originConnectionIndex: connectionIndexFromPortId(sourcePort.id),
-    destinationConnectionIndex: connectionIndexFromPortId(targetPort.id),
+    originConnectionIndex: sourcePort.connectionIndex,
+    destinationConnectionIndex: targetPort.connectionIndex,
     caseValues,
     isErrorHandler: edgeKind === "errorHandler",
     edgeKind,
-    label: options?.label,
+    label: options?.label ?? (edgeKind === "errorHandler" ? "Error" : undefined),
   });
 }

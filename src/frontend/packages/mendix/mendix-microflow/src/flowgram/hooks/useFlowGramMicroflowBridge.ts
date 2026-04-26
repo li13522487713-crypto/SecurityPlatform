@@ -81,8 +81,9 @@ export function useFlowGramMicroflowBridge(params: {
       if (newEdge) {
         const sourcePort = portById(schema, newEdge.sourcePortID === undefined ? undefined : String(newEdge.sourcePortID));
         const targetPort = portById(schema, newEdge.targetPortID === undefined ? undefined : String(newEdge.targetPortID));
-        if (!sourcePort || !targetPort || !canConnectPorts(schema, sourcePort, targetPort).allowed) {
-          Toast.warning("The selected ports cannot be connected.");
+        const check = sourcePort && targetPort ? canConnectPorts(schema, sourcePort, targetPort) : undefined;
+        if (!sourcePort || !targetPort || !check?.allowed) {
+          Toast.warning(check?.message ?? "The selected ports cannot be connected.");
           reloadingRef.current = true;
           void Promise.resolve(doc.fromJSON(authoringToFlowGram(schema, schema.validation.issues, schema.debug?.lastTrace))).finally(() => {
             reloadingRef.current = false;
@@ -90,7 +91,7 @@ export function useFlowGramMicroflowBridge(params: {
           return;
         }
         const caseKind = getCaseEditorKind(schema, sourcePort.objectId);
-        if (caseKind) {
+        if (caseKind && (check.suggestedEdgeKind === "decisionCondition" || check.suggestedEdgeKind === "objectTypeCondition")) {
           paramsRef.current.onPendingCaseLine({
             caseKind,
             sourcePortId: sourcePort.id,

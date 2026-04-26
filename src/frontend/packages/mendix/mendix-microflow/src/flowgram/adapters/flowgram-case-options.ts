@@ -1,4 +1,4 @@
-import { findEntity, findEnumeration, mockMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
+import { findEntity, getEnumerationValueKeys, mockMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
 import { flattenObjectCollection } from "../../adapters";
 import type {
   MicroflowCaseValue,
@@ -45,6 +45,10 @@ export function emptyCaseValue(): MicroflowCaseValue {
   return { kind: "empty", officialType: "Microflows$NoCase" };
 }
 
+export function noCaseValue(): MicroflowCaseValue {
+  return { kind: "noCase", officialType: "Microflows$NoCase" };
+}
+
 export function fallbackCaseValue(): MicroflowCaseValue {
   return { kind: "fallback", officialType: "Microflows$NoCase" };
 }
@@ -86,7 +90,7 @@ export function caseValueLabel(caseValue: MicroflowCaseValue): string {
   if (caseValue.kind === "fallback") {
     return "fallback";
   }
-  return "no case";
+  return "未配置条件";
 }
 
 export function flowCaseLabel(flow: MicroflowFlow): string | undefined {
@@ -96,8 +100,21 @@ export function flowCaseLabel(flow: MicroflowFlow): string | undefined {
   if (flow.isErrorHandler) {
     return flow.editor.label ?? "Error";
   }
+  const manualLabel = flow.editor.label?.trim();
+  if (manualLabel) {
+    return manualLabel;
+  }
   const generatedLabel = flow.caseValues.map(caseValueLabel).join(", ") || undefined;
-  return flow.editor.label ?? generatedLabel;
+  if (generatedLabel) {
+    return generatedLabel;
+  }
+  if (flow.editor.edgeKind === "decisionCondition") {
+    return "未配置条件";
+  }
+  if (flow.editor.edgeKind === "objectTypeCondition") {
+    return "未配置类型";
+  }
+  return undefined;
 }
 
 function objectById(schema: MicroflowSchema, objectId: string | undefined): MicroflowObject | undefined {
@@ -151,9 +168,8 @@ export function getEnumerationCaseOptions(
   const enumerationQualifiedName = source?.kind === "exclusiveSplit" && source.splitCondition.kind === "expression"
     ? source.splitCondition.enumerationQualifiedName
     : undefined;
-  const enumeration = findEnumeration(metadata, enumerationQualifiedName);
   const used = usedCaseKeys(schema, sourceObjectId, currentFlowId);
-  const valueOptions = (enumeration?.values ?? []).map(value => {
+  const valueOptions = getEnumerationValueKeys(metadata, enumerationQualifiedName).map(value => {
     const caseValue = enumerationCaseValue(enumerationQualifiedName ?? "", value);
     const disabled = used.has(caseValueKey(caseValue));
     return {

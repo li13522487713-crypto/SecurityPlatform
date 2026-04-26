@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import { Button, Modal, Radio, RadioGroup, Space, Typography } from "@douyinfe/semi-ui";
 
 import type { MicroflowCaseValue } from "../schema";
@@ -42,6 +44,13 @@ export function FlowGramMicroflowCaseEditor(props: {
   onCancel: () => void;
 }) {
   const firstAvailable = props.options.find(option => !option.disabled);
+  const [selectedKey, setSelectedKey] = useState<string | undefined>(firstAvailable?.key);
+
+  useEffect(() => {
+    setSelectedKey(firstAvailable?.key);
+  }, [firstAvailable?.key, props.visible]);
+
+  const selectedOption = props.options.find(option => option.key === selectedKey && !option.disabled);
   return (
     <Modal
       title={titleFor(props.kind)}
@@ -54,12 +63,12 @@ export function FlowGramMicroflowCaseEditor(props: {
       <Space vertical align="start" spacing={16} style={{ width: "100%" }}>
         <Typography.Text type="secondary">{descriptionFor(props.kind)}</Typography.Text>
         <RadioGroup
-          defaultValue={firstAvailable?.key}
+          value={selectedKey}
           onChange={event => {
             const key = String(event.target.value);
             const option = props.options.find(item => item.key === key);
             if (option && !option.disabled) {
-              props.onConfirm(option.caseValue, option.label);
+              setSelectedKey(key);
             }
           }}
         >
@@ -77,6 +86,17 @@ export function FlowGramMicroflowCaseEditor(props: {
         ) : null}
         <Space>
           <Button onClick={props.onCancel}>取消</Button>
+          <Button
+            type="primary"
+            disabled={!selectedOption}
+            onClick={() => {
+              if (selectedOption) {
+                props.onConfirm(selectedOption.caseValue, selectedOption.label);
+              }
+            }}
+          >
+            确定
+          </Button>
         </Space>
       </Space>
     </Modal>

@@ -6,3 +6,5 @@ export * from "./microflow-catalog";
 export * from "./page-catalog";
 export * from "./workflow-catalog";
 export * from "./mock-metadata";
+export * from "./metadata-provider";
+export * from "./metadata-hooks";

@@ -1169,12 +1169,12 @@ export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema
       const sourcePorts = source ? portsForObject(source) : [];
       const targetPorts = target ? portsForObject(target) : [];
       const sourcePort = flow.kind === "annotation"
-        ? sourcePorts.find(port => port.kind === "annotation") ?? sourcePorts[flow.originConnectionIndex ?? 0]
+        ? sourcePorts.find(port => port.kind === "annotation" && port.direction === "output") ?? sourcePorts[flow.originConnectionIndex ?? 0]
         : flow.isErrorHandler
           ? sourcePorts.find(port => port.kind === "errorOut")
           : sourcePorts[flow.originConnectionIndex ?? 0] ?? sourcePorts.find(port => port.direction === "output");
       const targetPort = flow.kind === "annotation"
-        ? targetPorts.find(port => port.kind === "annotation") ?? targetPorts[flow.destinationConnectionIndex ?? 0]
+        ? targetPorts.find(port => port.kind === "annotation" && port.direction === "input") ?? targetPorts[flow.destinationConnectionIndex ?? 0]
         : targetPorts[flow.destinationConnectionIndex ?? 0] ?? targetPorts.find(port => port.direction === "input");
       return {
         id: `edge-${flow.id}`,

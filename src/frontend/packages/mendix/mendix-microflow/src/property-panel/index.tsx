@@ -1,23 +1,34 @@
-import type { ReactNode } from "react";
-import { Empty, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography, Button } from "@douyinfe/semi-ui";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Empty, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography, Button, Tabs } from "@douyinfe/semi-ui";
 import { IconCopy, IconDelete, IconClose } from "@douyinfe/semi-icons";
 import type {
   MicroflowAction,
   MicroflowActionActivity,
+  MicroflowCaseValue,
   MicroflowDataType,
   MicroflowExpression,
   MicroflowFlow,
   MicroflowIterableListLoopSource,
   MicroflowObject,
+  MicroflowParameter,
   MicroflowVariableSymbol,
   MicroflowWhileLoopCondition,
   MicroflowSequenceFlow
 } from "../schema";
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../flowgram/adapters/flowgram-case-options";
+import { defaultMicroflowActionRegistry, defaultMicroflowEdgeRegistry, defaultMicroflowObjectNodeRegistry } from "../node-registry";
+import type { MicroflowPropertyTabKey } from "../schema/types";
+import { getAssociationByQualifiedName, getMicroflowById, getSpecializations, useMicroflowMetadata } from "../metadata";
+import { FieldError, ValidationIssueList } from "./common";
+import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, EnumerationSelector, MicroflowSelector } from "./selectors";
 import type { MicroflowEdgePatch, MicroflowNodeFormRegistry, MicroflowNodePatch, MicroflowPropertyPanelProps } from "./types";
+import { countIssuesBySeverity, getIssuesForField, getIssuesForFlow, getIssuesForObject, updateParameter } from "./utils";
 
 export * from "./controls";
 export * from "./types";
+export * from "./common";
+export * from "./utils";
+export * from "./selectors";
 
 export function getMicroflowNodeFormKey(object: MicroflowObject): string {
   return object.kind === "actionActivity" ? `activity:${object.action.kind}` : object.kind;
@@ -55,12 +66,22 @@ function updateAction(activity: MicroflowActionActivity, patch: Partial<Microflo
   return { ...activity, action: actionPatch(activity.action, patch) };
 }
 
+const tabLabels: Record<MicroflowPropertyTabKey, string> = {
+  properties: "Properties",
+  documentation: "Documentation",
+  errorHandling: "Error Handling",
+  output: "Output",
+  advanced: "Advanced",
+};
+
 function issuesFor(props: MicroflowPropertyPanelProps, objectId?: string, flowId?: string, actionId?: string) {
-  return props.validationIssues.filter(issue =>
-    (objectId && issue.objectId === objectId) ||
-    (flowId && issue.flowId === flowId) ||
-    (actionId && issue.actionId === actionId)
-  );
+  if (flowId) {
+    return getIssuesForFlow(props.validationIssues, flowId);
+  }
+  if (objectId) {
+    return getIssuesForObject(props.validationIssues, objectId, actionId);
+  }
+  return [];
 }
 
 function Header({ props, title, subtitle, onDelete, onDuplicate }: {
@@ -70,6 +91,11 @@ function Header({ props, title, subtitle, onDelete, onDuplicate }: {
   onDelete?: () => void;
   onDuplicate?: () => void;
 }) {
+  const counts = countIssuesBySeverity(props.selectedFlow
+    ? getIssuesForFlow(props.validationIssues, props.selectedFlow.id)
+    : props.selectedObject
+      ? getIssuesForObject(props.validationIssues, props.selectedObject.id, props.selectedObject.kind === "actionActivity" ? props.selectedObject.action.id : undefined)
+      : []);
   return (
     <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-2, #fff)" }}>
       <Space align="start" style={{ width: "100%", justifyContent: "space-between" }}>
@@ -78,6 +104,8 @@ function Header({ props, title, subtitle, onDelete, onDuplicate }: {
           <Text size="small" type="tertiary">{subtitle}</Text>
         </div>
         <Space>
+          {counts.errors > 0 ? <Tag color="red">{counts.errors} error</Tag> : null}
+          {counts.warnings > 0 ? <Tag color="orange">{counts.warnings} warning</Tag> : null}
           {onDuplicate ? <Button icon={<IconCopy />} theme="borderless" onClick={onDuplicate} disabled={props.readonly} /> : null}
           {onDelete ? <Button icon={<IconDelete />} theme="borderless" type="danger" onClick={onDelete} disabled={props.readonly} /> : null}
           <Button icon={<IconClose />} theme="borderless" onClick={props.onClose} />
@@ -87,25 +115,126 @@ function Header({ props, title, subtitle, onDelete, onDuplicate }: {
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children, issues }: { label: string; children: ReactNode; issues?: ReturnType<typeof getIssuesForField> }) {
   return (
     <label style={{ display: "grid", gap: 6 }}>
       <Text size="small" strong>{label}</Text>
       {children}
+      <FieldError issues={issues} />
     </label>
   );
 }
 
+function getObjectTabs(object: MicroflowObject): MicroflowPropertyTabKey[] {
+  if (object.kind === "actionActivity") {
+    return defaultMicroflowActionRegistry.find(item => item.kind === object.action.kind)?.propertyTabs ?? ["properties", "documentation", "errorHandling", "output", "advanced"];
+  }
+  return defaultMicroflowObjectNodeRegistry.find(item => item.objectKind === object.kind)?.propertyTabs ?? ["properties", "documentation"];
+}
+
+function getFlowEdgeKind(flow: MicroflowFlow): "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler" | "annotation" {
+  if (flow.kind === "annotation") {
+    return "annotation";
+  }
+  if (flow.isErrorHandler) {
+    return "errorHandler";
+  }
+  return flow.editor.edgeKind;
+}
+
+function getFlowTabs(flow: MicroflowFlow): MicroflowPropertyTabKey[] {
+  const edgeKind = getFlowEdgeKind(flow);
+  return (defaultMicroflowEdgeRegistry.find(item => item.edgeKind === edgeKind)?.propertyTabs ?? ["properties", "documentation"]) as MicroflowPropertyTabKey[];
+}
+
+function PropertyTabs({
+  tabs,
+  activeKey,
+  onChange,
+}: {
+  tabs: MicroflowPropertyTabKey[];
+  activeKey: MicroflowPropertyTabKey;
+  onChange: (key: MicroflowPropertyTabKey) => void;
+}) {
+  return (
+    <Tabs
+      activeKey={activeKey}
+      size="small"
+      style={{ padding: "0 14px", borderBottom: "1px solid var(--semi-color-border, #e5e6eb)" }}
+      onChange={key => onChange(key as MicroflowPropertyTabKey)}
+    >
+      {tabs.map(tab => <Tabs.TabPane key={tab} itemKey={tab} tab={tabLabels[tab]} />)}
+    </Tabs>
+  );
+}
+
+function updateObjectDocumentation(object: MicroflowObject, documentation: string): MicroflowObject {
+  return { ...object, documentation } as MicroflowObject;
+}
+
+function updateObjectAdvanced(object: MicroflowObject, patch: Record<string, unknown>): MicroflowObject {
+  return {
+    ...object,
+    editor: {
+      ...object.editor,
+      advanced: {
+        ...((object.editor as unknown as { advanced?: Record<string, unknown> }).advanced ?? {}),
+        ...patch,
+      },
+    },
+  } as MicroflowObject;
+}
+
+function dataTypeLabel(dataType?: MicroflowDataType): string {
+  if (!dataType) {
+    return "unknown";
+  }
+  if (dataType.kind === "enumeration") {
+    return `enumeration:${dataType.enumerationQualifiedName}`;
+  }
+  if (dataType.kind === "object") {
+    return `object:${dataType.entityQualifiedName}`;
+  }
+  if (dataType.kind === "list") {
+    return `list:${dataType.elementType.kind}`;
+  }
+  return dataType.kind;
+}
+
+function dataTypeFromKey(kind: string): MicroflowDataType {
+  if (kind === "boolean" || kind === "integer" || kind === "long" || kind === "decimal" || kind === "dateTime" || kind === "string") {
+    return { kind };
+  }
+  return { kind: "string" };
+}
+
+function objectName(schema: MicroflowPropertyPanelProps["schema"], objectId: string): string {
+  const object = schema.objectCollection.objects.find(item => item.id === objectId);
+  return object?.caption ?? object?.kind ?? objectId;
+}
+
 function ActionActivityFields({
   object,
+  issues,
   readonly,
   onPatch
 }: {
   object: MicroflowActionActivity;
+  issues: ReturnType<typeof getIssuesForObject>;
   readonly?: boolean;
   onPatch: (patch: MicroflowNodePatch) => void;
 }) {
   const action = object.action;
+  const catalog = useMicroflowMetadata();
+  const associationSource = action.kind === "retrieve" && action.retrieveSource.kind === "association"
+    ? getAssociationByQualifiedName(catalog, action.retrieveSource.associationQualifiedName ?? undefined)?.sourceEntityQualifiedName
+    : undefined;
+  const [associationStartEntity, setAssociationStartEntity] = useState<string | undefined>(associationSource);
+  const firstMemberEntity = action.kind === "changeMembers" && action.memberChanges[0]?.memberQualifiedName
+    ? action.memberChanges[0].memberQualifiedName.split(".").slice(0, -1).join(".")
+    : undefined;
+  const [memberEntity, setMemberEntity] = useState<string | undefined>(firstMemberEntity || "Sales.Order");
+  const selectedMicroflow = action.kind === "callMicroflow" ? getMicroflowById(catalog, action.targetMicroflowId) : undefined;
   const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -164,11 +293,13 @@ function ActionActivityFields({
           {action.retrieveSource.kind === "database" ? (
             <>
               <Field label="Entity">
-                <Input
+                <EntitySelector
                   value={action.retrieveSource.entityQualifiedName ?? ""}
                   disabled={readonly}
-                  onChange={entityQualifiedName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, entityQualifiedName } }))}
+                  onlyPersistable
+                  onChange={entityQualifiedName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, entityQualifiedName: entityQualifiedName ?? null } }))}
                 />
+                <FieldError issues={getIssuesForField(issues, "action.retrieveSource.entityQualifiedName")} />
               </Field>
               <Field label="XPath Constraint">
                 <TextArea
@@ -194,22 +325,50 @@ function ActionActivityFields({
                 />
               </Field>
               <Field label="Sort Items (one per line: Entity.Attribute asc)">
-                <TextArea
-                  autosize
-                  disabled={readonly}
-                  value={action.retrieveSource.sortItemList.items.map(item => `${item.attributeQualifiedName} ${item.direction}`).join("\n")}
-                  onChange={value => patchObject(updateAction(object, {
+                <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+                  {action.retrieveSource.sortItemList.items.map((item, index) => (
+                    <div key={`${item.attributeQualifiedName}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 92px auto", gap: 6, width: "100%" }}>
+                      <AttributeSelector
+                        entityQualifiedName={action.retrieveSource.kind === "database" ? action.retrieveSource.entityQualifiedName ?? undefined : undefined}
+                        value={item.attributeQualifiedName}
+                        disabled={readonly}
+                        onChange={attributeQualifiedName => patchObject(updateAction(object, {
+                          retrieveSource: {
+                            ...action.retrieveSource,
+                            sortItemList: {
+                              items: action.retrieveSource.sortItemList.items.map((row, rowIndex) => rowIndex === index ? { ...row, attributeQualifiedName: attributeQualifiedName ?? "" } : row),
+                            },
+                          },
+                        }))}
+                      />
+                      <Select
+                        value={item.direction}
+                        disabled={readonly}
+                        optionList={[{ label: "asc", value: "asc" }, { label: "desc", value: "desc" }]}
+                        onChange={direction => patchObject(updateAction(object, {
+                          retrieveSource: {
+                            ...action.retrieveSource,
+                            sortItemList: {
+                              items: action.retrieveSource.sortItemList.items.map((row, rowIndex) => rowIndex === index ? { ...row, direction: String(direction) === "desc" ? "desc" : "asc" } : row),
+                            },
+                          },
+                        }))}
+                      />
+                      <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
+                        retrieveSource: {
+                          ...action.retrieveSource,
+                          sortItemList: { items: action.retrieveSource.sortItemList.items.filter((_, rowIndex) => rowIndex !== index) },
+                        },
+                      }))}>Delete</Button>
+                    </div>
+                  ))}
+                  <Button disabled={readonly || !action.retrieveSource.entityQualifiedName} onClick={() => patchObject(updateAction(object, {
                     retrieveSource: {
                       ...action.retrieveSource,
-                      sortItemList: {
-                        items: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
-                          const [attributeQualifiedName, direction] = line.split(/\s+/);
-                          return { attributeQualifiedName, direction: direction === "desc" ? "desc" as const : "asc" as const };
-                        })
-                      }
-                    }
-                  }))}
-                />
+                      sortItemList: { items: [...action.retrieveSource.sortItemList.items, { attributeQualifiedName: "", direction: "asc" }] },
+                    },
+                  }))}>Add sort item</Button>
+                </Space>
               </Field>
             </>
           ) : (
@@ -221,12 +380,24 @@ function ActionActivityFields({
                   onChange={startVariableName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, startVariableName } }))}
                 />
               </Field>
+              <Field label="Association Start Entity">
+                <EntitySelector
+                  value={associationStartEntity}
+                  disabled={readonly}
+                  onChange={entityQualifiedName => {
+                    setAssociationStartEntity(entityQualifiedName);
+                    patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, associationQualifiedName: null } }));
+                  }}
+                />
+              </Field>
               <Field label="Association">
-                <Input
+                <AssociationSelector
+                  startEntityQualifiedName={associationStartEntity}
                   value={action.retrieveSource.associationQualifiedName ?? ""}
                   disabled={readonly}
-                  onChange={associationQualifiedName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, associationQualifiedName } }))}
+                  onChange={associationQualifiedName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, associationQualifiedName: associationQualifiedName ?? null } }))}
                 />
+                <FieldError issues={getIssuesForField(issues, "action.retrieveSource.associationQualifiedName")} />
               </Field>
             </>
           )}
@@ -256,6 +427,90 @@ function ActionActivityFields({
         </>
       ) : null}
 
+      {action.kind === "createObject" || action.kind === "changeMembers" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>{action.kind === "createObject" ? "Create Object" : "Change Members"}</Title>
+          {action.kind === "createObject" ? (
+            <>
+              <Field label="Entity">
+                <EntitySelector value={action.entityQualifiedName} disabled={readonly} onChange={entityQualifiedName => patchObject(updateAction(object, { entityQualifiedName: entityQualifiedName ?? "" }))} />
+                <FieldError issues={getIssuesForField(issues, "action.entityQualifiedName")} />
+              </Field>
+              <Field label="Output Variable">
+                <Input value={action.outputVariableName} disabled={readonly} onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName }))} />
+              </Field>
+            </>
+          ) : (
+            <Field label="Change Variable">
+              <Input value={action.changeVariableName} disabled={readonly} onChange={changeVariableName => patchObject(updateAction(object, { changeVariableName }))} />
+            </Field>
+          )}
+          <Field label="Member Changes (member|assignment|expression)">
+            <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+              <FieldError issues={getIssuesForField(issues, "action.memberChanges")} />
+              {action.kind === "changeMembers" ? (
+                <EntitySelector value={memberEntity} disabled={readonly} onChange={setMemberEntity} placeholder="Select changed object entity" />
+              ) : null}
+              {action.memberChanges.map((change, index) => (
+                <div key={change.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px minmax(0, 1fr) auto", gap: 6, width: "100%" }}>
+                  <AttributeSelector
+                    entityQualifiedName={action.kind === "createObject" ? action.entityQualifiedName : memberEntity}
+                    value={change.memberQualifiedName}
+                    disabled={readonly}
+                    writableOnly
+                    onChange={memberQualifiedName => patchObject(updateAction(object, {
+                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, memberQualifiedName: memberQualifiedName ?? "" } : row),
+                    }))}
+                  />
+                  <Select
+                    value={change.assignmentKind}
+                    disabled={readonly}
+                    optionList={["set", "add", "remove", "clear"].map(value => ({ label: value, value }))}
+                    onChange={assignmentKind => patchObject(updateAction(object, {
+                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, assignmentKind: String(assignmentKind) as typeof row.assignmentKind } : row),
+                    }))}
+                  />
+                  <Input
+                    value={change.valueExpression.raw}
+                    disabled={readonly}
+                    placeholder="Expression"
+                    onChange={raw => patchObject(updateAction(object, {
+                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression: expression(raw) } : row),
+                    }))}
+                  />
+                  <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
+                    memberChanges: action.memberChanges.filter((_, rowIndex) => rowIndex !== index),
+                  }))}>Delete</Button>
+                </div>
+              ))}
+              <Button disabled={readonly || (action.kind === "createObject" ? !action.entityQualifiedName : !memberEntity)} onClick={() => patchObject(updateAction(object, {
+                memberChanges: [...action.memberChanges, {
+                  id: `member-change-${Date.now()}`,
+                  memberQualifiedName: "",
+                  memberKind: "attribute",
+                  assignmentKind: "set",
+                  valueExpression: expression(""),
+                }],
+              }))}>Add member change</Button>
+            </Space>
+          </Field>
+          <Field label="Commit Enabled">
+            <Switch checked={action.commit.enabled} disabled={readonly} onChange={enabled => patchObject(updateAction(object, { commit: { ...action.commit, enabled } }))} />
+          </Field>
+          <Field label="With Events">
+            <Switch checked={action.commit.withEvents} disabled={readonly} onChange={withEvents => patchObject(updateAction(object, { commit: { ...action.commit, withEvents } }))} />
+          </Field>
+          <Field label="Refresh In Client">
+            <Switch checked={action.commit.refreshInClient} disabled={readonly} onChange={refreshInClient => patchObject(updateAction(object, { commit: { ...action.commit, refreshInClient } }))} />
+          </Field>
+          {action.kind === "changeMembers" ? (
+            <Field label="Validate Object">
+              <Switch checked={action.validateObject} disabled={readonly} onChange={validateObject => patchObject(updateAction(object, { validateObject }))} />
+            </Field>
+          ) : null}
+        </>
+      ) : null}
+
       {action.kind === "restCall" ? (
         <>
           <Title heading={6} style={{ margin: "10px 0 0" }}>REST Request</Title>
@@ -274,6 +529,62 @@ function ActionActivityFields({
           <Field label="Timeout Seconds">
             <InputNumber value={action.timeoutSeconds} disabled={readonly} onChange={timeoutSeconds => patchObject(updateAction(object, { timeoutSeconds: Number(timeoutSeconds) }))} />
           </Field>
+          <Field label="Headers (key=value)">
+            <TextArea
+              autosize
+              disabled={readonly}
+              value={action.request.headers.map(header => `${header.key}=${header.valueExpression.raw}`).join("\n")}
+              onChange={value => patchObject(updateAction(object, {
+                request: {
+                  ...action.request,
+                  headers: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+                    const [key = "", raw = ""] = line.split("=");
+                    return { key, valueExpression: expression(raw, { kind: "string" }) };
+                  }),
+                },
+              }))}
+            />
+          </Field>
+          <Field label="Query Parameters (key=value)">
+            <TextArea
+              autosize
+              disabled={readonly}
+              value={action.request.queryParameters.map(parameter => `${parameter.key}=${parameter.valueExpression.raw}`).join("\n")}
+              onChange={value => patchObject(updateAction(object, {
+                request: {
+                  ...action.request,
+                  queryParameters: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+                    const [key = "", raw = ""] = line.split("=");
+                    return { key, valueExpression: expression(raw, { kind: "string" }) };
+                  }),
+                },
+              }))}
+            />
+          </Field>
+          <Field label="Body Type">
+            <Select
+              value={action.request.body.kind}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              onChange={kind => {
+                const bodyKind = String(kind);
+                const body = bodyKind === "json" || bodyKind === "text"
+                  ? { kind: bodyKind as "json" | "text", expression: expression("", { kind: "string" }) }
+                  : bodyKind === "form"
+                    ? { kind: "form" as const, fields: [] }
+                    : bodyKind === "mapping"
+                      ? { kind: "mapping" as const, exportMappingQualifiedName: "" }
+                      : { kind: "none" as const };
+                patchObject(updateAction(object, { request: { ...action.request, body } }));
+              }}
+              optionList={["none", "json", "text", "form", "mapping"].map(value => ({ label: value, value }))}
+            />
+          </Field>
+          {action.request.body.kind === "json" || action.request.body.kind === "text" ? (
+            <Field label="Body Content">
+              <TextArea autosize disabled={readonly} value={action.request.body.expression.raw} onChange={raw => patchObject(updateAction(object, { request: { ...action.request, body: { ...action.request.body, expression: expression(raw, { kind: "string" }) } } }))} />
+            </Field>
+          ) : null}
           <Field label="Response Handling">
             <Select
               value={action.response.handling.kind}
@@ -290,6 +601,15 @@ function ActionActivityFields({
               optionList={[{ label: "Ignore", value: "ignore" }, { label: "String", value: "string" }, { label: "JSON", value: "json" }]}
             />
           </Field>
+          {action.response.handling.kind !== "ignore" ? (
+            <Field label="Response Output Variable">
+              <Input
+                value={action.response.handling.outputVariableName}
+                disabled={readonly}
+                onChange={outputVariableName => patchObject(updateAction(object, { response: { ...action.response, handling: { ...action.response.handling, outputVariableName } } }))}
+              />
+            </Field>
+          ) : null}
         </>
       ) : null}
 
@@ -307,6 +627,107 @@ function ActionActivityFields({
           <Field label="Template">
             <TextArea value={action.template.text} autosize disabled={readonly} onChange={text => patchObject(updateAction(object, { template: { ...action.template, text } }))} />
           </Field>
+          <Field label="Log Node Name">
+            <Input value={action.logNodeName} disabled={readonly} onChange={logNodeName => patchObject(updateAction(object, { logNodeName }))} />
+          </Field>
+          <Field label="Include Context Variables">
+            <Switch checked={action.includeContextVariables} disabled={readonly} onChange={includeContextVariables => patchObject(updateAction(object, { includeContextVariables }))} />
+          </Field>
+          <Field label="Include TraceId">
+            <Switch checked={action.includeTraceId} disabled={readonly} onChange={includeTraceId => patchObject(updateAction(object, { includeTraceId }))} />
+          </Field>
+        </>
+      ) : null}
+
+      {action.kind === "callMicroflow" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Call Microflow</Title>
+          <Field label="Target Microflow">
+            <MicroflowSelector
+              value={action.targetMicroflowId}
+              disabled={readonly}
+              onChange={targetMicroflowId => {
+                const target = getMicroflowById(catalog, targetMicroflowId);
+                patchObject(updateAction(object, {
+                  targetMicroflowId: targetMicroflowId ?? "",
+                  targetMicroflowQualifiedName: target?.qualifiedName,
+                  parameterMappings: target
+                    ? target.parameters.map(parameter => action.parameterMappings.find(mapping => mapping.parameterName === parameter.name) ?? {
+                        parameterName: parameter.name,
+                        parameterType: parameter.type,
+                        argumentExpression: expression(""),
+                      })
+                    : action.parameterMappings,
+                }));
+              }}
+            />
+            <FieldError issues={getIssuesForField(issues, "action.targetMicroflowId")} />
+          </Field>
+          {selectedMicroflow ? (
+            <Field label="Target Signature">
+              <TextArea
+                disabled
+                autosize
+                value={`${selectedMicroflow.qualifiedName}\n${selectedMicroflow.parameters.map(parameter => `${parameter.name}: ${dataTypeLabel(parameter.type)}`).join("\n")}\nreturn: ${dataTypeLabel(selectedMicroflow.returnType)}`}
+              />
+            </Field>
+          ) : null}
+          <Field label="Parameter Mappings (name=expression)">
+            <TextArea
+              autosize
+              disabled={readonly}
+              value={action.parameterMappings.map(mapping => `${mapping.parameterName}=${mapping.argumentExpression.raw}`).join("\n")}
+              onChange={value => patchObject(updateAction(object, {
+                parameterMappings: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+                  const [parameterName = "", raw = ""] = line.split("=");
+                  return { parameterName, parameterType: { kind: "string" }, argumentExpression: expression(raw) };
+                }),
+              }))}
+            />
+          </Field>
+          <Field label="Store Result">
+            <Switch checked={action.returnValue.storeResult} disabled={readonly} onChange={storeResult => patchObject(updateAction(object, { returnValue: { ...action.returnValue, storeResult } }))} />
+          </Field>
+          <Field label="Return Variable Name">
+            <Input value={action.returnValue.outputVariableName ?? ""} disabled={readonly || !action.returnValue.storeResult} onChange={outputVariableName => patchObject(updateAction(object, { returnValue: { ...action.returnValue, outputVariableName } }))} />
+          </Field>
+          <Field label="Call Mode">
+            <Select
+              value={action.callMode}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              onChange={callMode => patchObject(updateAction(object, { callMode: String(callMode) as typeof action.callMode }))}
+              optionList={[{ label: "sync", value: "sync" }, { label: "asyncReserved", value: "asyncReserved" }]}
+            />
+          </Field>
+        </>
+      ) : null}
+
+      {action.kind === "createVariable" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Create Variable</Title>
+          <Field label="Variable Name">
+            <Input value={action.variableName} disabled={readonly} onChange={variableName => patchObject(updateAction(object, { variableName }))} />
+          </Field>
+          <Field label="Data Type">
+            <DataTypeSelector value={action.dataType} disabled={readonly} onChange={dataType => patchObject(updateAction(object, { dataType }))} />
+            <FieldError issues={getIssuesForField(issues, "action.dataType")} />
+          </Field>
+          <Field label="Initial Value">
+            <Input value={action.initialValue.raw} disabled={readonly} onChange={raw => patchObject(updateAction(object, { initialValue: expression(raw, action.dataType) }))} />
+          </Field>
+        </>
+      ) : null}
+
+      {action.kind === "changeVariable" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Change Variable</Title>
+          <Field label="Target Variable">
+            <Input value={action.variableName} disabled={readonly} onChange={variableName => patchObject(updateAction(object, { variableName }))} />
+          </Field>
+          <Field label="New Value Expression">
+            <Input value={action.valueExpression.raw} disabled={readonly} onChange={raw => patchObject(updateAction(object, { valueExpression: expression(raw) }))} />
+          </Field>
         </>
       ) : null}
     </Space>
@@ -318,8 +739,24 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
   if (!object) {
     return null;
   }
+  const catalog = useMicroflowMetadata();
+  const tabs = useMemo(() => getObjectTabs(object), [object]);
+  const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>(tabs[0] ?? "properties");
+  useEffect(() => {
+    setActiveTab(tabs[0] ?? "properties");
+  }, [object.id, tabs]);
   const issues = issuesFor(props, object.id, undefined, object.kind === "actionActivity" ? object.action.id : undefined);
   const patch = (next: MicroflowObject) => props.onObjectChange(object.id, { object: next });
+  const parameter = object.kind === "parameterObject"
+    ? props.schema.parameters.find(item => item.id === object.parameterId)
+    : undefined;
+  const patchParameter = (parameterPatch: Partial<MicroflowParameter>) => {
+    if (!parameter || !props.onSchemaChange) {
+      return;
+    }
+    const nextSchema = updateParameter(props.schema, parameter.id, parameterPatch);
+    props.onSchemaChange(nextSchema, "updateParameter");
+  };
   return (
     <>
       <Header
@@ -329,8 +766,11 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
         onDelete={() => props.onDeleteObject?.(object.id)}
         onDuplicate={() => props.onDuplicateObject?.(object.id)}
       />
+      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
       <div style={{ padding: 14, display: "grid", gap: 12 }}>
-        {issues.length > 0 ? <Space wrap>{issues.map(issue => <Tag key={issue.id} color={issue.severity === "error" ? "red" : "orange"}>{issue.code}</Tag>)}</Space> : null}
+        <ValidationIssueList issues={issues} />
+        {activeTab === "properties" ? (
+          <>
         <Field label="Kind">
           <Input value={object.kind} disabled />
         </Field>
@@ -355,33 +795,136 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
           </Field>
         ) : null}
         {object.kind === "endEvent" ? (
-          <Field label="Return Value">
-            <Input value={object.returnValue?.raw ?? ""} disabled={props.readonly} onChange={raw => patch({ ...object, returnValue: raw ? expression(raw) : undefined })} />
-          </Field>
+          <>
+            <Field label="Return Type">
+              <Input value={dataTypeLabel(props.schema.returnType)} disabled />
+            </Field>
+            <Field label="Return Value">
+              <Input value={object.returnValue?.raw ?? ""} disabled={props.readonly || props.schema.returnType.kind === "void"} onChange={raw => patch({ ...object, returnValue: raw ? expression(raw) : undefined })} />
+            </Field>
+          </>
         ) : null}
-        {object.kind === "exclusiveSplit" && object.splitCondition.kind === "expression" ? (
-          <Field label="Split Expression">
-            <Input value={object.splitCondition.expression.raw} disabled={props.readonly} onChange={raw => patch({
-              ...object,
-              splitCondition: {
-                ...object.splitCondition,
-                expression: expression(raw, object.splitCondition.resultType === "enumeration"
-                  ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
-                  : { kind: "boolean" })
-              } as typeof object.splitCondition
-            })} />
-          </Field>
+        {object.kind === "errorEvent" ? (
+          <>
+            <Field label="Error Variable">
+              <Input value={object.error.sourceVariableName} disabled />
+            </Field>
+            <Field label="Message Expression">
+              <Input value={object.error.messageExpression?.raw ?? ""} disabled={props.readonly} onChange={raw => patch({ ...object, error: { ...object.error, messageExpression: raw ? expression(raw, { kind: "string" }) : undefined } })} />
+            </Field>
+          </>
+        ) : null}
+        {object.kind === "breakEvent" || object.kind === "continueEvent" ? (
+          <Text type="tertiary" size="small">This control event is valid only inside a loop body.</Text>
+        ) : null}
+        {object.kind === "exclusiveSplit" ? (
+          <>
+            <Field label="Decision Type">
+              <Select
+                value={object.splitCondition.kind}
+                disabled={props.readonly}
+                style={{ width: "100%" }}
+                onChange={kind => {
+                  const nextKind = String(kind);
+                  patch({
+                    ...object,
+                    splitCondition: nextKind === "rule"
+                      ? { kind: "rule", ruleQualifiedName: "", parameterMappings: [], resultType: "boolean" }
+                      : { kind: "expression", expression: expression("true", { kind: "boolean" }), resultType: "boolean" },
+                  });
+                }}
+                optionList={[{ label: "expression", value: "expression" }, { label: "rule", value: "rule" }]}
+              />
+            </Field>
+            {object.splitCondition.kind === "expression" ? (
+              <>
+                <Field label="Result Type">
+                  <Select
+                    value={object.splitCondition.resultType}
+                    disabled={props.readonly}
+                    style={{ width: "100%" }}
+                    onChange={resultType => patch({
+                      ...object,
+                      splitCondition: {
+                        ...object.splitCondition,
+                        resultType: String(resultType) as "boolean" | "enumeration",
+                        expression: expression(object.splitCondition.expression.raw, String(resultType) === "enumeration"
+                          ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
+                          : { kind: "boolean" }),
+                      },
+                    })}
+                    optionList={[{ label: "boolean", value: "boolean" }, { label: "enumeration", value: "enumeration" }]}
+                  />
+                </Field>
+                {object.splitCondition.resultType === "enumeration" ? (
+                  <Field label="Enumeration Type">
+                    <EnumerationSelector value={object.splitCondition.enumerationQualifiedName} disabled={props.readonly} onChange={enumerationQualifiedName => patch({ ...object, splitCondition: { ...object.splitCondition, enumerationQualifiedName } })} />
+                    <FieldError issues={getIssuesForField(issues, "splitCondition.enumerationQualifiedName")} />
+                  </Field>
+                ) : null}
+                <Field label="Split Expression">
+                  <Input value={object.splitCondition.expression.raw} disabled={props.readonly} onChange={raw => patch({
+                    ...object,
+                    splitCondition: {
+                      ...object.splitCondition,
+                      expression: expression(raw, object.splitCondition.resultType === "enumeration"
+                        ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
+                        : { kind: "boolean" })
+                    } as typeof object.splitCondition
+                  })} />
+                </Field>
+              </>
+            ) : (
+              <Field label="Rule Reference">
+                <Input value={object.splitCondition.ruleQualifiedName} disabled={props.readonly} onChange={ruleQualifiedName => patch({ ...object, splitCondition: { ...object.splitCondition, ruleQualifiedName } })} />
+              </Field>
+            )}
+          </>
         ) : null}
         {object.kind === "inheritanceSplit" ? (
           <>
             <Field label="Input Object Variable">
               <Input value={object.inputObjectVariableName} disabled={props.readonly} onChange={inputObjectVariableName => patch({ ...object, inputObjectVariableName })} />
             </Field>
-            <Field label="Allowed Specializations">
-              <TextArea value={object.allowedSpecializations.join("\n")} autosize disabled={props.readonly} onChange={value => {
-                const allowedSpecializations = value.split("\n").map(item => item.trim()).filter(Boolean);
-                patch({ ...object, allowedSpecializations, entity: { ...object.entity, allowedSpecializations } });
+            <Field label="Generalized Entity">
+              <EntitySelector value={object.generalizedEntityQualifiedName} disabled={props.readonly} onChange={generalizedEntityQualifiedName => {
+                const specializations = getSpecializations(catalog, generalizedEntityQualifiedName);
+                patch({
+                  ...object,
+                  generalizedEntityQualifiedName: generalizedEntityQualifiedName ?? "",
+                  allowedSpecializations: specializations,
+                  entity: { generalizedEntityQualifiedName: generalizedEntityQualifiedName ?? "", allowedSpecializations: specializations },
+                });
               }} />
+              <FieldError issues={getIssuesForField(issues, "generalizedEntityQualifiedName")} />
+            </Field>
+            <Field label="Allowed Specializations">
+              <Select
+                multiple
+                filter
+                value={object.allowedSpecializations}
+                disabled={props.readonly || !object.generalizedEntityQualifiedName}
+                style={{ width: "100%" }}
+                optionList={getSpecializations(catalog, object.generalizedEntityQualifiedName).map(value => ({ label: value, value }))}
+                onChange={selected => {
+                  const allowedSpecializations = Array.isArray(selected) ? selected.map(String) : [];
+                  patch({ ...object, allowedSpecializations, entity: { ...object.entity, allowedSpecializations } });
+                }}
+              />
+              <FieldError issues={getIssuesForField(issues, "allowedSpecializations")} />
+            </Field>
+          </>
+        ) : null}
+        {object.kind === "exclusiveMerge" ? (
+          <>
+            <Field label="Merge Strategy">
+              <Input value={object.mergeBehavior.strategy} disabled />
+            </Field>
+            <Field label="Incoming Count">
+              <Input value={String(props.schema.flows.filter(flow => flow.destinationObjectId === object.id).length)} disabled />
+            </Field>
+            <Field label="Outgoing Count">
+              <Input value={String(props.schema.flows.filter(flow => flow.originObjectId === object.id).length)} disabled />
             </Field>
           </>
         ) : null}
@@ -418,7 +961,122 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
           </>
         ) : null}
         {object.kind === "actionActivity" ? (
-          <ActionActivityFields object={object} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
+          <ActionActivityFields object={object} issues={issues} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
+        ) : null}
+        {object.kind === "parameterObject" ? (
+          <>
+            <Field label="Parameter Name">
+              <Input
+                value={parameter?.name ?? object.parameterName ?? ""}
+                disabled={props.readonly || !parameter}
+                onChange={name => {
+                  if (parameter && props.onSchemaChange) {
+                    const nextSchema = updateParameter({
+                      ...props.schema,
+                      objectCollection: {
+                        ...props.schema.objectCollection,
+                        objects: props.schema.objectCollection.objects.map(item => item.id === object.id ? { ...object, caption: name, parameterName: name } : item),
+                      },
+                    }, parameter.id, { name });
+                    props.onSchemaChange(nextSchema, "updateParameterObject");
+                    return;
+                  }
+                  patch({ ...object, caption: name, parameterName: name });
+                }}
+              />
+            </Field>
+            <Field label="Data Type">
+              <DataTypeSelector value={parameter?.dataType ?? { kind: "string" }} disabled={props.readonly || !parameter} onChange={dataType => patchParameter({ dataType })} />
+              <FieldError issues={getIssuesForField(issues, "parameter.dataType")} />
+            </Field>
+            <Field label="Required">
+              <Switch checked={parameter?.required ?? false} disabled={props.readonly || !parameter} onChange={required => patchParameter({ required })} />
+            </Field>
+            <Field label="Default Value">
+              <Input value={parameter?.defaultValue?.raw ?? ""} disabled={props.readonly || !parameter} onChange={raw => patchParameter({ defaultValue: raw ? expression(raw, parameter?.dataType) : undefined })} />
+            </Field>
+            <Field label="Example Value">
+              <Input value={parameter?.exampleValue ?? ""} disabled={props.readonly || !parameter} onChange={exampleValue => patchParameter({ exampleValue })} />
+            </Field>
+          </>
+        ) : null}
+        {object.kind === "annotation" ? (
+          <>
+            <Field label="Content">
+              <TextArea value={object.text} autosize disabled={props.readonly} onChange={text => patch({ ...object, text })} />
+            </Field>
+            <Field label="Color Token">
+              <Input value={object.editor.colorToken ?? ""} disabled={props.readonly} onChange={colorToken => patch({ ...object, editor: { ...object.editor, colorToken } })} />
+            </Field>
+            <Field label="Pinned">
+              <Switch checked={Boolean((object.editor as unknown as { pinned?: boolean }).pinned)} disabled={props.readonly} onChange={pinned => patch(updateObjectAdvanced(object, { pinned }))} />
+            </Field>
+            <Field label="Export To Documentation">
+              <Switch checked={(object.editor as unknown as { exportToDocumentation?: boolean }).exportToDocumentation ?? true} disabled={props.readonly} onChange={exportToDocumentation => patch(updateObjectAdvanced(object, { exportToDocumentation }))} />
+            </Field>
+          </>
+        ) : null}
+          </>
+        ) : null}
+        {activeTab === "documentation" ? (
+          <Field label="Documentation">
+            <TextArea value={object.documentation ?? ""} autosize disabled={props.readonly} onChange={documentation => patch(updateObjectDocumentation(object, documentation))} />
+          </Field>
+        ) : null}
+        {activeTab === "errorHandling" ? (
+          <>
+            {object.kind === "actionActivity" ? (
+              <Field label="Error Handling Type">
+                <Select
+                  value={object.action.errorHandlingType}
+                  disabled={props.readonly}
+                  style={{ width: "100%" }}
+                  onChange={errorHandlingType => patch(updateAction(object, { errorHandlingType: String(errorHandlingType) as MicroflowAction["errorHandlingType"] }))}
+                  optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+                />
+              </Field>
+            ) : object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" || object.kind === "loopedActivity" ? (
+              <Field label="Error Handling Type">
+                <Select
+                  value={object.errorHandlingType}
+                  disabled={props.readonly}
+                  style={{ width: "100%" }}
+                  onChange={errorHandlingType => patch({ ...object, errorHandlingType: String(errorHandlingType) as typeof object.errorHandlingType })}
+                  optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+                />
+              </Field>
+            ) : (
+              <Text type="tertiary">This object does not expose error handling.</Text>
+            )}
+            <Text type="tertiary" size="small">Custom error handler branches are represented by errorHandler flows. latestError is available on custom handlers.</Text>
+          </>
+        ) : null}
+        {activeTab === "output" ? (
+          <>
+            {object.kind === "actionActivity" && object.action.kind === "retrieve" ? <Field label="Output Variable"><Input value={object.action.outputVariableName} disabled /></Field> : null}
+            {object.kind === "actionActivity" && object.action.kind === "createVariable" ? <Field label="Output Variable"><Input value={object.action.variableName} disabled /></Field> : null}
+            {object.kind === "actionActivity" && object.action.kind === "restCall" && object.action.response.handling.kind !== "ignore" ? <Field label="Output Variable"><Input value={object.action.response.handling.outputVariableName} disabled /></Field> : null}
+            {object.kind === "parameterObject" ? <Field label="Parameter"><Input value={`${parameter?.name ?? object.parameterName ?? ""}: ${dataTypeLabel(parameter?.dataType)}`} disabled /></Field> : null}
+            {object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? <Field label="Loop Variables"><Input value={`${object.loopSource.iteratorVariableName}, ${object.loopSource.currentIndexVariableName}`} disabled /></Field> : null}
+            {object.kind === "endEvent" ? <Field label="Return Value"><Input value={object.returnValue?.raw ?? ""} disabled /></Field> : null}
+            {object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" ? <Field label="Branch Outputs"><TextArea value={props.schema.flows.filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(value => value.kind).join(",") || "pending" : "annotation"}`).join("\n")} disabled autosize /></Field> : null}
+          </>
+        ) : null}
+        {activeTab === "advanced" ? (
+          <>
+            <Field label="Disabled">
+              <Switch checked={Boolean(object.disabled)} disabled={props.readonly} onChange={disabled => patch({ ...object, disabled })} />
+            </Field>
+            <Field label="Performance Tag">
+              <Input value={(object.editor as unknown as { advanced?: { performanceTag?: string } }).advanced?.performanceTag ?? ""} disabled={props.readonly} onChange={performanceTag => patch(updateObjectAdvanced(object, { performanceTag }))} />
+            </Field>
+            <Field label="Execution Timeout">
+              <Input value={String((object.editor as unknown as { advanced?: { timeoutMs?: number } }).advanced?.timeoutMs ?? "")} disabled={props.readonly} onChange={timeoutMs => patch(updateObjectAdvanced(object, { timeoutMs: Number(timeoutMs) || undefined }))} />
+            </Field>
+            <Field label="Retry Enabled">
+              <Switch checked={Boolean((object.editor as unknown as { advanced?: { retryEnabled?: boolean } }).advanced?.retryEnabled)} disabled={props.readonly} onChange={retryEnabled => patch(updateObjectAdvanced(object, { retryEnabled }))} />
+            </Field>
+          </>
         ) : null}
       </div>
     </>
@@ -489,6 +1147,11 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
   if (!flow) {
     return null;
   }
+  const tabs = useMemo(() => getFlowTabs(flow), [flow]);
+  const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>(tabs[0] ?? "properties");
+  useEffect(() => {
+    setActiveTab(tabs[0] ?? "properties");
+  }, [flow.id, tabs]);
   const issues = issuesFor(props, undefined, flow.id);
   const patch = (next: MicroflowFlow) => props.onFlowChange?.(flow.id, next);
   return (
@@ -499,13 +1162,16 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
         subtitle={flow.officialType}
         onDelete={() => props.onDeleteFlow?.(flow.id)}
       />
+      <PropertyTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
       <div style={{ padding: 14, display: "grid", gap: 12 }}>
-        {issues.length > 0 ? <Space wrap>{issues.map(issue => <Tag key={issue.id} color={issue.severity === "error" ? "red" : "orange"}>{issue.code}</Tag>)}</Space> : null}
+        <ValidationIssueList issues={issues} />
+        {activeTab === "properties" ? (
+          <>
         <Field label="Origin Object">
-          <Input value={flow.originObjectId} disabled />
+          <Input value={objectName(props.schema, flow.originObjectId)} disabled />
         </Field>
         <Field label="Destination Object">
-          <Input value={flow.destinationObjectId} disabled />
+          <Input value={objectName(props.schema, flow.destinationObjectId)} disabled />
         </Field>
         <Field label="Runtime Effect">
           <Input value={flow.kind === "annotation" ? "annotationOnly" : flow.kind === "sequence" && flow.isErrorHandler ? "errorFlow" : "controlFlow"} disabled />
@@ -556,6 +1222,9 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
               </>
             ) : null}
             <CaseValueField props={props} flow={flow} patch={patch} />
+            <Field label="Branch Order">
+              <InputNumber value={flow.editor.branchOrder ?? 0} disabled={props.readonly} onChange={branchOrder => patch(flowPatch(flow, { editor: { ...flow.editor, branchOrder: Number(branchOrder) } }))} />
+            </Field>
             <Field label="Label">
               <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
             </Field>
@@ -582,6 +1251,31 @@ function FlowPanel(props: MicroflowPropertyPanelProps) {
             </Field>
           </>
         )}
+          </>
+        ) : null}
+        {activeTab === "documentation" ? (
+          <>
+            <Field label="Label">
+              <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } }))} />
+            </Field>
+            <Field label="Description">
+              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } }))} />
+            </Field>
+          </>
+        ) : null}
+        {activeTab === "errorHandling" && flow.kind === "sequence" ? (
+          <>
+            <Field label="Error Handler">
+              <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : "sequence" } }))} />
+            </Field>
+            <Field label="Expose latestError">
+              <Switch checked={flow.exposeLatestError ?? true} disabled={props.readonly} onChange={exposeLatestError => patch(flowPatch(flow, { exposeLatestError }))} />
+            </Field>
+            <Field label="Error variable name">
+              <Input value={flow.targetErrorVariableName ?? "$latestError"} disabled={props.readonly} onChange={targetErrorVariableName => patch(flowPatch(flow, { targetErrorVariableName }))} />
+            </Field>
+          </>
+        ) : null}
       </div>
     </>
   );

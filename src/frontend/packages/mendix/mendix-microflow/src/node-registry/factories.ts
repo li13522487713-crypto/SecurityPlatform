@@ -95,12 +95,16 @@ export function createFlowFromEdgeRegistry(input: CreateFlowFromEdgeRegistryInpu
     throw new Error(`Unknown microflow edge kind: ${input.edgeKind}`);
   }
   if (input.edgeKind === "annotation") {
-    return createAnnotationFlow({
+    return {
+      ...createAnnotationFlow({
       originObjectId: input.originObjectId,
       destinationObjectId: input.destinationObjectId,
       label: input.label,
       description: input.description
-    });
+      }),
+      originConnectionIndex: input.originConnectionIndex ?? 0,
+      destinationConnectionIndex: input.destinationConnectionIndex ?? 0
+    };
   }
   return createSequenceFlow({
     originObjectId: input.originObjectId,
@@ -110,7 +114,7 @@ export function createFlowFromEdgeRegistry(input: CreateFlowFromEdgeRegistryInpu
     caseValues: input.caseValues ?? [],
     isErrorHandler: input.edgeKind === "errorHandler" || input.isErrorHandler,
     edgeKind: input.edgeKind as MicroflowSequenceFlow["editor"]["edgeKind"],
-    label: input.label,
+    label: input.label ?? (input.edgeKind === "errorHandler" ? "Error" : undefined),
     description: input.description
   });
 }

@@ -680,7 +680,7 @@ export function MicroflowNodeContextMenu({
   if (!state) {
     return null;
   }
-  const disabled = !state.item.enabled;
+  const disabled = Boolean(getDisabledDragReason(state.item));
   const menuItems: Array<{ key: string; label: string; icon: ReactNode; disabled?: boolean; onClick: () => void }> = [
     { key: "add", label: labels.addToCanvas, icon: <IconPlus />, disabled, onClick: () => onAdd(state.item) },
     { key: "favorite", label: favorite ? labels.unfavorite : labels.favorite, icon: favorite ? <IconStar /> : <IconStarStroked />, disabled, onClick: () => onFavoriteToggle(state.item) },
