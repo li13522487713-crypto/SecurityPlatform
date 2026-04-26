@@ -11,7 +11,7 @@ export interface DatabaseCenterPageProps {
 
 export function DatabaseCenterPage({ workspaceId, initialSourceId, labels }: DatabaseCenterPageProps) {
   return (
-    <PageShell>
+    <PageShell style={{ height: "100%", minHeight: 0, overflow: "hidden" }}>
       <DatabaseCenterShell
         workspaceId={workspaceId}
         initialSourceId={initialSourceId}

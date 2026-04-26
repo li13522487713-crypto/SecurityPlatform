@@ -17,6 +17,7 @@ interface DatabaseSourcePanelProps {
   onRefresh: () => void;
   onOpenCreate: () => void;
   onOpenHostProfiles: () => void;
+  onOpenMigration?: (source: DatabaseCenterSourceSummary) => void;
 }
 
 export function DatabaseSourcePanel({
@@ -29,7 +30,8 @@ export function DatabaseSourcePanel({
   onSelectSource,
   onRefresh,
   onOpenCreate,
-  onOpenHostProfiles
+  onOpenHostProfiles,
+  onOpenMigration
 }: DatabaseSourcePanelProps) {
   const [driverFilter, setDriverFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -98,8 +100,8 @@ export function DatabaseSourcePanel({
               onChange={value => setEnvironmentFilter(String(value))}
             />
           </Space>
-          <Spin spinning={loading}>
-            <Space vertical align="start" style={{ width: "100%" }}>
+          <Spin spinning={loading} style={{ width: "100%" }}>
+            <Space vertical align="start" className="database-center-source-list">
               {visibleSources.length === 0 ? <Empty description={labels.noSource} /> : null}
               {visibleSources.map(source => {
                 const status = source.status ?? source.provisionState ?? "Pending";
@@ -115,38 +117,41 @@ export function DatabaseSourcePanel({
                     onSelectSource(source.id);
                   }}
                 >
-                  <Space vertical align="start" spacing={4} style={{ width: "100%" }}>
-                    <Space style={{ width: "100%", justifyContent: "space-between" }}>
-                      <Space spacing={6} style={{ minWidth: 0 }}>
+                  <div className="database-center-source__content">
+                    <div className="database-center-source__main">
+                      <div className="database-center-source__name">
                         <span className={`database-center-driver database-center-driver--${source.driverCode.toLowerCase()}`}>{source.driverCode.slice(0, 2).toUpperCase()}</span>
-                        <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 148 }}>{source.name}</Text>
-                      </Space>
-                      <Tag color={isReady ? "green" : "red"}>{isReady ? labels.connected : labels.disconnected}</Tag>
-                    </Space>
-                    <Space spacing={4} wrap>
+                        <Text strong ellipsis={{ showTooltip: true }}>{source.name}</Text>
+                      </div>
+                      <Tag className="database-center-source__state" color={isReady ? "green" : "red"}>{isReady ? labels.connected : labels.disconnected}</Tag>
+                    </div>
+                    <Space className="database-center-source__tags" spacing={4} wrap>
                       <Tag>{source.driverCode}</Tag>
                       <Tag color={source.environment === "Online" ? "orange" : "green"}>{source.environment ?? "Draft"}</Tag>
                       {source.readOnly ? <Tag color="orange">{labels.readOnly}</Tag> : null}
                     </Space>
-                    <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }}>
+                    <Text className="database-center-source__summary" type="tertiary" size="small" ellipsis={{ showTooltip: true }}>
                       {source.maskedConnectionSummary || source.address || source.physicalDatabaseName || source.description || source.id}
                     </Text>
-                    <Space style={{ justifyContent: "space-between", width: "100%" }}>
-                      <Text type="tertiary" size="small">{labels.updatedAt}: {source.updatedAt ? String(source.updatedAt).slice(0, 19) : "-"}</Text>
+                    <div className="database-center-source__footer">
+                      <Text className="database-center-source__updated" type="tertiary" size="small" ellipsis={{ showTooltip: true }}>{labels.updatedAt}: {source.updatedAt ? String(source.updatedAt).slice(0, 19) : "-"}</Text>
                       <Dropdown
                         trigger="click"
                         render={
                           <Dropdown.Menu>
                             <Dropdown.Item onClick={() => onSelectSource(source.id)}>{labels.editStructure}</Dropdown.Item>
                             <Dropdown.Item onClick={onOpenHostProfiles}>{labels.hostProfiles}</Dropdown.Item>
+                            {source.aiDatabaseId ? (
+                              <Dropdown.Item onClick={() => onOpenMigration?.(source)}>{labels.migrateDatabase}</Dropdown.Item>
+                            ) : null}
                             <Dropdown.Item onClick={onRefresh}>{labels.refresh}</Dropdown.Item>
                           </Dropdown.Menu>
                         }
                       >
                         <Button theme="borderless" size="small" icon={<IconMore />} onClick={event => event.stopPropagation()} />
                       </Dropdown>
-                    </Space>
-                  </Space>
+                    </div>
+                  </div>
                 </button>
                 );
               })}

@@ -50,7 +50,7 @@ export function AiDatabaseCreateWizard({ labels, visible, workspaceId, onClose, 
   const stepIndex = steps.indexOf(step);
 
   return (
-    <SideSheet visible={visible} onCancel={onClose} title={labels.newDatabase} width={720}>
+    <SideSheet visible={visible} onCancel={onClose} title={labels.newDatabase} width="min(720px, calc(100vw - 32px))">
       <Space vertical align="start" style={{ width: "100%" }}>
         <Space>
           {steps.map((item, index) => (

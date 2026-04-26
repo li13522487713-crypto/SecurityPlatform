@@ -227,12 +227,18 @@ export async function getDatabaseCenterSchemaStructure(
     `/database-center/sources/${encodeURIComponent(sourceId)}/schemas/${encodeURIComponent(schemaName)}/structure?${query}`
   );
   const raw = unwrap(response, "获取 Schema 结构失败") as DatabaseCenterSchemaStructure;
+  const seenObjectIds = new Set<string>();
   return {
     ...raw,
     objects: (raw.objects ?? []).map(item => ({
       ...item,
       id: item.id ?? `${item.schema ?? schemaName}:${item.objectType}:${item.name}`
-    }))
+    })).filter(item => {
+      const objectId = item.id || `${item.schema ?? schemaName}:${item.objectType}:${item.name}`;
+      if (seenObjectIds.has(objectId)) return false;
+      seenObjectIds.add(objectId);
+      return true;
+    })
   };
 }
 

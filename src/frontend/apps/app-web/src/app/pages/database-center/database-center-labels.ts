@@ -95,6 +95,8 @@ export interface DatabaseCenterLabels {
   updatedAt: string;
   actions: string;
   editStructure: string;
+  migrateDatabase: string;
+  migrationAuthRequired: string;
   queryData: string;
   viewDdl: string;
   openSqlWindow: string;
@@ -231,6 +233,8 @@ export const defaultDatabaseCenterLabels: DatabaseCenterLabels = {
   updatedAt: "更新时间",
   actions: "操作",
   editStructure: "编辑结构",
+  migrateDatabase: "迁移到目标库",
+  migrationAuthRequired: "请先进入系统初始化与迁移控制台完成二次认证，再发起数据库迁移。",
   queryData: "查询数据",
   viewDdl: "查看 DDL",
   openSqlWindow: "打开 SQL 窗口",

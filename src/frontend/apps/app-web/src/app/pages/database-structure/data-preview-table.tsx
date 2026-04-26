@@ -8,23 +8,27 @@ export function DataPreviewTable({ data }: { data: PreviewDataResponse }) {
   const columns: ColumnProps<Record<string, unknown>>[] = data.columns.map(column => ({
     title: column.name,
     dataIndex: column.name,
+    width: 180,
     render: (value: unknown) => {
       if (value == null) {
         return <Text type="tertiary">NULL</Text>;
       }
 
       const text = String(value);
-      return text.length > 120 ? `${text.slice(0, 120)}...` : text;
+      return <Text ellipsis={{ showTooltip: true }}>{text.length > 240 ? `${text.slice(0, 240)}...` : text}</Text>;
     }
   }));
 
   return (
-    <Table
-      rowKey={(_, index) => String(index ?? "")}
-      columns={columns}
-      dataSource={data.rows}
-      pagination={false}
-      size="small"
-    />
+    <div className="database-center-table-scroll">
+      <Table
+        rowKey={(_, index) => String(index ?? "")}
+        columns={columns}
+        dataSource={data.rows}
+        pagination={false}
+        size="small"
+        scroll={{ x: Math.max(720, columns.length * 180) }}
+      />
+    </div>
   );
 }

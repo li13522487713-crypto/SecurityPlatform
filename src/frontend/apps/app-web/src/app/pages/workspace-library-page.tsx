@@ -502,28 +502,30 @@ export function WorkspaceLibraryPage() {
       data-testid="coze-library-page"
       style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16, height: "100%" }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-        <Tabs
-          type="button"
-          activeKey={activeTab}
-          onChange={key => {
-            const next = key as LibraryTabKey;
-            setActiveTab(next);
-            setSubType("all");
-            setPageIndex(1);
-            const nextParams = new URLSearchParams(searchParams);
-            nextParams.delete("subType");
-            if (next === "all") {
-              nextParams.delete("tab");
-            } else {
-              nextParams.set("tab", next as WorkspaceLibraryTab);
-            }
-            setSearchParams(nextParams, { replace: true });
-          }}
-          tabList={TAB_DEFS.map(x => ({ itemKey: x.key, tab: t(x.labelKey) }))}
-        />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", minWidth: 0 }}>
+        <div style={{ flex: "1 1 420px", minWidth: 0, overflowX: "auto", overflowY: "hidden" }}>
+          <Tabs
+            type="button"
+            activeKey={activeTab}
+            onChange={key => {
+              const next = key as LibraryTabKey;
+              setActiveTab(next);
+              setSubType("all");
+              setPageIndex(1);
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete("subType");
+              if (next === "all") {
+                nextParams.delete("tab");
+              } else {
+                nextParams.set("tab", next as WorkspaceLibraryTab);
+              }
+              setSearchParams(nextParams, { replace: true });
+            }}
+            tabList={TAB_DEFS.map(x => ({ itemKey: x.key, tab: t(x.labelKey) }))}
+          />
+        </div>
         {activeTab === "database" ? null : (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
             <Input
               prefix={<IconSearch />}
               placeholder={t("cozeLibrarySearchPlaceholder")}
@@ -533,7 +535,7 @@ export function WorkspaceLibraryPage() {
                 setPageIndex(1);
               }}
               showClear
-              style={{ width: 240 }}
+              style={{ flex: "1 1 220px", minWidth: 180, maxWidth: 280 }}
             />
             <Button onClick={() => setImportOpen(true)}>{t("cozeLibraryImport")}</Button>
             <LibraryCreateDropdown onSelectType={handleSelectCreate} />

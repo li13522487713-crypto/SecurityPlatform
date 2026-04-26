@@ -420,6 +420,7 @@ src/frontend/packages/project-ide/view/src/components/scroll-bar/lib/
 **/dist-ssr/
 src/frontend/playwright-report/
 src/frontend/test-results/
+docs/test-reports/
 src/frontend/tmp/
 tmp/
 /output/playwright/workflow-debug

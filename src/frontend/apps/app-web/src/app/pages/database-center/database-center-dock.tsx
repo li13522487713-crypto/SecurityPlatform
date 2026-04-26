@@ -40,7 +40,12 @@ export function DatabaseCenterDock({ labels, source, selectedObject, structure, 
     {
       title: labels.name,
       dataIndex: "name",
-      render: (_value: unknown, record) => <Button theme="borderless" size="small" onClick={() => onSelectObject(record)}>{record.name}</Button>
+      width: 180,
+      render: (_value: unknown, record) => (
+        <Button theme="borderless" size="small" onClick={() => onSelectObject(record)}>
+          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 140 }}>{record.name}</Text>
+        </Button>
+      )
     },
     { title: "Rows", dataIndex: "rowCount", width: 80, render: (value: unknown) => value == null ? "-" : String(value) },
     { title: labels.updatedAt, dataIndex: "updatedAt", width: 150, render: (value: unknown) => value ? String(value).slice(0, 19) : "-" }
@@ -58,7 +63,16 @@ export function DatabaseCenterDock({ labels, source, selectedObject, structure, 
   return (
     <div className="database-center-dock">
       <DockCard title={`${labels.tableList} - ${structure?.schemaName ?? "-"}`} visible={visibleCards.tables} onClose={() => hide("tables")}>
-        <Table rowKey="id" size="small" pagination={false} columns={tableColumns} dataSource={tables} />
+        <div className="database-center-table-scroll">
+          <Table
+            rowKey={record => [record.schema, record.objectType, record.name, record.id].filter(Boolean).join(":")}
+            size="small"
+            pagination={false}
+            columns={tableColumns}
+            dataSource={tables}
+            scroll={{ x: 410 }}
+          />
+        </div>
       </DockCard>
       <DockCard title={labels.sqlEditor} visible={visibleCards.sql} onClose={() => hide("sql")}>
         {source ? <SqlEditorPanel labels={labels} sourceId={source.id} schema={structure?.schemaName} environment={source.environment ?? "Draft"} compact /> : <Empty description={labels.noSource} />}

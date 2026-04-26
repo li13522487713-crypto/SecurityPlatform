@@ -73,22 +73,29 @@ export function HostProfileManageDrawer({ labels, visible, onClose }: HostProfil
     {
       title: labels.name,
       dataIndex: "name",
-      render: (_value: unknown, record) => <Button theme="borderless" onClick={() => setSelectedId(record.id)}>{record.name}</Button>
+      width: 200,
+      render: (_value: unknown, record) => (
+        <Button theme="borderless" onClick={() => setSelectedId(record.id)}>
+          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{record.name}</Text>
+        </Button>
+      )
     },
     { title: labels.driver, dataIndex: "driverCode", width: 120 },
-    { title: "Connection", dataIndex: "maskedConnectionSummary", render: (value: unknown) => value ? String(value) : "-" },
+    { title: "Connection", dataIndex: "maskedConnectionSummary", width: 280, render: (value: unknown) => <Text ellipsis={{ showTooltip: true }}>{value ? String(value) : "-"}</Text> },
     { title: "Status", dataIndex: "status", width: 110, render: (value: unknown) => value ? String(value) : "-" }
   ];
 
   return (
-    <SideSheet visible={visible} onCancel={onClose} title={labels.hostProfiles} width={1080}>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 16 }}>
+    <SideSheet visible={visible} onCancel={onClose} title={labels.hostProfiles} width="min(1080px, calc(100vw - 32px))">
+      <div className="database-center-host-profile-layout">
         <Space vertical align="start" style={{ width: "100%" }}>
-          <Space>
+          <Space wrap>
             <Button icon={<IconRefresh />} onClick={() => void load()}>{labels.refresh}</Button>
             <Button icon={<IconPlus />} onClick={() => setSelectedId("")}>{labels.createHostProfile}</Button>
           </Space>
-          <Table rowKey="id" loading={loading} size="small" columns={columns} dataSource={profiles} pagination={false} />
+          <div className="database-center-table-scroll">
+            <Table rowKey="id" loading={loading} size="small" columns={columns} dataSource={profiles} pagination={false} scroll={{ x: 710 }} />
+          </div>
         </Space>
         <Space vertical align="start" style={{ width: "100%" }}>
           <Text strong>{selected ? labels.editHostProfile : labels.createHostProfile}</Text>
@@ -107,13 +114,13 @@ export function HostProfileManageDrawer({ labels, visible, onClose }: HostProfil
           />
           <Input placeholder={labels.defaultDatabase} value={form.defaultDatabaseName ?? ""} onChange={value => setForm({ ...form, defaultDatabaseName: value })} />
           <Input placeholder={labels.defaultSchema} value={form.defaultSchemaName ?? ""} onChange={value => setForm({ ...form, defaultSchemaName: value })} />
-          <Space>
+          <Space wrap>
             <Text>{labels.active}</Text>
             <Switch checked={Boolean(form.isActive)} onChange={checked => setForm({ ...form, isActive: checked })} />
             <Text>{labels.defaultProfile}</Text>
             <Switch checked={Boolean(form.isDefault)} onChange={checked => setForm({ ...form, isDefault: checked })} />
           </Space>
-          <Space>
+          <Space wrap>
             <Button loading={loading} onClick={() => void test()}>{labels.testConnection}</Button>
             <Button icon={<IconSave />} loading={loading} theme="solid" onClick={() => void save()}>{labels.save}</Button>
             {selected ? <Button type="danger" loading={loading} onClick={() => void remove()}>{labels.delete}</Button> : null}

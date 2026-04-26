@@ -48,13 +48,13 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
   const validVisual = useMemo(() => tableName.trim() && columns.some(column => column.name.trim()), [columns, tableName]);
 
   return (
-    <SideSheet visible={visible} onCancel={onClose} title={labels.createTableVisual} width={980}>
+    <SideSheet visible={visible} onCancel={onClose} title={labels.createTableVisual} width="min(980px, calc(100vw - 32px))">
       <Tabs activeKey={activeKey} onChange={key => setActiveKey(String(key))}>
         <Tabs.TabPane tab={labels.createTableVisual} itemKey="visual">
           <Space vertical align="start" style={{ width: "100%" }}>
-            <Space style={{ width: "100%" }}>
-              <Input placeholder={labels.tableName} value={tableName} onChange={setTableName} style={{ width: 260 }} />
-              <Input placeholder={labels.comment} value={comment} onChange={setComment} style={{ width: 320 }} />
+            <Space className="database-center-drawer-form-row" style={{ width: "100%" }}>
+              <Input placeholder={labels.tableName} value={tableName} onChange={setTableName} style={{ flex: "1 1 220px", minWidth: 0 }} />
+              <Input placeholder={labels.comment} value={comment} onChange={setComment} style={{ flex: "1 1 280px", minWidth: 0 }} />
               <Button icon={<IconPlus />} onClick={addColumn}>{labels.addColumn}</Button>
             </Space>
             <Space vertical align="start" style={{ width: "100%" }}>

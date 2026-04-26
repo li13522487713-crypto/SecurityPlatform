@@ -39,22 +39,24 @@ export function ObjectDetailDrawer({ databaseId, object, initialTab = "structure
   }, [databaseId, initialTab, object?.name, object?.objectType, object?.schema, pageSize]);
 
   const structureColumns: ColumnProps<DatabaseColumnDto>[] = [
-    { title: t("databaseStructureFieldName"), dataIndex: "name" },
-    { title: t("databaseStructureFieldType"), dataIndex: "dataType" },
-    { title: t("databaseStructureNullable"), dataIndex: "nullable", render: (value: unknown) => String(value) },
-    { title: t("databaseStructurePrimaryKey"), dataIndex: "primaryKey", render: (value: unknown) => String(value) },
-    { title: t("databaseStructureAutoIncrement"), dataIndex: "autoIncrement", render: (value: unknown) => String(value) },
-    { title: t("databaseStructureDefaultValue"), dataIndex: "defaultValue" },
-    { title: t("databaseStructureComment"), dataIndex: "comment" },
+    { title: t("databaseStructureFieldName"), dataIndex: "name", width: 180 },
+    { title: t("databaseStructureFieldType"), dataIndex: "dataType", width: 160 },
+    { title: t("databaseStructureNullable"), dataIndex: "nullable", width: 110, render: (value: unknown) => String(value) },
+    { title: t("databaseStructurePrimaryKey"), dataIndex: "primaryKey", width: 110, render: (value: unknown) => String(value) },
+    { title: t("databaseStructureAutoIncrement"), dataIndex: "autoIncrement", width: 120, render: (value: unknown) => String(value) },
+    { title: t("databaseStructureDefaultValue"), dataIndex: "defaultValue", width: 180 },
+    { title: t("databaseStructureComment"), dataIndex: "comment", width: 220 },
     { title: "ordinal", dataIndex: "ordinal", width: 90 }
   ];
 
   return (
-    <SideSheet visible={Boolean(object)} onCancel={onClose} title={object?.name} width={980}>
+    <SideSheet visible={Boolean(object)} onCancel={onClose} title={object?.name} width="min(980px, calc(100vw - 32px))">
       <Spin spinning={loading}>
         <Tabs activeKey={activeTab} onChange={key => setActiveTab(key as "structure" | "preview" | "ddl")}>
           <Tabs.TabPane tab={t("databaseStructureTabStructure")} itemKey="structure">
-            <Table rowKey="name" pagination={false} dataSource={columns} columns={structureColumns} size="small" />
+            <div className="database-center-table-scroll">
+              <Table rowKey="name" pagination={false} dataSource={columns} columns={structureColumns} size="small" scroll={{ x: 1170 }} />
+            </div>
           </Tabs.TabPane>
           <Tabs.TabPane tab={t("databaseStructureTabPreview")} itemKey="preview">
             <Space vertical align="stretch" style={{ width: "100%" }}>

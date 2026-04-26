@@ -30,7 +30,8 @@ export function SqlEditorPanel({ labels, sourceId, schema, environment, compact 
   const columns: ColumnProps<Record<string, unknown>>[] = (result?.columns ?? []).map(column => ({
     title: column.name,
     dataIndex: column.name,
-    render: (value: unknown) => value == null ? <Text type="tertiary">NULL</Text> : String(value)
+    width: 180,
+    render: (value: unknown) => value == null ? <Text type="tertiary">NULL</Text> : <Text ellipsis={{ showTooltip: true }}>{String(value)}</Text>
   }));
 
   async function run() {
@@ -46,9 +47,9 @@ export function SqlEditorPanel({ labels, sourceId, schema, environment, compact 
   }
 
   return (
-    <Space vertical align="start" style={{ width: "100%" }}>
-      <Space style={{ justifyContent: "space-between", width: "100%" }}>
-        <Space>
+    <Space vertical align="start" className="database-center-sql-panel" style={{ width: "100%" }}>
+      <div className="database-center-sql-toolbar" style={{ width: "100%" }}>
+        <Space wrap>
           <Button icon={<IconPlay />} theme="solid" loading={executing} onClick={() => void run()}>{labels.execute}</Button>
           <Button icon={<IconRefresh />} onClick={() => setSql(formatSql(sql))}>{labels.format}</Button>
         </Space>
@@ -59,7 +60,7 @@ export function SqlEditorPanel({ labels, sourceId, schema, environment, compact 
           onChange={value => setLimit(typeof value === "number" ? value : 50)}
           optionList={[20, 50, 100, 200].map(value => ({ value, label: String(value) }))}
         />
-      </Space>
+      </div>
       <SqlCodeEditor value={sql} onChange={setSql} height={compact ? 128 : 260} />
       {result ? (
         <Space vertical align="start" style={{ width: "100%" }}>
@@ -67,7 +68,16 @@ export function SqlEditorPanel({ labels, sourceId, schema, environment, compact 
             <Text type="tertiary">{labels.affectedRows}: {result.affectedRows ?? "-"}</Text>
             <Text type="tertiary">{labels.elapsedMs}: {result.elapsedMs ?? "-"}ms</Text>
           </Space>
-          <Table rowKey="__rowKey" size="small" pagination={false} columns={columns} dataSource={result.rows.map((row, index) => ({ ...row, __rowKey: String(index) }))} />
+          <div className="database-center-table-scroll">
+            <Table
+              rowKey="__rowKey"
+              size="small"
+              pagination={false}
+              columns={columns}
+              dataSource={result.rows.map((row, index) => ({ ...row, __rowKey: String(index) }))}
+              scroll={{ x: Math.max(720, columns.length * 180) }}
+            />
+          </div>
         </Space>
       ) : null}
     </Space>

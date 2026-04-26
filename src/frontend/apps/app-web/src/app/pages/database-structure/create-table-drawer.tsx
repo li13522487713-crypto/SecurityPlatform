@@ -155,7 +155,7 @@ export function CreateTableDrawer({ visible, databaseId, driverCode, onClose, on
   ];
 
   return (
-    <SideSheet visible={visible} onCancel={onClose} title={t("databaseStructureNewTable")} width={1040}>
+    <SideSheet visible={visible} onCancel={onClose} title={t("databaseStructureNewTable")} width="min(1040px, calc(100vw - 32px))">
       <Tabs activeKey={mode} onChange={setMode}>
         <Tabs.TabPane tab={t("databaseStructureVisualDesign")} itemKey="visual" />
         <Tabs.TabPane tab={t("databaseStructureSqlCreate")} itemKey="sql" />
@@ -165,7 +165,9 @@ export function CreateTableDrawer({ visible, databaseId, driverCode, onClose, on
           <Input placeholder={t("databaseStructureTableName")} value={tableName} onChange={setTableName} />
           <Input placeholder="schema" value={schema} onChange={setSchema} />
           <Input placeholder={t("databaseStructureTableComment")} value={comment} onChange={setComment} />
-          <Table rowKey="id" pagination={false} dataSource={columns} columns={tableColumns} size="small" />
+          <div className="database-center-table-scroll">
+            <Table rowKey="id" pagination={false} dataSource={columns} columns={tableColumns} size="small" scroll={{ x: 1120 }} />
+          </div>
           <Space>
             <Button icon={<IconPlus />} onClick={() => setColumns(items => [...items, { id: newColumnId(), name: "", dataType: typeOptions[0] ?? "TEXT", nullable: true, primaryKey: false, autoIncrement: false }])}>{t("databaseStructureAddField")}</Button>
             <Button onClick={addAuditFields}>{t("databaseStructureAddAuditFields")}</Button>

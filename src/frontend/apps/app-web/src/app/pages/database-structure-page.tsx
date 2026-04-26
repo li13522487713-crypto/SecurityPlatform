@@ -55,17 +55,27 @@ export function DatabaseStructurePage() {
   }, [load]);
 
   const columns = useMemo<ColumnProps<DatabaseObjectDto>[]>(() => [
-    { title: t("databaseStructureColumnName"), dataIndex: "name", render: (_: unknown, record) => <Button theme="borderless" onClick={() => setDetailTarget(record)}>{record.name}</Button> },
+    {
+      title: t("databaseStructureColumnName"),
+      dataIndex: "name",
+      width: 220,
+      render: (_: unknown, record) => (
+        <Button theme="borderless" onClick={() => setDetailTarget(record)}>
+          <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{record.name}</Text>
+        </Button>
+      )
+    },
     { title: t("databaseStructureColumnType"), dataIndex: "objectType", width: 120 },
     { title: "schema", dataIndex: "schema", width: 120, render: (value: unknown) => value || "-" },
     { title: t("databaseStructureColumnEngine"), dataIndex: "engine", width: 140, render: (_: unknown, record) => record.engine || record.algorithm || "-" },
     { title: t("databaseStructureColumnRows"), dataIndex: "rowCount", width: 120, render: (value: unknown) => value ?? "-" },
     { title: t("databaseStructureColumnCreatedAt"), dataIndex: "createdAt", width: 180, render: (value: unknown) => value || "-" },
     { title: t("databaseStructureColumnUpdatedAt"), dataIndex: "updatedAt", width: 180, render: (value: unknown) => value || "-" },
-    { title: t("databaseStructureColumnComment"), dataIndex: "comment", render: (value: unknown) => value || "-" },
+    { title: t("databaseStructureColumnComment"), dataIndex: "comment", width: 260, render: (value: unknown) => <Text ellipsis={{ showTooltip: true }}>{value || "-"}</Text> },
     {
       title: t("databaseStructureColumnActions"),
       width: 150,
+      fixed: "right",
       render: (_: unknown, record) => (
         <Dropdown
           render={
@@ -107,8 +117,8 @@ export function DatabaseStructurePage() {
   }
 
   return (
-    <div className="coze-page">
-      <div className="coze-page__header">
+    <div className="coze-page database-structure-page">
+      <div className="coze-page__header database-structure-page__header">
         <Space vertical align="start" spacing={8}>
           <Button icon={<IconArrowLeft />} theme="borderless" onClick={() => navigate(-1)}>{t("databaseStructureBack")}</Button>
           <Space>
@@ -119,7 +129,7 @@ export function DatabaseStructurePage() {
           </Space>
           <Text type="tertiary">{t("databaseStructureBreadcrumb")}</Text>
         </Space>
-        <Space>
+        <Space wrap>
           <Button icon={<IconRefresh />} onClick={() => void load()}>{t("databaseStructureRefresh")}</Button>
           <Button disabled>{t("databaseStructureImportDdl")}</Button>
           <Dropdown
@@ -142,7 +152,15 @@ export function DatabaseStructurePage() {
         <Tabs.TabPane tab={t("databaseStructureTabTriggers")} itemKey="trigger" />
       </Tabs>
       <Spin spinning={loading}>
-        <Table rowKey={record => `${record.schema ?? ""}.${record.name}`} columns={columns} dataSource={objects} pagination={false} />
+        <div className="database-center-table-scroll">
+          <Table
+            rowKey={record => `${record.schema ?? ""}.${record.name}`}
+            columns={columns}
+            dataSource={objects}
+            pagination={false}
+            scroll={{ x: 1470 }}
+          />
+        </div>
       </Spin>
 
       <CreateTableDrawer

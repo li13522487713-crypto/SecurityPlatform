@@ -64,7 +64,7 @@ export function CreateViewDrawer({ visible, databaseId, onClose, onCreated }: Cr
   }
 
   return (
-    <SideSheet visible={visible} onCancel={onClose} title={t("databaseStructureNewView")} width={900}>
+    <SideSheet visible={visible} onCancel={onClose} title={t("databaseStructureNewView")} width="min(900px, calc(100vw - 32px))">
       <Space vertical align="stretch" style={{ width: "100%" }}>
         <Input placeholder={t("databaseStructureViewName")} value={viewName} onChange={setViewName} />
         <Input placeholder="schema" value={schema} onChange={setSchema} />
@@ -74,7 +74,7 @@ export function CreateViewDrawer({ visible, databaseId, onClose, onCreated }: Cr
           <Radio value="CreateViewSql">CREATE VIEW</Radio>
         </Radio.Group>
         <SqlCodeEditor value={sql} onChange={setSql} height={320} />
-        <Space>
+        <Space wrap>
           <Button onClick={onClose}>{t("databaseStructureCancel")}</Button>
           <Button loading={busy} onClick={() => void handlePreview()}>{t("databaseStructurePreview")}</Button>
           <Button loading={busy} theme="solid" onClick={() => void handleCreate()}>{t("databaseStructureCreateView")}</Button>

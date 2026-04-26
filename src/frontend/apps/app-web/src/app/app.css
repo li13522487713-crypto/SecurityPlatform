@@ -100,6 +100,21 @@ body {
   gap: 12px;
 }
 
+.database-center-table-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+}
+
+.database-structure-page,
+.database-structure-page__header {
+  min-width: 0;
+}
+
+.database-structure-page__header {
+  flex-wrap: wrap;
+}
+
 .coze-page__loading {
   display: flex;
   align-items: center;

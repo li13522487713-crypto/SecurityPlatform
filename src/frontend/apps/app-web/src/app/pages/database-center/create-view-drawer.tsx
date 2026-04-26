@@ -39,11 +39,11 @@ export function CreateViewDrawer({ labels, visible, sourceId, schemaName, onClos
   );
 
   return (
-    <SideSheet visible={visible} onCancel={onClose} title={labels.createView} width={980}>
+    <SideSheet visible={visible} onCancel={onClose} title={labels.createView} width="min(980px, calc(100vw - 32px))">
       <Space vertical align="start" style={{ width: "100%" }}>
-        <Space style={{ width: "100%" }}>
-          <Input placeholder={labels.viewName} value={viewName} onChange={setViewName} style={{ width: 260 }} />
-          <Input placeholder={labels.comment} value={comment} onChange={setComment} style={{ width: 320 }} />
+        <Space className="database-center-drawer-form-row" style={{ width: "100%" }}>
+          <Input placeholder={labels.viewName} value={viewName} onChange={setViewName} style={{ flex: "1 1 220px", minWidth: 0 }} />
+          <Input placeholder={labels.comment} value={comment} onChange={setComment} style={{ flex: "1 1 280px", minWidth: 0 }} />
         </Space>
         <TextArea
           autosize={{ minRows: 2, maxRows: 3 }}
@@ -58,13 +58,16 @@ export function CreateViewDrawer({ labels, visible, sourceId, schemaName, onClos
         </Space>
         <SqlCodeEditor value={sql} onChange={setSql} height={260} />
         {preview ? (
-          <Table
-            rowKey="__rowKey"
-            size="small"
-            pagination={false}
-            columns={columns}
-            dataSource={preview.rows.map((row, index) => ({ ...row, __rowKey: String(index) }))}
-          />
+          <div className="database-center-table-scroll">
+            <Table
+              rowKey="__rowKey"
+              size="small"
+              pagination={false}
+              columns={columns.map(column => ({ ...column, width: 180 }))}
+              dataSource={preview.rows.map((row, index) => ({ ...row, __rowKey: String(index) }))}
+              scroll={{ x: Math.max(720, columns.length * 180) }}
+            />
+          </div>
         ) : null}
       </Space>
     </SideSheet>

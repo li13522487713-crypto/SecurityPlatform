@@ -1,4 +1,4 @@
-import { Button, Checkbox, Empty, Input, Modal, Space, Spin, Tabs, Toast } from "@douyinfe/semi-ui";
+import { Button, Checkbox, Empty, Input, Modal, SideSheet, Space, Spin, Tabs, Toast } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
 import { useEffect, useState } from "react";
 import type {
@@ -73,6 +73,7 @@ export function DatabaseStructureWorkbench({
   const [detailTab, setDetailTab] = useState<"structure" | "preview" | "ddl">("structure");
   const [detailObject, setDetailObject] = useState<DatabaseCenterObjectSummary | null>(null);
   const [workbenchTab, setWorkbenchTab] = useState("er");
+  const [dockVisible, setDockVisible] = useState(false);
   const [inlinePreview, setInlinePreview] = useState<PreviewDataResponse | null>(null);
   const [inlineDdl, setInlineDdl] = useState("");
   const [inlineLoading, setInlineLoading] = useState(false);
@@ -135,14 +136,15 @@ export function DatabaseStructureWorkbench({
             <Empty description={labels.noSource} />
           ) : (
             <>
-            <Space style={{ justifyContent: "space-between", width: "100%", marginBottom: 12 }}>
+            <Space className="database-center-workbench__toolbar" style={{ width: "100%", marginBottom: 12 }}>
               <Space />
-              <Space>
+              <Space wrap>
+                <Button className="database-center-dock-open-button" onClick={() => setDockVisible(true)}>{labels.globalActions}</Button>
                 <Button icon={<IconPlus />} disabled={!canEdit} onClick={() => setCreateTableVisible(true)}>{labels.createTableVisual}</Button>
                 <Button icon={<IconPlus />} disabled={!canEdit} onClick={() => setCreateViewVisible(true)}>{labels.createView}</Button>
               </Space>
             </Space>
-            <Tabs activeKey={workbenchTab} onChange={key => setWorkbenchTab(String(key))}>
+            <Tabs className="database-center-workbench-tabs" activeKey={workbenchTab} onChange={key => setWorkbenchTab(String(key))}>
               <Tabs.TabPane tab={labels.erDiagram} itemKey="er">
                 <ErDiagramCanvas labels={labels} structure={structure} onSelectObject={object => requestObjectAction(object, "structure")} />
               </Tabs.TabPane>
@@ -183,6 +185,23 @@ export function DatabaseStructureWorkbench({
         structure={structure}
         onSelectObject={object => requestObjectAction(object, "structure")}
       />
+      <SideSheet
+        visible={dockVisible}
+        onCancel={() => setDockVisible(false)}
+        title={labels.globalActions}
+        width="min(980px, calc(100vw - 32px))"
+        bodyStyle={{ padding: 0, overflow: "hidden" }}
+      >
+        <div className="database-center-dock-drawer">
+          <DatabaseCenterDock
+            labels={labels}
+            source={source}
+            selectedObject={selectedObject}
+            structure={structure}
+            onSelectObject={object => requestObjectAction(object, "structure")}
+          />
+        </div>
+      </SideSheet>
       <ObjectDetailDrawer
         databaseId={sourceId}
         object={drawerObject}

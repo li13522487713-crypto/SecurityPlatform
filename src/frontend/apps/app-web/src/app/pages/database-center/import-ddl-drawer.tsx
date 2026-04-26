@@ -31,10 +31,10 @@ export function ImportDdlDrawer({
   const [loading, setLoading] = useState(false);
 
   return (
-    <SideSheet visible={visible} title={labels.importDdl} width={820} onCancel={onClose}>
+    <SideSheet visible={visible} title={labels.importDdl} width="min(820px, calc(100vw - 32px))" onCancel={onClose}>
       <Space vertical align="stretch" style={{ width: "100%" }}>
         <Text type="tertiary">{labels.importDdlHint}</Text>
-        <Space>
+        <Space wrap>
           <Button onClick={() => setSql(formatSql(sql))}>{labels.format}</Button>
           <Button icon={<IconSave />} theme="solid" loading={loading} disabled={!canEdit || !sql.trim()} onClick={() => void execute()}>
             {labels.execute}
