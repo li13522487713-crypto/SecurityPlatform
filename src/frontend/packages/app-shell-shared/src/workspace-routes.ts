@@ -38,6 +38,7 @@ export type WorkspaceLibraryTab =
   | "all"
   | "plugin"
   | "workflow"
+  | "microflow"
   | "knowledge-base"
   | "card"
   | "prompt"
@@ -191,6 +192,14 @@ export function appPublishPath(projectId: string): string {
 
 export function workflowEditorPath(workflowId: string): string {
   return `/workflow/${encodeSegment(workflowId)}/editor`;
+}
+
+export function microflowEditorPath(microflowId: string): string {
+  return `/microflow/${encodeSegment(microflowId)}/editor`;
+}
+
+export function workspaceMicroflowEditorPath(workspaceId: string, microflowId: string): string {
+  return `${workspaceRootPath(workspaceId)}/microflows/${encodeSegment(microflowId)}`;
 }
 
 export function workflowHistoryPath(workflowId: string): string {

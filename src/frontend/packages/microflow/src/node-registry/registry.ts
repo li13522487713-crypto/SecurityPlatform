@@ -17,6 +17,7 @@ export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<stri
   type: MicroflowNodeKind;
   activityType?: MicroflowActivityType;
   title: string;
+  description: string;
   category: MicroflowNodeCategory;
   group: "Events" | "Decisions" | "Activities" | "Loop" | "Parameters" | "Annotations";
   subgroup?: string;
@@ -81,6 +82,7 @@ function createNodeFromRegistry(
   const base = {
     id,
     title,
+    description: entry.description,
     category: entry.category,
     position,
     ports: entry.ports,
@@ -124,6 +126,7 @@ function eventEntry(type: Extract<MicroflowNodeKind, "startEvent" | "endEvent" |
   return createEntry({
     type,
     title,
+    description: `${title} event node.`,
     category: "event",
     group: "Events",
     iconKey: type,
@@ -134,12 +137,13 @@ function eventEntry(type: Extract<MicroflowNodeKind, "startEvent" | "endEvent" |
   });
 }
 
-function activityEntry(activityType: MicroflowActivityType, title: string, subgroup: string, config: Partial<MicroflowActivityConfig> = {}, edgeTypes: MicroflowEdgeType[] = ["sequence"]): MicroflowNodeRegistryEntry<MicroflowActivityConfig> {
+function activityEntry(activityType: MicroflowActivityType, title: string, subgroup: string, config: Partial<MicroflowActivityConfig> = {}, edgeTypes: MicroflowEdgeType[] = ["sequence"], description = `${title} activity.`): MicroflowNodeRegistryEntry<MicroflowActivityConfig> {
   const supportsErrorFlow = edgeTypes.includes("error");
   return createEntry<MicroflowActivityConfig>({
     type: "activity",
     activityType,
     title,
+    description,
     category: "activity",
     group: "Activities",
     subgroup,
@@ -165,6 +169,7 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
   createEntry({
     type: "decision",
     title: "Decision",
+    description: "Branches the microflow with a boolean or expression outcome.",
     category: "decision",
     group: "Decisions",
     iconKey: "decision",
@@ -176,6 +181,7 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
   createEntry({
     type: "merge",
     title: "Merge",
+    description: "Combines multiple branches into a single continuation.",
     category: "merge",
     group: "Decisions",
     iconKey: "merge",
@@ -187,6 +193,7 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
   createEntry({
     type: "loop",
     title: "Loop",
+    description: "Iterates over a list variable and exposes the current item.",
     category: "loop",
     group: "Loop",
     iconKey: "loop",
@@ -198,6 +205,7 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
   createEntry({
     type: "parameter",
     title: "Parameter",
+    description: "Defines an input parameter for the microflow.",
     category: "parameter",
     group: "Parameters",
     iconKey: "parameter",
@@ -209,6 +217,7 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
   createEntry({
     type: "annotation",
     title: "Annotation",
+    description: "Adds documentation to the canvas without affecting execution.",
     category: "annotation",
     group: "Annotations",
     iconKey: "annotation",
@@ -223,9 +232,12 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
   activityEntry("objectDelete", "Object Delete", "Object", { objectVariableName: "order" }, ["sequence", "error"]),
   activityEntry("objectRetrieve", "Object Retrieve", "Object", { entity: "Sales.Order", listVariableName: "orders" }, ["sequence", "error"]),
   activityEntry("objectRollback", "Object Rollback", "Object", { objectVariableName: "order" }, ["sequence", "error"]),
+  activityEntry("listOperation", "List Operation", "List", { listVariableName: "orders", reserved: true }, ["sequence"], "Reserved entry for list filter/map/sort operations."),
+  activityEntry("listAggregate", "List Aggregate", "List", { listVariableName: "orders", reserved: true }, ["sequence"], "Reserved entry for count/sum/min/max list aggregation."),
   activityEntry("variableCreate", "Variable Create", "Variable", { variableName: "result", variableType: { kind: "primitive", name: "String" } }),
   activityEntry("variableChange", "Variable Change", "Variable", { variableName: "result" }),
   activityEntry("callMicroflow", "Call Microflow", "Call", { targetMicroflowId: "MF_ValidateOrder" }, ["sequence", "error"]),
+  activityEntry("callNanoflow", "Call Nanoflow", "Call", { targetMicroflowId: "NF_ClientAction", reserved: true }, ["sequence"], "Reserved entry for future client-side nanoflow calls."),
   activityEntry("callRest", "Call REST", "Integration", { method: "POST", url: "/api/orders/sync" }, ["sequence", "error"]),
   activityEntry("logMessage", "Log Message", "Logging", { messageExpression: { id: "expr-log", language: "plainText", text: "Order processed", referencedVariables: [] } }),
   activityEntry("showPage", "Show Page", "Client", { pageName: "Order.Detail" }),

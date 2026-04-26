@@ -4,6 +4,7 @@ import type { AiLibraryItem, ResourceType } from "@atlas/library-module-react";
 
 export type LibraryResourceType =
   | "workflow"
+  | "microflow"
   | "plugin"
   | "knowledge-base"
   | "database"

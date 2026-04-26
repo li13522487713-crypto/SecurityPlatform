@@ -212,6 +212,7 @@ import { CommunityWorksPage } from "./pages/community-works-page";
 import { OpenApiPage } from "./pages/open-api-page";
 import { DocsPage } from "./pages/docs-page";
 import { MicroflowDemoPage } from "./pages/microflow-demo-page";
+import { MicroflowEditorPage } from "./pages/microflow-editor-page";
 import { MeProfilePage } from "./pages/me-profile-page";
 import { MeSettingsPage } from "./pages/me-settings-page";
 import { MeNotificationsPage } from "./pages/me-notifications-page";
@@ -3120,6 +3121,13 @@ export const appRoutes = [
     handle: WORKSPACE_SHELL_ROUTE_HANDLE,
     errorElement: <FatalErrorPage />,
     children: [{ index: true, element: <MicroflowDemoPage /> }]
+  },
+  {
+    path: "/microflow/:microflowId/editor",
+    element: <EditorShellLayout />,
+    handle: WORKSPACE_DEVELOP_ROUTE_HANDLE,
+    errorElement: <FatalErrorPage />,
+    children: [{ index: true, element: <MicroflowEditorPage /> }]
   },
   {
     path: "/workflow/:workflowId/editor",

@@ -116,6 +116,7 @@ describe("resolveEditorRouteResource", () => {
   it("正确映射各类编辑器路由到资源类型", () => {
     expect(resolveEditorRouteResource("/apps/lowcode/11/studio")).toEqual({ resourceType: "app", resourceId: "11" });
     expect(resolveEditorRouteResource("/app/22/editor")).toEqual({ resourceType: "app", resourceId: "22" });
+    expect(resolveEditorRouteResource("/microflow/mf-order-process/editor")).toEqual({ resourceType: "microflow", resourceId: "mf-order-process" });
     expect(resolveEditorRouteResource("/workflow/33/editor")).toEqual({ resourceType: "workflow", resourceId: "33" });
     expect(resolveEditorRouteResource("/chatflow/44/editor")).toEqual({ resourceType: "workflow", resourceId: "44" });
     expect(resolveEditorRouteResource("/agent/55/publish")).toEqual({ resourceType: "agent", resourceId: "55" });

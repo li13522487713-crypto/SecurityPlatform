@@ -1,16 +1,19 @@
-import { useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { Badge, Button, Card, Collapse, Divider, Empty, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { Badge, Button, Card, Collapse, Divider, Empty, Input, Modal, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconDelete,
   IconPlay,
   IconPlus,
   IconSave,
   IconSearch,
-  IconTickCircle
+  IconSetting,
+  IconTickCircle,
+  IconUndo,
+  IconRedo
 } from "@douyinfe/semi-icons";
 import { microflowNodeRegistries, createMicroflowNodeFromRegistry, type MicroflowNodeRegistryEntry } from "../node-registry";
 import { MicroflowPropertyForm } from "../property-forms";
-import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame } from "../runtime-adapter";
+import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
 import { validateMicroflowSchema } from "../schema/validator";
 import type { MicroflowEdge, MicroflowNode, MicroflowSchema, MicroflowValidationIssue, MicroflowPosition } from "../schema/types";
 
@@ -20,6 +23,12 @@ export interface MicroflowEditorProps {
   schema: MicroflowSchema;
   apiClient?: MicroflowApiClient;
   labels?: Partial<MicroflowEditorLabels>;
+  toolbarPrefix?: ReactNode;
+  toolbarSuffix?: ReactNode;
+  onPublish?: (schema: MicroflowSchema) => Promise<void> | void;
+  onSaveComplete?: (response: SaveMicroflowResponse) => void;
+  onValidateComplete?: (response: ValidateMicroflowResponse) => void;
+  onTestRunComplete?: (response: TestRunMicroflowResponse) => void;
   onSchemaChange?: (schema: MicroflowSchema) => void;
 }
 
@@ -28,6 +37,12 @@ export interface MicroflowEditorLabels {
   validate: string;
   testRun: string;
   fitView: string;
+  publish: string;
+  undo: string;
+  redo: string;
+  format: string;
+  more: string;
+  settings: string;
   nodePanel: string;
   properties: string;
   problems: string;
@@ -39,6 +54,12 @@ const defaultLabels: MicroflowEditorLabels = {
   validate: "Validate",
   testRun: "Test Run",
   fitView: "Fit View",
+  publish: "Publish",
+  undo: "Undo",
+  redo: "Redo",
+  format: "Format",
+  more: "More",
+  settings: "Settings",
   nodePanel: "Nodes",
   properties: "Properties",
   problems: "Problems",
@@ -47,7 +68,7 @@ const defaultLabels: MicroflowEditorLabels = {
 
 const shellStyle: CSSProperties = {
   display: "grid",
-  gridTemplateRows: "52px minmax(0, 1fr) 170px",
+  gridTemplateRows: "60px minmax(0, 1fr) 220px",
   height: "100%",
   minHeight: 720,
   background: "var(--semi-color-bg-0, #f7f8fa)",
@@ -65,8 +86,9 @@ const toolbarStyle: CSSProperties = {
 
 const bodyStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "260px minmax(0, 1fr) 320px",
-  minHeight: 0
+  gridTemplateColumns: "280px minmax(760px, 1fr) 360px 260px",
+  minHeight: 0,
+  overflow: "auto"
 };
 
 const panelStyle: CSSProperties = {
@@ -97,7 +119,7 @@ const canvasLayerStyle: CSSProperties = {
   position: "absolute",
   left: 0,
   top: 0,
-  width: 2200,
+  width: 3000,
   height: 1100,
   transformOrigin: "0 0"
 };
@@ -244,17 +266,23 @@ function MicroflowNodeCard({
 }
 
 function MicroflowNodePanel({ onAddNode }: { onAddNode: (entry: MicroflowNodeRegistryEntry) => void }) {
+  const [keyword, setKeyword] = useState("");
   const grouped = useMemo(() => {
     const map = new Map<string, MicroflowNodeRegistryEntry[]>();
+    const normalized = keyword.trim().toLowerCase();
     for (const entry of microflowNodeRegistries) {
+      if (normalized && ![entry.title, entry.description, entry.subgroup, entry.iconKey].filter(Boolean).join(" ").toLowerCase().includes(normalized)) {
+        continue;
+      }
       map.set(entry.group, [...(map.get(entry.group) ?? []), entry]);
     }
     return [...map.entries()];
-  }, []);
+  }, [keyword]);
 
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
       <Title heading={6} style={{ margin: 0 }}>Nodes</Title>
+      <Input prefix={<IconSearch />} value={keyword} onChange={setKeyword} placeholder="Search nodes" showClear />
       <Collapse defaultActiveKey={grouped.map(([group]) => group)}>
         {grouped.map(([group, entries]) => (
           <Collapse.Panel key={group} header={group} itemKey={group}>
@@ -333,7 +361,7 @@ function MicroflowCanvas({
           transform: `translate(${viewport.offset.x}px, ${viewport.offset.y}px) scale(${viewport.zoom})`
         }}
       >
-        <svg width="2200" height="1100" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <svg width="3000" height="1100" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           <defs>
             <marker id="microflow-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
               <path d="M 0 0 L 10 4 L 0 8 z" fill="#4e5969" />
@@ -440,7 +468,18 @@ function DebugPanel({ frames }: { frames: MicroflowTraceFrame[] }) {
   );
 }
 
-export function MicroflowEditor({ schema: initialSchema, apiClient, labels, onSchemaChange }: MicroflowEditorProps) {
+export function MicroflowEditor({
+  schema: initialSchema,
+  apiClient,
+  labels,
+  toolbarPrefix,
+  toolbarSuffix,
+  onPublish,
+  onSaveComplete,
+  onValidateComplete,
+  onTestRunComplete,
+  onSchemaChange
+}: MicroflowEditorProps) {
   const copy = { ...defaultLabels, ...labels };
   const client = useMemo(() => apiClient ?? createLocalMicroflowApiClient([initialSchema]), [apiClient, initialSchema]);
   const [schema, setSchema] = useState<MicroflowSchema>(initialSchema);
@@ -448,6 +487,10 @@ export function MicroflowEditor({ schema: initialSchema, apiClient, labels, onSc
   const [issues, setIssues] = useState<MicroflowValidationIssue[]>(() => validateMicroflowSchema(initialSchema));
   const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
   const [viewport, setViewport] = useState(initialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
+  const [testRunOpen, setTestRunOpen] = useState(false);
+  const [testInput, setTestInput] = useState<Record<string, string>>(() =>
+    Object.fromEntries(initialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`]))
+  );
 
   const selectedNode = schema.nodes.find(node => node.id === selectedNodeId);
 
@@ -459,22 +502,33 @@ export function MicroflowEditor({ schema: initialSchema, apiClient, labels, onSc
   async function handleValidate() {
     const result = await client.validateMicroflow({ schema });
     setIssues(result.issues);
+    onValidateComplete?.(result);
     Toast.info(result.valid ? "Validation passed." : `Validation found ${result.issues.length} issue(s).`);
   }
 
   async function handleSave() {
     const result = await client.saveMicroflow({ schema });
+    onSaveComplete?.(result);
     Toast.success(`Saved ${result.nodeCount} nodes and ${result.edgeCount} flows.`);
   }
 
   async function handleTestRun() {
     const result = await client.testRunMicroflow({
       microflowId: schema.id,
-      input: Object.fromEntries(schema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`])),
+      input: testInput,
       schema
     });
     setTraceFrames(result.frames);
+    onTestRunComplete?.(result);
+    setTestRunOpen(false);
     Toast.success(`Test run ${result.runId} ${result.status}.`);
+  }
+
+  async function handlePublish() {
+    if (!onPublish) {
+      return;
+    }
+    await onPublish(schema);
   }
 
   function handleAddNode(entry: MicroflowNodeRegistryEntry) {
@@ -504,12 +558,22 @@ export function MicroflowEditor({ schema: initialSchema, apiClient, labels, onSc
       <div style={shellStyle} data-testid="microflow-editor">
         <div style={toolbarStyle}>
           <Space>
+            {toolbarPrefix}
             <Title heading={5} style={{ margin: 0 }}>{schema.name}</Title>
             <Tag color="blue">Microflow</Tag>
           </Space>
           <Space>
+            <Button icon={<IconUndo />} disabled>
+              {copy.undo}
+            </Button>
+            <Button icon={<IconRedo />} disabled>
+              {copy.redo}
+            </Button>
             <Button icon={<IconSearch />} onClick={() => setViewport({ zoom: 0.78, offset: { x: 24, y: 80 } })}>
               {copy.fitView}
+            </Button>
+            <Button onClick={() => setViewport({ zoom: 0.58, offset: { x: 24, y: 90 } })}>
+              {copy.format}
             </Button>
             <Button icon={<IconTickCircle />} onClick={() => void handleValidate()}>
               {copy.validate}
@@ -517,9 +581,18 @@ export function MicroflowEditor({ schema: initialSchema, apiClient, labels, onSc
             <Button icon={<IconSave />} theme="solid" onClick={() => void handleSave()}>
               {copy.save}
             </Button>
-            <Button icon={<IconPlay />} type="primary" theme="solid" onClick={() => void handleTestRun()}>
+            <Button icon={<IconPlay />} type="primary" theme="solid" onClick={() => setTestRunOpen(true)}>
               {copy.testRun}
             </Button>
+            {onPublish ? (
+              <Button type="warning" theme="solid" onClick={() => void handlePublish()}>
+                {copy.publish}
+              </Button>
+            ) : null}
+            <Button icon={<IconSetting />} onClick={() => Toast.info("Settings drawer is reserved for runtime and parameter configuration.")}>
+              {copy.settings}
+            </Button>
+            {toolbarSuffix}
           </Space>
         </div>
         <div style={bodyStyle}>
@@ -545,16 +618,53 @@ export function MicroflowEditor({ schema: initialSchema, apiClient, labels, onSc
               <MicroflowPropertyForm node={selectedNode} variables={schema.variables} />
             </Space>
           </aside>
+          <aside style={{ ...rightPanelStyle, borderLeft: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-0, #f7f8fa)" }}>
+            <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+              <Title heading={6} style={{ margin: 0 }}>Region Guide</Title>
+              {[
+                "Toolbar saves drafts, validates, runs tests, publishes, formats, and opens settings.",
+                "Node panel groups Mendix-style events, decisions, activities, loops, parameters, and annotations.",
+                "Canvas supports selection, dragging, zooming, fit view, minimap, sequence flows, error flows, and annotation flows.",
+                "Property panel changes with the selected node and exposes configuration plus error handling.",
+                "Problem panel lists validation issues and debug panel shows test-run trace frames with nodeId."
+              ].map((item, index) => (
+                <div key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <Tag color="blue">{index + 1}</Tag>
+                  <Text type="tertiary">{item}</Text>
+                </div>
+              ))}
+            </Space>
+          </aside>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 12, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>
-          <Card title={`${copy.problems} (${issues.length})`} bodyStyle={{ maxHeight: 110, overflow: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 12, padding: 12, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", overflow: "auto", background: "var(--semi-color-bg-1, #fff)" }}>
+          <Card title={`${copy.problems} (${issues.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
             <ProblemPanel issues={issues} />
           </Card>
-          <Card title={`${copy.debug} (${traceFrames.length})`} bodyStyle={{ maxHeight: 110, overflow: "auto" }}>
+          <Card title={`${copy.debug} (${traceFrames.length})`} bodyStyle={{ maxHeight: 158, overflow: "auto" }}>
             <DebugPanel frames={traceFrames} />
           </Card>
         </div>
       </div>
+      <Modal
+        visible={testRunOpen}
+        title={copy.testRun}
+        onCancel={() => setTestRunOpen(false)}
+        onOk={() => void handleTestRun()}
+        okText={copy.testRun}
+      >
+        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+          {schema.parameters.length === 0 ? (
+            <Text type="tertiary">This microflow has no input parameters.</Text>
+          ) : schema.parameters.map(parameter => (
+            <Input
+              key={parameter.id}
+              value={testInput[parameter.name] ?? ""}
+              prefix={`${parameter.name}: ${parameter.type.name}`}
+              onChange={value => setTestInput(current => ({ ...current, [parameter.name]: value }))}
+            />
+          ))}
+        </Space>
+      </Modal>
     </MicroflowRuntimeBoundary>
   );
 }

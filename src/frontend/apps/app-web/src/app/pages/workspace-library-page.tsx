@@ -39,11 +39,13 @@ import { deleteTenantDataSource } from "../../services/api-tenant-datasource";
 import { APP_PERMISSIONS } from "../../constants/permissions";
 import { useOptionalPermissionContext } from "../permission-context";
 import { DatabaseCenterPage } from "./database-center";
+import { MicroflowResourceTab } from "./microflow-resource-tab";
 
 type LibraryTabKey =
   | "all"
   | "plugin"
   | "workflow"
+  | "microflow"
   | "knowledge-base"
   | "card"
   | "prompt"
@@ -61,6 +63,7 @@ const TAB_DEFS: TabDef[] = [
   { key: "all", labelKey: "cozeLibraryTabAll" },
   { key: "plugin", labelKey: "cozeLibraryTabPlugin", resourceType: "plugin" },
   { key: "workflow", labelKey: "cozeLibraryTabWorkflow", resourceType: "workflow" },
+  { key: "microflow", labelKey: "microflowLibraryTab" },
   { key: "knowledge-base", labelKey: "cozeLibraryTabKnowledge", resourceType: "knowledge-base" },
   { key: "card", labelKey: "cozeLibraryTabCard", resourceType: "card" },
   { key: "prompt", labelKey: "cozeLibraryTabPrompt", resourceType: "prompt" },
@@ -75,6 +78,7 @@ function iconOf(rt: LibraryResourceType) {
   const map: Record<string, ReactNode> = {
     plugin: <IconPuzzle />,
     workflow: <IconCode />,
+    microflow: <IconCode />,
     "knowledge-base": <IconFolder />,
     card: <IconBox />,
     prompt: <IconArticle />,
@@ -125,7 +129,8 @@ function legacyNumericTypeToTab(raw: string | null): { tab: LibraryTabKey; subTy
     "5": { tab: "prompt" },
     "6": { tab: "database" },
     "7": { tab: "voice" },
-    "8": { tab: "memory" }
+    "8": { tab: "memory" },
+    "9": { tab: "microflow" }
   };
   return map[n] ?? null;
 }
@@ -250,6 +255,12 @@ export function WorkspaceLibraryPage() {
   }, [searchParams, setSearchParams]);
 
   const load = useCallback(async () => {
+    if (activeTab === "microflow") {
+      setLoading(false);
+      setItems([]);
+      setTotal(0);
+      return;
+    }
     setLoading(true);
     try {
       const tab = TAB_DEFS.find(x => x.key === activeTab);
@@ -278,6 +289,7 @@ export function WorkspaceLibraryPage() {
       const m: Record<LibraryResourceType, AppMessageKey> = {
         plugin: "cozeLibraryTabPlugin",
         workflow: "cozeLibraryTabWorkflow",
+        microflow: "microflowLibraryTab",
         "knowledge-base": "cozeLibraryTabKnowledge",
         card: "cozeLibraryTabCard",
         prompt: "cozeLibraryTabPrompt",
@@ -296,6 +308,9 @@ export function WorkspaceLibraryPage() {
   const handleOpen = useCallback(
     (record: AiWorkspaceLibraryItem) => {
       switch (record.resourceType) {
+        case "microflow":
+          navigate(`/microflow/${encodeURIComponent(record.resourceId)}/editor`);
+          return;
         case "workflow":
           navigate(
             record.subType === "chatflow"
@@ -506,7 +521,7 @@ export function WorkspaceLibraryPage() {
             tabList={TAB_DEFS.map(x => ({ itemKey: x.key, tab: t(x.labelKey) }))}
           />
         </div>
-        {activeTab === "database" ? null : (
+        {activeTab === "database" || activeTab === "microflow" ? null : (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
             <Input
               prefix={<IconSearch />}
@@ -531,6 +546,10 @@ export function WorkspaceLibraryPage() {
             workspaceId={workspace.id}
             initialSourceId={searchParams.get("sourceId") ?? searchParams.get("databaseId") ?? undefined}
           />
+        </div>
+      ) : activeTab === "microflow" ? (
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <MicroflowResourceTab />
         </div>
       ) : (
         <>

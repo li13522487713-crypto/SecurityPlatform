@@ -1,8 +1,13 @@
 import type {
+  CreateMicroflowInput,
+  MicroflowListQuery,
+  MicroflowReference,
+  MicroflowResource,
   MicroflowRuntimeEdgeDto,
   MicroflowRuntimeNodeDto,
   MicroflowSchema,
-  MicroflowValidationIssue
+  MicroflowValidationIssue,
+  PublishMicroflowPayload
 } from "../schema/types";
 
 export interface SaveMicroflowRequest {
@@ -65,6 +70,7 @@ export interface PublishMicroflowResponse {
   microflowId: string;
   publishedVersion: string;
   publishedAt: string;
+  resource?: MicroflowResource;
 }
 
 export interface MicroflowRuntimeDto {
@@ -75,11 +81,19 @@ export interface MicroflowRuntimeDto {
 }
 
 export interface MicroflowApiClient {
+  listMicroflows(query?: MicroflowListQuery): Promise<MicroflowResource[]>;
+  createMicroflow(input: CreateMicroflowInput): Promise<MicroflowResource>;
+  getMicroflow(id: string): Promise<MicroflowResource>;
   saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse>;
   loadMicroflow(id: string): Promise<MicroflowSchema>;
   validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse>;
   testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse>;
-  publishMicroflow(id: string): Promise<PublishMicroflowResponse>;
+  publishMicroflow(id: string, payload?: PublishMicroflowPayload): Promise<PublishMicroflowResponse>;
+  duplicateMicroflow(id: string): Promise<MicroflowResource>;
+  deleteMicroflow(id: string): Promise<void>;
+  archiveMicroflow(id: string): Promise<MicroflowResource>;
+  toggleFavorite(id: string, favorite: boolean): Promise<MicroflowResource>;
+  getMicroflowReferences(id: string): Promise<MicroflowReference[]>;
   getTrace(runId: string): Promise<MicroflowTraceFrame[]>;
 }
 

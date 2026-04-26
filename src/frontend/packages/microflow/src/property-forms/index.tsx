@@ -54,9 +54,19 @@ function renderConfigRows(node: MicroflowNode): Array<[string, string]> {
       ["Object Variable", node.config.objectVariableName ?? ""],
       ["List Variable", node.config.listVariableName ?? ""],
       ["Variable", node.config.variableName ?? ""],
+      ["Output Variable", node.config.resultVariableName ?? ""],
       ["Target Microflow", node.config.targetMicroflowId ?? ""],
       ["Method", node.config.method ?? ""],
       ["URL", node.config.url ?? ""],
+      ["Timeout", node.config.timeoutMs ? `${node.config.timeoutMs}ms` : ""],
+      ["Range", node.config.range ?? ""],
+      ["Limit", node.config.limit ? String(node.config.limit) : ""],
+      ["Sort", node.config.sort ?? ""],
+      ["Refresh Client", node.config.refreshClient === undefined ? "" : String(node.config.refreshClient)],
+      ["With Events", node.config.withEvents === undefined ? "" : String(node.config.withEvents)],
+      ["Log Level", node.config.logLevel ?? ""],
+      ["Message", node.config.messageExpression?.text ?? ""],
+      ["Body", node.config.bodyExpression?.text ?? ""],
       ["Error Handling", node.config.errorHandling?.mode ?? ""]
     ].filter(([, value]) => value.length > 0);
   }
@@ -103,6 +113,9 @@ export function MicroflowPropertyForm({ node }: MicroflowPropertyFormProps) {
   return (
     <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
       <Input value={node.title} readonly prefix="Title" />
+      <Input value={node.description ?? ""} readonly prefix="Description" />
+      <Input value={node.type} readonly prefix="Node Type" />
+      <Input value="true" readonly prefix="Enabled" />
       <Input value={node.propertyForm.formKey} readonly prefix="Form" />
       {renderConfigRows(node).map(([label, value]) => (
         <Input key={label} value={value} readonly prefix={label} />

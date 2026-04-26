@@ -27,15 +27,21 @@ export type MicroflowActivityType =
   | "objectDelete"
   | "objectRetrieve"
   | "objectRollback"
+  | "listOperation"
+  | "listAggregate"
   | "variableCreate"
   | "variableChange"
   | "callMicroflow"
+  | "callNanoflow"
   | "callRest"
   | "logMessage"
   | "showPage"
   | "closePage";
 
 export type MicroflowEdgeType = "sequence" | "error" | "annotation";
+export type MicroflowResourceStatus = "draft" | "published" | "archived";
+export type MicroflowResourceScope = "all" | "mine" | "shared" | "favorite";
+export type MicroflowResourceSortKey = "updatedAt" | "createdAt" | "name" | "version";
 export type MicroflowPortDirection = "input" | "output";
 export type MicroflowExpressionLanguage = "mendix" | "javascript" | "plainText";
 export type MicroflowErrorHandlingMode =
@@ -153,10 +159,22 @@ export interface MicroflowActivityConfig {
   targetMicroflowId?: string;
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url?: string;
+  headers?: Array<{ key: string; value: string }>;
+  query?: Array<{ key: string; value: string }>;
+  bodyExpression?: MicroflowExpression;
+  timeoutMs?: number;
+  resultVariableName?: string;
+  logLevel?: "trace" | "debug" | "info" | "warn" | "error";
   messageExpression?: MicroflowExpression;
   pageName?: string;
+  range?: "all" | "first" | "limit";
+  limit?: number;
+  sort?: string;
+  refreshClient?: boolean;
+  withEvents?: boolean;
   errorHandling?: MicroflowErrorHandling;
   supportsErrorFlow?: boolean;
+  reserved?: boolean;
 }
 
 export interface MicroflowParameterConfig {
@@ -212,6 +230,58 @@ export interface MicroflowSchema {
     zoom: number;
     offset: MicroflowPosition;
   };
+}
+
+export interface MicroflowResource {
+  id: string;
+  name: string;
+  description: string;
+  moduleId: string;
+  moduleName?: string;
+  ownerName: string;
+  sharedWithMe?: boolean;
+  tags: string[];
+  version: string;
+  status: MicroflowResourceStatus;
+  favorite: boolean;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+  lastModifiedBy?: string;
+  schema: MicroflowSchema;
+}
+
+export interface MicroflowListQuery {
+  scope?: MicroflowResourceScope;
+  keyword?: string;
+  sortBy?: MicroflowResourceSortKey;
+  status?: "all" | MicroflowResourceStatus;
+  tag?: string;
+  ownerName?: string;
+  updatedRange?: "all" | "today" | "week" | "month";
+}
+
+export interface CreateMicroflowInput {
+  name: string;
+  description: string;
+  moduleId: string;
+  moduleName?: string;
+  tags: string[];
+  returnType?: MicroflowTypeRef;
+}
+
+export interface PublishMicroflowPayload {
+  version: string;
+  releaseNote: string;
+  overwriteCurrent: boolean;
+}
+
+export interface MicroflowReference {
+  id: string;
+  sourceType: "workflow" | "agent" | "lowcode-app" | "form-event";
+  sourceName: string;
+  sourceId: string;
+  updatedAt: string;
 }
 
 export interface MicroflowValidationIssue {

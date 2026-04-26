@@ -42,6 +42,7 @@ export function resolveEditorRouteResource(pathname: string): EditorRouteResourc
   const candidates: Array<{ regex: RegExp; resourceType: EditorResourceType }> = [
     { regex: /^\/apps\/lowcode\/([^/]+)\/studio$/i, resourceType: "app" },
     { regex: /^\/app\/([^/]+)\/(?:editor|publish)$/i, resourceType: "app" },
+    { regex: /^\/microflow\/([^/]+)\/editor$/i, resourceType: "microflow" },
     { regex: /^\/workflow\/([^/]+)\/editor$/i, resourceType: "workflow" },
     { regex: /^\/chatflow\/([^/]+)\/editor$/i, resourceType: "workflow" },
     { regex: /^\/agent\/([^/]+)\/(?:editor|publish)$/i, resourceType: "agent" }
@@ -245,8 +246,10 @@ function EditorWorkspaceFailure({
 function EditorChrome() {
   const { t } = useAppI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   const workspace = useWorkspaceContext();
   const workspaceLabel = workspace.name || workspace.appKey || "Workspace";
+  const immersive = location.pathname.startsWith("/microflow/");
 
   if (workspace.loading) {
     return <LoadingPage />;
@@ -254,17 +257,19 @@ function EditorChrome() {
 
   return (
     <div className="coze-editor-shell" data-testid="coze-editor-shell">
-      <header className="coze-editor-shell__header">
-        <Button
-          theme="borderless"
-          icon={<IconChevronLeft />}
-          onClick={() => navigate(workspaceProjectsPath(workspace.id))}
-          data-testid="coze-editor-shell-back"
-        >
-          {t("cozeCommonGoBack")}
-        </Button>
-        <span className="coze-editor-shell__workspace">{workspaceLabel}</span>
-      </header>
+      {immersive ? null : (
+        <header className="coze-editor-shell__header">
+          <Button
+            theme="borderless"
+            icon={<IconChevronLeft />}
+            onClick={() => navigate(workspaceProjectsPath(workspace.id))}
+            data-testid="coze-editor-shell-back"
+          >
+            {t("cozeCommonGoBack")}
+          </Button>
+          <span className="coze-editor-shell__workspace">{workspaceLabel}</span>
+        </header>
+      )}
       <main className="coze-editor-shell__main">
         <Outlet />
       </main>
