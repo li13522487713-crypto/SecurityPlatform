@@ -1,4 +1,4 @@
-import type { MicroflowActivityType, MicroflowEdgeType, MicroflowNodeCategory, MicroflowNodeKind } from "../schema/types";
+import type { MicroflowActivityType, MicroflowEdgeType, MicroflowNodeCategory, MicroflowNodeType } from "../schema/types";
 
 export type MendixMicroflowConcept =
   | "Event"
@@ -16,7 +16,7 @@ export type MendixMicroflowConcept =
   | "LoggingActivity";
 
 export interface MendixNodeCategoryMapping {
-  microflowType: MicroflowNodeKind;
+  microflowType: MicroflowNodeType;
   activityType?: MicroflowActivityType;
   mendixConcept: MendixMicroflowConcept;
   category: MicroflowNodeCategory;
@@ -25,38 +25,41 @@ export interface MendixNodeCategoryMapping {
 
 export interface MendixFlowMapping {
   edgeType: MicroflowEdgeType;
-  importExportKey: "SequenceFlow" | "ErrorFlow" | "AnnotationFlow";
+  importExportKey: "SequenceFlow" | "DecisionConditionFlow" | "ObjectTypeConditionFlow" | "ErrorFlow" | "AnnotationFlow";
   visualStyle: "solid" | "error" | "dashed";
 }
 
 export const mendixNodeCategoryMappings: MendixNodeCategoryMapping[] = [
-  { microflowType: "startEvent", mendixConcept: "Event", category: "event", importExportKey: "StartEvent" },
-  { microflowType: "endEvent", mendixConcept: "Event", category: "event", importExportKey: "EndEvent" },
-  { microflowType: "errorEvent", mendixConcept: "Event", category: "event", importExportKey: "ErrorEvent" },
-  { microflowType: "breakEvent", mendixConcept: "Event", category: "event", importExportKey: "BreakEvent" },
-  { microflowType: "continueEvent", mendixConcept: "Event", category: "event", importExportKey: "ContinueEvent" },
-  { microflowType: "decision", mendixConcept: "Decision", category: "decision", importExportKey: "ExclusiveSplit" },
-  { microflowType: "merge", mendixConcept: "Merge", category: "merge", importExportKey: "Merge" },
+  { microflowType: "startEvent", mendixConcept: "Event", category: "events", importExportKey: "StartEvent" },
+  { microflowType: "endEvent", mendixConcept: "Event", category: "events", importExportKey: "EndEvent" },
+  { microflowType: "errorEvent", mendixConcept: "Event", category: "events", importExportKey: "ErrorEvent" },
+  { microflowType: "breakEvent", mendixConcept: "Event", category: "events", importExportKey: "BreakEvent" },
+  { microflowType: "continueEvent", mendixConcept: "Event", category: "events", importExportKey: "ContinueEvent" },
+  { microflowType: "decision", mendixConcept: "Decision", category: "decisions", importExportKey: "ExclusiveSplit" },
+  { microflowType: "objectTypeDecision", mendixConcept: "Decision", category: "decisions", importExportKey: "InheritanceSplit" },
+  { microflowType: "merge", mendixConcept: "Merge", category: "decisions", importExportKey: "Merge" },
   { microflowType: "loop", mendixConcept: "Loop", category: "loop", importExportKey: "LoopedActivity" },
-  { microflowType: "parameter", mendixConcept: "Parameter", category: "parameter", importExportKey: "Parameter" },
-  { microflowType: "annotation", mendixConcept: "Annotation", category: "annotation", importExportKey: "Annotation" },
-  { microflowType: "activity", activityType: "objectCreate", mendixConcept: "ObjectActivity", category: "activity", importExportKey: "CreateObjectAction" },
-  { microflowType: "activity", activityType: "objectChange", mendixConcept: "ObjectActivity", category: "activity", importExportKey: "ChangeObjectAction" },
-  { microflowType: "activity", activityType: "objectCommit", mendixConcept: "ObjectActivity", category: "activity", importExportKey: "CommitAction" },
-  { microflowType: "activity", activityType: "objectDelete", mendixConcept: "ObjectActivity", category: "activity", importExportKey: "DeleteAction" },
-  { microflowType: "activity", activityType: "objectRetrieve", mendixConcept: "ObjectActivity", category: "activity", importExportKey: "RetrieveAction" },
-  { microflowType: "activity", activityType: "objectRollback", mendixConcept: "ObjectActivity", category: "activity", importExportKey: "RollbackAction" },
-  { microflowType: "activity", activityType: "variableCreate", mendixConcept: "VariableActivity", category: "activity", importExportKey: "CreateVariableAction" },
-  { microflowType: "activity", activityType: "variableChange", mendixConcept: "VariableActivity", category: "activity", importExportKey: "ChangeVariableAction" },
-  { microflowType: "activity", activityType: "callMicroflow", mendixConcept: "CallActivity", category: "activity", importExportKey: "MicroflowCallAction" },
-  { microflowType: "activity", activityType: "callRest", mendixConcept: "IntegrationActivity", category: "activity", importExportKey: "RestCallAction" },
-  { microflowType: "activity", activityType: "logMessage", mendixConcept: "LoggingActivity", category: "activity", importExportKey: "LogMessageAction" },
-  { microflowType: "activity", activityType: "showPage", mendixConcept: "ClientActivity", category: "activity", importExportKey: "ShowPageAction" },
-  { microflowType: "activity", activityType: "closePage", mendixConcept: "ClientActivity", category: "activity", importExportKey: "ClosePageAction" }
+  { microflowType: "parameter", mendixConcept: "Parameter", category: "parameters", importExportKey: "Parameter" },
+  { microflowType: "annotation", mendixConcept: "Annotation", category: "annotations", importExportKey: "Annotation" },
+  { microflowType: "activity", activityType: "objectCreate", mendixConcept: "ObjectActivity", category: "activities", importExportKey: "CreateObjectAction" },
+  { microflowType: "activity", activityType: "objectChange", mendixConcept: "ObjectActivity", category: "activities", importExportKey: "ChangeObjectAction" },
+  { microflowType: "activity", activityType: "objectCommit", mendixConcept: "ObjectActivity", category: "activities", importExportKey: "CommitAction" },
+  { microflowType: "activity", activityType: "objectDelete", mendixConcept: "ObjectActivity", category: "activities", importExportKey: "DeleteAction" },
+  { microflowType: "activity", activityType: "objectRetrieve", mendixConcept: "ObjectActivity", category: "activities", importExportKey: "RetrieveAction" },
+  { microflowType: "activity", activityType: "objectRollback", mendixConcept: "ObjectActivity", category: "activities", importExportKey: "RollbackAction" },
+  { microflowType: "activity", activityType: "variableCreate", mendixConcept: "VariableActivity", category: "activities", importExportKey: "CreateVariableAction" },
+  { microflowType: "activity", activityType: "variableChange", mendixConcept: "VariableActivity", category: "activities", importExportKey: "ChangeVariableAction" },
+  { microflowType: "activity", activityType: "callMicroflow", mendixConcept: "CallActivity", category: "activities", importExportKey: "MicroflowCallAction" },
+  { microflowType: "activity", activityType: "callRest", mendixConcept: "IntegrationActivity", category: "activities", importExportKey: "RestCallAction" },
+  { microflowType: "activity", activityType: "logMessage", mendixConcept: "LoggingActivity", category: "activities", importExportKey: "LogMessageAction" },
+  { microflowType: "activity", activityType: "showPage", mendixConcept: "ClientActivity", category: "activities", importExportKey: "ShowPageAction" },
+  { microflowType: "activity", activityType: "closePage", mendixConcept: "ClientActivity", category: "activities", importExportKey: "ClosePageAction" }
 ];
 
 export const mendixFlowMappings: MendixFlowMapping[] = [
   { edgeType: "sequence", importExportKey: "SequenceFlow", visualStyle: "solid" },
-  { edgeType: "error", importExportKey: "ErrorFlow", visualStyle: "error" },
+  { edgeType: "decisionCondition", importExportKey: "DecisionConditionFlow", visualStyle: "solid" },
+  { edgeType: "objectTypeCondition", importExportKey: "ObjectTypeConditionFlow", visualStyle: "solid" },
+  { edgeType: "errorHandler", importExportKey: "ErrorFlow", visualStyle: "error" },
   { edgeType: "annotation", importExportKey: "AnnotationFlow", visualStyle: "dashed" }
 ];

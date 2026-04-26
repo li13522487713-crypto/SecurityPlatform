@@ -280,22 +280,55 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     const startedAt = Date.now();
     const runId = `run-${startedAt}`;
     const simulateError = String(request.input.simulateError ?? "").toLowerCase() === "true";
-    const traversableNodes = schema.nodes.filter(node => node.type !== "annotation" && node.type !== "parameter");
-    const frames = traversableNodes.map((node, index): MicroflowTraceFrame => {
+    const nodesById = new Map(schema.nodes.map(node => [node.id, node]));
+    const orderedNodeIds: Array<{ nodeId: string; incomingEdgeId?: string; outgoingEdgeId?: string }> = [];
+    const start = schema.nodes.find(node => node.type === "startEvent");
+    let currentId = start?.id;
+    let incomingEdgeId: string | undefined;
+    const visited = new Set<string>();
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const current = nodesById.get(currentId);
+      if (!current || current.type === "annotation" || current.type === "parameter") {
+        break;
+      }
+      const failedRest = simulateError && current.type === "activity" && current.config.activityType === "callRest";
+      const outgoing = failedRest
+        ? schema.edges.find(edge => edge.sourceNodeId === currentId && edge.type === "errorHandler")
+        : schema.edges.find(edge => edge.sourceNodeId === currentId && edge.type !== "annotation" && edge.type !== "errorHandler" && (
+          edge.type !== "decisionCondition" ||
+          edge.conditionValue?.kind !== "boolean" ||
+          edge.conditionValue.value === true
+        ));
+      orderedNodeIds.push({ nodeId: currentId, incomingEdgeId, outgoingEdgeId: outgoing?.id });
+      incomingEdgeId = outgoing?.id;
+      currentId = outgoing?.targetNodeId;
+    }
+    const traversableNodes = orderedNodeIds.length > 0
+      ? orderedNodeIds
+      : schema.nodes.filter(node => node.type !== "annotation" && node.type !== "parameter").map(node => ({ nodeId: node.id }));
+    const frames = traversableNodes.map((trace, index): MicroflowTraceFrame => {
+      const node = nodesById.get(trace.nodeId) ?? schema.nodes[index];
       const durationMs = 8 + index * 3;
-      const failed = simulateError && node.type === "activity" && node.config.activityType === "callRest";
+      const failed = simulateError && node?.type === "activity" && node.config.activityType === "callRest";
       return {
+        id: `${runId}-${trace.nodeId}`,
         frameId: `${runId}-${node.id}`,
         runId,
         nodeId: node.id,
         nodeTitle: node.title,
+        incomingEdgeId: trace.incomingEdgeId,
+        outgoingEdgeId: trace.outgoingEdgeId,
+        status: failed ? "failed" : "success",
         startedAt: new Date(startedAt + index * 12).toISOString(),
         durationMs,
-        input: index === 0 ? request.input : { previousNodeId: traversableNodes[index - 1]?.id },
+        input: index === 0 ? request.input : { previousNodeId: traversableNodes[index - 1]?.nodeId, incomingEdgeId: trace.incomingEdgeId },
         output: {
           status: failed ? "failed" : "ok",
           nodeType: node.type,
-          activityType: node.type === "activity" ? node.config.activityType : undefined
+          activityType: node.type === "activity" ? node.config.activityType : undefined,
+          outgoingEdgeId: trace.outgoingEdgeId,
+          conditionValue: schema.edges.find(edge => edge.id === trace.outgoingEdgeId)?.conditionValue
         },
         error: failed ? {
           code: "MF_TEST_REST_ERROR",

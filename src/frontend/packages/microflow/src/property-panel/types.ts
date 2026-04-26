@@ -29,18 +29,22 @@ export interface MicroflowPropertyChangePayload {
 }
 
 export interface MicroflowNodePatch extends MicroflowPropertyChangePayload {}
+export type MicroflowEdgePatch = Partial<MicroflowEdge>;
 
 export interface MicroflowPropertyPanelProps {
   selectedNode: MicroflowNode | null;
+  selectedEdge?: MicroflowEdge | null;
   schema: MicroflowSchema;
   validationIssues: MicroflowValidationIssue[];
-  traceFrames?: Array<{ nodeId: string; status: string; durationMs: number; error?: string }>;
+  traceFrames?: Array<{ nodeId: string; incomingEdgeId?: string; outgoingEdgeId?: string; status: string; durationMs: number; error?: string }>;
   readonly?: boolean;
   onNodeChange: (nodeId: string, patch: MicroflowNodePatch) => void;
+  onEdgeChange?: (edgeId: string, patch: MicroflowEdgePatch) => void;
   onClose: () => void;
   onLocateNode?: (nodeId: string) => void;
   onDuplicateNode?: (nodeId: string) => void;
   onDeleteNode?: (nodeId: string) => void;
+  onDeleteEdge?: (edgeId: string) => void;
 }
 
 export interface MicroflowNodeFormProps<TNode extends MicroflowNode = MicroflowNode> {

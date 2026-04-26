@@ -46,15 +46,20 @@ export interface MicroflowRuntimeError {
 }
 
 export interface MicroflowTraceFrame {
+  id: string;
   frameId: string;
   runId: string;
   nodeId: string;
   nodeTitle: string;
+  incomingEdgeId?: string;
+  outgoingEdgeId?: string;
+  status: "success" | "failed" | "skipped" | "running";
   startedAt: string;
   durationMs: number;
   input: Record<string, unknown>;
   output: Record<string, unknown>;
   error?: MicroflowRuntimeError;
+  variablesSnapshot?: Record<string, unknown>;
 }
 
 export interface TestRunMicroflowResponse {

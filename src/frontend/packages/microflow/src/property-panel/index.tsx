@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, Dropdown, Empty, Space, Tabs, Tag, Tooltip, Typography } from "@douyinfe/semi-ui";
+import { Badge, Button, Dropdown, Empty, Input, Select, Space, Switch, Tabs, Tag, TextArea, Tooltip, Typography } from "@douyinfe/semi-ui";
 import { IconClose, IconCopy, IconDelete, IconInfoCircle, IconLock, IconMore, IconUnlock } from "@douyinfe/semi-icons";
 import type { MicroflowNodeOutput, MicroflowVariable } from "../schema";
+import { getMicroflowEdgeRegistryItem } from "../node-registry";
 import {
   MicroflowAdvancedSection,
   MicroflowDocumentationSection,
@@ -16,6 +17,7 @@ import type {
   MicroflowNodeFormProps,
   MicroflowNodePatch,
   MicroflowPropertyPanelProps,
+  MicroflowEdgePatch,
   MicroflowPropertyTabKey
 } from "./types";
 
@@ -122,6 +124,126 @@ function MicroflowPropertyTabs({
   );
 }
 
+function conditionValueText(value: import("../schema").MicroflowConditionValue | undefined): string {
+  if (!value) {
+    return "";
+  }
+  if (value.kind === "boolean") {
+    return String(value.value);
+  }
+  if (value.kind === "objectType") {
+    return value.entity;
+  }
+  return value.value;
+}
+
+function parseConditionValue(edgeType: string, text: string): import("../schema").MicroflowConditionValue | undefined {
+  const value = text.trim();
+  if (!value) {
+    return undefined;
+  }
+  if (edgeType === "decisionCondition") {
+    if (value === "true" || value === "是") {
+      return { kind: "boolean", value: true };
+    }
+    if (value === "false" || value === "否") {
+      return { kind: "boolean", value: false };
+    }
+    return { kind: "enumeration", value };
+  }
+  if (edgeType === "objectTypeCondition") {
+    return { kind: "objectType", entity: value as never };
+  }
+  return { kind: "custom", value };
+}
+
+function MicroflowEdgePropertyPanel({
+  props,
+  edge
+}: {
+  props: MicroflowPropertyPanelProps;
+  edge: NonNullable<MicroflowPropertyPanelProps["selectedEdge"]>;
+}) {
+  const registryItem = getMicroflowEdgeRegistryItem(edge.type);
+  const source = props.schema.nodes.find(node => node.id === edge.sourceNodeId);
+  const target = props.schema.nodes.find(node => node.id === edge.targetNodeId);
+  const issues = props.validationIssues.filter(issue => issue.edgeId === edge.id);
+  const readonly = Boolean(props.readonly);
+  const patch = (next: MicroflowEdgePatch) => {
+    if (!readonly) {
+      props.onEdgeChange?.(edge.id, next);
+    }
+  };
+  return (
+    <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto minmax(0, 1fr) auto", background: "var(--semi-color-bg-1, #fff)" }}>
+      <div style={{ padding: 14, borderBottom: "1px solid var(--semi-color-border)" }}>
+        <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+          <Space>
+            <Text strong>{registryItem?.titleZh ?? edge.type}</Text>
+            <Tag color={edge.type === "errorHandler" ? "red" : edge.type === "annotation" ? "grey" : "blue"}>{registryItem?.title ?? edge.type}</Tag>
+            <Button size="small" theme="borderless" icon={<IconClose />} onClick={props.onClose} />
+          </Space>
+          <Text type="tertiary">{registryItem?.description}</Text>
+        </Space>
+      </div>
+      <div style={{ minHeight: 0, overflow: "auto", padding: 14 }}>
+        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+          {issues.length > 0 ? (
+            <div style={{ width: "100%", padding: 10, borderRadius: 10, background: "rgba(249, 57, 32, 0.06)", border: "1px solid rgba(249, 57, 32, 0.18)" }}>
+              {issues.map(issue => <Text key={issue.id} type={issue.severity === "error" ? "danger" : "warning"} size="small" style={{ display: "block" }}>{issue.message}</Text>)}
+            </div>
+          ) : null}
+          <Input readonly prefix="Edge Type" value={`${registryItem?.titleZh ?? edge.type} / ${registryItem?.title ?? edge.type}`} />
+          <Input readonly prefix="Runtime Effect" value={registryItem?.runtimeEffect ?? "-"} />
+          <Input readonly prefix="Source Node" value={source?.title ?? edge.sourceNodeId} />
+          <Input readonly prefix="Target Node" value={target?.title ?? edge.targetNodeId} />
+          <Input readonly prefix="Source Port" value={edge.sourcePortId ?? ""} />
+          <Input readonly prefix="Target Port" value={edge.targetPortId ?? ""} />
+          <Input readonly={readonly} prefix="Label" value={edge.label ?? ""} onChange={label => patch({ label })} />
+          <TextArea autosize readonly={readonly} placeholder="Description" value={edge.description ?? ""} onChange={description => patch({ description })} />
+          {edge.type === "decisionCondition" || edge.type === "objectTypeCondition" ? (
+            <>
+              <Input
+                readonly={readonly}
+                prefix={edge.type === "decisionCondition" ? "Condition Value" : "Specialization"}
+                value={conditionValueText(edge.conditionValue)}
+                onChange={text => patch({ conditionValue: parseConditionValue(edge.type, text) })}
+              />
+              <Input readonly={readonly} prefix="Branch Order" value={String(edge.branchOrder ?? "")} onChange={branchOrder => patch({ branchOrder: Number(branchOrder) || undefined })} />
+            </>
+          ) : null}
+          {edge.type === "errorHandler" ? (
+            <>
+              <Select
+                disabled={readonly}
+                style={{ width: "100%" }}
+                prefix="Error Handling"
+                value={edge.errorHandlingType ?? "customWithRollback"}
+                optionList={["customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+                onChange={value => patch({ errorHandlingType: String(value) as MicroflowEdgePatch["errorHandlingType"] })}
+              />
+              <Switch disabled={readonly} checked={edge.exposeLatestError ?? true} onChange={exposeLatestError => patch({ exposeLatestError })} /> <Text>Expose latestError</Text>
+              <Switch disabled={readonly} checked={Boolean(edge.exposeLatestHttpResponse)} onChange={exposeLatestHttpResponse => patch({ exposeLatestHttpResponse })} /> <Text>Expose latestHttpResponse</Text>
+              <Switch disabled={readonly} checked={Boolean(edge.exposeLatestSoapFault)} onChange={exposeLatestSoapFault => patch({ exposeLatestSoapFault })} /> <Text>Expose latestSoapFault</Text>
+              <Input readonly={readonly} prefix="Error Variable" value={edge.targetErrorVariableName ?? "latestError"} onChange={targetErrorVariableName => patch({ targetErrorVariableName })} />
+              <Switch disabled={readonly} checked={edge.logError ?? true} onChange={logError => patch({ logError })} /> <Text>Log error</Text>
+            </>
+          ) : null}
+          {edge.type === "annotation" ? (
+            <>
+              <Select disabled={readonly} style={{ width: "100%" }} prefix="Attachment" value={edge.attachmentMode ?? "node"} optionList={["node", "edge", "canvas"].map(value => ({ label: value, value }))} onChange={attachmentMode => patch({ attachmentMode: String(attachmentMode) as MicroflowEdgePatch["attachmentMode"] })} />
+              <Switch disabled={readonly} checked={edge.showInExport ?? true} onChange={showInExport => patch({ showInExport })} /> <Text>Export to documentation</Text>
+            </>
+          ) : null}
+        </Space>
+      </div>
+      <div style={{ padding: "8px 12px", borderTop: "1px solid var(--semi-color-border)" }}>
+        <Button type="danger" theme="borderless" icon={<IconDelete />} onClick={() => props.onDeleteEdge?.(edge.id)}>删除连线</Button>
+      </div>
+    </div>
+  );
+}
+
 function createVariableFromOutput(output: MicroflowNodeOutput): MicroflowVariable {
   return {
     id: output.id,
@@ -151,6 +273,7 @@ export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
   const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>("properties");
   const [dirtyNodeIds, setDirtyNodeIds] = useState<string[]>([]);
   const selectedNode = props.selectedNode;
+  const selectedEdge = props.selectedEdge;
   const issues = useMemo(() => selectedNode ? props.validationIssues.filter(issue => issue.nodeId === selectedNode.id) : [], [props.validationIssues, selectedNode]);
   const variables = useMemo(() => buildVariablesForPropertyPanel(props), [props]);
   const trace = selectedNode ? props.traceFrames?.find(frame => frame.nodeId === selectedNode.id) : undefined;
@@ -164,6 +287,10 @@ export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
       setActiveTab(tabs[0] ?? "properties");
     }
   }, [activeTab, tabs]);
+
+  if (selectedEdge) {
+    return <MicroflowEdgePropertyPanel props={props} edge={selectedEdge} />;
+  }
 
   if (!selectedNode) {
     return (

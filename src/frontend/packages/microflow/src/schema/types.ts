@@ -1,54 +1,149 @@
-export type MicroflowNodeCategory =
+export type MicroflowNodeKind =
   | "event"
   | "decision"
-  | "activity"
-  | "loop"
-  | "parameter"
-  | "annotation"
-  | "merge";
-
-export type MicroflowNodeKind =
-  | "startEvent"
-  | "endEvent"
-  | "errorEvent"
-  | "breakEvent"
-  | "continueEvent"
-  | "decision"
+  | "objectTypeDecision"
   | "merge"
   | "loop"
   | "parameter"
   | "annotation"
   | "activity";
 
+export type MicroflowNodeType =
+  | "startEvent"
+  | "endEvent"
+  | "errorEvent"
+  | "breakEvent"
+  | "continueEvent"
+  | "decision"
+  | "objectTypeDecision"
+  | "merge"
+  | "loop"
+  | "parameter"
+  | "annotation"
+  | "activity";
+
+export type MicroflowNodeCategory =
+  | "events"
+  | "flows"
+  | "decisions"
+  | "activities"
+  | "loop"
+  | "parameters"
+  | "annotations";
+
+export type MicroflowActivityCategory =
+  | "object"
+  | "list"
+  | "call"
+  | "variable"
+  | "client"
+  | "integration"
+  | "logging"
+  | "documentGeneration"
+  | "metrics"
+  | "mlKit"
+  | "workflow"
+  | "externalObject";
+
+export type MicroflowNodeAvailability =
+  | "supported"
+  | "beta"
+  | "deprecated"
+  | "requiresConnector"
+  | "nanoflowOnlyDisabled";
+
 export type MicroflowActivityType =
+  | "objectCast"
   | "objectCreate"
   | "objectChange"
   | "objectCommit"
   | "objectDelete"
   | "objectRetrieve"
   | "objectRollback"
+  | "listCreate"
+  | "listChange"
   | "listOperation"
   | "listAggregate"
   | "variableCreate"
   | "variableChange"
   | "callMicroflow"
+  | "callJavaAction"
+  | "callJavaScriptAction"
   | "callNanoflow"
   | "callRest"
+  | "callWebService"
+  | "callExternalAction"
+  | "importWithMapping"
+  | "exportWithMapping"
+  | "queryExternalDatabase"
+  | "sendRestRequestBeta"
   | "logMessage"
   | "showPage"
-  | "closePage";
+  | "closePage"
+  | "downloadFile"
+  | "showHomePage"
+  | "showMessage"
+  | "synchronizeToDevice"
+  | "validationFeedback"
+  | "synchronize"
+  | "generateDocument"
+  | "counter"
+  | "incrementCounter"
+  | "gauge"
+  | "callMlModel"
+  | "applyJumpToOption"
+  | "callWorkflow"
+  | "changeWorkflowState"
+  | "completeUserTask"
+  | "generateJumpToOptions"
+  | "retrieveWorkflowActivityRecords"
+  | "retrieveWorkflowContext"
+  | "retrieveWorkflows"
+  | "showUserTaskPage"
+  | "showWorkflowAdminPage"
+  | "lockWorkflow"
+  | "unlockWorkflow"
+  | "notifyWorkflow"
+  | "deleteExternalObject"
+  | "sendExternalObject";
 
-export type MicroflowEdgeType = "sequence" | "error" | "annotation";
-export type MicroflowResourceStatus = "draft" | "published" | "archived";
-export type MicroflowResourceScope = "all" | "mine" | "shared" | "favorite";
-export type MicroflowResourceSortKey = "updatedAt" | "createdAt" | "name" | "version";
-export type MicroflowPortDirection = "input" | "output";
-export type MicroflowExpressionLanguage = "mendix" | "javascript" | "plainText";
-export type MicroflowErrorHandlingMode =
+export type MicroflowEdgeKind =
+  | "sequence"
+  | "decisionCondition"
+  | "objectTypeCondition"
+  | "errorHandler"
+  | "annotation";
+export type MicroflowEdgeType = MicroflowEdgeKind;
+export type MicroflowEdgeStyle = "solid" | "dashed" | "dotted";
+export type MicroflowConditionValue =
+  | { kind: "boolean"; value: true | false }
+  | { kind: "enumeration"; value: string | "empty" }
+  | { kind: "objectType"; entity: string | "empty" | "fallback" }
+  | { kind: "custom"; value: string };
+export type MicroflowErrorHandlingType =
   | "rollback"
   | "customWithRollback"
   | "customWithoutRollback"
   | "continue";
+export type MicroflowResourceStatus = "draft" | "published" | "archived";
+export type MicroflowResourceScope = "all" | "mine" | "shared" | "favorite";
+export type MicroflowResourceSortKey = "updatedAt" | "createdAt" | "name" | "version";
+export type MicroflowPortDirection = "input" | "output";
+export type MicroflowPortKind =
+  | "sequenceIn"
+  | "sequenceOut"
+  | "decisionOut"
+  | "objectTypeOut"
+  | "errorOut"
+  | "annotation"
+  | "loopIn"
+  | "loopOut"
+  | "loopBodyIn"
+  | "loopBodyOut";
+export type MicroflowPortCardinality = "none" | "one" | "zeroOrOne" | "oneOrMore" | "zeroOrMore";
+export type MicroflowExpressionLanguage = "mendix" | "javascript" | "plainText";
+export type MicroflowErrorHandlingMode = MicroflowErrorHandlingType;
+export type MicroflowPropertyTabKey = "properties" | "documentation" | "errorHandling" | "output" | "advanced";
 
 export interface MicroflowPosition {
   x: number;
@@ -59,6 +154,8 @@ export interface MicroflowPort {
   id: string;
   label: string;
   direction: MicroflowPortDirection;
+  kind: MicroflowPortKind;
+  cardinality: MicroflowPortCardinality;
   edgeTypes: MicroflowEdgeType[];
 }
 
@@ -114,6 +211,9 @@ export interface MicroflowPropertyFormMetadata {
 }
 
 export interface MicroflowNodeDocumentation {
+  summary?: string;
+  whenToUse?: string;
+  examples?: string[];
   business?: string;
   technical?: string;
   inputs?: string;
@@ -150,10 +250,12 @@ export interface MicroflowAttributeAssignment {
   expression: MicroflowExpression;
 }
 
-export interface MicroflowNodeBase<TKind extends MicroflowNodeKind = MicroflowNodeKind, TConfig extends object = Record<string, unknown>> {
+export interface MicroflowNodeBase<TKind extends MicroflowNodeType = MicroflowNodeType, TConfig extends object = Record<string, unknown>> {
   id: string;
   type: TKind;
+  kind?: MicroflowNodeKind;
   title: string;
+  titleZh?: string;
   description?: string;
   alias?: string;
   enabled?: boolean;
@@ -168,6 +270,9 @@ export interface MicroflowNodeBase<TKind extends MicroflowNodeKind = MicroflowNo
   config: TConfig;
   render: MicroflowRenderMetadata;
   propertyForm: MicroflowPropertyFormMetadata;
+  availability?: MicroflowNodeAvailability;
+  availabilityReason?: string;
+  parentLoopId?: string;
   validation?: {
     disabled?: boolean;
   };
@@ -186,6 +291,16 @@ export interface MicroflowEventConfig {
 
 export interface MicroflowDecisionConfig {
   expression: MicroflowExpression;
+  decisionType?: "expression" | "rule";
+  ruleReference?: string;
+  resultType?: "Boolean" | "Enumeration";
+  branches?: Array<{ conditionValue?: MicroflowConditionValue; label?: string; targetNodeId?: string }>;
+}
+
+export interface MicroflowObjectTypeDecisionConfig {
+  inputObject: string;
+  generalizedEntity?: string;
+  branches?: Array<{ conditionValue?: MicroflowConditionValue; label?: string; targetNodeId?: string }>;
 }
 
 export interface MicroflowMergeConfig {
@@ -195,14 +310,16 @@ export interface MicroflowMergeConfig {
 export interface MicroflowLoopConfig {
   iterableVariableName: string;
   itemVariableName: string;
-  loopType?: "list" | "condition";
+  loopType?: "list" | "condition" | "forEach" | "while";
   indexVariableName?: string;
+  whileExpression?: MicroflowExpression;
   skipWhenEmpty?: boolean;
   note?: string;
 }
 
 export interface MicroflowActivityConfig {
   activityType: MicroflowActivityType;
+  activityCategory?: MicroflowActivityCategory;
   entity?: string;
   association?: string;
   objectVariableName?: string;
@@ -253,6 +370,18 @@ export interface MicroflowActivityConfig {
   errorDescription?: string;
   errorLogEnabled?: boolean;
   customErrorMicroflowId?: string;
+  connectorId?: string;
+  operation?: string;
+  sourceVariableName?: string;
+  targetEntity?: string;
+  targetMember?: string;
+  metricName?: string;
+  workflowInstanceVariable?: string;
+  externalActionId?: string;
+  serviceId?: string;
+  mappingId?: string;
+  outputType?: string;
+  tags?: Array<{ key: string; value: string }>;
 }
 
 export interface MicroflowParameterConfig {
@@ -274,6 +403,7 @@ export type MicroflowEventNode = MicroflowNodeBase<
   MicroflowEventConfig
 >;
 export type MicroflowDecisionNode = MicroflowNodeBase<"decision", MicroflowDecisionConfig>;
+export type MicroflowObjectTypeDecisionNode = MicroflowNodeBase<"objectTypeDecision", MicroflowObjectTypeDecisionConfig>;
 export type MicroflowMergeNode = MicroflowNodeBase<"merge", MicroflowMergeConfig>;
 export type MicroflowLoopNode = MicroflowNodeBase<"loop", MicroflowLoopConfig>;
 export type MicroflowActivityNode = MicroflowNodeBase<"activity", MicroflowActivityConfig>;
@@ -283,22 +413,49 @@ export type MicroflowAnnotationNode = MicroflowNodeBase<"annotation", MicroflowA
 export type MicroflowNode =
   | MicroflowEventNode
   | MicroflowDecisionNode
+  | MicroflowObjectTypeDecisionNode
   | MicroflowMergeNode
   | MicroflowLoopNode
   | MicroflowActivityNode
   | MicroflowParameterNode
   | MicroflowAnnotationNode;
 
-export interface MicroflowEdge {
+export interface MicroflowEdgeBase<TKind extends MicroflowEdgeKind = MicroflowEdgeKind> {
   id: string;
-  type: MicroflowEdgeType;
+  type: TKind;
+  kind?: TKind;
   sourceNodeId: string;
   sourcePortId?: string;
   targetNodeId: string;
   targetPortId?: string;
   label?: string;
+  description?: string;
   condition?: MicroflowExpression;
+  conditionValue?: MicroflowConditionValue;
+  isDefault?: boolean;
+  branchOrder?: number;
+  errorHandlingType?: MicroflowErrorHandlingType;
+  exposeLatestError?: boolean;
+  exposeLatestSoapFault?: boolean;
+  exposeLatestHttpResponse?: boolean;
+  targetErrorVariableName?: string;
+  logError?: boolean;
+  attachmentMode?: "node" | "edge" | "canvas";
+  showInExport?: boolean;
+  bendPoints?: MicroflowPosition[];
 }
+
+export type MicroflowSequenceEdge = MicroflowEdgeBase<"sequence">;
+export type MicroflowDecisionConditionEdge = MicroflowEdgeBase<"decisionCondition">;
+export type MicroflowObjectTypeConditionEdge = MicroflowEdgeBase<"objectTypeCondition">;
+export type MicroflowErrorHandlerEdge = MicroflowEdgeBase<"errorHandler">;
+export type MicroflowAnnotationEdge = MicroflowEdgeBase<"annotation">;
+export type MicroflowEdge =
+  | MicroflowSequenceEdge
+  | MicroflowDecisionConditionEdge
+  | MicroflowObjectTypeConditionEdge
+  | MicroflowErrorHandlerEdge
+  | MicroflowAnnotationEdge;
 
 export interface MicroflowSchema {
   id: string;
@@ -378,7 +535,8 @@ export interface MicroflowValidationIssue {
 
 export interface MicroflowRuntimeNodeDto {
   nodeId: string;
-  type: MicroflowNodeKind;
+  type: MicroflowNodeType;
+  kind?: MicroflowNodeKind;
   activityType?: MicroflowActivityType;
   title: string;
   config: Record<string, unknown>;
@@ -386,8 +544,13 @@ export interface MicroflowRuntimeNodeDto {
 
 export interface MicroflowRuntimeEdgeDto {
   edgeId: string;
-  type: MicroflowEdgeType;
+  type: MicroflowEdgeKind;
   sourceNodeId: string;
   targetNodeId: string;
   label?: string;
+  sourcePortId?: string;
+  targetPortId?: string;
+  conditionValue?: MicroflowConditionValue;
+  errorHandlingType?: MicroflowErrorHandlingType;
+  runtimeEffect?: "controlFlow" | "errorFlow" | "annotationOnly";
 }

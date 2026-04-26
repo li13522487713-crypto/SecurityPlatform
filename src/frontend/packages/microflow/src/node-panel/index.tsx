@@ -12,7 +12,7 @@ import {
   IconStarStroked,
   IconStop
 } from "@douyinfe/semi-icons";
-import type { MicroflowActivityType, MicroflowNodeKind } from "../schema";
+import type { MicroflowActivityType, MicroflowNodeType } from "../schema";
 import {
   defaultMicroflowNodeRegistry,
   getMicroflowNodeRegistryKey,
@@ -183,22 +183,22 @@ function iconTone(item: MicroflowNodeRegistryItem): { background: string; color:
   if (item.group === "Decisions") {
     return { background: "#fff7e8", color: "#ff8800" };
   }
-  if (item.subgroup === "Object") {
+  if (item.subgroup === "object") {
     return { background: "#eef4ff", color: "#165dff" };
   }
-  if (item.subgroup === "List") {
+  if (item.subgroup === "list") {
     return { background: "#fff9db", color: "#d48806" };
   }
-  if (item.subgroup === "Call") {
+  if (item.subgroup === "call") {
     return { background: "#f2edff", color: "#722ed1" };
   }
-  if (item.subgroup === "Variable") {
+  if (item.subgroup === "variable") {
     return { background: "#e6fffb", color: "#13a8a8" };
   }
-  if (item.subgroup === "Client") {
+  if (item.subgroup === "client") {
     return { background: "#f0f8e8", color: "#52c41a" };
   }
-  if (item.subgroup === "Integration") {
+  if (item.subgroup === "integration") {
     return { background: "#fff1f0", color: "#f93920" };
   }
   return { background: "#f2f3f5", color: "#4e5969" };
@@ -232,10 +232,12 @@ function TooltipContent({ item, labels }: { item: MicroflowNodeRegistryItem; lab
   return (
     <Space vertical align="start" spacing={6} style={{ maxWidth: 280 }}>
       <Text strong>{item.title}</Text>
+      <Text type="tertiary">{item.titleZh}</Text>
       <Text>{item.description}</Text>
-      <Text type="tertiary">{labels.inputs}: {(item.inputs ?? []).join(", ") || "-"}</Text>
-      <Text type="tertiary">{labels.outputs}: {(item.outputs ?? []).join(", ") || "-"}</Text>
+      <Text type="tertiary">{labels.inputs}: {(item.inputs ?? []).map(input => input.title).join(", ") || "-"}</Text>
+      <Text type="tertiary">{labels.outputs}: {(item.outputs ?? []).map(output => output.title).join(", ") || "-"}</Text>
       {item.useCases?.length ? <Text type="tertiary">{labels.useCases}: {item.useCases.join(" ")}</Text> : null}
+      {item.availability !== "supported" ? <Tag color={item.availability === "deprecated" ? "orange" : item.availability === "beta" ? "blue" : "grey"}>{item.availabilityReason ?? item.availability}</Tag> : null}
       {!item.enabled && item.disabledReason ? <Tag color="grey">{item.disabledReason}</Tag> : null}
     </Space>
   );
@@ -388,7 +390,16 @@ export function MicroflowNodeCard({
       >
         <MicroflowNodeIcon item={item} />
         <div style={{ minWidth: 0 }}>
-          <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: "100%" }}>
+          <Space spacing={4} style={{ maxWidth: "100%" }}>
+            <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 128 }}>
+              {item.titleZh}
+            </Text>
+            {item.availability === "beta" ? <Tag size="small" color="blue">Beta</Tag> : null}
+            {item.availability === "deprecated" ? <Tag size="small" color="orange">Deprecated</Tag> : null}
+            {item.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
+            {item.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
+          </Space>
+          <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: "block", maxWidth: "100%" }}>
             {item.title}
           </Text>
           {!compact ? (
@@ -464,7 +475,7 @@ export function MicroflowNodeFavorites({
   );
 }
 
-export function MicroflowNodeCategory({
+export function MicroflowNodeCategorySection({
   category,
   open,
   expandedGroups,
@@ -600,7 +611,7 @@ export function MicroflowNodeCategoryList({
   return (
     <div style={{ display: "grid", gap: 8 }}>
       {grouped.map(category => (
-        <MicroflowNodeCategory
+        <MicroflowNodeCategorySection
           key={category.category.key}
           category={category}
           open={expandedCategories.includes(category.category.key)}
@@ -861,5 +872,5 @@ export function MicroflowNodePanel({
 }
 
 export type MicroflowNodePanelRegistryItem = MicroflowNodeRegistryItem;
-export type MicroflowNodePanelNodeKind = MicroflowNodeKind;
+export type MicroflowNodePanelNodeKind = MicroflowNodeType;
 export type MicroflowNodePanelActivityType = MicroflowActivityType;

@@ -1,306 +1,203 @@
-import type { MicroflowEdge, MicroflowNode, MicroflowPort, MicroflowSchema, MicroflowTypeRef } from "./types";
+import type { MicroflowActivityType, MicroflowEdge, MicroflowNode, MicroflowPort, MicroflowSchema, MicroflowTypeRef } from "./types";
 
 const stringType: MicroflowTypeRef = { kind: "primitive", name: "String" };
 const booleanType: MicroflowTypeRef = { kind: "primitive", name: "Boolean" };
 const orderType: MicroflowTypeRef = { kind: "entity", name: "Sales.Order", entity: "Sales.Order" };
+const orderLineType: MicroflowTypeRef = { kind: "entity", name: "Sales.OrderLine", entity: "Sales.OrderLine" };
 const orderListType: MicroflowTypeRef = { kind: "list", name: "List<Sales.Order>", itemType: orderType };
+const orderLineListType: MicroflowTypeRef = { kind: "list", name: "List<Sales.OrderLine>", itemType: orderLineType };
+const memberType: MicroflowTypeRef = { kind: "entity", name: "University.Member", entity: "University.Member" };
 
-const sequenceIn: MicroflowPort = { id: "in", label: "In", direction: "input", edgeTypes: ["sequence", "error"] };
-const sequenceOut: MicroflowPort = { id: "out", label: "Out", direction: "output", edgeTypes: ["sequence"] };
-const errorOut: MicroflowPort = { id: "error", label: "Error", direction: "output", edgeTypes: ["error"] };
+const sequenceIn: MicroflowPort = { id: "in", label: "In", direction: "input", kind: "sequenceIn", cardinality: "one", edgeTypes: ["sequence", "decisionCondition", "objectTypeCondition", "errorHandler"] };
+const sequenceOut: MicroflowPort = { id: "out", label: "Out", direction: "output", kind: "sequenceOut", cardinality: "one", edgeTypes: ["sequence"] };
+const errorOut: MicroflowPort = { id: "error", label: "Error", direction: "output", kind: "errorOut", cardinality: "zeroOrOne", edgeTypes: ["errorHandler"] };
+const decisionTrue: MicroflowPort = { id: "true", label: "True", direction: "output", kind: "decisionOut", cardinality: "one", edgeTypes: ["decisionCondition"] };
+const decisionFalse: MicroflowPort = { id: "false", label: "False", direction: "output", kind: "decisionOut", cardinality: "one", edgeTypes: ["decisionCondition"] };
+const objectTypeOut: MicroflowPort = { id: "objectType", label: "Object Type", direction: "output", kind: "objectTypeOut", cardinality: "oneOrMore", edgeTypes: ["objectTypeCondition"] };
+const annotationOut: MicroflowPort = { id: "note", label: "Note", direction: "output", kind: "annotation", cardinality: "zeroOrMore", edgeTypes: ["annotation"] };
+
+function activity(id: string, title: string, activityType: MicroflowActivityType, x: number, y: number, config: Record<string, unknown> = {}, supportsErrorFlow = true): MicroflowNode {
+  return {
+    id,
+    type: "activity",
+    kind: "activity",
+    title,
+    titleZh: title,
+    category: "activities",
+    position: { x, y },
+    ports: supportsErrorFlow ? [sequenceIn, sequenceOut, errorOut] : [sequenceIn, sequenceOut],
+    config: {
+      activityType,
+      supportsErrorFlow,
+      errorHandling: supportsErrorFlow ? { mode: "rollback", errorVariableName: "latestError" } : undefined,
+      ...config
+    },
+    render: { iconKey: activityType, shape: "roundedRect", tone: activityType === "logMessage" ? "warning" : "neutral", width: 190, height: 76 },
+    propertyForm: { formKey: `activity:${activityType}`, sections: supportsErrorFlow ? ["General", "Error Handling", "Output"] : ["General"] }
+  } as MicroflowNode;
+}
+
+function eventNode(id: string, type: "startEvent" | "endEvent" | "errorEvent" | "breakEvent" | "continueEvent", title: string, x: number, y: number, parentLoopId?: string): MicroflowNode {
+  const isEnd = type === "endEvent";
+  return {
+    id,
+    type,
+    kind: "event",
+    title,
+    titleZh: title,
+    category: "events",
+    parentLoopId,
+    position: { x, y },
+    ports: type === "startEvent" ? [sequenceOut] : [sequenceIn],
+    config: isEnd
+      ? { returnType: booleanType, returnValue: { id: `${id}-return`, language: "mendix", text: title.toLowerCase().includes("true") || title.toLowerCase().includes("success") ? "true" : "false", expectedType: booleanType } }
+      : {},
+    render: { iconKey: type, shape: "event", tone: type === "startEvent" ? "success" : type === "errorEvent" ? "danger" : "warning", width: 132, height: 70 },
+    propertyForm: { formKey: type, sections: ["General"] }
+  } as MicroflowNode;
+}
 
 const nodes: MicroflowNode[] = [
-  {
-    id: "start",
-    type: "startEvent",
-    title: "Start",
-    category: "event",
-    position: { x: 40, y: 220 },
-    ports: [sequenceOut],
-    config: {},
-    render: { iconKey: "startEvent", shape: "event", tone: "success", width: 116, height: 70 },
-    propertyForm: { formKey: "event", sections: ["General"] }
-  },
+  eventNode("start", "startEvent", "Start", 40, 220),
   {
     id: "param-order-id",
     type: "parameter",
+    kind: "parameter",
     title: "Parameter: orderId",
-    category: "parameter",
-    position: { x: 220, y: 220 },
-    ports: [sequenceIn, sequenceOut],
+    titleZh: "参数：orderId",
+    category: "parameters",
+    position: { x: 40, y: 80 },
+    ports: [annotationOut],
     config: { parameter: { id: "param-order-id", name: "orderId", required: true, type: stringType } },
     render: { iconKey: "parameter", shape: "roundedRect", tone: "info", width: 172, height: 70 },
     propertyForm: { formKey: "parameter", sections: ["Parameter"] }
   },
   {
-    id: "retrieve-order",
-    type: "activity",
-    title: "Retrieve Order",
-    category: "activity",
-    position: { x: 460, y: 215 },
-    ports: [sequenceIn, sequenceOut, errorOut],
-    config: {
-      activityType: "objectRetrieve",
-      entity: "Sales.Order",
-      listVariableName: "orders",
-      range: "first",
-      supportsErrorFlow: true,
-      errorHandling: { mode: "customWithRollback", errorVariableName: "latestError", targetNodeId: "log-error" }
-    },
-    render: { iconKey: "objectRetrieve", shape: "roundedRect", tone: "neutral", width: 180, height: 76 },
-    propertyForm: { formKey: "objectActivity", sections: ["Retrieve", "Range", "Error Handling"] }
+    id: "param-member",
+    type: "parameter",
+    kind: "parameter",
+    title: "Parameter: member",
+    titleZh: "参数：member",
+    category: "parameters",
+    position: { x: 40, y: 420 },
+    ports: [annotationOut],
+    config: { parameter: { id: "param-member", name: "member", required: false, type: memberType } },
+    render: { iconKey: "parameter", shape: "roundedRect", tone: "info", width: 172, height: 70 },
+    propertyForm: { formKey: "parameter", sections: ["Parameter"] }
   },
+  activity("retrieve-order", "Retrieve Order", "objectRetrieve", 260, 215, { entity: "Sales.Order", resultVariableName: "order", range: "first" }),
   {
     id: "decision-processable",
     type: "decision",
-    title: "Order processable?",
-    category: "decision",
-    position: { x: 720, y: 205 },
-    ports: [
-      sequenceIn,
-      { id: "true", label: "Yes", direction: "output", edgeTypes: ["sequence"] },
-      { id: "false", label: "No", direction: "output", edgeTypes: ["sequence"] }
-    ],
-    config: {
-      expression: {
-        id: "expr-processable",
-        language: "mendix",
-        text: "$orders != empty and $order/Status = 'Pending'",
-        expectedType: booleanType,
-        referencedVariables: ["orders", "order"]
-      }
-    },
-    render: { iconKey: "decision", shape: "diamond", tone: "warning", width: 152, height: 104 },
+    kind: "decision",
+    title: "Order status processable?",
+    titleZh: "订单状态是否可处理",
+    category: "decisions",
+    position: { x: 520, y: 205 },
+    ports: [sequenceIn, decisionTrue, decisionFalse, errorOut],
+    config: { resultType: "Boolean", expression: { id: "expr-processable", language: "mendix", text: "$order/Status = 'Pending'", expectedType: booleanType, referencedVariables: ["order"] } },
+    render: { iconKey: "decision", shape: "diamond", tone: "warning", width: 160, height: 110 },
     propertyForm: { formKey: "decision", sections: ["Expression", "Branches"] }
   },
-  {
-    id: "log-not-processable",
-    type: "activity",
-    title: "Log Not Processable",
-    category: "activity",
-    position: { x: 980, y: 360 },
-    ports: [sequenceIn, sequenceOut],
-    config: {
-      activityType: "logMessage",
-      logLevel: "warn",
-      messageExpression: { id: "expr-not-processable", language: "plainText", text: "Order is not processable", referencedVariables: ["orderId"] }
-    },
-    render: { iconKey: "logMessage", shape: "roundedRect", tone: "warning", width: 190, height: 76 },
-    propertyForm: { formKey: "loggingActivity", sections: ["Message"] }
-  },
-  {
-    id: "end-not-processable",
-    type: "endEvent",
-    title: "End: Rejected",
-    category: "event",
-    position: { x: 1240, y: 365 },
-    ports: [sequenceIn],
-    config: { returnValue: { id: "expr-rejected", language: "mendix", text: "false", expectedType: booleanType } },
-    render: { iconKey: "endEvent", shape: "event", tone: "danger", width: 132, height: 70 },
-    propertyForm: { formKey: "event", sections: ["Return"] }
-  },
-  {
-    id: "change-order-status",
-    type: "activity",
-    title: "Change Order Status",
-    category: "activity",
-    position: { x: 980, y: 120 },
-    ports: [sequenceIn, sequenceOut, errorOut],
-    config: {
-      activityType: "objectChange",
-      objectVariableName: "order",
-      valueExpression: { id: "expr-status", language: "mendix", text: "'Processing'", referencedVariables: ["order"] },
-      supportsErrorFlow: true,
-      errorHandling: { mode: "rollback", errorVariableName: "latestError" }
-    },
-    render: { iconKey: "objectChange", shape: "roundedRect", tone: "neutral", width: 190, height: 76 },
-    propertyForm: { formKey: "objectActivity", sections: ["Assignments", "Error Handling"] }
-  },
-  {
-    id: "commit-order",
-    type: "activity",
-    title: "Commit Order",
-    category: "activity",
-    position: { x: 1240, y: 120 },
-    ports: [sequenceIn, sequenceOut, errorOut],
-    config: {
-      activityType: "objectCommit",
-      objectVariableName: "order",
-      withEvents: true,
-      refreshClient: true,
-      supportsErrorFlow: true,
-      errorHandling: { mode: "rollback", errorVariableName: "latestError" }
-    },
-    render: { iconKey: "objectCommit", shape: "roundedRect", tone: "neutral", width: 180, height: 76 },
-    propertyForm: { formKey: "objectActivity", sections: ["Commit", "Error Handling"] }
-  },
-  {
-    id: "call-inventory-rest",
-    type: "activity",
-    title: "Call Inventory REST",
-    category: "activity",
-    position: { x: 1480, y: 120 },
-    ports: [sequenceIn, sequenceOut, errorOut],
-    config: {
-      activityType: "callRest",
-      method: "POST",
-      url: "/api/inventory/reservations",
-      timeoutMs: 5000,
-      resultVariableName: "inventoryResult",
-      supportsErrorFlow: true,
-      errorHandling: { mode: "continue", errorVariableName: "latestError" }
-    },
-    render: { iconKey: "callRest", shape: "roundedRect", tone: "neutral", width: 190, height: 76 },
-    propertyForm: { formKey: "integrationActivity", sections: ["Request", "Response", "Error Handling"] }
-  },
+  activity("change-order", "Update Order", "objectChange", 800, 120, { objectVariableName: "order" }),
+  activity("commit-order", "Commit Order", "objectCommit", 1040, 120, { objectVariableName: "order", withEvents: true, refreshClient: true }),
+  activity("call-inventory-rest", "Check Inventory", "callRest", 1280, 120, { method: "POST", url: "/api/inventory/check", resultVariableName: "inventoryResult", errorHandling: { mode: "customWithRollback", errorVariableName: "latestError" } }),
   {
     id: "decision-stock",
     type: "decision",
+    kind: "decision",
     title: "Inventory enough?",
-    category: "decision",
-    position: { x: 1730, y: 106 },
-    ports: [
-      sequenceIn,
-      { id: "true", label: "Enough", direction: "output", edgeTypes: ["sequence"] },
-      { id: "false", label: "Shortage", direction: "output", edgeTypes: ["sequence"] }
-    ],
-    config: {
-      expression: {
-        id: "expr-stock",
-        language: "mendix",
-        text: "$inventoryResult/available = true",
-        expectedType: booleanType,
-        referencedVariables: ["inventoryResult"]
-      }
-    },
-    render: { iconKey: "decision", shape: "diamond", tone: "warning", width: 152, height: 104 },
+    titleZh: "库存是否充足",
+    category: "decisions",
+    position: { x: 1530, y: 106 },
+    ports: [sequenceIn, decisionTrue, decisionFalse, errorOut],
+    config: { resultType: "Boolean", expression: { id: "expr-stock", language: "mendix", text: "$inventoryResult/available = true", expectedType: booleanType, referencedVariables: ["inventoryResult"] } },
+    render: { iconKey: "decision", shape: "diamond", tone: "warning", width: 160, height: 110 },
     propertyForm: { formKey: "decision", sections: ["Expression", "Branches"] }
   },
+  activity("update-payment", "Update Payment Status", "objectChange", 1800, 70, { objectVariableName: "order" }),
+  activity("log-stock-shortage", "Inventory Not Enough", "logMessage", 1800, 270, { logLevel: "warn", messageExpression: { id: "expr-shortage", language: "plainText", text: "Inventory not enough", referencedVariables: ["orderId"] } }, false),
+  activity("log-not-processable", "Order Not Processable", "logMessage", 800, 360, { logLevel: "warn", messageExpression: { id: "expr-not-processable", language: "plainText", text: "Order is not processable", referencedVariables: ["orderId"] } }, false),
+  { id: "merge-success", type: "merge", kind: "merge", title: "Merge", titleZh: "合并", category: "decisions", position: { x: 2060, y: 74 }, ports: [sequenceIn, sequenceOut], config: { strategy: "firstAvailable" }, render: { iconKey: "merge", shape: "diamond", tone: "info", width: 112, height: 84 }, propertyForm: { formKey: "merge", sections: ["General"] } },
+  eventNode("end-success", "endEvent", "End: return true", 2260, 80),
+  eventNode("end-shortage", "endEvent", "End: return false", 2060, 280),
+  eventNode("end-rejected", "endEvent", "End: return false", 1040, 365),
+  activity("log-rest-error", "Log REST Error", "logMessage", 1280, 510, { logLevel: "error", messageExpression: { id: "expr-rest-error", language: "plainText", text: "$latestError/message", referencedVariables: ["latestError"] } }, false),
+  eventNode("error-rest", "errorEvent", "Error Event", 1530, 515),
+  activity("retrieve-order-lines", "Retrieve OrderLines", "objectRetrieve", 520, 650, { entity: "Sales.OrderLine", listVariableName: "orderLines" }),
+  { id: "loop-order-lines", type: "loop", kind: "loop", title: "For Each OrderLine", titleZh: "遍历订单行", category: "loop", position: { x: 780, y: 640 }, ports: [sequenceIn, sequenceOut, errorOut], config: { loopType: "forEach", iterableVariableName: "orderLines", itemVariableName: "orderLine", indexVariableName: "currentIndex" }, render: { iconKey: "loop", shape: "loop", tone: "info", width: 200, height: 82 }, propertyForm: { formKey: "loop", sections: ["Collection", "Item"] } },
+  { id: "decision-line-valid", type: "decision", kind: "decision", title: "Current line valid?", titleZh: "当前行是否有效", category: "decisions", parentLoopId: "loop-order-lines", position: { x: 1040, y: 640 }, ports: [sequenceIn, decisionTrue, decisionFalse], config: { resultType: "Boolean", expression: { id: "expr-line-valid", language: "mendix", text: "$orderLine/Quantity > 0", expectedType: booleanType, referencedVariables: ["orderLine"] } }, render: { iconKey: "decision", shape: "diamond", tone: "warning", width: 160, height: 110 }, propertyForm: { formKey: "decision", sections: ["Expression"] } },
+  activity("change-order-line", "Change OrderLine", "objectChange", 1280, 620, { objectVariableName: "orderLine" }),
+  { id: "decision-line-severe", type: "decision", kind: "decision", title: "Severe error found?", titleZh: "是否发现严重错误", category: "decisions", parentLoopId: "loop-order-lines", position: { x: 1530, y: 640 }, ports: [sequenceIn, decisionTrue, decisionFalse], config: { resultType: "Boolean", expression: { id: "expr-line-severe", language: "mendix", text: "$orderLine/HasSevereError = true", expectedType: booleanType, referencedVariables: ["orderLine"] } }, render: { iconKey: "decision", shape: "diamond", tone: "warning", width: 170, height: 110 }, propertyForm: { formKey: "decision", sections: ["Expression"] } },
+  eventNode("continue-line", "continueEvent", "Continue Event", 1280, 780, "loop-order-lines"),
+  eventNode("break-line", "breakEvent", "Break Event", 1800, 640, "loop-order-lines"),
   {
-    id: "log-stock-shortage",
-    type: "activity",
-    title: "Log Stock Shortage",
-    category: "activity",
-    position: { x: 1990, y: 270 },
-    ports: [sequenceIn, sequenceOut],
-    config: {
-      activityType: "logMessage",
-      logLevel: "warn",
-      messageExpression: { id: "expr-shortage", language: "plainText", text: "Inventory is not enough", referencedVariables: ["orderId", "inventoryResult"] }
-    },
-    render: { iconKey: "logMessage", shape: "roundedRect", tone: "warning", width: 190, height: 76 },
-    propertyForm: { formKey: "loggingActivity", sections: ["Message"] }
+    id: "member-type",
+    type: "objectTypeDecision",
+    kind: "objectTypeDecision",
+    title: "Member Type",
+    titleZh: "成员类型",
+    category: "decisions",
+    position: { x: 260, y: 420 },
+    ports: [sequenceIn, objectTypeOut, errorOut],
+    config: { inputObject: "member", generalizedEntity: "University.Member" },
+    render: { iconKey: "objectTypeDecision", shape: "diamond", tone: "warning", width: 170, height: 112 },
+    propertyForm: { formKey: "objectTypeDecision", sections: ["General"] }
   },
-  {
-    id: "end-stock-shortage",
-    type: "endEvent",
-    title: "End: Shortage",
-    category: "event",
-    position: { x: 2260, y: 275 },
-    ports: [sequenceIn],
-    config: { returnValue: { id: "expr-shortage-return", language: "mendix", text: "false", expectedType: booleanType } },
-    render: { iconKey: "endEvent", shape: "event", tone: "danger", width: 132, height: 70 },
-    propertyForm: { formKey: "event", sections: ["Return"] }
-  },
-  {
-    id: "change-payment-status",
-    type: "activity",
-    title: "Change Payment Status",
-    category: "activity",
-    position: { x: 1990, y: 60 },
-    ports: [sequenceIn, sequenceOut, errorOut],
-    config: {
-      activityType: "objectChange",
-      objectVariableName: "order",
-      valueExpression: { id: "expr-payment", language: "mendix", text: "'Reserved'", referencedVariables: ["order"] },
-      supportsErrorFlow: true,
-      errorHandling: { mode: "rollback", errorVariableName: "latestError" }
-    },
-    render: { iconKey: "objectChange", shape: "roundedRect", tone: "neutral", width: 200, height: 76 },
-    propertyForm: { formKey: "objectActivity", sections: ["Assignments", "Error Handling"] }
-  },
-  {
-    id: "merge-success",
-    type: "merge",
-    title: "Merge",
-    category: "merge",
-    position: { x: 2260, y: 74 },
-    ports: [sequenceIn, sequenceOut],
-    config: { strategy: "firstAvailable" },
-    render: { iconKey: "merge", shape: "diamond", tone: "info", width: 112, height: 84 },
-    propertyForm: { formKey: "merge", sections: ["General"] }
-  },
-  {
-    id: "end-success",
-    type: "endEvent",
-    title: "End: Success",
-    category: "event",
-    position: { x: 2460, y: 80 },
-    ports: [sequenceIn],
-    config: { returnValue: { id: "expr-success", language: "mendix", text: "true", expectedType: booleanType } },
-    render: { iconKey: "endEvent", shape: "event", tone: "danger", width: 132, height: 70 },
-    propertyForm: { formKey: "event", sections: ["Return"] }
-  },
-  {
-    id: "log-error",
-    type: "activity",
-    title: "Log Error",
-    category: "activity",
-    position: { x: 720, y: 520 },
-    ports: [sequenceIn, sequenceOut],
-    config: {
-      activityType: "logMessage",
-      logLevel: "error",
-      messageExpression: { id: "expr-error", language: "plainText", text: "Exception: $latestError/message", referencedVariables: ["latestError"] }
-    },
-    render: { iconKey: "logMessage", shape: "roundedRect", tone: "danger", width: 180, height: 76 },
-    propertyForm: { formKey: "loggingActivity", sections: ["Message"] }
-  },
-  {
-    id: "annotation-error",
-    type: "annotation",
-    title: "Annotation",
-    category: "annotation",
-    position: { x: 1240, y: 510 },
-    ports: [{ id: "note", label: "Note", direction: "output", edgeTypes: ["annotation"] }],
-    config: { text: "Error handling uses latestError. Retrieve/commit/integration failures can rollback, continue, or jump to custom logging branches." },
-    render: { iconKey: "annotation", shape: "annotation", tone: "neutral", width: 320, height: 118 },
-    propertyForm: { formKey: "annotation", sections: ["Text"] }
-  }
+  activity("cast-professor", "Cast Professor", "objectCast", 520, 390, { objectVariableName: "member", targetEntity: "University.Professor", resultVariableName: "professor" }),
+  activity("cast-student", "Cast Student", "objectCast", 520, 500, { objectVariableName: "member", targetEntity: "University.Student", resultVariableName: "student" }),
+  activity("log-member-empty", "Log Empty Member", "logMessage", 520, 610, { logLevel: "warn", messageExpression: { id: "expr-member-empty", language: "plainText", text: "member is empty", referencedVariables: ["member"] } }, false),
+  { id: "annotation-error", type: "annotation", kind: "annotation", title: "Error Strategy", titleZh: "异常处理说明", category: "annotations", position: { x: 1040, y: 500 }, ports: [annotationOut], config: { title: "异常处理说明", text: "Call REST Service 的 errorOut 进入 Log Message，再进入 Error Event。Annotation Flow 可连接节点和错误处理边。" }, render: { iconKey: "annotation", shape: "annotation", tone: "neutral", width: 300, height: 118 }, propertyForm: { formKey: "annotation", sections: ["Text"] } }
 ];
 
 const edges: MicroflowEdge[] = [
-  { id: "e-start-param", type: "sequence", sourceNodeId: "start", targetNodeId: "param-order-id" },
-  { id: "e-param-retrieve", type: "sequence", sourceNodeId: "param-order-id", targetNodeId: "retrieve-order" },
-  { id: "e-retrieve-decision", type: "sequence", sourceNodeId: "retrieve-order", targetNodeId: "decision-processable" },
-  { id: "e-retrieve-error", type: "error", sourceNodeId: "retrieve-order", sourcePortId: "error", targetNodeId: "log-error", label: "error" },
-  { id: "e-not-processable", type: "sequence", sourceNodeId: "decision-processable", sourcePortId: "false", targetNodeId: "log-not-processable", label: "no" },
-  { id: "e-log-rejected-end", type: "sequence", sourceNodeId: "log-not-processable", targetNodeId: "end-not-processable" },
-  { id: "e-processable-change", type: "sequence", sourceNodeId: "decision-processable", sourcePortId: "true", targetNodeId: "change-order-status", label: "yes" },
-  { id: "e-change-commit", type: "sequence", sourceNodeId: "change-order-status", targetNodeId: "commit-order" },
-  { id: "e-commit-rest", type: "sequence", sourceNodeId: "commit-order", targetNodeId: "call-inventory-rest" },
-  { id: "e-rest-stock", type: "sequence", sourceNodeId: "call-inventory-rest", targetNodeId: "decision-stock" },
-  { id: "e-stock-shortage", type: "sequence", sourceNodeId: "decision-stock", sourcePortId: "false", targetNodeId: "log-stock-shortage", label: "shortage" },
-  { id: "e-shortage-end", type: "sequence", sourceNodeId: "log-stock-shortage", targetNodeId: "end-stock-shortage" },
-  { id: "e-stock-enough", type: "sequence", sourceNodeId: "decision-stock", sourcePortId: "true", targetNodeId: "change-payment-status", label: "enough" },
-  { id: "e-payment-merge", type: "sequence", sourceNodeId: "change-payment-status", targetNodeId: "merge-success" },
-  { id: "e-merge-end", type: "sequence", sourceNodeId: "merge-success", targetNodeId: "end-success" },
-  { id: "e-note-rest", type: "annotation", sourceNodeId: "annotation-error", targetNodeId: "call-inventory-rest", label: "error strategy" }
+  { id: "e-start-retrieve", type: "sequence", sourceNodeId: "start", sourcePortId: "out", targetNodeId: "retrieve-order", targetPortId: "in" },
+  { id: "e-retrieve-decision", type: "sequence", sourceNodeId: "retrieve-order", sourcePortId: "out", targetNodeId: "decision-processable", targetPortId: "in" },
+  { id: "e-processable-yes", type: "decisionCondition", sourceNodeId: "decision-processable", sourcePortId: "true", targetNodeId: "change-order", targetPortId: "in", label: "是", conditionValue: { kind: "boolean", value: true }, branchOrder: 1 },
+  { id: "e-processable-no", type: "decisionCondition", sourceNodeId: "decision-processable", sourcePortId: "false", targetNodeId: "log-not-processable", targetPortId: "in", label: "否", conditionValue: { kind: "boolean", value: false }, branchOrder: 2 },
+  { id: "e-log-rejected-end", type: "sequence", sourceNodeId: "log-not-processable", sourcePortId: "out", targetNodeId: "end-rejected", targetPortId: "in" },
+  { id: "e-change-commit", type: "sequence", sourceNodeId: "change-order", sourcePortId: "out", targetNodeId: "commit-order", targetPortId: "in" },
+  { id: "e-commit-rest", type: "sequence", sourceNodeId: "commit-order", sourcePortId: "out", targetNodeId: "call-inventory-rest", targetPortId: "in" },
+  { id: "e-rest-stock", type: "sequence", sourceNodeId: "call-inventory-rest", sourcePortId: "out", targetNodeId: "decision-stock", targetPortId: "in" },
+  { id: "e-stock-enough", type: "decisionCondition", sourceNodeId: "decision-stock", sourcePortId: "true", targetNodeId: "update-payment", targetPortId: "in", label: "是", conditionValue: { kind: "boolean", value: true }, branchOrder: 1 },
+  { id: "e-stock-shortage", type: "decisionCondition", sourceNodeId: "decision-stock", sourcePortId: "false", targetNodeId: "log-stock-shortage", targetPortId: "in", label: "否", conditionValue: { kind: "boolean", value: false }, branchOrder: 2 },
+  { id: "e-shortage-end", type: "sequence", sourceNodeId: "log-stock-shortage", sourcePortId: "out", targetNodeId: "end-shortage", targetPortId: "in" },
+  { id: "e-payment-merge", type: "sequence", sourceNodeId: "update-payment", sourcePortId: "out", targetNodeId: "merge-success", targetPortId: "in" },
+  { id: "e-merge-end", type: "sequence", sourceNodeId: "merge-success", sourcePortId: "out", targetNodeId: "end-success", targetPortId: "in" },
+  { id: "e-rest-error", type: "errorHandler", sourceNodeId: "call-inventory-rest", sourcePortId: "error", targetNodeId: "log-rest-error", targetPortId: "in", label: "Error", errorHandlingType: "customWithRollback", exposeLatestError: true, exposeLatestHttpResponse: true, logError: true },
+  { id: "e-error-log-error-event", type: "sequence", sourceNodeId: "log-rest-error", sourcePortId: "out", targetNodeId: "error-rest", targetPortId: "in", label: "rethrow" },
+  { id: "e-retrieve-lines", type: "sequence", sourceNodeId: "retrieve-order-lines", sourcePortId: "out", targetNodeId: "loop-order-lines", targetPortId: "in" },
+  { id: "e-loop-body", type: "sequence", sourceNodeId: "loop-order-lines", sourcePortId: "out", targetNodeId: "decision-line-valid", targetPortId: "in", label: "body" },
+  { id: "e-line-valid", type: "decisionCondition", sourceNodeId: "decision-line-valid", sourcePortId: "true", targetNodeId: "change-order-line", targetPortId: "in", conditionValue: { kind: "boolean", value: true }, label: "true" },
+  { id: "e-line-invalid", type: "decisionCondition", sourceNodeId: "decision-line-valid", sourcePortId: "false", targetNodeId: "continue-line", targetPortId: "in", conditionValue: { kind: "boolean", value: false }, label: "false" },
+  { id: "e-line-change-severe", type: "sequence", sourceNodeId: "change-order-line", sourcePortId: "out", targetNodeId: "decision-line-severe", targetPortId: "in" },
+  { id: "e-severe-break", type: "decisionCondition", sourceNodeId: "decision-line-severe", sourcePortId: "true", targetNodeId: "break-line", targetPortId: "in", conditionValue: { kind: "boolean", value: true }, label: "true" },
+  { id: "e-severe-continue", type: "decisionCondition", sourceNodeId: "decision-line-severe", sourcePortId: "false", targetNodeId: "continue-line", targetPortId: "in", conditionValue: { kind: "boolean", value: false }, label: "false" },
+  { id: "e-member-professor", type: "objectTypeCondition", sourceNodeId: "member-type", sourcePortId: "objectType", targetNodeId: "cast-professor", targetPortId: "in", conditionValue: { kind: "objectType", entity: "University.Professor" }, label: "Professor", branchOrder: 1 },
+  { id: "e-member-student", type: "objectTypeCondition", sourceNodeId: "member-type", sourcePortId: "objectType", targetNodeId: "cast-student", targetPortId: "in", conditionValue: { kind: "objectType", entity: "University.Student" }, label: "Student", branchOrder: 2 },
+  { id: "e-member-empty", type: "objectTypeCondition", sourceNodeId: "member-type", sourcePortId: "objectType", targetNodeId: "log-member-empty", targetPortId: "in", conditionValue: { kind: "objectType", entity: "empty" }, label: "empty", branchOrder: 3 },
+  { id: "e-note-rest", type: "annotation", sourceNodeId: "annotation-error", sourcePortId: "note", targetNodeId: "call-inventory-rest", targetPortId: "in", label: "error strategy", attachmentMode: "node", showInExport: true },
+  { id: "e-note-error-flow", type: "annotation", sourceNodeId: "annotation-error", sourcePortId: "note", targetNodeId: "log-rest-error", targetPortId: "in", label: "handler", attachmentMode: "edge", showInExport: true }
 ];
 
 export const sampleMicroflowSchema: MicroflowSchema = {
   id: "mf-order-process",
   name: "Order Processing Microflow",
-  version: "v3",
-  description: "Full order processing chain: retrieve order, validate status, commit changes, call inventory service, and return by outcome.",
-  parameters: [{ id: "param-order-id", name: "orderId", required: true, type: stringType }],
+  version: "v4",
+  description: "Mendix-style microflow sample covering sequence, decision, object type, error handler, annotation and loop flows.",
+  parameters: [
+    { id: "param-order-id", name: "orderId", required: true, type: stringType },
+    { id: "param-member", name: "member", required: false, type: memberType }
+  ],
   variables: [
     { id: "var-orders", name: "orders", scope: "microflow", type: orderListType },
     { id: "var-order", name: "order", scope: "microflow", type: orderType },
+    { id: "var-order-lines", name: "orderLines", scope: "microflow", type: orderLineListType },
+    { id: "var-order-line", name: "orderLine", scope: "node", type: orderLineType },
     { id: "var-inventory", name: "inventoryResult", scope: "microflow", type: { kind: "object", name: "InventoryReservationResult" } },
     { id: "var-latest-error", name: "latestError", scope: "latestError", type: { kind: "object", name: "MicroflowError" } }
   ],
   nodes,
   edges,
-  viewport: { zoom: 0.58, offset: { x: 24, y: 90 } }
+  viewport: { zoom: 0.55, offset: { x: 24, y: 78 } }
 };
