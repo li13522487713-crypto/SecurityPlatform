@@ -1,7 +1,8 @@
 import "./studio.css";
 
 import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
-import { IconArrowRight } from "@douyinfe/semi-icons";
+import { IconArrowRight, IconFullScreenStroked } from "@douyinfe/semi-icons";
+import { MicroflowEditor } from "@atlas/microflow";
 
 import { StudioHeader } from "./components/studio-header";
 import { AppExplorer } from "./components/app-explorer";
@@ -20,6 +21,12 @@ const { Text } = Typography;
 
 export function MendixStudioApp({ appId }: { appId?: string }) {
   const activeTab = useMendixStudioStore(state => state.activeTab);
+  const microflowSchema = useMendixStudioStore(state => state.microflowSchema);
+  const microflowImmersive = useMendixStudioStore(state => state.microflowImmersive);
+  const setMicroflowSchema = useMendixStudioStore(state => state.setMicroflowSchema);
+  const setMicroflowImmersive = useMendixStudioStore(state => state.setMicroflowImmersive);
+
+  const isMicroflow = activeTab === "microflowDesigner";
 
   return (
     <div
@@ -65,38 +72,88 @@ export function MendixStudioApp({ appId }: { appId?: string }) {
           {/* 工具栏 */}
           <WorkbenchToolbar />
 
-          {/* 内容区（Toolbox + Canvas + Structure） */}
-          <div
-            style={{
-              display: "flex",
-              flex: 1,
-              minHeight: 0,
-              overflow: "hidden"
-            }}
-          >
-            {/* 只在 pageBuilder Tab 显示 Widget Toolbox */}
-            {activeTab === "pageBuilder" && <WidgetToolbox />}
+          {/* 内容区 */}
+          {isMicroflow ? (
+            /* 微流编辑器：占满中央列，自带节点面板/属性面板/底部面板 */
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <MicroflowEditor
+                schema={microflowSchema}
+                onSchemaChange={setMicroflowSchema}
+              />
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: "hidden"
+                }}
+              >
+                {/* 只在 pageBuilder Tab 显示 Widget Toolbox */}
+                {activeTab === "pageBuilder" && <WidgetToolbox />}
 
-            {/* 中央画布 */}
-            <PageDesignerCanvas />
+                {/* 中央画布 */}
+                <PageDesignerCanvas />
 
-            {/* 组件结构树（仅 page 时有意义，其他 tab 也保留） */}
-            <WidgetStructurePanel />
-          </div>
+                {/* 组件结构树 */}
+                <WidgetStructurePanel />
+              </div>
 
-          {/* 底部 Errors + Debug Trace */}
-          <BottomPanel />
+              {/* 底部 Errors + Debug Trace */}
+              <BottomPanel />
+            </>
+          )}
         </div>
 
-        {/* 右侧属性面板 */}
-        <PropertiesPanel />
+        {/* 右侧属性面板（微流模式下隐藏，MicroflowEditor 自带） */}
+        {!isMicroflow && <PropertiesPanel />}
 
-        {/* 最右侧 Inspector Rail */}
-        <RightInspectorRail />
+        {/* 最右侧 Inspector Rail（微流模式下隐藏） */}
+        {!isMicroflow && <RightInspectorRail />}
       </div>
 
       {/* 运行预览侧拉板 */}
       <RuntimePreview />
+
+      {/* 沉浸模式覆盖层 */}
+      {microflowImmersive && isMicroflow && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "#fff"
+          }}
+        >
+          <MicroflowEditor
+            schema={microflowSchema}
+            onSchemaChange={setMicroflowSchema}
+            immersive={true}
+            toolbarSuffix={
+              <button
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 4,
+                  background: "#fff",
+                  cursor: "pointer",
+                  color: "#374151"
+                }}
+                onClick={() => setMicroflowImmersive(false)}
+              >
+                <IconFullScreenStroked style={{ fontSize: 13 }} />
+                退出沉浸
+              </button>
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }

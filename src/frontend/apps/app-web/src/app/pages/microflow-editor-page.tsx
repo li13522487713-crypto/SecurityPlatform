@@ -154,7 +154,12 @@ export function MicroflowEditorPage() {
             <Button icon={<IconArrowLeft />} theme="borderless" onClick={backToLibrary}>
               {t("microflowBackToLibrary")}
             </Button>
-            <Button icon={<IconExpand />} theme="borderless" onClick={() => void toggleFullscreen()}>
+            <Button
+              icon={<IconExpand />}
+              theme="borderless"
+              style={{ whiteSpace: "nowrap" }}
+              onClick={() => void toggleFullscreen()}
+            >
               {fullscreen ? t("microflowExitFullscreen") : t("microflowEnterFullscreen")}
             </Button>
             <Tag color={resource.status === "published" ? "green" : resource.status === "archived" ? "grey" : "blue"}>

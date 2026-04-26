@@ -397,6 +397,24 @@
   cursor: not-allowed;
 }
 
+/* 图标 + 短文案：勿使用 28px 固定宽，否则中文会逐字换行成竖条 */
+.studio-workbench-toolbar__btn--with-label {
+  width: auto;
+  min-width: max-content;
+  max-width: none;
+  flex-shrink: 0;
+  padding: 0 8px;
+  gap: 6px;
+  white-space: nowrap;
+  justify-content: flex-start;
+}
+.studio-workbench-toolbar__btn--with-label .studio-workbench-toolbar__btn-label {
+  font-size: var(--studio-font-sm);
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 .studio-workbench-toolbar__divider {
   width: 1px;
   height: 18px;

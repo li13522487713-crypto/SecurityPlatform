@@ -225,7 +225,6 @@ function ResizeHandles() {
 
 function OtherTabCanvas({ activeTab }: { activeTab: string }) {
   const labels: Record<string, { title: string; subtitle: string; color: string }> = {
-    microflowDesigner: { title: "MF_SubmitPurchaseRequest", subtitle: "微流设计器 — 节点编辑视图", color: "#52c41a" },
     workflowDesigner: { title: "WF_PurchaseApproval", subtitle: "工作流设计器 — 节点编辑视图", color: "#fa8c16" },
     domainModel: { title: "Domain Model", subtitle: "领域模型设计器", color: "#722ed1" },
     securityEditor: { title: "Security", subtitle: "安全策略编辑器", color: "#f5222d" },

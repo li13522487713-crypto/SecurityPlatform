@@ -13,6 +13,7 @@ import { useMendixStudioStore } from "../store";
 export function WorkbenchToolbar() {
   const setPreviewMode = useMendixStudioStore(state => state.setPreviewMode);
   const activeTab = useMendixStudioStore(state => state.activeTab);
+  const setMicroflowImmersive = useMendixStudioStore(state => state.setMicroflowImmersive);
 
   const isPage = activeTab === "pageBuilder";
 
@@ -83,6 +84,19 @@ export function WorkbenchToolbar() {
           </>
         )}
       </div>
+
+      {/* 微流模式：沉浸模式入口 */}
+      {activeTab === "microflowDesigner" && (
+        <button
+          type="button"
+          className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--with-label"
+          title="沉浸模式：全屏展示微流设计器"
+          onClick={() => setMicroflowImmersive(true)}
+        >
+          <IconFullScreenStroked style={{ fontSize: 15, flexShrink: 0 }} aria-hidden />
+          <span className="studio-workbench-toolbar__btn-label">沉浸模式</span>
+        </button>
+      )}
 
       <button
         className="studio-workbench-toolbar__preview-btn"

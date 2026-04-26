@@ -1,6 +1,8 @@
 import { injectable } from "inversify";
 import {
   createNodeEntityDatas,
+  type EntityManager,
+  EntityManagerContribution,
   FlowDocumentContribution,
   FlowNodeFormData,
   FormModelV2,
@@ -55,7 +57,9 @@ export function createFlowGramMicroflowNodeRegistries(): WorkflowNodeRegistry[] 
 }
 
 @injectable()
-export class FlowGramMicroflowNodeRegistryContribution implements FlowDocumentContribution<WorkflowDocument> {
+export class FlowGramMicroflowNodeRegistryContribution
+  implements EntityManagerContribution, FlowDocumentContribution<WorkflowDocument>
+{
   registerDocument(document: WorkflowDocument): void {
     document.registerNodeDatas(...createNodeEntityDatas());
     for (const registry of createFlowGramMicroflowNodeRegistries()) {
@@ -63,7 +67,7 @@ export class FlowGramMicroflowNodeRegistryContribution implements FlowDocumentCo
     }
   }
 
-  registerEntityManager(entityManager: Parameters<FlowDocumentContribution["registerEntityManager"]>[0]): void {
+  registerEntityManager(entityManager: EntityManager): void {
     entityManager.registerEntityData(
       FlowNodeFormData,
       () => ({

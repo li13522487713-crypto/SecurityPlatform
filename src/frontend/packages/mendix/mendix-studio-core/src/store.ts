@@ -5,6 +5,8 @@ import type {
   LowCodeAppSchema,
   ValidationErrorSchema
 } from "@atlas/mendix-schema";
+import { sampleOrderProcessingMicroflow } from "@atlas/microflow";
+import type { MicroflowSchema } from "@atlas/microflow";
 import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "./sample-app";
 
 export type MendixStudioTab =
@@ -35,6 +37,9 @@ type StudioState = {
   latestActionResponse?: ExecuteActionResponse;
   latestTrace?: FlowExecutionTraceSchema;
 
+  microflowSchema: MicroflowSchema;
+  microflowImmersive: boolean;
+
   setAppSchema: (schema: LowCodeAppSchema) => void;
   setActiveTab: (tab: MendixStudioTab) => void;
   setActiveTabId: (id: ActiveTabId) => void;
@@ -48,7 +53,14 @@ type StudioState = {
   setRuntimeObject: (next: Record<string, unknown>) => void;
   setLatestActionResponse: (response?: ExecuteActionResponse) => void;
   setLatestTrace: (trace?: FlowExecutionTraceSchema) => void;
+  setMicroflowSchema: (schema: MicroflowSchema) => void;
+  setMicroflowImmersive: (immersive: boolean) => void;
   loadSampleApp: () => void;
+};
+
+const INITIAL_MICROFLOW_SCHEMA: MicroflowSchema = {
+  ...sampleOrderProcessingMicroflow,
+  version: "1.0.0"
 };
 
 export const useMendixStudioStore = create<StudioState>(set => ({
@@ -62,6 +74,8 @@ export const useMendixStudioStore = create<StudioState>(set => ({
   bottomTab: "errors",
   runtimeObject: SAMPLE_RUNTIME_OBJECT,
   validationErrors: [],
+  microflowSchema: INITIAL_MICROFLOW_SCHEMA,
+  microflowImmersive: false,
 
   setAppSchema: appSchema => set({ appSchema }),
   setActiveTab: activeTab => set({ activeTab }),
@@ -76,6 +90,8 @@ export const useMendixStudioStore = create<StudioState>(set => ({
   setRuntimeObject: runtimeObject => set({ runtimeObject }),
   setLatestActionResponse: latestActionResponse => set({ latestActionResponse }),
   setLatestTrace: latestTrace => set({ latestTrace }),
+  setMicroflowSchema: microflowSchema => set({ microflowSchema }),
+  setMicroflowImmersive: microflowImmersive => set({ microflowImmersive }),
   loadSampleApp: () =>
     set({
       appSchema: JSON.parse(JSON.stringify(SAMPLE_PROCUREMENT_APP)) as LowCodeAppSchema,

@@ -1,6 +1,7 @@
 import { ContainerModule } from "inversify";
 import {
   bindContributions,
+  EntityManagerContribution,
   FlowDocumentContribution,
   FlowRendererContribution,
   WorkflowDocumentOptions,
@@ -16,7 +17,10 @@ import { FlowGramMicroflowNodeRegistryContribution } from "./FlowGramMicroflowNo
 export const FlowGramMicroflowContainerModule = new ContainerModule(
   (bind, _unbind, _isBound, rebind) => {
     bind(FlowGramMicroflowBridgeService).toSelf().inSingletonScope();
-    bindContributions(bind, FlowGramMicroflowNodeRegistryContribution, [FlowDocumentContribution]);
+    bindContributions(bind, FlowGramMicroflowNodeRegistryContribution, [
+      EntityManagerContribution,
+      FlowDocumentContribution,
+    ]);
     bindContributions(bind, FlowGramMicroflowRenderContribution, [FlowRendererContribution]);
     bind(FlowGramMicroflowDocumentOptions).toSelf().inSingletonScope();
     // WorkflowDocumentContainerModule (from WorkflowRenderProvider) already binds this token; replace it.
