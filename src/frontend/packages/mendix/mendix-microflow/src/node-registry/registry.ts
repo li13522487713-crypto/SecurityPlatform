@@ -9,6 +9,7 @@ import type {
   MicroflowNodeCategory,
   MicroflowNodeKind,
   MicroflowNodeType,
+  MicroflowObject,
   MicroflowObjectKind,
   MicroflowPort,
   MicroflowPortCardinality,
@@ -20,7 +21,7 @@ import type {
   MicroflowRuntimeNodeDto,
   MicroflowValidationIssue
 } from "../schema/types";
-import { microflowActionRegistryByActivityType } from "./action-registry";
+import { defaultMicroflowActionRegistry, microflowActionRegistryByActivityType, type MicroflowActionRegistryItem } from "./action-registry";
 
 export type MicroflowNodePanelCategoryKey =
   | "events"
@@ -75,9 +76,13 @@ export interface MicroflowNodeIoSpec {
 }
 
 export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<string, unknown>> {
+  key?: string;
   type: MicroflowNodeType;
   kind: MicroflowNodeKind;
   activityType?: MicroflowActivityType;
+  actionKind?: MicroflowActionKind;
+  objectKind?: MicroflowObjectKind;
+  officialType?: string;
   title: string;
   titleZh: string;
   description: string;
@@ -91,10 +96,15 @@ export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<stri
   availability: MicroflowNodeAvailability;
   availabilityReason?: string;
   defaultConfig: TConfig;
+  defaultCaption?: string;
+  defaultSize?: { width: number; height: number };
   inputs: MicroflowNodeIoSpec[];
   outputs: MicroflowNodeIoSpec[];
   ports: MicroflowPort[];
   supportsErrorHandling: boolean;
+  supportsDocumentation?: boolean;
+  supportsRuntimeTrace?: boolean;
+  supportsValidation?: boolean;
   supportedErrorHandlingTypes: MicroflowErrorHandlingType[];
   propertyTabs: MicroflowPropertyTabKey[];
   enabled: boolean;
@@ -108,6 +118,8 @@ export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<stri
   useCases: string[];
   render: MicroflowRenderMetadata;
   propertyForm: MicroflowPropertyFormMetadata;
+  canCreate?: boolean;
+  createObject?: (input: { id: string; position: MicroflowPosition }) => MicroflowObject;
   validate: (node: MicroflowNode) => MicroflowValidationIssue[];
   toRuntimeDto: (node: MicroflowNode) => MicroflowRuntimeNodeDto;
   fromRuntimeDto: (dto: MicroflowRuntimeNodeDto, position: MicroflowPosition) => MicroflowNode;
@@ -236,6 +248,11 @@ function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEn
   const disabledReason = entry.disabledReason ?? entry.availabilityReason;
   return {
     ...entry,
+    key: entry.activityType ? `action:${actionKindFromActivityType(entry.activityType) ?? entry.activityType}` : entry.type,
+    objectKind: objectKindFromRegistryItem(entry),
+    officialType: officialTypeFromRegistryItem(entry),
+    defaultCaption: entry.titleZh,
+    defaultSize: { width: entry.render.width ?? 176, height: entry.render.height ?? 76 },
     keywords: entry.keywords ?? [entry.title, entry.titleZh, entry.description, entry.group, entry.subgroup, entry.iconKey, entry.availability].filter((value): value is string => Boolean(value)),
     enabled: entry.enabled ?? !["requiresConnector", "nanoflowOnlyDisabled"].includes(entry.availability),
     disabledReason,
@@ -244,6 +261,10 @@ function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEn
     supportsErrorHandling,
     supportedErrorHandlingTypes: entry.supportedErrorHandlingTypes ?? (supportsErrorHandling ? ["rollback", "customWithRollback", "customWithoutRollback"] : []),
     propertyTabs: entry.propertyTabs ?? mapTabs(entry.propertyForm.sections, supportsErrorHandling),
+    supportsDocumentation: true,
+    supportsRuntimeTrace: true,
+    supportsValidation: true,
+    canCreate: entry.enabled ?? !["requiresConnector", "nanoflowOnlyDisabled"].includes(entry.availability),
     useCases: entry.useCases ?? [entry.documentation.whenToUse],
     validate: entry.validate ?? baseValidate,
     toRuntimeDto: node => ({
@@ -377,7 +398,7 @@ const activityDefinitions: Array<Parameters<typeof activityEntry>[0]> = [
   { activityType: "sendExternalObject", title: "Send External Object", titleZh: "发送外部对象", activityCategory: "externalObject", config: { objectVariableName: "externalObject", operation: "send" }, description: "Sends or updates an external object through a service operation." }
 ];
 
-export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
+export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
   eventEntry("startEvent", "Start Event", "开始事件", [sequenceOut], "success", "Unique entry point of a microflow."),
   eventEntry("endEvent", "End Event", "结束事件", [sequenceIn], "danger", "Stops the microflow and optionally returns a value."),
   eventEntry("errorEvent", "Error Event", "错误事件", [sequenceIn], "danger", "Stops and throws an error from an error handling scope."),
@@ -488,17 +509,72 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
     render: { iconKey: "annotation", shape: "annotation", tone: "neutral", width: 220, height: 100 },
     propertyForm: { formKey: "annotation", sections: ["General"] },
     supportsErrorHandling: false
-  }),
-  ...(activityDefinitions.map(activityEntry) as unknown as MicroflowNodeRegistryEntry[])
+  })
 ];
 
-export const microflowNodeRegistryByKey = new Map(
-  microflowNodeRegistries.map(entry => [entry.activityType ? `${entry.type}:${entry.activityType}` : entry.type, entry])
+function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryItem): MicroflowNodeRegistryEntry<MicroflowActivityConfig> {
+  const activityItem = activityEntry({
+    activityType: actionItem.legacyActivityType,
+    title: actionItem.title,
+    titleZh: actionItem.titleZh,
+    activityCategory: actionItem.category,
+    config: actionItem.defaultConfig,
+    description: actionItem.description,
+    availability: actionItem.availability === "hidden" ? "supported" : actionItem.availability,
+    supportsErrorHandling: actionItem.supportsErrorHandling,
+    supportedErrorHandlingTypes: actionItem.supportedErrorHandlingTypes
+  });
+  return {
+    ...activityItem,
+    key: `activity:${actionItem.legacyActivityType}`,
+    actionKind: actionItem.actionKind,
+    officialType: "Microflows$ActionActivity",
+    defaultCaption: actionItem.defaultCaption,
+    propertyTabs: actionItem.propertyTabs,
+    toRuntimeDto: () => ({
+      nodeId: actionItem.key,
+      type: "activity",
+      kind: "activity",
+      activityType: actionItem.legacyActivityType,
+      title: actionItem.title,
+      config: {
+        kind: "nodePanelAction",
+        actionKind: actionItem.actionKind,
+        officialType: actionItem.officialType,
+        unsupported: true
+      }
+    })
+  };
+}
+
+export const microflowActionNodePanelRegistries: MicroflowNodeRegistryEntry[] = defaultMicroflowActionRegistry
+  .filter(item => item.availability !== "hidden")
+  .map(nodePanelEntryFromActionRegistry);
+
+export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = microflowObjectNodeRegistries;
+export const microflowNodePanelRegistries: MicroflowNodeRegistryEntry[] = [
+  ...microflowObjectNodeRegistries.filter(item => item.type !== "activity"),
+  ...microflowActionNodePanelRegistries
+];
+
+export const microflowNodeRegistryByKey = new Map<string, MicroflowNodeRegistryEntry>(
+  microflowNodePanelRegistries.flatMap(entry => {
+    const keys = [getMicroflowNodeRegistryKey(entry)];
+    if (entry.activityType) {
+      keys.push(`${entry.type}:${entry.activityType}`);
+    }
+    return keys.map(key => [key, entry] as const);
+  })
 );
 
-export const defaultMicroflowNodeRegistry = microflowNodeRegistries;
+export const defaultMicroflowObjectNodeRegistry = microflowObjectNodeRegistries;
+export const defaultMicroflowNodeRegistry = microflowNodePanelRegistries;
+export const defaultMicroflowNodePanelRegistry = microflowNodePanelRegistries;
 
 export function getMicroflowNodeRegistryKey(entry: Pick<MicroflowNodeRegistryEntry, "type" | "activityType">): string {
+  if ("key" in entry && typeof entry.key === "string") {
+    return entry.key;
+  }
   return entry.activityType ? `${entry.type}:${entry.activityType}` : entry.type;
 }
 
@@ -516,6 +592,24 @@ export function objectKindFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntr
     parameter: "parameterObject",
     annotation: "annotation",
     activity: "actionActivity"
+  };
+  return map[entry.type];
+}
+
+export function officialTypeFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntry, "type">): string {
+  const map: Record<MicroflowNodeType, string> = {
+    startEvent: "Microflows$StartEvent",
+    endEvent: "Microflows$EndEvent",
+    errorEvent: "Microflows$ErrorEvent",
+    breakEvent: "Microflows$BreakEvent",
+    continueEvent: "Microflows$ContinueEvent",
+    decision: "Microflows$ExclusiveSplit",
+    objectTypeDecision: "Microflows$InheritanceSplit",
+    merge: "Microflows$ExclusiveMerge",
+    loop: "Microflows$LoopedActivity",
+    parameter: "Microflows$MicroflowParameterObject",
+    annotation: "Microflows$Annotation",
+    activity: "Microflows$ActionActivity"
   };
   return map[entry.type];
 }
@@ -577,12 +671,12 @@ function categoryKeyForEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodePa
   return "annotations";
 }
 
-export function getMicroflowNodeCategories(registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodeRegistry): MicroflowNodeCategoryDefinition[] {
+export function getMicroflowNodeCategories(registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodePanelRegistry): MicroflowNodeCategoryDefinition[] {
   const available = new Set(registry.map(categoryKeyForEntry));
   return microflowNodeCategoryDefinitions.filter(category => available.has(category.key));
 }
 
-export function searchMicroflowNodes(keyword: string, registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodeRegistry): MicroflowNodeRegistryEntry[] {
+export function searchMicroflowNodes(keyword: string, registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodePanelRegistry): MicroflowNodeRegistryEntry[] {
   const normalized = keyword.trim().toLowerCase();
   if (!normalized) {
     return registry;
@@ -602,7 +696,7 @@ export function searchMicroflowNodes(keyword: string, registry: MicroflowNodeReg
   ].filter((value): value is string => Boolean(value)).join(" ").toLowerCase().includes(normalized));
 }
 
-export function groupMicroflowNodesByCategory(registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodeRegistry): Array<{
+export function groupMicroflowNodesByCategory(registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodePanelRegistry): Array<{
   category: MicroflowNodeCategoryDefinition;
   entries: MicroflowNodeRegistryEntry[];
   groups: Array<{ key: MicroflowNodeGroup; label: string; entries: MicroflowNodeRegistryEntry[] }>;
@@ -620,7 +714,7 @@ export function groupMicroflowNodesByCategory(registry: MicroflowNodeRegistryEnt
 export function getMicroflowNodeByType(
   type: MicroflowNodeType,
   activityType?: MicroflowActivityType,
-  registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodeRegistry
+  registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodePanelRegistry
 ): MicroflowNodeRegistryEntry | undefined {
   return registry.find(entry => entry.type === type && entry.activityType === activityType);
 }

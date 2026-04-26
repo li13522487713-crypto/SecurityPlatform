@@ -14,7 +14,7 @@ import {
 } from "@douyinfe/semi-icons";
 import type { MicroflowActivityType, MicroflowNodeType } from "../schema";
 import {
-  defaultMicroflowNodeRegistry,
+  defaultMicroflowNodePanelRegistry,
   canDragRegistryItem,
   createDragPayloadFromRegistryItem,
   getDisabledDragReason,
@@ -739,7 +739,7 @@ export function MicroflowNodeContextMenu({
 }
 
 export function MicroflowNodePanel({
-  registry = defaultMicroflowNodeRegistry,
+  registry = defaultMicroflowNodePanelRegistry,
   favoriteNodeKeys,
   onFavoriteChange,
   onAddNode,

@@ -26,13 +26,28 @@ export interface MicroflowPortConnection {
 }
 
 export interface MicroflowEdgeRegistryItem {
+  key: MicroflowDerivedEdgeKind;
+  edgeKind: MicroflowDerivedEdgeKind;
   kind: MicroflowFlowRegistryKind;
   officialType: "Microflows$SequenceFlow" | "Microflows$AnnotationFlow";
   title: string;
   titleZh: string;
   description: string;
+  runtimeEffect: "controlFlow" | "errorFlow" | "annotationOnly";
+  lineStyle: "solid" | "dashed" | "dotted";
+  colorToken: string;
+  hasArrow: boolean;
+  labelMode: "none" | "auto" | "editable" | "condition";
+  sourcePortKinds: MicroflowEditorPort["kind"][];
+  targetPortKinds: MicroflowEditorPort["kind"][];
+  sourceObjectKinds?: MicroflowObject["kind"][];
+  targetObjectKinds?: MicroflowObject["kind"][];
+  propertyTabs: Array<"properties" | "documentation" | "errorHandling">;
   derivedKinds: MicroflowDerivedEdgeKind[];
+  validateConnection: (connection: MicroflowPortConnection) => MicroflowConnectionCheckResult;
   validate: (flow: MicroflowFlow, context: { flows: MicroflowFlow[] }) => MicroflowValidationIssue[];
+  validateFlow: (flow: MicroflowFlow, context: { flows: MicroflowFlow[] }) => MicroflowValidationIssue[];
+  toRuntimeDto: (flow: MicroflowFlow) => { kind: "edge"; edgeKind: MicroflowDerivedEdgeKind; officialType: string; unsupported: true };
 }
 
 function issue(code: string, message: string, flowId: string): MicroflowValidationIssue {
@@ -69,22 +84,114 @@ function validateAnnotation(flow: MicroflowFlow): MicroflowValidationIssue[] {
 
 export const defaultMicroflowEdgeRegistry: MicroflowEdgeRegistryItem[] = [
   {
+    key: "sequence",
+    edgeKind: "sequence",
     kind: "sequence",
     officialType: "Microflows$SequenceFlow",
     title: "Sequence Flow",
     titleZh: "顺序流",
     description: "Official execution flow. Derived edge kinds are editor-only metadata.",
-    derivedKinds: ["sequence", "decisionCondition", "objectTypeCondition", "errorHandler"],
-    validate: (flow: MicroflowFlow) => validateSequence(flow)
+    runtimeEffect: "controlFlow",
+    lineStyle: "solid",
+    colorToken: "#4e5969",
+    hasArrow: true,
+    labelMode: "none",
+    sourcePortKinds: ["sequenceOut", "loopOut"],
+    targetPortKinds: ["sequenceIn", "loopIn"],
+    propertyTabs: ["properties", "documentation"],
+    derivedKinds: ["sequence"],
+    validateConnection: () => ok("sequence"),
+    validate: (flow: MicroflowFlow) => validateSequence(flow),
+    validateFlow: (flow: MicroflowFlow) => validateSequence(flow),
+    toRuntimeDto: () => ({ kind: "edge", edgeKind: "sequence", officialType: "Microflows$SequenceFlow", unsupported: true })
   },
   {
+    key: "decisionCondition",
+    edgeKind: "decisionCondition",
+    kind: "sequence",
+    officialType: "Microflows$SequenceFlow",
+    title: "Decision Condition",
+    titleZh: "决策条件流",
+    description: "SequenceFlow with caseValues for exclusive split branches.",
+    runtimeEffect: "controlFlow",
+    lineStyle: "solid",
+    colorToken: "#165dff",
+    hasArrow: true,
+    labelMode: "condition",
+    sourcePortKinds: ["decisionOut"],
+    targetPortKinds: ["sequenceIn", "loopIn"],
+    propertyTabs: ["properties", "documentation"],
+    derivedKinds: ["decisionCondition"],
+    validateConnection: () => ok("decisionCondition"),
+    validate: (flow: MicroflowFlow) => flow.kind === "sequence" && flow.caseValues.length === 0 ? [issue("MF_FLOW_CASE_VALUES_RESERVED", "Decision condition keeps caseValues for branch selection.", flow.id)] : validateSequence(flow),
+    validateFlow: (flow: MicroflowFlow) => flow.kind === "sequence" && flow.caseValues.length === 0 ? [issue("MF_FLOW_CASE_VALUES_RESERVED", "Decision condition keeps caseValues for branch selection.", flow.id)] : validateSequence(flow),
+    toRuntimeDto: () => ({ kind: "edge", edgeKind: "decisionCondition", officialType: "Microflows$SequenceFlow", unsupported: true })
+  },
+  {
+    key: "objectTypeCondition",
+    edgeKind: "objectTypeCondition",
+    kind: "sequence",
+    officialType: "Microflows$SequenceFlow",
+    title: "Object Type Condition",
+    titleZh: "对象类型条件流",
+    description: "SequenceFlow with inheritance/empty/fallback caseValues.",
+    runtimeEffect: "controlFlow",
+    lineStyle: "solid",
+    colorToken: "#722ed1",
+    hasArrow: true,
+    labelMode: "condition",
+    sourcePortKinds: ["objectTypeOut"],
+    targetPortKinds: ["sequenceIn", "loopIn"],
+    propertyTabs: ["properties", "documentation"],
+    derivedKinds: ["objectTypeCondition"],
+    validateConnection: () => ok("objectTypeCondition"),
+    validate: (flow: MicroflowFlow) => flow.kind === "sequence" && flow.caseValues.length === 0 ? [issue("MF_FLOW_CASE_VALUES_RESERVED", "Object type condition keeps caseValues for branch selection.", flow.id)] : validateSequence(flow),
+    validateFlow: (flow: MicroflowFlow) => flow.kind === "sequence" && flow.caseValues.length === 0 ? [issue("MF_FLOW_CASE_VALUES_RESERVED", "Object type condition keeps caseValues for branch selection.", flow.id)] : validateSequence(flow),
+    toRuntimeDto: () => ({ kind: "edge", edgeKind: "objectTypeCondition", officialType: "Microflows$SequenceFlow", unsupported: true })
+  },
+  {
+    key: "errorHandler",
+    edgeKind: "errorHandler",
+    kind: "sequence",
+    officialType: "Microflows$SequenceFlow",
+    title: "Error Handler",
+    titleZh: "错误处理流",
+    description: "SequenceFlow marked with isErrorHandler=true.",
+    runtimeEffect: "errorFlow",
+    lineStyle: "dashed",
+    colorToken: "#f93920",
+    hasArrow: true,
+    labelMode: "auto",
+    sourcePortKinds: ["errorOut"],
+    targetPortKinds: ["sequenceIn"],
+    propertyTabs: ["properties", "documentation", "errorHandling"],
+    derivedKinds: ["errorHandler"],
+    validateConnection: () => ok("errorHandler"),
+    validate: (flow: MicroflowFlow) => flow.kind === "sequence" && !flow.isErrorHandler ? [issue("MF_FLOW_ERROR_FLAG_REQUIRED", "Error handler SequenceFlow requires isErrorHandler=true.", flow.id)] : validateSequence(flow),
+    validateFlow: (flow: MicroflowFlow) => flow.kind === "sequence" && !flow.isErrorHandler ? [issue("MF_FLOW_ERROR_FLAG_REQUIRED", "Error handler SequenceFlow requires isErrorHandler=true.", flow.id)] : validateSequence(flow),
+    toRuntimeDto: () => ({ kind: "edge", edgeKind: "errorHandler", officialType: "Microflows$SequenceFlow", unsupported: true })
+  },
+  {
+    key: "annotation",
+    edgeKind: "annotation",
     kind: "annotation",
     officialType: "Microflows$AnnotationFlow",
     title: "Annotation Flow",
     titleZh: "注释流",
     description: "Official documentation flow without runtime behavior.",
+    runtimeEffect: "annotationOnly",
+    lineStyle: "dashed",
+    colorToken: "#86909c",
+    hasArrow: false,
+    labelMode: "editable",
+    sourcePortKinds: ["annotation"],
+    targetPortKinds: ["annotation", "sequenceIn", "sequenceOut"],
+    propertyTabs: ["properties", "documentation"],
     derivedKinds: ["annotation"],
-    validate: (flow: MicroflowFlow) => validateAnnotation(flow)
+    validateConnection: () => ok("annotation"),
+    validate: (flow: MicroflowFlow) => validateAnnotation(flow),
+    validateFlow: (flow: MicroflowFlow) => validateAnnotation(flow),
+    toRuntimeDto: () => ({ kind: "edge", edgeKind: "annotation", officialType: "Microflows$AnnotationFlow", unsupported: true })
   }
 ];
 
