@@ -1081,6 +1081,10 @@ export interface MicroflowValidationState {
   issues: MicroflowValidationIssue[];
 }
 
+export interface MicroflowValidator {
+  validate(schema: MicroflowSchema): MicroflowValidationIssue[];
+}
+
 export interface MicroflowEditorState {
   viewport: {
     x: number;

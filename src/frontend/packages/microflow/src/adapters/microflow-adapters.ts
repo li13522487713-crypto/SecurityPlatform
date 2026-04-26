@@ -67,6 +67,97 @@ export function emptyVariableIndex(): MicroflowVariableIndex {
   };
 }
 
+function buildVariableIndex(parameters: MicroflowAuthoringSchema["parameters"], collection: MicroflowObjectCollection, flows: MicroflowFlow[]): MicroflowVariableIndex {
+  const index = emptyVariableIndex();
+  for (const parameter of parameters) {
+    index.parameters[parameter.name] = {
+      name: parameter.name,
+      dataType: parameter.dataType ?? toMicroflowDataType(parameter.type),
+      source: { kind: "parameter", parameterId: parameter.id },
+      scope: { collectionId: collection.id },
+      readonly: true
+    };
+  }
+  for (const object of flattenObjectCollection(collection)) {
+    if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
+      index.loopVariables[object.loopSource.iteratorVariableName] = {
+        name: object.loopSource.iteratorVariableName,
+        dataType: { kind: "unknown", reason: object.loopSource.listVariableName },
+        source: { kind: "loopIterator", loopObjectId: object.id },
+        scope: { collectionId: object.objectCollection.id, loopObjectId: object.id },
+        readonly: true
+      };
+      index.systemVariables.$currentIndex = {
+        name: "$currentIndex",
+        dataType: { kind: "integer" },
+        source: { kind: "system", name: "$currentIndex" },
+        scope: { collectionId: object.objectCollection.id, loopObjectId: object.id },
+        readonly: true
+      };
+    }
+    if (object.kind === "actionActivity") {
+      const action = object.action;
+      if (action.kind === "retrieve") {
+        const outputType = action.retrieveSource.kind === "database" && action.retrieveSource.range.kind !== "first"
+          ? { kind: "list" as const, itemType: action.retrieveSource.entityQualifiedName ? { kind: "object" as const, entityQualifiedName: action.retrieveSource.entityQualifiedName } : { kind: "unknown" as const, reason: "retrieve entity missing" } }
+          : action.retrieveSource.kind === "database" && action.retrieveSource.entityQualifiedName
+            ? { kind: "object" as const, entityQualifiedName: action.retrieveSource.entityQualifiedName }
+            : { kind: "unknown" as const, reason: "association retrieve" };
+        const bucket = outputType.kind === "list" ? index.listOutputs : index.objectOutputs;
+        bucket[action.outputVariableName] = {
+          name: action.outputVariableName,
+          dataType: outputType,
+          source: { kind: "actionOutput", objectId: object.id, actionId: action.id },
+          scope: { collectionId: collection.id, startObjectId: object.id },
+          readonly: false
+        };
+      }
+      if (action.kind === "createObject") {
+        index.objectOutputs[action.outputVariableName] = {
+          name: action.outputVariableName,
+          dataType: { kind: "object", entityQualifiedName: action.entityQualifiedName },
+          source: { kind: "actionOutput", objectId: object.id, actionId: action.id },
+          scope: { collectionId: collection.id, startObjectId: object.id },
+          readonly: false
+        };
+      }
+      if (action.kind === "callMicroflow" && action.returnValue.storeResult && action.returnValue.outputVariableName) {
+        index.localVariables[action.returnValue.outputVariableName] = {
+          name: action.returnValue.outputVariableName,
+          dataType: action.returnValue.dataType ?? { kind: "unknown", reason: "microflow return" },
+          source: { kind: "actionOutput", objectId: object.id, actionId: action.id },
+          scope: { collectionId: collection.id, startObjectId: object.id },
+          readonly: false
+        };
+      }
+    }
+  }
+  for (const flow of flows.filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && item.isErrorHandler)) {
+    index.errorVariables.$latestError = {
+      name: "$latestError",
+      dataType: { kind: "object", entityQualifiedName: "System.Error" },
+      source: { kind: "errorContext", flowId: flow.id },
+      scope: { collectionId: collection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+      readonly: true
+    };
+    index.errorVariables.$latestHttpResponse = {
+      name: "$latestHttpResponse",
+      dataType: { kind: "object", entityQualifiedName: "System.HttpResponse" },
+      source: { kind: "errorContext", flowId: flow.id },
+      scope: { collectionId: collection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+      readonly: true
+    };
+    index.errorVariables.$latestSoapFault = {
+      name: "$latestSoapFault",
+      dataType: { kind: "object", entityQualifiedName: "System.SoapFault" },
+      source: { kind: "errorContext", flowId: flow.id },
+      scope: { collectionId: collection.id, errorHandlerFlowId: flow.id, startObjectId: flow.destinationObjectId },
+      readonly: true
+    };
+  }
+  return index;
+}
+
 export function toMicroflowDataType(type?: MicroflowTypeRef): MicroflowDataType {
   if (!type) {
     return { kind: "unknown", reason: "missing legacy type" };
@@ -608,6 +699,15 @@ export function legacyEdgeToFlow(edge: MicroflowEdge, nodesById: Map<string, Mic
 }
 
 export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "nodes" | "edges" | "parameters" | "id" | "name" | "description" | "version" | "viewport">): Omit<MicroflowSchema, "nodes" | "edges" | "variables"> {
+  const synchronizedParameters = schema.nodes
+    .filter((node): node is Extract<MicroflowNode, { type: "parameter" }> => node.type === "parameter")
+    .map(node => ({
+      ...node.config.parameter,
+      stableId: node.config.parameter.stableId ?? node.config.parameter.id,
+      dataType: node.config.parameter.dataType ?? toMicroflowDataType(node.config.parameter.type),
+      documentation: node.config.parameter.documentation ?? node.config.parameter.description
+    }));
+  const parameters = synchronizedParameters.length > 0 ? synchronizedParameters : schema.parameters;
   const loopObjects = new Map<string, MicroflowObject[]>();
   const rootObjects: MicroflowObject[] = [];
   for (const node of schema.nodes) {
@@ -626,16 +726,13 @@ export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "no
     }
   }
   const nodesById = new Map(schema.nodes.map(node => [node.id, node]));
-  const variableIndex = emptyVariableIndex();
-  for (const parameter of schema.parameters) {
-    variableIndex.parameters[parameter.name] = {
-      name: parameter.name,
-      dataType: parameter.dataType ?? toMicroflowDataType(parameter.type),
-      source: { kind: "parameter", parameterId: parameter.id },
-      scope: { collectionId: "root" },
-      readonly: true
-    };
-  }
+  const objectCollection: MicroflowObjectCollection = {
+    id: "root",
+    officialType: "Microflows$MicroflowObjectCollection",
+    objects: rootObjects
+  };
+  const flows = schema.edges.map(edge => legacyEdgeToFlow(edge, nodesById));
+  const variableIndex = buildVariableIndex(parameters, objectCollection, flows);
   const returnType = schema.nodes
     .filter(node => node.type === "endEvent")
     .map(node => toMicroflowDataType(node.config.returnValue?.expectedType ?? node.config.returnType))
@@ -651,7 +748,7 @@ export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "no
     documentation: schema.description,
     moduleId: "order",
     moduleName: "Order",
-    parameters: schema.parameters.map(parameter => ({
+    parameters: parameters.map(parameter => ({
       ...parameter,
       stableId: parameter.stableId ?? parameter.id,
       dataType: parameter.dataType ?? toMicroflowDataType(parameter.type),
@@ -659,12 +756,8 @@ export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "no
     })),
     returnType,
     returnVariableName: "result",
-    objectCollection: {
-      id: "root",
-      officialType: "Microflows$MicroflowObjectCollection",
-      objects: rootObjects
-    },
-    flows: schema.edges.map(edge => legacyEdgeToFlow(edge, nodesById)),
+    objectCollection,
+    flows,
     security: {
       applyEntityAccess: true,
       allowedModuleRoleIds: []
@@ -692,6 +785,72 @@ export function buildAuthoringFieldsFromLegacy(schema: Pick<MicroflowSchema, "no
       version: schema.version,
       status: "draft"
     }
+  };
+}
+
+export function ensureAuthoringSchema(schema: MicroflowSchema): MicroflowSchema {
+  const hasAuthoringRoot = Boolean(schema.objectCollection?.officialType === "Microflows$MicroflowObjectCollection" && Array.isArray(schema.flows));
+  const legacyGraph = hasAuthoringRoot ? toLegacyGraph(schema) : { nodes: schema.nodes ?? [], edges: schema.edges ?? [] };
+  const authoringFields = hasAuthoringRoot
+    ? {
+        schemaVersion: schema.schemaVersion,
+        mendixProfile: schema.mendixProfile,
+        stableId: schema.stableId,
+        displayName: schema.displayName,
+        documentation: schema.documentation,
+        moduleId: schema.moduleId,
+        moduleName: schema.moduleName,
+        returnType: schema.returnType,
+        returnVariableName: schema.returnVariableName,
+        objectCollection: schema.objectCollection,
+        flows: schema.flows,
+        security: schema.security,
+        concurrency: schema.concurrency,
+        exposure: schema.exposure,
+        variableIndex: schema.variableIndex,
+        validation: schema.validation,
+        editor: schema.editor,
+        audit: schema.audit
+      }
+    : buildAuthoringFieldsFromLegacy({
+        id: schema.id,
+        name: schema.name,
+        version: schema.version,
+        description: schema.description,
+        parameters: schema.parameters,
+        nodes: schema.nodes,
+        edges: schema.edges,
+        viewport: schema.viewport
+      });
+
+  return {
+    ...schema,
+    ...authoringFields,
+    variables: schema.variables ?? [],
+    nodes: legacyGraph.nodes,
+    edges: legacyGraph.edges,
+    viewport: schema.viewport ?? {
+      zoom: authoringFields.editor.viewport.zoom,
+      offset: {
+        x: authoringFields.editor.viewport.x,
+        y: authoringFields.editor.viewport.y
+      }
+    }
+  };
+}
+
+export function applyLegacyGraphPatch(schema: MicroflowSchema, patch: Partial<Pick<MicroflowSchema, "nodes" | "edges" | "viewport" | "variables">>): MicroflowSchema {
+  const legacySchema = {
+    ...schema,
+    nodes: patch.nodes ?? schema.nodes,
+    edges: patch.edges ?? schema.edges,
+    viewport: patch.viewport ?? schema.viewport,
+    variables: patch.variables ?? schema.variables
+  };
+  return {
+    ...legacySchema,
+    ...buildAuthoringFieldsFromLegacy(legacySchema),
+    variables: legacySchema.variables
   };
 }
 
@@ -892,6 +1051,21 @@ export function toLegacyGraph(schema: MicroflowAuthoringSchema): { nodes: Microf
     nodes,
     edges: schema.flows.map(flowToLegacyEdge)
   };
+}
+
+export function findMicroflowObject(collection: MicroflowObjectCollection, objectId: string): MicroflowObject | undefined {
+  for (const object of collection.objects) {
+    if (object.id === objectId) {
+      return object;
+    }
+    if (object.kind === "loopedActivity") {
+      const found = findMicroflowObject(object.objectCollection, objectId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return undefined;
 }
 
 export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema): MicroflowEditorGraph {

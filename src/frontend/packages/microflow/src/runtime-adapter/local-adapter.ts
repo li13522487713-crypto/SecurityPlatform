@@ -1,5 +1,5 @@
 import { validateMicroflowSchema } from "../schema/validator";
-import { buildAuthoringFieldsFromLegacy, toRuntimeDto } from "../adapters";
+import { buildAuthoringFieldsFromLegacy, flattenObjectCollection, toRuntimeDto } from "../adapters";
 import type {
   CreateMicroflowInput,
   MicroflowListQuery,
@@ -290,62 +290,63 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     const startedAt = Date.now();
     const runId = `run-${startedAt}`;
     const simulateError = String(request.input.simulateError ?? "").toLowerCase() === "true";
-    const nodesById = new Map(schema.nodes.map(node => [node.id, node]));
-    const orderedNodeIds: Array<{ nodeId: string; incomingEdgeId?: string; outgoingEdgeId?: string }> = [];
-    const start = schema.nodes.find(node => node.type === "startEvent");
+    const runtimeObjects = flattenObjectCollection(runtimeDto.objectCollection);
+    const objectsById = new Map(runtimeObjects.map(object => [object.id, object]));
+    const orderedObjectIds: Array<{ objectId: string; incomingFlowId?: string; outgoingFlowId?: string }> = [];
+    const start = runtimeObjects.find(object => object.kind === "startEvent");
     let currentId = start?.id;
     let incomingEdgeId: string | undefined;
     const visited = new Set<string>();
     while (currentId && !visited.has(currentId)) {
       visited.add(currentId);
-      const current = nodesById.get(currentId);
-      if (!current || current.type === "annotation" || current.type === "parameter") {
+      const current = objectsById.get(currentId);
+      if (!current || current.kind === "annotation" || current.kind === "parameterObject") {
         break;
       }
-      const failedRest = simulateError && current.type === "activity" && current.config.activityType === "callRest";
+      const failedRest = simulateError && current.kind === "actionActivity" && current.action.kind === "restCall";
       const outgoing = failedRest
-        ? schema.edges.find(edge => edge.sourceNodeId === currentId && edge.type === "errorHandler")
-        : schema.edges.find(edge => edge.sourceNodeId === currentId && edge.type !== "annotation" && edge.type !== "errorHandler" && (
-          edge.type !== "decisionCondition" ||
-          edge.conditionValue?.kind !== "boolean" ||
-          edge.conditionValue.value === true
+        ? runtimeDto.flows.find(flow => flow.kind === "sequence" && flow.originObjectId === currentId && flow.isErrorHandler)
+        : runtimeDto.flows.find(flow => flow.kind === "sequence" && flow.originObjectId === currentId && !flow.isErrorHandler && (
+          flow.caseValues.length === 0 ||
+          !flow.caseValues.some(caseValue => caseValue.kind === "boolean") ||
+          flow.caseValues.some(caseValue => caseValue.kind === "boolean" && caseValue.value === true)
         ));
-      orderedNodeIds.push({ nodeId: currentId, incomingEdgeId, outgoingEdgeId: outgoing?.id });
+      orderedObjectIds.push({ objectId: currentId, incomingFlowId: incomingEdgeId, outgoingFlowId: outgoing?.id });
       incomingEdgeId = outgoing?.id;
-      currentId = outgoing?.targetNodeId;
+      currentId = outgoing?.destinationObjectId;
     }
-    const traversableNodes: Array<{ nodeId: string; incomingEdgeId?: string; outgoingEdgeId?: string }> = orderedNodeIds.length > 0
-      ? orderedNodeIds
-      : schema.nodes.filter(node => node.type !== "annotation" && node.type !== "parameter").map(node => ({ nodeId: node.id }));
-    const frames = traversableNodes.map((trace, index): MicroflowTraceFrame => {
-      const node = nodesById.get(trace.nodeId) ?? schema.nodes[index];
+    const traversableObjects: Array<{ objectId: string; incomingFlowId?: string; outgoingFlowId?: string }> = orderedObjectIds.length > 0
+      ? orderedObjectIds
+      : runtimeObjects.filter(object => object.kind !== "annotation" && object.kind !== "parameterObject").map(object => ({ objectId: object.id }));
+    const frames = traversableObjects.map((trace, index): MicroflowTraceFrame => {
+      const object = objectsById.get(trace.objectId) ?? runtimeObjects[index];
       const durationMs = 8 + index * 3;
-      const failed = simulateError && node?.type === "activity" && node.config.activityType === "callRest";
+      const failed = simulateError && object?.kind === "actionActivity" && object.action.kind === "restCall";
       return {
-        id: `${runId}-${trace.nodeId}`,
-        frameId: `${runId}-${node.id}`,
+        id: `${runId}-${trace.objectId}`,
+        frameId: `${runId}-${object.id}`,
         runId,
-        nodeId: node.id,
-        nodeTitle: node.title,
-        incomingEdgeId: trace.incomingEdgeId,
-        outgoingEdgeId: trace.outgoingEdgeId,
+        nodeId: object.id,
+        nodeTitle: object.caption ?? object.id,
+        incomingEdgeId: trace.incomingFlowId,
+        outgoingEdgeId: trace.outgoingFlowId,
         status: failed ? "failed" : "success",
         startedAt: new Date(startedAt + index * 12).toISOString(),
         durationMs,
-        input: index === 0 ? request.input : { previousNodeId: traversableNodes[index - 1]?.nodeId, incomingEdgeId: trace.incomingEdgeId },
+        input: index === 0 ? request.input : { previousObjectId: traversableObjects[index - 1]?.objectId, incomingFlowId: trace.incomingFlowId },
         output: {
           status: failed ? "failed" : "ok",
-          nodeType: node.type,
-          activityType: node.type === "activity" ? node.config.activityType : undefined,
+          objectKind: object.kind,
+          actionKind: object.kind === "actionActivity" ? object.action.kind : undefined,
           runtimeFlowCount: runtimeDto.flows.length,
-          outgoingEdgeId: trace.outgoingEdgeId,
-          conditionValue: schema.edges.find(edge => edge.id === trace.outgoingEdgeId)?.conditionValue
+          outgoingFlowId: trace.outgoingFlowId,
+          caseValues: runtimeDto.flows.find(flow => flow.id === trace.outgoingFlowId && flow.kind === "sequence")?.caseValues
         },
         error: failed ? {
           code: "MF_TEST_REST_ERROR",
           message: "Mock REST call failed. Set simulateError=false to run the success path.",
-          nodeId: node.id,
-          details: { url: node.config.url }
+          nodeId: object.id,
+          details: { actionKind: object.kind === "actionActivity" ? object.action.kind : undefined }
         } : undefined
       };
     });

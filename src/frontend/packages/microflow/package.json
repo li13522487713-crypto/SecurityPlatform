@@ -15,6 +15,7 @@
     "./property-forms": "./src/property-forms/index.tsx",
     "./runtime-adapter": "./src/runtime-adapter/index.ts",
     "./adapters": "./src/adapters/index.ts",
+    "./samples": "./src/samples/index.ts",
     "./mendix-compat": "./src/mendix-compat/index.ts"
   },
   "scripts": {

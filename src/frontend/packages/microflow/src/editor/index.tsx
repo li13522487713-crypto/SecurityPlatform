@@ -28,9 +28,9 @@ import {
   type MicroflowNodeRegistryEntry
 } from "../node-registry";
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
-import { buildAuthoringFieldsFromLegacy } from "../adapters";
+import { applyLegacyGraphPatch, ensureAuthoringSchema, toEditorGraph } from "../adapters";
 import { validateMicroflowSchema } from "../schema/validator";
-import type { MicroflowEdge, MicroflowNode, MicroflowNodeOutput, MicroflowSchema, MicroflowValidationIssue, MicroflowPosition, MicroflowVariable } from "../schema/types";
+import type { MicroflowEdge, MicroflowEditorGraph, MicroflowNode, MicroflowNodeOutput, MicroflowSchema, MicroflowValidationIssue, MicroflowPosition, MicroflowVariable } from "../schema/types";
 
 const { Text, Title } = Typography;
 
@@ -154,11 +154,18 @@ function variablesFromOutputs(outputs: MicroflowNodeOutput[] | undefined): Micro
 }
 
 function materializeAuthoringSchema(schema: MicroflowSchema): MicroflowSchema {
-  return {
-    ...schema,
-    ...buildAuthoringFieldsFromLegacy(schema),
-    variables: schema.variables
-  };
+  return ensureAuthoringSchema(schema);
+}
+
+function findContainingLoopId(nodes: MicroflowNode[], position: MicroflowPosition): string | undefined {
+  return nodes.find(node => {
+    if (node.type !== "loop") {
+      return false;
+    }
+    const width = node.render.width ?? 178;
+    const height = node.render.height ?? 82;
+    return position.x >= node.position.x && position.x <= node.position.x + width + 280 && position.y >= node.position.y && position.y <= node.position.y + height + 180;
+  })?.id;
 }
 
 const shellStyle: CSSProperties = {
@@ -327,10 +334,11 @@ function edgeLabel(edge: MicroflowEdge): string | undefined {
 function createIssueMap(issues: MicroflowValidationIssue[]): Map<string, MicroflowValidationIssue[]> {
   const map = new Map<string, MicroflowValidationIssue[]>();
   for (const issue of issues) {
-    if (!issue.nodeId) {
+    const key = issue.nodeId ?? issue.objectId;
+    if (!key) {
       continue;
     }
-    map.set(issue.nodeId, [...(map.get(issue.nodeId) ?? []), issue]);
+    map.set(key, [...(map.get(key) ?? []), issue]);
   }
   return map;
 }
@@ -444,6 +452,7 @@ function MicroflowNodeCard({
 
 function MicroflowCanvas({
   schema,
+  editorGraph,
   selectedNodeId,
   selectedEdgeId,
   issues,
@@ -461,6 +470,7 @@ function MicroflowCanvas({
   onViewportChange
 }: {
   schema: MicroflowSchema;
+  editorGraph: MicroflowEditorGraph;
   selectedNodeId?: string;
   selectedEdgeId?: string;
   issues: MicroflowValidationIssue[];
@@ -477,6 +487,7 @@ function MicroflowCanvas({
   onDeleteEdge: (edgeId: string) => void;
   onViewportChange: (viewport: { zoom: number; offset: MicroflowPosition }) => void;
 }) {
+  const graphNodeIds = useMemo(() => new Set(editorGraph.nodes.map(node => node.objectId)), [editorGraph.nodes]);
   const nodesById = useMemo(() => new Map(schema.nodes.map(node => [node.id, node])), [schema.nodes]);
   const issueMap = useMemo(() => createIssueMap(issues), [issues]);
   const errorNodeIds = useMemo(() => new Set(traceFrames.filter(frame => frame.error).map(frame => frame.nodeId)), [traceFrames]);
@@ -486,10 +497,10 @@ function MicroflowCanvas({
   const [edgeMenu, setEdgeMenu] = useState<{ edge: MicroflowEdge; x: number; y: number }>();
 
   function updateNodePosition(nodeId: string, position: MicroflowPosition) {
-    onSchemaChange({
-      ...schema,
+    const nextSchema = applyLegacyGraphPatch(schema, {
       nodes: schema.nodes.map(node => node.id === nodeId ? { ...node, position } : node)
     });
+    onSchemaChange(nextSchema);
   }
 
   function canvasPoint(clientX: number, clientY: number, element: HTMLElement): MicroflowPosition {
@@ -666,7 +677,7 @@ function MicroflowCanvas({
             />
           ) : null}
         </svg>
-        {schema.nodes.map(node => (
+        {schema.nodes.filter(node => graphNodeIds.has(node.id)).map(node => (
           <MicroflowNodeCard
             key={node.id}
             node={node}
@@ -700,7 +711,7 @@ function MicroflowCanvas({
           拖到目标节点松开以创建连线，非法目标会提示。
         </div>
       ) : null}
-      {connection ? schema.nodes.map(node => (
+      {connection ? schema.nodes.filter(node => graphNodeIds.has(node.id)).map(node => (
         <button
           key={`target-${node.id}`}
           type="button"
@@ -759,7 +770,7 @@ function MicroflowCanvas({
       >
         <Text type="tertiary">MiniMap</Text>
         <div style={{ position: "relative", height: 86, marginTop: 6, background: "rgba(22,93,255,0.06)", borderRadius: 8 }}>
-          {schema.nodes.map(node => (
+          {schema.nodes.filter(node => graphNodeIds.has(node.id)).map(node => (
             <span
               key={node.id}
               style={{
@@ -813,10 +824,15 @@ function ProblemPanel({
             style={{ display: "grid", gridTemplateColumns: "82px 160px minmax(220px, 1fr) minmax(160px, .8fr) 84px", gap: 10, padding: "8px 4px", borderBottom: "1px solid var(--semi-color-border)", alignItems: "center" }}
           >
             <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
-            <Text ellipsis={{ showTooltip: true }}>{issue.nodeId ? nodesById.get(issue.nodeId)?.title ?? issue.nodeId : issue.edgeId ?? "Schema"}</Text>
+            <Text ellipsis={{ showTooltip: true }}>{issue.nodeId || issue.objectId ? nodesById.get(issue.nodeId ?? issue.objectId ?? "")?.title ?? issue.nodeId ?? issue.objectId : issue.edgeId ?? issue.flowId ?? "Schema"}</Text>
             <Text ellipsis={{ showTooltip: true }}>{issue.message}</Text>
-            <Text type="tertiary" ellipsis={{ showTooltip: true }}>{issue.code}</Text>
-            <Button size="small" disabled={!issue.nodeId} onClick={() => issue.nodeId && onLocateNode(issue.nodeId)}>Locate</Button>
+            <Text type="tertiary" ellipsis={{ showTooltip: true }}>{[issue.code, issue.fieldPath].filter(Boolean).join(" · ")}</Text>
+            <Button size="small" disabled={!issue.nodeId && !issue.objectId} onClick={() => {
+              const targetId = issue.nodeId ?? issue.objectId;
+              if (targetId) {
+                onLocateNode(targetId);
+              }
+            }}>Locate</Button>
           </div>
         ))}
       </div>
@@ -928,6 +944,7 @@ export function MicroflowEditor({
   const selectedNode = schema.nodes.find(node => node.id === selectedNodeId);
   const selectedEdge = schema.edges.find(edge => edge.id === selectedEdgeId);
   const nodesById = useMemo(() => new Map(schema.nodes.map(node => [node.id, node])), [schema.nodes]);
+  const editorGraph = useMemo(() => toEditorGraph(schema), [schema]);
   const errorCount = issues.filter(issue => issue.severity === "error").length;
 
   useEffect(() => {
@@ -1039,7 +1056,15 @@ export function MicroflowEditor({
       y: 120 + schema.nodes.length * 12
     };
     const nextNode = createMicroflowNodeFromRegistry(entry, position, `${registryKey.replace(":", "-")}-${Date.now()}`);
-    commitSchema({ ...schema, nodes: [...schema.nodes, nextNode] });
+    const loopId = findContainingLoopId(schema.nodes, position);
+    if ((nextNode.type === "breakEvent" || nextNode.type === "continueEvent") && !loopId) {
+      Toast.warning("Break/Continue Event 只能放在 Loop 内。");
+      return;
+    }
+    if (loopId && !["startEvent", "endEvent"].includes(nextNode.type)) {
+      nextNode.parentLoopId = loopId;
+    }
+    commitSchema(applyLegacyGraphPatch(schema, { nodes: [...schema.nodes, nextNode] }));
     setSelectedNodeId(nextNode.id);
     setRightPanelCollapsed(false);
   }
@@ -1052,6 +1077,14 @@ export function MicroflowEditor({
     }
     const registryKey = getMicroflowNodeRegistryKey(entry);
     const nextNode = createMicroflowNodeFromRegistry(entry, position, `${registryKey.replace(":", "-")}-${Date.now()}`);
+    const loopId = findContainingLoopId(schema.nodes, position);
+    if ((nextNode.type === "breakEvent" || nextNode.type === "continueEvent") && !loopId) {
+      Toast.warning("Break/Continue Event 只能放在 Loop 内。");
+      return;
+    }
+    if (loopId && !["startEvent", "endEvent"].includes(nextNode.type)) {
+      nextNode.parentLoopId = loopId;
+    }
     const nodeMap = new Map(schema.nodes.map(node => [node.id, node]));
     const edgeToSplit = schema.edges.find(edge => {
       if (!["sequence", "errorHandler"].includes(edge.type)) {
@@ -1079,9 +1112,10 @@ export function MicroflowEditor({
         label: edgeToSplit.type === "errorHandler" ? "error scope" : edgeToSplit.label
       });
       commitSchema({
-        ...schema,
-        nodes: [...schema.nodes, nextNode],
-        edges: schema.edges.filter(edge => edge.id !== edgeToSplit.id).concat(first, second)
+        ...applyLegacyGraphPatch(schema, {
+          nodes: [...schema.nodes, nextNode],
+          edges: schema.edges.filter(edge => edge.id !== edgeToSplit.id).concat(first, second)
+        })
       });
       setSelectedNodeId(nextNode.id);
       setSelectedEdgeId(undefined);
@@ -1113,25 +1147,24 @@ export function MicroflowEditor({
       ...schema.variables.filter(variable => !outputVariableIds.has(variable.id)),
       ...variablesFromOutputs(nextOutputs)
     ];
-    commitSchema({ ...schema, nodes: nextNodes, variables: nextVariables });
+    commitSchema(applyLegacyGraphPatch(schema, { nodes: nextNodes, variables: nextVariables }));
   }
 
   function handleEdgePatch(edgeId: string, patch: Partial<MicroflowEdge>) {
-    commitSchema({
-      ...schema,
+    commitSchema(applyLegacyGraphPatch(schema, {
       edges: schema.edges.map(edge => edge.id === edgeId ? { ...edge, ...patch, kind: patch.type ?? edge.type } as MicroflowEdge : edge)
-    });
+    }));
   }
 
   function handleCreateEdge(edge: MicroflowEdge) {
-    commitSchema({ ...schema, edges: [...schema.edges, edge] });
+    commitSchema(applyLegacyGraphPatch(schema, { edges: [...schema.edges, edge] }));
     setSelectedNodeId(undefined);
     setSelectedEdgeId(edge.id);
     setRightPanelCollapsed(false);
   }
 
   function handleDeleteEdge(edgeId: string) {
-    commitSchema({ ...schema, edges: schema.edges.filter(edge => edge.id !== edgeId) });
+    commitSchema(applyLegacyGraphPatch(schema, { edges: schema.edges.filter(edge => edge.id !== edgeId) }));
     setSelectedEdgeId(undefined);
   }
 
@@ -1144,7 +1177,7 @@ export function MicroflowEditor({
     nextNode.id = `${node.id}-copy-${Date.now()}`;
     nextNode.title = `${node.title} Copy`;
     nextNode.position = { x: node.position.x + 36, y: node.position.y + 36 };
-    commitSchema({ ...schema, nodes: [...schema.nodes, nextNode] });
+    commitSchema(applyLegacyGraphPatch(schema, { nodes: [...schema.nodes, nextNode] }));
     setSelectedNodeId(nextNode.id);
   }
 
@@ -1175,11 +1208,10 @@ export function MicroflowEditor({
   }
 
   function handleDeleteNode(nodeId: string) {
-    commitSchema({
-      ...schema,
+    commitSchema(applyLegacyGraphPatch(schema, {
       nodes: schema.nodes.filter(node => node.id !== nodeId),
       edges: schema.edges.filter(edge => edge.sourceNodeId !== nodeId && edge.targetNodeId !== nodeId)
-    });
+    }));
     setSelectedNodeId(undefined);
   }
 
@@ -1199,7 +1231,7 @@ export function MicroflowEditor({
         y: 120 + Math.floor(index / 6) * 170
       }
     }));
-    commitSchema({ ...schema, nodes: arrangedNodes, viewport: { zoom: 0.72, offset: { x: 24, y: 72 } } });
+    commitSchema(applyLegacyGraphPatch(schema, { nodes: arrangedNodes, viewport: { zoom: 0.72, offset: { x: 24, y: 72 } } }));
     setViewport({ zoom: 0.72, offset: { x: 24, y: 72 } });
   }
 
@@ -1312,6 +1344,7 @@ export function MicroflowEditor({
             <div style={{ position: "relative", minHeight: 0, minWidth: 0 }}>
               <MicroflowCanvas
                 schema={schema}
+                editorGraph={editorGraph}
                 selectedNodeId={selectedNodeId}
                 selectedEdgeId={selectedEdgeId}
                 issues={issues}

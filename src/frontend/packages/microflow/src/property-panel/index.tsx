@@ -3,6 +3,7 @@ import { Badge, Button, Dropdown, Empty, Input, Select, Space, Switch, Tabs, Tag
 import { IconClose, IconCopy, IconDelete, IconInfoCircle, IconLock, IconMore, IconUnlock } from "@douyinfe/semi-icons";
 import type { MicroflowNodeOutput, MicroflowVariable } from "../schema";
 import { getMicroflowEdgeRegistryItem } from "../node-registry";
+import { findMicroflowObject } from "../adapters";
 import {
   MicroflowAdvancedSection,
   MicroflowDocumentationSection,
@@ -165,9 +166,10 @@ function MicroflowEdgePropertyPanel({
   edge: NonNullable<MicroflowPropertyPanelProps["selectedEdge"]>;
 }) {
   const registryItem = getMicroflowEdgeRegistryItem(edge.type);
+  const flow = props.schema.flows.find(item => item.id === edge.id);
   const source = props.schema.nodes.find(node => node.id === edge.sourceNodeId);
   const target = props.schema.nodes.find(node => node.id === edge.targetNodeId);
-  const issues = props.validationIssues.filter(issue => issue.edgeId === edge.id);
+  const issues = props.validationIssues.filter(issue => issue.edgeId === edge.id || issue.flowId === edge.id);
   const readonly = Boolean(props.readonly);
   const patch = (next: MicroflowEdgePatch) => {
     if (!readonly) {
@@ -195,12 +197,31 @@ function MicroflowEdgePropertyPanel({
           ) : null}
           <Input readonly prefix="Edge Type" value={`${registryItem?.titleZh ?? edge.type} / ${registryItem?.title ?? edge.type}`} />
           <Input readonly prefix="Runtime Effect" value={registryItem?.runtimeEffect ?? "-"} />
+          <Input readonly prefix="Official Type" value={flow?.officialType ?? (edge.type === "annotation" ? "Microflows$AnnotationFlow" : "Microflows$SequenceFlow")} />
+          <Input readonly prefix="Flow Kind" value={flow?.kind ?? (edge.type === "annotation" ? "annotation" : "sequence")} />
           <Input readonly prefix="Source Node" value={source?.title ?? edge.sourceNodeId} />
           <Input readonly prefix="Target Node" value={target?.title ?? edge.targetNodeId} />
-          <Input readonly prefix="Source Port" value={edge.sourcePortId ?? ""} />
-          <Input readonly prefix="Target Port" value={edge.targetPortId ?? ""} />
+          <Input readonly prefix="Origin Object ID" value={flow?.originObjectId ?? edge.sourceNodeId} />
+          <Input readonly prefix="Destination Object ID" value={flow?.destinationObjectId ?? edge.targetNodeId} />
+          <Input readonly prefix="Origin Connection Index" value={flow?.kind === "sequence" ? String(flow.originConnectionIndex) : String(flow?.originConnectionIndex ?? "")} />
+          <Input readonly prefix="Destination Connection Index" value={flow?.kind === "sequence" ? String(flow.destinationConnectionIndex) : String(flow?.destinationConnectionIndex ?? "")} />
           <Input readonly={readonly} prefix="Label" value={edge.label ?? ""} onChange={label => patch({ label })} />
           <TextArea autosize readonly={readonly} placeholder="Description" value={edge.description ?? ""} onChange={description => patch({ description })} />
+          {flow?.kind === "sequence" ? (
+            <>
+              <Input readonly prefix="isErrorHandler" value={String(flow.isErrorHandler)} />
+              <Text type="tertiary" size="small">caseValues</Text>
+              <TextArea readonly autosize value={JSON.stringify(flow.caseValues, null, 2)} />
+              <Text type="tertiary" size="small">line</Text>
+              <TextArea readonly autosize value={JSON.stringify(flow.line, null, 2)} />
+            </>
+          ) : null}
+          {flow?.kind === "annotation" ? (
+            <>
+              <Text type="tertiary" size="small">line</Text>
+              <TextArea readonly autosize value={JSON.stringify(flow.line, null, 2)} />
+            </>
+          ) : null}
           {edge.type === "decisionCondition" || edge.type === "objectTypeCondition" ? (
             <>
               <Input
@@ -279,6 +300,7 @@ export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
   const trace = selectedNode ? props.traceFrames?.find(frame => frame.nodeId === selectedNode.id) : undefined;
   const formKey = selectedNode ? getMicroflowNodeFormKey(selectedNode) : "";
   const formItem = selectedNode ? microflowNodeFormRegistry[formKey] : undefined;
+  const selectedObject = selectedNode ? findMicroflowObject(props.schema.objectCollection, selectedNode.id) : undefined;
   const tabs = formItem?.tabs ?? ["properties", "documentation"];
   const readonly = Boolean(props.readonly || selectedNode?.locked);
 
@@ -348,6 +370,86 @@ export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
     return formItem.renderProperties(formProps);
   }
 
+  function renderActionActivityFields() {
+    if (!selectedNode || selectedObject?.kind !== "actionActivity") {
+      return null;
+    }
+    const action = selectedObject.action;
+    const readonlyAction = readonly;
+    return (
+      <div style={{ width: "100%", padding: 10, borderRadius: 10, background: "var(--semi-color-fill-0)", border: "1px solid var(--semi-color-border)" }}>
+        <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
+          <Text strong>ActionActivity</Text>
+          <Input readonly={readonlyAction} prefix="Caption" value={selectedObject.caption ?? ""} onChange={caption => handlePatch({ node: { title: caption } })} />
+          <Input readonly prefix="Activity Official Type" value={selectedObject.officialType} />
+          <Input readonly prefix="Action Official Type" value={action.officialType} />
+          <Input readonly prefix="Action Kind" value={action.kind} />
+          <Select
+            disabled={readonlyAction}
+            style={{ width: "100%" }}
+            prefix="Error Handling"
+            value={action.errorHandlingType}
+            optionList={["rollback", "customWithRollback", "customWithoutRollback", "continue"].map(value => ({ label: value, value }))}
+            onChange={value => handlePatch({ config: { errorHandling: { mode: String(value) } } })}
+          />
+          {action.kind === "retrieve" ? (
+            <>
+              <Text strong>Retrieve Source</Text>
+              <Select
+                disabled={readonlyAction}
+                style={{ width: "100%" }}
+                prefix="Source"
+                value={action.retrieveSource.kind}
+                optionList={[
+                  { label: "From Database", value: "database" },
+                  { label: "By Association", value: "association" }
+                ]}
+                onChange={value => handlePatch({ config: { retrieveMode: String(value) } })}
+              />
+              {action.retrieveSource.kind === "database" ? (
+                <>
+                  <Input readonly={readonlyAction} prefix="Entity" value={action.retrieveSource.entityQualifiedName ?? ""} onChange={entity => handlePatch({ config: { entity, retrieveMode: "database" } })} />
+                  <Input readonly={readonlyAction} prefix="XPath Constraint" value={action.retrieveSource.xPathConstraint?.text ?? action.retrieveSource.xPathConstraint?.raw ?? ""} onChange={text => handlePatch({ config: { valueExpression: { id: `${selectedNode.id}-xpath`, language: "mendix", text, raw: text } } })} />
+                  <Input readonly prefix="SortItemList" value={action.retrieveSource.sortItemList.items.map(item => `${item.attributeQualifiedName} ${item.direction}`).join(", ")} />
+                  <Select
+                    disabled={readonlyAction}
+                    style={{ width: "100%" }}
+                    prefix="Range"
+                    value={action.retrieveSource.range.kind === "custom" ? "limit" : action.retrieveSource.range.value}
+                    optionList={["all", "first", "limit"].map(value => ({ label: value, value }))}
+                    onChange={range => handlePatch({ config: { range: String(range) } })}
+                  />
+                </>
+              ) : (
+                <>
+                  <Input readonly={readonlyAction} prefix="Start Variable" value={action.retrieveSource.startVariableName} onChange={objectVariableName => handlePatch({ config: { objectVariableName, retrieveMode: "association" } })} />
+                  <Input readonly={readonlyAction} prefix="Association" value={action.retrieveSource.associationQualifiedName ?? ""} onChange={association => handlePatch({ config: { association, retrieveMode: "association" } })} />
+                </>
+              )}
+              <Input readonly={readonlyAction} prefix="Output Variable" value={action.outputVariableName} onChange={resultVariableName => handlePatch({ config: { resultVariableName } })} />
+            </>
+          ) : null}
+          {action.kind === "restCall" ? (
+            <>
+              <Text strong>REST Request / Response</Text>
+              <Select
+                disabled={readonlyAction}
+                style={{ width: "100%" }}
+                prefix="Method"
+                value={action.request.method}
+                optionList={["GET", "POST", "PUT", "PATCH", "DELETE"].map(value => ({ label: value, value }))}
+                onChange={method => handlePatch({ config: { method: String(method) } })}
+              />
+              <Input readonly={readonlyAction} prefix="URL Expression" value={action.request.urlExpression.text} onChange={url => handlePatch({ config: { url } })} />
+              <Input readonly={readonlyAction} prefix="Timeout Seconds" value={String(action.timeoutSeconds)} onChange={timeout => handlePatch({ config: { timeoutMs: (Number(timeout) || 30) * 1000 } })} />
+              <Input readonly prefix="Response Handling" value={action.response.handling.kind} />
+            </>
+          ) : null}
+        </Space>
+      </div>
+    );
+  }
+
   return (
     <div style={{ height: "100%", display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr) auto", background: "var(--semi-color-bg-1, #fff)" }}>
       <MicroflowPropertyPanelHeader props={props} issueCount={issues.length} dirty={dirtyNodeIds.includes(selectedNode.id)} onPatch={handlePatch} />
@@ -362,6 +464,7 @@ export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
             </div>
           ) : null}
           {trace ? <Tag color={trace.error ? "red" : "green"}>Last run: {trace.status} · {trace.durationMs}ms</Tag> : null}
+          {activeTab === "properties" ? renderActionActivityFields() : null}
           {renderActiveTab()}
         </Space>
       </div>
