@@ -1,8 +1,7 @@
 import type {
-  MicroflowActivityNode,
   MicroflowEdge,
+  MicroflowEventConfig,
   MicroflowNode,
-  MicroflowNodeKind,
   MicroflowSchema,
   MicroflowValidationIssue
 } from "./types";
@@ -23,10 +22,6 @@ function issue(
   };
 }
 
-function isActivityNode(node: MicroflowNode): node is MicroflowActivityNode {
-  return node.type === "activity";
-}
-
 function hasText(value: string | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -37,16 +32,6 @@ function getIncoming(edges: MicroflowEdge[], nodeId: string): MicroflowEdge[] {
 
 function getOutgoing(edges: MicroflowEdge[], nodeId: string): MicroflowEdge[] {
   return edges.filter(edge => edge.sourceNodeId === nodeId);
-}
-
-function nodeKind(node: MicroflowNode): MicroflowNodeKind {
-  if (node.kind) {
-    return node.kind;
-  }
-  if (["startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent"].includes(node.type)) {
-    return "event";
-  }
-  return node.type as MicroflowNodeKind;
 }
 
 function isExecutable(node: MicroflowNode): boolean {
@@ -155,9 +140,10 @@ export function validateMicroflowSchema(schema: MicroflowSchema): MicroflowValid
     if (getOutgoing(schema.edges, end.id).length > 0) {
       issues.push(issue("MF_END_HAS_OUTGOING", "End Event cannot have outgoing flows.", { nodeId: end.id }));
     }
-    const returnTypeName = end.config.returnType?.name ?? (end.config.returnValue ? end.config.returnValue.expectedType?.name : "Void") ?? "Void";
+    const endConfig = end.config as MicroflowEventConfig;
+    const returnTypeName = endConfig.returnType?.name ?? (endConfig.returnValue ? endConfig.returnValue.expectedType?.name : "Void") ?? "Void";
     returnTypes.add(returnTypeName);
-    if (returnTypeName !== "Void" && !hasText(end.config.returnValue?.text)) {
+    if (returnTypeName !== "Void" && !hasText(endConfig.returnValue?.text)) {
       issues.push(issue("MF_END_RETURN_VALUE", "End Event with non-Void return type must configure return value expression.", { nodeId: end.id }));
     }
     if (end.parentLoopId) {
@@ -264,12 +250,12 @@ export function validateMicroflowSchema(schema: MicroflowSchema): MicroflowValid
       if (!name) {
         issues.push(issue("MF_PARAMETER_NODE_NAME", "Parameter node must configure parameter name.", { nodeId: node.id }));
       }
-      if (incoming.some(edge => edge.type !== "annotation") || outgoing.some(edge => edge.type !== "annotation")) {
+      if (incoming.length > 0 || outgoing.length > 0) {
         issues.push(issue("MF_PARAMETER_SEQUENCE", "Parameter does not participate in Sequence Flow.", { nodeId: node.id }));
       }
     }
 
-    if (node.type === "annotation" && (incoming.some(edge => edge.type !== "annotation") || outgoing.some(edge => edge.type !== "annotation"))) {
+    if (node.type === "annotation" && (incoming.length > 0 || outgoing.length > 0)) {
       issues.push(issue("MF_ANNOTATION_SEQUENCE", "Annotation does not participate in Sequence Flow.", { nodeId: node.id }));
     }
 

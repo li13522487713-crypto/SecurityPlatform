@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button, Input, Modal, Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
 import { IconPlus } from "@douyinfe/semi-icons";
-import type { MicroflowExpression, MicroflowTypeRef, MicroflowVariable } from "../schema";
+import type { MicroflowExpression, MicroflowTypeRef } from "../schema";
 import type {
   MicroflowEntitySelectorProps,
   MicroflowExpressionEditorProps,

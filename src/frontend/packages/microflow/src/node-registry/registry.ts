@@ -483,7 +483,7 @@ export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = [
     propertyForm: { formKey: "annotation", sections: ["General"] },
     supportsErrorHandling: false
   }),
-  ...activityDefinitions.map(activityEntry) as MicroflowNodeRegistryEntry[]
+  ...(activityDefinitions.map(activityEntry) as unknown as MicroflowNodeRegistryEntry[])
 ];
 
 export const microflowNodeRegistryByKey = new Map(

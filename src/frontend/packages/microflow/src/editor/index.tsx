@@ -1473,7 +1473,7 @@ export function MicroflowEditor({
       >
         {documentationNode ? (
           <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
-            <Text>{documentationNode.documentation ?? documentationNode.description}</Text>
+            <Text>{documentationNode.documentation.summary ?? documentationNode.description}</Text>
             <Tag color={documentationNode.enabled ? "green" : "grey"}>
               {documentationNode.enabled ? "Enabled" : documentationNode.disabledReason ?? "Disabled"}
             </Tag>
@@ -1481,10 +1481,10 @@ export function MicroflowEditor({
               Type: {getMicroflowNodeRegistryKey(documentationNode)}
             </Text>
             <Text type="tertiary">
-              Inputs: {(documentationNode.inputs ?? []).join(", ") || "-"}
+              Inputs: {(documentationNode.inputs ?? []).map(input => input.title).join(", ") || "-"}
             </Text>
             <Text type="tertiary">
-              Outputs: {(documentationNode.outputs ?? []).join(", ") || "-"}
+              Outputs: {(documentationNode.outputs ?? []).map(output => output.title).join(", ") || "-"}
             </Text>
           </Space>
         ) : null}

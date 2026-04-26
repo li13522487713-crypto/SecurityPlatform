@@ -2,7 +2,7 @@ import { Button, Checkbox, Collapse, Input, Select, Space, Switch, TextArea, Typ
 import { IconPlus } from "@douyinfe/semi-icons";
 import type { MicroflowNodeAdvancedConfig, MicroflowNodeDocumentation, MicroflowNodeOutput, MicroflowTypeRef } from "../schema";
 import { FieldRow, primitiveType } from "./controls";
-import type { MicroflowNodeFormProps, MicroflowNodePatch } from "./types";
+import type { MicroflowNodeFormProps } from "./types";
 
 const { Text } = Typography;
 

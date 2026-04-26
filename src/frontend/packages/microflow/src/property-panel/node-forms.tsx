@@ -2,11 +2,9 @@ import { Button, Checkbox, Input, Select, Space, Switch, TextArea, Typography } 
 import { IconPlus } from "@douyinfe/semi-icons";
 import type {
   MicroflowActivityConfig,
-  MicroflowActivityNode,
   MicroflowAnnotationNode,
   MicroflowDecisionNode,
   MicroflowEventNode,
-  MicroflowExpression,
   MicroflowLoopNode,
   MicroflowMergeNode,
   MicroflowParameterNode,
@@ -27,10 +25,6 @@ import { MicroflowBasicSection } from "./sections";
 import type { MicroflowActivityFormProps, MicroflowNodeFormProps, MicroflowNodeFormRegistry, MicroflowNodeFormRegistryItem } from "./types";
 
 const { Text } = Typography;
-
-function asExpression(value: MicroflowExpression | undefined, text = ""): MicroflowExpression {
-  return value ?? createExpression(text);
-}
 
 function typeRef(name: string): MicroflowTypeRef {
   if (["Void", "Object", "List"].includes(name)) {
@@ -177,10 +171,10 @@ export function MicroflowDecisionForm(rawProps: MicroflowNodeFormProps) {
         />
       </FieldRow>
       <FieldRow label="True branch label">
-        <Input readonly={props.readonly} value={String((props.node.config as Record<string, unknown>).trueLabel ?? "Yes")} onChange={trueLabel => props.onPatch({ config: { trueLabel } })} />
+        <Input readonly={props.readonly} value={String((props.node.config as unknown as Record<string, unknown>).trueLabel ?? "Yes")} onChange={trueLabel => props.onPatch({ config: { trueLabel } })} />
       </FieldRow>
       <FieldRow label="False branch label">
-        <Input readonly={props.readonly} value={String((props.node.config as Record<string, unknown>).falseLabel ?? "No")} onChange={falseLabel => props.onPatch({ config: { falseLabel } })} />
+        <Input readonly={props.readonly} value={String((props.node.config as unknown as Record<string, unknown>).falseLabel ?? "No")} onChange={falseLabel => props.onPatch({ config: { falseLabel } })} />
       </FieldRow>
       <Text type="tertiary">Expression should return Boolean. Multi-branch decisions are reserved.</Text>
     </Space>

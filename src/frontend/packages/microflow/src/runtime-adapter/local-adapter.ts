@@ -304,7 +304,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       incomingEdgeId = outgoing?.id;
       currentId = outgoing?.targetNodeId;
     }
-    const traversableNodes = orderedNodeIds.length > 0
+    const traversableNodes: Array<{ nodeId: string; incomingEdgeId?: string; outgoingEdgeId?: string }> = orderedNodeIds.length > 0
       ? orderedNodeIds
       : schema.nodes.filter(node => node.type !== "annotation" && node.type !== "parameter").map(node => ({ nodeId: node.id }));
     const frames = traversableNodes.map((trace, index): MicroflowTraceFrame => {

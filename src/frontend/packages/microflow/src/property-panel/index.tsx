@@ -328,7 +328,7 @@ export function MicroflowPropertyPanel(props: MicroflowPropertyPanelProps) {
         <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
           <Text type="tertiary">暂不支持该节点配置。</Text>
           <pre style={{ width: "100%", maxHeight: 280, overflow: "auto", background: "var(--semi-color-fill-0)", padding: 10, borderRadius: 8 }}>
-            {JSON.stringify(selectedNode.config, null, 2)}
+            {JSON.stringify(selectedNode?.config ?? {}, null, 2)}
           </pre>
         </Space>
       );

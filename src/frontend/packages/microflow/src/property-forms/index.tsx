@@ -68,7 +68,7 @@ function renderConfigRows(node: MicroflowNode): Array<[string, string]> {
       ["Message", node.config.messageExpression?.text ?? ""],
       ["Body", node.config.bodyExpression?.text ?? ""],
       ["Error Handling", node.config.errorHandling?.mode ?? ""]
-    ].filter(([, value]) => value.length > 0);
+    ].map(([label, value]) => [label, String(value ?? "")] as [string, string]).filter(([, value]) => value.length > 0);
   }
 
   if (node.type === "loop") {

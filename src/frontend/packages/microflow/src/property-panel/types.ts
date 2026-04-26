@@ -28,7 +28,7 @@ export interface MicroflowPropertyChangePayload {
   outputs?: MicroflowNodeOutput[];
 }
 
-export interface MicroflowNodePatch extends MicroflowPropertyChangePayload {}
+export type MicroflowNodePatch = MicroflowPropertyChangePayload;
 export type MicroflowEdgePatch = Partial<MicroflowEdge>;
 
 export interface MicroflowPropertyPanelProps {
