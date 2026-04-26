@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
 import { Badge, Button, Card, Empty, Modal, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
-import { IconCopy, IconDelete, IconPlay, IconRefresh, IconSave, IconTickCircle, IconUndo, IconRedo } from "@douyinfe/semi-icons";
+import {
+  IconChevronDown,
+  IconCopy,
+  IconDelete,
+  IconPlay,
+  IconRefresh,
+  IconSave,
+  IconSetting,
+  IconTickCircle,
+  IconUndo,
+  IconRedo
+} from "@douyinfe/semi-icons";
 import { MicroflowNodePanel, type MicroflowNodePanelLabels } from "../node-panel";
 import { MicroflowPropertyPanel, type MicroflowEdgePatch, type MicroflowNodePatch } from "../property-panel";
 import {
@@ -50,6 +61,11 @@ import type {
 const { Text, Title } = Typography;
 
 const favoriteStorageKey = "atlas_microflow_node_panel_favorites";
+const rightPanelStorageKey = "atlas_microflow_panel_right_open";
+const bottomPanelStorageKey = "atlas_microflow_panel_bottom_open";
+const RAIL_WIDTH_PX = 44;
+const BOTTOM_STRIP_HEIGHT_PX = 40;
+const BOTTOM_PANEL_EXPANDED_PX = 220;
 const defaultFavoriteNodeKeys = ["activity:objectRetrieve", "activity:callRest", "activity:logMessage"];
 
 export interface MicroflowEditorProps {
@@ -60,6 +76,11 @@ export interface MicroflowEditorProps {
   toolbarSuffix?: ReactNode;
   nodePanelLabels?: Partial<MicroflowNodePanelLabels>;
   immersive?: boolean;
+  /** 未写入 localStorage 时的初始值；默认随 `immersive` 为 true 时展开，否则收起 */
+  defaultRightPanelOpen?: boolean;
+  defaultBottomPanelOpen?: boolean;
+  /** 是否把右/底面板开关持久化到 localStorage（默认 true） */
+  persistAuxPanelState?: boolean;
   onPublish?: (schema: MicroflowSchema) => Promise<void> | void;
   onSaveComplete?: (response: SaveMicroflowResponse) => void;
   onValidateComplete?: (response: ValidateMicroflowResponse) => void;
@@ -122,6 +143,35 @@ function saveFavoriteNodeKeys(keys: string[]): void {
   }
 }
 
+function readStoredBoolean(key: string): boolean | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === "true") {
+      return true;
+    }
+    if (raw === "false") {
+      return false;
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
+function writeStoredBoolean(key: string, value: boolean): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, value ? "true" : "false");
+  } catch {
+    /* ignore */
+  }
+}
+
 function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
   try {
     const parsed = JSON.parse(value) as MicroflowNodeDragPayload;
@@ -130,14 +180,6 @@ function parseDragPayload(value: string): MicroflowNodeDragPayload | undefined {
     return undefined;
   }
 }
-
-const shellStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateRows: "60px minmax(0, 1fr) 220px",
-  height: "100%",
-  minHeight: 0,
-  background: "var(--semi-color-bg-0, #f7f8fa)"
-};
 
 const toolbarStyle: CSSProperties = {
   display: "flex",
@@ -148,13 +190,6 @@ const toolbarStyle: CSSProperties = {
   background: "var(--semi-color-bg-2, #fff)"
 };
 
-const bodyStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "300px minmax(520px, 1fr) 400px",
-  minHeight: 0,
-  overflow: "hidden"
-};
-
 const panelStyle: CSSProperties = {
   minHeight: 0,
   overflow: "auto",
@@ -163,10 +198,14 @@ const panelStyle: CSSProperties = {
   padding: 12
 };
 
-const rightPanelStyle: CSSProperties = {
-  ...panelStyle,
-  borderRight: "none",
-  borderLeft: "1px solid var(--semi-color-border, #e5e6eb)"
+const propertyPaneStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  minHeight: 0,
+  overflow: "auto",
+  borderLeft: "1px solid var(--semi-color-border, #e5e6eb)",
+  background: "var(--semi-color-bg-1, #fff)",
+  padding: 12
 };
 
 const canvasStyle: CSSProperties = {
@@ -783,6 +822,10 @@ function DebugPanel({ frames }: { frames: MicroflowTraceFrame[] }) {
 export function MicroflowEditor(props: MicroflowEditorProps) {
   const labels = { ...defaultLabels, ...props.labels };
   const apiClient = props.apiClient ?? createLocalMicroflowApiClient();
+  const persistAuxPanelState = props.persistAuxPanelState !== false;
+  const rightPanelFallback = props.defaultRightPanelOpen ?? (props.immersive === true);
+  const bottomPanelFallback = props.defaultBottomPanelOpen ?? (props.immersive === true);
+
   const [schema, setSchema] = useState<MicroflowSchema>(() => refreshDerivedState(ensureAuthoringSchema(props.schema)));
   const [favoriteNodeKeys, setFavoriteNodeKeys] = useState(readFavoriteNodeKeys);
   const [issues, setIssues] = useState<MicroflowValidationIssue[]>(schema.validation.issues ?? []);
@@ -792,6 +835,41 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [rightOpen, setRightOpen] = useState(() => {
+    if (!persistAuxPanelState) {
+      return rightPanelFallback;
+    }
+    const stored = readStoredBoolean(rightPanelStorageKey);
+    return stored !== undefined ? stored : rightPanelFallback;
+  });
+  const [bottomOpen, setBottomOpen] = useState(() => {
+    if (!persistAuxPanelState) {
+      return bottomPanelFallback;
+    }
+    const stored = readStoredBoolean(bottomPanelStorageKey);
+    return stored !== undefined ? stored : bottomPanelFallback;
+  });
+  const [bottomTab, setBottomTab] = useState<"problems" | "debug">("problems");
+
+  const shellStyle = useMemo((): CSSProperties => ({
+    display: "grid",
+    gridTemplateRows: bottomOpen
+      ? `60px minmax(0, 1fr) ${BOTTOM_PANEL_EXPANDED_PX}px`
+      : `60px minmax(0, 1fr) ${BOTTOM_STRIP_HEIGHT_PX}px`,
+    height: "100%",
+    minHeight: 0,
+    background: "var(--semi-color-bg-0, #f7f8fa)"
+  }), [bottomOpen]);
+
+  const bodyStyle = useMemo((): CSSProperties => {
+    const rightCol = rightOpen ? 400 : RAIL_WIDTH_PX;
+    return {
+      display: "grid",
+      gridTemplateColumns: `300px minmax(520px, 1fr) ${rightCol}px`,
+      minHeight: 0,
+      overflow: "hidden"
+    };
+  }, [rightOpen]);
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
@@ -968,6 +1046,29 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [future, history, schema]);
 
+  useEffect(() => {
+    if (!persistAuxPanelState) {
+      return;
+    }
+    writeStoredBoolean(rightPanelStorageKey, rightOpen);
+    writeStoredBoolean(bottomPanelStorageKey, bottomOpen);
+  }, [rightOpen, bottomOpen, persistAuxPanelState]);
+
+  const rightRailStyle: CSSProperties = {
+    width: RAIL_WIDTH_PX,
+    flexShrink: 0,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    paddingTop: 10,
+    gap: 6,
+    borderLeft: "1px solid var(--semi-color-border, #e5e6eb)",
+    background: "var(--semi-color-bg-2, #fff)",
+    cursor: "pointer",
+    userSelect: "none",
+    color: "var(--semi-color-text-1, rgba(28, 31, 35, 0.8))"
+  };
+
   return (
     <div style={shellStyle}>
       <div style={toolbarStyle}>
@@ -1020,60 +1121,185 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           onRedo={handleRedo}
           onAutoLayout={handleAutoLayout}
         />
-        <div style={rightPanelStyle}>
-          <MicroflowPropertyPanel
-            selectedObject={selectedObject}
-            selectedFlow={selectedFlow}
-            schema={schema}
-            validationIssues={issues}
-            traceFrames={traceFrames}
-            onObjectChange={(objectId, patch: MicroflowNodePatch) => {
-              if (!patch.object) {
-                return;
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            height: "100%",
+            minHeight: 0,
+            overflow: "hidden",
+            background: "var(--semi-color-bg-1, #fff)"
+          }}
+        >
+          {rightOpen ? (
+            <div style={propertyPaneStyle}>
+              <MicroflowPropertyPanel
+                selectedObject={selectedObject}
+                selectedFlow={selectedFlow}
+                schema={schema}
+                validationIssues={issues}
+                traceFrames={traceFrames}
+                onObjectChange={(objectId, patch: MicroflowNodePatch) => {
+                  if (!patch.object) {
+                    return;
+                  }
+                  commitSchema(updateObject(schema, objectId, () => patch.object as MicroflowObject));
+                }}
+                onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
+                  commitSchema(updateFlow(schema, flowId, flow => {
+                    const next = { ...flow, ...patch } as MicroflowFlow;
+                    if (flow.kind === "sequence") {
+                      const partial = patch as Partial<Extract<MicroflowFlow, { kind: "sequence" }>>;
+                      return {
+                        ...flow,
+                        ...partial,
+                        line: partial.line ?? flow.line,
+                        editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
+                      };
+                    }
+                    const partial = patch as Partial<Extract<MicroflowFlow, { kind: "annotation" }>>;
+                    return {
+                      ...flow,
+                      ...partial,
+                      line: partial.line ?? flow.line,
+                      editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
+                    };
+                  }));
+                }}
+                onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
+                onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
+                onDeleteFlow={flowId => commitSchema(deleteFlow(schema, flowId))}
+                onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, false)}
+              />
+            </div>
+          ) : null}
+          <div
+            role="button"
+            tabIndex={0}
+            title={labels.properties}
+            style={rightRailStyle}
+            onClick={() => setRightOpen(open => !open)}
+            onKeyDown={event => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setRightOpen(open => !open);
               }
-              commitSchema(updateObject(schema, objectId, () => patch.object as MicroflowObject));
             }}
-            onFlowChange={(flowId, patch: MicroflowEdgePatch) => {
-              commitSchema(updateFlow(schema, flowId, flow => {
-                const next = { ...flow, ...patch } as MicroflowFlow;
-                if (flow.kind === "sequence") {
-                  const partial = patch as Partial<Extract<MicroflowFlow, { kind: "sequence" }>>;
-                  return {
-                    ...flow,
-                    ...partial,
-                    line: partial.line ?? flow.line,
-                    editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
-                  };
-                }
-                const partial = patch as Partial<Extract<MicroflowFlow, { kind: "annotation" }>>;
-                return {
-                  ...flow,
-                  ...partial,
-                  line: partial.line ?? flow.line,
-                  editor: partial.editor ? { ...flow.editor, ...partial.editor } : flow.editor
-                };
-              }));
-            }}
-            onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
-            onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
-            onDeleteFlow={flowId => commitSchema(deleteFlow(schema, flowId))}
-            onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, false)}
-          />
+          >
+            <IconSetting style={{ fontSize: 18 }} />
+            <Text
+              size="small"
+              strong
+              style={{
+                writingMode: "vertical-rl",
+                textOrientation: "mixed",
+                letterSpacing: 1
+              }}
+            >
+              {labels.properties}
+            </Text>
+          </div>
         </div>
       </div>
-      <div style={{ minHeight: 0, borderTop: "1px solid var(--semi-color-border, #e5e6eb)", background: "var(--semi-color-bg-1, #fff)", overflow: "auto", padding: 12 }}>
-        <Tabs type="line">
-          <Tabs.TabPane tab={<Space><IconTickCircle />{labels.problems}<Badge count={issues.length} /></Space>} itemKey="problems">
-            <ProblemPanel
-              issues={issues}
-              onSelect={issue => applyPatch({ selectedObjectId: issue.objectId, selectedFlowId: issue.flowId }, false)}
-            />
-          </Tabs.TabPane>
-          <Tabs.TabPane tab={labels.debug} itemKey="debug">
-            <DebugPanel frames={traceFrames} />
-          </Tabs.TabPane>
-        </Tabs>
-      </div>
+      {bottomOpen ? (
+        <div
+          style={{
+            minHeight: 0,
+            borderTop: "1px solid var(--semi-color-border, #e5e6eb)",
+            background: "var(--semi-color-bg-1, #fff)",
+            overflow: "hidden",
+            padding: 12,
+            display: "flex",
+            flexDirection: "column"
+          }}
+        >
+          <Tabs
+            type="line"
+            activeKey={bottomTab}
+            onChange={key => setBottomTab(key as "problems" | "debug")}
+            tabBarExtraContent={
+              <Button
+                theme="borderless"
+                icon={<IconChevronDown />}
+                onClick={() => setBottomOpen(false)}
+              />
+            }
+            style={{ flex: 1, minHeight: 0 }}
+          >
+            <Tabs.TabPane tab={<Space><IconTickCircle />{labels.problems}<Badge count={issues.length} /></Space>} itemKey="problems">
+              <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
+                <ProblemPanel
+                  issues={issues}
+                  onSelect={issue => applyPatch({ selectedObjectId: issue.objectId, selectedFlowId: issue.flowId }, false)}
+                />
+              </div>
+            </Tabs.TabPane>
+            <Tabs.TabPane tab={labels.debug} itemKey="debug">
+              <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
+                <DebugPanel frames={traceFrames} />
+              </div>
+            </Tabs.TabPane>
+          </Tabs>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "stretch",
+            height: BOTTOM_STRIP_HEIGHT_PX,
+            minHeight: BOTTOM_STRIP_HEIGHT_PX,
+            borderTop: "1px solid var(--semi-color-border, #e5e6eb)",
+            background: "var(--semi-color-bg-2, #fff)"
+          }}
+        >
+          <button
+            type="button"
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              border: "none",
+              borderRight: "1px solid var(--semi-color-border, #e5e6eb)",
+              background: bottomTab === "problems" ? "var(--semi-color-fill-0, #f4f7fb)" : "transparent",
+              cursor: "pointer",
+              font: "inherit",
+              color: "inherit"
+            }}
+            onClick={() => {
+              setBottomTab("problems");
+              setBottomOpen(true);
+            }}
+          >
+            <IconTickCircle />
+            <Text size="small" strong>{labels.problems}</Text>
+            <Badge count={issues.length} />
+          </button>
+          <button
+            type="button"
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              border: "none",
+              background: bottomTab === "debug" ? "var(--semi-color-fill-0, #f4f7fb)" : "transparent",
+              cursor: "pointer",
+              font: "inherit",
+              color: "inherit"
+            }}
+            onClick={() => {
+              setBottomTab("debug");
+              setBottomOpen(true);
+            }}
+          >
+            <Text size="small" strong>{labels.debug}</Text>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

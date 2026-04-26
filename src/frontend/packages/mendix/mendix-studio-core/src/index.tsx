@@ -6,6 +6,7 @@ import { MicroflowEditor } from "@atlas/microflow";
 
 import { StudioHeader } from "./components/studio-header";
 import { AppExplorer } from "./components/app-explorer";
+import { ExplorerSplitLayout } from "./components/explorer-split-layout";
 import { WidgetToolbox } from "./components/widget-toolbox";
 import { WorkbenchTabs } from "./components/workbench-tabs";
 import { WorkbenchToolbar } from "./components/workbench-toolbar";
@@ -48,70 +49,81 @@ export function MendixStudioApp({ appId }: { appId?: string }) {
       <div
         style={{
           display: "flex",
+          flexDirection: "row",
           flex: 1,
           minHeight: 0,
+          minWidth: 0,
           overflow: "hidden"
         }}
       >
-        {/* App Explorer */}
-        <AppExplorer />
+        <ExplorerSplitLayout explorer={<AppExplorer />}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden"
+            }}
+          >
+            {/* 中间工作台 */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden"
+              }}
+            >
+              {/* Tab 栏 */}
+              <WorkbenchTabs />
 
-        {/* 中间工作台 */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden"
-          }}
-        >
-          {/* Tab 栏 */}
-          <WorkbenchTabs />
+              {/* 工具栏 */}
+              <WorkbenchToolbar />
 
-          {/* 工具栏 */}
-          <WorkbenchToolbar />
+              {/* 内容区 */}
+              {isMicroflow ? (
+                /* 微流编辑器：占满中央列，自带节点面板/属性面板/底部面板 */
+                <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                  <MicroflowEditor
+                    schema={microflowSchema}
+                    onSchemaChange={setMicroflowSchema}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      flex: 1,
+                      minHeight: 0,
+                      overflow: "hidden"
+                    }}
+                  >
+                    {/* 只在 pageBuilder Tab 显示 Widget Toolbox */}
+                    {activeTab === "pageBuilder" && <WidgetToolbox />}
 
-          {/* 内容区 */}
-          {isMicroflow ? (
-            /* 微流编辑器：占满中央列，自带节点面板/属性面板/底部面板 */
-            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <MicroflowEditor
-                schema={microflowSchema}
-                onSchemaChange={setMicroflowSchema}
-              />
+                    {/* 中央画布 */}
+                    <PageDesignerCanvas />
+
+                    {/* 组件结构树 */}
+                    <WidgetStructurePanel />
+                  </div>
+
+                  {/* 底部 Errors + Debug Trace */}
+                  <BottomPanel />
+                </>
+              )}
             </div>
-          ) : (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  flex: 1,
-                  minHeight: 0,
-                  overflow: "hidden"
-                }}
-              >
-                {/* 只在 pageBuilder Tab 显示 Widget Toolbox */}
-                {activeTab === "pageBuilder" && <WidgetToolbox />}
 
-                {/* 中央画布 */}
-                <PageDesignerCanvas />
+            {/* 右侧属性面板（微流模式下隐藏，MicroflowEditor 自带） */}
+            {!isMicroflow && <PropertiesPanel />}
 
-                {/* 组件结构树 */}
-                <WidgetStructurePanel />
-              </div>
-
-              {/* 底部 Errors + Debug Trace */}
-              <BottomPanel />
-            </>
-          )}
-        </div>
-
-        {/* 右侧属性面板（微流模式下隐藏，MicroflowEditor 自带） */}
-        {!isMicroflow && <PropertiesPanel />}
-
-        {/* 最右侧 Inspector Rail（微流模式下隐藏） */}
-        {!isMicroflow && <RightInspectorRail />}
+            {/* 最右侧 Inspector Rail（微流模式下隐藏） */}
+            {!isMicroflow && <RightInspectorRail />}
+          </div>
+        </ExplorerSplitLayout>
       </div>
 
       {/* 运行预览侧拉板 */}

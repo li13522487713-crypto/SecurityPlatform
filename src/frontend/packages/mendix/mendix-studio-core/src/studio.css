@@ -152,15 +152,52 @@
 }
 
 /* ============================================================
-   App Explorer
+   App Explorer + 可拖动分栏
    ============================================================ */
-.studio-explorer {
-  width: var(--studio-explorer-width);
-  background: var(--studio-surface);
+.studio-explorer-split__pane {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid var(--studio-border);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.studio-explorer-split__gutter {
+  flex-shrink: 0;
+  width: 6px;
+  margin-left: -1px;
+  margin-right: -1px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 2;
+  align-self: stretch;
+  background: transparent;
+}
+
+.studio-explorer-split__gutter::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--studio-border);
+  transition: background 0.12s ease;
+}
+
+.studio-explorer-split__gutter:hover::after,
+.studio-explorer-split__gutter:focus-visible::after {
+  background: var(--studio-blue);
+}
+
+.studio-explorer {
+  width: 100%;
+  min-width: 0;
+  background: var(--studio-surface);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   overflow: hidden;
 }
 
