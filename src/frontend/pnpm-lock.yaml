@@ -56,9 +56,12 @@ importers:
       '@atlas/lowcode-studio-react':
         specifier: workspace:*
         version: link:../../packages/lowcode-studio-react
+      '@atlas/mendix-studio-core':
+        specifier: workspace:*
+        version: link:../../packages/mendix/mendix-studio-core
       '@atlas/microflow':
         specifier: workspace:*
-        version: link:../../packages/microflow
+        version: link:../../packages/mendix/mendix-microflow
       '@atlas/module-admin-react':
         specifier: workspace:*
         version: link:../../packages/module-admin-react
@@ -17875,11 +17878,40 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
-  packages/microflow:
+  packages/mendix/mendix-debug:
+    dependencies:
+      '@atlas/mendix-schema':
+        specifier: workspace:*
+        version: link:../mendix-schema
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@18.2.37))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+    devDependencies:
+      '@types/react':
+        specifier: 18.2.37
+        version: 18.2.37
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/mendix/mendix-expression:
+    dependencies:
+      '@atlas/mendix-schema':
+        specifier: workspace:*
+        version: link:../mendix-schema
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/mendix/mendix-microflow:
     dependencies:
       '@coze-workflow/render':
         specifier: workspace:*
-        version: link:../workflow/render
+        version: link:../../workflow/render
       '@douyinfe/semi-icons':
         specifier: ^2.82.0
         version: 2.94.0(react@18.2.0)
@@ -17888,10 +17920,10 @@ importers:
         version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@flowgram-adapter/common':
         specifier: workspace:*
-        version: link:../common/flowgram-adapter/common
+        version: link:../../common/flowgram-adapter/common
       '@flowgram-adapter/free-layout-editor':
         specifier: workspace:*
-        version: link:../common/flowgram-adapter/free-layout-editor
+        version: link:../../common/flowgram-adapter/free-layout-editor
       inversify:
         specifier: ^6.2.2
         version: 6.2.2(reflect-metadata@0.2.2)
@@ -17911,6 +17943,97 @@ importers:
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
+
+  packages/mendix/mendix-runtime:
+    dependencies:
+      '@atlas/mendix-expression':
+        specifier: workspace:*
+        version: link:../mendix-expression
+      '@atlas/mendix-schema':
+        specifier: workspace:*
+        version: link:../mendix-schema
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@19.2.3(@types/react@18.2.37))(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+    devDependencies:
+      '@types/react':
+        specifier: 18.2.37
+        version: 18.2.37
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/mendix/mendix-schema:
+    dependencies:
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/mendix/mendix-studio-core:
+    dependencies:
+      '@atlas/mendix-debug':
+        specifier: workspace:*
+        version: link:../mendix-debug
+      '@atlas/mendix-expression':
+        specifier: workspace:*
+        version: link:../mendix-expression
+      '@atlas/mendix-runtime':
+        specifier: workspace:*
+        version: link:../mendix-runtime
+      '@atlas/mendix-schema':
+        specifier: workspace:*
+        version: link:../mendix-schema
+      '@atlas/mendix-validator':
+        specifier: workspace:*
+        version: link:../mendix-validator
+      '@atlas/microflow':
+        specifier: workspace:*
+        version: link:../mendix-microflow
+      '@douyinfe/semi-icons':
+        specifier: ^2.82.0
+        version: 2.94.0(react@18.2.0)
+      '@douyinfe/semi-ui':
+        specifier: ^2.82.0
+        version: 2.94.0(@floating-ui/dom@1.7.6)(@tiptap/suggestion@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@types/react-dom@18.2.15)(@types/react@18.2.37)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      react-dom:
+        specifier: 18.2.0
+        version: 18.2.0(react@18.2.0)
+      zustand:
+        specifier: ^4.5.7
+        version: 4.5.7(@types/react@18.2.37)(immer@10.2.0)(react@18.2.0)
+    devDependencies:
+      '@types/react':
+        specifier: 18.2.37
+        version: 18.2.37
+      '@types/react-dom':
+        specifier: 18.2.15
+        version: 18.2.15
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/mendix/mendix-validator:
+    dependencies:
+      '@atlas/mendix-expression':
+        specifier: workspace:*
+        version: link:../mendix-expression
+      '@atlas/mendix-schema':
+        specifier: workspace:*
+        version: link:../mendix-schema
+    devDependencies:
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@25.5.2)(@vitest/coverage-v8@4.1.4)(happy-dom@12.10.3)(jsdom@29.0.2)(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(less@4.6.4)(sass-embedded@1.99.0)(sass@1.99.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/module-admin-react:
     dependencies:

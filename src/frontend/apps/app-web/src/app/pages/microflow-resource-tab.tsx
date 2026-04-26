@@ -5,6 +5,7 @@ import { createLocalMicroflowApiClient, type CreateMicroflowInput, type Microflo
 import { microflowEditorPath } from "@atlas/app-shell-shared";
 import { useNavigate } from "react-router-dom";
 import { useAppI18n } from "../i18n";
+import { useWorkspaceContext } from "../workspace-context";
 
 const { Text, Title } = Typography;
 
@@ -153,6 +154,7 @@ function CreateMicroflowModal({ visible, onClose, onSubmit }: CreateMicroflowMod
 export function MicroflowResourceTab() {
   const { t } = useAppI18n();
   const navigate = useNavigate();
+  const workspace = useWorkspaceContext();
   const apiClient = useMemo(() => createLocalMicroflowApiClient(), []);
   const [items, setItems] = useState<MicroflowResource[]>([]);
   const [allItems, setAllItems] = useState<MicroflowResource[]>([]);
@@ -240,6 +242,9 @@ export function MicroflowResourceTab() {
             ))}
           </Space>
           <Space wrap>
+            <Button onClick={() => navigate(`/space/${encodeURIComponent(workspace.id)}/mendix-studio`)}>
+              {t("microflowOpenMendixStudio")}
+            </Button>
             <Input
               prefix={<IconSearch />}
               showClear

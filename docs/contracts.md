@@ -2348,3 +2348,20 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 - `ModelConfig` 新增 `workspaceId?: string`，并贯通创建、更新、分页、启用列表、统计接口；
 - `LowCode AppDefinition` 新增 `workspaceId?: string`，并贯通创建、更新、列表与详情 DTO；
 - 资源隔离使用工作空间字符串 ID 透传，禁止前端在查询链路中通过 `Number(workspaceId)` 参与隔离过滤。
+
+## Mendix Studio MVP 契约（2026-04）
+
+- Mendix 独立技术栈目录：`src/frontend/packages/mendix/`。
+- 物理迁移：`src/frontend/packages/microflow` → `src/frontend/packages/mendix/mendix-microflow`，包名保持 `@atlas/microflow`。
+- 新增包：
+  - `@atlas/mendix-schema`
+  - `@atlas/mendix-validator`
+  - `@atlas/mendix-expression`
+  - `@atlas/mendix-runtime`
+  - `@atlas/mendix-debug`
+  - `@atlas/mendix-studio-core`
+- app-web 路由新增：
+  - `/space/:space_id/mendix-studio`
+  - `/space/:space_id/mendix-studio/:appId`
+- 左导航新增 `Mendix Studio` 菜单；资源中心微流 Tab 新增“在 Mendix Studio 中打开”。
+- Runtime Renderer / Action Executor / Debug Trace 采用本地模拟执行闭环，用于采购审批 MVP 验证；后续版本可替换为服务端强校验执行。

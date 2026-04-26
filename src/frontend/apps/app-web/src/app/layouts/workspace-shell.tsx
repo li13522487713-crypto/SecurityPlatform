@@ -139,6 +139,14 @@ function buildAllSpaceLinks(workspaceId: string, t: (key: AppMessageKey) => stri
       ]
     },
     {
+      key: "mendix-studio",
+      label: t("cozeMenuMendixStudio"),
+      path: `${workspaceRootPath(workspaceId)}/mendix-studio`,
+      icon: <IconBox />,
+      testId: "app-sidebar-item-mendix-studio",
+      activeMatchers: [`${workspaceRootPath(workspaceId)}/mendix-studio`]
+    },
+    {
       key: "tasks",
       label: t("cozeMenuTasks"),
       path: workspaceTasksPath(workspaceId),
@@ -263,6 +271,10 @@ function resolveShellHeaderTitle(pathname: string, t: (key: AppMessageKey) => st
 
   if (pathname.includes("/library") || pathname.includes("/resources")) {
     return t("cozeMenuResources");
+  }
+
+  if (pathname.includes("/mendix-studio")) {
+    return t("cozeMenuMendixStudio");
   }
 
   return t("cozeMenuProjects");

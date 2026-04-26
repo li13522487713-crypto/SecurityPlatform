@@ -839,12 +839,13 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   const handleAddNode = (item: MicroflowNodeRegistryItem, options?: { position?: { x: number; y: number }; insertFlowId?: string }) => {
     const position = options?.position ?? { x: 120 + graph.nodes.length * 36, y: 120 + graph.nodes.length * 18 };
     const parentLoopObjectId = findLoopAtPosition(graph, position);
-    if ((item.type === "event" && (item.defaultConfig as { eventType?: string }).eventType === "start") && parentLoopObjectId) {
-      Toast.warning("Start Event 不能放入 Loop 内部");
+    const eventType = item.type === "event" ? (item.defaultConfig as { eventType?: string }).eventType : undefined;
+    if (eventType && ["start", "end"].includes(eventType) && parentLoopObjectId) {
+      Toast.warning("Start / End events cannot be placed inside Loop.");
       return;
     }
-    if ((item.type === "event" && ["break", "continue"].includes((item.defaultConfig as { eventType?: string }).eventType ?? "")) && !parentLoopObjectId) {
-      Toast.warning("Break / Continue 只能放在 Loop 内");
+    if (eventType && ["break", "continue"].includes(eventType) && !parentLoopObjectId) {
+      Toast.warning("Break / Continue can only be placed inside Loop.");
       return;
     }
     if (item.type === "parameter") {

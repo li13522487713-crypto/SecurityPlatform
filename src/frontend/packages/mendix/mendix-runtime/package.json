@@ -1,0 +1,28 @@
+{
+  "name": "@atlas/mendix-runtime",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "build": "echo 'mendix-runtime: source-only package, no build step'",
+    "lint": "echo 'mendix-runtime: lint via root pipeline'",
+    "test": "vitest --run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "dependencies": {
+    "@atlas/mendix-expression": "workspace:*",
+    "@atlas/mendix-schema": "workspace:*",
+    "@douyinfe/semi-ui": "^2.82.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.37",
+    "vitest": "^4.1.4"
+  }
+}

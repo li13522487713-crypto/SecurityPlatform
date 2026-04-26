@@ -181,6 +181,32 @@ describe("microflow editor interactions", () => {
     expect(patch.resizedNodes?.some(item => item.objectId === loop.id && item.size.height > loop.size.height)).toBe(true);
   });
 
+  it("creates sequence flows between Loop internal objects without crossing collection boundaries", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "internal-flow-loop");
+    const first = createObjectFromRegistry(registry("activity:objectChange"), { x: 180, y: 180 }, "internal-first");
+    const second = createObjectFromRegistry(registry("activity:logMessage"), { x: 420, y: 180 }, "internal-second");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [first, second] } }]);
+    const graph = toEditorGraph(schema);
+    const source = graph.nodes.find(node => node.objectId === first.id)?.ports.find(port => port.kind === "sequenceOut");
+    const target = graph.nodes.find(node => node.objectId === second.id)?.ports.find(port => port.direction === "input");
+    if (!source || !target) {
+      throw new Error("Expected loop internal ports.");
+    }
+    expect(canConnectPorts(schema, source, target).allowed).toBe(true);
+    const flow = createMicroflowFlowFromPorts(schema, source, target);
+    const next = applyEditorGraphPatchToAuthoring(schema, {
+      addFlow: flow,
+      selectedFlowId: flow.id,
+      selectedObjectId: undefined,
+    });
+    expect(next.flows.some(item => item.id === flow.id && item.originObjectId === first.id && item.destinationObjectId === second.id)).toBe(true);
+    expect(next.editor.selection.flowId).toBe(flow.id);
+    expect(validateMicroflowSchema(next).some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(false);
+  });
+
   it("offers enumeration cases and validates duplicate enum values", () => {
     const decision = {
       ...createObjectFromRegistry(registry("decision"), { x: 0, y: 0 }, "enum-decision"),

@@ -100,6 +100,7 @@ import { PermissionProvider } from "./permission-context";
 import {
   type AppRouteHandle,
   EXPLORE_ROUTE_HANDLE,
+  MENDIX_STUDIO_ROUTE_HANDLE,
   ROOT_ROUTE_HANDLE,
   SETUP_CONSOLE_ROUTE_HANDLE,
   SIGN_ROUTE_HANDLE,
@@ -213,6 +214,7 @@ import { OpenApiPage } from "./pages/open-api-page";
 import { DocsPage } from "./pages/docs-page";
 import { MicroflowDemoPage } from "./pages/microflow-demo-page";
 import { MicroflowEditorPage } from "./pages/microflow-editor-page";
+import { MendixStudioAppRoute, MendixStudioIndexRoute } from "./pages/mendix-studio-route";
 import { MeProfilePage } from "./pages/me-profile-page";
 import { MeSettingsPage } from "./pages/me-settings-page";
 import { MeNotificationsPage } from "./pages/me-notifications-page";
@@ -2963,6 +2965,8 @@ export const appRoutes = [
       { path: "workflows/:workflowId", element: <WorkspaceWorkflowRedirectRoute />, handle: WORKSPACE_WORKFLOW_ROUTE_HANDLE },
       { path: "chatflows", element: <WorkspaceChatflowRedirectRoute />, handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE },
       { path: "chatflows/:workflowId", element: <WorkspaceChatflowRedirectRoute />, handle: WORKSPACE_CHATFLOW_ROUTE_HANDLE },
+      { path: "mendix-studio", element: <MendixStudioIndexRoute />, handle: MENDIX_STUDIO_ROUTE_HANDLE },
+      { path: "mendix-studio/:appId", element: <MendixStudioAppRoute />, handle: MENDIX_STUDIO_ROUTE_HANDLE },
       { path: "publish/agent/:bot_id", element: <SpaceAgentPublishManageAliasRoute />, handle: WORKSPACE_DEVELOP_ROUTE_HANDLE },
       {
         path: "bot/:bot_id",
