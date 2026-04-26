@@ -94,7 +94,7 @@ export function InstanceDetailPanel({ labels, source, selectedObject, columns, o
               </Tabs.TabPane>
               <Tabs.TabPane tab={labels.performanceMonitor} itemKey="performance">
                 <Spin spinning={loadingLogs}>
-                  <Space vertical align="stretch" style={{ width: "100%" }}>
+                  <Space vertical align="start" style={{ width: "100%" }}>
                     <Text strong>{labels.objectStats}</Text>
                     <DetailRow label={labels.tables} value={selectedObject ? "-" : source.draftObjectCount ?? "-"} />
                     <DetailRow label={labels.recentLogs} value={logs.length} />
@@ -103,7 +103,7 @@ export function InstanceDetailPanel({ labels, source, selectedObject, columns, o
                 </Spin>
               </Tabs.TabPane>
             </Tabs>
-            <Space vertical align="stretch" style={{ width: "100%" }}>
+            <Space vertical align="start" style={{ width: "100%" }}>
               <Text strong>{labels.actions}</Text>
               <Space wrap>
                 <Button disabled={!selectedObject} onClick={() => selectedObject && onObjectAction(selectedObject, "preview")}>{labels.dataPreview}</Button>

@@ -8,6 +8,8 @@ public interface ISqlSafetyValidator
 
     void ValidateSelectOnly(string sql);
 
+    void ValidateSqlEditorExecute(string sql);
+
     IReadOnlyList<string> SplitStatementsSafely(string sql);
 
     bool ContainsForbiddenKeyword(string sql);

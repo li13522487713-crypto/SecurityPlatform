@@ -77,6 +77,33 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         EnsureNoForbidden(statement, allowedLeadingCreate: null);
     }
 
+    public void ValidateSqlEditorExecute(string sql)
+    {
+        var statement = SingleStatement(sql);
+        var tokens = TokenizeExecutableText(statement).ToList();
+        if (tokens.Count == 0)
+        {
+            throw new SqlSafetyException("SQL_EMPTY", "SQL statement cannot be empty.");
+        }
+
+        if (string.Equals(tokens[0], "SELECT", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(tokens[0], "WITH", StringComparison.OrdinalIgnoreCase))
+        {
+            EnsureNoForbidden(statement, allowedLeadingCreate: null);
+            return;
+        }
+
+        if (tokens.Count >= 2 &&
+            string.Equals(tokens[0], "INSERT", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(tokens[1], "INTO", StringComparison.OrdinalIgnoreCase))
+        {
+            EnsureNoForbidden(statement, allowedLeadingCreate: null, allowedLeadingInsert: true);
+            return;
+        }
+
+        throw new SqlSafetyException("SQL_EDITOR_STATEMENT_FORBIDDEN", "Only SELECT and INSERT INTO statements are allowed.");
+    }
+
     public IReadOnlyList<string> SplitStatementsSafely(string sql)
     {
         if (string.IsNullOrWhiteSpace(sql))
@@ -306,7 +333,7 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
         return statements[0];
     }
 
-    private static void EnsureNoForbidden(string statement, string? allowedLeadingCreate)
+    private static void EnsureNoForbidden(string statement, string? allowedLeadingCreate, bool allowedLeadingInsert = false)
     {
         var tokens = TokenizeExecutableText(statement).ToList();
         for (var i = 0; i < tokens.Count; i++)
@@ -314,6 +341,13 @@ public sealed partial class SqlSafetyValidator : ISqlSafetyValidator
             var token = tokens[i];
             if (ForbiddenTokens.Contains(token))
             {
+                if (i == 0 &&
+                    allowedLeadingInsert &&
+                    string.Equals(token, "INSERT", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 throw new SqlSafetyException("SQL_FORBIDDEN_KEYWORD", "Dangerous SQL keyword detected.");
             }
 

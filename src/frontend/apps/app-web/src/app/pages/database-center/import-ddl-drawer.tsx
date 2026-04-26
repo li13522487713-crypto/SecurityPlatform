@@ -32,7 +32,7 @@ export function ImportDdlDrawer({
 
   return (
     <SideSheet visible={visible} title={labels.importDdl} width="min(820px, calc(100vw - 32px))" onCancel={onClose}>
-      <Space vertical align="stretch" style={{ width: "100%" }}>
+      <Space vertical align="start" style={{ width: "100%" }}>
         <Text type="tertiary">{labels.importDdlHint}</Text>
         <Space wrap>
           <Button onClick={() => setSql(formatSql(sql))}>{labels.format}</Button>

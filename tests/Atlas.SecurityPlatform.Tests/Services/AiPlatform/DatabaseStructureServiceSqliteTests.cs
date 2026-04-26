@@ -1,5 +1,6 @@
 using System.Reflection;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Options;
@@ -103,12 +104,44 @@ public sealed class DatabaseStructureServiceSqliteTests : IDisposable
 
         var columns = await service.GetTableColumnsAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "sys_user_demo", null, CancellationToken.None);
         Assert.Contains(columns, column => column.Name == "id" && column.PrimaryKey);
+        Assert.Contains(columns, column => column.Name == "created_at" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(columns, column => column.Name == "created_by" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(columns, column => column.Name == "updated_at" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(columns, column => column.Name == "updated_by" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
 
         var ddl = await service.GetTableDdlAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "sys_user_demo", null, CancellationToken.None);
         Assert.Contains("CREATE TABLE", ddl.Ddl, StringComparison.OrdinalIgnoreCase);
 
         var preview = await service.PreviewTableDataAsync(Tenant, database.Id, "sys_user_demo", new PreviewDataRequest(null, 1, 20), CancellationToken.None);
         Assert.Single(preview.Rows);
+
+        await service.CreateTableBySqlAsync(
+            Tenant,
+            database.Id,
+            new CreateTableSqlRequest("""
+                CREATE TABLE "sys_sql_demo" (
+                  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                  "name" TEXT NOT NULL
+                );
+                """),
+            CancellationToken.None);
+
+        var sqlColumns = await service.GetTableColumnsAsync(Tenant, database.Id, AiDatabaseRecordEnvironment.Draft, "sys_sql_demo", null, CancellationToken.None);
+        Assert.Contains(sqlColumns, column => column.Name == "created_at" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(sqlColumns, column => column.Name == "created_by" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(sqlColumns, column => column.Name == "updated_at" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(sqlColumns, column => column.Name == "updated_by" && string.Equals(column.DataType, "DATETIME", StringComparison.OrdinalIgnoreCase));
+
+        await Assert.ThrowsAsync<BusinessException>(() => service.CreateTableBySqlAsync(
+            Tenant,
+            database.Id,
+            new CreateTableSqlRequest("""
+                CREATE TABLE "sys_sql_wrong_audit" (
+                  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                  "created_at" TEXT
+                );
+                """),
+            CancellationToken.None));
     }
 
     [Theory]

@@ -59,7 +59,7 @@ export function ObjectDetailDrawer({ databaseId, object, initialTab = "structure
             </div>
           </Tabs.TabPane>
           <Tabs.TabPane tab={t("databaseStructureTabPreview")} itemKey="preview">
-            <Space vertical align="stretch" style={{ width: "100%" }}>
+            <Space vertical align="start" style={{ width: "100%" }}>
               <Space>
                 <Select
                   value={pageSize}
@@ -73,7 +73,7 @@ export function ObjectDetailDrawer({ databaseId, object, initialTab = "structure
             </Space>
           </Tabs.TabPane>
           <Tabs.TabPane tab={t("databaseStructureTabDdl")} itemKey="ddl">
-            <Space vertical align="stretch" style={{ width: "100%" }}>
+            <Space vertical align="start" style={{ width: "100%" }}>
               <Space>
                 <Button onClick={() => navigator.clipboard?.writeText(ddl)}>{t("databaseStructureCopy")}</Button>
                 <Button onClick={() => void loadDdl()}>{t("databaseStructureRefresh")}</Button>

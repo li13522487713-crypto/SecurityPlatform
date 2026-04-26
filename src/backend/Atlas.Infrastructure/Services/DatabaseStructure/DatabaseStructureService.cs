@@ -14,6 +14,14 @@ namespace Atlas.Infrastructure.Services.DatabaseStructure;
 
 public sealed class DatabaseStructureService : IDatabaseStructureService
 {
+    private static readonly string[] BuiltInAuditFieldNames =
+    [
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by"
+    ];
+
     private readonly IAiDatabaseClientFactory _clientFactory;
     private readonly IDatabaseDialectRegistry _dialects;
     private readonly ISqlSafetyValidator _sqlSafetyValidator;
@@ -113,7 +121,7 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         CancellationToken cancellationToken)
     {
         using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
-        return new DdlResponse(scope.Dialect.BuildCreateTableSql(request));
+        return new DdlResponse(scope.Dialect.BuildCreateTableSql(WithBuiltInAuditFields(request)));
     }
 
     public async Task CreateTableAsync(TenantId tenantId, long databaseId, CreateTableRequest request, CancellationToken cancellationToken)
@@ -130,7 +138,8 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
     public async Task CreateTableBySqlAsync(TenantId tenantId, long databaseId, CreateTableSqlRequest request, CancellationToken cancellationToken)
     {
         _sqlSafetyValidator.ValidateCreateTable(request.Sql);
-        await ExecuteDraftSqlAsync(tenantId, databaseId, request.Sql, cancellationToken);
+        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        await scope.Client.Ado.ExecuteCommandAsync(WithBuiltInAuditFields(request.Sql, scope.Dialect));
     }
 
     public async Task<PreviewDataResponse> PreviewViewSqlAsync(
@@ -140,7 +149,7 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         CancellationToken cancellationToken)
     {
         _sqlSafetyValidator.ValidateSelectOnly(request.Sql);
-        using var scope = await OpenAsync(tenantId, databaseId, AiDatabaseRecordEnvironment.Draft, cancellationToken);
+        using var scope = await OpenAsync(tenantId, databaseId, request.Environment, cancellationToken);
         var sql = scope.Dialect.BuildSelectPreviewSql(request.Sql, Math.Clamp(request.Limit, 1, MaxPreviewLimit()));
         var stopwatch = Stopwatch.StartNew();
         var table = await scope.Client.Ado.GetDataTableAsync(sql);
@@ -198,6 +207,256 @@ public sealed class DatabaseStructureService : IDatabaseStructureService
         AiDatabaseRecordEnvironment environment,
         CancellationToken cancellationToken)
         => GetObjectsAsync(tenantId, databaseId, environment, "trigger", cancellationToken);
+
+    private static PreviewCreateTableDdlRequest WithBuiltInAuditFields(PreviewCreateTableDdlRequest request)
+    {
+        var userColumns = request.Columns
+            .Where(column => !BuiltInAuditFieldNames.Contains(column.Name, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        userColumns.AddRange(BuiltInAuditFieldNames.Select(name => new TableColumnDesignDto(
+            name,
+            "DATETIME",
+            Nullable: true,
+            PrimaryKey: false,
+            AutoIncrement: false,
+            DefaultValue: string.Equals(name, "created_at", StringComparison.OrdinalIgnoreCase) ? "CURRENT_TIMESTAMP" : null)));
+
+        return request with
+        {
+            Columns = userColumns,
+            Options = request.Options is null
+                ? new TableOptionsDto(IncludeAuditFields: true)
+                : request.Options with { IncludeAuditFields = true }
+        };
+    }
+
+    private static string WithBuiltInAuditFields(string sql, IDatabaseDialect dialect)
+    {
+        var endIndex = FindCreateTableColumnListEnd(sql);
+        var existingColumnDefinitions = ExtractColumnDefinitions(sql[..endIndex]);
+        foreach (var definition in existingColumnDefinitions.Where(column => BuiltInAuditFieldNames.Contains(column.Name, StringComparer.OrdinalIgnoreCase)))
+        {
+            if (!IsDatetimeColumnDefinition(definition.Definition))
+            {
+                throw new BusinessException($"系统内置审计字段 {definition.Name} 必须使用 DATETIME 类型。", ErrorCodes.ValidationError);
+            }
+        }
+
+        var existingColumnNames = existingColumnDefinitions
+            .Select(column => column.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var missingAuditFields = BuiltInAuditFieldNames
+            .Where(name => !existingColumnNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (missingAuditFields.Count == 0)
+        {
+            return sql.Trim().TrimEnd(';') + ";";
+        }
+
+        var insert = string.Join(
+            "," + Environment.NewLine + "  ",
+            missingAuditFields.Select(name =>
+                $"{dialect.QuoteIdentifier(name)} DATETIME" +
+                (string.Equals(name, "created_at", StringComparison.OrdinalIgnoreCase) ? " DEFAULT CURRENT_TIMESTAMP" : string.Empty)));
+
+        var prefix = sql[..endIndex].TrimEnd();
+        var needsComma = !prefix.EndsWith("(", StringComparison.Ordinal);
+        return $"{prefix}{(needsComma ? "," : string.Empty)}{Environment.NewLine}  {insert}{sql[endIndex..].TrimEnd().TrimEnd(';')};";
+    }
+
+    private static int FindCreateTableColumnListEnd(string sql)
+    {
+        var openIndex = sql.IndexOf('(', StringComparison.Ordinal);
+        if (openIndex < 0)
+        {
+            throw new InvalidOperationException("CREATE TABLE statement must contain a column list.");
+        }
+
+        var depth = 0;
+        var quote = '\0';
+        for (var i = openIndex; i < sql.Length; i++)
+        {
+            var ch = sql[i];
+            if (quote != '\0')
+            {
+                if (ch == quote)
+                {
+                    quote = '\0';
+                }
+
+                continue;
+            }
+
+            if (ch is '\'' or '"' or '`')
+            {
+                quote = ch;
+                continue;
+            }
+
+            if (ch == '(')
+            {
+                depth++;
+                continue;
+            }
+
+            if (ch == ')')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return i;
+                }
+            }
+        }
+
+        throw new InvalidOperationException("CREATE TABLE statement has an unclosed column list.");
+    }
+
+    private static IReadOnlyList<SqlColumnDefinition> ExtractColumnDefinitions(string createTablePrefix)
+    {
+        var openIndex = createTablePrefix.IndexOf('(', StringComparison.Ordinal);
+        var columnList = openIndex >= 0 ? createTablePrefix[(openIndex + 1)..] : createTablePrefix;
+        var columns = new List<SqlColumnDefinition>();
+        foreach (var definition in SplitTopLevel(columnList))
+        {
+            var trimmed = definition.TrimStart();
+            if (trimmed.Length == 0 ||
+                trimmed.StartsWith("PRIMARY ", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("FOREIGN ", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("UNIQUE ", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("CHECK ", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("CONSTRAINT ", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var name = ReadIdentifier(trimmed);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                columns.Add(new SqlColumnDefinition(name, trimmed));
+            }
+        }
+
+        return columns;
+    }
+
+    private static bool IsDatetimeColumnDefinition(string definition)
+    {
+        var name = ReadIdentifier(definition);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var typeStart = GetIdentifierEnd(definition);
+        var remainder = definition[typeStart..].TrimStart();
+        var length = 0;
+        while (length < remainder.Length && (char.IsLetterOrDigit(remainder[length]) || remainder[length] == '_'))
+        {
+            length++;
+        }
+
+        return length > 0 && string.Equals(remainder[..length], "DATETIME", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<string> SplitTopLevel(string text)
+    {
+        var result = new List<string>();
+        var start = 0;
+        var depth = 0;
+        var quote = '\0';
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (quote != '\0')
+            {
+                if (ch == quote)
+                {
+                    quote = '\0';
+                }
+
+                continue;
+            }
+
+            if (ch is '\'' or '"' or '`')
+            {
+                quote = ch;
+                continue;
+            }
+
+            if (ch == '(')
+            {
+                depth++;
+                continue;
+            }
+
+            if (ch == ')')
+            {
+                depth--;
+                continue;
+            }
+
+            if (ch == ',' && depth == 0)
+            {
+                result.Add(text[start..i]);
+                start = i + 1;
+            }
+        }
+
+        result.Add(text[start..]);
+        return result;
+    }
+
+    private static string ReadIdentifier(string text)
+    {
+        if (text[0] is '"' or '`')
+        {
+            var quote = text[0];
+            var end = text.IndexOf(quote, 1);
+            return end > 1 ? text[1..end] : string.Empty;
+        }
+
+        if (text[0] == '[')
+        {
+            var end = text.IndexOf(']', 1);
+            return end > 1 ? text[1..end] : string.Empty;
+        }
+
+        var length = 0;
+        while (length < text.Length && (char.IsLetterOrDigit(text[length]) || text[length] == '_'))
+        {
+            length++;
+        }
+
+        return length > 0 ? text[..length] : string.Empty;
+    }
+
+    private static int GetIdentifierEnd(string text)
+    {
+        if (text[0] is '"' or '`')
+        {
+            var quote = text[0];
+            var end = text.IndexOf(quote, 1);
+            return end >= 0 ? end + 1 : text.Length;
+        }
+
+        if (text[0] == '[')
+        {
+            var end = text.IndexOf(']', 1);
+            return end >= 0 ? end + 1 : text.Length;
+        }
+
+        var length = 0;
+        while (length < text.Length && (char.IsLetterOrDigit(text[length]) || text[length] == '_'))
+        {
+            length++;
+        }
+
+        return length;
+    }
+
+    private sealed record SqlColumnDefinition(string Name, string Definition);
 
     private async Task<IReadOnlyList<DatabaseColumnDto>> GetColumnsAsync(
         TenantId tenantId,

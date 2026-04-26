@@ -234,7 +234,7 @@ export function DatabaseStructureWorkbench({
         onCancel={() => setDeleteTarget(null)}
         onOk={() => void confirmDelete()}
       >
-        <Space vertical align="stretch" style={{ width: "100%" }}>
+        <Space vertical align="start" style={{ width: "100%" }}>
           <span>{labels.deleteConfirmContent}</span>
           <strong>{deleteTarget?.name}</strong>
           <Input value={confirmName} placeholder={deleteTarget?.name} onChange={setConfirmName} />

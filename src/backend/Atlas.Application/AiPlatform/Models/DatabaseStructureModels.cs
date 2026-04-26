@@ -108,7 +108,11 @@ public sealed record CreateTableRequest(
 
 public sealed record CreateTableSqlRequest(string Sql);
 
-public sealed record PreviewViewSqlRequest(string Sql, int Limit = 100);
+public sealed record PreviewViewSqlRequest(
+    string Sql,
+    int Limit = 100,
+    string? Schema = null,
+    AiDatabaseRecordEnvironment Environment = AiDatabaseRecordEnvironment.Draft);
 
 public sealed record CreateViewRequest(
     string? Schema,

@@ -1,5 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
@@ -112,8 +113,10 @@ public sealed class DatabaseManagementController : ControllerBase
         [FromBody] DatabaseCenterSqlRequest request,
         CancellationToken cancellationToken)
     {
-        _sqlSafetyValidator.ValidateSelectOnly(request.Sql);
-        var result = await QuerySqlAsync(request, cancellationToken);
+        _sqlSafetyValidator.ValidateSqlEditorExecute(request.Sql);
+        var result = IsSelectSql(request.Sql)
+            ? await QuerySqlAsync(request, cancellationToken)
+            : await ExecuteMutationSqlAsync(request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -158,6 +161,43 @@ public sealed class DatabaseManagementController : ControllerBase
             return item;
         }).ToList();
         return new { columns, rows, affectedRows = (int?)null, elapsedMs = elapsed, truncated = table.Rows.Count >= limit };
+    }
+
+    private async Task<object> ExecuteMutationSqlAsync(DatabaseCenterSqlRequest request, CancellationToken cancellationToken)
+    {
+        var instance = await ResolveInstanceAsync(request.SourceId, cancellationToken);
+        if (instance.Environment == AiDatabaseRecordEnvironment.Online)
+        {
+            throw new BusinessException("Online 实例只读，禁止执行写入 SQL。", ErrorCodes.ValidationError);
+        }
+
+        var connection = _secretProtector.Decrypt(instance.EncryptedConnection);
+        using var client = new SqlSugarClient(new ConnectionConfig
+        {
+            ConnectionString = connection,
+            DbType = DataSourceDriverRegistry.ResolveDbType(instance.DriverCode),
+            IsAutoCloseConnection = true
+        });
+        client.Ado.CommandTimeOut = 30;
+        var sql = request.Sql.Trim().TrimEnd(';');
+        var started = DateTime.UtcNow;
+        var affectedRows = await client.Ado.ExecuteCommandAsync(sql);
+        var elapsed = (long)(DateTime.UtcNow - started).TotalMilliseconds;
+        return new
+        {
+            columns = Array.Empty<object>(),
+            rows = Array.Empty<object>(),
+            affectedRows,
+            elapsedMs = elapsed,
+            truncated = false
+        };
+    }
+
+    private static bool IsSelectSql(string sql)
+    {
+        var trimmed = sql.TrimStart();
+        return trimmed.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.StartsWith("WITH", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<Atlas.Domain.AiPlatform.Entities.AiDatabasePhysicalInstance> ResolveInstanceAsync(string sourceId, CancellationToken cancellationToken)

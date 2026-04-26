@@ -187,9 +187,14 @@ public sealed class DatabaseCenterStructureController : ControllerBase
     [Authorize(Policy = PermissionPolicies.DataSourcesQuery)]
     public async Task<ActionResult<ApiResponse<PreviewDataResponse>>> PreviewViewSql(
         string sourceId,
+        string schemaName,
         [FromBody] PreviewViewSqlRequest request,
         CancellationToken cancellationToken)
-        => await Execute(sourceId, (databaseId, _) => _structureService.PreviewViewSqlAsync(_tenantProvider.GetTenantId(), databaseId, request, cancellationToken));
+        => await Execute(sourceId, (databaseId, environment) => _structureService.PreviewViewSqlAsync(
+            _tenantProvider.GetTenantId(),
+            databaseId,
+            request with { Schema = schemaName, Environment = environment },
+            cancellationToken));
 
     [HttpPost("views")]
     [Authorize(Policy = PermissionPolicies.DataSourcesSchemaWrite)]

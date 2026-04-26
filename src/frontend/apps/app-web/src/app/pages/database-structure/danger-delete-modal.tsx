@@ -38,7 +38,7 @@ export function DangerDeleteModal({ visible, object, loading = false, onCancel, 
       onCancel={onCancel}
       onOk={() => object ? onConfirm(confirmName) : undefined}
     >
-      <Space vertical align="stretch" style={{ width: "100%" }}>
+      <Space vertical align="start" style={{ width: "100%" }}>
         <Text>{t("databaseStructureDeleteContent")}</Text>
         <Text strong>{object?.name}</Text>
         <Input value={confirmName} placeholder={object?.name} onChange={setConfirmName} />

@@ -65,7 +65,7 @@ export function CreateViewDrawer({ visible, databaseId, onClose, onCreated }: Cr
 
   return (
     <SideSheet visible={visible} onCancel={onClose} title={t("databaseStructureNewView")} width="min(900px, calc(100vw - 32px))">
-      <Space vertical align="stretch" style={{ width: "100%" }}>
+      <Space vertical align="start" style={{ width: "100%" }}>
         <Input placeholder={t("databaseStructureViewName")} value={viewName} onChange={setViewName} />
         <Input placeholder="schema" value={schema} onChange={setSchema} />
         <Input placeholder={t("databaseStructureComment")} value={comment} onChange={setComment} />

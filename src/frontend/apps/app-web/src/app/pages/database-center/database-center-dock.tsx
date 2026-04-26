@@ -79,7 +79,7 @@ export function DatabaseCenterDock({ labels, source, selectedObject, structure, 
       </DockCard>
       <DockCard title={`${labels.dataPreview} - ${selectedObject?.name ?? "-"}`} visible={visibleCards.preview} onClose={() => hide("preview")}>
         <Spin spinning={loadingPreview}>
-          <Space vertical align="stretch" style={{ width: "100%" }}>
+          <Space vertical align="start" style={{ width: "100%" }}>
             <Button size="small" disabled={!selectedObject} onClick={() => void loadPreview()}>{labels.refresh}</Button>
             {preview ? <DataPreviewTable data={preview} /> : <Empty description={labels.noObjectSelected} />}
           </Space>
@@ -87,7 +87,7 @@ export function DatabaseCenterDock({ labels, source, selectedObject, structure, 
       </DockCard>
       <DockCard title={`${labels.ddl} - ${selectedObject?.name ?? "-"}`} visible={visibleCards.ddl} onClose={() => hide("ddl")}>
         <Spin spinning={loadingDdl}>
-          <Space vertical align="stretch" style={{ width: "100%" }}>
+          <Space vertical align="start" style={{ width: "100%" }}>
             <Space>
               <Button size="small" disabled={!selectedObject} onClick={() => void loadDdl()}>{labels.refresh}</Button>
               <Button size="small" disabled={!ddl} onClick={() => navigator.clipboard?.writeText(ddl)}>{labels.copy}</Button>

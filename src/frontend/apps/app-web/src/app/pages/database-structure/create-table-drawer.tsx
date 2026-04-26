@@ -161,7 +161,7 @@ export function CreateTableDrawer({ visible, databaseId, driverCode, onClose, on
         <Tabs.TabPane tab={t("databaseStructureSqlCreate")} itemKey="sql" />
       </Tabs>
       {mode === "visual" ? (
-        <Space vertical align="stretch" style={{ width: "100%" }}>
+        <Space vertical align="start" style={{ width: "100%" }}>
           <Input placeholder={t("databaseStructureTableName")} value={tableName} onChange={setTableName} />
           <Input placeholder="schema" value={schema} onChange={setSchema} />
           <Input placeholder={t("databaseStructureTableComment")} value={comment} onChange={setComment} />

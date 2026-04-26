@@ -107,11 +107,18 @@ export function DatabaseSourcePanel({
                 const status = source.status ?? source.provisionState ?? "Pending";
                 const isReady = status === "Ready";
                 return (
-                <button
+                <div
                   key={source.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   className={`database-center-source${source.id === selectedSourceId ? " database-center-source--active" : ""}`}
                   onClick={() => onSelectSource(source.id)}
+                  onKeyDown={event => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectSource(source.id);
+                    }
+                  }}
                   onContextMenu={event => {
                     event.preventDefault();
                     onSelectSource(source.id);
@@ -152,7 +159,7 @@ export function DatabaseSourcePanel({
                       </Dropdown>
                     </div>
                   </div>
-                </button>
+                </div>
                 );
               })}
             </Space>

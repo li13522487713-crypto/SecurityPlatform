@@ -23,17 +23,34 @@ interface CreateTableDrawerProps {
 }
 
 const typeOptions = ["INTEGER", "TEXT", "REAL", "NUMERIC", "BLOB", "DATETIME"].map(value => ({ value, label: value }));
+const auditFieldNames = new Set(["created_at", "created_by", "updated_at", "updated_by"]);
 const fieldTemplates: TableColumnDesignDto[] = [
   { id: "tpl-id", name: "id", dataType: "INTEGER", nullable: false, primaryKey: true, autoIncrement: true },
-  { id: "tpl-name", name: "name", dataType: "TEXT", length: 100, nullable: false, primaryKey: false, autoIncrement: false },
-  { id: "tpl-created", name: "created_at", dataType: "DATETIME", nullable: false, primaryKey: false, autoIncrement: false, defaultValue: "CURRENT_TIMESTAMP" }
+  { id: "tpl-name", name: "name", dataType: "TEXT", length: 100, nullable: false, primaryKey: false, autoIncrement: false }
 ];
 
 function defaultColumns(): TableColumnDesignDto[] {
   return [
     { id: "id", name: "id", dataType: "INTEGER", nullable: false, primaryKey: true, autoIncrement: true },
-    { id: "name", name: "name", dataType: "TEXT", length: 100, nullable: false, primaryKey: false, autoIncrement: false }
+    { id: "name", name: "name", dataType: "TEXT", length: 100, nullable: false, primaryKey: false, autoIncrement: false },
+    { id: "audit-created-at", name: "created_at", dataType: "DATETIME", nullable: true, primaryKey: false, autoIncrement: false, defaultValue: "CURRENT_TIMESTAMP" },
+    { id: "audit-created-by", name: "created_by", dataType: "DATETIME", nullable: true, primaryKey: false, autoIncrement: false },
+    { id: "audit-updated-at", name: "updated_at", dataType: "DATETIME", nullable: true, primaryKey: false, autoIncrement: false },
+    { id: "audit-updated-by", name: "updated_by", dataType: "DATETIME", nullable: true, primaryKey: false, autoIncrement: false }
   ];
+}
+
+function isAuditColumn(column?: TableColumnDesignDto): boolean {
+  return auditFieldNames.has(column?.name.trim().toLowerCase() ?? "");
+}
+
+function insertBeforeAuditFields(columns: TableColumnDesignDto[], column: TableColumnDesignDto): TableColumnDesignDto[] {
+  const auditIndex = columns.findIndex(isAuditColumn);
+  if (auditIndex < 0) {
+    return [...columns, column];
+  }
+
+  return [...columns.slice(0, auditIndex), column, ...columns.slice(auditIndex)];
 }
 
 export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClose, onCreated }: CreateTableDrawerProps) {
@@ -95,36 +112,39 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
                   <Input
                     placeholder={labels.columnName}
                     value={column.name}
+                    disabled={isAuditColumn(column)}
                     onChange={value => updateColumn(index, { name: value })}
                   />
                   <div onDragOver={event => event.preventDefault()} onDrop={event => dropDataType(event, index)}>
                     <Select
                       value={column.dataType}
                       optionList={typeOptions}
+                      disabled={isAuditColumn(column)}
                       onChange={value => updateColumn(index, { dataType: String(value) })}
                     />
                   </div>
                   <Input
                     placeholder={labels.defaultValue}
                     value={column.defaultValue ?? ""}
+                    disabled={isAuditColumn(column)}
                     onChange={value => updateColumn(index, { defaultValue: value })}
                   />
                   <Space>
                     <Text>{labels.primaryKey}</Text>
-                    <Switch checked={column.primaryKey} onChange={checked => updateColumn(index, { primaryKey: checked, nullable: checked ? false : column.nullable })} />
+                    <Switch disabled={isAuditColumn(column)} checked={column.primaryKey} onChange={checked => updateColumn(index, { primaryKey: checked, nullable: checked ? false : column.nullable })} />
                   </Space>
                   <Space>
                     <Text>{labels.autoIncrement}</Text>
-                    <Switch checked={column.autoIncrement} onChange={checked => updateColumn(index, { autoIncrement: checked })} />
+                    <Switch disabled={isAuditColumn(column)} checked={column.autoIncrement} onChange={checked => updateColumn(index, { autoIncrement: checked })} />
                   </Space>
                   <Space>
                     <Text>{labels.nullable}</Text>
-                    <Switch disabled={column.primaryKey} checked={column.nullable} onChange={checked => updateColumn(index, { nullable: checked })} />
+                    <Switch disabled={column.primaryKey || isAuditColumn(column)} checked={column.nullable} onChange={checked => updateColumn(index, { nullable: checked })} />
                   </Space>
                   <Space>
-                    <Button size="small" disabled={index === 0} onClick={() => moveColumn(index, -1)}>{labels.moveUp}</Button>
-                    <Button size="small" disabled={index === columns.length - 1} onClick={() => moveColumn(index, 1)}>{labels.moveDown}</Button>
-                    <Button icon={<IconDelete />} type="danger" disabled={columns.length <= 1} onClick={() => removeColumn(index)} />
+                    <Button size="small" disabled={index === 0 || isAuditColumn(column) || isAuditColumn(columns[index - 1])} onClick={() => moveColumn(index, -1)}>{labels.moveUp}</Button>
+                    <Button size="small" disabled={index === columns.length - 1 || isAuditColumn(column) || isAuditColumn(columns[index + 1])} onClick={() => moveColumn(index, 1)}>{labels.moveDown}</Button>
+                    <Button icon={<IconDelete />} type="danger" disabled={columns.length <= 1 || isAuditColumn(column)} onClick={() => removeColumn(index)} />
                   </Space>
                 </div>
               ))}
@@ -151,18 +171,15 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
   );
 
   function addColumn() {
-    setColumns(current => [
-      ...current,
-      { id: `col-${Date.now()}-${current.length}`, name: "", dataType: "TEXT", nullable: true, primaryKey: false, autoIncrement: false }
-    ]);
+    setColumns(current => insertBeforeAuditFields(current, { id: `col-${Date.now()}-${current.length}`, name: "", dataType: "TEXT", nullable: true, primaryKey: false, autoIncrement: false }));
   }
 
   function updateColumn(index: number, patch: Partial<TableColumnDesignDto>) {
-    setColumns(current => current.map((column, currentIndex) => currentIndex === index ? { ...column, ...patch } : column));
+    setColumns(current => current.map((column, currentIndex) => currentIndex === index && !isAuditColumn(column) ? { ...column, ...patch } : column));
   }
 
   function removeColumn(index: number) {
-    setColumns(current => current.filter((_column, currentIndex) => currentIndex !== index));
+    setColumns(current => current.filter((column, currentIndex) => currentIndex !== index || isAuditColumn(column)));
   }
 
   function moveColumn(index: number, offset: -1 | 1) {
@@ -170,6 +187,7 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
       const next = [...current];
       const target = index + offset;
       if (target < 0 || target >= next.length) return current;
+      if (isAuditColumn(next[index]) || isAuditColumn(next[target])) return current;
       const [item] = next.splice(index, 1);
       next.splice(target, 0, item);
       return next;
@@ -182,14 +200,14 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
     if (!raw) return;
     try {
       const template = JSON.parse(raw) as TableColumnDesignDto;
-      setColumns(current => [
-        ...current,
+      setColumns(current => insertBeforeAuditFields(
+        current,
         {
           ...template,
           id: `tpl-${Date.now()}-${current.length}`,
           name: current.some(item => item.name === template.name) ? `${template.name}_${current.length + 1}` : template.name
         }
-      ]);
+      ));
     } catch {
       Toast.error(labels.loadFailed);
     }
@@ -198,7 +216,7 @@ export function CreateTableDrawer({ labels, visible, sourceId, schemaName, onClo
   function dropDataType(event: DragEvent<HTMLElement>, index: number) {
     event.preventDefault();
     const type = event.dataTransfer.getData("application/x-data-type");
-    if (type) {
+    if (type && !isAuditColumn(columns[index])) {
       updateColumn(index, { dataType: type });
     }
   }
