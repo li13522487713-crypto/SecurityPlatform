@@ -18,9 +18,11 @@ import type {
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../flowgram/adapters/flowgram-case-options";
 import { defaultMicroflowActionRegistry, defaultMicroflowEdgeRegistry, defaultMicroflowObjectNodeRegistry } from "../node-registry";
 import type { MicroflowPropertyTabKey } from "../schema/types";
-import { getAssociationByQualifiedName, getMicroflowById, getSpecializations, useMicroflowMetadata } from "../metadata";
+import { getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, getSpecializations, useMicroflowMetadata } from "../metadata";
+import { buildVariableIndex, getObjectEntityQualifiedName, resolveVariableReferenceFromIndex } from "../variables";
 import { FieldError, ValidationIssueList } from "./common";
-import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, EnumerationSelector, MicroflowSelector } from "./selectors";
+import { ExpressionEditor } from "./expression";
+import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, EnumerationSelector, MicroflowSelector, VariableSelector } from "./selectors";
 import type { MicroflowEdgePatch, MicroflowNodeFormRegistry, MicroflowNodePatch, MicroflowPropertyPanelProps } from "./types";
 import { countIssuesBySeverity, getIssuesForField, getIssuesForFlow, getIssuesForObject, updateParameter } from "./utils";
 
@@ -29,6 +31,7 @@ export * from "./types";
 export * from "./common";
 export * from "./utils";
 export * from "./selectors";
+export * from "./expression";
 
 export function getMicroflowNodeFormKey(object: MicroflowObject): string {
   return object.kind === "actionActivity" ? `activity:${object.action.kind}` : object.kind;
@@ -214,11 +217,13 @@ function objectName(schema: MicroflowPropertyPanelProps["schema"], objectId: str
 }
 
 function ActionActivityFields({
+  schema,
   object,
   issues,
   readonly,
   onPatch
 }: {
+  schema: MicroflowPropertyPanelProps["schema"];
   object: MicroflowActionActivity;
   issues: ReturnType<typeof getIssuesForObject>;
   readonly?: boolean;
@@ -226,14 +231,19 @@ function ActionActivityFields({
 }) {
   const action = object.action;
   const catalog = useMicroflowMetadata();
+  const variableIndex = useMemo(() => buildVariableIndex(schema, catalog), [schema, catalog.version]);
+  const variableEntity = (variableName?: string) => variableName
+    ? getObjectEntityQualifiedName(resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id }, variableName)?.dataType)
+    : undefined;
   const associationSource = action.kind === "retrieve" && action.retrieveSource.kind === "association"
-    ? getAssociationByQualifiedName(catalog, action.retrieveSource.associationQualifiedName ?? undefined)?.sourceEntityQualifiedName
+    ? variableEntity(action.retrieveSource.startVariableName) ?? getAssociationByQualifiedName(catalog, action.retrieveSource.associationQualifiedName ?? undefined)?.sourceEntityQualifiedName
     : undefined;
   const [associationStartEntity, setAssociationStartEntity] = useState<string | undefined>(associationSource);
   const firstMemberEntity = action.kind === "changeMembers" && action.memberChanges[0]?.memberQualifiedName
     ? action.memberChanges[0].memberQualifiedName.split(".").slice(0, -1).join(".")
     : undefined;
-  const [memberEntity, setMemberEntity] = useState<string | undefined>(firstMemberEntity || "Sales.Order");
+  const inferredMemberEntity = action.kind === "changeMembers" ? variableEntity(action.changeVariableName) : undefined;
+  const [memberEntity, setMemberEntity] = useState<string | undefined>(inferredMemberEntity ?? firstMemberEntity ?? "Sales.Order");
   const selectedMicroflow = action.kind === "callMicroflow" ? getMicroflowById(catalog, action.targetMicroflowId) : undefined;
   const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
   return (
@@ -302,11 +312,17 @@ function ActionActivityFields({
                 <FieldError issues={getIssuesForField(issues, "action.retrieveSource.entityQualifiedName")} />
               </Field>
               <Field label="XPath Constraint">
-                <TextArea
-                  value={action.retrieveSource.xPathConstraint?.raw ?? ""}
-                  disabled={readonly}
-                  autosize
-                  onChange={raw => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, xPathConstraint: expression(raw, { kind: "boolean" }) } }))}
+                <ExpressionEditor
+                  value={action.retrieveSource.xPathConstraint}
+                  schema={schema}
+                  metadata={catalog}
+                  variableIndex={variableIndex}
+                  objectId={object.id}
+                  actionId={action.id}
+                  fieldPath="action.retrieveSource.xPathConstraint"
+                  expectedType={{ kind: "boolean" }}
+                  readonly={readonly}
+                  onChange={xPathConstraint => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, xPathConstraint } }))}
                 />
               </Field>
               <Field label="Range">
@@ -374,11 +390,20 @@ function ActionActivityFields({
           ) : (
             <>
               <Field label="Start Variable">
-                <Input
+                <VariableSelector
+                  schema={schema}
+                  objectId={object.id}
+                  fieldPath="action.retrieveSource.startVariableName"
+                  allowedTypeKinds={["object"]}
                   value={action.retrieveSource.startVariableName}
                   disabled={readonly}
-                  onChange={startVariableName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, startVariableName } }))}
+                  onChange={startVariableName => {
+                    const nextStartVariableName = startVariableName ?? "";
+                    setAssociationStartEntity(variableEntity(nextStartVariableName));
+                    patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, startVariableName: nextStartVariableName, associationQualifiedName: null } }));
+                  }}
                 />
+                <FieldError issues={getIssuesForField(issues, "action.retrieveSource.startVariableName")} />
               </Field>
               <Field label="Association Start Entity">
                 <EntitySelector
@@ -408,11 +433,16 @@ function ActionActivityFields({
         <>
           <Title heading={6} style={{ margin: "10px 0 0" }}>{action.kind}</Title>
           <Field label="Object/List Variable">
-            <Input
+            <VariableSelector
+              schema={schema}
+              objectId={object.id}
+              fieldPath="action.objectOrListVariableName"
+              allowedTypeKinds={["object", "list"]}
               value={action.objectOrListVariableName}
               disabled={readonly}
-              onChange={objectOrListVariableName => patchObject(updateAction(object, { objectOrListVariableName }))}
+              onChange={objectOrListVariableName => patchObject(updateAction(object, { objectOrListVariableName: objectOrListVariableName ?? "" }))}
             />
+            <FieldError issues={getIssuesForField(issues, "action.objectOrListVariableName")} />
           </Field>
           {"withEvents" in action ? (
             <Field label="With Events">
@@ -442,7 +472,20 @@ function ActionActivityFields({
             </>
           ) : (
             <Field label="Change Variable">
-              <Input value={action.changeVariableName} disabled={readonly} onChange={changeVariableName => patchObject(updateAction(object, { changeVariableName }))} />
+              <VariableSelector
+                schema={schema}
+                objectId={object.id}
+                fieldPath="action.changeVariableName"
+                allowedTypeKinds={["object"]}
+                value={action.changeVariableName}
+                disabled={readonly}
+                onChange={changeVariableName => {
+                  const nextChangeVariableName = changeVariableName ?? "";
+                  setMemberEntity(variableEntity(nextChangeVariableName));
+                  patchObject(updateAction(object, { changeVariableName: nextChangeVariableName }));
+                }}
+              />
+              <FieldError issues={getIssuesForField(issues, "action.changeVariableName")} />
             </Field>
           )}
           <Field label="Member Changes (member|assignment|expression)">
@@ -470,12 +513,20 @@ function ActionActivityFields({
                       memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, assignmentKind: String(assignmentKind) as typeof row.assignmentKind } : row),
                     }))}
                   />
-                  <Input
-                    value={change.valueExpression.raw}
+                  <ExpressionEditor
+                    value={change.valueExpression}
+                    schema={schema}
+                    metadata={catalog}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    actionId={action.id}
+                    fieldPath={`action.memberChanges.${index}.valueExpression`}
+                    expectedType={getAttributeByQualifiedName(catalog, change.memberQualifiedName)?.type}
+                    required={change.assignmentKind !== "clear"}
                     disabled={readonly}
                     placeholder="Expression"
-                    onChange={raw => patchObject(updateAction(object, {
-                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression: expression(raw) } : row),
+                    onChange={valueExpression => patchObject(updateAction(object, {
+                      memberChanges: action.memberChanges.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row),
                     }))}
                   />
                   <Button disabled={readonly} type="danger" theme="borderless" onClick={() => patchObject(updateAction(object, {
@@ -524,42 +575,66 @@ function ActionActivityFields({
             />
           </Field>
           <Field label="URL Expression">
-            <Input value={action.request.urlExpression.raw} disabled={readonly} onChange={raw => patchObject(updateAction(object, { request: { ...action.request, urlExpression: expression(raw, { kind: "string" }) } }))} />
+            <ExpressionEditor
+              value={action.request.urlExpression}
+              schema={schema}
+              metadata={catalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.request.urlExpression"
+              expectedType={{ kind: "string" }}
+              required
+              readonly={readonly}
+              onChange={urlExpression => patchObject(updateAction(object, { request: { ...action.request, urlExpression } }))}
+            />
           </Field>
           <Field label="Timeout Seconds">
             <InputNumber value={action.timeoutSeconds} disabled={readonly} onChange={timeoutSeconds => patchObject(updateAction(object, { timeoutSeconds: Number(timeoutSeconds) }))} />
           </Field>
-          <Field label="Headers (key=value)">
-            <TextArea
-              autosize
-              disabled={readonly}
-              value={action.request.headers.map(header => `${header.key}=${header.valueExpression.raw}`).join("\n")}
-              onChange={value => patchObject(updateAction(object, {
-                request: {
-                  ...action.request,
-                  headers: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
-                    const [key = "", raw = ""] = line.split("=");
-                    return { key, valueExpression: expression(raw, { kind: "string" }) };
-                  }),
-                },
-              }))}
-            />
+          <Field label="Headers">
+            <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+              {action.request.headers.map((header, index) => (
+                <div key={`${header.key}-${index}`} style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr)", gap: 6, width: "100%" }}>
+                  <Input value={header.key} disabled={readonly} placeholder="Header" onChange={key => patchObject(updateAction(object, { request: { ...action.request, headers: action.request.headers.map((row, rowIndex) => rowIndex === index ? { ...row, key } : row) } }))} />
+                  <ExpressionEditor
+                    value={header.valueExpression}
+                    schema={schema}
+                    metadata={catalog}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    actionId={action.id}
+                    fieldPath={`action.request.headers.${index}.valueExpression`}
+                    expectedType={{ kind: "string" }}
+                    readonly={readonly}
+                    onChange={valueExpression => patchObject(updateAction(object, { request: { ...action.request, headers: action.request.headers.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row) } }))}
+                  />
+                </div>
+              ))}
+              <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { request: { ...action.request, headers: [...action.request.headers, { key: "", valueExpression: expression("", { kind: "string" }) }] } }))}>Add header</Button>
+            </Space>
           </Field>
-          <Field label="Query Parameters (key=value)">
-            <TextArea
-              autosize
-              disabled={readonly}
-              value={action.request.queryParameters.map(parameter => `${parameter.key}=${parameter.valueExpression.raw}`).join("\n")}
-              onChange={value => patchObject(updateAction(object, {
-                request: {
-                  ...action.request,
-                  queryParameters: value.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
-                    const [key = "", raw = ""] = line.split("=");
-                    return { key, valueExpression: expression(raw, { kind: "string" }) };
-                  }),
-                },
-              }))}
-            />
+          <Field label="Query Parameters">
+            <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+              {action.request.queryParameters.map((parameter, index) => (
+                <div key={`${parameter.key}-${index}`} style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr)", gap: 6, width: "100%" }}>
+                  <Input value={parameter.key} disabled={readonly} placeholder="Query" onChange={key => patchObject(updateAction(object, { request: { ...action.request, queryParameters: action.request.queryParameters.map((row, rowIndex) => rowIndex === index ? { ...row, key } : row) } }))} />
+                  <ExpressionEditor
+                    value={parameter.valueExpression}
+                    schema={schema}
+                    metadata={catalog}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    actionId={action.id}
+                    fieldPath={`action.request.queryParameters.${index}.valueExpression`}
+                    expectedType={{ kind: "string" }}
+                    readonly={readonly}
+                    onChange={valueExpression => patchObject(updateAction(object, { request: { ...action.request, queryParameters: action.request.queryParameters.map((row, rowIndex) => rowIndex === index ? { ...row, valueExpression } : row) } }))}
+                  />
+                </div>
+              ))}
+              <Button disabled={readonly} onClick={() => patchObject(updateAction(object, { request: { ...action.request, queryParameters: [...action.request.queryParameters, { key: "", valueExpression: expression("", { kind: "string" }) }] } }))}>Add query</Button>
+            </Space>
           </Field>
           <Field label="Body Type">
             <Select
@@ -582,7 +657,19 @@ function ActionActivityFields({
           </Field>
           {action.request.body.kind === "json" || action.request.body.kind === "text" ? (
             <Field label="Body Content">
-              <TextArea autosize disabled={readonly} value={action.request.body.expression.raw} onChange={raw => patchObject(updateAction(object, { request: { ...action.request, body: { ...action.request.body, expression: expression(raw, { kind: "string" }) } } }))} />
+              <ExpressionEditor
+                value={action.request.body.expression}
+                schema={schema}
+                metadata={catalog}
+                variableIndex={variableIndex}
+                objectId={object.id}
+                actionId={action.id}
+                fieldPath="action.request.body.expression"
+                expectedType={action.request.body.kind === "json" ? { kind: "json" } : { kind: "string" }}
+                readonly={readonly}
+                mode="multiline"
+                onChange={nextExpression => patchObject(updateAction(object, { request: { ...action.request, body: { ...action.request.body, expression: nextExpression } } }))}
+              />
             </Field>
           ) : null}
           <Field label="Response Handling">
@@ -625,7 +712,19 @@ function ActionActivityFields({
             />
           </Field>
           <Field label="Template">
-            <TextArea value={action.template.text} autosize disabled={readonly} onChange={text => patchObject(updateAction(object, { template: { ...action.template, text } }))} />
+            <ExpressionEditor
+              value={action.template.text}
+              schema={schema}
+              metadata={catalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.template.text"
+              expectedType={{ kind: "string" }}
+              readonly={readonly}
+              mode="multiline"
+              onChange={next => patchObject(updateAction(object, { template: { ...action.template, text: next.raw } }))}
+            />
           </Field>
           <Field label="Log Node Name">
             <Input value={action.logNodeName} disabled={readonly} onChange={logNodeName => patchObject(updateAction(object, { logNodeName }))} />
@@ -714,7 +813,18 @@ function ActionActivityFields({
             <FieldError issues={getIssuesForField(issues, "action.dataType")} />
           </Field>
           <Field label="Initial Value">
-            <Input value={action.initialValue.raw} disabled={readonly} onChange={raw => patchObject(updateAction(object, { initialValue: expression(raw, action.dataType) }))} />
+            <ExpressionEditor
+              value={action.initialValue}
+              schema={schema}
+              metadata={catalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.initialValue"
+              expectedType={action.dataType}
+              readonly={readonly}
+              onChange={initialValue => patchObject(updateAction(object, { initialValue }))}
+            />
           </Field>
         </>
       ) : null}
@@ -723,10 +833,30 @@ function ActionActivityFields({
         <>
           <Title heading={6} style={{ margin: "10px 0 0" }}>Change Variable</Title>
           <Field label="Target Variable">
-            <Input value={action.variableName} disabled={readonly} onChange={variableName => patchObject(updateAction(object, { variableName }))} />
+            <VariableSelector
+              schema={schema}
+              objectId={object.id}
+              fieldPath="action.variableName"
+              value={action.variableName}
+              disabled={readonly}
+              onChange={variableName => patchObject(updateAction(object, { variableName: variableName ?? "" }))}
+            />
+            <FieldError issues={getIssuesForField(issues, "action.variableName")} />
           </Field>
           <Field label="New Value Expression">
-            <Input value={action.valueExpression.raw} disabled={readonly} onChange={raw => patchObject(updateAction(object, { valueExpression: expression(raw) }))} />
+            <ExpressionEditor
+              value={action.valueExpression}
+              schema={schema}
+              metadata={catalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.valueExpression"
+              expectedType={resolveVariableReferenceFromIndex(schema, variableIndex, { objectId: object.id, actionId: action.id, fieldPath: "action.variableName" }, action.variableName)?.dataType}
+              required
+              readonly={readonly}
+              onChange={valueExpression => patchObject(updateAction(object, { valueExpression }))}
+            />
           </Field>
         </>
       ) : null}
@@ -740,6 +870,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
     return null;
   }
   const catalog = useMicroflowMetadata();
+  const variableIndex = useMemo(() => buildVariableIndex(props.schema, catalog), [props.schema, catalog.version]);
   const tabs = useMemo(() => getObjectTabs(object), [object]);
   const [activeTab, setActiveTab] = useState<MicroflowPropertyTabKey>(tabs[0] ?? "properties");
   useEffect(() => {
@@ -800,7 +931,18 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
               <Input value={dataTypeLabel(props.schema.returnType)} disabled />
             </Field>
             <Field label="Return Value">
-              <Input value={object.returnValue?.raw ?? ""} disabled={props.readonly || props.schema.returnType.kind === "void"} onChange={raw => patch({ ...object, returnValue: raw ? expression(raw) : undefined })} />
+              <ExpressionEditor
+                value={object.returnValue}
+                schema={props.schema}
+                metadata={catalog}
+                variableIndex={variableIndex}
+                objectId={object.id}
+                fieldPath="returnValue"
+                expectedType={props.schema.returnType}
+                required={props.schema.returnType.kind !== "void"}
+                readonly={props.readonly || props.schema.returnType.kind === "void"}
+                onChange={returnValue => patch({ ...object, returnValue })}
+              />
             </Field>
           </>
         ) : null}
@@ -863,15 +1005,26 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                   </Field>
                 ) : null}
                 <Field label="Split Expression">
-                  <Input value={object.splitCondition.expression.raw} disabled={props.readonly} onChange={raw => patch({
-                    ...object,
-                    splitCondition: {
-                      ...object.splitCondition,
-                      expression: expression(raw, object.splitCondition.resultType === "enumeration"
-                        ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
-                        : { kind: "boolean" })
-                    } as typeof object.splitCondition
-                  })} />
+                  <ExpressionEditor
+                    value={object.splitCondition.expression}
+                    schema={props.schema}
+                    metadata={catalog}
+                    variableIndex={variableIndex}
+                    objectId={object.id}
+                    fieldPath="splitCondition.expression"
+                    expectedType={object.splitCondition.resultType === "enumeration"
+                      ? { kind: "enumeration", enumerationQualifiedName: object.splitCondition.enumerationQualifiedName ?? "" }
+                      : { kind: "boolean" }}
+                    required
+                    readonly={props.readonly}
+                    onChange={nextExpression => patch({
+                      ...object,
+                      splitCondition: {
+                        ...object.splitCondition,
+                        expression: nextExpression
+                      } as typeof object.splitCondition
+                    })}
+                  />
                 </Field>
               </>
             ) : (
@@ -944,25 +1097,45 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 optionList={[{ label: "Iterable List", value: "iterableList" }, { label: "While Condition", value: "whileCondition" }]}
               />
             </Field>
-            {object.loopSource.kind === "iterableList" ? (
-              <>
-                <Field label="List Variable">
-                  <Input value={object.loopSource.listVariableName} disabled={props.readonly} onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName } as MicroflowIterableListLoopSource })} />
-                </Field>
+              {object.loopSource.kind === "iterableList" ? (
+                <>
+                  <Field label="List Variable">
+                    <VariableSelector
+                      schema={props.schema}
+                      objectId={object.id}
+                      fieldPath="loopSource.listVariableName"
+                      allowedTypeKinds={["list"]}
+                      value={object.loopSource.listVariableName}
+                      disabled={props.readonly}
+                      onChange={listVariableName => patch({ ...object, loopSource: { ...object.loopSource, listVariableName: listVariableName ?? "" } as MicroflowIterableListLoopSource })}
+                    />
+                    <FieldError issues={getIssuesForField(issues, "loopSource.listVariableName")} />
+                  </Field>
                 <Field label="Iterator Variable">
                   <Input value={object.loopSource.iteratorVariableName} disabled={props.readonly} onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName } as MicroflowIterableListLoopSource })} />
                 </Field>
               </>
             ) : (
               <Field label="While Expression">
-                <Input value={object.loopSource.expression.raw} disabled={props.readonly} onChange={raw => patch({ ...object, loopSource: { ...object.loopSource, expression: expression(raw, { kind: "boolean" }) } as MicroflowWhileLoopCondition })} />
+                <ExpressionEditor
+                  value={object.loopSource.expression}
+                  schema={props.schema}
+                  metadata={catalog}
+                  variableIndex={variableIndex}
+                  objectId={object.id}
+                  fieldPath="loopSource.expression"
+                  expectedType={{ kind: "boolean" }}
+                  required
+                  readonly={props.readonly}
+                  onChange={nextExpression => patch({ ...object, loopSource: { ...object.loopSource, expression: nextExpression } as MicroflowWhileLoopCondition })}
+                />
               </Field>
             )}
           </>
         ) : null}
-        {object.kind === "actionActivity" ? (
-          <ActionActivityFields object={object} issues={issues} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
-        ) : null}
+          {object.kind === "actionActivity" ? (
+            <ActionActivityFields schema={props.schema} object={object} issues={issues} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
+          ) : null}
         {object.kind === "parameterObject" ? (
           <>
             <Field label="Parameter Name">

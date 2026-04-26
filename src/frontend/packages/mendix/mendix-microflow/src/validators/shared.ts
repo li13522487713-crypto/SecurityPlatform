@@ -1,16 +1,55 @@
 import type { MicroflowObject, MicroflowObjectCollection, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
 
+function sourceFromCode(code: string): NonNullable<MicroflowValidationIssue["source"]> {
+  if (code.startsWith("MF_ROOT") || code.startsWith("MF_PARAMETER")) {
+    return "root";
+  }
+  if (code.startsWith("MF_OBJECT_")) {
+    return "objectCollection";
+  }
+  if (code.startsWith("MF_FLOW") || code.startsWith("MF_SEQUENCE") || code.startsWith("MF_ANNOTATION_FLOW")) {
+    return "flow";
+  }
+  if (code.startsWith("MF_START") || code.startsWith("MF_END") || code.startsWith("MF_ERROR_EVENT") || code.startsWith("MF_BREAK") || code.startsWith("MF_CONTINUE")) {
+    return "event";
+  }
+  if (code.startsWith("MF_DECISION") || code.startsWith("MF_OBJECT_TYPE")) {
+    return "decision";
+  }
+  if (code.startsWith("MF_LOOP")) {
+    return "loop";
+  }
+  if (code.startsWith("MF_METADATA")) {
+    return "metadata";
+  }
+  if (code.startsWith("MF_VARIABLE") || code.startsWith("MF_CURRENT") || code.startsWith("MF_LATEST")) {
+    return "variable";
+  }
+  if (code.startsWith("MF_EXPR") || code.startsWith("MF_EXPRESSION")) {
+    return "expression";
+  }
+  if (code.startsWith("MF_ERROR_HANDLER")) {
+    return "errorHandling";
+  }
+  if (code.includes("UNREACHABLE") || code.includes("DEAD_END") || code.includes("CANNOT_REACH")) {
+    return "reachability";
+  }
+  return "action";
+}
+
 export function issue(
   code: MicroflowValidationIssue["code"],
   message: string,
-  target: Partial<Pick<MicroflowValidationIssue, "objectId" | "flowId" | "actionId" | "fieldPath" | "nodeId" | "edgeId">> = {},
+  target: Partial<Pick<MicroflowValidationIssue, "objectId" | "flowId" | "actionId" | "fieldPath" | "nodeId" | "edgeId" | "parameterId" | "collectionId" | "source" | "details" | "relatedObjectIds" | "relatedFlowIds">> = {},
   severity: MicroflowValidationIssue["severity"] = "error"
 ): MicroflowValidationIssue {
+  const source = target.source ?? sourceFromCode(code);
   return {
-    id: `${code}:${target.objectId ?? target.flowId ?? target.actionId ?? target.nodeId ?? target.edgeId ?? target.fieldPath ?? "schema"}`,
+    id: `${code}:${source}:${target.objectId ?? target.flowId ?? target.actionId ?? target.nodeId ?? target.edgeId ?? target.parameterId ?? target.collectionId ?? "schema"}:${target.fieldPath ?? "root"}`,
     code,
     message,
     severity,
+    source,
     ...target
   };
 }

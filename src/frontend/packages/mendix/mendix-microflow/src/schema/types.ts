@@ -504,12 +504,18 @@ export type MicroflowDataType =
   | { kind: "unknown"; reason?: string };
 
 export interface MicroflowExpressionDiagnostic {
+  id?: string;
   severity: "error" | "warning" | "info";
+  code?: string;
   message: string;
   range?: {
     start: number;
     end: number;
   };
+  variableName?: string;
+  memberName?: string;
+  expectedType?: MicroflowDataType;
+  actualType?: MicroflowDataType;
 }
 
 export interface MicroflowPoint {
@@ -1078,28 +1084,81 @@ export interface MicroflowExposureConfig {
   };
 }
 
+export type MicroflowVariableVisibility = "definite" | "maybe" | "unavailable";
+
+export type MicroflowVariableKind =
+  | "parameter"
+  | "localVariable"
+  | "objectOutput"
+  | "listOutput"
+  | "primitiveOutput"
+  | "loopIterator"
+  | "system"
+  | "errorContext"
+  | "restResponse"
+  | "soapFault"
+  | "microflowReturn";
+
+export type MicroflowVariableSource =
+  | { kind: "parameter"; parameterId: string }
+  | { kind: "actionOutput"; objectId: string; actionId: string; actionKind?: MicroflowActionKind }
+  | { kind: "createVariable"; objectId: string; actionId: string }
+  | { kind: "localVariable"; objectId: string; actionId: string }
+  | { kind: "loopIterator"; loopObjectId: string }
+  | { kind: "system"; name: "$currentUser" | "$currentIndex" }
+  | { kind: "errorContext"; flowId: string; sourceObjectId?: string; errorVariable?: "$latestError" | "$latestHttpResponse" | "$latestSoapFault" }
+  | { kind: "microflowReturn"; objectId: string; targetMicroflowId: string }
+  | { kind: "restResponse"; objectId: string; responseKind: "string" | "json" | "importMapping" | "statusCode" | "headers" };
+
+export interface MicroflowVariableScope {
+  kind?: "global" | "objectCollection" | "downstream" | "loop" | "errorHandler" | "branch";
+  collectionId: string;
+  startObjectId?: string;
+  endObjectId?: string;
+  loopObjectId?: string;
+  errorHandlerFlowId?: string;
+  branchSourceObjectId?: string;
+  branchFlowId?: string;
+}
+
+export interface MicroflowVariableDiagnostic {
+  id: string;
+  severity: "error" | "warning" | "info";
+  code: string;
+  message: string;
+  objectId?: string;
+  actionId?: string;
+  flowId?: string;
+  fieldPath?: string;
+  variableName?: string;
+}
+
 export interface MicroflowVariableSymbol {
+  id?: string;
   name: string;
+  displayName?: string;
+  kind?: MicroflowVariableKind;
   dataType: MicroflowDataType;
   type?: MicroflowTypeRef;
-  source:
-    | { kind: "parameter"; parameterId: string }
-    | { kind: "actionOutput"; objectId: string; actionId: string }
-    | { kind: "localVariable"; objectId: string; actionId: string }
-    | { kind: "loopIterator"; loopObjectId: string }
-    | { kind: "errorContext"; flowId: string }
-    | { kind: "system"; name: "$currentUser" | "$currentIndex" };
-  scope: {
-    collectionId: string;
-    startObjectId?: string;
-    endObjectId?: string;
-    errorHandlerFlowId?: string;
-    loopObjectId?: string;
-  };
+  source: MicroflowVariableSource;
+  scope: MicroflowVariableScope;
+  visibility?: MicroflowVariableVisibility;
   readonly: boolean;
+  availableFromObjectId?: string;
+  availableInObjectIds?: string[];
+  unavailableReason?: string;
+  documentation?: string;
 }
 
 export interface MicroflowVariableIndex {
+  schemaId?: string;
+  builtAt?: string;
+  all?: MicroflowVariableSymbol[];
+  byName?: Record<string, MicroflowVariableSymbol[]>;
+  byObjectId?: Record<string, MicroflowVariableSymbol[]>;
+  byActionId?: Record<string, MicroflowVariableSymbol[]>;
+  byScopeKey?: Record<string, MicroflowVariableSymbol[]>;
+  diagnostics?: MicroflowVariableDiagnostic[];
   parameters: Record<string, MicroflowVariableSymbol>;
   localVariables: Record<string, MicroflowVariableSymbol>;
   objectOutputs: Record<string, MicroflowVariableSymbol>;
@@ -1500,9 +1559,15 @@ export interface MicroflowValidationIssue {
   objectId?: string;
   flowId?: string;
   actionId?: string;
+  parameterId?: string;
+  collectionId?: string;
   fieldPath?: string;
   code: string;
+  source?: "root" | "objectCollection" | "flow" | "event" | "decision" | "loop" | "action" | "metadata" | "variable" | "expression" | "errorHandling" | "reachability";
   quickFixes?: MicroflowQuickFix[];
+  relatedObjectIds?: string[];
+  relatedFlowIds?: string[];
+  details?: string;
 }
 
 export interface MicroflowQuickFix {
@@ -1510,6 +1575,8 @@ export interface MicroflowQuickFix {
   title: string;
   description?: string;
   fieldPath?: string;
+  kind?: "selectObject" | "selectFlow" | "openProperty" | "setField" | "createMissingFlow" | "removeFlow" | "removeObject" | "renameVariable";
+  payload?: unknown;
 }
 
 export interface MicroflowRuntimeNodeDto {

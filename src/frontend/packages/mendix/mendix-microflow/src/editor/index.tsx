@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
-import { Badge, Button, Card, Empty, Modal, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Badge, Button, Card, Empty, Input, Modal, Select, Space, Tabs, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import {
   IconChevronDown,
   IconCopy,
@@ -780,12 +780,71 @@ function LegacyHtmlMicroflowCanvas({
 }
 
 function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]; onSelect: (issue: MicroflowValidationIssue) => void }) {
-  if (issues.length === 0) {
-    return <Empty title="No problems" description="Schema validation passed." />;
-  }
+  const [severityFilter, setSeverityFilter] = useState<"all" | MicroflowValidationIssue["severity"]>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [keyword, setKeyword] = useState("");
+  const summary = useMemo(() => ({
+    errors: issues.filter(issue => issue.severity === "error").length,
+    warnings: issues.filter(issue => issue.severity === "warning").length,
+    infos: issues.filter(issue => issue.severity === "info").length,
+  }), [issues]);
+  const sources = useMemo(() => [...new Set(issues.map(issue => issue.source).filter(Boolean))] as string[], [issues]);
+  const filteredIssues = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    return issues.filter(issue => {
+      const severityMatched = severityFilter === "all" || issue.severity === severityFilter;
+      const sourceMatched = sourceFilter === "all" || issue.source === sourceFilter;
+      const keywordMatched = !normalizedKeyword ||
+        issue.code.toLowerCase().includes(normalizedKeyword) ||
+        issue.message.toLowerCase().includes(normalizedKeyword) ||
+        (issue.fieldPath ?? "").toLowerCase().includes(normalizedKeyword);
+      return severityMatched && sourceMatched && keywordMatched;
+    });
+  }, [issues, keyword, severityFilter, sourceFilter]);
+
   return (
-    <Space vertical align="start" style={{ width: "100%" }}>
-      {issues.map(issue => (
+    <Space vertical align="start" spacing={10} style={{ width: "100%" }}>
+      <Space style={{ width: "100%", justifyContent: "space-between", flexWrap: "wrap" }}>
+        <Space>
+          <Tag color={summary.errors > 0 ? "red" : "green"}>{summary.errors} errors</Tag>
+          <Tag color={summary.warnings > 0 ? "orange" : "grey"}>{summary.warnings} warnings</Tag>
+          <Tag color={summary.infos > 0 ? "blue" : "grey"}>{summary.infos} info</Tag>
+        </Space>
+        <Space>
+          <Input
+            size="small"
+            placeholder="Search code or message"
+            value={keyword}
+            onChange={setKeyword}
+            style={{ width: 220 }}
+          />
+          <Select
+            size="small"
+            value={severityFilter}
+            onChange={value => setSeverityFilter(value as "all" | MicroflowValidationIssue["severity"])}
+            style={{ width: 120 }}
+            optionList={[
+              { label: "All", value: "all" },
+              { label: "Errors", value: "error" },
+              { label: "Warnings", value: "warning" },
+              { label: "Info", value: "info" },
+            ]}
+          />
+          <Select
+            size="small"
+            value={sourceFilter}
+            onChange={value => setSourceFilter(String(value))}
+            style={{ width: 150 }}
+            optionList={[
+              { label: "All sources", value: "all" },
+              ...sources.map(source => ({ label: source, value: source })),
+            ]}
+          />
+        </Space>
+      </Space>
+      {issues.length === 0 ? <Empty title="No problems" description="Schema validation passed." /> : null}
+      {issues.length > 0 && filteredIssues.length === 0 ? <Empty title="No matching problems" description="Adjust filters to see validation issues." /> : null}
+      {filteredIssues.map(issue => (
         <div key={issue.id} role="button" tabIndex={0} onClick={() => onSelect(issue)} onKeyDown={event => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
@@ -799,7 +858,9 @@ function ProblemPanel({ issues, onSelect }: { issues: MicroflowValidationIssue[]
                 <br />
                 <Text size="small" type="secondary">{issue.message}</Text>
                 <br />
-                <Text size="small" type="tertiary">{issue.fieldPath ?? issue.objectId ?? issue.flowId ?? issue.actionId}</Text>
+                <Text size="small" type="tertiary">
+                  {[issue.source, issue.objectId ?? issue.flowId ?? issue.actionId, issue.fieldPath].filter(Boolean).join(" · ")}
+                </Text>
               </div>
               <Tag color={issue.severity === "error" ? "red" : issue.severity === "warning" ? "orange" : "blue"}>{issue.severity}</Tag>
             </Space>
@@ -952,6 +1013,8 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   };
 
   const handleSave = async () => {
+    const validation = validateMicroflowSchema({ schema, options: { mode: "save", includeWarnings: true } });
+    setIssues(validation.issues);
     setSaving(true);
     try {
       const response = await apiClient.saveMicroflow({ schema });
@@ -964,6 +1027,8 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   };
 
   const handleValidate = async () => {
+    const localValidation = validateMicroflowSchema({ schema, options: { mode: "edit", includeWarnings: true, includeInfo: true } });
+    setIssues(localValidation.issues);
     const response = await apiClient.validateMicroflow({ schema });
     setIssues(response.issues);
     props.onValidateComplete?.(response);
@@ -971,6 +1036,14 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   };
 
   const handleTestRun = async () => {
+    const validation = validateMicroflowSchema({ schema, options: { mode: "testRun", includeWarnings: true } });
+    setIssues(validation.issues);
+    if (validation.summary.errorCount > 0) {
+      setBottomOpen(true);
+      setBottomTab("problems");
+      Toast.error(`Test run blocked by ${validation.summary.errorCount} validation error(s).`);
+      return;
+    }
     setRunning(true);
     try {
       const response = await apiClient.testRunMicroflow({ microflowId: schema.id, input: {}, schema });
@@ -1231,7 +1304,12 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
               <div style={{ overflow: "auto", maxHeight: BOTTOM_PANEL_EXPANDED_PX - 56 }}>
                 <ProblemPanel
                   issues={issues}
-                  onSelect={issue => applyPatch({ selectedObjectId: issue.objectId, selectedFlowId: issue.flowId }, false)}
+                  onSelect={issue => {
+                    const selectedFlowId = issue.flowId ?? issue.edgeId;
+                    const selectedObjectId = selectedFlowId ? undefined : issue.objectId ?? issue.nodeId;
+                    setRightOpen(true);
+                    applyPatch({ selectedObjectId, selectedFlowId }, false);
+                  }}
                 />
               </div>
             </Tabs.TabPane>

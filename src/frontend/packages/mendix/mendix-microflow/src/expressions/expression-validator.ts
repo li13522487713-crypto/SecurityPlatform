@@ -1,65 +1,188 @@
-import type { MicroflowMetadataCatalog } from "../metadata";
-import { findEntity, mockMicroflowMetadataCatalog } from "../metadata";
-import type { MicroflowDataType, MicroflowExpression, MicroflowValidationIssue } from "../schema/types";
-import type { MicroflowExpressionScopeContext } from "../variables";
-import { getVariablesForExpression, resolveVariableReference } from "../variables";
+import {
+  getAssociationByQualifiedName,
+  getAttributeByQualifiedName,
+  getEntityByQualifiedName,
+  mockMicroflowMetadataCatalog,
+  type MicroflowMetadataCatalog,
+} from "../metadata";
+import type { MicroflowDataType, MicroflowExpression, MicroflowSchema, MicroflowVariableIndex, MicroflowVariableSymbol } from "../schema/types";
+import { buildVariableIndex, resolveVariableReferenceFromIndex } from "../variables";
 import { parseExpressionReferences } from "./expression-reference-parser";
 import { inferExpressionType, sameMicroflowDataType } from "./expression-type-inference";
+import { expressionDiagnostic, type ExpressionDiagnostic, type ExpressionValidationResult } from "./expression-types";
 
-export function validateExpression(
-  schema: Parameters<typeof getVariablesForExpression>[0],
-  expression: MicroflowExpression | undefined,
-  context: MicroflowExpressionScopeContext & { expectedType?: MicroflowDataType },
-  metadata: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog
-): MicroflowValidationIssue[] {
-  const issues: MicroflowValidationIssue[] = [];
-  const references = parseExpressionReferences(expression);
-  const variables = getVariablesForExpression(schema, context, metadata);
-  for (const variableName of references.variables) {
-    const variable = resolveVariableReference(schema, context, variableName, metadata);
-    if (!variable) {
-      issues.push({
-        id: `MF_EXPRESSION_UNKNOWN_VARIABLE:${context.objectId}:${context.fieldPath ?? ""}:${variableName}`,
-        code: "MF_EXPRESSION_UNKNOWN_VARIABLE",
-        severity: "error",
-        message: `Variable "$${variableName}" is not available in this context.`,
-        objectId: context.objectId,
-        actionId: context.actionId,
-        fieldPath: context.fieldPath
-      });
-    }
+function rawExpression(expression: MicroflowExpression | string | undefined): string {
+  return typeof expression === "string" ? expression : expression?.raw ?? expression?.text ?? "";
+}
+
+function isSystemErrorVariable(name: string): boolean {
+  return name === "$latestError" || name === "$latestHttpResponse" || name === "$latestSoapFault";
+}
+
+function memberExists(variable: MicroflowVariableSymbol, memberName: string, metadata: MicroflowMetadataCatalog): boolean {
+  if (variable.dataType.kind !== "object") {
+    return false;
   }
-  for (const access of references.attributeAccesses) {
-    const variable = resolveVariableReference(schema, context, access.variableName, metadata);
-    if (!variable || variable.dataType.kind !== "object") {
+  const entity = getEntityByQualifiedName(metadata, variable.dataType.entityQualifiedName);
+  return Boolean(
+    entity?.attributes.some(attribute => attribute.name === memberName || attribute.qualifiedName.endsWith(`.${memberName}`)) ||
+    getAttributeByQualifiedName(metadata, `${variable.dataType.entityQualifiedName}.${memberName}`) ||
+    getAssociationByQualifiedName(metadata, `${variable.dataType.entityQualifiedName}_${memberName}`) ||
+    metadata.associations.some(association => association.name === memberName && (association.sourceEntityQualifiedName === variable.dataType.entityQualifiedName || association.targetEntityQualifiedName === variable.dataType.entityQualifiedName))
+  );
+}
+
+function typeMismatchSeverity(actual: MicroflowDataType, expected: MicroflowDataType): ExpressionDiagnostic["severity"] {
+  if (actual.kind === "unknown" || expected.kind === "unknown") {
+    return "warning";
+  }
+  return "error";
+}
+
+export function validateExpression(input: {
+  expression: MicroflowExpression | string | undefined;
+  schema: MicroflowSchema;
+  metadata?: MicroflowMetadataCatalog;
+  variableIndex?: MicroflowVariableIndex;
+  context: {
+    objectId?: string;
+    actionId?: string;
+    flowId?: string;
+    fieldPath?: string;
+    expectedType?: MicroflowDataType;
+    required?: boolean;
+    allowMaybeVariables?: boolean;
+  };
+}): ExpressionValidationResult {
+  const metadata = input.metadata ?? mockMicroflowMetadataCatalog;
+  const variableIndex = input.variableIndex ?? buildVariableIndex(input.schema, metadata);
+  const raw = rawExpression(input.expression);
+  const parse = parseExpressionReferences(raw);
+  const diagnostics: ExpressionDiagnostic[] = [...parse.diagnostics];
+  if (input.context.required && !raw.trim()) {
+    diagnostics.push(expressionDiagnostic({
+      code: "MF_EXPR_REQUIRED",
+      message: "Expression is required.",
+      severity: "error",
+    }));
+  }
+  if (input.context.expectedType?.kind === "void" && raw.trim()) {
+    diagnostics.push(expressionDiagnostic({
+      code: "MF_EXPR_TYPE_MISMATCH",
+      message: "Void return does not accept an expression.",
+      severity: "error",
+      expectedType: input.context.expectedType,
+    }));
+  }
+  for (const reference of parse.references) {
+    if (reference.kind === "functionCall") {
       continue;
     }
-    const entity = findEntity(metadata, variable.dataType.entityQualifiedName);
-    if (entity && !entity.attributes.some(attribute => attribute.name === access.attributeName || attribute.qualifiedName.endsWith(`.${access.attributeName}`))) {
-      issues.push({
-        id: `MF_EXPRESSION_UNKNOWN_ATTRIBUTE:${context.objectId}:${access.variableName}/${access.attributeName}`,
-        code: "MF_EXPRESSION_UNKNOWN_ATTRIBUTE",
+    const variableName = reference.kind === "variable" ? reference.variableName : reference.variableName;
+    const variable = input.context.objectId
+      ? resolveVariableReferenceFromIndex(input.schema, variableIndex, { objectId: input.context.objectId, actionId: input.context.actionId, fieldPath: input.context.fieldPath }, variableName)
+      : null;
+    if (!variable) {
+      diagnostics.push(expressionDiagnostic({
+        code: "MF_EXPR_UNKNOWN_VARIABLE",
+        message: `Variable "$${variableName}" is not available in this context.`,
         severity: "error",
-        message: `Attribute "${access.attributeName}" does not exist on ${variable.dataType.entityQualifiedName}.`,
-        objectId: context.objectId,
-        actionId: context.actionId,
-        fieldPath: context.fieldPath
-      });
+        range: reference.range,
+        variableName,
+      }));
+      continue;
+    }
+    if (variable.visibility === "maybe" && !input.context.allowMaybeVariables) {
+      diagnostics.push(expressionDiagnostic({
+        code: "MF_EXPR_MAYBE_VARIABLE",
+        message: `Variable "$${variableName}" may not be assigned on every incoming path.`,
+        severity: "warning",
+        range: reference.range,
+        variableName,
+      }));
+    }
+    if (variable.name === "$currentIndex" && variable.scope.kind !== "loop") {
+      diagnostics.push(expressionDiagnostic({
+        code: "MF_EXPR_LOOP_VARIABLE_OUT_OF_SCOPE",
+        message: "$currentIndex is only valid inside Loop scope.",
+        severity: "error",
+        range: reference.range,
+        variableName,
+      }));
+    }
+    if (isSystemErrorVariable(variable.name) && variable.scope.kind !== "errorHandler") {
+      diagnostics.push(expressionDiagnostic({
+        code: "MF_EXPR_ERROR_VARIABLE_OUT_OF_SCOPE",
+        message: `${variable.name} is only valid inside error handler scope.`,
+        severity: "error",
+        range: reference.range,
+        variableName,
+      }));
+    }
+    if (reference.kind === "memberAccess") {
+      if (variable.dataType.kind === "list") {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_INVALID_MEMBER_ACCESS",
+          message: "List variables cannot access attributes directly. Use a loop or list operation first.",
+          severity: "warning",
+          range: reference.range,
+          variableName,
+          memberName: reference.memberName,
+        }));
+      } else if (variable.dataType.kind !== "object") {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_INVALID_MEMBER_ACCESS",
+          message: `Variable "$${variableName}" is not an object and cannot access members.`,
+          severity: "error",
+          range: reference.range,
+          variableName,
+          memberName: reference.memberName,
+        }));
+      } else if (!getEntityByQualifiedName(metadata, variable.dataType.entityQualifiedName)) {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_ENTITY_NOT_FOUND",
+          message: `Entity "${variable.dataType.entityQualifiedName}" is not found in metadata.`,
+          severity: "error",
+          range: reference.range,
+          variableName,
+          memberName: reference.memberName,
+        }));
+      } else if (!memberExists(variable, reference.memberName, metadata)) {
+        diagnostics.push(expressionDiagnostic({
+          code: "MF_EXPR_MEMBER_NOT_FOUND",
+          message: `Member "${reference.memberName}" does not exist on ${variable.dataType.entityQualifiedName}.`,
+          severity: "error",
+          range: reference.range,
+          variableName,
+          memberName: reference.memberName,
+        }));
+      }
     }
   }
-  if (context.expectedType) {
-    const inferred = inferExpressionType(expression, variables);
-    if (!sameMicroflowDataType(inferred, context.expectedType)) {
-      issues.push({
-        id: `MF_EXPRESSION_TYPE_MISMATCH:${context.objectId}:${context.fieldPath ?? ""}`,
-        code: "MF_EXPRESSION_TYPE_MISMATCH",
-        severity: "error",
-        message: `Expression type does not match expected ${context.expectedType.kind}.`,
-        objectId: context.objectId,
-        actionId: context.actionId,
-        fieldPath: context.fieldPath
-      });
-    }
+  const inference = inferExpressionType({
+    expression: input.expression,
+    schema: input.schema,
+    metadata,
+    variableIndex,
+    objectId: input.context.objectId,
+    actionId: input.context.actionId,
+    fieldPath: input.context.fieldPath,
+    expectedType: input.context.expectedType,
+  });
+  diagnostics.push(...inference.diagnostics);
+  if (input.context.expectedType && raw.trim() && !sameMicroflowDataType(inference.inferredType, input.context.expectedType)) {
+    diagnostics.push(expressionDiagnostic({
+      code: "MF_EXPR_TYPE_MISMATCH",
+      message: `Expression type "${inference.inferredType.kind}" does not match expected "${input.context.expectedType.kind}".`,
+      severity: typeMismatchSeverity(inference.inferredType, input.context.expectedType),
+      expectedType: input.context.expectedType,
+      actualType: inference.inferredType,
+    }));
   }
-  return issues;
+  return {
+    references: parse.references,
+    diagnostics,
+    inferredType: inference.inferredType,
+    confidence: inference.confidence,
+  };
 }

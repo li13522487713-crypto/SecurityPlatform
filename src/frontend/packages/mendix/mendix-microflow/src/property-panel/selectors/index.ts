@@ -6,4 +6,6 @@ export * from "./EnumerationSelector";
 export * from "./MicroflowSelector";
 export * from "./PageSelector";
 export * from "./SelectorOptionLabel";
+export * from "./VariableOptionLabel";
+export * from "./VariableSelector";
 export * from "./WorkflowSelector";
