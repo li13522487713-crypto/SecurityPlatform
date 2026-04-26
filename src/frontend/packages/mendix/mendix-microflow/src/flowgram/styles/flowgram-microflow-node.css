@@ -18,6 +18,16 @@
   opacity: 0.55;
 }
 
+.microflow-flowgram-node.is-error {
+  border-color: #d73135;
+  box-shadow: 0 0 0 2px rgba(215, 49, 53, 0.14), 0 8px 24px rgba(31, 35, 41, 0.08);
+}
+
+.microflow-flowgram-node.is-warning {
+  border-color: #f77234;
+  box-shadow: 0 0 0 2px rgba(247, 114, 52, 0.14), 0 8px 24px rgba(31, 35, 41, 0.08);
+}
+
 .microflow-flowgram-node--start {
   border-left: 4px solid #00a870;
 }
@@ -37,6 +47,9 @@
 
 .microflow-flowgram-node--loop {
   border-left: 4px solid #722ed1;
+  min-width: 360px;
+  min-height: 220px;
+  background: linear-gradient(180deg, rgba(114, 46, 209, 0.06), #fff 42px);
 }
 
 .microflow-flowgram-node__header {
@@ -71,10 +84,18 @@
 
 .microflow-flowgram-node__loop-body {
   margin-top: 10px;
-  padding: 8px;
+  min-height: 112px;
+  padding: 10px;
   border: 1px dashed rgba(114, 46, 209, 0.28);
   border-radius: 6px;
   background: rgba(114, 46, 209, 0.04);
+}
+
+.microflow-flowgram-node__loop-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 .microflow-flowgram-node__loop-stats {

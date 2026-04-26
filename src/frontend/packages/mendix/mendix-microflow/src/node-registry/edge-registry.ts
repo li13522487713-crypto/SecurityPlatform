@@ -7,6 +7,7 @@ import type {
   MicroflowSchema,
   MicroflowValidationIssue
 } from "../schema/types";
+import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { objectLocationMap } from "../validators/shared";
 
 export type MicroflowFlowRegistryKind = "sequence" | "annotation";
@@ -252,15 +253,15 @@ function supportsErrorFlow(object: MicroflowObject): boolean {
 }
 
 function hasIncoming(schema: MicroflowSchema, port: MicroflowEditorPort): boolean {
-  return schema.flows.some(flow => flow.destinationObjectId === port.objectId && (flow.destinationConnectionIndex ?? 0) === port.connectionIndex);
+  return collectFlowsRecursive(schema).some(flow => flow.destinationObjectId === port.objectId && (flow.destinationConnectionIndex ?? 0) === port.connectionIndex);
 }
 
 function hasOutgoing(schema: MicroflowSchema, port: MicroflowEditorPort): boolean {
-  return schema.flows.some(flow => flow.originObjectId === port.objectId && (flow.originConnectionIndex ?? 0) === port.connectionIndex);
+  return collectFlowsRecursive(schema).some(flow => flow.originObjectId === port.objectId && (flow.originConnectionIndex ?? 0) === port.connectionIndex);
 }
 
 function hasDecisionCase(schema: MicroflowSchema, sourceObjectId: string, value: boolean): boolean {
-  return schema.flows.some(flow =>
+  return collectFlowsRecursive(schema).some(flow =>
     flow.kind === "sequence" &&
     flow.originObjectId === sourceObjectId &&
     flow.editor.edgeKind === "decisionCondition" &&
@@ -269,7 +270,7 @@ function hasDecisionCase(schema: MicroflowSchema, sourceObjectId: string, value:
 }
 
 function hasInheritanceCase(schema: MicroflowSchema, sourceObjectId: string, entityQualifiedName: string): boolean {
-  return schema.flows.some(flow =>
+  return collectFlowsRecursive(schema).some(flow =>
     flow.kind === "sequence" &&
     flow.originObjectId === sourceObjectId &&
     flow.editor.edgeKind === "objectTypeCondition" &&

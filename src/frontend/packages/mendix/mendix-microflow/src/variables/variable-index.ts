@@ -22,6 +22,7 @@ import type {
   MicroflowVariableSymbol,
   MicroflowVariableVisibility,
 } from "../schema/types";
+import { collectFlowsRecursive, findObjectWithCollection } from "../schema/utils/object-utils";
 
 const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -332,13 +333,14 @@ function addLoopVariables(index: MicroflowVariableIndex, object: Extract<Microfl
 
 function addErrorContextVariables(index: MicroflowVariableIndex, schema: MicroflowSchema, flow: MicroflowSequenceFlow): void {
   const sourceObject = flattenObjects(schema.objectCollection).find(item => item.object.id === flow.originObjectId)?.object;
+  const targetCollectionId = findObjectWithCollection(schema, flow.destinationObjectId)?.collectionId ?? schema.objectCollection.id;
   const addErrorVariable = (name: "$latestError" | "$latestHttpResponse" | "$latestSoapFault", dataType: MicroflowDataType, kind: MicroflowVariableKind) => {
     addSymbol(index, createSymbol({
       name,
       kind,
       dataType,
       source: { kind: "errorContext", flowId: flow.id, sourceObjectId: flow.originObjectId, errorVariable: name },
-      scope: { kind: "errorHandler", collectionId: schema.objectCollection.id, startObjectId: flow.destinationObjectId, errorHandlerFlowId: flow.id },
+      scope: { kind: "errorHandler", collectionId: targetCollectionId, startObjectId: flow.destinationObjectId, errorHandlerFlowId: flow.id },
       readonly: true,
     }));
   };
@@ -400,7 +402,7 @@ export function buildVariableIndex(schema: MicroflowSchema, metadata: MicroflowM
       addActionOutputs(index, object, collectionId, metadata);
     }
   }
-  for (const flow of schema.flows.filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && Boolean(item.isErrorHandler))) {
+  for (const flow of collectFlowsRecursive(schema).filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && Boolean(item.isErrorHandler))) {
     addErrorContextVariables(index, schema, flow);
   }
   finalizeDiagnostics(index);

@@ -8,6 +8,7 @@ import type {
   MicroflowObject,
   MicroflowSchema,
 } from "../../schema";
+import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 
 export type MicroflowCaseEditorKind = "boolean" | "enumeration" | "objectType";
 
@@ -126,7 +127,7 @@ function objectById(schema: MicroflowSchema, objectId: string | undefined): Micr
 
 function usedCaseKeys(schema: MicroflowSchema, sourceObjectId: string, currentFlowId?: string): Set<string> {
   return new Set(
-    schema.flows
+    collectFlowsRecursive(schema)
       .filter(flow => flow.kind === "sequence" && flow.id !== currentFlowId && flow.originObjectId === sourceObjectId && !flow.isErrorHandler)
       .flatMap(flow => (flow.caseValues ?? []).map(caseValueKey)),
   );

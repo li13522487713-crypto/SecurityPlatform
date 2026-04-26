@@ -21,6 +21,13 @@ import type {
   MicroflowSequenceFlow,
   MicroflowSize
 } from "../schema/types";
+import {
+  addFlowToCollection,
+  collectFlowsRecursive,
+  findFlowWithCollection,
+  findObjectWithCollection,
+  removeFlowFromCollection,
+} from "../schema/utils/object-utils";
 import { emptyVariableIndex, flattenObjectCollection, toEditorGraph } from "./microflow-adapters";
 
 function clone<T>(value: T): T {
@@ -64,6 +71,16 @@ function removeObjectFromCollection(collection: MicroflowObjectCollection, objec
       .map(object => object.kind === "loopedActivity"
         ? { ...object, objectCollection: removeObjectFromCollection(object.objectCollection, objectId) }
         : object)
+  };
+}
+
+function removeFlowsFromCollection(collection: MicroflowObjectCollection, removedObjectIds: Set<string>): MicroflowObjectCollection {
+  return {
+    ...collection,
+    flows: collection.flows?.filter(flow => !removedObjectIds.has(flow.originObjectId) && !removedObjectIds.has(flow.destinationObjectId)),
+    objects: collection.objects.map(object => object.kind === "loopedActivity"
+      ? { ...object, objectCollection: removeFlowsFromCollection(object.objectCollection, removedObjectIds) }
+      : object),
   };
 }
 
@@ -136,12 +153,16 @@ export function updateObject(schema: MicroflowSchema, objectId: string, mapper: 
 export function deleteObject(schema: MicroflowSchema, objectId: string): MicroflowSchema {
   const removedObjectIds = collectObjectAndDescendantIds(schema.objectCollection, objectId);
   const flows = schema.flows.filter(flow => !removedObjectIds.has(flow.originObjectId) && !removedObjectIds.has(flow.destinationObjectId));
+  const objectCollection = removeFlowsFromCollection(
+    removeObjectFromCollection(schema.objectCollection, objectId),
+    removedObjectIds,
+  );
   const selectedFlowStillExists = schema.editor.selection.flowId
-    ? flows.some(flow => flow.id === schema.editor.selection.flowId)
+    ? [...flows, ...collectFlowsRecursive({ ...schema, flows, objectCollection })].some(flow => flow.id === schema.editor.selection.flowId)
     : false;
   return refreshDerivedState({
     ...schema,
-    objectCollection: removeObjectFromCollection(schema.objectCollection, objectId),
+    objectCollection,
     flows,
     editor: {
       ...schema.editor,
@@ -177,10 +198,20 @@ export function resizeObject(schema: MicroflowSchema, objectId: string, size: Mi
 }
 
 export function addFlow(schema: MicroflowSchema, flow: MicroflowFlow): MicroflowSchema {
-  return refreshDerivedState({ ...schema, flows: [...schema.flows, flow] });
+  const sourceLocation = findObjectWithCollection(schema, flow.originObjectId);
+  const targetLocation = findObjectWithCollection(schema, flow.destinationObjectId);
+  const collectionId = sourceLocation && targetLocation && sourceLocation.collectionId === targetLocation.collectionId
+    ? sourceLocation.collectionId
+    : schema.objectCollection.id;
+  return refreshDerivedState(addFlowToCollection(schema, collectionId, flow));
 }
 
 export function updateFlow(schema: MicroflowSchema, flowId: string, mapper: (flow: MicroflowFlow) => MicroflowFlow): MicroflowSchema {
+  const location = findFlowWithCollection(schema, flowId);
+  if (location && location.collectionId !== schema.objectCollection.id) {
+    const withoutFlow = removeFlowFromCollection(schema, location.collectionId, flowId);
+    return refreshDerivedState(addFlowToCollection(withoutFlow, location.collectionId, mapper(location.flow)));
+  }
   return refreshDerivedState({
     ...schema,
     flows: schema.flows.map(flow => flow.id === flowId ? mapper(flow) : flow)
@@ -188,6 +219,19 @@ export function updateFlow(schema: MicroflowSchema, flowId: string, mapper: (flo
 }
 
 export function deleteFlow(schema: MicroflowSchema, flowId: string): MicroflowSchema {
+  const location = findFlowWithCollection(schema, flowId);
+  if (location && location.collectionId !== schema.objectCollection.id) {
+    return refreshDerivedState({
+      ...removeFlowFromCollection(schema, location.collectionId, flowId),
+      editor: {
+        ...schema.editor,
+        selection: {
+          ...schema.editor.selection,
+          flowId: schema.editor.selection.flowId === flowId ? undefined : schema.editor.selection.flowId
+        }
+      }
+    });
+  }
   return refreshDerivedState({
     ...schema,
     flows: schema.flows.filter(flow => flow.id !== flowId),
@@ -202,7 +246,7 @@ export function deleteFlow(schema: MicroflowSchema, flowId: string): MicroflowSc
 }
 
 export function splitFlowWithObject(schema: MicroflowSchema, flowId: string, object: MicroflowObject): MicroflowSchema {
-  const flow = schema.flows.find(item => item.id === flowId);
+  const flow = collectFlowsRecursive(schema).find(item => item.id === flowId);
   if (!flow || flow.kind !== "sequence") {
     return addObject(schema, object);
   }
@@ -309,7 +353,8 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       objectCollection: {
         id: `${id}-collection`,
         officialType: "Microflows$MicroflowObjectCollection",
-        objects: []
+        objects: [],
+        flows: []
       }
     };
   }
@@ -571,7 +616,8 @@ export function applyEditorGraphPatchToAuthoring(schema: MicroflowSchema, patch:
   }
   const hasSelectedObject = Object.prototype.hasOwnProperty.call(patch, "selectedObjectId");
   const hasSelectedFlow = Object.prototype.hasOwnProperty.call(patch, "selectedFlowId");
-  if (patch.viewport || hasSelectedObject || hasSelectedFlow) {
+  const hasSelectedCollection = Object.prototype.hasOwnProperty.call(patch, "selectedCollectionId");
+  if (patch.viewport || hasSelectedObject || hasSelectedFlow || hasSelectedCollection) {
     next = {
       ...next,
       editor: {
@@ -579,8 +625,10 @@ export function applyEditorGraphPatchToAuthoring(schema: MicroflowSchema, patch:
         viewport: patch.viewport ?? next.editor.viewport,
         selection: {
           objectId: hasSelectedObject ? patch.selectedObjectId : next.editor.selection.objectId,
-          flowId: hasSelectedFlow ? patch.selectedFlowId : next.editor.selection.flowId
-        }
+          flowId: hasSelectedFlow ? patch.selectedFlowId : next.editor.selection.flowId,
+          collectionId: hasSelectedCollection ? patch.selectedCollectionId : next.editor.selection.collectionId
+        },
+        selectedCollectionId: hasSelectedCollection ? patch.selectedCollectionId : next.editor.selectedCollectionId
       }
     };
   }
@@ -683,7 +731,7 @@ function rebuildVariableIndex(schema: MicroflowSchema) {
       }
     }
   }
-  for (const flow of schema.flows.filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && item.isErrorHandler)) {
+  for (const flow of collectFlowsRecursive(schema).filter((item): item is MicroflowSequenceFlow => item.kind === "sequence" && item.isErrorHandler)) {
     for (const name of ["$latestError", "$latestHttpResponse", "$latestSoapFault"] as const) {
       index.errorVariables[name] = {
         name,

@@ -1,8 +1,10 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { flattenObjects, issue } from "./shared";
 
 export function validateReachability(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const objects = flattenObjects(schema.objectCollection).map(item => item.object);
+  const flows = collectFlowsRecursive(schema);
   const start = objects.find(object => object.kind === "startEvent");
   if (!start) {
     return [];
@@ -15,7 +17,7 @@ export function validateReachability(schema: MicroflowSchema): MicroflowValidati
       continue;
     }
     visited.add(current);
-    for (const flow of schema.flows.filter(item => item.kind === "sequence" && item.originObjectId === current && !item.isErrorHandler)) {
+    for (const flow of flows.filter(item => item.kind === "sequence" && item.originObjectId === current && !item.isErrorHandler)) {
       queue.push(flow.destinationObjectId);
     }
   }
@@ -29,7 +31,7 @@ export function validateReachability(schema: MicroflowSchema): MicroflowValidati
       .map(object => object.id)
   );
   const outgoingByOrigin = new Map<string, string[]>();
-  for (const flow of schema.flows.filter(item => item.kind === "sequence")) {
+  for (const flow of flows.filter(item => item.kind === "sequence")) {
     outgoingByOrigin.set(flow.originObjectId, [...(outgoingByOrigin.get(flow.originObjectId) ?? []), flow.destinationObjectId]);
   }
   const canReachTerminal = new Map<string, boolean>();

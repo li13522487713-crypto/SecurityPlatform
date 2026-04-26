@@ -991,6 +991,7 @@ export interface MicroflowObjectCollection {
   id: string;
   officialType: "Microflows$MicroflowObjectCollection";
   objects: MicroflowObject[];
+  flows?: MicroflowFlow[];
 }
 
 export type MicroflowCaseValue =
@@ -1186,6 +1187,7 @@ export interface MicroflowEditorState {
   zoom: number;
   selectedObjectId?: string;
   selectedFlowId?: string;
+  selectedCollectionId?: string;
   activeBottomPanel?: "problems" | "debug" | "variables" | "none";
   leftPanelCollapsed?: boolean;
   rightPanelCollapsed?: boolean;
@@ -1195,6 +1197,7 @@ export interface MicroflowEditorState {
   selection: {
     objectId?: string;
     flowId?: string;
+    collectionId?: string;
   };
   layoutMode?: "freeform" | "auto";
 }
@@ -1354,6 +1357,7 @@ export interface MicroflowEditorGraphPatch {
   resizedNodes?: Array<{ objectId: string; size: MicroflowSize }>;
   selectedObjectId?: string;
   selectedFlowId?: string;
+  selectedCollectionId?: string;
   viewport?: MicroflowEditorGraph["viewport"];
   updatedFlows?: Array<{ flowId: string; label?: string; line?: MicroflowLine }>;
   addObject?: { object: MicroflowObject; parentLoopObjectId?: string };

@@ -46,6 +46,7 @@ import { canConnectPorts, inferEdgeKindFromPorts, type MicroflowEditorEdgeKind }
 import { FlowGramMicroflowCanvas } from "../flowgram";
 import { MicroflowMetadataProvider } from "../metadata";
 import { validateMicroflowSchema } from "../schema/validator";
+import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import type {
   MicroflowCaseValue,
   MicroflowEditorEdge,
@@ -232,15 +233,31 @@ function snapCanvasPoint(point: { x: number; y: number }, gridSize = 12) {
   };
 }
 
+function nodeDepth(graph: MicroflowEditorGraph, node: MicroflowEditorNode): number {
+  let depth = 0;
+  let parentId = node.parentObjectId;
+  while (parentId) {
+    const parent = graph.nodes.find(item => item.objectId === parentId);
+    parentId = parent?.parentObjectId;
+    depth += 1;
+  }
+  return depth;
+}
+
 function findLoopAtPosition(graph: MicroflowEditorGraph, position: { x: number; y: number }): string | undefined {
-  return graph.nodes.find(node => {
+  return graph.nodes
+    .filter(node => {
     if (node.nodeKind !== "loopedActivity") {
       return false;
     }
-    const width = node.size.width + 280;
-    const height = node.size.height + 190;
-    return position.x >= node.position.x && position.x <= node.position.x + width && position.y >= node.position.y && position.y <= node.position.y + height;
-  })?.objectId;
+    const width = Math.max(node.size.width, 360);
+    const height = Math.max(node.size.height, 220);
+    const left = node.position.x - width / 2;
+    const top = node.position.y - height / 2;
+    const headerHeight = 64;
+    return position.x >= left && position.x <= left + width && position.y >= top + headerHeight && position.y <= top + height;
+  })
+    .sort((a, b) => nodeDepth(graph, b) - nodeDepth(graph, a))[0]?.objectId;
 }
 
 function collectVariables(schema: MicroflowSchema) {
@@ -278,7 +295,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
     });
   }
   if (source.kind === "exclusiveSplit") {
-    const existing = schema.flows.filter(
+    const existing = collectFlowsRecursive(schema).filter(
       (flow): flow is Extract<MicroflowFlow, { kind: "sequence" }> =>
         flow.kind === "sequence" && flow.originObjectId === source.id && !flow.isErrorHandler
     );
@@ -316,7 +333,7 @@ function createFlowForConnection(schema: MicroflowSchema, sourceObjectId: string
     });
   }
   if (source.kind === "inheritanceSplit") {
-    const existingCases = schema.flows
+    const existingCases = collectFlowsRecursive(schema)
       .filter((flow): flow is Extract<MicroflowFlow, { kind: "sequence" }> => flow.kind === "sequence" && flow.originObjectId === source.id && !flow.isErrorHandler)
       .flatMap(flow => flow.caseValues)
       .filter(caseValue => caseValue.kind === "inheritance")
@@ -942,7 +959,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
 
   const graph = useMemo(() => toEditorGraph({ ...schema, validation: { issues } }), [schema, issues]);
   const selectedObject = schema.editor.selection.objectId ? findObject(schema, schema.editor.selection.objectId) ?? null : null;
-  const selectedFlow = schema.editor.selection.flowId ? schema.flows.find(flow => flow.id === schema.editor.selection.flowId) ?? null : null;
+  const selectedFlow = schema.editor.selection.flowId ? findFlowWithCollection(schema, schema.editor.selection.flowId)?.flow ?? null : null;
 
   const commitSchema = (next: MicroflowSchema, markDirty = true) => {
     const refreshed = refreshDerivedState(next);
@@ -975,6 +992,13 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
   ) => {
     const position = options?.position ?? quickAddPosition();
     const parentLoopObjectId = findLoopAtPosition(graph, position);
+    const parentLoopNode = parentLoopObjectId ? graph.nodes.find(node => node.objectId === parentLoopObjectId) : undefined;
+    const authoringPosition = parentLoopNode
+      ? {
+          x: Math.max(24, position.x - parentLoopNode.position.x),
+          y: Math.max(24, position.y - parentLoopNode.position.y - 76),
+        }
+      : position;
     const eventType = String(item.type) === "event" ? (item.defaultConfig as { eventType?: string }).eventType : undefined;
     if (eventType && ["start", "end"].includes(eventType) && parentLoopObjectId) {
       Toast.warning("Start / End events cannot be placed inside Loop.");
@@ -986,8 +1010,8 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
     }
     const payload = options?.payload ?? createDragPayloadFromRegistryItem(item);
     if (options?.insertFlowId) {
-      const object = createObjectFromRegistry(item, position);
-      const flow = schema.flows.find(item => item.id === options.insertFlowId);
+      const object = createObjectFromRegistry(item, authoringPosition);
+      const flow = collectFlowsRecursive(schema).find(item => item.id === options.insertFlowId);
       if (flow?.kind === "annotation") {
         Toast.warning("AnnotationFlow 暂不支持插入节点");
         return;
@@ -1001,7 +1025,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
       });
       return;
     }
-    const result = addMicroflowObjectFromDragPayload({ schema, payload, position, parentLoopObjectId });
+    const result = addMicroflowObjectFromDragPayload({ schema, payload, position: authoringPosition, parentLoopObjectId });
     if (result.blockedReason) {
       Toast.warning(result.blockedReason);
       return;
@@ -1182,7 +1206,8 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           onSelectionChange={selection => {
             applyPatch({
               selectedObjectId: selection.objectId,
-              selectedFlowId: selection.flowId
+              selectedFlowId: selection.flowId,
+              selectedCollectionId: selection.collectionId
             }, false);
           }}
           onDropRegistryItem={(item, position, payload) => handleAddNode(item, { position, payload, source: "drop" })}
@@ -1307,8 +1332,13 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
                   onSelect={issue => {
                     const selectedFlowId = issue.flowId ?? issue.edgeId;
                     const selectedObjectId = selectedFlowId ? undefined : issue.objectId ?? issue.nodeId;
+                    const selectedCollectionId = selectedFlowId
+                      ? findFlowWithCollection(schema, selectedFlowId)?.collectionId
+                      : selectedObjectId
+                        ? findObjectWithCollection(schema, selectedObjectId)?.collectionId
+                        : issue.collectionId;
                     setRightOpen(true);
-                    applyPatch({ selectedObjectId, selectedFlowId }, false);
+                    applyPatch({ selectedObjectId, selectedFlowId, selectedCollectionId }, false);
                   }}
                 />
               </div>

@@ -8,6 +8,7 @@ import type {
   MicroflowSchema,
   MicroflowSize,
 } from "../../schema";
+import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import type { FlowGramMicroflowSelection } from "../FlowGramMicroflowTypes";
 import { createMicroflowFlowFromPorts } from "./flowgram-edge-factory";
 
@@ -28,11 +29,18 @@ export function flowGramPositionPatch(schema: MicroflowSchema, json: WorkflowJSO
   const resizedNodes: NonNullable<MicroflowEditorGraphPatch["resizedNodes"]> = [];
   for (const node of json.nodes ?? []) {
     const previous = nodes.get(node.id);
-    const position = node.meta?.position;
+    const rawPosition = node.meta?.position;
     const size = (node.meta as { size?: MicroflowSize } | undefined)?.size;
     if (!previous) {
       continue;
     }
+    const parent = previous.parentObjectId ? nodes.get(previous.parentObjectId) : undefined;
+    const position = rawPosition && parent
+      ? {
+          x: rawPosition.x - parent.position.x,
+          y: rawPosition.y - parent.position.y - 76,
+        }
+      : rawPosition;
     if (position && (previous.position.x !== position.x || previous.position.y !== position.y)) {
       movedNodes.push({ objectId: node.id, position });
     }
@@ -50,6 +58,7 @@ export function flowGramSelectionPatch(selection: FlowGramMicroflowSelection): M
   return {
     selectedObjectId: selection.objectId,
     selectedFlowId: selection.flowId,
+    selectedCollectionId: selection.collectionId,
   };
 }
 
@@ -89,5 +98,5 @@ export function findDeletedFlowId(schema: MicroflowSchema, json: WorkflowJSON): 
       .map(edge => (edge as WorkflowEdgeJSON & { data?: { flowId?: string } }).data?.flowId)
       .filter((id): id is string => Boolean(id)),
   );
-  return schema.flows.find(flow => !flowIds.has(flow.id))?.id;
+  return collectFlowsRecursive(schema).find(flow => !flowIds.has(flow.id))?.id;
 }

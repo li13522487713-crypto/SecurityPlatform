@@ -163,6 +163,28 @@ function editorNodeIdToObjectId(editorNodeId: string): string {
   return editorNodeId.startsWith("node-") ? editorNodeId.slice(5) : editorNodeId;
 }
 
+export function getLoopContainerByClientPoint(
+  root: HTMLElement | null,
+  point: { x: number; y: number },
+): { loopObjectId: string; isBody: boolean } | undefined {
+  const element = root?.ownerDocument.elementFromPoint(point.x, point.y);
+  if (!(element instanceof HTMLElement)) {
+    return undefined;
+  }
+  const loopNode = element.closest<HTMLElement>(".microflow-flowgram-node--loop[data-microflow-object-id]");
+  if (!loopNode || !root?.contains(loopNode)) {
+    return undefined;
+  }
+  const loopObjectId = loopNode.dataset.microflowObjectId;
+  if (!loopObjectId) {
+    return undefined;
+  }
+  return {
+    loopObjectId,
+    isBody: Boolean(element.closest("[data-microflow-loop-body='true']")),
+  };
+}
+
 function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
   const playground = usePlayground();
   const selectService = useService<WorkflowSelectService>(WorkflowSelectService);
@@ -224,6 +246,11 @@ function FlowGramMicroflowCanvasInner(props: FlowGramMicroflowCanvasProps) {
     }
     if (!canDragRegistryItem(item)) {
       Toast.warning(getDisabledDragReason(item) ?? "This node cannot be added to Microflow.");
+      return;
+    }
+    const loopTarget = getLoopContainerByClientPoint(containerRef.current, { x: event.clientX, y: event.clientY });
+    if (loopTarget && !loopTarget.isBody) {
+      props.onSelectionChange({ objectId: loopTarget.loopObjectId, flowId: undefined });
       return;
     }
     props.onDropRegistryItem?.(item, dropPointFromEvent(event), payload);

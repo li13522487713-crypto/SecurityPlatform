@@ -1,4 +1,5 @@
 import type { MicroflowCaseValue, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { findEnumeration, getEnumerationValueKeys, mockMicroflowMetadataCatalog } from "../metadata";
 import { getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
 import { flattenObjects, issue } from "./shared";
@@ -18,9 +19,10 @@ function caseKey(caseValue: MicroflowCaseValue): string {
 
 export function validateDecisions(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
+  const flows = collectFlowsRecursive(schema);
   for (const { object } of flattenObjects(schema.objectCollection)) {
     if (object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit") {
-      const outgoing = schema.flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === object.id && !flow.isErrorHandler);
+      const outgoing = flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === object.id && !flow.isErrorHandler);
       if (outgoing.length < 2) {
         issues.push(issue("MF_DECISION_BRANCH_MISSING", "Decision must have at least two outgoing SequenceFlows.", { objectId: object.id }));
       }
@@ -105,8 +107,8 @@ export function validateDecisions(schema: MicroflowSchema): MicroflowValidationI
       continue;
     }
     if (object.kind === "exclusiveMerge") {
-      const incoming = schema.flows.filter(flow => flow.kind === "sequence" && flow.destinationObjectId === object.id);
-      const outgoing = schema.flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === object.id);
+      const incoming = flows.filter(flow => flow.kind === "sequence" && flow.destinationObjectId === object.id);
+      const outgoing = flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === object.id);
       if (incoming.length < 2) {
         issues.push(issue("MF_DECISION_BRANCH_MISSING", "ExclusiveMerge must have at least two incoming SequenceFlows.", { objectId: object.id }));
       }

@@ -5,6 +5,7 @@ import type {
   MicroflowFlow,
   MicroflowObjectKind,
   MicroflowPoint,
+  MicroflowLoopedActivity,
   MicroflowValidationIssue,
 } from "../schema";
 import type { MicroflowCaseEditorKind } from "./adapters/flowgram-case-options";
@@ -16,6 +17,10 @@ export interface FlowGramMicroflowNodeData {
   objectKind: MicroflowObjectKind;
   collectionId: string;
   parentObjectId?: string;
+  loopSource?: MicroflowLoopedActivity["loopSource"];
+  iteratorVariableName?: string;
+  listVariableName?: string;
+  currentIndexVariableName?: "$currentIndex";
   loopSummary?: {
     childCount: number;
     flowCount: number;
@@ -51,6 +56,7 @@ export interface FlowGramMicroflowEdgeData {
 export interface FlowGramMicroflowSelection {
   objectId?: string;
   flowId?: string;
+  collectionId?: string;
 }
 
 export interface FlowGramMicroflowChangeReason {

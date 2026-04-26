@@ -53,9 +53,16 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
 
   return (
     <div
-      className={`microflow-flowgram-node microflow-flowgram-node--${tone}${selected ? " is-selected" : ""}${data.disabled ? " is-disabled" : ""}`}
+      className={[
+        "microflow-flowgram-node",
+        `microflow-flowgram-node--${tone}`,
+        selected ? "is-selected" : "",
+        data.disabled ? "is-disabled" : "",
+        data.validationState !== "valid" ? `is-${data.validationState}` : "",
+      ].filter(Boolean).join(" ")}
       onClick={event => selectNode(event)}
       data-microflow-object-id={data.objectId}
+      data-microflow-collection-id={data.collectionId}
     >
       <div className="microflow-flowgram-node__header">
         <span className="microflow-flowgram-node__icon" />
@@ -76,10 +83,27 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
         {validationTag}
       </div>
       {data.objectKind === "loopedActivity" && data.loopSummary ? (
-        <div className="microflow-flowgram-node__loop-body" aria-label="Loop body summary">
+        <div
+          className="microflow-flowgram-node__loop-body"
+          aria-label="Loop body summary"
+          data-microflow-loop-body="true"
+          data-microflow-loop-object-id={data.objectId}
+        >
           <Typography.Text type="tertiary" size="small">
-            {data.loopSummary.childCount === 0 ? "Empty body" : `${data.loopSummary.childCount} body nodes`}
+            {data.loopSummary.childCount === 0 ? "拖入节点配置循环体" : `${data.loopSummary.childCount} body nodes`}
           </Typography.Text>
+          {data.loopSource?.kind === "iterableList" ? (
+            <div className="microflow-flowgram-node__loop-source">
+              <Tag size="small">For Each</Tag>
+              <Tag size="small">list {data.listVariableName || "未配置"}</Tag>
+              <Tag size="small">iterator {data.iteratorVariableName || "未配置"}</Tag>
+              <Tag size="small">{data.currentIndexVariableName ?? "$currentIndex"}</Tag>
+            </div>
+          ) : (
+            <div className="microflow-flowgram-node__loop-source">
+              <Tag size="small">While</Tag>
+            </div>
+          )}
           {data.loopSummary.childCount > 0 ? (
             <div className="microflow-flowgram-node__loop-stats">
               <Tag size="small">Actions {data.loopSummary.actionCount}</Tag>

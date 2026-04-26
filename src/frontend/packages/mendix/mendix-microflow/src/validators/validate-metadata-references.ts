@@ -10,6 +10,7 @@ import {
   type MicroflowMetadataCatalog,
 } from "../metadata";
 import type { MicroflowDataType, MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { flattenObjects, issue } from "./shared";
 
 function validateDataType(
@@ -116,7 +117,7 @@ export function validateMetadataReferences(
     }
   }
 
-  for (const flow of schema.flows) {
+  for (const flow of collectFlowsRecursive(schema)) {
     if (flow.kind !== "sequence") {
       continue;
     }

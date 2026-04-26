@@ -9,6 +9,7 @@ import type {
   MicroflowTraceFrame,
   MicroflowValidationIssue,
 } from "../../schema";
+import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { flowCaseLabel } from "./flowgram-case-options";
 import { microflowPortsToFlowGramPorts } from "./flowgram-port-factory";
 import { validationStateFromIssues } from "./flowgram-validation-sync";
@@ -59,7 +60,7 @@ function loopSummaryForObject(
   }
   const childObjects = flattenObjectCollection(object.objectCollection);
   const descendantIds = collectCollectionObjectIds(object.objectCollection);
-  const flowCount = schema.flows.filter(flow => descendantIds.has(flow.originObjectId) && descendantIds.has(flow.destinationObjectId)).length;
+  const flowCount = collectFlowsRecursive(schema as MicroflowSchema).filter(flow => descendantIds.has(flow.originObjectId) && descendantIds.has(flow.destinationObjectId)).length;
   return {
     childCount: childObjects.length,
     flowCount,
@@ -108,15 +109,27 @@ export function authoringToFlowGram(
   const graph = toEditorGraph({ ...schema, validation: { issues } });
   const objects = new Map(flattenObjectCollection(schema.objectCollection).map(object => [object.id, object]));
   const issueIndex = buildIssueIndex(issues);
+  const graphNodes = new Map(graph.nodes.map(node => [node.objectId, node]));
 
   const nodes: WorkflowNodeJSON[] = graph.nodes.map(node => {
     const object = objects.get(node.objectId);
     const objectIssues = issueIndex.get(node.objectId) ?? [];
+    const parentNode = node.parentObjectId ? graphNodes.get(node.parentObjectId) : undefined;
+    const position = parentNode
+      ? {
+          x: parentNode.position.x + node.position.x,
+          y: parentNode.position.y + 76 + node.position.y,
+        }
+      : node.position;
     const data: FlowGramMicroflowNodeData = {
       objectId: node.objectId,
       objectKind: object?.kind ?? node.nodeKind,
       collectionId: node.collectionId,
       parentObjectId: node.parentObjectId,
+      loopSource: object?.kind === "loopedActivity" ? object.loopSource : undefined,
+      iteratorVariableName: object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? object.loopSource.iteratorVariableName : undefined,
+      listVariableName: object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? object.loopSource.listVariableName : undefined,
+      currentIndexVariableName: object?.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? object.loopSource.currentIndexVariableName : undefined,
       loopSummary: loopSummaryForObject(object, schema),
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
       action: object?.kind === "actionActivity" ? object.action : undefined,
@@ -134,7 +147,7 @@ export function authoringToFlowGram(
       type: data.objectKind,
       data,
       meta: {
-        position: node.position,
+        position,
         size: node.size,
         nodeDTOType: data.objectKind,
         useDynamicPort: true,
@@ -146,7 +159,7 @@ export function authoringToFlowGram(
   });
 
   const edges: WorkflowEdgeJSON[] = graph.edges.map(edge => {
-    const flow = schema.flows.find(item => item.id === edge.flowId);
+    const flow = collectFlowsRecursive(schema as MicroflowSchema).find(item => item.id === edge.flowId);
     const flowIssues = issueIndex.get(edge.flowId) ?? [];
     const data: FlowGramMicroflowEdgeData = {
       flowId: edge.flowId,

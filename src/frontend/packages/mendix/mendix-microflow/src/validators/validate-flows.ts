@@ -1,4 +1,5 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { collectFlowsRecursive, findFlowWithCollection } from "../schema/utils/object-utils";
 import { objectLocationMap, objectMap, issue } from "./shared";
 import { findEnumeration, mockMicroflowMetadataCatalog } from "../metadata";
 import { caseValueKey, getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
@@ -8,28 +9,29 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
   const objects = objectMap(schema);
   const locations = objectLocationMap(schema);
   const outgoingCaseKeys = new Map<string, Map<string, string>>();
-  for (const flow of schema.flows) {
+  for (const flow of collectFlowsRecursive(schema)) {
+    const flowCollectionId = findFlowWithCollection(schema, flow.id)?.collectionId;
     const source = objects.get(flow.originObjectId);
     const target = objects.get(flow.destinationObjectId);
     const sourceLocation = source ? locations.get(source.id) : undefined;
     const targetLocation = target ? locations.get(target.id) : undefined;
     if (!source) {
-      issues.push(issue("MF_FLOW_ORIGIN_MISSING", "Flow originObjectId must reference an object.", { flowId: flow.id, fieldPath: "originObjectId" }));
+      issues.push(issue("MF_FLOW_ORIGIN_MISSING", "Flow originObjectId must reference an object.", { flowId: flow.id, fieldPath: "originObjectId", collectionId: flowCollectionId }));
     }
     if (!target) {
-      issues.push(issue("MF_FLOW_DESTINATION_MISSING", "Flow destinationObjectId must reference an object.", { flowId: flow.id, fieldPath: "destinationObjectId" }));
+      issues.push(issue("MF_FLOW_DESTINATION_MISSING", "Flow destinationObjectId must reference an object.", { flowId: flow.id, fieldPath: "destinationObjectId", collectionId: flowCollectionId }));
     }
     if (flow.kind === "annotation") {
       if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
-        issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "AnnotationFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id }));
+        issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "AnnotationFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id, collectionId: flowCollectionId }));
       }
       if (source?.kind !== "annotation" && target?.kind !== "annotation") {
-        issues.push(issue("MF_ANNOTATION_EDGE_ENDPOINT", "AnnotationFlow must connect to at least one Annotation.", { flowId: flow.id }));
+        issues.push(issue("MF_ANNOTATION_EDGE_ENDPOINT", "AnnotationFlow must connect to at least one Annotation.", { flowId: flow.id, collectionId: flowCollectionId }));
       }
       continue;
     }
     if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
-      issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "SequenceFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id }));
+      issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "SequenceFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id, collectionId: flowCollectionId }));
     }
     if (source?.kind === "startEvent" && flow.isErrorHandler) {
       issues.push(issue("MF_START_ERROR_HANDLER", "StartEvent cannot create an error handler flow.", { flowId: flow.id, objectId: source.id }));
@@ -64,7 +66,7 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
       }
       const booleanCases = flow.caseValues.filter(caseValue => caseValue.kind === "boolean");
       for (const caseValue of booleanCases) {
-        const duplicates = schema.flows.filter(item =>
+        const duplicates = collectFlowsRecursive(schema).filter(item =>
           item.kind === "sequence" &&
           item.id !== flow.id &&
           item.originObjectId === source.id &&
@@ -109,7 +111,7 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
         if (allowed.length > 0 && !allowed.includes(caseValue.entityQualifiedName)) {
           issues.push(issue("MF_OBJECT_TYPE_CASE_INVALID_SPECIALIZATION", "Object type case specialization must be allowed by the source InheritanceSplit.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
         }
-        const duplicates = schema.flows.filter(item =>
+        const duplicates = collectFlowsRecursive(schema).filter(item =>
           item.kind === "sequence" &&
           item.id !== flow.id &&
           item.originObjectId === source.id &&

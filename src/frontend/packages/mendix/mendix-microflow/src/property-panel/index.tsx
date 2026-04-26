@@ -18,6 +18,7 @@ import type {
 import { getCaseEditorKind, getCaseOptionsForSource, caseValueKey } from "../flowgram/adapters/flowgram-case-options";
 import { defaultMicroflowActionRegistry, defaultMicroflowEdgeRegistry, defaultMicroflowObjectNodeRegistry } from "../node-registry";
 import type { MicroflowPropertyTabKey } from "../schema/types";
+import { collectFlowsRecursive, findObjectWithCollection } from "../schema/utils/object-utils";
 import { getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, getSpecializations, useMicroflowMetadata } from "../metadata";
 import { buildVariableIndex, getObjectEntityQualifiedName, resolveVariableReferenceFromIndex } from "../variables";
 import { FieldError, ValidationIssueList } from "./common";
@@ -212,7 +213,7 @@ function dataTypeFromKey(kind: string): MicroflowDataType {
 }
 
 function objectName(schema: MicroflowPropertyPanelProps["schema"], objectId: string): string {
-  const object = schema.objectCollection.objects.find(item => item.id === objectId);
+  const object = findObjectWithCollection(schema, objectId)?.object;
   return object?.caption ?? object?.kind ?? objectId;
 }
 
@@ -1074,10 +1075,10 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
               <Input value={object.mergeBehavior.strategy} disabled />
             </Field>
             <Field label="Incoming Count">
-              <Input value={String(props.schema.flows.filter(flow => flow.destinationObjectId === object.id).length)} disabled />
+              <Input value={String(collectFlowsRecursive(props.schema).filter(flow => flow.destinationObjectId === object.id).length)} disabled />
             </Field>
             <Field label="Outgoing Count">
-              <Input value={String(props.schema.flows.filter(flow => flow.originObjectId === object.id).length)} disabled />
+              <Input value={String(collectFlowsRecursive(props.schema).filter(flow => flow.originObjectId === object.id).length)} disabled />
             </Field>
           </>
         ) : null}
@@ -1114,6 +1115,9 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 <Field label="Iterator Variable">
                   <Input value={object.loopSource.iteratorVariableName} disabled={props.readonly} onChange={iteratorVariableName => patch({ ...object, loopSource: { ...object.loopSource, iteratorVariableName } as MicroflowIterableListLoopSource })} />
                 </Field>
+                <Field label="Current Index Variable">
+                  <Input value={object.loopSource.currentIndexVariableName} disabled />
+                </Field>
               </>
             ) : (
               <Field label="While Expression">
@@ -1131,6 +1135,20 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
                 />
               </Field>
             )}
+            <Field label="Body Summary">
+              <Input
+                value={[
+                  `${object.objectCollection.objects.length} nodes`,
+                  `${(object.objectCollection.flows ?? []).length || collectFlowsRecursive(props.schema).filter(flow =>
+                    object.objectCollection.objects.some(child => child.id === flow.originObjectId) &&
+                    object.objectCollection.objects.some(child => child.id === flow.destinationObjectId)
+                  ).length} flows`,
+                  `${object.objectCollection.objects.filter(child => child.kind === "breakEvent").length} break`,
+                  `${object.objectCollection.objects.filter(child => child.kind === "continueEvent").length} continue`,
+                ].join(" · ")}
+                disabled
+              />
+            </Field>
           </>
         ) : null}
           {object.kind === "actionActivity" ? (
@@ -1232,7 +1250,7 @@ function ObjectPanel(props: MicroflowPropertyPanelProps) {
             {object.kind === "parameterObject" ? <Field label="Parameter"><Input value={`${parameter?.name ?? object.parameterName ?? ""}: ${dataTypeLabel(parameter?.dataType)}`} disabled /></Field> : null}
             {object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? <Field label="Loop Variables"><Input value={`${object.loopSource.iteratorVariableName}, ${object.loopSource.currentIndexVariableName}`} disabled /></Field> : null}
             {object.kind === "endEvent" ? <Field label="Return Value"><Input value={object.returnValue?.raw ?? ""} disabled /></Field> : null}
-            {object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" ? <Field label="Branch Outputs"><TextArea value={props.schema.flows.filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(value => value.kind).join(",") || "pending" : "annotation"}`).join("\n")} disabled autosize /></Field> : null}
+            {object.kind === "exclusiveSplit" || object.kind === "inheritanceSplit" ? <Field label="Branch Outputs"><TextArea value={collectFlowsRecursive(props.schema).filter(flow => flow.originObjectId === object.id).map(flow => `${flow.id}: ${flow.kind === "sequence" ? flow.caseValues.map(value => value.kind).join(",") || "pending" : "annotation"}`).join("\n")} disabled autosize /></Field> : null}
           </>
         ) : null}
         {activeTab === "advanced" ? (

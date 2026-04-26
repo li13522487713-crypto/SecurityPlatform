@@ -44,6 +44,7 @@ import type {
   MicroflowVariable,
   MicroflowVariableIndex
 } from "../schema/types";
+import { collectFlowsRecursive } from "../schema/utils/object-utils";
 
 const defaultLineStyle: MicroflowLine["style"] = {
   strokeType: "solid",
@@ -609,7 +610,8 @@ export function legacyNodeToObject(node: MicroflowNode): MicroflowObject {
       objectCollection: {
         id: `${node.id}-collection`,
         officialType: "Microflows$MicroflowObjectCollection",
-        objects: []
+        objects: [],
+        flows: []
       }
     } as MicroflowLoopedActivity;
   }
@@ -728,7 +730,11 @@ export function buildAuthoringFieldsFromLegacy(schema: MicroflowLegacyGraphSchem
   }
   for (const object of rootObjects) {
     if (object.kind === "loopedActivity") {
-      object.objectCollection.objects = loopObjects.get(object.id) ?? [];
+      object.objectCollection = {
+        ...object.objectCollection,
+        objects: loopObjects.get(object.id) ?? [],
+        flows: [],
+      };
     }
   }
   const nodesById = new Map(schema.nodes.map(node => [node.id, node]));
@@ -1108,7 +1114,7 @@ export function toLegacyGraph(schema: MicroflowAuthoringSchema): { nodes: Microf
   }
   return {
     nodes,
-    edges: schema.flows.map(flowToLegacyEdge)
+    edges: collectFlowsRecursive(schema as MicroflowSchema).map(flowToLegacyEdge)
   };
 }
 
@@ -1163,7 +1169,7 @@ export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema
         hasWarning: issues.some(issue => issue.severity === "warning" && (issue.objectId === entry.object.id || issue.nodeId === entry.object.id))
       }
     })),
-    edges: schema.flows.map(flow => {
+    edges: collectFlowsRecursive(schema as MicroflowSchema).map(flow => {
       const source = objectById.get(flow.originObjectId);
       const target = objectById.get(flow.destinationObjectId);
       const sourcePorts = source ? portsForObject(source) : [];

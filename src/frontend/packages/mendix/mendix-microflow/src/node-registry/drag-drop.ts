@@ -1,4 +1,5 @@
 import { applyEditorGraphPatchToAuthoring, flattenObjectCollection } from "../adapters";
+import { findObjectWithCollection, getObjectCollectionById } from "../schema/utils/object-utils";
 import type {
   MicroflowEditorGraphPatch,
   MicroflowParameter,
@@ -57,13 +58,24 @@ export function addObjectToRootCollection(schema: MicroflowSchema, patch: Microf
 export function addObjectToCollectionById(
   schema: MicroflowSchema,
   patch: MicroflowEditorGraphPatch,
-  _collectionId?: string,
+  collectionId?: string,
 ): MicroflowSchema {
-  return applyEditorGraphPatchToAuthoring(schema, patch);
+  if (!collectionId || collectionId === schema.objectCollection.id || !patch.addObject) {
+    return applyEditorGraphPatchToAuthoring(schema, patch);
+  }
+  const parentLoopObjectId = parentLoopObjectIdForCollection(schema, collectionId);
+  return applyEditorGraphPatchToAuthoring(schema, {
+    ...patch,
+    addObject: { ...patch.addObject, parentLoopObjectId },
+  });
 }
 
-export function getDropTargetCollectionId(_schema: MicroflowSchema, _position: MicroflowPoint): string | undefined {
-  return undefined;
+export function getDropTargetCollectionId(schema: MicroflowSchema, _position: MicroflowPoint, parentLoopObjectId?: string): string {
+  if (!parentLoopObjectId) {
+    return schema.objectCollection.id;
+  }
+  const loop = findObjectWithCollection(schema, parentLoopObjectId)?.object;
+  return loop?.kind === "loopedActivity" ? loop.objectCollection.id : schema.objectCollection.id;
 }
 
 export function addObjectToActiveLoopCollection(schema: MicroflowSchema, patch: MicroflowEditorGraphPatch): MicroflowSchema {
@@ -78,6 +90,11 @@ export function addMicroflowObjectFromDragPayload(
   input: AddMicroflowObjectFromDragPayloadInput,
 ): AddMicroflowObjectFromDragPayloadResult {
   const { schema, payload, position, parentLoopObjectId } = input;
+  const collectionId = getDropTargetCollectionId(schema, position, parentLoopObjectId);
+  const dropCheck = validateDropAllowedInCollection(schema, payload, collectionId);
+  if (!dropCheck.allowed) {
+    return { schema, warnings: [], blockedReason: dropCheck.message };
+  }
   const registryItem = microflowNodeRegistryByKey.get(payload.registryKey)
     ?? defaultMicroflowNodePanelRegistry.find(item => item.actionKind === payload.actionKind);
   if (!registryItem) {
@@ -131,5 +148,58 @@ export function addMicroflowObjectFromDragPayload(
     ...selectCreatedObject(object.id),
   });
   return { schema: nextSchema, objectId: object.id, warnings };
+}
+
+export interface MicroflowDropValidationResult {
+  allowed: boolean;
+  message?: string;
+}
+
+export function validateDropAllowedInCollection(
+  schema: MicroflowSchema,
+  payload: MicroflowNodeDragPayload,
+  collectionId: string,
+): MicroflowDropValidationResult {
+  const isRoot = collectionId === schema.objectCollection.id;
+  if (!getObjectCollectionById(schema, collectionId)) {
+    return { allowed: false, message: "Drop target collection does not exist." };
+  }
+  if (!isRoot && (payload.objectKind === "startEvent" || payload.objectKind === "endEvent")) {
+    return { allowed: false, message: "Start / End events cannot be placed inside Loop." };
+  }
+  if (isRoot && (payload.objectKind === "breakEvent" || payload.objectKind === "continueEvent")) {
+    return { allowed: false, message: "Break / Continue can only be placed inside Loop." };
+  }
+  if (!isRoot && payload.objectKind === "errorEvent") {
+    return { allowed: false, message: "ErrorEvent cannot be placed inside Loop in this version." };
+  }
+  if (!isRoot && payload.objectKind === "parameterObject") {
+    return { allowed: false, message: "ParameterObject cannot be placed inside Loop." };
+  }
+  return { allowed: true };
+}
+
+export function createObjectInCollectionFromDragPayload(
+  input: AddMicroflowObjectFromDragPayloadInput & { collectionId: string },
+): AddMicroflowObjectFromDragPayloadResult {
+  return addMicroflowObjectFromDragPayload({
+    ...input,
+    parentLoopObjectId: parentLoopObjectIdForCollection(input.schema, input.collectionId),
+  });
+}
+
+export function addObjectToDropTargetCollection(
+  schema: MicroflowSchema,
+  patch: MicroflowEditorGraphPatch,
+  collectionId: string,
+): MicroflowSchema {
+  return addObjectToCollectionById(schema, patch, collectionId);
+}
+
+function parentLoopObjectIdForCollection(schema: MicroflowSchema, collectionId: string): string | undefined {
+  const loop = flattenObjectCollection(schema.objectCollection).find(object =>
+    object.kind === "loopedActivity" && object.objectCollection.id === collectionId
+  );
+  return loop?.kind === "loopedActivity" ? loop.id : undefined;
 }
 

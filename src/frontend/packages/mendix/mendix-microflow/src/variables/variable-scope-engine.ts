@@ -7,13 +7,21 @@ import type {
   MicroflowVariableSymbol,
   MicroflowVariableVisibility,
 } from "../schema/types";
+import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { mockMicroflowMetadataCatalog } from "../metadata";
 import { buildVariableIndex } from "./variable-index";
 
-function flattenObjects(collection: MicroflowObjectCollection, parentLoopId?: string): Array<{ object: MicroflowObject; loopObjectId?: string }> {
+function flattenObjects(
+  collection: MicroflowObjectCollection,
+  parentLoopId?: string,
+  ancestorLoopObjectIds: string[] = [],
+): Array<{ object: MicroflowObject; loopObjectId?: string; ancestorLoopObjectIds: string[] }> {
   return collection.objects.flatMap(object => object.kind === "loopedActivity"
-    ? [{ object, loopObjectId: parentLoopId }, ...flattenObjects(object.objectCollection, object.id)]
-    : [{ object, loopObjectId: parentLoopId }]);
+    ? [
+        { object, loopObjectId: parentLoopId, ancestorLoopObjectIds },
+        ...flattenObjects(object.objectCollection, object.id, [...ancestorLoopObjectIds, object.id]),
+      ]
+    : [{ object, loopObjectId: parentLoopId, ancestorLoopObjectIds }]);
 }
 
 function reachable(schema: MicroflowSchema, fromObjectId: string | undefined, toObjectId: string): boolean {
@@ -31,7 +39,7 @@ function reachable(schema: MicroflowSchema, fromObjectId: string | undefined, to
       continue;
     }
     visited.add(current);
-    for (const flow of schema.flows) {
+    for (const flow of collectFlowsRecursive(schema)) {
       if (flow.kind !== "sequence" || flow.originObjectId !== current) {
         continue;
       }
@@ -44,8 +52,9 @@ function reachable(schema: MicroflowSchema, fromObjectId: string | undefined, to
   return false;
 }
 
-function loopForObject(schema: MicroflowSchema, objectId: string): string | undefined {
-  return flattenObjects(schema.objectCollection).find(item => item.object.id === objectId)?.loopObjectId;
+function loopAncestorsForObject(schema: MicroflowSchema, objectId: string): string[] {
+  const location = flattenObjects(schema.objectCollection).find(item => item.object.id === objectId);
+  return location ? [...location.ancestorLoopObjectIds, ...(location.loopObjectId && !location.ancestorLoopObjectIds.includes(location.loopObjectId) ? [location.loopObjectId] : [])] : [];
 }
 
 function isInErrorScope(schema: MicroflowSchema, symbol: MicroflowVariableSymbol, objectId: string): boolean {
@@ -53,7 +62,7 @@ function isInErrorScope(schema: MicroflowSchema, symbol: MicroflowVariableSymbol
   if (!flowId) {
     return true;
   }
-  const flow = schema.flows.find(item => item.id === flowId);
+  const flow = collectFlowsRecursive(schema).find(item => item.id === flowId);
   return flow?.kind === "sequence" ? reachable(schema, flow.destinationObjectId, objectId) : false;
 }
 
@@ -65,7 +74,7 @@ function hasDecisionAncestor(schema: MicroflowSchema, sourceObjectId: string | u
   if (source?.kind === "exclusiveSplit" || source?.kind === "inheritanceSplit") {
     return true;
   }
-  return schema.flows.some(flow =>
+  return collectFlowsRecursive(schema).some(flow =>
     flow.kind === "sequence" &&
     flow.destinationObjectId === sourceObjectId &&
     reachable(schema, flow.originObjectId, targetObjectId) &&
@@ -98,7 +107,7 @@ export function isVariableVisibleAtObject(
   objectId: string,
   includeCurrentObject: boolean
 ): boolean {
-  if (symbol.scope.loopObjectId && loopForObject(schema, objectId) !== symbol.scope.loopObjectId && objectId !== symbol.scope.loopObjectId) {
+  if (symbol.scope.loopObjectId && !loopAncestorsForObject(schema, objectId).includes(symbol.scope.loopObjectId)) {
     return false;
   }
   if (!isInErrorScope(schema, symbol, objectId)) {
@@ -133,8 +142,14 @@ export function isVariableVisibleAtObjectByName(schema: MicroflowSchema, index: 
 }
 
 function normalizeSymbols(schema: MicroflowSchema, index: MicroflowVariableIndex, objectId: string, includeCurrentObject: boolean): MicroflowVariableSymbol[] {
+  const ancestors = loopAncestorsForObject(schema, objectId);
   return getVariableSymbols(index)
     .filter(symbol => isVariableVisibleAtObject(schema, symbol, objectId, includeCurrentObject))
+    .sort((left, right) => {
+      const leftDepth = left.scope.loopObjectId ? ancestors.indexOf(left.scope.loopObjectId) : -1;
+      const rightDepth = right.scope.loopObjectId ? ancestors.indexOf(right.scope.loopObjectId) : -1;
+      return rightDepth - leftDepth;
+    })
     .map(symbol => ({
       ...symbol,
       visibility: getVariableVisibilityAtObject(schema, index, symbol.name, objectId),

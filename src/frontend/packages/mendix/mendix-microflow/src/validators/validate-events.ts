@@ -1,9 +1,11 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { flattenObjects, issue } from "./shared";
 
 export function validateEvents(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const flattened = flattenObjects(schema.objectCollection);
+  const flows = collectFlowsRecursive(schema);
   const objects = flattened.map(item => item.object);
   const starts = objects.filter(object => object.kind === "startEvent");
   const ends = objects.filter(object => object.kind === "endEvent");
@@ -17,8 +19,8 @@ export function validateEvents(schema: MicroflowSchema): MicroflowValidationIssu
     issues.push(issue("MF_END_MISSING", "Microflow must contain at least one EndEvent."));
   }
   for (const item of flattened) {
-    const incoming = schema.flows.filter(flow => flow.destinationObjectId === item.object.id);
-    const outgoing = schema.flows.filter(flow => flow.originObjectId === item.object.id);
+    const incoming = flows.filter(flow => flow.destinationObjectId === item.object.id);
+    const outgoing = flows.filter(flow => flow.originObjectId === item.object.id);
     if (item.object.kind === "startEvent") {
       if (incoming.length > 0) {
         issues.push(issue("MF_START_HAS_INCOMING", "StartEvent cannot have incoming flows.", { objectId: item.object.id }));
