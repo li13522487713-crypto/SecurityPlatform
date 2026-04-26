@@ -17,7 +17,7 @@ import {
   Toast,
   Typography
 } from "@douyinfe/semi-ui";
-import { IconArrowRight, IconBug, IconPlus, IconSave } from "@douyinfe/semi-icons";
+import { IconArrowRight, IconPlus, IconSave } from "@douyinfe/semi-icons";
 import { createLocalMicroflowApiClient, MicroflowEditor, sampleMicroflowSchema } from "@atlas/microflow";
 import { DebugTracePanel } from "@atlas/mendix-debug";
 import { createRuntimeExecutor, RuntimeRenderer } from "@atlas/mendix-runtime";
@@ -831,7 +831,7 @@ export function MendixStudioApp({ appId }: { appId?: string }) {
           </Button>
           <Button onClick={() => useMendixStudioStore.getState().setActiveTab("runtimePreview")}>预览</Button>
           <Button onClick={loadSampleApp}>示例数据加载</Button>
-          <Button icon={<IconBug />} onClick={() => setDebugVisible(true)}>Debug Trace</Button>
+          <Button onClick={() => setDebugVisible(true)}>Debug Trace</Button>
           <Tag color="purple">{activeTab}</Tag>
         </Space>
       </Card>

@@ -139,14 +139,6 @@ function buildAllSpaceLinks(workspaceId: string, t: (key: AppMessageKey) => stri
       ]
     },
     {
-      key: "mendix-studio",
-      label: t("cozeMenuMendixStudio"),
-      path: `${workspaceRootPath(workspaceId)}/mendix-studio`,
-      icon: <IconBox />,
-      testId: "app-sidebar-item-mendix-studio",
-      activeMatchers: [`${workspaceRootPath(workspaceId)}/mendix-studio`]
-    },
-    {
       key: "tasks",
       label: t("cozeMenuTasks"),
       path: workspaceTasksPath(workspaceId),

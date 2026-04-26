@@ -582,6 +582,19 @@ export function WorkspaceProjectsPage() {
                 onClick: () => void;
               }> = [];
 
+              if (item.resourceType === "app") {
+                menuItems.push({
+                  node: "item" as const,
+                  key: `${actionPrefix}-open-designer`,
+                  name: t("cozeProjectsMenuOpenDesigner"),
+                  onClick: () => {
+                    navigate(
+                      `/space/${encodeURIComponent(workspace.id)}/mendix-studio/${encodeURIComponent(item.resourceId)}`
+                    );
+                  }
+                });
+              }
+
               if (item.capabilities.canDuplicate) {
                 menuItems.push({
                   node: "item" as const,
