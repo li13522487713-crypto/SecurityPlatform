@@ -67,6 +67,33 @@ function removeObjectFromCollection(collection: MicroflowObjectCollection, objec
   };
 }
 
+function collectObjectAndDescendantIds(collection: MicroflowObjectCollection, objectId: string): Set<string> {
+  for (const object of collection.objects) {
+    if (object.id === objectId) {
+      return collectDescendantIds(object);
+    }
+    if (object.kind === "loopedActivity") {
+      const nested = collectObjectAndDescendantIds(object.objectCollection, objectId);
+      if (nested.size > 0) {
+        return nested;
+      }
+    }
+  }
+  return new Set();
+}
+
+function collectDescendantIds(object: MicroflowObject): Set<string> {
+  const ids = new Set([object.id]);
+  if (object.kind === "loopedActivity") {
+    for (const child of object.objectCollection.objects) {
+      for (const childId of collectDescendantIds(child)) {
+        ids.add(childId);
+      }
+    }
+  }
+  return ids;
+}
+
 function appendObjectToLoop(collection: MicroflowObjectCollection, loopObjectId: string, object: MicroflowObject): MicroflowObjectCollection {
   return {
     ...collection,
@@ -107,15 +134,22 @@ export function updateObject(schema: MicroflowSchema, objectId: string, mapper: 
 }
 
 export function deleteObject(schema: MicroflowSchema, objectId: string): MicroflowSchema {
+  const removedObjectIds = collectObjectAndDescendantIds(schema.objectCollection, objectId);
+  const flows = schema.flows.filter(flow => !removedObjectIds.has(flow.originObjectId) && !removedObjectIds.has(flow.destinationObjectId));
+  const selectedFlowStillExists = schema.editor.selection.flowId
+    ? flows.some(flow => flow.id === schema.editor.selection.flowId)
+    : false;
   return refreshDerivedState({
     ...schema,
     objectCollection: removeObjectFromCollection(schema.objectCollection, objectId),
-    flows: schema.flows.filter(flow => flow.originObjectId !== objectId && flow.destinationObjectId !== objectId),
+    flows,
     editor: {
       ...schema.editor,
       selection: {
-        objectId: schema.editor.selection.objectId === objectId ? undefined : schema.editor.selection.objectId,
-        flowId: schema.editor.selection.flowId
+        objectId: schema.editor.selection.objectId && removedObjectIds.has(schema.editor.selection.objectId)
+          ? undefined
+          : schema.editor.selection.objectId,
+        flowId: selectedFlowStillExists ? schema.editor.selection.flowId : undefined
       }
     }
   });

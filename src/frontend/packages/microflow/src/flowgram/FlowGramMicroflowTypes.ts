@@ -13,6 +13,8 @@ export type FlowGramMicroflowNodeType = MicroflowObjectKind;
 export interface FlowGramMicroflowNodeData {
   objectId: string;
   objectKind: MicroflowObjectKind;
+  collectionId: string;
+  parentObjectId?: string;
   actionKind?: MicroflowActionKind;
   title: string;
   subtitle?: string;

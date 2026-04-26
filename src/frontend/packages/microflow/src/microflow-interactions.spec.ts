@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, toEditorGraph } from "./adapters";
+import { applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteObject, toEditorGraph } from "./adapters";
 import { canConnectPorts, defaultMicroflowNodeRegistry, getMicroflowNodeRegistryKey } from "./node-registry";
 import { sampleMicroflowSchema, validateMicroflowSchema } from "./schema";
 import { buildVariableIndex } from "./variables";
@@ -119,6 +119,43 @@ describe("microflow editor interactions", () => {
     const positions = new Map(patch.movedNodes?.map(item => [item.objectId, item.position]));
     expect(positions.get(start.id)?.x).toBeLessThan(positions.get(retrieve.id)?.x ?? 0);
     expect(positions.get(retrieve.id)?.x).toBeLessThan(positions.get(end.id)?.x ?? 0);
+  });
+
+  it("blocks direct flows across loop objectCollection boundaries", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "boundary-loop");
+    const rootAction = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 0, y: 120 }, "boundary-root");
+    const loopAction = createObjectFromRegistry(registry("activity:objectChange"), { x: 220, y: 180 }, "boundary-child");
+    if (loop.kind !== "loopedActivity") {
+      throw new Error("Expected loopedActivity.");
+    }
+    const schema = schemaWith([{ ...loop, objectCollection: { ...loop.objectCollection, objects: [loopAction] } }, rootAction]);
+    const graph = toEditorGraph(schema);
+    const source = graph.nodes.find(node => node.objectId === rootAction.id)?.ports.find(port => port.kind === "sequenceOut");
+    const target = graph.nodes.find(node => node.objectId === loopAction.id)?.ports.find(port => port.direction === "input");
+    expect(source && target ? canConnectPorts(schema, source, target).allowed : true).toBe(false);
+
+    const invalidFlow = createSequenceFlow({ originObjectId: rootAction.id, destinationObjectId: loopAction.id });
+    const issues = validateMicroflowSchema({ ...schema, flows: [invalidFlow] });
+    expect(issues.some(issue => issue.code === "MF_FLOW_LOOP_BOUNDARY")).toBe(true);
+  });
+
+  it("adds loop internal objects to the loop collection and deletes descendant flows with the loop", () => {
+    const loop = createObjectFromRegistry(registry("loop"), { x: 200, y: 120 }, "delete-loop");
+    const rootAction = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 0, y: 120 }, "delete-root");
+    const loopAction = createObjectFromRegistry(registry("activity:objectChange"), { x: 220, y: 180 }, "delete-child");
+    const baseSchema = schemaWith([loop, rootAction]);
+    const withChild = applyEditorGraphPatchToAuthoring(baseSchema, {
+      addObject: { object: loopAction, parentLoopObjectId: loop.id },
+      selectedObjectId: loopAction.id,
+    });
+    const updatedLoop = withChild.objectCollection.objects.find(object => object.id === loop.id);
+    expect(updatedLoop?.kind === "loopedActivity" ? updatedLoop.objectCollection.objects.some(object => object.id === loopAction.id) : false).toBe(true);
+    expect(withChild.objectCollection.objects.some(object => object.id === loopAction.id)).toBe(false);
+
+    const danglingFlow = createSequenceFlow({ originObjectId: loopAction.id, destinationObjectId: rootAction.id });
+    const deleted = deleteObject({ ...withChild, flows: [danglingFlow] }, loop.id);
+    expect(deleted.flows.some(flow => flow.originObjectId === loopAction.id || flow.destinationObjectId === loopAction.id)).toBe(false);
+    expect(deleted.editor.selection.objectId).toBeUndefined();
   });
 
   it("offers enumeration cases and validates duplicate enum values", () => {

@@ -1,15 +1,18 @@
 import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
-import { objectMap, issue } from "./shared";
+import { objectLocationMap, objectMap, issue } from "./shared";
 import { findEnumeration, mockMicroflowMetadataCatalog } from "../metadata";
 import { caseValueKey, getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
 
 export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const objects = objectMap(schema);
+  const locations = objectLocationMap(schema);
   const outgoingCaseKeys = new Map<string, Map<string, string>>();
   for (const flow of schema.flows) {
     const source = objects.get(flow.originObjectId);
     const target = objects.get(flow.destinationObjectId);
+    const sourceLocation = source ? locations.get(source.id) : undefined;
+    const targetLocation = target ? locations.get(target.id) : undefined;
     if (!source) {
       issues.push(issue("MF_FLOW_ORIGIN_MISSING", "Flow originObjectId must reference an object.", { flowId: flow.id, fieldPath: "originObjectId" }));
     }
@@ -17,10 +20,16 @@ export function validateFlows(schema: MicroflowSchema): MicroflowValidationIssue
       issues.push(issue("MF_FLOW_DESTINATION_MISSING", "Flow destinationObjectId must reference an object.", { flowId: flow.id, fieldPath: "destinationObjectId" }));
     }
     if (flow.kind === "annotation") {
+      if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
+        issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "AnnotationFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id }));
+      }
       if (source?.kind !== "annotation" && target?.kind !== "annotation") {
         issues.push(issue("MF_ANNOTATION_EDGE_ENDPOINT", "AnnotationFlow must connect to at least one Annotation.", { flowId: flow.id }));
       }
       continue;
+    }
+    if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
+      issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "SequenceFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id }));
     }
     if (source?.kind === "startEvent" && flow.isErrorHandler) {
       issues.push(issue("MF_START_ERROR_HANDLER", "StartEvent cannot create an error handler flow.", { flowId: flow.id, objectId: source.id }));

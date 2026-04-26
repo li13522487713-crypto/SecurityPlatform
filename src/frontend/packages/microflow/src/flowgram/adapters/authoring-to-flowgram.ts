@@ -90,6 +90,8 @@ export function authoringToFlowGram(
     const data: FlowGramMicroflowNodeData = {
       objectId: node.objectId,
       objectKind: object?.kind ?? node.kind,
+      collectionId: node.collectionId,
+      parentObjectId: node.parentObjectId,
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
       title: object ? titleForObject(object) : node.title,
       subtitle: object ? subtitleForObject(object) : node.subtitle,
@@ -110,6 +112,8 @@ export function authoringToFlowGram(
         nodeDTOType: data.objectKind,
         useDynamicPort: true,
         defaultPorts: microflowPortsToFlowGramPorts(node.ports),
+        parentObjectId: node.parentObjectId,
+        collectionId: node.collectionId,
       },
     };
   });

@@ -799,16 +799,18 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
 
   const commitSchema = (next: MicroflowSchema, markDirty = true) => {
     const refreshed = refreshDerivedState(next);
-    setHistory(items => [...items.slice(-30), schema]);
-    setFuture([]);
+    if (markDirty) {
+      setHistory(items => [...items.slice(-30), schema]);
+      setFuture([]);
+      setDirty(true);
+    }
     setSchema(refreshed);
     setIssues(validateMicroflowSchema(refreshed));
-    setDirty(markDirty);
     props.onSchemaChange?.(refreshed);
   };
 
-  const applyPatch = (patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1]) => {
-    commitSchema(applyEditorGraphPatchToAuthoring(schema, patch));
+  const applyPatch = (patch: Parameters<typeof applyEditorGraphPatchToAuthoring>[1], markDirty = true) => {
+    commitSchema(applyEditorGraphPatchToAuthoring(schema, patch), markDirty);
   };
 
   function createParameterForNode(item: MicroflowNodeRegistryItem, position: { x: number; y: number }): MicroflowSchema {
@@ -980,7 +982,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
             applyPatch({
               selectedObjectId: selection.objectId,
               selectedFlowId: selection.flowId
-            });
+            }, false);
           }}
           onDropRegistryItem={(item, position) => handleAddNode(item, { position })}
           canUndo={history.length > 0}
@@ -1026,7 +1028,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
             onDuplicateObject={objectId => commitSchema(duplicateObject(schema, objectId))}
             onDeleteObject={objectId => commitSchema(deleteObject(schema, objectId))}
             onDeleteFlow={flowId => commitSchema(deleteFlow(schema, flowId))}
-            onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined })}
+            onClose={() => applyPatch({ selectedObjectId: undefined, selectedFlowId: undefined }, false)}
           />
         </div>
       </div>
@@ -1035,7 +1037,7 @@ export function MicroflowEditor(props: MicroflowEditorProps) {
           <Tabs.TabPane tab={<Space><IconTickCircle />{labels.problems}<Badge count={issues.length} /></Space>} itemKey="problems">
             <ProblemPanel
               issues={issues}
-              onSelect={issue => applyPatch({ selectedObjectId: issue.objectId, selectedFlowId: issue.flowId })}
+              onSelect={issue => applyPatch({ selectedObjectId: issue.objectId, selectedFlowId: issue.flowId }, false)}
             />
           </Tabs.TabPane>
           <Tabs.TabPane tab={labels.debug} itemKey="debug">

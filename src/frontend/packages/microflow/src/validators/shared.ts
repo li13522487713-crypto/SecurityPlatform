@@ -30,3 +30,36 @@ export function flattenObjects(collection: MicroflowObjectCollection): Array<{ o
 export function objectMap(schema: MicroflowSchema): Map<string, MicroflowObject> {
   return new Map(flattenObjects(schema.objectCollection).map(item => [item.object.id, item.object]));
 }
+
+export interface MicroflowObjectLocation {
+  object: MicroflowObject;
+  collectionId: string;
+  parentLoopObjectId?: string;
+  ancestorLoopObjectIds: string[];
+}
+
+export function flattenObjectLocations(
+  collection: MicroflowObjectCollection,
+  ancestorLoopObjectIds: string[] = [],
+  parentLoopObjectId?: string
+): MicroflowObjectLocation[] {
+  return collection.objects.flatMap(object => {
+    const location: MicroflowObjectLocation = {
+      object,
+      collectionId: collection.id,
+      parentLoopObjectId,
+      ancestorLoopObjectIds,
+    };
+    if (object.kind !== "loopedActivity") {
+      return [location];
+    }
+    return [
+      location,
+      ...flattenObjectLocations(object.objectCollection, [...ancestorLoopObjectIds, object.id], object.id),
+    ];
+  });
+}
+
+export function objectLocationMap(schema: MicroflowSchema): Map<string, MicroflowObjectLocation> {
+  return new Map(flattenObjectLocations(schema.objectCollection).map(item => [item.object.id, item]));
+}

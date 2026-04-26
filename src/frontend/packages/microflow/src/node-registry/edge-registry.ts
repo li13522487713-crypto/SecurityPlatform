@@ -7,6 +7,7 @@ import type {
   MicroflowSchema,
   MicroflowValidationIssue
 } from "../schema/types";
+import { objectLocationMap } from "../validators/shared";
 
 export type MicroflowFlowRegistryKind = "sequence" | "annotation";
 export type MicroflowDerivedEdgeKind = "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler" | "annotation";
@@ -208,6 +209,16 @@ export function canConnectPorts(schema: MicroflowSchema, sourcePort: MicroflowEd
     return fail("MF_CONNECT_OBJECT_MISSING", "Source or target object does not exist.");
   }
   const edgeKind = inferEdgeKindFromPorts(source, target, sourcePort);
+  const locations = objectLocationMap(schema);
+  const sourceLocation = locations.get(source.id);
+  const targetLocation = locations.get(target.id);
+  if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
+    return fail(
+      "MF_CONNECT_LOOP_BOUNDARY",
+      "Flows cannot directly cross Loop objectCollection boundaries.",
+      edgeKind
+    );
+  }
   if (target.kind === "startEvent") {
     return fail("MF_CONNECT_START_TARGET", "StartEvent cannot have incoming flows.", edgeKind);
   }
