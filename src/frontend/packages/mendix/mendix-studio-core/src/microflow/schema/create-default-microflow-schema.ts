@@ -1,5 +1,6 @@
 import {
   createDefaultEditorState,
+  microflowSampleSchemas,
   sampleMicroflowSchema,
   type MicroflowDataType,
   type MicroflowExpression,
@@ -226,6 +227,10 @@ export function createDefaultMicroflowSchema(input: CreateDefaultMicroflowSchema
   const id = input.id || makeId("mf");
   if (input.template === "orderProcessing") {
     return applyResourceFields(cloneSchema(sampleMicroflowSchema), input, id);
+  }
+  const sample = microflowSampleSchemas.find(item => item.key === input.template);
+  if (sample) {
+    return applyResourceFields(cloneSchema(sample.schema), input, id);
   }
   return createBlankSchema(input, id);
 }

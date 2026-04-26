@@ -80,7 +80,7 @@ export interface MicroflowCreateInput {
   security?: Partial<MicroflowSecurityConfig>;
   concurrency?: Partial<MicroflowConcurrencyConfig>;
   exposure?: Partial<MicroflowExposureConfig>;
-  template?: "blank" | "orderProcessing" | "approval" | "restErrorHandling" | "loopProcessing";
+  template?: "blank" | "orderProcessing" | "approval" | "restErrorHandling" | "loopProcessing" | "objectTypeDecision" | "listProcessing";
 }
 
 export interface MicroflowResourcePatch {

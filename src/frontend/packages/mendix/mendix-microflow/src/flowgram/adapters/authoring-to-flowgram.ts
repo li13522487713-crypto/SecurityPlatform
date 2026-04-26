@@ -10,6 +10,7 @@ import type {
   MicroflowValidationIssue,
 } from "../../schema";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
+import { microflowActionRegistryByKind } from "../../node-registry";
 import { flowCaseLabel } from "./flowgram-case-options";
 import { microflowPortsToFlowGramPorts } from "./flowgram-port-factory";
 import { validationStateFromIssues } from "./flowgram-validation-sync";
@@ -20,7 +21,7 @@ function titleForObject(object: MicroflowObject): string {
     return object.caption;
   }
   if (object.kind === "actionActivity") {
-    return object.action.caption || object.action.kind;
+    return object.action.caption || microflowActionRegistryByKind.get(object.action.kind)?.titleZh || object.action.kind;
   }
   if (object.kind === "parameterObject") {
     return object.parameterName ?? object.parameterId;
@@ -30,7 +31,18 @@ function titleForObject(object: MicroflowObject): string {
 
 function subtitleForObject(object: MicroflowObject): string | undefined {
   if (object.kind === "actionActivity") {
-    return object.action.kind;
+    const registry = microflowActionRegistryByKind.get(object.action.kind);
+    const output = [
+      "outputVariableName",
+      "outputListVariableName",
+      "outputWorkflowVariableName",
+      "returnVariableName",
+      "outputFileDocumentVariableName"
+    ].map(key => {
+      const value = (object.action as unknown as Record<string, unknown>)[key];
+      return typeof value === "string" && value.trim() ? value : undefined;
+    }).find(Boolean);
+    return [registry?.category ?? object.action.editor.category, output ? `out: ${output}` : undefined].filter(Boolean).join(" · ");
   }
   if (object.kind === "loopedActivity") {
     return object.loopSource.kind === "iterableList" ? `iterator: ${object.loopSource.iteratorVariableName}` : "While condition";
@@ -150,6 +162,8 @@ export function authoringToFlowGram(
       loopSummary: loopSummaryForObject(object, schema),
       actionKind: object?.kind === "actionActivity" ? object.action.kind : undefined,
       action: object?.kind === "actionActivity" ? object.action : undefined,
+      availability: object?.kind === "actionActivity" ? object.action.editor.availability : object?.availability,
+      availabilityReason: object?.kind === "actionActivity" ? object.action.editor.availabilityReason : object?.availabilityReason,
       title: object ? titleForObject(object) : node.title,
       subtitle: object ? subtitleForObject(object) : node.subtitle,
       documentation: object?.documentation,

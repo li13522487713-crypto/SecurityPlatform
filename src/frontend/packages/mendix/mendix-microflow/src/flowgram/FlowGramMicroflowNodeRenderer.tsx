@@ -80,6 +80,10 @@ export function FlowGramMicroflowNodeRenderer(props: WorkflowNodeRenderProps) {
       </div>
       <div className="microflow-flowgram-node__meta">
         {data.actionKind ? <Tag size="small">{data.actionKind}</Tag> : null}
+        {data.availability === "beta" ? <Tag size="small" color="blue">Beta</Tag> : null}
+        {data.availability === "deprecated" ? <Tag size="small" color="orange">Deprecated</Tag> : null}
+        {data.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
+        {data.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
         {data.runtimeState && data.runtimeState !== "idle" ? <Tag color={data.runtimeState === "failed" ? "red" : data.runtimeState === "running" ? "blue" : data.runtimeState === "skipped" ? "grey" : "green"}>{data.runtimeState}</Tag> : null}
         {validationTag}
       </div>

@@ -210,6 +210,85 @@ function retrieveOutputType(action: Extract<MicroflowAction, { kind: "retrieve" 
     : itemType;
 }
 
+function stringField(action: MicroflowAction, key: string): string | undefined {
+  const value = (action as unknown as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function nestedStringField(action: MicroflowAction, key: string, nestedKey: string): string | undefined {
+  const value = (action as unknown as Record<string, unknown>)[key];
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const nested = (value as Record<string, unknown>)[nestedKey];
+  return typeof nested === "string" && nested.trim() ? nested : undefined;
+}
+
+function genericOutputType(action: MicroflowAction): MicroflowDataType | undefined {
+  if (action.kind === "cast") {
+    const entityQualifiedName = stringField(action, "targetEntityQualifiedName");
+    return entityQualifiedName ? { kind: "object", entityQualifiedName } : { kind: "unknown", reason: "cast target entity missing" };
+  }
+  if (action.kind === "aggregateList") {
+    return stringField(action, "aggregateFunction") === "count" ? { kind: "integer" } : { kind: "decimal" };
+  }
+  if (action.kind === "createList") {
+    const entityQualifiedName = stringField(action, "entityQualifiedName");
+    return { kind: "list", itemType: entityQualifiedName ? { kind: "object", entityQualifiedName } : { kind: "unknown", reason: "createList entity missing" } };
+  }
+  if (action.kind === "listOperation") {
+    const operation = stringField(action, "operation");
+    if (operation === "equals" || operation === "contains") {
+      return { kind: "boolean" };
+    }
+    if (operation === "find" || operation === "head") {
+      return { kind: "unknown", reason: "list operation object result" };
+    }
+    return { kind: "list", itemType: { kind: "unknown", reason: "list operation item type" } };
+  }
+  if (action.kind === "exportXml") {
+    return stringField(action, "outputType") === "fileDocument" ? { kind: "object", entityQualifiedName: "System.FileDocument" } : { kind: "string" };
+  }
+  if (action.kind === "callWorkflow") {
+    return { kind: "object", entityQualifiedName: "Workflow.Workflow" };
+  }
+  if (action.kind === "generateJumpToOptions" || action.kind === "retrieveWorkflowActivityRecords" || action.kind === "retrieveWorkflows") {
+    return { kind: "list", itemType: { kind: "unknown", reason: action.kind } };
+  }
+  if (action.kind === "retrieveWorkflowContext" || action.kind === "mlModelCall" || action.kind === "webServiceCall" || action.kind === "importXml" || action.kind === "restOperationCall") {
+    return { kind: "unknown", reason: action.kind };
+  }
+  return undefined;
+}
+
+function genericOutputName(action: MicroflowAction): { name: string; fieldPath: string } | undefined {
+  if (action.kind === "cast" || action.kind === "aggregateList" || action.kind === "listOperation" || action.kind === "webServiceCall" || action.kind === "importXml" || action.kind === "exportXml" || action.kind === "restOperationCall" || action.kind === "mlModelCall" || action.kind === "retrieveWorkflowContext") {
+    const name = stringField(action, "outputVariableName");
+    return name ? { name, fieldPath: "action.outputVariableName" } : undefined;
+  }
+  if (action.kind === "createList" || action.kind === "retrieveWorkflows") {
+    const name = stringField(action, "outputListVariableName");
+    return name ? { name, fieldPath: "action.outputListVariableName" } : undefined;
+  }
+  if (action.kind === "callJavaAction" || action.kind === "callJavaScriptAction" || action.kind === "callNanoflow") {
+    const name = nestedStringField(action, "returnValue", "outputVariableName");
+    return name ? { name, fieldPath: "action.returnValue.outputVariableName" } : undefined;
+  }
+  if (action.kind === "callExternalAction") {
+    const name = stringField(action, "returnVariableName");
+    return name ? { name, fieldPath: "action.returnVariableName" } : undefined;
+  }
+  if (action.kind === "callWorkflow") {
+    const name = stringField(action, "outputWorkflowVariableName");
+    return name ? { name, fieldPath: "action.outputWorkflowVariableName" } : undefined;
+  }
+  if (action.kind === "generateJumpToOptions" || action.kind === "retrieveWorkflowActivityRecords") {
+    const name = stringField(action, "outputVariableName");
+    return name ? { name, fieldPath: "action.outputVariableName" } : undefined;
+  }
+  return undefined;
+}
+
 function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowActionActivity, collectionId: string, metadata: MicroflowMetadataCatalog): void {
   const action = object.action;
   const downstream: MicroflowVariableScope = { kind: "downstream", collectionId, startObjectId: object.id };
@@ -291,6 +370,29 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
         scope: downstream,
         readonly: true,
       }), "action.response.headersVariableName");
+    }
+  }
+  const genericName = genericOutputName(action);
+  const genericType = genericOutputType(action);
+  if (genericName && genericType) {
+    addOutput(index, createSymbol({
+      name: genericName.name,
+      kind: dataTypeKind(genericType),
+      dataType: genericType,
+      source: { kind: "actionOutput", objectId: object.id, actionId: action.id, actionKind: action.kind },
+      scope: downstream,
+      readonly: false,
+    }), genericName.fieldPath);
+    if (genericType.kind === "unknown") {
+      addDiagnostic(index, {
+        severity: "warning",
+        code: "MF_VARIABLE_OUTPUT_TYPE_UNKNOWN",
+        message: `Variable "${genericName.name}" has an unknown type until metadata is configured.`,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: genericName.fieldPath,
+        variableName: genericName.name,
+      });
     }
   }
 }

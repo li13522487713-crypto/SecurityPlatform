@@ -1,4 +1,5 @@
 import type {
+  MicroflowNodeAvailability,
   MicroflowActionKind,
   MicroflowAction,
   MicroflowCaseValue,
@@ -31,6 +32,8 @@ export interface FlowGramMicroflowNodeData {
   };
   actionKind?: MicroflowActionKind;
   action?: MicroflowAction;
+  availability?: MicroflowNodeAvailability;
+  availabilityReason?: string;
   title: string;
   subtitle?: string;
   documentation?: string;

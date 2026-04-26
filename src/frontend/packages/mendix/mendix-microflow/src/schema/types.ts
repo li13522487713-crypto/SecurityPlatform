@@ -677,10 +677,25 @@ export type MicroflowActionKind =
   | "restOperationCall"
   | "logMessage"
   | "generateDocument"
-  | "metric"
+  | "counter"
+  | "incrementCounter"
+  | "gauge"
   | "mlModelCall"
-  | "workflowAction"
-  | "externalObjectAction";
+  | "applyJumpToOption"
+  | "callWorkflow"
+  | "changeWorkflowState"
+  | "completeUserTask"
+  | "generateJumpToOptions"
+  | "retrieveWorkflowActivityRecords"
+  | "retrieveWorkflowContext"
+  | "retrieveWorkflows"
+  | "showUserTaskPage"
+  | "showWorkflowAdminPage"
+  | "lockWorkflow"
+  | "unlockWorkflow"
+  | "notifyWorkflow"
+  | "deleteExternalObject"
+  | "sendExternalObject";
 
 export type MicroflowActionCategory = MicroflowActivityCategory;
 

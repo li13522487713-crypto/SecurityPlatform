@@ -523,16 +523,26 @@ function mapActivityTypeToActionKind(activityType: MicroflowActivityType): Micro
     sendRestRequestBeta: "restOperationCall",
     generateDocument: "generateDocument",
     callMlModel: "mlModelCall",
-    deleteExternalObject: "externalObjectAction",
-    sendExternalObject: "externalObjectAction"
+    counter: "counter",
+    incrementCounter: "incrementCounter",
+    gauge: "gauge",
+    applyJumpToOption: "applyJumpToOption",
+    callWorkflow: "callWorkflow",
+    changeWorkflowState: "changeWorkflowState",
+    completeUserTask: "completeUserTask",
+    generateJumpToOptions: "generateJumpToOptions",
+    retrieveWorkflowActivityRecords: "retrieveWorkflowActivityRecords",
+    retrieveWorkflowContext: "retrieveWorkflowContext",
+    retrieveWorkflows: "retrieveWorkflows",
+    showUserTaskPage: "showUserTaskPage",
+    showWorkflowAdminPage: "showWorkflowAdminPage",
+    lockWorkflow: "lockWorkflow",
+    unlockWorkflow: "unlockWorkflow",
+    notifyWorkflow: "notifyWorkflow",
+    deleteExternalObject: "deleteExternalObject",
+    sendExternalObject: "sendExternalObject"
   };
-  if (["counter", "incrementCounter", "gauge"].includes(activityType)) {
-    return "metric";
-  }
-  if (activityType.includes("Workflow") || activityType.includes("UserTask") || activityType.includes("JumpTo")) {
-    return "workflowAction";
-  }
-  return map[activityType] ?? "externalObjectAction";
+  return map[activityType] ?? "callExternalAction";
 }
 
 export function legacyNodeToObject(node: MicroflowNode): MicroflowObject {

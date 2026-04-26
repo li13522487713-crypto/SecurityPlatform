@@ -100,6 +100,241 @@ function baseAction(
   };
 }
 
+type GenericActionConfig = Record<string, unknown>;
+
+const unknownType: MicroflowDataType = { kind: "unknown", reason: "registry default" };
+const stringType: MicroflowDataType = { kind: "string" };
+const integerType: MicroflowDataType = { kind: "integer" };
+const booleanType: MicroflowDataType = { kind: "boolean" };
+
+function cloneRecord(input: GenericActionConfig): GenericActionConfig {
+  return JSON.parse(JSON.stringify(input)) as GenericActionConfig;
+}
+
+const genericActionDefaults: Partial<Record<MicroflowActionKind, GenericActionConfig>> = {
+  cast: {
+    sourceObjectVariableName: "object",
+    targetEntityQualifiedName: "",
+    outputVariableName: "castObject"
+  },
+  aggregateList: {
+    listVariableName: "items",
+    aggregateFunction: "count",
+    attributeQualifiedName: "",
+    outputVariableName: "count"
+  },
+  createList: {
+    entityQualifiedName: "System.Object",
+    outputListVariableName: "items"
+  },
+  changeList: {
+    targetListVariableName: "items",
+    operation: "add",
+    objectVariableName: "object"
+  },
+  listOperation: {
+    leftListVariableName: "items",
+    operation: "filter",
+    rightListVariableName: "",
+    objectVariableName: "",
+    expression: expression("true", booleanType),
+    outputVariableName: "result"
+  },
+  callJavaAction: {
+    javaActionQualifiedName: "",
+    parameterMappings: [],
+    returnValue: { storeResult: false, outputVariableName: "" }
+  },
+  callJavaScriptAction: {
+    javaScriptActionQualifiedName: "",
+    parameterMappings: [],
+    returnValue: { storeResult: false, outputVariableName: "" }
+  },
+  callNanoflow: {
+    targetNanoflowId: "",
+    parameterMappings: [],
+    returnValue: { storeResult: false, outputVariableName: "" }
+  },
+  closePage: {
+    closeTarget: "current",
+    returnResult: ""
+  },
+  downloadFile: {
+    fileDocumentVariableName: "",
+    showFileInBrowser: true
+  },
+  showHomePage: {
+    pageTarget: ""
+  },
+  showMessage: {
+    messageType: "information",
+    blocking: false,
+    messageExpression: expression("", stringType)
+  },
+  showPage: {
+    pageId: "",
+    pageParameterMappings: [],
+    openMode: "current",
+    title: ""
+  },
+  validationFeedback: {
+    targetObjectVariableName: "",
+    targetMemberQualifiedName: "",
+    feedbackMessage: ""
+  },
+  synchronize: {
+    scope: "all"
+  },
+  webServiceCall: {
+    webServiceQualifiedName: "",
+    operationName: "",
+    requestMapping: "",
+    responseMapping: "",
+    outputVariableName: ""
+  },
+  importXml: {
+    sourceType: "string",
+    sourceVariableName: "",
+    importMappingQualifiedName: "",
+    outputVariableName: ""
+  },
+  exportXml: {
+    sourceVariableName: "",
+    exportMappingQualifiedName: "",
+    outputType: "string",
+    outputVariableName: ""
+  },
+  callExternalAction: {
+    consumedServiceQualifiedName: "",
+    externalActionName: "",
+    parameterMappings: [],
+    returnVariableName: ""
+  },
+  restOperationCall: {
+    consumedRestServiceQualifiedName: "",
+    operationName: "",
+    parameterMappings: [],
+    outputVariableName: ""
+  },
+  generateDocument: {
+    documentTemplateQualifiedName: "",
+    outputFileDocumentVariableName: "",
+    parameterMappings: []
+  },
+  counter: {
+    metricName: "",
+    valueExpression: expression("1", integerType),
+    tags: []
+  },
+  incrementCounter: {
+    metricName: "",
+    tags: []
+  },
+  gauge: {
+    metricName: "",
+    valueExpression: expression("0", integerType),
+    tags: []
+  },
+  mlModelCall: {
+    modelMappingQualifiedName: "",
+    inputMappings: [],
+    outputVariableName: ""
+  },
+  applyJumpToOption: {
+    workflowInstanceVariableName: "",
+    targetVariableName: "jumpToOption",
+    outputVariableName: "",
+  },
+  callWorkflow: {
+    targetWorkflowId: "",
+    contextObjectVariableName: "",
+    outputWorkflowVariableName: ""
+  },
+  changeWorkflowState: {
+    workflowInstanceVariableName: "",
+    operation: "pause",
+    reason: ""
+  },
+  completeUserTask: {
+    userTaskVariableName: "",
+    outcome: "",
+    validationResult: ""
+  },
+  generateJumpToOptions: {
+    workflowInstanceVariableName: "",
+    targetVariableName: "jumpToOptions",
+    outputVariableName: "jumpToOptions"
+  },
+  retrieveWorkflowActivityRecords: {
+    workflowInstanceVariableName: "",
+    targetVariableName: "activityRecords",
+    outputVariableName: "activityRecords"
+  },
+  retrieveWorkflowContext: {
+    workflowInstanceVariableName: "",
+    contextEntityQualifiedName: "",
+    outputVariableName: "workflowContext"
+  },
+  retrieveWorkflows: {
+    contextObjectVariableName: "",
+    outputListVariableName: "workflows",
+    filters: []
+  },
+  showUserTaskPage: {
+    userTaskVariableName: "",
+    targetVariableName: "userTask"
+  },
+  showWorkflowAdminPage: {
+    workflowInstanceVariableName: "",
+    targetVariableName: "workflowInstance"
+  },
+  lockWorkflow: {
+    workflowInstanceVariableName: "",
+    targetVariableName: "workflowInstance"
+  },
+  unlockWorkflow: {
+    workflowInstanceVariableName: "",
+    targetVariableName: "workflowInstance"
+  },
+  notifyWorkflow: {
+    workflowInstanceVariableName: "",
+    notificationName: "",
+    payloadExpression: expression("", unknownType)
+  },
+  deleteExternalObject: {
+    externalObjectVariableName: "",
+    serviceOperationName: ""
+  },
+  sendExternalObject: {
+    externalObjectVariableName: "",
+    serviceOperationName: "",
+    payloadMapping: ""
+  }
+};
+
+const actionOutputs: Partial<Record<MicroflowActionKind, MicroflowActionRegistryItem["outputSpec"]>> = {
+  cast: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "cast" }],
+  createObject: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "createObject" }],
+  retrieve: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "retrieve" }],
+  aggregateList: [{ id: "output", name: "outputVariableName", dataType: integerType, source: "aggregateList" }],
+  createList: [{ id: "output", name: "outputListVariableName", dataType: { kind: "list", itemType: unknownType }, source: "createList" }],
+  listOperation: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "listOperation" }],
+  callMicroflow: [{ id: "return", name: "returnValue.outputVariableName", dataType: unknownType, source: "callMicroflow" }],
+  createVariable: [{ id: "variable", name: "variableName", dataType: unknownType, source: "createVariable" }],
+  restCall: [{ id: "response", name: "response.handling.outputVariableName", dataType: unknownType, source: "restCall" }],
+  webServiceCall: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "webServiceCall" }],
+  importXml: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "importXml" }],
+  exportXml: [{ id: "output", name: "outputVariableName", dataType: stringType, source: "exportXml" }],
+  callExternalAction: [{ id: "return", name: "returnVariableName", dataType: unknownType, source: "callExternalAction" }],
+  restOperationCall: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "restOperationCall" }],
+  mlModelCall: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "mlModelCall" }],
+  callWorkflow: [{ id: "workflow", name: "outputWorkflowVariableName", dataType: { kind: "object", entityQualifiedName: "Workflow.Workflow" }, source: "callWorkflow" }],
+  generateJumpToOptions: [{ id: "output", name: "outputVariableName", dataType: { kind: "list", itemType: unknownType }, source: "generateJumpToOptions" }],
+  retrieveWorkflowActivityRecords: [{ id: "output", name: "outputVariableName", dataType: { kind: "list", itemType: unknownType }, source: "retrieveWorkflowActivityRecords" }],
+  retrieveWorkflowContext: [{ id: "output", name: "outputVariableName", dataType: unknownType, source: "retrieveWorkflowContext" }],
+  retrieveWorkflows: [{ id: "output", name: "outputListVariableName", dataType: { kind: "list", itemType: { kind: "object", entityQualifiedName: "Workflow.Workflow" } }, source: "retrieveWorkflows" }]
+};
+
 function createConcreteAction(item: MicroflowActionRegistryItem, id: string, config: Partial<MicroflowActivityConfig> = {}, caption?: string): MicroflowAction {
   const base = baseAction(item, id, caption);
   if (item.actionKind === "retrieve") {
@@ -227,7 +462,14 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
       includeTraceId: true
     };
   }
-  return { ...base, kind: item.actionKind } as MicroflowAction;
+  return {
+    ...base,
+    kind: item.actionKind,
+    officialType: item.officialType,
+    ...(genericActionDefaults[item.actionKind] ? cloneRecord(genericActionDefaults[item.actionKind]) : {}),
+    legacyActivityType: item.legacyActivityType,
+    legacyConfig: config
+  } as MicroflowAction;
 }
 
 function validateAction(action: MicroflowAction): MicroflowValidationIssue[] {
@@ -259,6 +501,8 @@ function action(input: {
   category: MicroflowActionCategory;
   availability?: MicroflowRegistryAvailability;
   defaultConfig?: Partial<MicroflowActivityConfig>;
+  outputSpec?: MicroflowActionRegistryItem["outputSpec"];
+  inputSpec?: MicroflowActionRegistryItem["inputSpec"];
   supportsErrorHandling?: boolean;
 }): MicroflowActionRegistryItem {
   const availability = input.availability ?? "supported";
@@ -285,6 +529,8 @@ function action(input: {
       errorHandling: supportsErrorHandling ? { mode: "rollback", errorVariableName: "latestError" } : undefined,
       ...input.defaultConfig
     },
+    outputSpec: input.outputSpec ?? actionOutputs[input.key],
+    inputSpec: input.inputSpec,
     supportsErrorHandling,
     supportedErrorHandlingTypes: supportsErrorHandling ? ["rollback", "customWithRollback", "customWithoutRollback"] : [],
     propertyTabs: supportsErrorHandling ? ["properties", "documentation", "errorHandling", "output", "advanced"] : ["properties", "documentation", "output"],
@@ -299,9 +545,14 @@ function action(input: {
       title: createdAction.caption ?? input.title,
       config: {
         kind: "action",
+        objectId: createdAction.id,
+        actionId: createdAction.id,
         actionKind: createdAction.kind,
         officialType: createdAction.officialType,
-        unsupported: true
+        availability,
+        unsupported: availability === "requiresConnector" || availability === "nanoflowOnlyDisabled",
+        deprecated: availability === "deprecated",
+        authoringAction: createdAction
       }
     })
   };
@@ -341,10 +592,25 @@ export const defaultMicroflowActionRegistry: MicroflowActionRegistryItem[] = [
   action({ key: "restOperationCall", legacyActivityType: "sendRestRequestBeta", officialType: "Microflows$RestOperationCallAction", title: "REST Operation Call", titleZh: "REST 操作调用", description: "Calls an operation from a consumed REST service document.", category: "integration", availability: "beta" }),
   action({ key: "logMessage", legacyActivityType: "logMessage", officialType: "Microflows$LogMessageAction", title: "Log Message", titleZh: "记录日志", description: "Writes an application log entry.", category: "logging", supportsErrorHandling: false }),
   action({ key: "generateDocument", legacyActivityType: "generateDocument", officialType: "Microflows$GenerateDocumentAction", title: "Generate Document", titleZh: "生成文档", description: "Generates a document from a template for legacy compatibility.", category: "documentGeneration", availability: "deprecated" }),
-  action({ key: "metric", legacyActivityType: "counter", officialType: "Microflows$MetricAction", title: "Metric", titleZh: "指标", description: "Emits a custom runtime metric.", category: "metrics", supportsErrorHandling: false }),
+  action({ key: "counter", legacyActivityType: "counter", officialType: "Microflows$CounterAction", title: "Counter", titleZh: "计数器", description: "Sets a custom counter metric value.", category: "metrics", supportsErrorHandling: false }),
+  action({ key: "incrementCounter", legacyActivityType: "incrementCounter", officialType: "Microflows$IncrementCounterAction", title: "Increment Counter", titleZh: "计数器加一", description: "Increments a counter metric by one.", category: "metrics", supportsErrorHandling: false }),
+  action({ key: "gauge", legacyActivityType: "gauge", officialType: "Microflows$GaugeAction", title: "Gauge", titleZh: "仪表指标", description: "Sets a gauge metric value.", category: "metrics", supportsErrorHandling: false }),
   action({ key: "mlModelCall", legacyActivityType: "callMlModel", officialType: "Microflows$MLModelCallAction", title: "Call ML Model", titleZh: "调用 ML 模型", description: "Calls an ML model mapping.", category: "mlKit" }),
-  action({ key: "workflowAction", legacyActivityType: "callWorkflow", officialType: "Microflows$WorkflowAction", title: "Workflow Action", titleZh: "工作流动作", description: "Runs a Mendix workflow-related action.", category: "workflow" }),
-  action({ key: "externalObjectAction", legacyActivityType: "sendExternalObject", officialType: "Microflows$ExternalObjectAction", title: "External Object Action", titleZh: "外部对象动作", description: "Sends, updates, or deletes an external object.", category: "externalObject", availability: "requiresConnector" })
+  action({ key: "applyJumpToOption", legacyActivityType: "applyJumpToOption", officialType: "Microflows$ApplyJumpToOptionAction", title: "Apply Jump-To Option", titleZh: "应用跳转选项", description: "Applies a generated workflow jump-to option.", category: "workflow" }),
+  action({ key: "callWorkflow", legacyActivityType: "callWorkflow", officialType: "Microflows$CallWorkflowAction", title: "Call Workflow", titleZh: "调用工作流", description: "Starts a target workflow with a context object.", category: "workflow" }),
+  action({ key: "changeWorkflowState", legacyActivityType: "changeWorkflowState", officialType: "Microflows$ChangeWorkflowStateAction", title: "Change Workflow State", titleZh: "修改工作流状态", description: "Changes workflow state such as abort, continue, pause, retry.", category: "workflow" }),
+  action({ key: "completeUserTask", legacyActivityType: "completeUserTask", officialType: "Microflows$CompleteUserTaskAction", title: "Complete User Task", titleZh: "完成用户任务", description: "Completes a user task with an outcome.", category: "workflow" }),
+  action({ key: "generateJumpToOptions", legacyActivityType: "generateJumpToOptions", officialType: "Microflows$GenerateJumpToOptionsAction", title: "Generate Jump-To Options", titleZh: "生成跳转选项", description: "Generates available workflow jump-to options.", category: "workflow" }),
+  action({ key: "retrieveWorkflowActivityRecords", legacyActivityType: "retrieveWorkflowActivityRecords", officialType: "Microflows$RetrieveWorkflowActivityRecordsAction", title: "Retrieve Workflow Activity Records", titleZh: "检索工作流活动记录", description: "Retrieves activity records for a workflow instance.", category: "workflow" }),
+  action({ key: "retrieveWorkflowContext", legacyActivityType: "retrieveWorkflowContext", officialType: "Microflows$RetrieveWorkflowContextAction", title: "Retrieve Workflow Context", titleZh: "检索工作流上下文", description: "Retrieves the context object for a workflow instance.", category: "workflow" }),
+  action({ key: "retrieveWorkflows", legacyActivityType: "retrieveWorkflows", officialType: "Microflows$RetrieveWorkflowsAction", title: "Retrieve Workflows", titleZh: "检索工作流", description: "Retrieves workflows by context and filters.", category: "workflow" }),
+  action({ key: "showUserTaskPage", legacyActivityType: "showUserTaskPage", officialType: "Microflows$ShowUserTaskPageAction", title: "Show User Task Page", titleZh: "显示用户任务页面", description: "Opens the configured user task page.", category: "workflow", supportsErrorHandling: false }),
+  action({ key: "showWorkflowAdminPage", legacyActivityType: "showWorkflowAdminPage", officialType: "Microflows$ShowWorkflowAdminPageAction", title: "Show Workflow Admin Page", titleZh: "显示工作流管理页", description: "Opens the workflow admin page.", category: "workflow", supportsErrorHandling: false }),
+  action({ key: "lockWorkflow", legacyActivityType: "lockWorkflow", officialType: "Microflows$LockWorkflowAction", title: "Lock Workflow", titleZh: "锁定工作流", description: "Locks a workflow instance.", category: "workflow", supportsErrorHandling: false }),
+  action({ key: "unlockWorkflow", legacyActivityType: "unlockWorkflow", officialType: "Microflows$UnlockWorkflowAction", title: "Unlock Workflow", titleZh: "解锁工作流", description: "Unlocks a workflow instance.", category: "workflow", supportsErrorHandling: false }),
+  action({ key: "notifyWorkflow", legacyActivityType: "notifyWorkflow", officialType: "Microflows$NotifyWorkflowAction", title: "Notify Workflow", titleZh: "通知工作流", description: "Notifies a waiting workflow instance.", category: "workflow", supportsErrorHandling: false }),
+  action({ key: "deleteExternalObject", legacyActivityType: "deleteExternalObject", officialType: "Microflows$DeleteExternalObjectAction", title: "Delete External Object", titleZh: "删除外部对象", description: "Deletes an external object through a service operation.", category: "externalObject", availability: "requiresConnector" }),
+  action({ key: "sendExternalObject", legacyActivityType: "sendExternalObject", officialType: "Microflows$SendExternalObjectAction", title: "Send External Object", titleZh: "发送外部对象", description: "Sends or updates an external object through a service operation.", category: "externalObject", availability: "requiresConnector" })
 ];
 
 export const microflowActionRegistryByKind = new Map(defaultMicroflowActionRegistry.map(entry => [entry.kind, entry]));

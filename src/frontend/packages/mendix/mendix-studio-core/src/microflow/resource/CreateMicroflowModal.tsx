@@ -30,7 +30,9 @@ const templateOptions = [
   { value: "orderProcessing", label: "Order Processing" },
   { value: "approval", label: "Approval" },
   { value: "restErrorHandling", label: "REST Error Handling" },
-  { value: "loopProcessing", label: "Loop Processing" }
+  { value: "loopProcessing", label: "Loop Processing" },
+  { value: "objectTypeDecision", label: "Object Type Decision" },
+  { value: "listProcessing", label: "List Processing" }
 ];
 
 function toDataType(value: DataTypeValue): MicroflowDataType {
