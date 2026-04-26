@@ -28,6 +28,7 @@ import {
   type MicroflowNodeRegistryEntry
 } from "../node-registry";
 import { createLocalMicroflowApiClient, type MicroflowApiClient, type MicroflowTraceFrame, type SaveMicroflowResponse, type TestRunMicroflowResponse, type ValidateMicroflowResponse } from "../runtime-adapter";
+import { buildAuthoringFieldsFromLegacy } from "../adapters";
 import { validateMicroflowSchema } from "../schema/validator";
 import type { MicroflowEdge, MicroflowNode, MicroflowNodeOutput, MicroflowSchema, MicroflowValidationIssue, MicroflowPosition, MicroflowVariable } from "../schema/types";
 
@@ -150,6 +151,14 @@ function variablesFromOutputs(outputs: MicroflowNodeOutput[] | undefined): Micro
     type: output.type,
     scope: "node"
   }));
+}
+
+function materializeAuthoringSchema(schema: MicroflowSchema): MicroflowSchema {
+  return {
+    ...schema,
+    ...buildAuthoringFieldsFromLegacy(schema),
+    variables: schema.variables
+  };
 }
 
 const shellStyle: CSSProperties = {
@@ -926,20 +935,22 @@ export function MicroflowEditor({
   }, [favoriteNodeKeys]);
 
   useEffect(() => {
-    setSchema(initialSchema);
-    setIssues(validateMicroflowSchema(initialSchema));
-    setViewport(initialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
-    setSelectedNodeId(initialSchema.nodes[0]?.id);
-    setPublishVersion(initialSchema.version || "v1");
-    setTestInput({ ...Object.fromEntries(initialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`])), simulateError: "false" });
+    const nextInitialSchema = materializeAuthoringSchema(initialSchema);
+    setSchema(nextInitialSchema);
+    setIssues(validateMicroflowSchema(nextInitialSchema));
+    setViewport(nextInitialSchema.viewport ?? { zoom: 0.8, offset: { x: 24, y: 80 } });
+    setSelectedNodeId(nextInitialSchema.nodes[0]?.id);
+    setPublishVersion(nextInitialSchema.version || "v1");
+    setTestInput({ ...Object.fromEntries(nextInitialSchema.parameters.map(parameter => [parameter.name, `<${parameter.type.name}>`])), simulateError: "false" });
     setDirty(false);
   }, [initialSchema]);
 
   function commitSchema(nextSchema: MicroflowSchema) {
-    setSchema(nextSchema);
-    setIssues(validateMicroflowSchema(nextSchema));
+    const materializedSchema = materializeAuthoringSchema(nextSchema);
+    setSchema(materializedSchema);
+    setIssues(validateMicroflowSchema(materializedSchema));
     setDirty(true);
-    onSchemaChange?.(nextSchema);
+    onSchemaChange?.(materializedSchema);
   }
 
   async function handleValidate() {

@@ -1,4 +1,5 @@
 import type { MicroflowActivityType, MicroflowEdge, MicroflowNode, MicroflowPort, MicroflowSchema, MicroflowTypeRef } from "./types";
+import { buildAuthoringFieldsFromLegacy } from "../adapters";
 
 const stringType: MicroflowTypeRef = { kind: "primitive", name: "String" };
 const booleanType: MicroflowTypeRef = { kind: "primitive", name: "Boolean" };
@@ -180,24 +181,41 @@ const edges: MicroflowEdge[] = [
   { id: "e-note-error-flow", type: "annotation", sourceNodeId: "annotation-error", sourcePortId: "note", targetNodeId: "log-rest-error", targetPortId: "in", label: "handler", attachmentMode: "edge", showInExport: true }
 ];
 
-export const sampleMicroflowSchema: MicroflowSchema = {
+const parameters = [
+  { id: "param-order-id", stableId: "param-order-id", name: "orderId", required: true, type: stringType, dataType: { kind: "string" as const } },
+  { id: "param-member", stableId: "param-member", name: "member", required: false, type: memberType, dataType: { kind: "object" as const, entityQualifiedName: "University.Member" } }
+];
+
+const variables = [
+  { id: "var-orders", name: "orders", scope: "microflow" as const, type: orderListType },
+  { id: "var-order", name: "order", scope: "microflow" as const, type: orderType },
+  { id: "var-order-lines", name: "orderLines", scope: "microflow" as const, type: orderLineListType },
+  { id: "var-order-line", name: "orderLine", scope: "node" as const, type: orderLineType },
+  { id: "var-inventory", name: "inventoryResult", scope: "microflow" as const, type: { kind: "object" as const, name: "InventoryReservationResult" } },
+  { id: "var-latest-error", name: "latestError", scope: "latestError" as const, type: { kind: "object" as const, name: "MicroflowError" } }
+];
+
+const viewport = { zoom: 0.55, offset: { x: 24, y: 78 } };
+const authoringFields = buildAuthoringFieldsFromLegacy({
   id: "mf-order-process",
   name: "Order Processing Microflow",
   version: "v4",
-  description: "Mendix-style microflow sample covering sequence, decision, object type, error handler, annotation and loop flows.",
-  parameters: [
-    { id: "param-order-id", name: "orderId", required: true, type: stringType },
-    { id: "param-member", name: "member", required: false, type: memberType }
-  ],
-  variables: [
-    { id: "var-orders", name: "orders", scope: "microflow", type: orderListType },
-    { id: "var-order", name: "order", scope: "microflow", type: orderType },
-    { id: "var-order-lines", name: "orderLines", scope: "microflow", type: orderLineListType },
-    { id: "var-order-line", name: "orderLine", scope: "node", type: orderLineType },
-    { id: "var-inventory", name: "inventoryResult", scope: "microflow", type: { kind: "object", name: "InventoryReservationResult" } },
-    { id: "var-latest-error", name: "latestError", scope: "latestError", type: { kind: "object", name: "MicroflowError" } }
-  ],
+  description: "Mendix-style microflow sample covering objectCollection, SequenceFlow, AnnotationFlow, ActionActivity, decisions, error handler, annotation and nested loop objects.",
+  parameters,
   nodes,
   edges,
-  viewport: { zoom: 0.55, offset: { x: 24, y: 78 } }
+  viewport
+});
+
+export const sampleMicroflowSchema: MicroflowSchema = {
+  ...authoringFields,
+  id: "mf-order-process",
+  name: "Order Processing Microflow",
+  version: "v4",
+  description: "Mendix-style microflow sample covering objectCollection, SequenceFlow, AnnotationFlow, ActionActivity, decisions, error handler, annotation and nested loop objects.",
+  parameters,
+  variables,
+  nodes,
+  edges,
+  viewport
 };

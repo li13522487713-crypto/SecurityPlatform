@@ -168,11 +168,22 @@ export interface MicroflowTypeRef {
 }
 
 export interface MicroflowExpression {
-  id: string;
-  language: MicroflowExpressionLanguage;
+  id?: string;
+  language?: MicroflowExpressionLanguage;
   text: string;
+  raw?: string;
   expectedType?: MicroflowTypeRef;
   referencedVariables?: string[];
+  inferredType?: MicroflowDataType;
+  references?: {
+    variables: string[];
+    entities: string[];
+    attributes: string[];
+    associations: string[];
+    enumerations: string[];
+    functions: string[];
+  };
+  diagnostics?: MicroflowExpressionDiagnostic[];
 }
 
 export interface MicroflowVariable {
@@ -185,10 +196,15 @@ export interface MicroflowVariable {
 
 export interface MicroflowParameter {
   id: string;
+  stableId?: string;
   name: string;
+  dataType?: MicroflowDataType;
   type: MicroflowTypeRef;
   required: boolean;
+  documentation?: string;
   description?: string;
+  defaultValue?: MicroflowExpression;
+  exampleValue?: string;
 }
 
 export interface MicroflowErrorHandling {
@@ -457,13 +473,794 @@ export type MicroflowEdge =
   | MicroflowErrorHandlerEdge
   | MicroflowAnnotationEdge;
 
-export interface MicroflowSchema {
+export type MicroflowObjectKind =
+  | "startEvent"
+  | "endEvent"
+  | "errorEvent"
+  | "breakEvent"
+  | "continueEvent"
+  | "exclusiveSplit"
+  | "inheritanceSplit"
+  | "exclusiveMerge"
+  | "actionActivity"
+  | "loopedActivity"
+  | "parameterObject"
+  | "annotation";
+
+export type MicroflowDataType =
+  | { kind: "void" }
+  | { kind: "boolean" }
+  | { kind: "integer" }
+  | { kind: "long" }
+  | { kind: "decimal" }
+  | { kind: "string" }
+  | { kind: "dateTime" }
+  | { kind: "enumeration"; enumerationQualifiedName: string }
+  | { kind: "object"; entityQualifiedName: string }
+  | { kind: "list"; itemType: MicroflowDataType }
+  | { kind: "fileDocument"; entityQualifiedName?: string }
+  | { kind: "binary" }
+  | { kind: "json" }
+  | { kind: "unknown"; reason?: string };
+
+export interface MicroflowExpressionDiagnostic {
+  severity: "error" | "warning" | "info";
+  message: string;
+  range?: {
+    start: number;
+    end: number;
+  };
+}
+
+export interface MicroflowPoint {
+  x: number;
+  y: number;
+}
+
+export interface MicroflowSize {
+  width: number;
+  height: number;
+}
+
+export interface MicroflowLine {
+  kind: "orthogonal" | "polyline" | "bezier";
+  points: MicroflowPoint[];
+  routing: {
+    mode: "auto" | "manual";
+    bendPoints: MicroflowPoint[];
+  };
+  style: {
+    strokeType: "solid" | "dashed" | "dotted";
+    strokeWidth: number;
+    arrow: "none" | "target" | "source" | "both";
+  };
+}
+
+export interface MicroflowObjectBase {
+  id: string;
+  stableId: string;
+  kind: MicroflowObjectKind;
+  officialType: string;
+  caption?: string;
+  documentation?: string;
+  relativeMiddlePoint: MicroflowPoint;
+  size: MicroflowSize;
+  disabled?: boolean;
+  editor: {
+    zIndex?: number;
+    selected?: boolean;
+    collapsed?: boolean;
+    colorToken?: string;
+    iconKey?: string;
+    laneId?: string;
+  };
+}
+
+export interface MicroflowStartEvent extends MicroflowObjectBase {
+  kind: "startEvent";
+  officialType: "Microflows$StartEvent";
+  trigger: {
+    type: "manual" | "pageEvent" | "formSubmit" | "workflowCall" | "apiCall" | "scheduled" | "system";
+  };
+}
+
+export interface MicroflowEndEvent extends MicroflowObjectBase {
+  kind: "endEvent";
+  officialType: "Microflows$EndEvent";
+  returnValue?: MicroflowExpression;
+  endBehavior: {
+    type: "normalReturn";
+  };
+}
+
+export interface MicroflowErrorEvent extends MicroflowObjectBase {
+  kind: "errorEvent";
+  officialType: "Microflows$ErrorEvent";
+  error: {
+    sourceVariableName: "$latestError";
+    messageExpression?: MicroflowExpression;
+  };
+}
+
+export interface MicroflowBreakEvent extends MicroflowObjectBase {
+  kind: "breakEvent";
+  officialType: "Microflows$BreakEvent";
+}
+
+export interface MicroflowContinueEvent extends MicroflowObjectBase {
+  kind: "continueEvent";
+  officialType: "Microflows$ContinueEvent";
+}
+
+export interface MicroflowParameterMapping {
+  parameterName: string;
+  parameterType: MicroflowDataType;
+  argumentExpression: MicroflowExpression;
+}
+
+export interface MicroflowExclusiveSplit extends MicroflowObjectBase {
+  kind: "exclusiveSplit";
+  officialType: "Microflows$ExclusiveSplit";
+  splitCondition:
+    | {
+        kind: "expression";
+        expression: MicroflowExpression;
+        resultType: "boolean" | "enumeration";
+        enumerationQualifiedName?: string;
+      }
+    | {
+        kind: "rule";
+        ruleQualifiedName: string;
+        parameterMappings: MicroflowParameterMapping[];
+        resultType: "boolean";
+      };
+  errorHandlingType: MicroflowErrorHandlingType;
+}
+
+export interface MicroflowInheritanceSplit extends MicroflowObjectBase {
+  kind: "inheritanceSplit";
+  officialType: "Microflows$InheritanceSplit";
+  inputObjectVariableName: string;
+  entity: {
+    generalizedEntityQualifiedName: string;
+    allowedSpecializations: string[];
+  };
+  errorHandlingType: MicroflowErrorHandlingType;
+}
+
+export interface MicroflowExclusiveMerge extends MicroflowObjectBase {
+  kind: "exclusiveMerge";
+  officialType: "Microflows$ExclusiveMerge";
+  mergeBehavior: {
+    strategy: "firstArrived";
+  };
+}
+
+export type MicroflowActionKind =
+  | "retrieve"
+  | "createObject"
+  | "changeMembers"
+  | "commit"
+  | "delete"
+  | "rollback"
+  | "cast"
+  | "aggregateList"
+  | "createList"
+  | "changeList"
+  | "listOperation"
+  | "callMicroflow"
+  | "callJavaAction"
+  | "callJavaScriptAction"
+  | "callNanoflow"
+  | "createVariable"
+  | "changeVariable"
+  | "closePage"
+  | "downloadFile"
+  | "showHomePage"
+  | "showMessage"
+  | "showPage"
+  | "validationFeedback"
+  | "synchronize"
+  | "restCall"
+  | "webServiceCall"
+  | "importXml"
+  | "exportXml"
+  | "callExternalAction"
+  | "restOperationCall"
+  | "logMessage"
+  | "generateDocument"
+  | "metric"
+  | "mlModelCall"
+  | "workflowAction"
+  | "externalObjectAction";
+
+export type MicroflowActionCategory = MicroflowActivityCategory;
+
+export interface MicroflowActionInputSpec {
+  id: string;
+  title: string;
+  dataType?: MicroflowDataType;
+  required?: boolean;
+}
+
+export interface MicroflowActionOutputSpec {
+  id: string;
+  name: string;
+  dataType: MicroflowDataType;
+  source: string;
+}
+
+export interface MicroflowActionBase {
+  id: string;
+  officialType: string;
+  kind: MicroflowActionKind;
+  errorHandlingType: MicroflowErrorHandlingType;
+  documentation?: string;
+  inputs?: MicroflowActionInputSpec[];
+  outputs?: MicroflowActionOutputSpec[];
+  editor: {
+    category: MicroflowActionCategory;
+    iconKey: string;
+    availability: MicroflowNodeAvailability;
+    availabilityReason?: string;
+  };
+}
+
+export interface MicroflowAssociationRetrieveSource {
+  kind: "association";
+  officialType: "Microflows$AssociationRetrieveSource";
+  associationQualifiedName: string | null;
+  startVariableName: string;
+}
+
+export interface MicroflowDatabaseRetrieveSource {
+  kind: "database";
+  officialType: "Microflows$DatabaseRetrieveSource";
+  entityQualifiedName: string | null;
+  xPathConstraint?: MicroflowExpression | null;
+  sortItemList: MicroflowSortItemList;
+  range: MicroflowRetrieveRange;
+}
+
+export interface MicroflowSortItemList {
+  items: MicroflowSortItem[];
+}
+
+export interface MicroflowSortItem {
+  attributeQualifiedName: string;
+  direction: "asc" | "desc";
+}
+
+export type MicroflowRetrieveRange =
+  | { kind: "all"; officialType: "Microflows$ConstantRange"; value: "all" }
+  | { kind: "first"; officialType: "Microflows$ConstantRange"; value: "first" }
+  | { kind: "custom"; officialType: "Microflows$CustomRange"; limitExpression: MicroflowExpression; offsetExpression?: MicroflowExpression };
+
+export interface MicroflowRetrieveAction extends MicroflowActionBase {
+  kind: "retrieve";
+  officialType: "Microflows$RetrieveAction";
+  outputVariableName: string;
+  retrieveSource: MicroflowAssociationRetrieveSource | MicroflowDatabaseRetrieveSource;
+}
+
+export interface MicroflowMemberChange {
+  id: string;
+  memberQualifiedName: string;
+  memberKind: "attribute" | "associationReference" | "associationReferenceSet";
+  valueExpression: MicroflowExpression;
+  assignmentKind: "set" | "add" | "remove" | "clear";
+}
+
+export interface MicroflowCreateObjectAction extends MicroflowActionBase {
+  kind: "createObject";
+  officialType: "Microflows$CreateObjectAction";
+  entityQualifiedName: string;
+  outputVariableName: string;
+  memberChanges: MicroflowMemberChange[];
+  commit: {
+    enabled: boolean;
+    withEvents: boolean;
+    refreshInClient: boolean;
+  };
+}
+
+export interface MicroflowChangeMembersAction extends MicroflowActionBase {
+  kind: "changeMembers";
+  officialType: "Microflows$ChangeMembersAction";
+  changeVariableName: string;
+  memberChanges: MicroflowMemberChange[];
+  commit: {
+    enabled: boolean;
+    withEvents: boolean;
+    refreshInClient: boolean;
+  };
+  validateObject: boolean;
+}
+
+export interface MicroflowCommitAction extends MicroflowActionBase {
+  kind: "commit";
+  officialType: "Microflows$CommitAction";
+  objectOrListVariableName: string;
+  withEvents: boolean;
+  refreshInClient: boolean;
+}
+
+export interface MicroflowDeleteAction extends MicroflowActionBase {
+  kind: "delete";
+  officialType: "Microflows$DeleteAction";
+  objectOrListVariableName: string;
+  withEvents: boolean;
+  deleteBehavior: "deleteOnly" | "deleteAndRefreshClient";
+}
+
+export interface MicroflowRollbackAction extends MicroflowActionBase {
+  kind: "rollback";
+  officialType: "Microflows$RollbackAction";
+  objectOrListVariableName: string;
+  refreshInClient: boolean;
+}
+
+export interface MicroflowCallMicroflowAction extends MicroflowActionBase {
+  kind: "callMicroflow";
+  officialType: "Microflows$MicroflowCallAction";
+  targetMicroflowId: string;
+  targetMicroflowQualifiedName?: string;
+  parameterMappings: MicroflowParameterMapping[];
+  returnValue: {
+    storeResult: boolean;
+    outputVariableName?: string;
+    dataType?: MicroflowDataType;
+  };
+  callMode: "sync" | "asyncReserved";
+}
+
+export interface MicroflowRestCallAction extends MicroflowActionBase {
+  kind: "restCall";
+  officialType: "Microflows$RestCallAction";
+  request: {
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    urlExpression: MicroflowExpression;
+    headers: MicroflowHttpHeader[];
+    queryParameters: MicroflowHttpQueryParameter[];
+    body:
+      | { kind: "none" }
+      | { kind: "json"; expression: MicroflowExpression }
+      | { kind: "text"; expression: MicroflowExpression }
+      | { kind: "form"; fields: MicroflowFormField[] }
+      | { kind: "mapping"; exportMappingQualifiedName: string };
+  };
+  response: {
+    handling:
+      | { kind: "ignore" }
+      | { kind: "string"; outputVariableName: string }
+      | { kind: "json"; outputVariableName: string }
+      | { kind: "importMapping"; importMappingQualifiedName: string; outputVariableName: string };
+    statusCodeVariableName?: string;
+    headersVariableName?: string;
+  };
+  timeoutSeconds: number;
+}
+
+export interface MicroflowHttpHeader {
+  key: string;
+  valueExpression: MicroflowExpression;
+}
+
+export interface MicroflowHttpQueryParameter {
+  key: string;
+  valueExpression: MicroflowExpression;
+}
+
+export interface MicroflowFormField {
+  key: string;
+  valueExpression: MicroflowExpression;
+}
+
+export interface MicroflowLogMessageAction extends MicroflowActionBase {
+  kind: "logMessage";
+  officialType: "Microflows$LogMessageAction";
+  level: "trace" | "debug" | "info" | "warning" | "error" | "critical";
+  logNodeName: string;
+  template: {
+    text: string;
+    arguments: MicroflowExpression[];
+  };
+  includeContextVariables: boolean;
+  includeTraceId: boolean;
+}
+
+export interface MicroflowGenericAction extends MicroflowActionBase {
+  kind: Exclude<
+    MicroflowActionKind,
+    | MicroflowRetrieveAction["kind"]
+    | MicroflowCreateObjectAction["kind"]
+    | MicroflowChangeMembersAction["kind"]
+    | MicroflowCommitAction["kind"]
+    | MicroflowDeleteAction["kind"]
+    | MicroflowRollbackAction["kind"]
+    | MicroflowCallMicroflowAction["kind"]
+    | MicroflowRestCallAction["kind"]
+    | MicroflowLogMessageAction["kind"]
+  >;
+  [key: string]: unknown;
+}
+
+export type MicroflowAction =
+  | MicroflowRetrieveAction
+  | MicroflowCreateObjectAction
+  | MicroflowChangeMembersAction
+  | MicroflowCommitAction
+  | MicroflowDeleteAction
+  | MicroflowRollbackAction
+  | MicroflowCallMicroflowAction
+  | MicroflowRestCallAction
+  | MicroflowLogMessageAction
+  | MicroflowGenericAction;
+
+export type MicroflowActionActivityColor = "default" | "blue" | "green" | "orange" | "red" | "purple" | "gray";
+
+export interface MicroflowActionActivity extends MicroflowObjectBase {
+  kind: "actionActivity";
+  officialType: "Microflows$ActionActivity";
+  caption: string;
+  autoGenerateCaption: boolean;
+  backgroundColor: MicroflowActionActivityColor;
+  disabled: boolean;
+  action: MicroflowAction;
+}
+
+export interface MicroflowIterableListLoopSource {
+  kind: "iterableList";
+  officialType: "Microflows$IterableList";
+  listVariableName: string;
+  iteratorVariableName: string;
+  currentIndexVariableName: "$currentIndex";
+}
+
+export interface MicroflowWhileLoopCondition {
+  kind: "whileCondition";
+  officialType: "Microflows$WhileLoopCondition";
+  expression: MicroflowExpression;
+}
+
+export interface MicroflowLoopedActivity extends MicroflowObjectBase {
+  kind: "loopedActivity";
+  officialType: "Microflows$LoopedActivity";
+  documentation: string;
+  errorHandlingType: MicroflowErrorHandlingType;
+  loopSource: MicroflowIterableListLoopSource | MicroflowWhileLoopCondition;
+  objectCollection: MicroflowObjectCollection;
+}
+
+export interface MicroflowParameterObject extends MicroflowObjectBase {
+  kind: "parameterObject";
+  officialType: "Microflows$MicroflowParameterObject";
+  parameterId: string;
+}
+
+export interface MicroflowAnnotation extends MicroflowObjectBase {
+  kind: "annotation";
+  officialType: "Microflows$Annotation";
+  text: string;
+}
+
+export type MicroflowObject =
+  | MicroflowStartEvent
+  | MicroflowEndEvent
+  | MicroflowErrorEvent
+  | MicroflowBreakEvent
+  | MicroflowContinueEvent
+  | MicroflowExclusiveSplit
+  | MicroflowInheritanceSplit
+  | MicroflowExclusiveMerge
+  | MicroflowActionActivity
+  | MicroflowLoopedActivity
+  | MicroflowParameterObject
+  | MicroflowAnnotation;
+
+export interface MicroflowObjectCollection {
+  id: string;
+  officialType: "Microflows$MicroflowObjectCollection";
+  objects: MicroflowObject[];
+}
+
+export type MicroflowCaseValue =
+  | { kind: "boolean"; officialType: "Microflows$EnumerationCase"; value: true | false; persistedValue: "true" | "false" }
+  | { kind: "enumeration"; officialType: "Microflows$EnumerationCase"; enumerationQualifiedName: string; value: string }
+  | { kind: "inheritance"; officialType: "Microflows$InheritanceCase"; entityQualifiedName: string }
+  | { kind: "empty"; officialType: "Microflows$NoCase" }
+  | { kind: "fallback"; officialType: "Microflows$NoCase" }
+  | { kind: "noCase"; officialType: "Microflows$NoCase" };
+
+export interface MicroflowSequenceFlow {
+  id: string;
+  stableId: string;
+  kind: "sequence";
+  officialType: "Microflows$SequenceFlow";
+  originObjectId: string;
+  destinationObjectId: string;
+  originConnectionIndex: number;
+  destinationConnectionIndex: number;
+  caseValues: MicroflowCaseValue[];
+  isErrorHandler: boolean;
+  line: MicroflowLine;
+  editor: {
+    edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler";
+    label?: string;
+    description?: string;
+    branchOrder?: number;
+    colorToken?: string;
+    selected?: boolean;
+  };
+}
+
+export interface MicroflowAnnotationFlow {
+  id: string;
+  stableId: string;
+  kind: "annotation";
+  officialType: "Microflows$AnnotationFlow";
+  originObjectId: string;
+  destinationObjectId: string;
+  originConnectionIndex?: number;
+  destinationConnectionIndex?: number;
+  line: MicroflowLine;
+  editor: {
+    label?: string;
+    description?: string;
+    showInExport: boolean;
+    selected?: boolean;
+  };
+}
+
+export type MicroflowFlow = MicroflowSequenceFlow | MicroflowAnnotationFlow;
+
+export interface MicroflowSecurityConfig {
+  applyEntityAccess: boolean;
+  allowedModuleRoleIds: string[];
+  allowedRoleNames?: string[];
+}
+
+export interface MicroflowConcurrencyConfig {
+  allowConcurrentExecution: boolean;
+  errorMessage?: string;
+  errorMicroflowId?: string | null;
+}
+
+export interface MicroflowExposureConfig {
+  exportLevel: "hidden" | "module" | "public";
+  markAsUsed: boolean;
+  asMicroflowAction?: {
+    enabled: boolean;
+    caption?: string;
+    category?: string;
+  };
+  asWorkflowAction?: {
+    enabled: boolean;
+    caption?: string;
+    category?: string;
+  };
+  url?: {
+    enabled: boolean;
+    path?: string;
+    searchParameters?: string[];
+  };
+}
+
+export interface MicroflowVariableSymbol {
+  name: string;
+  dataType: MicroflowDataType;
+  source:
+    | { kind: "parameter"; parameterId: string }
+    | { kind: "actionOutput"; objectId: string; actionId: string }
+    | { kind: "localVariable"; objectId: string; actionId: string }
+    | { kind: "loopIterator"; loopObjectId: string }
+    | { kind: "errorContext"; flowId: string }
+    | { kind: "system"; name: "$currentUser" | "$currentIndex" };
+  scope: {
+    collectionId: string;
+    startObjectId?: string;
+    endObjectId?: string;
+    errorHandlerFlowId?: string;
+    loopObjectId?: string;
+  };
+  readonly: boolean;
+}
+
+export interface MicroflowVariableIndex {
+  parameters: Record<string, MicroflowVariableSymbol>;
+  localVariables: Record<string, MicroflowVariableSymbol>;
+  objectOutputs: Record<string, MicroflowVariableSymbol>;
+  listOutputs: Record<string, MicroflowVariableSymbol>;
+  loopVariables: Record<string, MicroflowVariableSymbol>;
+  errorVariables: Record<string, MicroflowVariableSymbol>;
+  systemVariables: Record<string, MicroflowVariableSymbol>;
+}
+
+export interface MicroflowValidationState {
+  lastValidatedAt?: string;
+  issues: MicroflowValidationIssue[];
+}
+
+export interface MicroflowEditorState {
+  viewport: {
+    x: number;
+    y: number;
+    zoom: number;
+  };
+  selection: {
+    objectId?: string;
+    flowId?: string;
+  };
+  layoutMode?: "freeform" | "auto";
+}
+
+export interface MicroflowAuthoringSchema {
+  schemaVersion: "1.0.0";
+  mendixProfile: "mx11";
+  id: string;
+  stableId: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  documentation?: string;
+  moduleId: string;
+  moduleName?: string;
+  parameters: MicroflowParameter[];
+  returnType: MicroflowDataType;
+  returnVariableName?: string;
+  objectCollection: MicroflowObjectCollection;
+  flows: MicroflowFlow[];
+  security: MicroflowSecurityConfig;
+  concurrency: MicroflowConcurrencyConfig;
+  exposure: MicroflowExposureConfig;
+  variables: MicroflowVariableIndex;
+  validation: MicroflowValidationState;
+  editor: MicroflowEditorState;
+  audit: {
+    createdBy?: string;
+    createdAt?: string;
+    updatedBy?: string;
+    updatedAt?: string;
+    version: string;
+    status: "draft" | "published" | "archived";
+  };
+}
+
+export interface MicroflowEditorPort {
+  id: string;
+  objectId: string;
+  label: string;
+  direction: MicroflowPortDirection;
+  kind: MicroflowPortKind;
+  connectionIndex: number;
+}
+
+export interface MicroflowEditorNode {
+  id: string;
+  objectId: string;
+  nodeKind: MicroflowObjectKind;
+  activityKind?: MicroflowActionKind;
+  title: string;
+  subtitle?: string;
+  iconKey: string;
+  position: MicroflowPoint;
+  size: MicroflowSize;
+  ports: MicroflowEditorPort[];
+  state: {
+    selected: boolean;
+    disabled: boolean;
+    hasError: boolean;
+    hasWarning: boolean;
+    runtimeStatus?: "idle" | "running" | "success" | "failed" | "skipped";
+  };
+}
+
+export interface MicroflowEditorEdge {
+  id: string;
+  flowId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  sourcePortId: string;
+  targetPortId: string;
+  edgeKind: MicroflowEdgeKind;
+  label?: string;
+  style: {
+    strokeType: "solid" | "dashed" | "dotted";
+    colorToken: string;
+    arrow: boolean;
+  };
+  state: {
+    selected: boolean;
+    hasError: boolean;
+    runtimeVisited: boolean;
+  };
+}
+
+export interface MicroflowEditorGraph {
+  nodes: MicroflowEditorNode[];
+  edges: MicroflowEditorEdge[];
+  viewport: {
+    x: number;
+    y: number;
+    zoom: number;
+  };
+  selection: {
+    objectId?: string;
+    flowId?: string;
+  };
+}
+
+export interface MicroflowEditorGraphPatch {
+  movedNodes?: Array<{ objectId: string; position: MicroflowPoint }>;
+  resizedNodes?: Array<{ objectId: string; size: MicroflowSize }>;
+  selectedObjectId?: string;
+  selectedFlowId?: string;
+  viewport?: MicroflowEditorGraph["viewport"];
+  updatedFlows?: Array<{ flowId: string; label?: string; line?: MicroflowLine }>;
+}
+
+export interface MendixCompatText {
+  translations?: Record<string, string>;
+  text?: string;
+}
+
+export type MendixCompatDataType = MicroflowDataType;
+export type MendixCompatMicroflowParameter = MicroflowParameter;
+export type MendixCompatMicroflowObjectCollection = MicroflowObjectCollection;
+export type MendixCompatFlow = MicroflowFlow;
+
+export interface MendixCompatMicroflowActionInfo {
+  caption?: string;
+  category?: string;
+}
+
+export interface MendixCompatMicroflow {
+  $ID: string;
+  $Type: "Microflows$Microflow";
+  $UnitID?: string;
+  name: string;
+  documentation: string;
+  parameters: MendixCompatMicroflowParameter[];
+  microflowReturnType: MendixCompatDataType;
+  returnVariableName: string;
+  objectCollection: MendixCompatMicroflowObjectCollection;
+  flows: MendixCompatFlow[];
+  applyEntityAccess: boolean;
+  allowedModuleRoleIds: string[];
+  allowConcurrentExecution: boolean;
+  concurrencyErrorMessage?: MendixCompatText;
+  concurrencyErrorMicroflow?: string | null;
+  excluded: boolean;
+  exportLevel: "Hidden" | "UsableFromModule" | "Public";
+  markAsUsed: boolean;
+  microflowActionInfo?: MendixCompatMicroflowActionInfo | null;
+  workflowActionInfo?: MendixCompatMicroflowActionInfo | null;
+  url?: string;
+  urlSearchParameters?: string[];
+  stableId?: string;
+}
+
+export interface MicroflowRuntimeDto {
+  microflowId: string;
+  schemaVersion: string;
+  name: string;
+  returnType: MicroflowDataType;
+  parameters: MicroflowParameter[];
+  objectCollection: MicroflowObjectCollection;
+  flows: MicroflowFlow[];
+  variables: MicroflowVariableIndex;
+}
+
+export interface MicroflowSchema extends Omit<MicroflowAuthoringSchema, "variables" | "validation" | "editor"> {
   id: string;
   name: string;
   version: string;
   description?: string;
   parameters: MicroflowParameter[];
   variables: MicroflowVariable[];
+  variableIndex: MicroflowVariableIndex;
+  validation: MicroflowValidationState;
+  editor: MicroflowEditorState;
   nodes: MicroflowNode[];
   edges: MicroflowEdge[];
   viewport?: {
@@ -530,7 +1327,19 @@ export interface MicroflowValidationIssue {
   message: string;
   nodeId?: string;
   edgeId?: string;
+  objectId?: string;
+  flowId?: string;
+  actionId?: string;
+  fieldPath?: string;
   code: string;
+  quickFixes?: MicroflowQuickFix[];
+}
+
+export interface MicroflowQuickFix {
+  id: string;
+  title: string;
+  description?: string;
+  fieldPath?: string;
 }
 
 export interface MicroflowRuntimeNodeDto {

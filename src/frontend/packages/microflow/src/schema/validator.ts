@@ -1,7 +1,10 @@
 import type {
   MicroflowEdge,
   MicroflowEventConfig,
+  MicroflowFlow,
   MicroflowNode,
+  MicroflowObject,
+  MicroflowObjectCollection,
   MicroflowSchema,
   MicroflowValidationIssue
 } from "./types";
@@ -10,16 +13,143 @@ import { defaultMicroflowEdgeRegistry } from "../node-registry/edge-registry";
 function issue(
   code: string,
   message: string,
-  target?: Pick<MicroflowValidationIssue, "nodeId" | "edgeId">,
+  target?: Pick<MicroflowValidationIssue, "nodeId" | "edgeId" | "objectId" | "flowId" | "actionId" | "fieldPath">,
   severity: MicroflowValidationIssue["severity"] = "error"
 ): MicroflowValidationIssue {
   return {
-    id: `${code}:${target?.nodeId ?? target?.edgeId ?? "schema"}`,
+    id: `${code}:${target?.objectId ?? target?.flowId ?? target?.actionId ?? target?.nodeId ?? target?.edgeId ?? target?.fieldPath ?? "schema"}`,
     code,
     message,
     severity,
     ...target
   };
+}
+
+function flattenObjects(collection: MicroflowObjectCollection): Array<{ object: MicroflowObject; loopObjectId?: string }> {
+  return collection.objects.flatMap(object => {
+    if (object.kind !== "loopedActivity") {
+      return [{ object }];
+    }
+    return [{ object }, ...flattenObjects(object.objectCollection).map(item => ({ ...item, loopObjectId: item.loopObjectId ?? object.id }))];
+  });
+}
+
+function validateAuthoringStructure(schema: MicroflowSchema): MicroflowValidationIssue[] {
+  const issues: MicroflowValidationIssue[] = [];
+  if (!schema.objectCollection || schema.objectCollection.officialType !== "Microflows$MicroflowObjectCollection") {
+    issues.push(issue("MF_OBJECT_COLLECTION_MISSING", "Microflow must contain a MicroflowObjectCollection.", { fieldPath: "objectCollection" }));
+    return issues;
+  }
+  if (!Array.isArray(schema.flows)) {
+    issues.push(issue("MF_FLOWS_MISSING", "Microflow must contain flows array.", { fieldPath: "flows" }));
+    return issues;
+  }
+
+  const flattened = flattenObjects(schema.objectCollection);
+  const objects = flattened.map(item => item.object);
+  const objectIds = new Set<string>();
+  for (const { object, loopObjectId } of flattened) {
+    if (objectIds.has(object.id)) {
+      issues.push(issue("MF_OBJECT_DUPLICATED", `Object "${object.id}" is duplicated.`, { objectId: object.id }));
+    }
+    objectIds.add(object.id);
+    if (!Number.isFinite(object.relativeMiddlePoint.x) || !Number.isFinite(object.relativeMiddlePoint.y)) {
+      issues.push(issue("MF_OBJECT_POSITION_INVALID", "Object relativeMiddlePoint must contain finite x/y values.", { objectId: object.id, fieldPath: "relativeMiddlePoint" }));
+    }
+    if ((object.kind === "breakEvent" || object.kind === "continueEvent") && !loopObjectId) {
+      issues.push(issue(object.kind === "breakEvent" ? "MF_BREAK_OUTSIDE_LOOP" : "MF_CONTINUE_OUTSIDE_LOOP", "Break/Continue Event can only be placed inside a LoopedActivity.objectCollection.", { objectId: object.id }));
+    }
+    if ((object.kind === "startEvent" || object.kind === "endEvent") && loopObjectId) {
+      issues.push(issue(object.kind === "startEvent" ? "MF_START_IN_LOOP" : "MF_END_IN_LOOP", "Start/End Event cannot be placed inside a LoopedActivity.objectCollection.", { objectId: object.id }));
+    }
+    if (object.kind === "actionActivity") {
+      if (!object.action.id || !object.action.kind || !object.action.officialType) {
+        issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "ActionActivity.action must contain id, kind and officialType.", { objectId: object.id, actionId: object.action.id, fieldPath: "action" }));
+      }
+      if (object.action.kind === "retrieve") {
+        if (!object.action.outputVariableName.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "RetrieveAction.outputVariableName is required.", { objectId: object.id, actionId: object.action.id, fieldPath: "action.outputVariableName" }));
+        }
+        if (object.action.retrieveSource.kind === "database" && !object.action.retrieveSource.entityQualifiedName) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "DatabaseRetrieveSource.entityQualifiedName is required.", { objectId: object.id, actionId: object.action.id, fieldPath: "action.retrieveSource.entityQualifiedName" }));
+        }
+        if (object.action.retrieveSource.kind === "association" && !object.action.retrieveSource.startVariableName.trim()) {
+          issues.push(issue("MF_ACTION_REQUIRED_FIELD_MISSING", "AssociationRetrieveSource.startVariableName is required.", { objectId: object.id, actionId: object.action.id, fieldPath: "action.retrieveSource.startVariableName" }));
+        }
+      }
+    }
+  }
+
+  const startCount = objects.filter(object => object.kind === "startEvent").length;
+  if (startCount === 0) {
+    issues.push(issue("MF_START_MISSING", "Microflow must contain exactly one StartEvent."));
+  }
+  if (startCount > 1) {
+    issues.push(issue("MF_START_DUPLICATED", "Microflow must contain exactly one StartEvent."));
+  }
+  if (!objects.some(object => object.kind === "endEvent")) {
+    issues.push(issue("MF_END_MISSING", "Microflow must contain at least one EndEvent."));
+  }
+
+  for (const flow of schema.flows) {
+    if (flow.kind !== "sequence" && flow.kind !== "annotation") {
+      issues.push(issue("MF_FLOW_KIND_INVALID", "Flow must be SequenceFlow or AnnotationFlow.", { flowId: (flow as MicroflowFlow).id }));
+      continue;
+    }
+    if (!objectIds.has(flow.originObjectId)) {
+      issues.push(issue("MF_FLOW_ORIGIN_MISSING", "Flow originObjectId must reference an existing object.", { flowId: flow.id }));
+    }
+    if (!objectIds.has(flow.destinationObjectId)) {
+      issues.push(issue("MF_FLOW_DESTINATION_MISSING", "Flow destinationObjectId must reference an existing object.", { flowId: flow.id }));
+    }
+    const source = objects.find(object => object.id === flow.originObjectId);
+    const target = objects.find(object => object.id === flow.destinationObjectId);
+    if (flow.kind === "annotation") {
+      if (source?.kind !== "annotation" && target?.kind !== "annotation") {
+        issues.push(issue("MF_ANNOTATION_EDGE_ENDPOINT", "AnnotationFlow must connect to at least one Annotation.", { flowId: flow.id }));
+      }
+      continue;
+    }
+    if ((source?.kind === "parameterObject" || source?.kind === "annotation" || target?.kind === "parameterObject" || target?.kind === "annotation") && !flow.isErrorHandler) {
+      issues.push(issue("MF_NON_EXECUTABLE_SEQUENCE", "SequenceFlow cannot connect ParameterObject or Annotation.", { flowId: flow.id }));
+    }
+    if (flow.isErrorHandler) {
+      const supportsErrorHandling = source?.kind === "actionActivity" || source?.kind === "loopedActivity" || source?.kind === "exclusiveSplit" || source?.kind === "inheritanceSplit";
+      if (!supportsErrorHandling) {
+        issues.push(issue("MF_ERROR_FLOW_SOURCE", "isErrorHandler SequenceFlow source must support errorHandling.", { flowId: flow.id }));
+      }
+      if (source?.kind === "actionActivity" && source.action.errorHandlingType === "rollback") {
+        issues.push(issue("MF_ERROR_HANDLER_ROLLBACK", "rollback errorHandlingType must not have an error handler SequenceFlow.", { flowId: flow.id, actionId: source.action.id }));
+      }
+    }
+  }
+
+  for (const split of objects.filter((object): object is Extract<MicroflowObject, { kind: "exclusiveSplit" }> => object.kind === "exclusiveSplit")) {
+    const outgoing = schema.flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === split.id && !flow.isErrorHandler);
+    if (outgoing.length < 2) {
+      issues.push(issue("MF_DECISION_BRANCH_MISSING", "ExclusiveSplit must have at least two outgoing SequenceFlows.", { objectId: split.id }));
+    }
+    const caseKeys = outgoing.flatMap(flow => flow.kind === "sequence" ? flow.caseValues.map(caseValue => `${caseValue.kind}:${"value" in caseValue ? caseValue.value : ""}`) : []);
+    if (new Set(caseKeys).size !== caseKeys.length) {
+      issues.push(issue("MF_DECISION_DUPLICATE_CASE", "ExclusiveSplit cannot have duplicate caseValues.", { objectId: split.id }));
+    }
+    if (split.splitCondition.kind === "expression" && split.splitCondition.resultType === "boolean") {
+      const values = new Set(outgoing.flatMap(flow => flow.kind === "sequence" ? flow.caseValues : []).filter(caseValue => caseValue.kind === "boolean").map(caseValue => caseValue.value));
+      if (!values.has(true) || !values.has(false)) {
+        issues.push(issue("MF_DECISION_BRANCH_MISSING", "Boolean ExclusiveSplit must have true and false caseValues.", { objectId: split.id }));
+      }
+    }
+  }
+
+  for (const split of objects.filter((object): object is Extract<MicroflowObject, { kind: "inheritanceSplit" }> => object.kind === "inheritanceSplit")) {
+    const outgoing = schema.flows.filter(flow => flow.kind === "sequence" && flow.originObjectId === split.id && !flow.isErrorHandler);
+    const caseKeys = outgoing.flatMap(flow => flow.kind === "sequence" ? flow.caseValues.filter(caseValue => caseValue.kind === "inheritance").map(caseValue => caseValue.entityQualifiedName) : []);
+    if (new Set(caseKeys).size !== caseKeys.length) {
+      issues.push(issue("MF_DECISION_DUPLICATE_CASE", "InheritanceSplit cannot have duplicate specialization caseValues.", { objectId: split.id }));
+    }
+  }
+
+  return issues;
 }
 
 function hasText(value: string | undefined): boolean {
@@ -110,7 +240,7 @@ function conditionKey(edge: MicroflowEdge): string {
 }
 
 export function validateMicroflowSchema(schema: MicroflowSchema): MicroflowValidationIssue[] {
-  const issues: MicroflowValidationIssue[] = [];
+  const issues: MicroflowValidationIssue[] = validateAuthoringStructure(schema);
   const nodesById = new Map(schema.nodes.map(node => [node.id, node]));
   const startEvents = schema.nodes.filter(node => node.type === "startEvent");
   const endEvents = schema.nodes.filter(node => node.type === "endEvent");

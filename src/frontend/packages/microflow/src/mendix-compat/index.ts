@@ -1,4 +1,14 @@
 import type { MicroflowActivityType, MicroflowEdgeType, MicroflowNodeCategory, MicroflowNodeType } from "../schema/types";
+export type {
+  MendixCompatDataType,
+  MendixCompatFlow,
+  MendixCompatMicroflow,
+  MendixCompatMicroflowActionInfo,
+  MendixCompatMicroflowObjectCollection,
+  MendixCompatMicroflowParameter,
+  MendixCompatText
+} from "../schema/types";
+export { fromMendixCompat, toMendixCompat } from "../adapters";
 
 export type MendixMicroflowConcept =
   | "Event"

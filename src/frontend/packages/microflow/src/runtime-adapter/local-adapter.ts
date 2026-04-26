@@ -1,4 +1,5 @@
 import { validateMicroflowSchema } from "../schema/validator";
+import { buildAuthoringFieldsFromLegacy, toRuntimeDto } from "../adapters";
 import type {
   CreateMicroflowInput,
   MicroflowListQuery,
@@ -25,7 +26,15 @@ import type {
 const STORAGE_KEY = "atlas_microflow_resources_v1";
 
 function cloneSchema(schema: MicroflowSchema): MicroflowSchema {
-  return JSON.parse(JSON.stringify(schema)) as MicroflowSchema;
+  const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowSchema;
+  if (!cloned.objectCollection || !Array.isArray(cloned.flows) || !cloned.variableIndex) {
+    return {
+      ...cloned,
+      ...buildAuthoringFieldsFromLegacy(cloned),
+      variables: cloned.variables ?? []
+    };
+  }
+  return cloned;
 }
 
 function cloneResource(resource: MicroflowResource): MicroflowResource {
@@ -258,8 +267,8 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       microflowId: schema.id,
       version: schema.version,
       savedAt: next.updatedAt,
-      nodeCount: schema.nodes.length,
-      edgeCount: schema.edges.length
+      nodeCount: schema.objectCollection.objects.length,
+      edgeCount: schema.flows.length
     };
   }
 
@@ -277,6 +286,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
 
   async testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse> {
     const schema = request.schema ?? this.resources.get(request.microflowId)?.schema ?? sampleMicroflowSchema;
+    const runtimeDto = toRuntimeDto(schema);
     const startedAt = Date.now();
     const runId = `run-${startedAt}`;
     const simulateError = String(request.input.simulateError ?? "").toLowerCase() === "true";
@@ -327,6 +337,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
           status: failed ? "failed" : "ok",
           nodeType: node.type,
           activityType: node.type === "activity" ? node.config.activityType : undefined,
+          runtimeFlowCount: runtimeDto.flows.length,
           outgoingEdgeId: trace.outgoingEdgeId,
           conditionValue: schema.edges.find(edge => edge.id === trace.outgoingEdgeId)?.conditionValue
         },
