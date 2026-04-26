@@ -319,7 +319,13 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         CancellationToken cancellationToken = default)
     {
         var job = await LoadJobAsync(jobId).ConfigureAwait(false);
-        if (job.State is not (DataMigrationStates.Validating or DataMigrationStates.Running or DataMigrationStates.Ready or DataMigrationStates.Succeeded))
+        if (job.State is not (
+            DataMigrationStates.Validating
+            or DataMigrationStates.Running
+            or DataMigrationStates.Ready
+            or DataMigrationStates.Succeeded
+            or DataMigrationStates.Validated
+            or DataMigrationStates.ValidationFailed))
         {
             throw new InvalidOperationException($"cannot validate migration from state {job.State}");
         }
@@ -423,15 +429,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
         await UpdateJobAsync(job, cancellationToken).ConfigureAwait(false);
         await AppendLogAsync(job.Id, "info", "Validate", $"passed={passed}/{tableProgress.Count}", null, cancellationToken).ConfigureAwait(false);
 
-        return new DataMigrationReportDto(
-            job.Id.ToString(),
-            report.TotalEntities,
-            report.PassedEntities,
-            report.FailedEntities,
-            rowDiff,
-            samplingDiff,
-            overallPassed,
-            report.GeneratedAt);
+        return MapReport(report);
     }
 
     public async Task<DataMigrationJobDto> CutoverJobAsync(
@@ -517,15 +515,7 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             return null;
         }
 
-        return new DataMigrationReportDto(
-            jobId,
-            report.TotalEntities,
-            report.PassedEntities,
-            report.FailedEntities,
-            JsonSerializer.Deserialize<List<DataMigrationRowDiffDto>>(report.RowDiffJson) ?? [],
-            JsonSerializer.Deserialize<List<DataMigrationSamplingDiffDto>>(report.SamplingDiffJson) ?? [],
-            report.OverallPassed,
-            report.GeneratedAt);
+        return MapReport(report);
     }
 
     public async Task<DataMigrationLogPagedResponse> GetLogsAsync(
@@ -629,6 +619,19 @@ public sealed class OrmDataMigrationService : IDataMigrationOrmService
             job.ErrorSummary,
             job.CreatedAt,
             job.UpdatedAt);
+    }
+
+    private static DataMigrationReportDto MapReport(DataMigrationReport report)
+    {
+        return new DataMigrationReportDto(
+            report.JobId.ToString(),
+            report.TotalEntities,
+            report.PassedEntities,
+            report.FailedEntities,
+            JsonSerializer.Deserialize<List<DataMigrationRowDiffDto>>(report.RowDiffJson) ?? [],
+            JsonSerializer.Deserialize<List<DataMigrationSamplingDiffDto>>(report.SamplingDiffJson) ?? [],
+            report.OverallPassed,
+            report.GeneratedAt);
     }
 
     private async Task<IReadOnlyList<DataMigrationTableProgressDto>> GetTableProgressDtosAsync(long jobId, CancellationToken cancellationToken)

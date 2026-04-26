@@ -1,6 +1,8 @@
 using Atlas.Application.SetupConsole.Abstractions;
 using Atlas.Application.SetupConsole.Models;
 using Atlas.Core.Models;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,7 +34,7 @@ public sealed class DataMigrationController : ControllerBase
         [FromBody] MigrationTestConnectionRequest request,
         CancellationToken cancellationToken)
     {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        if (!await IsMigrationAuthorizedAsync(cancellationToken))
         {
             return Unauthorized(ApiResponse<MigrationTestConnectionResponse>.Fail(
                 "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
@@ -46,7 +48,7 @@ public sealed class DataMigrationController : ControllerBase
         [FromBody] DataMigrationJobCreateRequest request,
         CancellationToken cancellationToken)
     {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        if (!await IsMigrationAuthorizedAsync(cancellationToken))
         {
             return Unauthorized(ApiResponse<DataMigrationJobDto>.Fail(
                 "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
@@ -82,7 +84,7 @@ public sealed class DataMigrationController : ControllerBase
     [HttpGet("jobs/{jobId}/progress")]
     public async Task<ActionResult<ApiResponse<DataMigrationProgressDto>>> GetProgress(string jobId, CancellationToken cancellationToken)
     {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        if (!await IsMigrationAuthorizedAsync(cancellationToken))
         {
             return Unauthorized(ApiResponse<DataMigrationProgressDto>.Fail(
                 "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
@@ -92,16 +94,8 @@ public sealed class DataMigrationController : ControllerBase
     }
 
     [HttpPost("jobs/{jobId}/validate")]
-    public async Task<ActionResult<ApiResponse<DataMigrationReportDto>>> Validate(string jobId, CancellationToken cancellationToken)
-    {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
-        {
-            return Unauthorized(ApiResponse<DataMigrationReportDto>.Fail(
-                "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
-        }
-        var report = await _service.ValidateJobAsync(jobId, cancellationToken);
-        return Ok(ApiResponse<DataMigrationReportDto>.Ok(report, HttpContext.TraceIdentifier));
-    }
+    public Task<ActionResult<ApiResponse<DataMigrationReportDto>>> Validate(string jobId, CancellationToken cancellationToken)
+        => RunGuarded<DataMigrationReportDto>(() => _service.ValidateJobAsync(jobId, cancellationToken), cancellationToken);
 
     [HttpPost("jobs/{jobId}/cutover")]
     public Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Cutover(
@@ -113,7 +107,7 @@ public sealed class DataMigrationController : ControllerBase
     [HttpPost("jobs/{jobId}/rollback")]
     public async Task<ActionResult<ApiResponse<DataMigrationJobDto>>> Rollback(string jobId, CancellationToken cancellationToken)
     {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        if (!await IsMigrationAuthorizedAsync(cancellationToken))
         {
             return Unauthorized(ApiResponse<DataMigrationJobDto>.Fail(
                 "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
@@ -134,7 +128,7 @@ public sealed class DataMigrationController : ControllerBase
     [HttpGet("jobs/{jobId}/report")]
     public async Task<ActionResult<ApiResponse<DataMigrationReportDto?>>> GetReport(string jobId, CancellationToken cancellationToken)
     {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        if (!await IsMigrationAuthorizedAsync(cancellationToken))
         {
             return Unauthorized(ApiResponse<DataMigrationReportDto?>.Fail(
                 "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
@@ -156,7 +150,7 @@ public sealed class DataMigrationController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        if (!await IsMigrationAuthorizedAsync(cancellationToken))
         {
             return Unauthorized(ApiResponse<DataMigrationLogPagedResponse>.Fail(
                 "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
@@ -167,7 +161,7 @@ public sealed class DataMigrationController : ControllerBase
 
     private async Task<ActionResult<ApiResponse<T>>> RunGuarded<T>(Func<Task<T>> executor, CancellationToken cancellationToken)
     {
-        if (!await IsConsoleTokenValidAsync(cancellationToken))
+        if (!await IsMigrationAuthorizedAsync(cancellationToken))
         {
             return Unauthorized(ApiResponse<T>.Fail(
                 "CONSOLE_TOKEN_EXPIRED", "console token missing or expired", HttpContext.TraceIdentifier));
@@ -183,8 +177,20 @@ public sealed class DataMigrationController : ControllerBase
         }
     }
 
-    private async Task<bool> IsConsoleTokenValidAsync(CancellationToken cancellationToken)
+    private async Task<bool> IsMigrationAuthorizedAsync(CancellationToken cancellationToken)
     {
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return true;
+        }
+
+        var jwtResult = await HttpContext.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
+        if (jwtResult.Succeeded && jwtResult.Principal?.Identity?.IsAuthenticated == true)
+        {
+            HttpContext.User = jwtResult.Principal;
+            return true;
+        }
+
         if (!Request.Headers.TryGetValue(SetupConsoleAuthController.ConsoleTokenHeaderName, out var token)
             || string.IsNullOrWhiteSpace(token))
         {

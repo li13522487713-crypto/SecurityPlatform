@@ -348,6 +348,7 @@ export interface DataMigrationCutoverRequest {
 // 真接口实现（M5 已落地后端：SetupConsoleAuthController + SetupConsoleController）
 // ============================================================================
 
+import { getAccessToken, getAuthProfile, getTenantId, setTenantId } from "@atlas/shared-react-core/utils";
 import { resolveApiUrl } from "./api-core";
 
 const CONSOLE_TOKEN_HEADER = "X-Setup-Console-Token";
@@ -366,10 +367,24 @@ function readSessionToken(): string | null {
 }
 
 async function fetchConsoleJson<T>(url: string, options?: RequestInit): Promise<ApiResponse<T>> {
+  const accessToken = getAccessToken();
+  let tenantId = getTenantId();
+  if (!tenantId && accessToken) {
+    const profileTenantId = getAuthProfile()?.tenantId?.trim();
+    if (profileTenantId) {
+      tenantId = profileTenantId;
+      setTenantId(profileTenantId);
+    }
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Tenant-Id": DEFAULT_TENANT_ID
+    "X-Tenant-Id": tenantId || DEFAULT_TENANT_ID
   };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
   const token = readSessionToken();
   if (token) {
     headers[CONSOLE_TOKEN_HEADER] = token;
@@ -377,6 +392,7 @@ async function fetchConsoleJson<T>(url: string, options?: RequestInit): Promise<
 
   const response = await fetch(resolveApiUrl(url), {
     ...options,
+    credentials: "include",
     headers: {
       ...headers,
       ...(options?.headers ?? {})

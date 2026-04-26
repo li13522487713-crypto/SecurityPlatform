@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button, SideSheet, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
+import { Button, SideSheet, Space, Tag, Typography } from "@douyinfe/semi-ui";
 import { IconDownloadStroked, IconPlus, IconRefresh, IconSetting } from "@douyinfe/semi-icons";
 import {
   ResponsivePageFrame,
@@ -22,7 +22,6 @@ import { useDatabaseCenter } from "./use-database-center";
 
 const { Text, Title } = Typography;
 type DatabaseCenterDrawerPanel = "guide" | "sources" | "schemas" | "details";
-const SETUP_CONSOLE_TOKEN_KEY = "atlas_setup_console_token";
 
 interface DatabaseCenterShellProps {
   labels: DatabaseCenterLabels;
@@ -62,11 +61,6 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
 
   function openMigration(source: DatabaseCenterSourceSummary) {
     if (!source.aiDatabaseId) {
-      return;
-    }
-
-    if (!hasSetupConsoleToken()) {
-      Toast.warning(labels.migrationAuthRequired);
       return;
     }
 
@@ -287,17 +281,5 @@ export function DatabaseCenterShell({ labels, workspaceId, initialSourceId }: Da
         onRefresh={() => void state.refresh()}
       />
     );
-  }
-}
-
-function hasSetupConsoleToken(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  try {
-    return Boolean(window.sessionStorage.getItem(SETUP_CONSOLE_TOKEN_KEY));
-  } catch {
-    return false;
   }
 }

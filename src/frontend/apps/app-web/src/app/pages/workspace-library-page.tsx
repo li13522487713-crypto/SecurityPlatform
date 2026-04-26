@@ -96,19 +96,6 @@ function formatDate(iso?: string): string {
 }
 
 const TAB_KEYS = new Set<string>(TAB_DEFS.map(x => x.key));
-const SETUP_CONSOLE_TOKEN_KEY = "atlas_setup_console_token";
-
-function hasSetupConsoleToken(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  try {
-    return Boolean(window.sessionStorage.getItem(SETUP_CONSOLE_TOKEN_KEY));
-  } catch {
-    return false;
-  }
-}
 
 function tabFromSearch(query: string | null): LibraryTabKey {
   if (!query || query === "all") {
@@ -366,14 +353,9 @@ export function WorkspaceLibraryPage() {
 
   const handleOpenMigration = useCallback(
     (record: AiWorkspaceLibraryItem) => {
-      if (!hasSetupConsoleToken()) {
-        Toast.warning(t("setupConsoleMigrationAuthRequired"));
-        return;
-      }
-
       setMigrationSource(record);
     },
-    [t]
+    []
   );
 
   const handleOpenStructure = useCallback(
