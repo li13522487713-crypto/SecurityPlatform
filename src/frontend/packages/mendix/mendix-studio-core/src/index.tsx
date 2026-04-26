@@ -17,7 +17,23 @@ import {
   Toast,
   Typography
 } from "@douyinfe/semi-ui";
-import { IconArrowRight, IconPlus, IconSave } from "@douyinfe/semi-icons";
+import {
+  IconArrowRight,
+  IconPlus,
+  IconSave,
+  IconSearch,
+  IconHome,
+  IconCode,
+  IconPlay,
+  IconUpload,
+  IconSetting,
+  IconUndo,
+  IconRedo,
+  IconDesktop,
+  IconMonitorStroked,
+  IconPhone,
+  IconEdit
+} from "@douyinfe/semi-icons";
 import { createLocalMicroflowApiClient, MicroflowEditor, sampleMicroflowSchema } from "@atlas/microflow";
 import { DebugTracePanel } from "@atlas/mendix-debug";
 import { createRuntimeExecutor, RuntimeRenderer } from "@atlas/mendix-runtime";
@@ -813,40 +829,130 @@ export function MendixStudioApp({ appId }: { appId?: string }) {
   const latestTrace = useMendixStudioStore(state => state.latestTrace);
 
   return (
-    <div style={{ height: "calc(100vh - 120px)", minHeight: 680, display: "grid", gridTemplateRows: "56px 1fr 180px", gap: 8 }}>
-      <Card size="small">
-        <Space>
-          <Title heading={6} style={{ margin: 0 }}>{app.name}</Title>
-          <Tag>{appId ?? app.appId}</Tag>
-          <Button icon={<IconSave />} onClick={() => Toast.success("Schema saved in memory")}>保存</Button>
-          <Button
-            icon={<IconArrowRight />}
-            onClick={() => {
+    <div style={{ display: "flex", height: "100vh", width: "100vw", overflow: "hidden", backgroundColor: "#f4f5f7" }}>
+      {/* 深色侧边栏 */}
+      <div style={{ width: 64, backgroundColor: "#1c1f23", display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", flexShrink: 0 }}>
+        <div style={{ color: "#fff", fontWeight: "bold", fontSize: 18, marginBottom: 24 }}>mx</div>
+        <Space vertical spacing={24}>
+          <IconSearch style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
+          <IconHome style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
+          <div style={{ backgroundColor: "rgba(255,255,255,0.1)", padding: 8, borderRadius: 8 }}>
+            <IconCode style={{ color: "#fff", fontSize: 20 }} />
+          </div>
+          <IconPlay style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
+          <IconUpload style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
+          <IconSetting style={{ color: "#fff", fontSize: 20, opacity: 0.6 }} />
+        </Space>
+      </div>
+
+      {/* 主体区域 */}
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+        {/* 全局顶栏 */}
+        <div style={{ height: 48, backgroundColor: "#fff", borderBottom: "1px solid var(--semi-color-border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Text strong style={{ fontSize: 16, marginRight: 16 }}>Lowcode Studio</Text>
+            <Tag color="blue" size="large" style={{ borderRadius: 4 }}>应用: {app.name} ∨</Tag>
+          </div>
+          <Space>
+            <Button icon={<IconSave />} theme="borderless" type="tertiary" onClick={() => Toast.success("Schema saved in memory")}>保存</Button>
+            <Button icon={<IconArrowRight />} theme="borderless" type="tertiary" onClick={() => {
               const errors = validateLowCodeAppSchema(app);
               setValidationErrors(errors);
               Toast.info(`校验完成，${errors.length} 条结果`);
-            }}
-          >
-            校验
-          </Button>
-          <Button onClick={() => useMendixStudioStore.getState().setActiveTab("runtimePreview")}>预览</Button>
-          <Button onClick={loadSampleApp}>示例数据加载</Button>
-          <Button onClick={() => setDebugVisible(true)}>Debug Trace</Button>
-          <Tag color="purple">{activeTab}</Tag>
-        </Space>
-      </Card>
+            }}>校验</Button>
+            <Button theme="borderless" type="tertiary" onClick={() => useMendixStudioStore.getState().setActiveTab("runtimePreview")}>预览</Button>
+            <Button theme="borderless" type="tertiary" onClick={() => setDebugVisible(true)}>Debug Trace</Button>
+            <Button theme="borderless" type="tertiary" onClick={loadSampleApp}>示例数据加载</Button>
+          </Space>
+        </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr 320px", gap: 8, minHeight: 0 }}>
-        <Card title="App Explorer" bodyStyle={{ overflow: "auto", maxHeight: "100%" }}>
-          <AppExplorer />
-        </Card>
-        <Card title="Workspace" bodyStyle={{ overflow: "auto", maxHeight: "100%" }}>
-          <EditorWorkspace />
-        </Card>
-        <PropertiesPane />
+        {/* 三列工作区 */}
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          {/* 左侧资源树 (App Explorer) */}
+          <div style={{ width: 260, backgroundColor: "#fff", borderRight: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--semi-color-border)" }}>
+              <Text strong>App Explorer</Text>
+            </div>
+            <div style={{ padding: 12, borderBottom: "1px solid var(--semi-color-border)" }}>
+              <Input prefix={<IconSearch />} placeholder="搜索 (按 K)" />
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: 12 }}>
+              <AppExplorer />
+            </div>
+          </div>
+
+          {/* 中间画布及底部日志 */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, backgroundColor: "#f4f5f7" }}>
+            {/* 多页签 */}
+            <div style={{ display: "flex", backgroundColor: "#fff", borderBottom: "1px solid var(--semi-color-border)", padding: "0 8px" }}>
+              <div style={{ padding: "8px 16px", borderBottom: "2px solid #1677ff", color: "#1677ff", fontWeight: 500, backgroundColor: "#e8f3ff" }}>
+                {activeTab}
+              </div>
+            </div>
+            
+            {/* 画布工具条 */}
+            <div style={{ padding: "8px 16px", backgroundColor: "#fff", borderBottom: "1px solid var(--semi-color-border)", display: "flex", justifyContent: "space-between" }}>
+              <Space>
+                <Button theme="borderless" icon={<IconUndo />} />
+                <Button theme="borderless" icon={<IconRedo />} />
+                <Divider layout="vertical" />
+                <Button theme="borderless" icon={<IconDesktop />} />
+                <Button theme="borderless" icon={<IconMonitorStroked />} />
+                <Button theme="borderless" icon={<IconPhone />} />
+                <Divider layout="vertical" />
+                <Select defaultValue="响应式" style={{ width: 100 }} />
+                <Select defaultValue="1280px" style={{ width: 100 }} />
+                <Select defaultValue="100%" style={{ width: 80 }} />
+              </Space>
+              <Button icon={<IconPlay />} type="primary" theme="light">运行预览</Button>
+            </div>
+
+            {/* 编辑区 */}
+            <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+              <Card bodyStyle={{ padding: 0, minHeight: "100%", backgroundColor: "#fff" }}>
+                <EditorWorkspace />
+              </Card>
+            </div>
+
+            {/* 底部面板 */}
+            <div style={{ height: 240, backgroundColor: "#fff", borderTop: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+              <div style={{ display: "flex", padding: "0 16px", borderBottom: "1px solid var(--semi-color-border)", backgroundColor: "#fafafa" }}>
+                <div style={{ padding: "8px 16px", borderBottom: "2px solid #1677ff", color: "#1677ff", fontWeight: 500 }}>
+                  错误 / 日志
+                </div>
+              </div>
+              <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+                <ErrorsPane />
+              </div>
+            </div>
+          </div>
+
+          {/* 右侧属性面板 */}
+          <div style={{ width: 320, backgroundColor: "#fff", borderLeft: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+            <div style={{ display: "flex", borderBottom: "1px solid var(--semi-color-border)" }}>
+              <div style={{ flex: 1, textAlign: "center", padding: "12px 0", borderBottom: "2px solid #1677ff", color: "#1677ff", fontWeight: 500 }}>属性</div>
+              <div style={{ flex: 1, textAlign: "center", padding: "12px 0" }}>事件</div>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+              <PropertiesPane />
+            </div>
+          </div>
+
+          {/* 最右侧悬浮工具条 */}
+          <div style={{ width: 48, backgroundColor: "#fff", borderLeft: "1px solid var(--semi-color-border)", display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", flexShrink: 0 }}>
+            <Space vertical spacing={24}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "#1677ff" }}>
+                <IconSetting style={{ fontSize: 18 }} />
+                <Text size="small" style={{ color: "#1677ff", fontSize: 10, marginTop: 4 }}>属性</Text>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "var(--semi-color-text-2)" }}>
+                <IconEdit style={{ fontSize: 18 }} />
+                <Text size="small" type="tertiary" style={{ fontSize: 10, marginTop: 4 }}>样式</Text>
+              </div>
+            </Space>
+          </div>
+        </div>
       </div>
-
-      <ErrorsPane />
 
       <SideSheet visible={debugVisible} title="Debug Trace Drawer" width={680} onCancel={() => setDebugVisible(false)}>
         <DebugTracePanel trace={latestTrace} />

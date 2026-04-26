@@ -542,6 +542,14 @@ function SpaceShellChrome() {
     return <LoadingPage />;
   }
 
+  if (location.pathname.includes("/mendix-studio")) {
+    return (
+      <I18nProvider key={cozeLocale} i18n={I18n}>
+        <Outlet />
+      </I18nProvider>
+    );
+  }
+
   return (
     <I18nProvider key={cozeLocale} i18n={I18n}>
     <NativeShellFrame
