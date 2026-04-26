@@ -1,14 +1,17 @@
 import type { WorkflowEdgeJSON, WorkflowJSON, WorkflowNodeJSON } from "@flowgram-adapter/free-layout-editor";
 
 import { flattenObjectCollection, toEditorGraph } from "../../adapters";
+import type { MicroflowTraceFrame } from "../../debug/trace-types";
 import type {
+  MicroflowAuthoringPersistedTraceFrame,
   MicroflowAuthoringSchema,
+  MicroflowFlow,
   MicroflowObject,
   MicroflowObjectCollection,
-  MicroflowSchema,
-  MicroflowTraceFrame,
   MicroflowValidationIssue,
 } from "../../schema";
+
+type MicroflowFlowGramTraceRow = MicroflowTraceFrame | MicroflowAuthoringPersistedTraceFrame;
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { microflowActionRegistryByKind } from "../../node-registry";
 import { flowCaseLabel } from "./flowgram-case-options";
@@ -65,14 +68,14 @@ function collectCollectionObjectIds(collection: MicroflowObjectCollection): Set<
 
 function loopSummaryForObject(
   object: MicroflowObject | undefined,
-  schema: MicroflowSchema | MicroflowAuthoringSchema,
+  schema: MicroflowAuthoringSchema,
 ): FlowGramMicroflowNodeData["loopSummary"] {
   if (object?.kind !== "loopedActivity") {
     return undefined;
   }
   const childObjects = flattenObjectCollection(object.objectCollection);
   const descendantIds = collectCollectionObjectIds(object.objectCollection);
-  const flowCount = collectFlowsRecursive(schema as MicroflowSchema).filter(flow => descendantIds.has(flow.originObjectId) && descendantIds.has(flow.destinationObjectId)).length;
+  const flowCount = collectFlowsRecursive(schema).filter(flow => descendantIds.has(flow.originObjectId) && descendantIds.has(flow.destinationObjectId)).length;
   return {
     childCount: childObjects.length,
     flowCount,
@@ -95,7 +98,7 @@ export function buildIssueIndex(issues: MicroflowValidationIssue[]): FlowGramMic
   return index;
 }
 
-function runtimeStateForObject(objectId: string, trace: MicroflowTraceFrame[] = []): FlowGramMicroflowNodeData["runtimeState"] {
+function runtimeStateForObject(objectId: string, trace: MicroflowFlowGramTraceRow[] = []): FlowGramMicroflowNodeData["runtimeState"] {
   const frame = [...trace].reverse().find(item => item.objectId === objectId);
   if (!frame) {
     return "idle";
@@ -112,7 +115,7 @@ function runtimeStateForObject(objectId: string, trace: MicroflowTraceFrame[] = 
   return "success";
 }
 
-function runtimeStateForFlow(flow: MicroflowFlow | undefined, trace: MicroflowTraceFrame[] = []): FlowGramMicroflowEdgeData["runtimeState"] {
+function runtimeStateForFlow(flow: MicroflowFlow | undefined, trace: MicroflowFlowGramTraceRow[] = []): FlowGramMicroflowEdgeData["runtimeState"] {
   if (!flow) {
     return "idle";
   }
@@ -131,15 +134,15 @@ function runtimeStateForFlow(flow: MicroflowFlow | undefined, trace: MicroflowTr
 }
 
 export function authoringToFlowGram(
-  schema: MicroflowSchema | MicroflowAuthoringSchema,
+  schema: MicroflowAuthoringSchema,
   issues: MicroflowValidationIssue[] = schema.validation?.issues ?? [],
-  trace: MicroflowTraceFrame[] = [],
+  trace: MicroflowFlowGramTraceRow[] = [],
 ): WorkflowJSON {
   const graph = toEditorGraph({ ...schema, validation: { issues } });
   const objects = new Map(flattenObjectCollection(schema.objectCollection).map(object => [object.id, object]));
   const issueIndex = buildIssueIndex(issues);
   const graphNodes = new Map(graph.nodes.map(node => [node.objectId, node]));
-  const flowById = new Map(collectFlowsRecursive(schema as MicroflowSchema).map(flow => [flow.id, flow]));
+  const flowById = new Map(collectFlowsRecursive(schema).map(flow => [flow.id, flow]));
 
   const nodes: WorkflowNodeJSON[] = graph.nodes.map(node => {
     const object = objects.get(node.objectId);

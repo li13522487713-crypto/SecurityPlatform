@@ -19,10 +19,6 @@ import type {
   MicroflowUnsupportedActionDescriptor,
 } from "./runtime-execution-plan";
 
-function asSchemaForNavigation(dto: MicroflowRuntimeDto): MicroflowAuthoringSchema {
-  return dto as unknown as MicroflowAuthoringSchema;
-}
-
 function stableClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -179,10 +175,10 @@ export function toExecutionPlan(
   dto: MicroflowRuntimeDto,
   options?: { resourceId?: string; version?: string }
 ): MicroflowExecutionPlan {
-  const schema = asSchemaForNavigation(dto);
+  const navigation = { flows: dto.flows, objectCollection: dto.objectCollection };
   const allObjects = collectRuntimeObjects(dto.objectCollection);
-  const allFlows = collectRuntimeFlows(schema).map(toExecutionFlow);
-  const start = getStartEvent(schema);
+  const allFlows = collectRuntimeFlows(navigation).map(toExecutionFlow);
+  const start = getStartEvent(navigation);
   const endNodeIds = allObjects.filter(o => o.kind === "endEvent").map(o => o.id);
 
   const parameters: MicroflowExecutionParameter[] = dto.parameters.map(p => ({

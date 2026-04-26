@@ -1,7 +1,7 @@
 import { Select, Space, TextArea, Typography } from "@douyinfe/semi-ui";
 import { useEffect, useMemo, useState } from "react";
 import { getEntityAttributes, type MicroflowMetadataCatalog } from "../../metadata";
-import type { MicroflowDataType, MicroflowExpression, MicroflowSchema, MicroflowVariableIndex } from "../../schema";
+import type { MicroflowAuthoringSchema, MicroflowDataType, MicroflowExpression, MicroflowVariableIndex } from "../../schema";
 import { createMicroflowExpression, expressionRaw, expressionTypeLabel, validateExpression } from "../../expressions";
 import { getVariablesForExpressionFromIndex, type MicroflowExpressionScopeContext } from "../../variables";
 import { ExpressionDiagnostics } from "./ExpressionDiagnostics";
@@ -45,7 +45,7 @@ export function ExpressionEditor({
 }: {
   value: MicroflowExpression | string | undefined;
   onChange: (next: MicroflowExpression) => void;
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   metadata: MicroflowMetadataCatalog;
   variableIndex: MicroflowVariableIndex;
   objectId?: string;

@@ -1,4 +1,4 @@
-import type { MicroflowAuthoringSchema, MicroflowSchema, MicroflowRuntimeDto } from "@atlas/microflow/schema";
+import type { MicroflowAuthoringSchema, MicroflowRuntimeDto } from "@atlas/microflow/schema";
 import type {
   MicroflowMetadataCatalog,
   MetadataEntity,

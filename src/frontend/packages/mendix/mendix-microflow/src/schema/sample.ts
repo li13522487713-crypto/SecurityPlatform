@@ -7,7 +7,7 @@ import type {
   MicroflowLine,
   MicroflowObject,
   MicroflowObjectBase,
-  MicroflowSchema,
+  MicroflowAuthoringSchema,
   MicroflowVariableIndex
 } from "./types";
 
@@ -278,7 +278,7 @@ const flows: MicroflowFlow[] = [
   { id: "annotation-flow-main", stableId: "annotation-flow-main", kind: "annotation", officialType: "Microflows$AnnotationFlow", originObjectId: "annotation-main", destinationObjectId: "decision-processable", originConnectionIndex: 0, destinationConnectionIndex: 0, line: line(), editor: { label: "model note", description: "AnnotationFlow persists in flows.", showInExport: true } }
 ];
 
-export const sampleMicroflowSchema: MicroflowSchema = {
+export const sampleMicroflowSchema: MicroflowAuthoringSchema = {
   schemaVersion: "1.0.0",
   mendixProfile: "mx11",
   id: "mf-order-process",
@@ -289,7 +289,6 @@ export const sampleMicroflowSchema: MicroflowSchema = {
   documentation: "Sample used by the microflow editor acceptance suite.",
   moduleId: "sales",
   moduleName: "Sales",
-  version: "v3",
   parameters: [
     { id: "param-order-id", stableId: "param-order-id", name: "orderId", dataType: stringType, required: true, documentation: "Order identifier.", defaultValue: expr("''", stringType), exampleValue: "SO-1001" },
     { id: "param-member", stableId: "param-member", name: "member", dataType: { kind: "object", entityQualifiedName: "University.Member" }, required: false, documentation: "Member used by inheritance split." }

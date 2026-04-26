@@ -4,7 +4,7 @@ import type {
   MicroflowReference,
   MicroflowResource,
   MicroflowRuntimeDto,
-  MicroflowSchema,
+  MicroflowAuthoringSchema,
   MicroflowValidationIssue,
   PublishMicroflowPayload
 } from "../schema/types";
@@ -16,7 +16,7 @@ import type {
 } from "../debug/trace-types";
 
 export interface SaveMicroflowRequest {
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   comment?: string;
 }
 
@@ -29,7 +29,7 @@ export interface SaveMicroflowResponse {
 }
 
 export interface ValidateMicroflowRequest {
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
 }
 
 export interface ValidateMicroflowResponse {
@@ -40,7 +40,7 @@ export interface ValidateMicroflowResponse {
 export interface TestRunMicroflowRequest {
   microflowId?: string;
   input: Record<string, unknown>;
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   options?: MicroflowTestRunOptions;
 }
 
@@ -68,7 +68,7 @@ export interface MicroflowApiClient {
   createMicroflow(input: CreateMicroflowInput): Promise<MicroflowResource>;
   getMicroflow(id: string): Promise<MicroflowResource>;
   saveMicroflow(request: SaveMicroflowRequest): Promise<SaveMicroflowResponse>;
-  loadMicroflow(id: string): Promise<MicroflowSchema>;
+  loadMicroflow(id: string): Promise<MicroflowAuthoringSchema>;
   validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse>;
   testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse>;
   cancelMicroflowRun(runId: string): Promise<void>;
@@ -83,19 +83,19 @@ export interface MicroflowApiClient {
 }
 
 export interface MicroflowSaveService {
-  saveMicroflow(schema: MicroflowSchema): Promise<SaveMicroflowResponse>;
+  saveMicroflow(schema: MicroflowAuthoringSchema): Promise<SaveMicroflowResponse>;
 }
 
 export interface MicroflowLoadService {
-  loadMicroflow(id: string): Promise<MicroflowSchema>;
+  loadMicroflow(id: string): Promise<MicroflowAuthoringSchema>;
 }
 
 export interface MicroflowValidateService {
-  validateMicroflow(schema: MicroflowSchema): Promise<ValidateMicroflowResponse>;
+  validateMicroflow(schema: MicroflowAuthoringSchema): Promise<ValidateMicroflowResponse>;
 }
 
 export interface MicroflowTestRunService {
-  testRunMicroflow(id: string, input: Record<string, unknown>, schema?: MicroflowSchema): Promise<TestRunMicroflowResponse>;
+  testRunMicroflow(id: string, input: Record<string, unknown>, schema?: MicroflowAuthoringSchema): Promise<TestRunMicroflowResponse>;
 }
 
 export interface MicroflowPublishService {

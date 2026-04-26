@@ -1,14 +1,14 @@
 import type {
   MicroflowActivityCategory,
-  MicroflowActivityConfig,
+  LegacyMicroflowActivityConfig,
   MicroflowActivityType,
   MicroflowErrorHandlingType,
   MicroflowActionKind,
-  MicroflowNode,
+  LegacyMicroflowNode,
   MicroflowNodeAvailability,
   MicroflowNodeCategory,
-  MicroflowNodeKind,
-  MicroflowNodeType,
+  LegacyMicroflowNodeKind,
+  LegacyMicroflowNodeType,
   MicroflowObject,
   MicroflowObjectKind,
   MicroflowPort,
@@ -50,7 +50,7 @@ export interface MicroflowNodeDragPayload {
   dragType: "microflow-node";
   source: "node-panel";
   registryKind: "node" | "action";
-  nodeType: MicroflowNodeType;
+  nodeType: LegacyMicroflowNodeType;
   objectKind: MicroflowObjectKind;
   activityType?: MicroflowActivityType;
   actionKind?: MicroflowActionKind;
@@ -83,8 +83,8 @@ export interface MicroflowNodeIoSpec {
 
 export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<string, unknown>> {
   key?: string;
-  type: MicroflowNodeType;
-  kind: MicroflowNodeKind;
+  type: LegacyMicroflowNodeType;
+  kind: LegacyMicroflowNodeKind;
   activityType?: MicroflowActivityType;
   actionKind?: MicroflowActionKind;
   objectKind?: MicroflowObjectKind;
@@ -126,9 +126,9 @@ export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<stri
   propertyForm: MicroflowPropertyFormMetadata;
   canCreate?: boolean;
   createObject?: (input: { id: string; position: MicroflowPosition }) => MicroflowObject;
-  validate: (node: MicroflowNode) => MicroflowValidationIssue[];
-  toRuntimeDto: (node: MicroflowNode) => MicroflowRuntimeNodeDto;
-  fromRuntimeDto: (dto: MicroflowRuntimeNodeDto, position: MicroflowPosition) => MicroflowNode;
+  validate: (node: LegacyMicroflowNode) => MicroflowValidationIssue[];
+  toRuntimeDto: (node: LegacyMicroflowNode) => MicroflowRuntimeNodeDto;
+  fromRuntimeDto: (dto: MicroflowRuntimeNodeDto, position: MicroflowPosition) => LegacyMicroflowNode;
 }
 
 export type MicroflowNodeRegistryItem<TConfig extends object = Record<string, unknown>> = MicroflowNodeRegistryEntry<TConfig>;
@@ -177,7 +177,7 @@ function cloneConfig<TConfig extends object>(config: TConfig): TConfig {
   return JSON.parse(JSON.stringify(config)) as TConfig;
 }
 
-function baseValidate(node: MicroflowNode): MicroflowValidationIssue[] {
+function baseValidate(node: LegacyMicroflowNode): MicroflowValidationIssue[] {
   return node.validation?.disabled ? [{
     id: `MF_NODE_DISABLED:${node.id}`,
     code: "MF_NODE_DISABLED",
@@ -221,7 +221,7 @@ function mapTabs(sections: string[], supportsErrorHandling: boolean): MicroflowP
   return [...tabs];
 }
 
-function createNodeFromRegistry(entry: MicroflowNodeRegistryEntry, id: string, position: MicroflowPosition, title = entry.title): MicroflowNode {
+function createNodeFromRegistry(entry: MicroflowNodeRegistryEntry, id: string, position: MicroflowPosition, title = entry.title): LegacyMicroflowNode {
   const base = {
     id,
     type: entry.type,
@@ -247,7 +247,7 @@ function createNodeFromRegistry(entry: MicroflowNodeRegistryEntry, id: string, p
   return {
     ...base,
     config: cloneConfig(entry.defaultConfig)
-  } as unknown as MicroflowNode;
+  } as unknown as LegacyMicroflowNode;
 }
 
 function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEntry<TConfig>, "keywords" | "inputs" | "outputs" | "enabled" | "disabledReason" | "supportsErrorHandling" | "supportedErrorHandlingTypes" | "propertyTabs" | "validate" | "toRuntimeDto" | "fromRuntimeDto" | "useCases"> & Partial<Pick<MicroflowNodeRegistryEntry<TConfig>, "keywords" | "inputs" | "outputs" | "enabled" | "disabledReason" | "supportsErrorHandling" | "supportedErrorHandlingTypes" | "propertyTabs" | "validate" | "useCases">>): MicroflowNodeRegistryEntry<TConfig> {
@@ -286,7 +286,7 @@ function createEntry<TConfig extends object>(entry: Omit<MicroflowNodeRegistryEn
   };
 }
 
-function eventEntry(type: Extract<MicroflowNodeType, "startEvent" | "endEvent" | "errorEvent" | "breakEvent" | "continueEvent">, title: string, titleZh: string, ports: MicroflowPort[], tone: MicroflowRenderMetadata["tone"], description: string): MicroflowNodeRegistryEntry {
+function eventEntry(type: Extract<LegacyMicroflowNodeType, "startEvent" | "endEvent" | "errorEvent" | "breakEvent" | "continueEvent">, title: string, titleZh: string, ports: MicroflowPort[], tone: MicroflowRenderMetadata["tone"], description: string): MicroflowNodeRegistryEntry {
   return createEntry({
     type,
     kind: "event",
@@ -311,15 +311,15 @@ function activityEntry(item: {
   title: string;
   titleZh: string;
   activityCategory: MicroflowActivityCategory;
-  config?: Partial<MicroflowActivityConfig>;
+  config?: Partial<LegacyMicroflowActivityConfig>;
   description: string;
   availability?: MicroflowNodeAvailability;
   supportsErrorHandling?: boolean;
   supportedErrorHandlingTypes?: MicroflowErrorHandlingType[];
-}): MicroflowNodeRegistryEntry<MicroflowActivityConfig> {
+}): MicroflowNodeRegistryEntry<LegacyMicroflowActivityConfig> {
   const availability = item.availability ?? "supported";
   const supportsErrorHandling = item.supportsErrorHandling ?? !["variable", "client", "logging", "metrics"].includes(item.activityCategory);
-  return createEntry<MicroflowActivityConfig>({
+  return createEntry<LegacyMicroflowActivityConfig>({
     type: "activity",
     kind: "activity",
     activityType: item.activityType,
@@ -519,7 +519,7 @@ export const microflowObjectNodeRegistries: MicroflowNodeRegistryEntry[] = [
   })
 ];
 
-function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryItem): MicroflowNodeRegistryEntry<MicroflowActivityConfig> {
+function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryItem): MicroflowNodeRegistryEntry<LegacyMicroflowActivityConfig> {
   const activityItem = activityEntry({
     activityType: actionItem.legacyActivityType,
     title: actionItem.title,
@@ -556,7 +556,7 @@ function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryIte
 
 export const microflowActionNodePanelRegistries: MicroflowNodeRegistryEntry[] = defaultMicroflowActionRegistry
   .filter(item => item.availability !== "hidden")
-  .map(nodePanelEntryFromActionRegistry);
+  .map(nodePanelEntryFromActionRegistry) as MicroflowNodeRegistryEntry[];
 
 export const microflowNodeRegistries: MicroflowNodeRegistryEntry[] = microflowObjectNodeRegistries;
 export const microflowNodePanelRegistries: MicroflowNodeRegistryEntry[] = [
@@ -586,7 +586,7 @@ export function getMicroflowNodeRegistryKey(entry: Pick<MicroflowNodeRegistryEnt
 }
 
 export function objectKindFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntry, "type">): MicroflowObjectKind {
-  const map: Record<MicroflowNodeType, MicroflowObjectKind> = {
+  const map: Record<LegacyMicroflowNodeType, MicroflowObjectKind> = {
     startEvent: "startEvent",
     endEvent: "endEvent",
     errorEvent: "errorEvent",
@@ -604,7 +604,7 @@ export function objectKindFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntr
 }
 
 export function officialTypeFromRegistryItem(entry: Pick<MicroflowNodeRegistryEntry, "type">): string {
-  const map: Record<MicroflowNodeType, string> = {
+  const map: Record<LegacyMicroflowNodeType, string> = {
     startEvent: "Microflows$StartEvent",
     endEvent: "Microflows$EndEvent",
     errorEvent: "Microflows$ErrorEvent",
@@ -666,7 +666,7 @@ export function createNodeDragPayloadFromNodeRegistry(entry: MicroflowNodeRegist
 }
 
 export function createNodeDragPayloadFromActionRegistry(entry: MicroflowActionRegistryItem): MicroflowNodeDragPayload {
-  const panelEntry = nodePanelEntryFromActionRegistry(entry);
+  const panelEntry = nodePanelEntryFromActionRegistry(entry) as MicroflowNodeRegistryEntry;
   return createNodeDragPayloadFromNodeRegistry(panelEntry);
 }
 
@@ -734,7 +734,7 @@ export function groupMicroflowNodesByCategory(registry: MicroflowNodeRegistryEnt
 }
 
 export function getMicroflowNodeByType(
-  type: MicroflowNodeType,
+  type: LegacyMicroflowNodeType,
   activityType?: MicroflowActivityType,
   registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodePanelRegistry
 ): MicroflowNodeRegistryEntry | undefined {
@@ -745,17 +745,17 @@ export function createMicroflowNodeFromRegistry(
   registryKey: string,
   id: string,
   position: MicroflowPosition
-): MicroflowNode;
+): LegacyMicroflowNode;
 export function createMicroflowNodeFromRegistry(
   entry: MicroflowNodeRegistryEntry,
   position: MicroflowPosition,
   id?: string
-): MicroflowNode;
+): LegacyMicroflowNode;
 export function createMicroflowNodeFromRegistry(
   registryKeyOrEntry: string | MicroflowNodeRegistryEntry,
   idOrPosition: string | MicroflowPosition,
   maybePosition?: MicroflowPosition | string
-): MicroflowNode {
+): LegacyMicroflowNode {
   if (typeof registryKeyOrEntry !== "string") {
     const id = typeof maybePosition === "string" ? maybePosition : `${getMicroflowNodeRegistryKey(registryKeyOrEntry).replace(":", "-")}-${Date.now()}`;
     return createNodeFromRegistry(registryKeyOrEntry, id, idOrPosition as MicroflowPosition);

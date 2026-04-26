@@ -21,14 +21,21 @@ TypeScript 定义见 `@atlas/microflow`（`schema/types.ts`）中的 `MicroflowA
 | `security` / `concurrency` / `exposure` | 安全、并发、暴露 |
 | `variables` | 可选；通常为 VariableIndex 派生缓存 |
 | `validation` | 校验问题列表状态 |
-| `debug` | 可选；运行/调试，**不**作为业务持久化主数据 |
+| `debug` | 可选；编辑器内调试/高亮快照，**不**作为业务语义主数据（见下「调试 trace 类型」） |
 | `editor` | 编辑器视口/选择，非业务语义 |
 | `audit` | 审计/版本元数据 |
 
 ## 业务主模型
 
-- **唯一主模型**：`MicroflowAuthoringSchema`（及含 `version` 的 `MicroflowSchema` 草稿包装）。
+- **唯一主模型**：`MicroflowAuthoringSchema`。资源/发布快照中的语义版本请使用 `audit.version` 与资源行 `version` 字段；**不再**在 schema 顶层使用已废弃的 `version` 字段。
+- **Legacy**：旧 demo 的 `nodes`/`edges` 图仅能通过 `normalizeMicroflowSchema` / `migrateLegacyMicroflowSchema`（`@atlas/microflow/schema/legacy`）迁入 Authoring；不得作为 Runtime、校验或 FlowGram 的持久化输入。
 - **禁止**：将 FlowGram `WorkflowJSON` 作为业务主 schema 落库；FlowGram 仅由 `authoringToFlowGram` 派生。
+
+## 调试 trace 类型（与运行时区分）
+
+- **Authoring 内可选持久化**：`debug.traceFrames` / `debug.lastTrace` 的元素类型为 **`MicroflowAuthoringPersistedTraceFrame`**（定义在 `schema/types.ts`）。用于会话内 FlowGram/面板高亮等，形状刻意兼容 FlowGram 叠加层，但**不是**后端 test-run 返回的权威 trace DTO。
+- **运行时 / API**：执行轨迹以 **`MicroflowTraceFrame`** 为准（`@atlas/microflow/debug`，`trace-types.ts`）；`authoringToFlowGram` 等可同时接受持久化帧与运行时帧的并集，便于用 `lastTrace` 或本次运行的 `frames` 驱动同一套叠加逻辑。
+- 详见 [runtime-trace-contract.md](./runtime-trace-contract.md)。
 
 ## 破坏性变更风险
 

@@ -13,6 +13,7 @@ export { verifyMicroflowContracts, type MicroflowContractVerificationResult } fr
 export * from "./runtime-semantics";
 
 export type { MicroflowAuthoringSchema, MicroflowSchema, MicroflowValidationIssue } from "@atlas/microflow/schema";
+export { isLegacyMicroflowSchema, migrateLegacyMicroflowSchema, normalizeMicroflowSchema } from "@atlas/microflow/schema";
 export type { MicroflowValidationIssue as ValidationIssue } from "@atlas/microflow/schema";
 
 export type { MicroflowMetadataCatalog, MetadataEntity, MetadataEnumeration, MetadataMicroflowRef, MetadataPageRef, MetadataWorkflowRef } from "@atlas/microflow/metadata";

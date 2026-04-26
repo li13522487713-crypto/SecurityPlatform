@@ -4,7 +4,6 @@ import type {
   MicroflowDataType,
   MicroflowExposureConfig,
   MicroflowParameter,
-  MicroflowSchema,
   MicroflowSecurityConfig
 } from "@atlas/microflow";
 
@@ -50,7 +49,7 @@ export interface MicroflowResource {
   referenceCount: number;
   lastRunStatus?: MicroflowLastRunStatus;
   lastRunAt?: string;
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   permissions?: MicroflowResourcePermissions;
 }
 

@@ -25,7 +25,10 @@ function collectCollectionFlows(collection: MicroflowObjectCollection): Microflo
   ];
 }
 
-export function getStartEvent(schema: MicroflowAuthoringSchema, collection: MicroflowObjectCollection = schema.objectCollection): MicroflowObject | undefined {
+export function getStartEvent(
+  schema: Pick<MicroflowAuthoringSchema, "objectCollection">,
+  collection: MicroflowObjectCollection = schema.objectCollection
+): MicroflowObject | undefined {
   return collection.objects.find(object => object.kind === "startEvent");
 }
 

@@ -2,11 +2,11 @@ import type {
   MicroflowFlow,
   MicroflowExpression,
   MicroflowObject,
-  MicroflowSchema,
-  MicroflowTraceFrame,
+  MicroflowAuthoringSchema,
   MicroflowValidationIssue,
   MicroflowVariableSymbol
 } from "../schema";
+import type { MicroflowTraceFrame } from "../debug/trace-types";
 
 export type MicroflowPropertyTabKey = "properties" | "documentation" | "errorHandling" | "output" | "advanced";
 
@@ -28,11 +28,11 @@ export type MicroflowEdgePatch = Partial<MicroflowFlow>;
 export interface MicroflowPropertyPanelProps {
   selectedObject: MicroflowObject | null;
   selectedFlow?: MicroflowFlow | null;
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   validationIssues: MicroflowValidationIssue[];
   traceFrames?: MicroflowTraceFrame[];
   readonly?: boolean;
-  onSchemaChange?: (nextSchema: MicroflowSchema, reason: string) => void;
+  onSchemaChange?: (nextSchema: MicroflowAuthoringSchema, reason: string) => void;
   onObjectChange: (objectId: string, patch: MicroflowNodePatch) => void;
   onFlowChange?: (flowId: string, patch: MicroflowEdgePatch) => void;
   onClose: () => void;
@@ -45,7 +45,7 @@ export interface MicroflowPropertyPanelProps {
 export interface MicroflowNodeFormProps<TObject = MicroflowObject> {
   object: TObject;
   node: TObject;
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   variables: MicroflowVariableSymbol[];
   flows: MicroflowFlow[];
   issues: MicroflowValidationIssue[];

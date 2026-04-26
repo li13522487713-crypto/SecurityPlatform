@@ -12,7 +12,7 @@ import type {
   MicroflowResourceStatus,
   MicroflowDataType,
   MicroflowTypeRef,
-  MicroflowSchema,
+  MicroflowAuthoringSchema,
   PublishMicroflowPayload
 } from "../schema/types";
 import { sampleMicroflowSchema } from "../schema/sample";
@@ -31,8 +31,8 @@ import type {
 
 const STORAGE_KEY = "atlas_microflow_resources_v1";
 
-function cloneSchema(schema: MicroflowSchema): MicroflowSchema {
-  const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowSchema;
+function cloneSchema(schema: MicroflowAuthoringSchema): MicroflowAuthoringSchema {
+  const cloned = JSON.parse(JSON.stringify(schema)) as MicroflowAuthoringSchema;
   return ensureAuthoringSchema(cloned);
 }
 
@@ -103,14 +103,15 @@ function updatedRangeMatches(resource: MicroflowResource, range: NonNullable<Mic
 
 function makeResource(
   id: string,
-  overrides: Partial<Omit<MicroflowResource, "id" | "schema">> & { schema?: MicroflowSchema }
+  overrides: Partial<Omit<MicroflowResource, "id" | "schema">> & { schema?: MicroflowAuthoringSchema }
 ): MicroflowResource {
   const timestamp = nowIso();
   const schema = cloneSchema(overrides.schema ?? sampleMicroflowSchema);
   schema.id = id;
   schema.name = overrides.name ?? schema.name;
   schema.description = overrides.description ?? schema.description;
-  schema.version = overrides.version ?? schema.version;
+  const resourceVersion = overrides.version ?? schema.audit.version;
+  schema.audit = { ...schema.audit, version: resourceVersion };
   return {
     id,
     name: schema.name,
@@ -120,7 +121,7 @@ function makeResource(
     ownerName: "Admin",
     sharedWithMe: false,
     tags: ["order", "demo"],
-    version: schema.version,
+    version: resourceVersion,
     status: "draft",
     favorite: false,
     createdAt: timestamp,
@@ -170,7 +171,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   private readonly traces = new Map<string, MicroflowTraceFrame[]>();
   private readonly sessions = new Map<string, MicroflowRunSession>();
 
-  constructor(initialSchemas: MicroflowSchema[] = [sampleMicroflowSchema]) {
+  constructor(initialSchemas: MicroflowAuthoringSchema[] = [sampleMicroflowSchema]) {
     const restored = this.restoreResources();
     if (restored.length > 0) {
       for (const resource of restored) {
@@ -239,7 +240,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     schema.id = id;
     schema.name = input.name.trim();
     schema.description = input.description.trim();
-    schema.version = "v0.1";
+    schema.audit = { ...schema.audit, version: "v0.1" };
     if (input.returnType?.kind && input.returnType.kind !== "void") {
       const returnType = typeRefToDataType(input.returnType);
       schema.returnType = returnType;
@@ -263,7 +264,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       moduleId: input.moduleId.trim() || "default",
       moduleName: input.moduleName?.trim() || input.moduleId.trim() || "Default",
       tags: input.tags,
-      version: schema.version,
+      version: schema.audit.version,
       status: "draft",
       favorite: false
     });
@@ -291,7 +292,7 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       ...current,
       name: schema.name,
       description: schema.description ?? current.description,
-      version: schema.version,
+      version: schema.audit.version,
       status: current.status === "published" ? "draft" : current.status,
       updatedAt: nowIso(),
       lastModifiedBy: "Admin",
@@ -301,14 +302,14 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     this.persistResources();
     return {
       microflowId: schema.id,
-      version: schema.version,
+      version: schema.audit.version,
       savedAt: next.updatedAt,
       nodeCount: flattenObjectCollection(schema.objectCollection).length,
       edgeCount: schema.flows.length
     };
   }
 
-  async loadMicroflow(id: string): Promise<MicroflowSchema> {
+  async loadMicroflow(id: string): Promise<MicroflowAuthoringSchema> {
     return cloneSchema(this.resources.get(id)?.schema ?? sampleMicroflowSchema);
   }
 
@@ -364,7 +365,10 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
       updatedAt: publishedAt,
       schema: {
         ...current.schema,
-        version: payload.version.trim() || current.schema.version
+        audit: {
+          ...current.schema.audit,
+          version: payload.version.trim() || current.version
+        }
       }
     };
     this.resources.set(id, next);
@@ -493,6 +497,6 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
   }
 }
 
-export function createLocalMicroflowApiClient(initialSchemas?: MicroflowSchema[]): LocalMicroflowApiClient {
+export function createLocalMicroflowApiClient(initialSchemas?: MicroflowAuthoringSchema[]): LocalMicroflowApiClient {
   return new LocalMicroflowApiClient(initialSchemas);
 }

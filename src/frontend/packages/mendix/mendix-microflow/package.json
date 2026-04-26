@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
     "./schema/authoring": "./src/schema/authoring/index.ts",
+    "./schema/legacy": "./src/schema/legacy/index.ts",
     "./schema/compat": "./src/schema/compat/index.ts",
     "./schema/samples": "./src/schema/samples/index.ts",
     "./schema/utils": "./src/schema/utils/index.ts",

@@ -13,7 +13,9 @@ import type {
   MicroflowCaseValue,
   MicroflowContinueEvent,
   MicroflowDataType,
-  MicroflowEdge,
+  LegacyMicroflowEdge,
+  LegacyMicroflowGraphSchema,
+  LegacyMicroflowNode,
   MicroflowEdgeKind,
   MicroflowEditorGraph,
   MicroflowEditorGraphPatch,
@@ -26,9 +28,7 @@ import type {
   MicroflowFlow,
   MicroflowInheritanceSplit,
   MicroflowLine,
-  MicroflowLegacyGraphSchema,
   MicroflowLoopedActivity,
-  MicroflowNode,
   MicroflowObject,
   MicroflowObjectCollection,
   MicroflowObjectKind,
@@ -36,7 +36,6 @@ import type {
   MicroflowPoint,
   MicroflowPort,
   MicroflowRuntimeDto,
-  MicroflowSchema,
   MicroflowSequenceFlow,
   MicroflowSize,
   MicroflowStartEvent,
@@ -261,14 +260,14 @@ function defaultLine(points: MicroflowPoint[] = []): MicroflowLine {
   };
 }
 
-function sizeFromNode(node: MicroflowNode): MicroflowSize {
+function sizeFromNode(node: LegacyMicroflowNode): MicroflowSize {
   return {
     width: node.render.width ?? 160,
     height: node.render.height ?? 72
   };
 }
 
-function objectBase(node: MicroflowNode, kind: MicroflowObjectKind, officialType: string) {
+function objectBase(node: LegacyMicroflowNode, kind: MicroflowObjectKind, officialType: string) {
   return {
     id: node.id,
     stableId: node.id,
@@ -324,7 +323,7 @@ function actionCategory(activityType: MicroflowActivityType): MicroflowActivityC
   return "externalObject";
 }
 
-function makeAction(node: Extract<MicroflowNode, { type: "activity" }>): MicroflowAction {
+function makeAction(node: Extract<LegacyMicroflowNode, { type: "activity" }>): MicroflowAction {
   const config = node.config;
   const category = actionCategory(config.activityType);
   const base = {
@@ -545,7 +544,7 @@ function mapActivityTypeToActionKind(activityType: MicroflowActivityType): Micro
   return map[activityType] ?? "callExternalAction";
 }
 
-export function legacyNodeToObject(node: MicroflowNode): MicroflowObject {
+export function legacyNodeToObject(node: LegacyMicroflowNode): MicroflowObject {
   if (node.type === "startEvent") {
     return {
       ...objectBase(node, "startEvent", "Microflows$StartEvent"),
@@ -643,11 +642,11 @@ export function legacyNodeToObject(node: MicroflowNode): MicroflowObject {
     autoGenerateCaption: false,
     backgroundColor: "default",
     disabled: node.enabled === false,
-    action: makeAction(node as Extract<MicroflowNode, { type: "activity" }>)
+    action: makeAction(node as Extract<LegacyMicroflowNode, { type: "activity" }>)
   } as MicroflowActionActivity;
 }
 
-function conditionToCaseValue(edge: MicroflowEdge): MicroflowCaseValue[] {
+function conditionToCaseValue(edge: LegacyMicroflowEdge): MicroflowCaseValue[] {
   const value = edge.conditionValue;
   if (!value) {
     return [];
@@ -673,7 +672,7 @@ function conditionToCaseValue(edge: MicroflowEdge): MicroflowCaseValue[] {
   return [{ kind: "noCase", officialType: "Microflows$NoCase" }];
 }
 
-export function legacyEdgeToFlow(edge: MicroflowEdge, nodesById: Map<string, MicroflowNode>): MicroflowFlow {
+export function legacyEdgeToFlow(edge: LegacyMicroflowEdge, nodesById: Map<string, LegacyMicroflowNode>): MicroflowFlow {
   const source = nodesById.get(edge.sourceNodeId);
   const target = nodesById.get(edge.targetNodeId);
   const points = source && target ? [source.position, target.position] : [];
@@ -716,9 +715,9 @@ export function legacyEdgeToFlow(edge: MicroflowEdge, nodesById: Map<string, Mic
   } satisfies MicroflowSequenceFlow;
 }
 
-export function buildAuthoringFieldsFromLegacy(schema: MicroflowLegacyGraphSchema): MicroflowSchema {
+export function buildAuthoringFieldsFromLegacy(schema: LegacyMicroflowGraphSchema): MicroflowAuthoringSchema {
   const synchronizedParameters = schema.nodes
-    .filter((node): node is Extract<MicroflowNode, { type: "parameter" }> => node.type === "parameter")
+    .filter((node): node is Extract<LegacyMicroflowNode, { type: "parameter" }> => node.type === "parameter")
     .map(node => ({
       ...node.config.parameter,
       stableId: node.config.parameter.stableId ?? node.config.parameter.id,
@@ -810,24 +809,24 @@ export function buildAuthoringFieldsFromLegacy(schema: MicroflowLegacyGraphSchem
     audit: {
       version: schema.version,
       status: "draft"
-    },
-    version: schema.version
+    }
   };
 }
 
-export function isLegacyGraphSchema(schema: MicroflowSchema | MicroflowLegacyGraphSchema | unknown): schema is MicroflowLegacyGraphSchema {
-  const value = schema as Partial<MicroflowLegacyGraphSchema>;
+export function isLegacyGraphSchema(schema: MicroflowAuthoringSchema | LegacyMicroflowGraphSchema | unknown): schema is LegacyMicroflowGraphSchema {
+  const value = schema as Partial<LegacyMicroflowGraphSchema>;
   return Array.isArray(value.nodes) && Array.isArray(value.edges);
 }
 
-export function ensureAuthoringSchema(schema: MicroflowSchema | MicroflowLegacyGraphSchema): MicroflowSchema {
+/** @deprecated Use {@link normalizeMicroflowSchema} from `@atlas/microflow/schema/legacy`. */
+export function ensureAuthoringSchema(schema: MicroflowAuthoringSchema | LegacyMicroflowGraphSchema): MicroflowAuthoringSchema {
   if (isLegacyGraphSchema(schema)) {
     return buildAuthoringFieldsFromLegacy(schema);
   }
   return schema;
 }
 
-export function applyLegacyGraphPatch(schema: MicroflowLegacyGraphSchema, patch: Partial<Pick<MicroflowLegacyGraphSchema, "nodes" | "edges" | "viewport" | "variables">>): MicroflowSchema {
+export function applyLegacyGraphPatch(schema: LegacyMicroflowGraphSchema, patch: Partial<Pick<LegacyMicroflowGraphSchema, "nodes" | "edges" | "viewport" | "variables">>): MicroflowAuthoringSchema {
   const legacySchema = {
     ...schema,
     nodes: patch.nodes ?? schema.nodes,
@@ -955,8 +954,8 @@ function portPosition(object: MicroflowObject, port: MicroflowPort, index: numbe
   return { x: width, y: height / 2 };
 }
 
-export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: string): MicroflowNode {
-  const typeMap: Record<MicroflowObjectKind, MicroflowNode["type"]> = {
+export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: string): LegacyMicroflowNode {
+  const typeMap: Record<MicroflowObjectKind, LegacyMicroflowNode["type"]> = {
     startEvent: "startEvent",
     endEvent: "endEvent",
     errorEvent: "errorEvent",
@@ -985,7 +984,7 @@ export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: strin
     render: { iconKey: object.editor.iconKey ?? object.kind, shape: renderShape, tone: "neutral", width: object.size.width, height: object.size.height },
     propertyForm: { formKey: object.kind, sections: ["General"] },
     parentLoopId
-  } as MicroflowNode;
+  } as LegacyMicroflowNode;
   if (object.kind === "actionActivity") {
     return {
       ...base,
@@ -995,7 +994,7 @@ export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: strin
         supportsErrorFlow: object.action.errorHandlingType !== "continue",
         errorHandling: { mode: object.action.errorHandlingType }
       }
-    } as MicroflowNode;
+    } as LegacyMicroflowNode;
   }
   if (object.kind === "exclusiveSplit") {
     return {
@@ -1003,13 +1002,13 @@ export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: strin
       config: object.splitCondition.kind === "expression"
         ? { expression: object.splitCondition.expression, resultType: object.splitCondition.resultType === "boolean" ? "Boolean" : "Enumeration" }
         : { expression: expression(""), decisionType: "rule", ruleReference: object.splitCondition.ruleQualifiedName, resultType: "Boolean" }
-    } as MicroflowNode;
+    } as LegacyMicroflowNode;
   }
   if (object.kind === "inheritanceSplit") {
     return {
       ...base,
       config: { inputObject: object.inputObjectVariableName, generalizedEntity: object.generalizedEntityQualifiedName }
-    } as MicroflowNode;
+    } as LegacyMicroflowNode;
   }
   if (object.kind === "loopedActivity") {
     return {
@@ -1017,21 +1016,21 @@ export function objectToLegacyNode(object: MicroflowObject, parentLoopId?: strin
       config: object.loopSource.kind === "whileCondition"
         ? { loopType: "while", iterableVariableName: "", itemVariableName: "", whileExpression: object.loopSource.expression }
         : { loopType: "forEach", iterableVariableName: object.loopSource.listVariableName, itemVariableName: object.loopSource.iteratorVariableName, indexVariableName: "$currentIndex" }
-    } as MicroflowNode;
+    } as LegacyMicroflowNode;
   }
   if (object.kind === "parameterObject") {
     return {
       ...base,
       config: { parameter: { id: object.parameterId, name: object.caption ?? object.parameterId, required: true, type: { kind: "unknown", name: "Unknown" } } }
-    } as MicroflowNode;
+    } as LegacyMicroflowNode;
   }
   if (object.kind === "annotation") {
-    return { ...base, config: { text: object.text } } as MicroflowNode;
+    return { ...base, config: { text: object.text } } as LegacyMicroflowNode;
   }
   if (object.kind === "endEvent") {
-    return { ...base, config: { returnValue: object.returnValue, returnType: object.returnValue?.expectedType } } as MicroflowNode;
+    return { ...base, config: { returnValue: object.returnValue, returnType: object.returnValue?.expectedType } } as LegacyMicroflowNode;
   }
-  return { ...base, config: {} } as MicroflowNode;
+  return { ...base, config: {} } as LegacyMicroflowNode;
 }
 
 function actionToActivityType(action: MicroflowAction): MicroflowActivityType {
@@ -1065,7 +1064,7 @@ function actionToActivityType(action: MicroflowAction): MicroflowActivityType {
   return map[action.kind] ?? "logMessage";
 }
 
-export function flowToLegacyEdge(flow: MicroflowFlow): MicroflowEdge {
+export function flowToLegacyEdge(flow: MicroflowFlow): LegacyMicroflowEdge {
   if (flow.kind === "annotation") {
     return {
       id: flow.id,
@@ -1092,7 +1091,7 @@ export function flowToLegacyEdge(flow: MicroflowFlow): MicroflowEdge {
     conditionValue: caseValueToCondition(flow.caseValues[0], edgeKind),
     branchOrder: flow.editor.branchOrder,
     errorHandlingType: flow.isErrorHandler ? "customWithRollback" : undefined
-  } as MicroflowEdge;
+  } as LegacyMicroflowEdge;
 }
 
 function caseValueToCondition(caseValue: MicroflowCaseValue | undefined, edgeKind: MicroflowEdgeKind) {
@@ -1114,8 +1113,8 @@ function caseValueToCondition(caseValue: MicroflowCaseValue | undefined, edgeKin
   return { kind: "enumeration" as const, value: caseValue.kind };
 }
 
-export function toLegacyGraph(schema: MicroflowAuthoringSchema): { nodes: MicroflowNode[]; edges: MicroflowEdge[] } {
-  const nodes: MicroflowNode[] = [];
+export function toLegacyGraph(schema: MicroflowAuthoringSchema): { nodes: LegacyMicroflowNode[]; edges: LegacyMicroflowEdge[] } {
+  const nodes: LegacyMicroflowNode[] = [];
   for (const object of schema.objectCollection.objects) {
     nodes.push(objectToLegacyNode(object));
     if (object.kind === "loopedActivity") {
@@ -1124,7 +1123,7 @@ export function toLegacyGraph(schema: MicroflowAuthoringSchema): { nodes: Microf
   }
   return {
     nodes,
-    edges: collectFlowsRecursive(schema as MicroflowSchema).map(flowToLegacyEdge)
+    edges: collectFlowsRecursive(schema).map(flowToLegacyEdge)
   };
 }
 
@@ -1143,7 +1142,7 @@ export function findMicroflowObject(collection: MicroflowObjectCollection, objec
   return undefined;
 }
 
-export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema): MicroflowEditorGraph {
+export function toEditorGraph(schema: MicroflowAuthoringSchema): MicroflowEditorGraph {
   const objects = collectEditorObjects(schema.objectCollection);
   const objectById = new Map(objects.map(entry => [entry.object.id, entry.object]));
   const issues = "validation" in schema ? schema.validation.issues : [];
@@ -1179,7 +1178,7 @@ export function toEditorGraph(schema: MicroflowSchema | MicroflowAuthoringSchema
         hasWarning: issues.some(issue => issue.severity === "warning" && (issue.objectId === entry.object.id || issue.nodeId === entry.object.id))
       }
     })),
-    edges: collectFlowsRecursive(schema as MicroflowSchema).map(flow => {
+    edges: collectFlowsRecursive(schema).map(flow => {
       const source = objectById.get(flow.originObjectId);
       const target = objectById.get(flow.destinationObjectId);
       const sourcePorts = source ? portsForObject(source) : [];
@@ -1247,7 +1246,7 @@ function mapObject(collection: MicroflowObjectCollection, objectId: string, mapp
   };
 }
 
-export function applyEditorGraphPatch(schema: MicroflowSchema, patch: MicroflowEditorGraphPatch): MicroflowSchema {
+export function applyEditorGraphPatch(schema: MicroflowAuthoringSchema, patch: MicroflowEditorGraphPatch): MicroflowAuthoringSchema {
   let objectCollection = schema.objectCollection;
   for (const moved of patch.movedNodes ?? []) {
     objectCollection = mapObject(objectCollection, moved.objectId, object => ({ ...object, relativeMiddlePoint: moved.position }));
@@ -1265,7 +1264,7 @@ export function applyEditorGraphPatch(schema: MicroflowSchema, patch: MicroflowE
     }
     return { ...flow, line: update.line ?? flow.line, editor: { ...flow.editor, label: update.label ?? flow.editor.label } };
   });
-  const next = {
+  return {
     ...schema,
     objectCollection,
     flows,
@@ -1277,10 +1276,6 @@ export function applyEditorGraphPatch(schema: MicroflowSchema, patch: MicroflowE
         flowId: patch.selectedFlowId ?? schema.editor.selection.flowId
       }
     }
-  };
-  return {
-    ...next,
-    version: schema.version
   };
 }
 

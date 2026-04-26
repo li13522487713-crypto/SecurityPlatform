@@ -12,7 +12,7 @@ import {
   IconStarStroked,
   IconStop
 } from "@douyinfe/semi-icons";
-import type { MicroflowActivityType, MicroflowNodeType } from "../schema";
+import type { LegacyMicroflowNodeType, MicroflowActivityType } from "../schema";
 import {
   defaultMicroflowNodePanelRegistry,
   canDragRegistryItem,
@@ -899,5 +899,5 @@ export function MicroflowNodePanel({
 }
 
 export type MicroflowNodePanelRegistryItem = MicroflowNodeRegistryItem;
-export type MicroflowNodePanelNodeKind = MicroflowNodeType;
+export type MicroflowNodePanelNodeKind = LegacyMicroflowNodeType;
 export type MicroflowNodePanelActivityType = MicroflowActivityType;

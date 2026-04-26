@@ -1,6 +1,7 @@
 import { toRuntimeDto } from "@atlas/microflow/adapters";
 import { authoringToFlowGram } from "@atlas/microflow/flowgram/authoring-to-flowgram";
 import { mockMicroflowMetadataCatalog } from "@atlas/microflow/metadata";
+import { normalizeMicroflowSchema } from "@atlas/microflow/schema";
 import { validateMicroflowSchema } from "@atlas/microflow/validators";
 import { buildVariableIndex } from "@atlas/microflow/variables";
 
@@ -24,6 +25,10 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
     sampleKeys.push(item.key);
     try {
       const schema = item.createSchema();
+      const normalized = normalizeMicroflowSchema(schema);
+      if (normalized.id !== schema.id || normalized.stableId !== schema.stableId) {
+        errors.push(`${item.key}: normalizeMicroflowSchema 改变了 id/stableId`);
+      }
       const validation = validateMicroflowSchema({ schema, options: { mode: "save", includeWarnings: true, includeInfo: true } });
       if (item.expectedValidation) {
         const errCount = validation.issues.filter(i => i.severity === "error").length;

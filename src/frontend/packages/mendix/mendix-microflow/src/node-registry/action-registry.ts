@@ -2,7 +2,7 @@ import type {
   MicroflowAction,
   MicroflowActionCategory,
   MicroflowActionKind,
-  MicroflowActivityConfig,
+  LegacyMicroflowActivityConfig,
   MicroflowActivityType,
   MicroflowDataType,
   MicroflowErrorHandlingType,
@@ -32,14 +32,14 @@ export interface MicroflowActionRegistryItem {
   availabilityReason?: string;
   keywords: string[];
   defaultCaption: string;
-  defaultConfig: MicroflowActivityConfig;
+  defaultConfig: LegacyMicroflowActivityConfig;
   outputSpec?: Array<{ id: string; name: string; dataType: MicroflowDataType; source: string }>;
   inputSpec?: Array<{ id: string; title: string; dataType?: MicroflowDataType; required?: boolean }>;
   supportsErrorHandling: boolean;
   supportedErrorHandlingTypes: MicroflowErrorHandlingType[];
   propertyTabs: MicroflowPropertyTabKey[];
   createsActionActivity: true;
-  createAction: (input: { id: string; config?: Partial<MicroflowActivityConfig>; caption?: string }) => MicroflowAction;
+  createAction: (input: { id: string; config?: Partial<LegacyMicroflowActivityConfig>; caption?: string }) => MicroflowAction;
   validate: (action: MicroflowAction) => MicroflowValidationIssue[];
   toRuntimeDto: (action: MicroflowAction) => MicroflowRuntimeNodeDto;
 }
@@ -335,7 +335,7 @@ const actionOutputs: Partial<Record<MicroflowActionKind, MicroflowActionRegistry
   retrieveWorkflows: [{ id: "output", name: "outputListVariableName", dataType: { kind: "list", itemType: { kind: "object", entityQualifiedName: "Workflow.Workflow" } }, source: "retrieveWorkflows" }]
 };
 
-function createConcreteAction(item: MicroflowActionRegistryItem, id: string, config: Partial<MicroflowActivityConfig> = {}, caption?: string): MicroflowAction {
+function createConcreteAction(item: MicroflowActionRegistryItem, id: string, config: Partial<LegacyMicroflowActivityConfig> = {}, caption?: string): MicroflowAction {
   const base = baseAction(item, id, caption);
   if (item.actionKind === "retrieve") {
     return {
@@ -500,7 +500,7 @@ function action(input: {
   description: string;
   category: MicroflowActionCategory;
   availability?: MicroflowRegistryAvailability;
-  defaultConfig?: Partial<MicroflowActivityConfig>;
+  defaultConfig?: Partial<LegacyMicroflowActivityConfig>;
   outputSpec?: MicroflowActionRegistryItem["outputSpec"];
   inputSpec?: MicroflowActionRegistryItem["inputSpec"];
   supportsErrorHandling?: boolean;
@@ -556,7 +556,7 @@ function action(input: {
       }
     })
   };
-  return item;
+  return item as MicroflowActionRegistryItem;
 }
 
 export const defaultMicroflowActionRegistry: MicroflowActionRegistryItem[] = [

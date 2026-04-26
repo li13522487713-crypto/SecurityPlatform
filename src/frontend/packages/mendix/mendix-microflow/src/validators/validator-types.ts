@@ -1,4 +1,4 @@
-import type { MicroflowSchema, MicroflowValidationIssue } from "../schema/types";
+import type { MicroflowAuthoringSchema, MicroflowValidationIssue } from "../schema/types";
 import type { MicroflowMetadataCatalog } from "../metadata";
 import type { MicroflowVariableIndex } from "../variables";
 import type { MicroflowValidationCode } from "./validation-codes";
@@ -7,7 +7,7 @@ export type { MicroflowValidationIssue };
 export type { MicroflowValidationCode };
 
 export interface MicroflowValidator {
-  validate(schema: MicroflowSchema): MicroflowValidationIssue[];
+  validate(schema: MicroflowAuthoringSchema): MicroflowValidationIssue[];
 }
 
 export interface MicroflowValidationOptions {
@@ -17,7 +17,7 @@ export interface MicroflowValidationOptions {
 }
 
 export interface MicroflowValidationInput {
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   metadata?: MicroflowMetadataCatalog;
   variableIndex?: MicroflowVariableIndex;
   options?: MicroflowValidationOptions;

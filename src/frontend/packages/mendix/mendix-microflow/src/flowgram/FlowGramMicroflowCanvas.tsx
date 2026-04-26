@@ -16,7 +16,8 @@ import {
   type MicroflowNodeDragPayload,
   type MicroflowNodeRegistryItem,
 } from "../node-registry";
-import type { MicroflowPoint, MicroflowSchema, MicroflowTraceFrame, MicroflowValidationIssue } from "../schema";
+import type { MicroflowTraceFrame } from "../debug/trace-types";
+import type { MicroflowPoint, MicroflowSchema, MicroflowValidationIssue } from "../schema";
 import { toEditorGraph } from "../adapters";
 import { FlowGramMicroflowCaseEditor } from "./FlowGramMicroflowCaseEditor";
 import { FlowGramMicroflowProvider } from "./FlowGramMicroflowProvider";

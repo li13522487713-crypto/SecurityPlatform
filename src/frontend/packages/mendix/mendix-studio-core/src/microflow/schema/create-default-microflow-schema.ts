@@ -2,6 +2,7 @@ import {
   createDefaultEditorState,
   microflowSampleSchemas,
   sampleMicroflowSchema,
+  type MicroflowAuthoringSchema,
   type MicroflowDataType,
   type MicroflowExpression,
   type MicroflowFlow,
@@ -9,7 +10,6 @@ import {
   type MicroflowObject,
   type MicroflowObjectBase,
   type MicroflowParameter,
-  type MicroflowSchema,
   type MicroflowVariableIndex
 } from "@atlas/microflow";
 
@@ -20,8 +20,8 @@ export interface CreateDefaultMicroflowSchemaInput extends MicroflowCreateInput 
   ownerName?: string;
 }
 
-function cloneSchema(schema: MicroflowSchema): MicroflowSchema {
-  return JSON.parse(JSON.stringify(schema)) as MicroflowSchema;
+function cloneSchema(schema: MicroflowAuthoringSchema): MicroflowAuthoringSchema {
+  return JSON.parse(JSON.stringify(schema)) as MicroflowAuthoringSchema;
 }
 
 function nowIso(): string {
@@ -125,10 +125,10 @@ function normalizeParameters(input: MicroflowParameter[]): MicroflowParameter[] 
   }));
 }
 
-function applyResourceFields(schema: MicroflowSchema, input: CreateDefaultMicroflowSchemaInput, id: string): MicroflowSchema {
+function applyResourceFields(schema: MicroflowAuthoringSchema, input: CreateDefaultMicroflowSchemaInput, id: string): MicroflowAuthoringSchema {
   const timestamp = nowIso();
   const parameters = normalizeParameters(input.parameters);
-  const next: MicroflowSchema = {
+  const next: MicroflowAuthoringSchema = {
     ...schema,
     id,
     stableId: id,
@@ -137,7 +137,6 @@ function applyResourceFields(schema: MicroflowSchema, input: CreateDefaultMicrof
     description: input.description,
     moduleId: input.moduleId,
     moduleName: input.moduleName,
-    version: "0.1.0",
     parameters,
     returnType: input.returnType,
     returnVariableName: input.returnVariableName,
@@ -171,7 +170,7 @@ function applyResourceFields(schema: MicroflowSchema, input: CreateDefaultMicrof
   return next;
 }
 
-function createBlankSchema(input: CreateDefaultMicroflowSchemaInput, id: string): MicroflowSchema {
+function createBlankSchema(input: CreateDefaultMicroflowSchemaInput, id: string): MicroflowAuthoringSchema {
   const parameters = normalizeParameters(input.parameters);
   const parameterObjects: MicroflowObject[] = parameters.map((parameter, index) => ({
     ...baseObject(`param-object-${parameter.id}`, "parameterObject", "Microflows$MicroflowParameterObject", `Parameter: ${parameter.name}`, 80, 80 + index * 96, 184, 70),
@@ -203,7 +202,6 @@ function createBlankSchema(input: CreateDefaultMicroflowSchemaInput, id: string)
     description: input.description,
     moduleId: input.moduleId,
     moduleName: input.moduleName,
-    version: "0.1.0",
     parameters,
     returnType: input.returnType,
     returnVariableName: input.returnVariableName,
@@ -223,7 +221,7 @@ function createBlankSchema(input: CreateDefaultMicroflowSchemaInput, id: string)
   }, input, id);
 }
 
-export function createDefaultMicroflowSchema(input: CreateDefaultMicroflowSchemaInput): MicroflowSchema {
+export function createDefaultMicroflowSchema(input: CreateDefaultMicroflowSchemaInput): MicroflowAuthoringSchema {
   const id = input.id || makeId("mf");
   if (input.template === "orderProcessing") {
     return applyResourceFields(cloneSchema(sampleMicroflowSchema), input, id);

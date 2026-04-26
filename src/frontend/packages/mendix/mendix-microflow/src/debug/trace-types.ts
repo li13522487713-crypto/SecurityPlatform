@@ -81,7 +81,8 @@ export interface MicroflowTraceFrame {
   errorHandlerVisited?: boolean;
 }
 
-export interface MicroflowVariableSnapshot {
+/** Per-frame variable rows attached to a {@link MicroflowRunSession} (not editor variable previews). */
+export interface MicroflowRunSessionVariableSnapshot {
   frameId: string;
   objectId: string;
   variables: MicroflowRuntimeVariableValue[];
@@ -98,7 +99,7 @@ export interface MicroflowRunSession {
   error?: MicroflowRuntimeError;
   trace: MicroflowTraceFrame[];
   logs: MicroflowRuntimeLog[];
-  variables: MicroflowVariableSnapshot[];
+  variables: MicroflowRunSessionVariableSnapshot[];
 }
 
 export interface MicroflowTestRunOptions {

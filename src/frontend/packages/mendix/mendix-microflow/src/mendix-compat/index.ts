@@ -1,4 +1,4 @@
-import type { MicroflowActivityType, MicroflowEdgeType, MicroflowNodeCategory, MicroflowNodeType } from "../schema/types";
+import type { LegacyMicroflowNodeType, MicroflowActivityType, MicroflowEdgeType, MicroflowNodeCategory } from "../schema/types";
 export type {
   MendixCompatDataType,
   MendixCompatFlow,
@@ -26,7 +26,7 @@ export type MendixMicroflowConcept =
   | "LoggingActivity";
 
 export interface MendixNodeCategoryMapping {
-  microflowType: MicroflowNodeType;
+  microflowType: LegacyMicroflowNodeType;
   activityType?: MicroflowActivityType;
   mendixConcept: MendixMicroflowConcept;
   category: MicroflowNodeCategory;

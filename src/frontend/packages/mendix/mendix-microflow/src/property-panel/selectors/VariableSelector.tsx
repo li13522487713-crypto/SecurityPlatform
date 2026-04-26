@@ -1,7 +1,7 @@
 import { Select, Typography } from "@douyinfe/semi-ui";
 import { useMemo } from "react";
 import { useMicroflowMetadata } from "../../metadata";
-import type { MicroflowDataType, MicroflowSchema } from "../../schema";
+import type { MicroflowAuthoringSchema, MicroflowDataType } from "../../schema";
 import {
   buildVariableIndex,
   filterVariableByType,
@@ -25,7 +25,7 @@ export function VariableSelector({
   disabled,
   placeholder = "Select variable",
 }: {
-  schema: MicroflowSchema;
+  schema: MicroflowAuthoringSchema;
   objectId?: string;
   actionId?: string;
   fieldPath?: string;

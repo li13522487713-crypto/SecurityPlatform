@@ -4,14 +4,14 @@ import type {
   MicroflowFlow,
   MicroflowObject,
   MicroflowParameter,
-  MicroflowSchema,
+  MicroflowAuthoringSchema,
 } from "../../schema";
 
 export function updateObject<TObject extends MicroflowObject>(
-  schema: MicroflowSchema,
+  schema: MicroflowAuthoringSchema,
   objectId: string,
   updater: (object: TObject) => TObject,
-): MicroflowSchema {
+): MicroflowAuthoringSchema {
   return {
     ...schema,
     objectCollection: {
@@ -50,10 +50,10 @@ export function updateActionConfig(
 }
 
 export function updateFlow(
-  schema: MicroflowSchema,
+  schema: MicroflowAuthoringSchema,
   flowId: string,
   updater: (flow: MicroflowFlow) => MicroflowFlow,
-): MicroflowSchema {
+): MicroflowAuthoringSchema {
   return {
     ...schema,
     flows: schema.flows.map(flow => flow.id === flowId ? updater(flow) : flow),
@@ -71,10 +71,10 @@ export function updateFlowEditor(
 }
 
 export function updateParameter(
-  schema: MicroflowSchema,
+  schema: MicroflowAuthoringSchema,
   parameterId: string,
   patch: Partial<MicroflowParameter>,
-): MicroflowSchema {
+): MicroflowAuthoringSchema {
   return {
     ...schema,
     parameters: schema.parameters.map(parameter => parameter.id === parameterId ? { ...parameter, ...patch } : parameter),
@@ -82,10 +82,10 @@ export function updateParameter(
 }
 
 export function updateLoopObjectCollection(
-  schema: MicroflowSchema,
+  schema: MicroflowAuthoringSchema,
   loopObjectId: string,
   updater: (collection: Extract<MicroflowObject, { kind: "loopedActivity" }>["objectCollection"]) => Extract<MicroflowObject, { kind: "loopedActivity" }>["objectCollection"],
-): MicroflowSchema {
+): MicroflowAuthoringSchema {
   return updateObject<Extract<MicroflowObject, { kind: "loopedActivity" }>>(schema, loopObjectId, loop => ({
     ...loop,
     objectCollection: updater(loop.objectCollection),

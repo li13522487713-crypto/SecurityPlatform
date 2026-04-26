@@ -1,4 +1,4 @@
-import { validateMicroflowSchema, type MicroflowAuthoringSchema, type MicroflowSchema } from "@atlas/microflow";
+import { normalizeMicroflowSchema, validateMicroflowSchema, type MicroflowAuthoringSchema } from "@atlas/microflow";
 
 import type { MicroflowPublishInput, MicroflowPublishResult } from "../publish/microflow-publish-types";
 import { analyzeMicroflowPublishImpact, hashSchemaSnapshot, summarizeValidation, validatePublishVersion } from "../publish/microflow-publish-utils";
@@ -35,6 +35,20 @@ function makeId(prefix: string): string {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function normalizeResource(resource: MicroflowResource): MicroflowResource {
+  return {
+    ...resource,
+    schema: normalizeMicroflowSchema(resource.schema as unknown)
+  };
+}
+
+function normalizeSnapshot(snapshot: MicroflowPublishedSnapshot): MicroflowPublishedSnapshot {
+  return {
+    ...snapshot,
+    schema: normalizeMicroflowSchema(snapshot.schema as unknown)
+  };
 }
 
 function defaultPermissions() {
@@ -111,7 +125,7 @@ function createResourceFromInput(input: MicroflowCreateInput, options: Required<
     createdAt: timestamp,
     updatedBy: options.currentUser.name,
     updatedAt: timestamp,
-    version: schema.version,
+    version: schema.audit.version,
     status: "draft",
     publishStatus: "neverPublished",
     favorite: false,
@@ -151,14 +165,13 @@ function seedResources(options: Required<Pick<LocalMicroflowResourceAdapterOptio
     referenceCount: 3,
     lastRunStatus: "success",
     lastRunAt: publishedAt,
-    schema: { ...order.schema, id: "mf-order-process", stableId: "mf-order-process", version: "1.0.0", audit: { ...order.schema.audit, status: "published", version: "1.0.0" } }
+    schema: { ...order.schema, id: "mf-order-process", stableId: "mf-order-process", audit: { ...order.schema.audit, status: "published", version: "1.0.0" } }
   };
   const changedSchema = clone(published.schema);
   changedSchema.id = "mf-order-breaking";
   changedSchema.stableId = "mf-order-breaking";
   changedSchema.name = "OrderProcessingV2Draft";
   changedSchema.displayName = "订单处理微流 V2 草稿";
-  changedSchema.version = "1.0.0";
   changedSchema.parameters = [];
   changedSchema.returnType = { kind: "primitive", name: "String" };
   changedSchema.audit = { ...changedSchema.audit, status: "draft", updatedAt: publishedAt, updatedBy: options.currentUser.name };
@@ -344,9 +357,9 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     this.currentUser = options.currentUser || { id: "current-user", name: "Current User" };
     this.storageKey = options.storageKey;
     const restored = readStoredMicroflowResources(this.storageKey) ?? seedResources({ workspaceId: this.workspaceId, currentUser: this.currentUser });
-    restored.resources.forEach(resource => this.resources.set(resource.id, clone(resource)));
+    restored.resources.forEach(resource => this.resources.set(resource.id, clone(normalizeResource(resource))));
     Object.entries(restored.versions ?? {}).forEach(([id, versions]) => this.versions.set(id, clone(versions)));
-    Object.entries(restored.snapshots ?? {}).forEach(([id, snapshot]) => this.snapshots.set(id, clone(snapshot)));
+    Object.entries(restored.snapshots ?? {}).forEach(([id, snapshot]) => this.snapshots.set(id, clone(normalizeSnapshot(snapshot))));
     Object.entries(restored.references ?? {}).forEach(([id, references]) => this.references.set(id, clone(references)));
     this.resources.forEach(resource => {
       if (!this.versions.has(resource.id)) {
@@ -429,7 +442,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
   async updateMicroflow(id: string, patch: MicroflowResourcePatch): Promise<MicroflowResource> {
     const current = this.requireResource(id);
     const timestamp = nowIso();
-    const schema = patch.schema ? clone(patch.schema) as MicroflowSchema : current.schema;
+    const schema = patch.schema ? normalizeMicroflowSchema(clone(patch.schema) as unknown) : current.schema;
     const next: MicroflowResource = {
       ...current,
       ...patch,
@@ -443,15 +456,15 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     return clone(next);
   }
 
-  async saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema | MicroflowSchema, _options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource> {
+  async saveMicroflowSchema(id: string, schema: MicroflowAuthoringSchema, _options?: SaveMicroflowSchemaOptions): Promise<MicroflowResource> {
     void _options;
     const current = this.requireResource(id);
     const timestamp = nowIso();
-    const nextSchema = clone(schema) as MicroflowSchema;
+    const nextSchema = normalizeMicroflowSchema(clone(schema) as unknown);
     nextSchema.id = current.schemaId;
-    nextSchema.version = current.version;
     nextSchema.audit = {
       ...nextSchema.audit,
+      version: current.version,
       status: current.status === "published" ? "draft" : nextSchema.audit.status,
       updatedAt: timestamp,
       updatedBy: this.currentUser.name
@@ -483,7 +496,6 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     schema.displayName = input.displayName || `${current.displayName || current.name} Copy`;
     schema.moduleId = input.moduleId || current.moduleId;
     schema.moduleName = input.moduleName || current.moduleName;
-    schema.version = "0.1.0";
     schema.audit = { version: "0.1.0", status: "draft", createdAt: timestamp, createdBy: this.currentUser.name, updatedAt: timestamp, updatedBy: this.currentUser.name };
     const duplicate: MicroflowResource = {
       ...current,
@@ -568,9 +580,8 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     }
     const timestamp = nowIso();
     const description = input.description ?? input.releaseNote;
-    const schema: MicroflowSchema = {
+    const schema: MicroflowAuthoringSchema = {
       ...clone(current.schema),
-      version,
       audit: { ...current.schema.audit, status: "published", version, updatedAt: timestamp, updatedBy: this.currentUser.name }
     };
     const snapshotId = `${id}@${version}`;
@@ -664,9 +675,8 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
       throw new Error("Version snapshot was not found.");
     }
     const timestamp = nowIso();
-    const schema = clone(detail.snapshot.schema) as MicroflowSchema;
-    schema.version = current.version;
-    schema.audit = { ...schema.audit, status: "draft", updatedAt: timestamp, updatedBy: this.currentUser.name };
+    const schema = normalizeMicroflowSchema(clone(detail.snapshot.schema) as unknown);
+    schema.audit = { ...schema.audit, version: current.version, status: "draft", updatedAt: timestamp, updatedBy: this.currentUser.name };
     const next: MicroflowResource = {
       ...current,
       name: schema.name,
@@ -707,14 +717,13 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     }
     const nextId = makeId("mf");
     const timestamp = nowIso();
-    const schema = clone(detail.snapshot.schema) as MicroflowSchema;
+    const schema = normalizeMicroflowSchema(clone(detail.snapshot.schema) as unknown);
     schema.id = nextId;
     schema.stableId = nextId;
     schema.name = input.name || `${current.name}VersionCopy`;
     schema.displayName = input.displayName || `${current.displayName || current.name} ${detail.version} Copy`;
     schema.moduleId = input.moduleId || current.moduleId;
     schema.moduleName = input.moduleName || current.moduleName;
-    schema.version = "0.1.0";
     schema.audit = { ...schema.audit, version: "0.1.0", status: "draft", createdAt: timestamp, createdBy: this.currentUser.name, updatedAt: timestamp, updatedBy: this.currentUser.name };
     const duplicate: MicroflowResource = {
       ...current,

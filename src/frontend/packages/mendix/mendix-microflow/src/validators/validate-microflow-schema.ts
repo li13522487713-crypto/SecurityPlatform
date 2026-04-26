@@ -1,5 +1,6 @@
 import { mockMicroflowMetadataCatalog } from "../metadata";
-import type { MicroflowSchema, MicroflowValidationIssue, MicroflowValidator } from "../schema/types";
+import { normalizeMicroflowSchema } from "../schema/legacy/legacy-migration";
+import type { MicroflowAuthoringSchema, MicroflowValidationIssue, MicroflowValidator } from "../schema/types";
 import { buildVariableIndex } from "../variables";
 import { validateActions } from "./validate-actions";
 import { validateDecisions } from "./validate-decisions";
@@ -46,7 +47,7 @@ function normalizeIssues(issues: MicroflowValidationIssue[]): MicroflowValidatio
   );
 }
 
-function runValidators(schema: MicroflowSchema): MicroflowValidationIssue[] {
+function runValidators(schema: MicroflowAuthoringSchema): MicroflowValidationIssue[] {
   const validators: MicroflowValidator[] = [
     { validate: validateRoot },
     { validate: validateObjectCollection },
@@ -77,15 +78,20 @@ function runValidators(schema: MicroflowSchema): MicroflowValidationIssue[] {
   return normalizeIssues(issues);
 }
 
-export function validateMicroflowSchema(schema: MicroflowSchema): MicroflowValidationIssue[];
+function isValidationInput(value: unknown): value is MicroflowValidationInput {
+  return Boolean(value && typeof value === "object" && "schema" in value);
+}
+
+export function validateMicroflowSchema(schema: MicroflowAuthoringSchema): MicroflowValidationIssue[];
 export function validateMicroflowSchema(input: MicroflowValidationInput): MicroflowValidationResult;
-export function validateMicroflowSchema(input: MicroflowSchema | MicroflowValidationInput): MicroflowValidationIssue[] | MicroflowValidationResult {
-  if ("schema" in input) {
+export function validateMicroflowSchema(input: MicroflowAuthoringSchema | MicroflowValidationInput | unknown): MicroflowValidationIssue[] | MicroflowValidationResult {
+  if (isValidationInput(input)) {
     const metadata = input.metadata ?? mockMicroflowMetadataCatalog;
-    const variableIndex = input.variableIndex ?? buildVariableIndex(input.schema, metadata);
+    const schema = normalizeMicroflowSchema(input.schema as unknown);
+    const variableIndex = input.variableIndex ?? buildVariableIndex(schema, metadata);
     const includeWarnings = input.options?.includeWarnings !== false;
     const includeInfo = input.options?.includeInfo === true;
-    const issues = runValidators(input.schema).filter(item =>
+    const issues = runValidators(schema).filter(item =>
       item.severity === "error" ||
       (item.severity === "warning" && includeWarnings) ||
       (item.severity === "info" && includeInfo)
@@ -96,6 +102,6 @@ export function validateMicroflowSchema(input: MicroflowSchema | MicroflowValida
       summary: summarizeIssues(issues),
     };
   }
-  return runValidators(input);
+  return runValidators(normalizeMicroflowSchema(input));
 }
 export type { MicroflowValidationIssue, MicroflowValidator } from "./validator-types";
