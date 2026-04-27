@@ -21,6 +21,7 @@ export function EntitySelector({
   placeholder?: string;
 }) {
   const { catalog, loading, error, version } = useMicroflowMetadata();
+  const mockCatalog = catalog?.version?.startsWith("mock") ?? false;
   const resolvedValue = catalog && value ? resolveStoredEntityQualifiedName(catalog, value) : value;
   const entities = catalog
     ? searchEntities(catalog)
@@ -44,6 +45,16 @@ export function EntitySelector({
         style={{ width: "100%" }}
         disabled={disabled}
         placeholder={!catalog ? "元数据未加载" : "暂无实体元数据"}
+      />
+    );
+  }
+  if (mockCatalog) {
+    return (
+      <Select
+        style={{ width: "100%" }}
+        disabled
+        value={value}
+        placeholder="真实 Domain Model metadata 未接入"
       />
     );
   }

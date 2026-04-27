@@ -11,7 +11,11 @@ import { getIssuesForField, getIssuesForObject } from "../utils";
 import { dataTypeFromKey, dataTypeLabel, expression, Field, updateAction } from "../panel-shared";
 import { GenericActionFields } from "./generic-action-fields-form";
 
-const { Title } = Typography;
+const { Text, Title } = Typography;
+
+function RequiredConfigWarning({ visible, children }: { visible: boolean; children: string }) {
+  return visible ? <Text type="warning" size="small">{children}</Text> : null;
+}
 
 function retrieveOutputDataType(action: Extract<MicroflowAction, { kind: "retrieve" }>, catalog: MicroflowMetadataCatalog): MicroflowDataType {
   if (action.retrieveSource.kind === "database") {
@@ -143,6 +147,7 @@ export function ActionActivityForm({
                   onChange={entityQualifiedName => patchObject(updateAction(object, { retrieveSource: { ...action.retrieveSource, entityQualifiedName: entityQualifiedName ?? null } }))}
                 />
                 <FieldError issues={getIssuesForField(issues, "action.retrieveSource.entityQualifiedName")} />
+                <RequiredConfigWarning visible={!String(action.retrieveSource.entityQualifiedName ?? "").trim()}>Entity 未配置；不会自动填入示例 Domain Model。</RequiredConfigWarning>
               </Field>
               <Field label="XPath Constraint">
                 <ExpressionEditor
@@ -357,6 +362,7 @@ export function ActionActivityForm({
               <Field label="Entity">
                 <EntitySelector value={action.entityQualifiedName} disabled={readonly} onChange={entityQualifiedName => patchObject(updateAction(object, { entityQualifiedName: entityQualifiedName ?? "" }))} />
                 <FieldError issues={getIssuesForField(issues, "action.entityQualifiedName")} />
+                <RequiredConfigWarning visible={!action.entityQualifiedName.trim()}>Entity 未配置；真实 Domain Model 绑定留到后续阶段。</RequiredConfigWarning>
               </Field>
               <FieldRow label="Output Variable" fieldPath="action.outputVariableName" required issues={getIssuesForField(issues, "action.outputVariableName")}>
                 <OutputVariableEditor
@@ -492,6 +498,7 @@ export function ActionActivityForm({
               readonly={readonly}
               onChange={urlExpression => patchObject(updateAction(object, { request: { ...action.request, urlExpression } }))}
             />
+            <RequiredConfigWarning visible={!action.request.urlExpression.raw.trim()}>REST URL 为空；保存为待配置状态，不会写入 demo URL。</RequiredConfigWarning>
           </Field>
           <Field label="Timeout Seconds" issues={getIssuesForField(issues, "action.timeoutSeconds")}>
             <InputNumber value={action.timeoutSeconds} disabled={readonly} onChange={timeoutSeconds => patchObject(updateAction(object, { timeoutSeconds: Number(timeoutSeconds) }))} />
@@ -775,6 +782,7 @@ export function ActionActivityForm({
               }}
             />
             <FieldError issues={getIssuesForField(issues, "action.targetMicroflowId")} />
+            <RequiredConfigWarning visible={!action.targetMicroflowId.trim()}>Target Microflow 未配置；真实微流选择留到后续阶段。</RequiredConfigWarning>
           </Field>
           {selectedMicroflow ? (
             <Field label="Target Signature">
@@ -897,6 +905,7 @@ export function ActionActivityForm({
               onChange={targetVariableName => patchObject(updateAction(object, { targetVariableName: targetVariableName ?? "" }))}
             />
             <FieldError issues={getIssuesForField(issues, "action.targetVariableName")} />
+            <RequiredConfigWarning visible={!action.targetVariableName.trim()}>Target variable 未配置；保存为待配置状态。</RequiredConfigWarning>
           </Field>
           <Field label="New Value Expression">
             <ExpressionEditor

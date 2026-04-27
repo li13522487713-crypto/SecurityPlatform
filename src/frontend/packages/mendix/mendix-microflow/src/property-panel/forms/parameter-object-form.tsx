@@ -1,10 +1,12 @@
-import { Input, Switch } from "@douyinfe/semi-ui";
+import { Input, Switch, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject, MicroflowParameter } from "../../schema";
 import { FieldError } from "../common";
 import { DataTypeSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject, updateParameter } from "../utils";
 import { expression, Field } from "../panel-shared";
+
+const { Text } = Typography;
 
 export function ParameterObjectForm({ props, object, issues, parameter, patch }: {
   props: MicroflowPropertyPanelProps;
@@ -44,6 +46,7 @@ export function ParameterObjectForm({ props, object, issues, parameter, patch }:
             patch({ ...object, caption: name, parameterName: name });
           }}
         />
+        {!(parameter?.name ?? object.parameterName ?? "").trim() ? <Text type="warning" size="small">Parameter name 为空，保存后会保留为待配置状态。</Text> : null}
       </Field>
       <Field label="Data Type">
         <DataTypeSelector value={parameter?.dataType ?? { kind: "string" }} disabled={props.readonly || !parameter} onChange={dataType => patchParameter({ dataType })} />

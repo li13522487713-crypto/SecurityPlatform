@@ -3,9 +3,40 @@ import type {
   MicroflowActionActivity,
   MicroflowFlow,
   MicroflowObject,
+  MicroflowObjectCollection,
   MicroflowParameter,
   MicroflowAuthoringSchema,
 } from "../../schema";
+
+function mapObjectCollection(
+  collection: MicroflowObjectCollection,
+  objectId: string,
+  updater: (object: MicroflowObject) => MicroflowObject,
+): MicroflowObjectCollection {
+  return {
+    ...collection,
+    objects: collection.objects.map(object => {
+      const next = object.id === objectId ? updater(object) : object;
+      return next.kind === "loopedActivity"
+        ? { ...next, objectCollection: mapObjectCollection(next.objectCollection, objectId, updater) }
+        : next;
+    }),
+  };
+}
+
+function mapFlowCollection(
+  collection: MicroflowObjectCollection,
+  flowId: string,
+  updater: (flow: MicroflowFlow) => MicroflowFlow,
+): MicroflowObjectCollection {
+  return {
+    ...collection,
+    flows: collection.flows?.map(flow => flow.id === flowId ? updater(flow) : flow),
+    objects: collection.objects.map(object => object.kind === "loopedActivity"
+      ? { ...object, objectCollection: mapFlowCollection(object.objectCollection, flowId, updater) }
+      : object),
+  };
+}
 
 export function updateObject<TObject extends MicroflowObject>(
   schema: MicroflowAuthoringSchema,
@@ -14,10 +45,7 @@ export function updateObject<TObject extends MicroflowObject>(
 ): MicroflowAuthoringSchema {
   return {
     ...schema,
-    objectCollection: {
-      ...schema.objectCollection,
-      objects: schema.objectCollection.objects.map(object => object.id === objectId ? updater(object as TObject) : object),
-    },
+    objectCollection: mapObjectCollection(schema.objectCollection, objectId, object => updater(object as TObject)),
   };
 }
 
@@ -57,7 +85,26 @@ export function updateFlow(
   return {
     ...schema,
     flows: schema.flows.map(flow => flow.id === flowId ? updater(flow) : flow),
+    objectCollection: mapFlowCollection(schema.objectCollection, flowId, updater),
   };
+}
+
+export function updateObjectCaption<TObject extends MicroflowObject>(object: TObject, caption: string): TObject {
+  return { ...object, caption } as TObject;
+}
+
+export function updateObjectDescription<TObject extends MicroflowObject>(object: TObject, documentation: string): TObject {
+  return { ...object, documentation } as TObject;
+}
+
+export function updateFlowLabel<TFlow extends MicroflowFlow>(flow: TFlow, label: string): TFlow {
+  return {
+    ...flow,
+    editor: {
+      ...flow.editor,
+      label,
+    },
+  } as TFlow;
 }
 
 export function updateFlowEditor(

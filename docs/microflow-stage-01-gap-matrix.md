@@ -19,15 +19,17 @@
 | 8 | 画布按 microflowId 保存和加载 | Stage 06 已完成：GET resource/schema，PUT schema 保存 | 未保存切换 guard 待后续增强 | **Stage 06** |
 | 9 | 节点拖拽后真实进入当前微流定义 | Stage 08 已完成专项验收与修复：NodePanel payload -> FlowGram drop -> authoring schema objectCollection | 不新增节点类型 | **Stage 08** |
 | 10 | 节点位置、类型、名称、配置真实保存 | Stage 09 已完成节点移动/删除/复制/重命名基础编辑持久化；随 Stage 06 save bridge 保存 | 节点属性深度增强留到后续阶段 | **Stage 09 / 后续增强** |
-| 11 | 连接线可以创建、删除、保存 | Stage 06 已完成：连接线随当前微流 schema 保存 | 高级引用重建优化留到后续阶段 | **Stage 06** |
+| 11 | 连接线可以创建、删除、保存 | Stage 10 已完成：FlowGram connect/delete 真实写回当前 microflow authoring schema，保存进入 `PUT /api/microflows/{id}/schema` | 复杂属性表单与运行语义留到后续阶段 | **Stage 10** |
 | 12 | 节点属性面板可以编辑并保存 | Stage 09 已完成基础 caption/documentation 编辑写回 schema；Stage 08 已确认拖入节点可选中进入属性面板 | Call Microflow 真实 metadata 与深度属性体验仍未接入 | 后续阶段 |
 | 13 | Call Microflow 目标选择 | Stage 07 已治理默认引用：新拖入节点 target 为空并标记待配置 | 真实微流列表选择仍未接入 | 后续阶段 |
 | 14 | 执行引擎 / Trace | 未接入 | runtimeAdapter 链路未作为本轮目标接入 | 后续阶段 |
 | 15 | 节点工具箱分类和节点注册表 | Stage 07 已完成：Events / Parameters / Flow Control / Variables / Objects / Lists / Integration / Documentation / Other 稳定分类 | 后续可继续接入上下文级 availability 规则 | **Stage 07** |
 | 16 | Object/List/Variable/REST 默认配置治理 | Stage 07 已完成：默认 entity/list/target/url 为空或安全待配置值 | Domain Model metadata 绑定和深度属性编辑仍在后续阶段 | **Stage 07** |
 | 17 | 不同微流节点不互相污染 | Stage 08 已补测试验证 A/B schema 分别 add node 不互相污染；运行时隔离继续依赖 Stage 05/06 tab/schema remount | 快速切换未保存 guard 仍可后续增强 | **Stage 08** |
-| 18 | 节点删除真实保存 | Stage 09 已完成：删除 object 时同步清理 root/nested related flows，ParameterObject 删除同步清理 parameter | 连线专项增强留到 Stage 10 | **Stage 09** |
+| 18 | 节点删除真实保存 | Stage 09 已完成基础删除；Stage 10 复查并验证删除 object 时同步清理 root/nested related flows，避免悬挂连线 | 复杂子图复制/迁移留到后续 | **Stage 09 / Stage 10** |
 | 19 | 节点复制真实保存 | Stage 09 已完成：复制同 collection object，生成新 object/action/parameter id、新 caption、偏移位置，不复制 flows | 复杂复制子图/连线留到后续 | **Stage 09** |
+| 20 | 连线 source/target/handle 可以保存 | Stage 10 已完成：保存 `originObjectId`、`destinationObjectId`、`originConnectionIndex`、`destinationConnectionIndex`，刷新后由 schema 重新映射 FlowGram handle | 未做历史 schema migration | **Stage 10** |
+| 21 | Decision true/false 分支基础持久化 | Stage 10 已完成：Decision true/false 出边写入 boolean `caseValues`，删除连线释放 case，重复 case 由连接校验阻止 | Enumeration/ObjectType 深度 metadata 仍在后续阶段 | **Stage 10** |
 
 ---
 

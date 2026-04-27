@@ -659,7 +659,6 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
       setCrudAction(undefined);
     }
   }, [
-    activeMicroflowId,
     adapterBundle,
     deleteReferences,
     deleteTarget,

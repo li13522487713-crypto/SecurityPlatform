@@ -22,6 +22,7 @@ export function MicroflowSelector({
   placeholder?: string;
 }) {
   const { catalog, loading, error, version } = useMicroflowMetadata();
+  const mockCatalog = catalog?.version?.startsWith("mock") ?? false;
   const microflows = catalog
     ? searchMicroflows(catalog).filter(microflow => !expectedReturnType || microflow.returnType.kind === expectedReturnType.kind)
     : [];
@@ -33,6 +34,9 @@ export function MicroflowSelector({
   }
   if (!catalog) {
     return <Select style={{ width: "100%" }} disabled placeholder="元数据未加载" />;
+  }
+  if (mockCatalog) {
+    return <Select style={{ width: "100%" }} disabled placeholder="真实微流 metadata 未接入" />;
   }
   return (
     <Select

@@ -8,7 +8,7 @@ import type { MicroflowNodePatch, MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
 import { expression, Field } from "../panel-shared";
 
-const { Title } = Typography;
+const { Text, Title } = Typography;
 
 type GenericActionField =
   | { key: string; label: string; control: "text"; required?: boolean }
@@ -192,6 +192,16 @@ function actionRecord(action: MicroflowAction): Record<string, unknown> {
   return action as unknown as Record<string, unknown>;
 }
 
+function isMissingRequiredValue(value: unknown): boolean {
+  if (typeof value === "string") {
+    return !value.trim();
+  }
+  if (value && typeof value === "object" && "raw" in value) {
+    return !String((value as MicroflowExpression).raw ?? "").trim();
+  }
+  return value === undefined || value === null;
+}
+
 export function genericOutputSummary(action: MicroflowAction): string | undefined {
   const record = actionRecord(action);
   const candidates = [
@@ -236,8 +246,18 @@ export function GenericActionFields({
   const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, metadataVersion]);
   const action = object.action;
   const fields = getGenericActionFields(action.kind);
-  if (fields.length === 0 || ["retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "restCall", "logMessage", "callMicroflow", "createVariable", "changeVariable"].includes(action.kind)) {
+  const specializedKinds = ["retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "restCall", "logMessage", "callMicroflow", "createVariable", "changeVariable"];
+  if (specializedKinds.includes(action.kind)) {
     return null;
+  }
+  if (fields.length === 0) {
+    return (
+      <>
+        <Title heading={6} style={{ margin: "10px 0 0" }}>Unsupported action type</Title>
+        <Text type="warning" size="small">当前 action kind 没有专用表单；以下 JSON 只读展示，属性面板不会崩溃。</Text>
+        <TextArea value={JSON.stringify(action, null, 2)} autosize disabled />
+      </>
+    );
   }
   const patchAction = (key: string, value: unknown) => onPatch({ object: { ...object, action: { ...action, [key]: value } as MicroflowAction } });
   const record = actionRecord(action);
@@ -265,6 +285,7 @@ export function GenericActionFields({
                 optionList={field.options.map(option => ({ label: option, value: option }))}
                 onChange={next => patchAction(field.key, String(next))}
               />
+              {field.required && isMissingRequiredValue(value) ? <Text type="warning" size="small">该字段为空，保存为待配置状态。</Text> : null}
             </Field>
           );
         }
@@ -272,6 +293,7 @@ export function GenericActionFields({
           return (
             <Field key={field.key} label={field.label} issues={fieldIssues}>
               <TextArea value={typeof value === "string" ? value : ""} autosize disabled={readonly} onChange={next => patchAction(field.key, next)} />
+              {field.required && isMissingRequiredValue(value) ? <Text type="warning" size="small">该字段为空，保存为待配置状态。</Text> : null}
             </Field>
           );
         }
@@ -292,12 +314,14 @@ export function GenericActionFields({
                 readonly={readonly}
                 onChange={next => patchAction(field.key, next)}
               />
+              {field.required && isMissingRequiredValue(currentExpression) ? <Text type="warning" size="small">该表达式为空，保存为待配置状态。</Text> : null}
             </Field>
           );
         }
         return (
           <Field key={field.key} label={field.label} issues={fieldIssues}>
             <Input value={typeof value === "string" ? value : ""} disabled={readonly} onChange={next => patchAction(field.key, next)} />
+            {field.required && isMissingRequiredValue(value) ? <Text type="warning" size="small">该字段为空，保存为待配置状态。</Text> : null}
           </Field>
         );
       })}

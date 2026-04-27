@@ -1,4 +1,4 @@
-import { Input, Select, TextArea } from "@douyinfe/semi-ui";
+import { Input, Select, TextArea, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowObject } from "../../schema";
 import type { MicroflowMetadataCatalog } from "../../metadata";
 import type { MicroflowVariableIndex } from "../../schema/types";
@@ -9,6 +9,8 @@ import { EnumerationSelector } from "../selectors";
 import type { MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
 import { expression, Field } from "../panel-shared";
+
+const { Text } = Typography;
 
 export function ExclusiveSplitForm({ props, object, issues, metadata, variableIndex, patch }: {
   props: MicroflowPropertyPanelProps;
@@ -103,6 +105,7 @@ export function ExclusiveSplitForm({ props, object, issues, metadata, variableIn
                 } as typeof object.splitCondition
               })}
             />
+            {!object.splitCondition.expression.raw.trim() ? <Text type="warning" size="small">Decision expression 为空，true/false 分支仍会保存，但条件需要后续配置。</Text> : null}
           </Field>
           <Field label="Branch Summary">
             <TextArea
