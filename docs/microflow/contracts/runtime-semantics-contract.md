@@ -31,3 +31,29 @@
 - WebService error handler 额外暴露 `$latestSoapFault`。
 - Error handler 中声明的变量默认不回流 normal path。
 - P0 每个 source object 最多一个 error handler flow；rollback/continue/custom 模式与 error flow 的一致性由 Validator 阻断。
+
+## 第 49 轮 FlowNavigator 语义
+
+FlowNavigator 是真实 Runtime 引擎的控制流导航层，仅消费 `MicroflowExecutionPlan`。本轮只做可预测导航和 trace skeleton，不执行真实 action、表达式、变量存取、事务、数据库 CRUD、REST 或 CallMicroflow。
+
+- StartEvent：从 `plan.startNodeId` 或 `preferredStartNodeId` 出发，缺失返回 `RUNTIME_START_NOT_FOUND`。
+- EndEvent：作为 success terminal，`terminalNodeId` 指向 EndEvent。
+- ErrorEvent：作为 failed terminal，返回 `RUNTIME_ERROR_EVENT_REACHED`。
+- SequenceFlow：只选择 normal outgoing flow，AnnotationFlow 不参与，ErrorHandlerFlow 只在错误上下文进入。
+- ExclusiveMerge：到达即继续，不等待所有 incoming 分支。
+- Decision：Boolean 使用 `decisionBooleanResult`，缺省按 true 并产生 warning diagnostic；Enumeration 使用 `enumerationCaseValue` 或 deterministic fallback；无匹配返回 `RUNTIME_INVALID_CASE`。
+- ObjectType Decision：使用 `objectTypeCase` 匹配 `entityQualifiedName`；未提供时优先 fallback / empty / first inheritance；不解析实体继承树。
+- ActionActivity：P0 supported action 只生成 placeholder success step；modeledOnly 可在 dry-run 中 skip；unsupported、requiresConnector、nanoflowOnly 产生导航错误。
+- ErrorHandlerFlow：仅在 simulated action failure / RestCall error 等错误上下文进入；本轮不实现 rollback / continue / custom 事务语义。
+- Loop / Break / Continue：Loop 按 `loopIterations` 模拟骨架迭代；Break 退出 loop，Continue 进入下一次迭代；二者在 loop 外返回失败。
+- maxSteps：默认 500，超过返回 `RUNTIME_MAX_STEPS_EXCEEDED` 与 `maxStepsExceeded` status。
+
+## 第 50 轮 VariableStore 语义
+
+VariableStore 是真实 Runtime 的变量读写地基，位于 `ExecutionPlan -> FlowNavigator -> RuntimeExecutionContext -> VariableStore -> VariableSnapshot -> TraceFrame.variablesSnapshot` 链路中。
+
+- 参数变量从 `ExecutionPlan.parameters` 初始化，默认 readonly；缺 required input 产生 diagnostic，optional 缺失为 `null`，额外 input 产生 warning。
+- P0 Action 仍不真实执行；FlowNavigator 只写安全 placeholder 输出，MockRuntimeRunner 写 mock output。Retrieve/CreateObject/CreateVariable/CallMicroflow/RestCall success 可写基础变量，ChangeVariable 只改 preview/raw mock 值。
+- Loop scope 每次 iteration 单独 push/pop，内部可见 iterator 与 `$currentIndex`；外部 frame 不可见。
+- ErrorHandler scope 只在错误处理路径中可见，包含 `$latestError` 和 REST error 的 `$latestHttpResponse`；本轮不实现完整 rollback/continue/custom 事务语义。
+- 第 51 轮 ExpressionEvaluator 将从 `RuntimeExecutionContext.VariableStore` 读取变量；第 54 轮 Object CRUD Actions 将通过同一 store 写真实业务对象变量。

@@ -64,6 +64,27 @@
 - 本轮仍不实现真实 Runtime 执行器、真实 CRUD、真实 REST、完整表达式、事务引擎或 FlowNavigator。
 - 自动化回归入口：`scripts/verify-microflow-execution-plan-loader.ts`。
 
+第 49 轮已补充 Runtime FlowNavigator：
+
+- 新增 `IMicroflowFlowNavigator`、`MicroflowFlowNavigator` 与 ExecutionPlan query helper，基于 `MicroflowExecutionPlan` 的 node/flow/loop map 做导航，避免每步全量扫描。
+- 新增导航内部模型：`MicroflowNavigationOptions`、`MicroflowNavigationContext`、`MicroflowNavigationResult`、`MicroflowNavigationStep`、`MicroflowNavigationError`、`MicroflowFlowNavigatorDiagnostics`。
+- 新增诊断 API：`POST /api/microflows/runtime/navigate`、`GET /api/microflows/{id}/runtime/navigate`，只读生成 plan 并 dry-run 导航，不保存 run session，不修改资源或 publishStatus。
+- 支持 Start / End / ErrorEvent、SequenceFlow / Merge、Boolean / Enumeration / ObjectType Decision、ActionActivity placeholder、ErrorHandlerFlow 骨架、Loop / Break / Continue 骨架、maxSteps 与 CancellationToken。
+- 本轮不执行真实 Action、不访问业务数据库、不调用 REST、不执行表达式、不实现 VariableStore / TransactionManager / CallMicroflow。
+- TestRun API 保持现有 MockRuntimeRunner，不切换 FlowNavigator；避免破坏第 46～47 轮 DebugPanel 与持久化 trace 联调。
+- 自动化验证入口：`scripts/verify-microflow-flow-navigator.ts`；`.http` 已补 Runtime FlowNavigator 示例。
+
+第 50 轮已补充 Runtime VariableStore：
+
+- 新增 `IMicroflowVariableStore`、`MicroflowVariableStore`、`MicroflowRuntimeVariableValue`、`MicroflowVariableScopeFrame`、`MicroflowVariableScopeStack`、`MicroflowVariableStoreSnapshot` 与 `MicroflowVariableStoreDiagnostic`。
+- 新增 `RuntimeExecutionContext`，持有 run/resource/schema/version/mode、ExecutionPlan、VariableStore、当前节点/flow/collection/loop、call/loop/error stack、securityContext 与 diagnostics。
+- 参数从 `ExecutionPlan.parameters` 初始化，系统变量支持 `$currentUser`；Loop scope 支持 iterator 与 `$currentIndex`；ErrorHandler scope 支持 `$latestError`、`$latestHttpResponse`，`$latestSoapFault` 预留。
+- FlowNavigator 现在可在 navigation steps / traceFrames 上输出 `variablesSnapshot`，P0 supported action 仍只写 placeholder 变量，不做真实执行。
+- MockRuntimeRunner 改用 VariableStore 生成 TestRun trace 的变量快照，保留既有 RunSession/Trace/Log DTO 与持久化结构。
+- DebugPanel 仅小修变量行类型与 tag 展示；不改 trace/log/error tab 架构。
+- 自动化验证入口：`scripts/verify-microflow-variable-store.ts`；`.http` 已补 Round 50 navigate 示例。
+- 本轮仍不实现 ExpressionEvaluator、真实 DB CRUD、真实 REST、事务、EntityAccess 或 CallMicroflow 执行。
+
 第 39 轮已补充 Metadata API：
 
 - `GET /api/microflow-metadata` 返回完整 `MicroflowMetadataCatalog`，支持 `workspaceId`、`moduleId`、`includeSystem`、`includeArchived`。

@@ -26,7 +26,10 @@ export interface MicroflowRuntimeVariableValue {
   type: MicroflowDataType;
   valuePreview: string;
   rawValue?: unknown;
+  rawValueJson?: string;
   source?: string;
+  readonly?: boolean;
+  scopeKind?: string;
 }
 
 export interface MicroflowRuntimeError {

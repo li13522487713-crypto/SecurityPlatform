@@ -1,5 +1,6 @@
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
+using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -20,6 +21,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowReferenceIndexer, MicroflowReferenceIndexer>();
         services.TryAddScoped<IMicroflowReferenceService, MicroflowReferenceService>();
         services.TryAddScoped<IMicroflowMockRuntimeRunner, MicroflowMockRuntimeRunner>();
+        services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
         services.TryAddScoped<IMicroflowTestRunService, MicroflowTestRunService>();
         services.TryAddScoped<IMicroflowVersionDiffService, MicroflowVersionDiffService>();
         services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();
@@ -30,6 +32,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowExecutionPlanValidator, MicroflowExecutionPlanValidator>();
         services.TryAddScoped<IMicroflowExecutionPlanBuilder, MicroflowExecutionPlanBuilder>();
         services.TryAddScoped<IMicroflowExecutionPlanLoader, MicroflowExecutionPlanLoader>();
+        services.TryAddScoped<IMicroflowFlowNavigator, MicroflowFlowNavigator>();
 
         return services;
     }

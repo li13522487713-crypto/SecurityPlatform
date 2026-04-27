@@ -77,7 +77,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 validationIssues: validation.Issues);
         }
 
-        await TryPreloadExecutionPlanAsync(resource, schema, cancellationToken);
+        var executionPlan = await TryPreloadExecutionPlanAsync(resource, schema, cancellationToken);
 
         var metadata = await _metadataService.GetCatalogAsync(
             new GetMicroflowMetadataRequestDto
@@ -95,6 +95,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 SchemaId = schemaId,
                 Version = resource.Version,
                 Schema = schema,
+                ExecutionPlan = executionPlan,
                 Input = request.Input ?? new Dictionary<string, JsonElement>(),
                 Options = request.Options ?? new MicroflowTestRunOptionsDto(),
                 Metadata = metadata,
@@ -176,11 +177,11 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         };
     }
 
-    private async Task TryPreloadExecutionPlanAsync(MicroflowResourceEntity resource, JsonElement schema, CancellationToken cancellationToken)
+    private async Task<MicroflowExecutionPlan?> TryPreloadExecutionPlanAsync(MicroflowResourceEntity resource, JsonElement schema, CancellationToken cancellationToken)
     {
         try
         {
-            _ = await _executionPlanLoader.LoadFromSchemaAsync(
+            return await _executionPlanLoader.LoadFromSchemaAsync(
                 schema,
                 new MicroflowExecutionPlanLoadOptions
                 {
@@ -202,6 +203,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         catch
         {
             // 第 48 轮只做只读 ExecutionPlan 预热，不能改变既有 Mock TestRun 行为。
+            return null;
         }
     }
 

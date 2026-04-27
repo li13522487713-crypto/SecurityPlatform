@@ -61,3 +61,24 @@
 - ExecutionPlanLoader 只读 AuthoringSchema，输出 plan/diagnostics，不执行 FlowNavigator、VariableStore、ExpressionEvaluator、CRUD、REST 或事务。
 - 后端可通过 `scripts/verify-microflow-execution-plan-loader.ts`、`MicroflowBackend.http` 的 Runtime ExecutionPlanLoader 段落检查 `startNodeId`、flow 分类、loop collection、metadataRefs、variableDeclarations、unsupportedActions 与 failOnUnsupported。
 - 下一轮建议：第 49 轮 FlowNavigator，以本轮 plan 的 `normalFlows`、`decisionFlows`、`objectTypeFlows`、`errorHandlerFlows` 和 loop collection 为导航输入。
+
+## 第 49 轮 FlowNavigator
+
+- 新增 `IMicroflowFlowNavigator` / `MicroflowFlowNavigator`，以 `MicroflowExecutionPlan` 为唯一导航输入。
+- 新增 `MicroflowNavigationOptions`、`MicroflowNavigationContext`、`MicroflowNavigationResult`、`MicroflowNavigationStep`、`MicroflowNavigationError`、`MicroflowFlowNavigatorDiagnostics` 与 trace skeleton mapper。
+- 支持 StartEvent、SequenceFlow、ExclusiveMerge、EndEvent、ErrorEvent、Boolean/Enumeration Decision、ObjectType Decision、ActionActivity placeholder、ErrorHandlerFlow、Loop / Break / Continue、maxSteps 与 CancellationToken。
+- P0 supported action 不真实执行，只生成 success placeholder step；RestCall 仅在 `simulateRestError=true` 时生成 `RUNTIME_REST_CALL_FAILED` 并尝试 error handler。
+- modeledOnly / unsupported / requiresConnector / nanoflowOnly 只根据 ExecutionPlan 的 `supportLevel` 导航处理，不重新解释 AuthoringSchema action。
+- TestRunService 本轮保持第 42～47 轮 MockRuntimeRunner 行为，仅保留第 48 轮 plan preload；不把 persisted RunSession/Trace 切到 FlowNavigator。
+- 诊断 API：`POST /api/microflows/runtime/navigate` 与 `GET /api/microflows/{id}/runtime/navigate`。
+- 自动化验证：`scripts/verify-microflow-flow-navigator.ts`。
+
+## 第 50 轮 VariableStore
+
+- 新增 Runtime VariableStore、变量值模型、ScopeStack、RuntimeExecutionContext 与 Snapshot mapper。
+- FlowNavigator 在 Start 前初始化参数和 `$currentUser`，每个 step 结束时写 `variablesSnapshot`；Loop/ErrorHandler 路径使用作用域 push/pop。
+- MockRuntimeRunner 改用 VariableStore 生成 TestRun trace 快照，P0 mock action 写入 Retrieve/CreateObject/CreateVariable/ChangeVariable/CallMicroflow/RestCall 的基础输出变量。
+- 本轮仍不执行表达式、不访问业务数据库、不发送真实 REST、不实现事务或 CallMicroflow 执行。
+- 自动化验证入口：`scripts/verify-microflow-variable-store.ts`，推荐命令 `npx tsx scripts/verify-microflow-variable-store.ts`（需 AppHost 已运行，默认 `http://localhost:5002`）。
+
+下一轮建议：第 51 轮 ExpressionEvaluator P0，从 `RuntimeExecutionContext.VariableStore` 读取参数、系统变量、loop/error 变量与 action output。

@@ -230,8 +230,17 @@ public sealed record MicroflowRuntimeVariableValueDto
     [JsonPropertyName("rawValue")]
     public JsonElement? RawValue { get; init; }
 
+    [JsonPropertyName("rawValueJson")]
+    public string? RawValueJson { get; init; }
+
     [JsonPropertyName("source")]
     public string? Source { get; init; }
+
+    [JsonPropertyName("readonly")]
+    public bool? Readonly { get; init; }
+
+    [JsonPropertyName("scopeKind")]
+    public string? ScopeKind { get; init; }
 }
 
 public record GetMicroflowRunTraceResponse
@@ -256,6 +265,9 @@ public static class RuntimeErrorCode
     public const string RuntimeInvalidCase = "RUNTIME_INVALID_CASE";
     public const string RuntimeVariableNotFound = "RUNTIME_VARIABLE_NOT_FOUND";
     public const string RuntimeVariableTypeMismatch = "RUNTIME_VARIABLE_TYPE_MISMATCH";
+    public const string RuntimeVariableReadonly = "RUNTIME_VARIABLE_READONLY";
+    public const string RuntimeVariableDuplicated = "RUNTIME_VARIABLE_DUPLICATED";
+    public const string RuntimeVariableScopeError = "RUNTIME_VARIABLE_SCOPE_ERROR";
     public const string RuntimeExpressionError = "RUNTIME_EXPRESSION_ERROR";
     public const string RuntimeMetadataNotFound = "RUNTIME_METADATA_NOT_FOUND";
     public const string RuntimeEntityAccessDenied = "RUNTIME_ENTITY_ACCESS_DENIED";
@@ -269,5 +281,7 @@ public static class RuntimeErrorCode
     public const string RuntimeConnectorRequired = "RUNTIME_CONNECTOR_REQUIRED";
     public const string RuntimeTransactionRolledBack = "RUNTIME_TRANSACTION_ROLLED_BACK";
     public const string RuntimeMaxStepsExceeded = "RUNTIME_MAX_STEPS_EXCEEDED";
+    public const string RuntimeCancelled = "RUNTIME_CANCELLED";
+    public const string RuntimeErrorEventReached = "RUNTIME_ERROR_EVENT_REACHED";
     public const string RuntimeUnknownError = "RUNTIME_UNKNOWN_ERROR";
 }

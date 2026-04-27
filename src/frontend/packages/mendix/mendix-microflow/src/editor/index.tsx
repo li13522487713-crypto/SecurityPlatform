@@ -1158,9 +1158,14 @@ function DebugPanel({
               <Card key={`${activeFrame?.id}-${variable.name}`} style={{ width: "100%" }} bodyStyle={{ padding: 8 }}>
                 <Text strong>{variable.name}</Text>
                 <br />
-                <Text size="small" type="tertiary">{variable.type.kind} · {variable.source ?? "runtime"}</Text>
+                <Space spacing={4} wrap>
+                  <Tag size="small">{variable.type.kind}</Tag>
+                  <Tag size="small" color="blue">{variable.source ?? "runtime"}</Tag>
+                  {variable.scopeKind ? <Tag size="small" color="grey">{variable.scopeKind}</Tag> : null}
+                  {variable.readonly ? <Tag size="small" color="orange">readonly</Tag> : null}
+                </Space>
                 <br />
-                <Text size="small">{variable.valuePreview}</Text>
+                <Text size="small">{variable.valuePreview || "null"}</Text>
               </Card>
             ))}
           </Space>

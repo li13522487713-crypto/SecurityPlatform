@@ -18,6 +18,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     private readonly IMicroflowReferenceService _referenceService;
     private readonly IMicroflowTestRunService _testRunService;
     private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
+    private readonly IMicroflowFlowNavigator _flowNavigator;
     private readonly IMicroflowStorageDiagnosticsService _storageDiagnosticsService;
 
     public MicroflowResourceController(
@@ -28,6 +29,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         IMicroflowReferenceService referenceService,
         IMicroflowTestRunService testRunService,
         IMicroflowExecutionPlanLoader executionPlanLoader,
+        IMicroflowFlowNavigator flowNavigator,
         IMicroflowStorageDiagnosticsService storageDiagnosticsService,
         IMicroflowRequestContextAccessor requestContextAccessor)
         : base(requestContextAccessor)
@@ -39,6 +41,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         _referenceService = referenceService;
         _testRunService = testRunService;
         _executionPlanLoader = executionPlanLoader;
+        _flowNavigator = flowNavigator;
         _storageDiagnosticsService = storageDiagnosticsService;
     }
 
@@ -111,6 +114,26 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         return MicroflowOk(result);
     }
 
+    [HttpPost("runtime/navigate")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowNavigationResult>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowNavigationResult>>> NavigateRuntimePlan(
+        [FromBody] NavigateMicroflowRuntimeRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var options = request.Options ?? new MicroflowNavigationOptions();
+        var plan = await _executionPlanLoader.LoadFromSchemaAsync(
+            request.Schema,
+            new MicroflowExecutionPlanLoadOptions
+            {
+                Mode = MicroflowExecutionPlanMode.ValidateOnly,
+                IncludeDiagnostics = options.IncludeDiagnostics,
+                FailOnUnsupported = false
+            },
+            cancellationToken);
+        var result = await _flowNavigator.NavigateAsync(plan, options, cancellationToken);
+        return MicroflowOk(result);
+    }
+
     [HttpGet("{id}/runtime/plan")]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowExecutionPlan>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MicroflowExecutionPlan>>> GetCurrentRuntimePlan(
@@ -127,6 +150,45 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
                 FailOnUnsupported = failOnUnsupported
             },
             cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/runtime/navigate")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowNavigationResult>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowNavigationResult>>> NavigateCurrentRuntimePlan(
+        string id,
+        [FromQuery] string? mode = null,
+        [FromQuery] int? maxSteps = null,
+        [FromQuery] bool? decisionBooleanResult = null,
+        [FromQuery] string? enumerationCaseValue = null,
+        [FromQuery] string? objectTypeCase = null,
+        [FromQuery] int? loopIterations = null,
+        [FromQuery] bool simulateRestError = false,
+        [FromQuery] bool? stopOnUnsupported = null,
+        CancellationToken cancellationToken = default)
+    {
+        var options = new MicroflowNavigationOptions
+        {
+            Mode = string.IsNullOrWhiteSpace(mode) ? MicroflowNavigationMode.DryRun : mode!,
+            MaxSteps = maxSteps,
+            DecisionBooleanResult = decisionBooleanResult,
+            EnumerationCaseValue = enumerationCaseValue,
+            ObjectTypeCase = objectTypeCase,
+            LoopIterations = loopIterations,
+            SimulateRestError = simulateRestError,
+            StopOnUnsupported = stopOnUnsupported,
+            IncludeDiagnostics = true
+        };
+        var plan = await _executionPlanLoader.LoadCurrentAsync(
+            id,
+            new MicroflowExecutionPlanLoadOptions
+            {
+                Mode = MicroflowExecutionPlanMode.ValidateOnly,
+                IncludeDiagnostics = true,
+                FailOnUnsupported = false
+            },
+            cancellationToken);
+        var result = await _flowNavigator.NavigateAsync(plan, options, cancellationToken);
         return MicroflowOk(result);
     }
 

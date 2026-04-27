@@ -668,6 +668,95 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+### Runtime Round 50 - FlowNavigator variable snapshots
+# Expected JSON paths:
+# - data.traceFrames[*].variablesSnapshot.$currentUser
+# - data.traceFrames[retrieve frame].variablesSnapshot.orders
+# - data.traceFrames[loop internal frame].variablesSnapshot.$currentIndex
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "includeVariableSnapshots": true, "loopIterations": 2 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "runtime-round-50-variable-store",
+    "stableId": "runtime-round-50-variable-store",
+    "name": "RuntimeRound50VariableStore",
+    "displayName": "Runtime Round 50 VariableStore",
+    "moduleId": "demo-module",
+    "parameters": [{ "id": "p-customer", "name": "customerId", "required": true, "type": { "kind": "string" } }],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "retrieve",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": {
+            "id": "retrieve-action",
+            "kind": "retrieve",
+            "officialType": "Microflows$RetrieveAction",
+            "outputVariableName": "orders",
+            "retrieveSource": { "entityQualifiedName": "Sales.Order", "mode": "databaseAll" }
+          }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-retrieve", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "retrieve" },
+        { "id": "f-retrieve-end", "kind": "sequence", "originObjectId": "retrieve", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime Round 50 - REST error handler variables
+# Expected JSON paths:
+# - data.traceFrames[handledEnd frame].variablesSnapshot.$latestError
+# - data.traceFrames[handledEnd frame].variablesSnapshot.$latestHttpResponse
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "includeVariableSnapshots": true, "simulateRestError": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "runtime-round-50-rest-error",
+    "stableId": "runtime-round-50-rest-error",
+    "name": "RuntimeRound50RestError",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "rest", "kind": "actionActivity", "action": { "id": "rest-action", "kind": "restCall" } },
+        { "id": "handledEnd", "kind": "endEvent" },
+        { "id": "normalEnd", "kind": "endEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-rest", "originObjectId": "start", "destinationObjectId": "rest" },
+        { "id": "f-rest-normal", "originObjectId": "rest", "destinationObjectId": "normalEnd" },
+        { "id": "f-rest-error", "originObjectId": "rest", "destinationObjectId": "handledEnd", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } }
+      ]
+    },
+    "flows": []
+  }
+}
+
 ### TestRun Round 42 - create runnable sample
 POST {{host}}/api/microflows
 Content-Type: application/json
@@ -1389,6 +1478,288 @@ X-Trace-Id: {{traceId}}
     "flows": []
   }
 }
+
+### Runtime FlowNavigator Start -> End
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "maxSteps": 20 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-start-end-demo",
+    "name": "NavigatorStartEndDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-end", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator Boolean decision true
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "decisionBooleanResult": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-boolean-demo",
+    "name": "NavigatorBooleanDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "decision", "kind": "exclusiveSplit", "officialType": "Microflows$ExclusiveSplit" },
+        { "id": "trueEnd", "kind": "endEvent", "officialType": "Microflows$EndEvent" },
+        { "id": "falseEnd", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-decision", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "decision" },
+        { "id": "f-decision-true", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "trueEnd", "editor": { "edgeKind": "decisionCondition", "branchOrder": 0 }, "caseValues": [{ "kind": "boolean", "value": true }] },
+        { "id": "f-decision-false", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "falseEnd", "editor": { "edgeKind": "decisionCondition", "branchOrder": 1 }, "caseValues": [{ "kind": "boolean", "value": false }] }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator Boolean decision false
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "decisionBooleanResult": false },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-boolean-demo",
+    "name": "NavigatorBooleanDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "decision", "kind": "exclusiveSplit", "officialType": "Microflows$ExclusiveSplit" },
+        { "id": "trueEnd", "kind": "endEvent", "officialType": "Microflows$EndEvent" },
+        { "id": "falseEnd", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-decision", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "decision" },
+        { "id": "f-decision-true", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "trueEnd", "editor": { "edgeKind": "decisionCondition", "branchOrder": 0 }, "caseValues": [{ "kind": "boolean", "value": true }] },
+        { "id": "f-decision-false", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "falseEnd", "editor": { "edgeKind": "decisionCondition", "branchOrder": 1 }, "caseValues": [{ "kind": "boolean", "value": false }] }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator ObjectType decision
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "objectTypeCase": "University.Professor" },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-object-type-demo",
+    "name": "NavigatorObjectTypeDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "split", "kind": "inheritanceSplit", "officialType": "Microflows$InheritanceSplit" },
+        { "id": "profEnd", "kind": "endEvent", "officialType": "Microflows$EndEvent" },
+        { "id": "fallbackEnd", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-split", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "split" },
+        { "id": "f-split-prof", "kind": "sequence", "originObjectId": "split", "destinationObjectId": "profEnd", "editor": { "edgeKind": "objectTypeCondition", "branchOrder": 0 }, "caseValues": [{ "kind": "inheritance", "entityQualifiedName": "University.Professor" }] },
+        { "id": "f-split-fallback", "kind": "sequence", "originObjectId": "split", "destinationObjectId": "fallbackEnd", "editor": { "edgeKind": "objectTypeCondition", "branchOrder": 1 }, "caseValues": [{ "kind": "fallback" }] }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator loop iterations
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "loopIterations": 2 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-loop-demo",
+    "name": "NavigatorLoopDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "loop",
+          "kind": "loopedActivity",
+          "officialType": "Microflows$LoopedActivity",
+          "objectCollection": {
+            "id": "loop-collection",
+            "objects": [
+              { "id": "loop-start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+              { "id": "loop-log", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "loop-log-action", "kind": "logMessage", "officialType": "Microflows$LogMessageAction" } },
+              { "id": "loop-end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+            ],
+            "flows": [
+              { "id": "lf-start-log", "kind": "sequence", "originObjectId": "loop-start", "destinationObjectId": "loop-log" },
+              { "id": "lf-log-end", "kind": "sequence", "originObjectId": "loop-log", "destinationObjectId": "loop-end" }
+            ]
+          }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-loop", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "loop" },
+        { "id": "f-loop-end", "kind": "sequence", "originObjectId": "loop", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator RestCall simulated error handler
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "simulateRestError": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-rest-error-demo",
+    "name": "NavigatorRestErrorDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "rest", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "rest-action", "kind": "restCall", "officialType": "Microflows$RestCallAction" } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-rest", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "rest" },
+        { "id": "f-rest-end", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "end" },
+        { "id": "f-rest-error", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "end", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator unsupported action
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "stopOnUnsupported": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-unsupported-demo",
+    "name": "NavigatorUnsupportedDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "unsupported", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "unsupported-action", "kind": "unknownAction", "officialType": "Microflows$GenericAction" } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-unsupported", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "unsupported" },
+        { "id": "f-unsupported-end", "kind": "sequence", "originObjectId": "unsupported", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator maxSteps small
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "maxSteps": 1 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "navigator-maxsteps-demo",
+    "name": "NavigatorMaxStepsDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-end", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime FlowNavigator current resource
+GET {{host}}/api/microflows/{{microflowId}}/runtime/navigate?mode=dryRun&maxSteps=100&decisionBooleanResult=true&loopIterations=2&simulateRestError=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
 
 ### Runtime plan failOnUnsupported returns validation envelope
 POST {{host}}/api/microflows/runtime/plan

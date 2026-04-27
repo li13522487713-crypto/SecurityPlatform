@@ -41,6 +41,8 @@ public sealed record MicroflowMockRuntimeRequest
 
     public JsonElement Schema { get; init; }
 
+    public MicroflowExecutionPlan? ExecutionPlan { get; init; }
+
     public IReadOnlyDictionary<string, JsonElement> Input { get; init; } = new Dictionary<string, JsonElement>();
 
     public MicroflowTestRunOptionsDto Options { get; init; } = new();

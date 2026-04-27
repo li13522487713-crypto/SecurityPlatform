@@ -30,3 +30,25 @@
 - RuntimeLog 单独持久化并按 timestamp 查询；LogMessage action 会生成对应 log。
 - Mock Runtime 不是真实 Runtime，不执行数据库 Retrieve/Commit/Delete，不调用外部 REST；RestCall success/error 只产生契约级输出与错误路径。
 - 第 48 轮真实 `ExecutionPlanLoader` 接入后，应继续复用本轮 DTO 与持久化结构。
+
+## 第 49 轮 FlowNavigator Trace Skeleton
+
+FlowNavigator 生成 `MicroflowNavigationStep` 与 `MicroflowNavigationTraceFrame`，并提供 `NavigationResult.ToTraceFrames()` / `NavigationStep.ToTraceFrameDto()` 映射到既有 `MicroflowTraceFrameDto`。本轮 trace skeleton 不包含变量快照、不保存 RunSession、不替代 TestRun Mock trace。
+
+字段映射：
+
+- `sequence` → trace frame 顺序。
+- `objectId` / `actionId` / `collectionId` → DebugPanel 定位字段。
+- `incomingFlowId` / `outgoingFlowId` → flow 高亮字段。
+- `selectedCaseValue` → Decision / ObjectType 被选 case。
+- `loopIteration` → Loop 骨架迭代上下文。
+- `status` / `startedAt` / `endedAt` / `durationMs` / `message` / `error` → 运行帧状态与错误。
+
+`MicroflowNavigationResult` 不包含 FlowGram JSON / WorkflowJSON，可作为真实 Runtime 后续 VariableStore、ExpressionEvaluator 与 ActionExecutor 接入前的导航级 trace 骨架。
+
+## 第 50 轮 VariableSnapshot
+
+- `MicroflowTraceFrameDto.variablesSnapshot` 现在可由 VariableStore 生成；FlowNavigator trace skeleton 与 MockRuntimeRunner trace 均可携带变量快照。
+- 单变量 DTO 兼容原字段 `name/type/valuePreview/rawValue/source`，并补充 `rawValueJson`、`readonly`、`scopeKind` 供 DebugPanel 展示。
+- 快照以 frame 的 `objectId/actionId/collectionId/stepIndex` 为上下文，不包含 FlowGram JSON / WorkflowJSON。
+- DebugPanel 的变量 tab 仍读取当前 active frame 的 `variablesSnapshot`，可显示 source、scopeKind 与 readonly tag；trace/log/error tab 不改变。

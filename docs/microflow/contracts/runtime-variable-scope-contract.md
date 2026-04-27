@@ -33,3 +33,12 @@
 ## Validator
 
 变量不存在、不可见、maybe、重复名、非法名、类型不匹配、readonly/system 修改、metadata 缺失与 modeledOnly unknown 均必须形成 `MicroflowValidationIssue` 或 VariableIndex diagnostic，并带准确 `fieldPath`。
+
+## 第 50 轮 Runtime VariableStore
+
+- 后端新增 `IMicroflowVariableStore` / `MicroflowVariableStore`，只负责运行时变量 define/get/set/remove、作用域栈、快照与结构化诊断。
+- VariableStore 只消费 `MicroflowExecutionPlan` 与 `RuntimeExecutionContext`，不依赖 FlowGram JSON，不修改 AuthoringSchema，不访问业务数据库，不调用外部 REST，不执行表达式。
+- 运行时变量值包含 `dataTypeJson`、`kind`、`rawValueJson`、`valuePreview`、`sourceKind`、source object/action、collection/loop、readonly/system 与时间戳。
+- ScopeStack 支持 global/action/loop/errorHandler/call/system；Loop iteration push 后定义 iterator 与 `$currentIndex`，pop 后不可见；ErrorHandler push 后定义 `$latestError` 与 REST 错误下的 `$latestHttpResponse`，pop 后不可见。
+- `$currentUser` 在 system/global scope 初始化，readonly 且 system；普通 action 或 ChangeVariable 不得改写。
+- Snapshot 面向 `TraceFrame.variablesSnapshot`，默认包含安全 `valuePreview`，可按 option 省略 raw value；当前仅做基础脱敏说明，完整敏感字段策略留后续轮次。
