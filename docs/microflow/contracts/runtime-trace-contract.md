@@ -52,3 +52,10 @@ FlowNavigator 生成 `MicroflowNavigationStep` 与 `MicroflowNavigationTraceFram
 - 单变量 DTO 兼容原字段 `name/type/valuePreview/rawValue/source`，并补充 `rawValueJson`、`readonly`、`scopeKind` 供 DebugPanel 展示。
 - 快照以 frame 的 `objectId/actionId/collectionId/stepIndex` 为上下文，不包含 FlowGram JSON / WorkflowJSON。
 - DebugPanel 的变量 tab 仍读取当前 active frame 的 `variablesSnapshot`，可显示 source、scopeKind 与 readonly tag；trace/log/error tab 不改变。
+
+## 第 51 轮 Expression Trace Output
+
+- `MicroflowTraceFrameDto.output` / `MicroflowNavigationTraceFrame.output` 可包含 `expressionResult`，用于展示 rawValueJson、valuePreview、valueType、diagnostics、referencedVariables、referencedMembers 与 durationMs。
+- Decision 表达式成功时，trace 同时写入 `selectedCaseValue` 与 `output.expressionResult`；失败时写入 `error.code=RUNTIME_EXPRESSION_ERROR` 和表达式 diagnostics。
+- CreateVariable / ChangeVariable / EndEvent / LogMessage / RestCall preview 的 Mock trace output 保留表达式结果预览；RestCall error 的 `details` 可包含 `requestPreview`。
+- DebugPanel 无需新增协议即可显示 output JSON 与 error code/message；表达式结果不得包含 FlowGram JSON。

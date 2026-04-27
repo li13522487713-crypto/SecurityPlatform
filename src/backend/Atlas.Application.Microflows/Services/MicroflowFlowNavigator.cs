@@ -3,6 +3,7 @@ using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Expressions;
 
 namespace Atlas.Application.Microflows.Services;
 
@@ -11,10 +12,12 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IMicroflowClock _clock;
+    private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
 
-    public MicroflowFlowNavigator(IMicroflowClock clock)
+    public MicroflowFlowNavigator(IMicroflowClock clock, IMicroflowExpressionEvaluator expressionEvaluator)
     {
         _clock = clock;
+        _expressionEvaluator = expressionEvaluator;
     }
 
     public Task<MicroflowNavigationResult> NavigateAsync(
@@ -225,12 +228,12 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
                 var selected = SelectDecisionFlow(context, query, node);
                 if (selected.Flow is null)
                 {
-                    AddStep(context, node, incoming, null, MicroflowNavigationStepStatus.Failed, loopIteration, selected.Error, selected.Error?.Message, selected.SelectedCaseValue);
+                    AddStep(context, node, incoming, null, MicroflowNavigationStepStatus.Failed, loopIteration, selected.Error, selected.Error?.Message, selected.SelectedCaseValue, selected.Output);
                     return NavigationSignal.Failed(selected.Error ?? InvalidCase(node, "decision"));
                 }
 
                 AddSelectedCase(context, node.ObjectId, selected);
-                AddStep(context, node, incoming, selected.Flow.FlowId, MicroflowNavigationStepStatus.Success, loopIteration, selectedCaseValue: selected.SelectedCaseValue, message: $"Decision selected {selected.SelectedCaseText}.");
+                AddStep(context, node, incoming, selected.Flow.FlowId, MicroflowNavigationStepStatus.Success, loopIteration, selectedCaseValue: selected.SelectedCaseValue, message: $"Decision selected {selected.SelectedCaseText}.", output: selected.Output);
                 VisitFlow(context, selected.Flow);
                 currentObjectId = selected.Flow.DestinationObjectId;
                 incoming = selected.Flow.FlowId;
@@ -590,15 +593,72 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         MicroflowExecutionPlanQuery query,
         MicroflowExecutionNode node)
     {
-        var target = context.Options.EnumerationCaseValue
-            ?? ((context.Options.DecisionBooleanResult ?? true) ? "true" : "false");
-        if (context.Options.DecisionBooleanResult is null && string.IsNullOrWhiteSpace(context.Options.EnumerationCaseValue))
+        MicroflowExpressionEvaluationResult? expressionResult = null;
+        var target = context.Options.EnumerationCaseValue;
+        if (string.IsNullOrWhiteSpace(target) && context.Options.DecisionBooleanResult is not null)
         {
+            target = context.Options.DecisionBooleanResult.Value ? "true" : "false";
+        }
+
+        if (string.IsNullOrWhiteSpace(target) && !context.Options.DisableExpressionEvaluation)
+        {
+            var expression = ReadDecisionExpression(node);
+            if (!string.IsNullOrWhiteSpace(expression))
+            {
+                expressionResult = _expressionEvaluator.Evaluate(
+                    expression!,
+                    new MicroflowExpressionEvaluationContext
+                    {
+                        RuntimeExecutionContext = context.RuntimeContext,
+                        VariableStore = context.RuntimeContext.VariableStore,
+                        CurrentObjectId = node.ObjectId,
+                        CurrentActionId = node.ActionId,
+                        CurrentCollectionId = node.CollectionId,
+                        CurrentFlowId = context.CurrentFlowId,
+                        ExpectedType = MicroflowExpressionType.Simple(MicroflowExpressionTypeKind.Boolean),
+                        Mode = context.Options.Mode,
+                        Options = new MicroflowExpressionEvaluationOptions
+                        {
+                            AllowUnknownVariables = false,
+                            AllowUnsupportedFunctions = false,
+                            StrictTypeCheck = true
+                        }
+                    });
+                if (!expressionResult.Success)
+                {
+                    var error = Error(
+                        RuntimeErrorCode.RuntimeExpressionError,
+                        expressionResult.Error?.Message ?? "Decision expression evaluation failed.",
+                        node.ObjectId,
+                        node.ActionId,
+                        context.CurrentFlowId,
+                        JsonSerializer.Serialize(expressionResult.Diagnostics, JsonOptions));
+                    return new MicroflowFlowSelectionResult
+                    {
+                        Error = error,
+                        Output = JsonSerializer.SerializeToElement(new { expressionResult }, JsonOptions)
+                    };
+                }
+
+                target = expressionResult.Value?.BoolValue == true ? "true" : "false";
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            target = "true";
             AddDiagnostic(context, "RUNTIME_DECISION_DEFAULTED", "warning", "Decision expression not evaluated, using default true.", node.ObjectId, collectionId: node.CollectionId);
         }
 
+        var targetValue = target!;
         var flows = query.GetDecisionOutgoingFlows(context.Plan, node.ObjectId, node.CollectionId);
-        var selected = MatchFlowByCase(flows, target);
+        var selected = MatchFlowByCase(flows, targetValue);
+        selected = selected with
+        {
+            Output = expressionResult is null
+                ? null
+                : JsonSerializer.SerializeToElement(new { expressionResult }, JsonOptions)
+        };
         if (selected.Flow is not null)
         {
             return selected;
@@ -609,11 +669,11 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             var fallback = SelectFallbackCase(flows);
             if (fallback.Flow is not null)
             {
-                return fallback;
+                return fallback with { Output = selected.Output };
             }
         }
 
-        return selected with { Error = InvalidCase(node, target) };
+        return selected with { Error = InvalidCase(node, targetValue) };
     }
 
     private MicroflowFlowSelectionResult SelectObjectTypeFlow(
@@ -743,7 +803,8 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         JsonElement? loopIteration,
         MicroflowNavigationError? error = null,
         string? message = null,
-        JsonElement? selectedCaseValue = null)
+        JsonElement? selectedCaseValue = null,
+        JsonElement? output = null)
     {
         var startedAt = _clock.UtcNow;
         var endedAt = _clock.UtcNow;
@@ -763,6 +824,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             LoopIteration = loopIteration,
             Error = error,
             Message = message,
+            Output = output,
             VariablesSnapshot = context.RuntimeContext.CreateSnapshot(node.ObjectId, node.ActionId, node.CollectionId, sequence).ToRuntimeVariableDtos(),
             StartedAt = startedAt,
             EndedAt = endedAt,
@@ -787,7 +849,8 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             DurationMs = step.DurationMs,
             Error = step.Error,
             Message = step.Message,
-            VariablesSnapshot = step.VariablesSnapshot
+            VariablesSnapshot = step.VariablesSnapshot,
+            Output = step.Output
         };
 
     private static void VisitFlow(MicroflowNavigationContext context, MicroflowExecutionFlow flow)
@@ -894,6 +957,51 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         }
 
         return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
+    }
+
+    private static string? ReadDecisionExpression(MicroflowExecutionNode node)
+    {
+        if (node.ConfigJson is null || node.ConfigJson.Value.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var config = node.ConfigJson.Value;
+        return ReadExpressionTextByPath(config, "raw", "splitCondition", "expression")
+            ?? ReadExpressionTextByPath(config, "raw", "config", "expression")
+            ?? ReadExpressionTextByPath(config, "raw", "expression")
+            ?? ReadExpressionTextByPath(config, "action", "expression");
+    }
+
+    private static string? ReadExpressionTextByPath(JsonElement element, params string[] path)
+    {
+        var current = element;
+        foreach (var segment in path[..^1])
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out current))
+            {
+                return null;
+            }
+        }
+
+        return ReadExpressionText(current, path[^1]);
+    }
+
+    private static string? ReadExpressionText(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString();
+        }
+
+        return value.ValueKind == JsonValueKind.Object
+            ? ReadString(value, "raw") ?? ReadString(value, "text") ?? ReadString(value, "expression")
+            : null;
     }
 
     private static MicroflowNavigationError InvalidCase(MicroflowExecutionNode node, string selectedValue)

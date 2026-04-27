@@ -1479,6 +1479,102 @@ X-Trace-Id: {{traceId}}
   }
 }
 
+### Runtime ExpressionEvaluator P0 - Decision expression selects true branch
+# Expected JSON paths:
+# - data.status == "success"
+# - data.traceFrames[1].output.expressionResult.success == true
+# - data.selectedCaseValues.decision.value == "true"
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "includeDiagnostics": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "expression-decision-demo",
+    "name": "ExpressionDecisionDemo",
+    "parameters": [
+      { "id": "p-flag", "name": "Flag", "required": true, "dataType": { "kind": "boolean" }, "type": { "kind": "boolean" } }
+    ],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "decision",
+          "kind": "exclusiveSplit",
+          "officialType": "Microflows$ExclusiveSplit",
+          "splitCondition": {
+            "kind": "expression",
+            "resultType": "boolean",
+            "expression": { "raw": "$Flag = true", "type": { "kind": "boolean" } }
+          }
+        },
+        { "id": "endTrue", "kind": "endEvent", "officialType": "Microflows$EndEvent" },
+        { "id": "endFalse", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-decision", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "decision" },
+        { "id": "f-true", "kind": "decisionCondition", "edgeKind": "decisionCondition", "originObjectId": "decision", "destinationObjectId": "endTrue", "caseValues": [{ "value": "true" }] },
+        { "id": "f-false", "kind": "decisionCondition", "edgeKind": "decisionCondition", "originObjectId": "decision", "destinationObjectId": "endFalse", "caseValues": [{ "value": "false" }] }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime ExpressionEvaluator P0 - Unknown variable expression error
+# Expected JSON paths:
+# - data.status == "failed"
+# - data.error.code == "RUNTIME_EXPRESSION_ERROR"
+# - data.traceFrames[*].output.expressionResult.error.diagnostics contains RUNTIME_VARIABLE_NOT_FOUND
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "includeDiagnostics": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "expression-error-demo",
+    "name": "ExpressionErrorDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "decision",
+          "kind": "exclusiveSplit",
+          "officialType": "Microflows$ExclusiveSplit",
+          "splitCondition": {
+            "kind": "expression",
+            "resultType": "boolean",
+            "expression": { "raw": "$Missing = true", "type": { "kind": "boolean" } }
+          }
+        },
+        { "id": "endTrue", "kind": "endEvent", "officialType": "Microflows$EndEvent" },
+        { "id": "endFalse", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-decision", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "decision" },
+        { "id": "f-true", "kind": "decisionCondition", "edgeKind": "decisionCondition", "originObjectId": "decision", "destinationObjectId": "endTrue", "caseValues": [{ "value": "true" }] },
+        { "id": "f-false", "kind": "decisionCondition", "edgeKind": "decisionCondition", "originObjectId": "decision", "destinationObjectId": "endFalse", "caseValues": [{ "value": "false" }] }
+      ]
+    },
+    "flows": []
+  }
+}
+
 ### Runtime FlowNavigator Start -> End
 POST {{host}}/api/microflows/runtime/navigate
 Content-Type: application/json

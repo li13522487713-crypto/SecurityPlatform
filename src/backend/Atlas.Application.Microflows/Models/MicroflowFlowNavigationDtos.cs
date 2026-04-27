@@ -83,6 +83,9 @@ public sealed record MicroflowNavigationOptions
     [JsonPropertyName("traceId")]
     public string? TraceId { get; init; }
 
+    [JsonPropertyName("disableExpressionEvaluation")]
+    public bool DisableExpressionEvaluation { get; init; }
+
     [JsonIgnore]
     public int EffectiveMaxSteps => MaxSteps.GetValueOrDefault() > 0 ? MaxSteps.GetValueOrDefault() : DefaultMaxSteps;
 
@@ -186,6 +189,9 @@ public sealed record MicroflowNavigationStep
     [JsonPropertyName("variablesSnapshot")]
     public IReadOnlyDictionary<string, MicroflowRuntimeVariableValueDto>? VariablesSnapshot { get; init; }
 
+    [JsonPropertyName("output")]
+    public JsonElement? Output { get; init; }
+
     [JsonPropertyName("startedAt")]
     public DateTimeOffset StartedAt { get; init; }
 
@@ -209,6 +215,9 @@ public sealed record MicroflowNodeVisitResult
 
     [JsonPropertyName("error")]
     public MicroflowNavigationError? Error { get; init; }
+
+    [JsonPropertyName("output")]
+    public JsonElement? Output { get; init; }
 }
 
 public sealed record MicroflowFlowSelectionResult
@@ -224,6 +233,9 @@ public sealed record MicroflowFlowSelectionResult
 
     [JsonPropertyName("error")]
     public MicroflowNavigationError? Error { get; init; }
+
+    [JsonPropertyName("output")]
+    public JsonElement? Output { get; init; }
 }
 
 public sealed record MicroflowNavigationTraceFrame
@@ -272,6 +284,9 @@ public sealed record MicroflowNavigationTraceFrame
 
     [JsonPropertyName("variablesSnapshot")]
     public IReadOnlyDictionary<string, MicroflowRuntimeVariableValueDto>? VariablesSnapshot { get; init; }
+
+    [JsonPropertyName("output")]
+    public JsonElement? Output { get; init; }
 }
 
 public sealed record MicroflowNavigationError
@@ -427,6 +442,7 @@ public static class MicroflowNavigationTraceMapper
             },
             Message = step.Message,
             VariablesSnapshot = step.VariablesSnapshot,
+            Output = step.Output,
             ErrorHandlerVisited = !string.IsNullOrWhiteSpace(step.IncomingFlowId) && step.IncomingFlowId.Contains("error", StringComparison.OrdinalIgnoreCase)
                 || !string.IsNullOrWhiteSpace(step.OutgoingFlowId) && step.OutgoingFlowId.Contains("error", StringComparison.OrdinalIgnoreCase)
         };

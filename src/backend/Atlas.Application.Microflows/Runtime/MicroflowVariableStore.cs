@@ -55,6 +55,7 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
             Kind = InferKind(definition.DataTypeJson, definition.RawValueJson),
             RawValueJson = NormalizeJson(definition.RawValueJson),
             ValuePreview = TrimPreview(definition.ValuePreview ?? Preview(definition.RawValueJson), 200),
+            TypePreview = definition.TypePreview ?? CreateTypePreview(definition.DataTypeJson),
             SourceKind = definition.SourceKind,
             SourceObjectId = definition.SourceObjectId,
             SourceActionId = definition.SourceActionId,
@@ -154,6 +155,7 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
                 : value.Kind,
             RawValueJson = NormalizeJson(value.RawValueJson),
             ValuePreview = TrimPreview(value.ValuePreview, 200),
+            TypePreview = string.IsNullOrWhiteSpace(value.TypePreview) ? existing.TypePreview : value.TypePreview,
             SourceObjectId = value.SourceObjectId ?? existing.SourceObjectId,
             SourceActionId = value.SourceActionId ?? existing.SourceActionId,
             CollectionId = value.CollectionId ?? existing.CollectionId,
@@ -331,6 +333,42 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
         }
     }
 
+    public static string CreateTypePreview(string? dataTypeJson)
+    {
+        if (string.IsNullOrWhiteSpace(dataTypeJson))
+        {
+            return MicroflowRuntimeVariableKind.Unknown;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(dataTypeJson);
+            return CreateTypePreview(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return MicroflowRuntimeVariableKind.Unknown;
+        }
+    }
+
+    private static string CreateTypePreview(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return MicroflowRuntimeVariableKind.Unknown;
+        }
+
+        var kind = ReadKind(element.GetRawText());
+        return kind switch
+        {
+            "object" => $"Object<{ReadString(element, "entityQualifiedName") ?? "unknown"}>",
+            "list" when element.TryGetProperty("itemType", out var itemType) => $"List<{ReadString(itemType, "entityQualifiedName") ?? CreateTypePreview(itemType)}>",
+            "enumeration" => $"Enum<{ReadString(element, "enumerationQualifiedName") ?? ReadString(element, "enumQualifiedName") ?? "unknown"}>",
+            "boolean" or "string" or "integer" or "long" or "decimal" or "dateTime" or "json" or "binary" or "void" => kind,
+            _ => MicroflowRuntimeVariableKind.Unknown
+        };
+    }
+
     private static string? NormalizeJson(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -375,6 +413,13 @@ public sealed class MicroflowVariableStore : IMicroflowVariableStore
             return null;
         }
     }
+
+    private static string? ReadString(JsonElement element, string propertyName)
+        => element.ValueKind == JsonValueKind.Object
+           && element.TryGetProperty(propertyName, out var property)
+           && property.ValueKind == JsonValueKind.String
+            ? property.GetString()
+            : null;
 
     private MicroflowVariableStoreDiagnostic AddDiagnostic(string code, string severity, string message, MicroflowVariableDefinition definition)
         => AddDiagnostic(code, severity, message, definition.Name, definition.SourceObjectId, definition.SourceActionId, definition.CollectionId, definition.ScopeKind);

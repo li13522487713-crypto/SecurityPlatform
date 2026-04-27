@@ -190,6 +190,14 @@
 - TestRun / Debug 已通过综合脚本验证 Validation `mode=testRun`、RunSession / TraceFrame / RunLog 持久化、get run、get trace、cancel 与错误 envelope。
 - 仍不实现真实 Runtime、真实 DB CRUD action、真实外部 REST、完整表达式执行器与完整事务引擎。
 
+## 第 51 轮后端 Runtime ExpressionEvaluator P0
+
+- 新增后端受控解释器 `IMicroflowExpressionEvaluator`，不依赖 FlowGram JSON，不修改 AuthoringSchema，不访问业务数据库，不调用外部 REST，不使用动态编译。
+- 新增 AST / tokenizer / parser / type inference / evaluator / diagnostics / evaluation result，结果可序列化并提供安全 `valuePreview`。
+- VariableStore 作为唯一变量读取来源，MetadataCatalog 仅用于 entity attribute / association / enumeration 的辅助推断。
+- MockRuntimeRunner 已接入 CreateVariable、ChangeVariable、EndEvent、LogMessage、RestCall request preview；FlowNavigator 已接入 Boolean Decision 表达式且保留 options override。
+- 自动化验证入口：`scripts/verify-microflow-expression-evaluator.ts` 与 `MicroflowExpressionEvaluatorTests`。
+
 ## 未知项
 
 - 多区域复制与**最终一致**的 catalog 版本传播（可后续在 `metadata` 上扩展 ETag）。

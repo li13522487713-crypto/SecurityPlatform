@@ -36,6 +36,9 @@ public sealed record MicroflowTestRunOptionsDto
 
     [JsonPropertyName("maxSteps")]
     public int? MaxSteps { get; init; }
+
+    [JsonPropertyName("disableExpressionEvaluation")]
+    public bool DisableExpressionEvaluation { get; init; }
 }
 
 public sealed record TestRunMicroflowApiResponse
@@ -284,4 +287,9 @@ public static class RuntimeErrorCode
     public const string RuntimeCancelled = "RUNTIME_CANCELLED";
     public const string RuntimeErrorEventReached = "RUNTIME_ERROR_EVENT_REACHED";
     public const string RuntimeUnknownError = "RUNTIME_UNKNOWN_ERROR";
+    public const string RuntimeExpressionParseError = "RUNTIME_EXPR_PARSE_ERROR";
+    public const string RuntimeExpressionMemberNotFound = "RUNTIME_EXPR_MEMBER_NOT_FOUND";
+    public const string RuntimeExpressionUnsupportedFunction = "RUNTIME_EXPR_UNSUPPORTED_FUNCTION";
+    public const string RuntimeExpressionDivideByZero = "RUNTIME_EXPR_DIVIDE_BY_ZERO";
+    public const string RuntimeExpressionExpectedTypeMismatch = "RUNTIME_EXPR_EXPECTED_TYPE_MISMATCH";
 }

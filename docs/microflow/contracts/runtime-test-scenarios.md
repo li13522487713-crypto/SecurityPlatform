@@ -73,3 +73,17 @@
 6. Snapshot 包含 `valuePreview`，可按 option 省略 raw value，且不包含 FlowGram JSON。
 7. DebugPanel variables tab 可展示 source、scopeKind、readonly。
 8. 本轮不验证真实 ExpressionEvaluator、真实 CRUD、真实 REST、事务或 CallMicroflow 执行。
+
+## 第 51 轮 ExpressionEvaluator P0 场景
+
+自动化入口：`scripts/verify-microflow-expression-evaluator.ts` 与 `MicroflowExpressionEvaluatorTests`。
+
+覆盖场景：
+
+1. Parser 支持 `$Amount > 100`、`$Order/Status = Sales.OrderStatus.New`、`not empty($Order)`、`if $Flag then 'yes' else 'no'`、`$Amount + 10`。
+2. Parser 对 `$`、`$Order/`、未闭合字符串返回 parse diagnostic，不抛未捕获异常。
+3. Type inference 覆盖 literal、variable、member access、comparison、empty、if、enum 和 unknown member diagnostic。
+4. Evaluation 覆盖变量读取、对象 member、comparison、and/or/not、empty string/list/null、if、arithmetic、enum equality。
+5. Unknown variable、type mismatch、divide by zero、unsupported function 均返回结构化错误。
+6. Runtime integration 覆盖 Decision expression、CreateVariable initialValue、ChangeVariable newValue、End returnValue、LogMessage arguments、RestCall request preview。
+7. TraceFrame output/error 必须包含 `expressionResult` 或诊断详情，且表达式结果不得携带 FlowGram JSON。

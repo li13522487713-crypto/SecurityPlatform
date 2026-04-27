@@ -82,3 +82,12 @@
 - 自动化验证入口：`scripts/verify-microflow-variable-store.ts`，推荐命令 `npx tsx scripts/verify-microflow-variable-store.ts`（需 AppHost 已运行，默认 `http://localhost:5002`）。
 
 下一轮建议：第 51 轮 ExpressionEvaluator P0，从 `RuntimeExecutionContext.VariableStore` 读取参数、系统变量、loop/error 变量与 action output。
+
+## 第 51 轮 Runtime ExpressionEvaluator P0
+
+- 后端新增 Runtime expression 目录，包含 AST、Tokenizer、Parser、Type 模型、TypeInference、EvaluationContext、EvaluationResult、RuntimeError 与解释器执行。
+- P0 子集覆盖变量、系统变量、member access、literal、comparison、boolean、`empty()`、`if then else`、枚举值、基础 arithmetic 和 expectedType 检查。
+- FlowNavigator 仅低风险接入 Decision 表达式，保留 options override 与 `disableExpressionEvaluation` 回退；ObjectType Decision 不在本轮做表达式求值。
+- MockRuntimeRunner 低风险接入 CreateVariable、ChangeVariable、EndEvent、LogMessage、RestCall preview；不做真实 CRUD、真实 REST、真实事务或 CallMicroflow 执行。
+- 自动化验证：`dotnet test tests/Atlas.AppHost.Tests/Atlas.AppHost.Tests.csproj --filter "FullyQualifiedName~MicroflowExpressionEvaluatorTests" -p:BaseOutputPath=artifacts/test-bin/`，或 `npx tsx scripts/verify-microflow-expression-evaluator.ts`。
+- 下一轮建议：第 52 轮 MetadataResolver + EntityAccess Stub，在现有 expression/metadata/type 边界上补实体继承、访问权限和真实对象解析 stub。

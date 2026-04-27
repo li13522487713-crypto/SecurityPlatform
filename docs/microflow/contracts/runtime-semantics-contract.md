@@ -57,3 +57,10 @@ VariableStore 是真实 Runtime 的变量读写地基，位于 `ExecutionPlan ->
 - Loop scope 每次 iteration 单独 push/pop，内部可见 iterator 与 `$currentIndex`；外部 frame 不可见。
 - ErrorHandler scope 只在错误处理路径中可见，包含 `$latestError` 和 REST error 的 `$latestHttpResponse`；本轮不实现完整 rollback/continue/custom 事务语义。
 - 第 51 轮 ExpressionEvaluator 将从 `RuntimeExecutionContext.VariableStore` 读取变量；第 54 轮 Object CRUD Actions 将通过同一 store 写真实业务对象变量。
+
+## 第 51 轮 ExpressionEvaluator 运行语义
+
+- Decision options 仍最高优先级；未传 `decisionBooleanResult/enumerationCaseValue` 且未设置 `disableExpressionEvaluation` 时，Boolean Decision 可使用 ExpressionEvaluator 选择分支。
+- MockRuntimeRunner 已接入 CreateVariable `initialValue`、ChangeVariable `newValueExpression`、EndEvent `returnValue`、LogMessage template arguments 与 RestCall URL/Header/Query/Body preview。
+- RestCall 仍不发送真实 HTTP，只把表达式结果写入 `requestPreview`；Retrieve/Create/Commit/Delete 仍不做真实 CRUD，事务语义仍留后续轮次。
+- 表达式失败会进入 failed trace/error，`TraceFrame.output.expressionResult` 包含 valuePreview、rawValueJson、valueType、diagnostics 和 referenced variables/members。

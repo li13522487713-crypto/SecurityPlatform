@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\backend\Atlas.AppHost\Atlas.AppHost.csproj" />
     <ProjectReference Include="..\..\src\backend\Atlas.Application\Atlas.Application.csproj" />
+    <ProjectReference Include="..\..\src\backend\Atlas.Application.Microflows\Atlas.Application.Microflows.csproj" />
     <ProjectReference Include="..\..\src\backend\Atlas.Core\Atlas.Core.csproj" />
   </ItemGroup>
 

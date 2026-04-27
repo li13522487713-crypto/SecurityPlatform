@@ -27,3 +27,12 @@
 ## Runtime 边界
 
 Runtime DTO 原样携带 Authoring expression raw/text；后端执行器可按本契约实现 P0 子集。前端校验可信但不等同真实运行时执行。
+
+## 第 51 轮后端 Runtime ExpressionEvaluator P0
+
+- 后端新增 `IMicroflowExpressionEvaluator` / `MicroflowExpressionEvaluator`，链路为 raw expression -> tokenizer/parser -> AST -> type inference -> evaluation context -> VariableStore/Metadata -> evaluation result/runtime error。
+- P0 支持变量 `$Name`、系统变量 `$currentUser/$currentIndex/$latestError/$latestHttpResponse`、对象成员 `$Order/Status`、string/integer/decimal/boolean/null/empty、comparison、`and/or/not`、`empty()`、`if then else`、枚举值和基础算术。
+- 多层 member path 第一版只做受控解析；metadata 不足或 list<object> 直接成员访问会输出 warning/unknown，不伪装为高置信成功。
+- 后端解释器禁止 eval、动态编译、任意脚本、业务数据库访问和外部 REST 调用；DateTime literal 本轮未实现专用 literal，按 unsupported/unknown 处理。
+- `expectedType` 会在 Decision、ChangeVariable、End returnValue、Rest preview 等调用点生效；关键 mismatch 返回结构化 diagnostic/error。
+- 不支持函数默认返回 `RUNTIME_EXPR_UNSUPPORTED_FUNCTION`；parse/member/type/divide-by-zero/unknown-variable 都保留 range、code、message。

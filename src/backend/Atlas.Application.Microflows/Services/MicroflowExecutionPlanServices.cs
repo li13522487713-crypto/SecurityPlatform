@@ -408,6 +408,7 @@ public sealed class MicroflowRuntimeDtoBuilder : IMicroflowRuntimeDtoBuilder
             parameterId = obj.ParameterId,
             actionKind = obj.Action?.Kind,
             actionOfficialType = obj.Action?.OfficialType,
+            raw = obj.Raw,
             action = obj.Action?.Raw
         };
         return JsonSerializer.SerializeToElement(value, JsonOptions);

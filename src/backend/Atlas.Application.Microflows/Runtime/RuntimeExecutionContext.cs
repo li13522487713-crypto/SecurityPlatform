@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Runtime.Security;
 
 namespace Atlas.Application.Microflows.Runtime;
 
@@ -49,6 +50,7 @@ public sealed class RuntimeExecutionContext
     public Stack<MicroflowVariableScopeFrame> ErrorStack { get; } = new();
     public object? TransactionContext { get; init; }
     public MicroflowRequestContext SecurityContext { get; init; } = new();
+    public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
     public string? MetadataVersion { get; init; }
     public DateTimeOffset StartedAt { get; }
     public IReadOnlyList<MicroflowVariableStoreDiagnostic> Diagnostics => VariableStore.Diagnostics;
@@ -65,7 +67,8 @@ public sealed class RuntimeExecutionContext
         var context = new RuntimeExecutionContext(runId, executionPlan, store, startedAt)
         {
             Mode = mode,
-            SecurityContext = securityContext ?? new MicroflowRequestContext()
+            SecurityContext = securityContext ?? new MicroflowRequestContext(),
+            RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(securityContext, applyEntityAccess: true)
         };
 
         context.InitializeParameters(input ?? new Dictionary<string, JsonElement>());

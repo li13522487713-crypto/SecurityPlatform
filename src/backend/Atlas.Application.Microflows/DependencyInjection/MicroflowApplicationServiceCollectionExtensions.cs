@@ -1,6 +1,10 @@
 using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Expressions;
+using Atlas.Application.Microflows.Runtime.Metadata;
+using Atlas.Application.Microflows.Runtime.Objects;
+using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -18,10 +22,15 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowResourceQueryService, InMemoryMicroflowResourceQueryService>();
         services.TryAddScoped<IMicroflowMetadataQueryService, InMemoryMicroflowMetadataQueryService>();
         services.TryAddScoped<IMicroflowValidationService, MicroflowValidationService>();
+        services.TryAddSingleton<MicroflowEntityAccessOptions>();
         services.TryAddScoped<IMicroflowReferenceIndexer, MicroflowReferenceIndexer>();
         services.TryAddScoped<IMicroflowReferenceService, MicroflowReferenceService>();
         services.TryAddScoped<IMicroflowMockRuntimeRunner, MicroflowMockRuntimeRunner>();
         services.TryAddScoped<IMicroflowVariableStore, MicroflowVariableStore>();
+        services.TryAddScoped<IMicroflowExpressionEvaluator, MicroflowExpressionEvaluator>();
+        services.TryAddScoped<IMicroflowMetadataResolver, MicroflowMetadataResolver>();
+        services.TryAddScoped<IMicroflowEntityAccessService, MicroflowEntityAccessService>();
+        services.TryAddScoped<IMicroflowRuntimeObjectMetadataService, MicroflowRuntimeObjectMetadataService>();
         services.TryAddScoped<IMicroflowTestRunService, MicroflowTestRunService>();
         services.TryAddScoped<IMicroflowVersionDiffService, MicroflowVersionDiffService>();
         services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();

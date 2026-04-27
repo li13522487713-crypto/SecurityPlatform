@@ -71,6 +71,9 @@ public sealed record MicroflowRuntimeVariableValue
     [JsonPropertyName("valuePreview")]
     public string ValuePreview { get; init; } = "null";
 
+    [JsonPropertyName("typePreview")]
+    public string TypePreview { get; init; } = MicroflowRuntimeVariableKind.Unknown;
+
     [JsonPropertyName("sourceKind")]
     public string SourceKind { get; init; } = MicroflowVariableSourceKind.Unknown;
 
@@ -109,6 +112,7 @@ public sealed record MicroflowVariableDefinition
     public MicroflowRuntimeVariableValue? Value { get; init; }
     public string? RawValueJson { get; init; }
     public string? ValuePreview { get; init; }
+    public string? TypePreview { get; init; }
     public string SourceKind { get; init; } = MicroflowVariableSourceKind.Unknown;
     public string? SourceObjectId { get; init; }
     public string? SourceActionId { get; init; }

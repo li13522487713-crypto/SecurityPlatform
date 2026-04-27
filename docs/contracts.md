@@ -2366,3 +2366,4 @@ export function formatStudioTemplate(template: string, params: Record<string, st
 - 左导航新增 `Mendix Studio` 菜单；资源中心微流 Tab 新增“在 Mendix Studio 中打开”。
 - Runtime Renderer / Action Executor / Debug Trace 采用本地模拟执行闭环，用于采购审批 MVP 验证；后续版本可替换为服务端强校验执行。
 - 后端第 49 轮已新增 Runtime FlowNavigator 诊断能力：`POST /api/microflows/runtime/navigate` 与 `GET /api/microflows/{id}/runtime/navigate` 仅消费 `MicroflowExecutionPlan` 做控制流 dry-run，输出 `MicroflowNavigationResult` / trace skeleton，不执行真实 action、表达式、数据库 CRUD、REST 或事务，不替代既有 TestRun Mock API。
+- 后端第 51 轮新增 Runtime ExpressionEvaluator P0：受控解析/AST/type inference/evaluator 只读取 `RuntimeExecutionContext.VariableStore` 与 `MetadataCatalog`，支持变量、member、literal、comparison、boolean、`empty()`、`if then else`、枚举和基础算术；Decision/CreateVariable/ChangeVariable/End/LogMessage/Rest preview 可写入 trace `output.expressionResult`，仍不执行真实 CRUD/REST/事务。

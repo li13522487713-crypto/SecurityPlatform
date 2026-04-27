@@ -42,3 +42,10 @@
 - ScopeStack 支持 global/action/loop/errorHandler/call/system；Loop iteration push 后定义 iterator 与 `$currentIndex`，pop 后不可见；ErrorHandler push 后定义 `$latestError` 与 REST 错误下的 `$latestHttpResponse`，pop 后不可见。
 - `$currentUser` 在 system/global scope 初始化，readonly 且 system；普通 action 或 ChangeVariable 不得改写。
 - Snapshot 面向 `TraceFrame.variablesSnapshot`，默认包含安全 `valuePreview`，可按 option 省略 raw value；当前仅做基础脱敏说明，完整敏感字段策略留后续轮次。
+
+## 第 51 轮 ExpressionEvaluator 读取约定
+
+- ExpressionEvaluator 只通过 `RuntimeExecutionContext.VariableStore` 读取变量，不绕过作用域栈，也不修改变量声明模型。
+- 变量引用 `$Name` 会按 `Name` 与 `$Name` 两种运行时存储形式查找，以兼容参数变量和系统变量。
+- `$currentIndex` 仅在 loop scope 内由 VariableStore 暴露；`$latestError/$latestHttpResponse` 仅在 error handler scope 内暴露，离开 scope 后表达式会得到 `RUNTIME_VARIABLE_NOT_FOUND`。
+- CreateVariable/ChangeVariable 的写入仍由 VariableStore 拦截 readonly/system 变量；ExpressionEvaluator 只产出可序列化 value/result。
