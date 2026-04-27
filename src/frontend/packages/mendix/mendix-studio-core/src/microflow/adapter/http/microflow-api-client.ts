@@ -1,3 +1,7 @@
+/**
+ * Integration/production adapter.
+ * Uses backend API contracts and MicroflowApiResponse envelope.
+ */
 import type { MicroflowApiError, MicroflowApiResponse } from "../../contracts/api/api-envelope";
 import { MicroflowApiClientError } from "./microflow-api-error";
 

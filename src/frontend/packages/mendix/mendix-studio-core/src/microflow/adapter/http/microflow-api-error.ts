@@ -1,3 +1,7 @@
+/**
+ * Integration/production adapter.
+ * Uses backend API contracts and MicroflowApiResponse envelope.
+ */
 import type { MicroflowApiError, MicroflowApiErrorCode } from "../../contracts/api/api-envelope";
 
 function codeFromStatus(status: number): MicroflowApiErrorCode {

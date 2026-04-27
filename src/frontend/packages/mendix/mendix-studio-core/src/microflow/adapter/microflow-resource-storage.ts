@@ -1,3 +1,7 @@
+/**
+ * Local development/offline debug only.
+ * Do not use localStorage adapter as production persistence.
+ */
 import type { MicroflowReference } from "../references/microflow-reference-types";
 import type { MicroflowResource } from "../resource/resource-types";
 import type { MicroflowPublishedSnapshot, MicroflowVersionSummary } from "../versions/microflow-version-types";

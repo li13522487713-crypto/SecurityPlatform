@@ -1,3 +1,8 @@
+/**
+ * Development/Test only.
+ * Do not import this file from production runtime paths.
+ * Production should use HTTP adapters through createMicroflowAdapterBundle.
+ */
 import { validateMicroflowSchema } from "../schema/validator";
 import { toRuntimeDto } from "../adapters/microflow-adapters";
 import { toExecutionPlan } from "../runtime";

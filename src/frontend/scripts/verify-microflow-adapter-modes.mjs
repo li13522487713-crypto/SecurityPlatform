@@ -21,6 +21,8 @@ const appEditor = read("apps/app-web/src/app/pages/microflow-editor-page.tsx");
 const appConfig = read("apps/app-web/src/app/microflow-adapter-config.ts");
 
 assertCheck("MicroflowAdapterMode exists", config.includes('type MicroflowAdapterMode = "mock" | "local" | "http"'));
+assertCheck("MicroflowRuntimeEnvironment exists", config.includes("type MicroflowRuntimeEnvironment"));
+assertCheck("MicroflowAdapterRuntimePolicy exists", config.includes("interface MicroflowAdapterRuntimePolicy"));
 assertCheck("MicroflowAdapterFactoryConfig exists", config.includes("interface MicroflowAdapterFactoryConfig"));
 assertCheck("MicroflowAdapterBundle exists", factory.includes("interface MicroflowAdapterBundle"));
 assertCheck("mock bundle factory exists", factory.includes("createMockMicroflowAdapterBundle"));
@@ -35,7 +37,9 @@ assertCheck("ValidationAdapter local/http exists", validation.includes("createLo
 assertCheck("app-web passes adapterConfig to resource tab", appResource.includes("adapterConfig={createAppMicroflowAdapterConfig"));
 assertCheck("app-web passes adapterConfig to editor page", appEditor.includes("adapterConfig={createAppMicroflowAdapterConfig"));
 assertCheck("app-web config only imports public core", appConfig.includes("@atlas/mendix-studio-core") && !appConfig.includes("adapter/http"));
-assertCheck("production default is not mock", config.includes('return isProduction ? "http" : "local"'));
+assertCheck("production defaultMode is http", config.includes('case "production"') && config.includes('defaultMode: "http"'));
+assertCheck("production disallows mock/local/fallback", config.includes("allowMock: false") && config.includes("allowLocal: false") && config.includes("allowMockFallback: false") && config.includes("allowLocalFallback: false"));
+assertCheck("AdapterFactory exposes runtime policy", factory.includes("runtimePolicy"));
 assertCheck("http adapter does not import mock adapter", !httpResource.includes("mock") && !httpRuntime.includes("mock"));
 assertCheck("app-web does not directly fetch microflow", !/fetch\s*\(/u.test(appResource + appEditor + appConfig));
 assertCheck("app-web does not directly touch localStorage microflow data", !(appResource + appEditor + appConfig).includes("localStorage"));

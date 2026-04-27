@@ -4,6 +4,8 @@
 
 第 31 轮起，HTTP 映射统一由 `mendix-studio-core` 的 `createMicroflowAdapterBundle({ mode: "http", apiBaseUrl, workspaceId, tenantId, currentUser })` 创建；`app-web` 只传配置，不直接实现 fetch、mock、localStorage、metadata、validation 或 runtime 逻辑。
 
+第 32 轮起，生产 runtime policy 固定为 `defaultMode=http` 且禁止 `mock/local/enableMockFallback/local validation`。后端不可用时 HTTP adapter 抛统一错误，UI 展示服务未连接或 API 错误，不静默展示 mock/local 数据。
+
 ## ResourceAdapter
 
 | 方法 | HTTP | 请求 | 响应 data |

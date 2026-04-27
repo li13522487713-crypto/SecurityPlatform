@@ -10,6 +10,18 @@
 
 生产模式默认 `http`，开发模式默认 `local`。`http` 必须配置 `apiBaseUrl`；服务不可用时 UI 显示“微流服务未连接”或具体 API 错误。
 
+## Runtime Policy
+
+`MicroflowAdapterRuntimePolicy` 冻结生产边界：
+
+- `development`：默认 `local`，允许 `mock/local/http`，允许显式开发 fallback。
+- `test`：默认 `mock`，允许 `mock/local/http`。
+- `storybook`：默认 `mock`，允许 `mock/local`。
+- `production`：默认 `http`，禁止 `mock`、禁止 `local`、禁止 `enableMockFallback`、禁止 local fallback。
+- `unknown`：默认 `local`；若存在 `apiBaseUrl` 可走 `http`。生产构建不得落入 unknown。
+
+`validateMicroflowAdapterRuntimePolicy` 会在生产中拒绝 `mode=mock`、`mode=local`、`enableMockFallback=true` 与 `validationMode=local`。
+
 ## 环境变量
 
 - `VITE_MICROFLOW_ADAPTER_MODE` / `MICROFLOW_ADAPTER_MODE`：`mock`、`local`、`http`。
@@ -37,6 +49,13 @@
 - 将 HTTP error / API error 统一转换为 `MicroflowApiClientError`。
 - 触发 `onUnauthorized`、`onForbidden`、`onApiError` 回调。
 
+入口 UI 行为：
+
+- ResourceTab：列表失败显示“微流服务未连接”、`apiBaseUrl`、错误消息和重试按钮。
+- EditorPage：按 404/403/409/服务异常显示明确错误，并提供返回资源库。
+- Metadata selector：元数据加载失败时禁用并显示“元数据加载失败”。
+- Validation / Publish / TestRun：HTTP validation 或 runtime API 失败时阻止发布/运行，不生成 mock trace。
+
 ## 联调步骤
 
 1. 后端启动并提供 `/api/microflows`、`/api/microflow-metadata`、validate、test-run、runs/trace 等契约接口。
@@ -50,6 +69,7 @@
 
 ```bash
 pnpm run verify:microflow-adapter-modes
+pnpm run verify:microflow-no-production-mock
 ```
 
-该脚本检查三种 bundle 工厂、HTTP adapters、ValidationAdapter、app-web 边界和生产默认不回 mock。
+这些脚本检查三种 bundle 工厂、runtime policy、HTTP adapters、ValidationAdapter、app-web 边界、生产默认不回 mock，以及生产路径没有微流 mock/local import。

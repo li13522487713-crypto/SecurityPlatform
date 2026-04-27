@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Input, Modal, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { validateMicroflowSchema, type MicroflowValidationIssue } from "@atlas/microflow";
-import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowValidationAdapter } from "../adapter/microflow-validation-adapter";
@@ -66,7 +65,6 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
         ? validationAdapter.validate({ resourceId: resource.id, schema: resource.schema, mode: "publish" })
         : Promise.resolve(validateMicroflowSchema({
             schema: resource.schema,
-            metadata: getDefaultMockMetadataCatalog(),
             options: { mode: "publish", includeWarnings: true, includeInfo: true },
           })),
       adapter.getMicroflowVersions(resource.id),

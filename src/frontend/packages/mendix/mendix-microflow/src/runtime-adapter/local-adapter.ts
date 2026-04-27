@@ -1,3 +1,7 @@
+/**
+ * Local development/offline debug only.
+ * Do not use localStorage adapter as production persistence.
+ */
 import { validateMicroflowSchema } from "../schema/validator";
 import { ensureAuthoringSchema, flattenObjectCollection } from "../adapters";
 import { getDefaultMockMetadataCatalog } from "../metadata";

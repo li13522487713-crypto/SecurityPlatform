@@ -1,6 +1,6 @@
 import { validateMicroflowSchema } from "@atlas/microflow";
 import type { MicroflowAuthoringSchema } from "@atlas/microflow";
-import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
+import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowReference } from "../references/microflow-reference-types";
 import { diffMicroflowSchemas } from "../versions/microflow-version-diff";
@@ -26,10 +26,10 @@ export function validatePublishVersion(version: string, existingVersions: Microf
   return { valid: true };
 }
 
-export function summarizeValidation(schema: MicroflowAuthoringSchema): MicroflowValidationSummary {
+export function summarizeValidation(schema: MicroflowAuthoringSchema, metadata?: MicroflowMetadataCatalog): MicroflowValidationSummary {
   const result = validateMicroflowSchema({
     schema,
-    metadata: getDefaultMockMetadataCatalog(),
+    metadata,
     options: { mode: "publish", includeWarnings: true, includeInfo: true },
   });
   return result.summary;

@@ -2,8 +2,9 @@ import { createLocalMicroflowApiClient, type MicroflowApiClient as RuntimeMicrof
 import type { MicroflowMetadataAdapter } from "@atlas/microflow/metadata";
 import { createLocalMicroflowMetadataAdapter, createMockMicroflowMetadataAdapter } from "@atlas/microflow/metadata";
 
-import type { MicroflowAdapterFactoryConfig, MicroflowAdapterMode } from "../config/microflow-adapter-config";
+import type { MicroflowAdapterFactoryConfig, MicroflowAdapterMode, MicroflowAdapterRuntimePolicy } from "../config/microflow-adapter-config";
 import { createDefaultMicroflowAdapterConfig, validateMicroflowAdapterConfig } from "../config/microflow-adapter-config";
+import { getMicroflowAdapterRuntimePolicy, getMicroflowRuntimeEnvironment } from "../config/microflow-adapter-config";
 import { createHttpMicroflowMetadataAdapter } from "../metadata/http-metadata-adapter";
 import { createHttpMicroflowResourceAdapter } from "./http/http-resource-adapter";
 import { createHttpMicroflowRuntimeAdapter } from "./http/http-runtime-adapter";
@@ -15,12 +16,18 @@ import { createHttpMicroflowValidationAdapter, createLocalMicroflowValidationAda
 
 export interface MicroflowAdapterBundle {
   mode: MicroflowAdapterMode;
+  apiBaseUrl?: string;
+  runtimePolicy: MicroflowAdapterRuntimePolicy;
   resourceAdapter: MicroflowResourceAdapter;
   metadataAdapter: MicroflowMetadataAdapter;
   runtimeAdapter: RuntimeMicroflowApiClient;
   validationAdapter?: MicroflowValidationAdapter;
   apiClient?: MicroflowApiClient;
   dispose?: () => void;
+}
+
+function resolvePolicy(config: MicroflowAdapterFactoryConfig): MicroflowAdapterRuntimePolicy {
+  return getMicroflowAdapterRuntimePolicy(config.runtimeEnvironment ?? getMicroflowRuntimeEnvironment());
 }
 
 function toLocalOptions(config: MicroflowAdapterFactoryConfig) {
@@ -32,9 +39,12 @@ function toLocalOptions(config: MicroflowAdapterFactoryConfig) {
 }
 
 export function createMockMicroflowAdapterBundle(config: MicroflowAdapterFactoryConfig = {}): MicroflowAdapterBundle {
+  const resolved = validateMicroflowAdapterConfig({ ...config, mode: "mock" });
   return {
     mode: "mock",
-    resourceAdapter: createMockMicroflowResourceAdapter(toLocalOptions(config)),
+    apiBaseUrl: resolved.apiBaseUrl,
+    runtimePolicy: resolvePolicy(resolved),
+    resourceAdapter: createMockMicroflowResourceAdapter(toLocalOptions(resolved)),
     metadataAdapter: createMockMicroflowMetadataAdapter(),
     runtimeAdapter: createLocalMicroflowApiClient(),
     validationAdapter: createLocalMicroflowValidationAdapter(),
@@ -42,9 +52,12 @@ export function createMockMicroflowAdapterBundle(config: MicroflowAdapterFactory
 }
 
 export function createLocalMicroflowAdapterBundle(config: MicroflowAdapterFactoryConfig = {}): MicroflowAdapterBundle {
+  const resolved = validateMicroflowAdapterConfig({ ...config, mode: "local" });
   return {
     mode: "local",
-    resourceAdapter: createLocalMicroflowResourceAdapter(toLocalOptions(config)),
+    apiBaseUrl: resolved.apiBaseUrl,
+    runtimePolicy: resolvePolicy(resolved),
+    resourceAdapter: createLocalMicroflowResourceAdapter(toLocalOptions(resolved)),
     metadataAdapter: createLocalMicroflowMetadataAdapter(),
     runtimeAdapter: createLocalMicroflowApiClient(),
     validationAdapter: createLocalMicroflowValidationAdapter(),
@@ -53,12 +66,17 @@ export function createLocalMicroflowAdapterBundle(config: MicroflowAdapterFactor
 
 export function createHttpMicroflowAdapterBundle(config: MicroflowAdapterFactoryConfig): MicroflowAdapterBundle {
   const resolved = validateMicroflowAdapterConfig({ ...config, mode: "http" });
+  if (resolved.enableMockFallback) {
+    console.warn("Microflow mock fallback is enabled for development only; HTTP adapter errors will still be surfaced.");
+  }
   const apiClient = new MicroflowApiClient(resolved);
   const validationAdapter = resolved.validationMode === "local"
     ? createLocalMicroflowValidationAdapter()
     : createHttpMicroflowValidationAdapter({ ...resolved, apiClient });
   return {
     mode: "http",
+    apiBaseUrl: resolved.apiBaseUrl,
+    runtimePolicy: resolvePolicy(resolved),
     apiClient,
     resourceAdapter: createHttpMicroflowResourceAdapter({ ...resolved, apiClient }),
     metadataAdapter: createHttpMicroflowMetadataAdapter({ ...resolved, apiClient }),

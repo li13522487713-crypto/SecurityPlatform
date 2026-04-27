@@ -1,3 +1,7 @@
+/**
+ * Integration/production adapter.
+ * Uses backend API contracts and MicroflowApiResponse envelope.
+ */
 import type { MicroflowAuthoringSchema } from "@atlas/microflow";
 
 import type { MicroflowPublishImpactAnalysis, MicroflowPublishInput, MicroflowPublishResult } from "../../publish/microflow-publish-types";

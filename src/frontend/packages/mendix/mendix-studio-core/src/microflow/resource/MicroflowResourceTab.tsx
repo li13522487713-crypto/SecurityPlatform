@@ -14,6 +14,33 @@ import { canRunMicroflowAction, formatMicroflowDate, microflowPublishStatusLabel
 
 const { Text } = Typography;
 
+function createFailingResourceAdapter(error: Error): MicroflowResourceAdapter {
+  const reject = async <T,>(): Promise<T> => {
+    throw error;
+  };
+  return {
+    listMicroflows: () => reject(),
+    getMicroflow: () => reject(),
+    createMicroflow: () => reject(),
+    updateMicroflow: () => reject(),
+    saveMicroflowSchema: () => reject(),
+    duplicateMicroflow: () => reject(),
+    renameMicroflow: () => reject(),
+    toggleFavorite: () => reject(),
+    archiveMicroflow: () => reject(),
+    restoreMicroflow: () => reject(),
+    deleteMicroflow: () => reject(),
+    publishMicroflow: () => reject(),
+    getMicroflowReferences: () => reject(),
+    getMicroflowVersions: () => reject(),
+    getMicroflowVersionDetail: () => reject(),
+    rollbackMicroflowVersion: () => reject(),
+    duplicateMicroflowVersion: () => reject(),
+    analyzeMicroflowPublishImpact: () => reject(),
+    compareMicroflowVersion: () => reject(),
+  };
+}
+
 export interface MicroflowResourceTabProps {
   adapter?: MicroflowResourceAdapter;
   adapterBundle?: MicroflowAdapterBundle;
@@ -169,10 +196,18 @@ export function ResourceTable({
 }
 
 export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundle, adapterConfig, workspaceId, tenantId, currentUser, onOpenMicroflow, onOpenStudio }: MicroflowResourceTabProps) {
-  const bundle = useMemo(() => adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }), [adapterBundle, adapterConfig, currentUser, tenantId, workspaceId]);
+  const bundleResult = useMemo(() => {
+    try {
+      return { bundle: adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }) };
+    } catch (caught) {
+      return { error: caught instanceof Error ? caught : new Error(String(caught)) };
+    }
+  }, [adapterBundle, adapterConfig, currentUser, tenantId, workspaceId]);
+  const bundle = bundleResult.bundle;
+  const failingAdapter = useMemo(() => createFailingResourceAdapter(bundleResult.error ?? new Error("微流服务未配置。")), [bundleResult.error]);
   const [query, setQuery] = useState<MicroflowResourceQuery>({ sortBy: "updatedAt", sortOrder: "desc" });
   const [view, setView] = useState<"card" | "table">("table");
-  const { adapter, items, allItems, loading, error, reload } = useMicroflowResources({ adapter: adapterInput ?? bundle.resourceAdapter, workspaceId, currentUser, query });
+  const { adapter, items, allItems, loading, error, reload } = useMicroflowResources({ adapter: adapterInput ?? bundle?.resourceAdapter ?? failingAdapter, workspaceId, currentUser, query });
   const [createOpen, setCreateOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -243,6 +278,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
         <Space>
           <Button type={view === "table" ? "primary" : "tertiary"} theme={view === "table" ? "solid" : "borderless"} onClick={() => setView("table")}>表格</Button>
           <Button type={view === "card" ? "primary" : "tertiary"} theme={view === "card" ? "solid" : "borderless"} onClick={() => setView("card")}>卡片</Button>
+          {bundle ? <Tag color={bundle.mode === "http" ? "green" : "orange"}>{bundle.mode === "http" ? `HTTP ${bundle.apiBaseUrl ?? ""}`.trim() : "本地模拟数据"}</Tag> : <Tag color="red">disconnected</Tag>}
           {onOpenStudio ? <Button onClick={onOpenStudio}>打开 Mendix Studio</Button> : null}
         </Space>
         <Space wrap>
@@ -279,7 +315,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 48 }}><Spin /></div>
         ) : error ? (
-          <Empty title="微流服务未连接" description={error.message || "请检查微流 HTTP 服务或切换到本地模式。"} style={{ padding: 48 }}>
+          <Empty title="微流服务未连接" description={`${bundle?.apiBaseUrl ? `API: ${bundle.apiBaseUrl}。` : ""}${error.message || "请检查微流 HTTP 服务或切换到本地模式。"}`} style={{ padding: 48 }}>
             <Button onClick={() => void reload()}>重试</Button>
           </Empty>
         ) : items.length === 0 ? (
@@ -300,7 +336,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundl
         visible={publishOpen}
         resource={selectedResource}
         adapter={adapter}
-        validationAdapter={bundle.validationAdapter}
+        validationAdapter={bundle?.validationAdapter}
         onClose={() => setPublishOpen(false)}
         onPublished={handlePublished}
         onViewProblems={issues => Modal.info({ title: "校验问题", content: issues.map(issue => `${issue.severity}: ${issue.message}`).join("\n") || "无问题" })}

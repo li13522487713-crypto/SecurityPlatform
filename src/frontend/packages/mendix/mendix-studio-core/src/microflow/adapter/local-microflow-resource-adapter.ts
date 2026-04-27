@@ -1,3 +1,7 @@
+/**
+ * Local development/offline debug only.
+ * Do not use localStorage adapter as production persistence.
+ */
 import { normalizeMicroflowSchema, validateMicroflowSchema, type MicroflowAuthoringSchema } from "@atlas/microflow";
 import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
 
@@ -81,7 +85,7 @@ function nextPatchVersion(version: string): string {
 }
 
 function createValidationSummary(schema: MicroflowAuthoringSchema) {
-  return summarizeValidation(schema);
+  return summarizeValidation(schema, getDefaultMockMetadataCatalog());
 }
 
 function createSnapshot(input: {

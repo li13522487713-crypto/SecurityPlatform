@@ -1,3 +1,7 @@
+/**
+ * Integration/production adapter.
+ * Uses backend API contracts and MicroflowApiResponse envelope.
+ */
 import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 import type { GetMicroflowMetadataRequest, MicroflowMetadataAdapter } from "@atlas/microflow/metadata";
 

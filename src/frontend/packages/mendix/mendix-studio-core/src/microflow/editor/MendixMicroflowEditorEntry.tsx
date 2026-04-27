@@ -6,6 +6,7 @@ import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "@atlas/
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowValidationAdapter } from "../adapter/microflow-validation-adapter";
+import type { MicroflowAdapterMode } from "../config/microflow-adapter-config";
 import { PublishMicroflowModal } from "../publish/PublishMicroflowModal";
 import { MicroflowReferencesDrawer } from "../references/MicroflowReferencesDrawer";
 import { MicroflowVersionsDrawer } from "../versions/MicroflowVersionsDrawer";
@@ -22,13 +23,15 @@ export interface MendixMicroflowEditorEntryProps {
   metadataCatalog?: MicroflowMetadataCatalog;
   runtimeAdapter?: MicroflowApiClient;
   validationAdapter?: MicroflowValidationAdapter;
+  adapterMode?: MicroflowAdapterMode;
+  apiBaseUrl?: string;
   onSave?: (resource: MicroflowResource) => void;
   onPublish?: (resource: MicroflowResource) => void;
   onBack?: () => void;
   readonly?: boolean;
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, onSave, onPublish, onBack, readonly }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onBack, readonly }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowSchema>(resource.schema);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -67,6 +70,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
             <Tag>{currentResource.version}</Tag>
             <Tag color={currentResource.publishStatus === "changedAfterPublish" ? "orange" : currentResource.publishStatus === "published" ? "green" : "grey"}>{microflowPublishStatusLabel(currentResource.publishStatus)}</Tag>
             <Tag color="blue">Latest {currentResource.latestPublishedVersion ?? "-"}</Tag>
+            {adapterMode ? <Tag color={adapterMode === "http" ? "green" : "orange"}>{adapterMode === "http" ? `HTTP ${apiBaseUrl ?? ""}`.trim() : "本地模拟数据"}</Tag> : null}
             {currentResource.archived ? <Tag color="grey">只读归档</Tag> : null}
             <Text type="tertiary">{currentResource.updatedBy || currentResource.ownerName || "-"} · {formatMicroflowDate(currentResource.updatedAt)}</Text>
           </Space>

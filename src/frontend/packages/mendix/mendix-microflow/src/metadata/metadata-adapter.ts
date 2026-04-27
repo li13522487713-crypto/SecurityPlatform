@@ -54,6 +54,10 @@ export function getDefaultMockMetadataCatalog(): MicroflowMetadataCatalog {
   return mockMicroflowMetadataCatalog;
 }
 
+/**
+ * Development/Test only.
+ * Do not import this factory from production runtime paths.
+ */
 export function createMockMicroflowMetadataAdapter(
   catalog: MicroflowMetadataCatalog = mockMicroflowMetadataCatalog,
 ): MicroflowMetadataAdapter {
@@ -83,6 +87,7 @@ export function createMockMicroflowMetadataAdapter(
 }
 
 /**
+ * Local development/offline debug only.
  * 第一版：与 mock 等价；后续可接 localStorage / IndexedDB 覆盖。
  */
 export function createLocalMicroflowMetadataAdapter(): MicroflowMetadataAdapter {

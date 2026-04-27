@@ -37,8 +37,15 @@ export interface MendixMicroflowEditorPageProps {
 }
 
 export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, currentUser, adapterBundle, adapterConfig, adapter: adapterProp, onBack, readonly }: MendixMicroflowEditorPageProps) {
-  const bundle = useMemo(() => adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }), [adapterBundle, adapterConfig, currentUser, tenantId, workspaceId]);
-  const adapter = adapterProp ?? bundle.resourceAdapter;
+  const bundleResult = useMemo(() => {
+    try {
+      return { bundle: adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }) };
+    } catch (caught) {
+      return { error: caught instanceof Error ? caught : new Error(String(caught)) };
+    }
+  }, [adapterBundle, adapterConfig, currentUser, tenantId, workspaceId]);
+  const bundle = bundleResult.bundle;
+  const adapter = adapterProp ?? bundle?.resourceAdapter;
   const [resource, setResource] = useState<MicroflowResource>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
@@ -47,6 +54,9 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
     setLoading(true);
     setError(undefined);
     try {
+      if (!adapter) {
+        throw bundleResult.error ?? new Error("微流服务未配置。");
+      }
       const loaded = await adapter.getMicroflow(resourceId);
       setResource(loaded);
     } catch (caught) {
@@ -54,7 +64,7 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
     } finally {
       setLoading(false);
     }
-  }, [adapter, resourceId]);
+  }, [adapter, bundleResult.error, resourceId]);
 
   useEffect(() => {
     void load();
@@ -81,13 +91,23 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, c
     );
   }
 
+  if (!adapter) {
+    return (
+      <Empty title="微流服务未配置" description="请配置 HTTP adapter 的 apiBaseUrl 后重试。" style={{ padding: 80 }}>
+        {onBack ? <Button onClick={onBack}>返回资源库</Button> : null}
+      </Empty>
+    );
+  }
+
   return (
     <MendixMicroflowEditorEntry
       resource={resource}
       adapter={adapter}
-      metadataAdapter={bundle.metadataAdapter}
-      runtimeAdapter={bundle.runtimeAdapter}
-      validationAdapter={bundle.validationAdapter}
+      metadataAdapter={bundle?.metadataAdapter}
+      runtimeAdapter={bundle?.runtimeAdapter}
+      validationAdapter={bundle?.validationAdapter}
+      adapterMode={bundle?.mode}
+      apiBaseUrl={bundle?.apiBaseUrl}
       readonly={readonly}
       onBack={onBack}
       onSave={saved => {

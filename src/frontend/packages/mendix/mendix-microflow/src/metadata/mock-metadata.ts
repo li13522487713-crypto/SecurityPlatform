@@ -1,6 +1,7 @@
 /**
- * Mock metadata used only by mock adapter, samples, and tests.
- * Production code must receive metadata through MicroflowMetadataAdapter / Provider.
+ * Development/Test only.
+ * Do not import this file from production runtime paths.
+ * Production should use HTTP adapters through createMicroflowAdapterBundle.
  */
 import type { MetadataAttribute, MetadataEntity, MicroflowMetadataCatalog } from "./metadata-catalog";
 import type { MicroflowDataType } from "../schema";

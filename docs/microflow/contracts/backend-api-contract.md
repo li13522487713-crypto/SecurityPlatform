@@ -74,6 +74,7 @@
 - **UI / ResourceAdapter**：直接消费业务 DTO，不经 `MicroflowApiResponse`。
 - **HTTP 客户端**：解析 Envelope 后返回 DTO 或抛业务异常。
 - **生产配置**：`mode=http` 必须配置 `apiBaseUrl`；服务不可用时前端显示服务未连接或 API 错误，不 fallback 到 mock。
+- **生产禁用 mock/local**：`MicroflowAdapterRuntimePolicy.production` 禁止 mock resource、mock metadata、mock runner、localStorage resource 与 local validation 作为主路径。
 
 ## OpenAPI
 

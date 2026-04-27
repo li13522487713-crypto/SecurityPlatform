@@ -1,3 +1,7 @@
+/**
+ * Integration/production adapter.
+ * Uses backend API contracts and MicroflowApiResponse envelope.
+ */
 import type {
   CreateMicroflowInput as RuntimeCreateMicroflowInput,
   MicroflowApiClient as RuntimeMicroflowApiClient,

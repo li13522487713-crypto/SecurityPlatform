@@ -48,6 +48,7 @@
 3. 宿主只需传 `adapterConfig: { mode: "http", apiBaseUrl, workspaceId, tenantId, currentUser }`；不要在 app-web 手写 fetch 或 mock/local 逻辑。
 4. 元数据：实现 `GET /api/microflow-metadata`（及可选子路径），字段与 `MicroflowMetadataCatalog` 对齐；校验、表达式、变量作用域均以传入 catalog 为准，缺失时返回明确 issue，由 ProblemPanel 展示。
 5. TestRun 等同理接入；后端暂未实现时，前端 http 模式会显示服务未连接/请求失败，不会静默切回 mock。
+6. 生产构建默认 `mode=http`，并由前端 runtime policy 拒绝 `mock/local/enableMockFallback`；联调环境若需使用 mock API server，应保持 `mode=http`，仅切换 `apiBaseUrl`。
 
 ## 未知项
 
