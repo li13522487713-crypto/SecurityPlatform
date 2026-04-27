@@ -55,6 +55,16 @@ const importWatchRoots = [
 ];
 
 const enablePollingWatch = process.env.ATLAS_RSBUILD_POLL === "true";
+const clientEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => key.startsWith("VITE_") || key.startsWith("MICROFLOW_")),
+) as Record<string, string | undefined>;
+
+const importMetaEnv = {
+  ...clientEnv,
+  DEV: isDevelopment,
+  PROD: !isDevelopment,
+  MODE: process.env.NODE_ENV ?? (isDevelopment ? "development" : "production"),
+};
 
 export default defineConfig({
   server: {
@@ -123,7 +133,9 @@ export default defineConfig({
       "@atlas/mendix-validator$": path.resolve(__dirname, "../../packages/mendix/mendix-validator/src/index.ts"),
       "react-router-dom": require.resolve("react-router-dom"),
     },
-    define: {},
+    define: {
+      "import.meta.env": JSON.stringify(importMetaEnv),
+    },
     decorators: {
       version: "legacy",
     },
