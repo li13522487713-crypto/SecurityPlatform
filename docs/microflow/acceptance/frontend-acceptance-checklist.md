@@ -27,6 +27,7 @@
 23. **HTTP 错误处理**：执行 `pnpm run verify:microflow-http-error-handling`；401/403 回调触发，404/409/422/network 均有明确 UI。
 24. **ProblemPanel 桥接**：后端返回 `error.validationIssues` 时，保存/校验/发布/test-run 能进入 ProblemPanel，不只 toast。
 25. **抽屉错误态**：VersionsDrawer / ReferencesDrawer API 失败显示错误态和重试按钮，不显示假空数据。
+26. **HTTP Metadata**：`VITE_MICROFLOW_ADAPTER_MODE=http` 时 MetadataProvider 调用 `/api/microflow-metadata`，EntitySelector / AttributeSelector / EnumerationSelector / MicroflowSelector 显示后端 seed/cache 与真实 resource 生成的数据。
 26. **P0 属性面板**：Retrieve/CreateObject/ChangeMembers/Commit/Delete/Rollback/CreateVariable/ChangeVariable/CallMicroflow/RestCall/LogMessage 均使用强类型字段，不出现 generic config 或 raw JSON dump。
 27. **字段级错误**：清空输出变量、REST URL、CallMicroflow 参数或 Loop iterator 时，字段下方显示对应 `ValidationIssue.fieldPath`。
 28. **变量联动**：修改 Retrieve/CreateObject/CreateVariable/CallMicroflow/RestCall 输出变量后，下游 VariableSelector 可见，重复名提示错误。

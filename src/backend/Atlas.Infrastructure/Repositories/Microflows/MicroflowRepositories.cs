@@ -19,6 +19,19 @@ public sealed class MicroflowSchemaSnapshotRepository : IMicroflowSchemaSnapshot
             .OrderBy(x => x.CreatedAt, OrderByType.Desc)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<MicroflowSchemaSnapshotEntity>> ListByIdsAsync(IReadOnlyList<string> ids, CancellationToken cancellationToken)
+    {
+        var snapshotIds = ids.Where(static id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToArray();
+        if (snapshotIds.Length == 0)
+        {
+            return Array.Empty<MicroflowSchemaSnapshotEntity>();
+        }
+
+        return await _db.Queryable<MicroflowSchemaSnapshotEntity>()
+            .Where(x => SqlFunc.ContainsArray(snapshotIds, x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task InsertAsync(MicroflowSchemaSnapshotEntity entity, CancellationToken cancellationToken)
         => _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
 
@@ -202,5 +215,34 @@ public sealed class MicroflowMetadataCacheRepository : IMicroflowMetadataCacheRe
         }
 
         return q.OrderBy(x => x.UpdatedAt, OrderByType.Desc).FirstAsync(cancellationToken)!;
+    }
+
+    public async Task UpsertLatestAsync(MicroflowMetadataCacheEntity entity, CancellationToken cancellationToken)
+    {
+        var existing = await GetLatestAsync(entity.WorkspaceId, entity.TenantId, cancellationToken);
+        if (existing is null)
+        {
+            await InsertAsync(entity, cancellationToken);
+            return;
+        }
+
+        entity.Id = existing.Id;
+        await _db.Updateable(entity).Where(x => x.Id == entity.Id).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task<int> CountAsync(string? workspaceId, string? tenantId, CancellationToken cancellationToken)
+    {
+        var q = _db.Queryable<MicroflowMetadataCacheEntity>();
+        if (!string.IsNullOrWhiteSpace(workspaceId))
+        {
+            q = q.Where(x => x.WorkspaceId == workspaceId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(tenantId))
+        {
+            q = q.Where(x => x.TenantId == tenantId);
+        }
+
+        return q.CountAsync(cancellationToken);
     }
 }

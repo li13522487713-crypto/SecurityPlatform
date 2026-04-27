@@ -57,6 +57,8 @@
 | `getEnumeration` | `GET /api/microflow-metadata/enumerations/{qualifiedName}` | — |
 | `getMicroflowRefs` | `GET /api/microflow-metadata/microflows` 或 本地过滤 catalog | — |
 
+第 39 轮后端已实现真实 HTTP MetadataAdapter 所需路径。`MicroflowRef` 由 `MicroflowResource` 表动态生成；实体、关联、枚举、connectors 来自 `MicroflowMetadataCache` 或后端 seed catalog；pages / workflows 第一版可返回空数组。生产路径仍不得 fallback 到前端 mock metadata。
+
 ## 错误码
 
 见 `api-error-code-contract.md`；`MICROFLOW_*` 与 `MicroflowApiError` 一致。

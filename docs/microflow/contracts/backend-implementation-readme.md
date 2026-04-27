@@ -49,6 +49,14 @@
 - `POST /duplicate` 从历史版本复制为新草稿资源，不复制运行记录、trace、log 或 references。
 - `GET /compare-current` 与 `GET /impact` 使用基础 JSON diff：参数删除/类型变更、返回类型变更、暴露 URL path 变更、对象/flow 增删。
 
+第 39 轮已补充 Metadata API：
+
+- `GET /api/microflow-metadata` 返回完整 `MicroflowMetadataCatalog`，支持 `workspaceId`、`moduleId`、`includeSystem`、`includeArchived`。
+- `GET /entities/{qualifiedName}`、`GET /enumerations/{qualifiedName}`、`GET /microflows`、`GET /pages`、`GET /workflows`、`GET /health` 已接入 `IMicroflowMetadataService`。
+- MetadataCatalog 优先读取 `MicroflowMetadataCache`；无 cache 时使用后端 seed catalog，Development 默认可写入 `seed-v1` cache。
+- `catalog.microflows` 由 `MicroflowResource` 表动态生成，并读取当前 AuthoringSchema 中的 `parameters` / `returnType`；不解析 FlowGram。
+- Page / Workflow 第一版可为空数组，完整领域模型/页面/工作流元数据服务后续接入。
+
 并发与删除策略：
 
 - `baseVersion` 可匹配 `resource.version`、`resource.concurrencyStamp`、当前 snapshot id 或 snapshot schemaVersion；不匹配返回 `MICROFLOW_VERSION_CONFLICT`。
@@ -59,7 +67,6 @@
 
 后续建议：
 
-- 第 39 轮：Metadata API。
 - 第 40 轮：Validation API。
 - 第 41 轮：References / Impact Analysis 深化。
 - 第 42 轮：TestRun Mock API + Trace 存储。

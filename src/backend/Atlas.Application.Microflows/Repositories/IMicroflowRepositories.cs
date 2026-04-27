@@ -28,6 +28,8 @@ public interface IMicroflowSchemaSnapshotRepository
 
     Task<IReadOnlyList<MicroflowSchemaSnapshotEntity>> ListByResourceIdAsync(string resourceId, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<MicroflowSchemaSnapshotEntity>> ListByIdsAsync(IReadOnlyList<string> ids, CancellationToken cancellationToken);
+
     Task InsertAsync(MicroflowSchemaSnapshotEntity entity, CancellationToken cancellationToken);
 
     Task<MicroflowSchemaSnapshotEntity?> GetLatestByResourceIdAsync(string resourceId, CancellationToken cancellationToken);
@@ -90,6 +92,10 @@ public interface IMicroflowMetadataCacheRepository
     Task InsertAsync(MicroflowMetadataCacheEntity entity, CancellationToken cancellationToken);
 
     Task<MicroflowMetadataCacheEntity?> GetByVersionAsync(string? workspaceId, string catalogVersion, CancellationToken cancellationToken);
+
+    Task UpsertLatestAsync(MicroflowMetadataCacheEntity entity, CancellationToken cancellationToken);
+
+    Task<int> CountAsync(string? workspaceId, string? tenantId, CancellationToken cancellationToken);
 }
 
 public interface IMicroflowStorageTransaction

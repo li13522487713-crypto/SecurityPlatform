@@ -12,6 +12,7 @@ public static class MicroflowApplicationServiceCollectionExtensions
     {
         services.TryAddSingleton<IMicroflowClock, SystemMicroflowClock>();
         services.TryAddScoped<IMicroflowResourceService, MicroflowResourceService>();
+        services.TryAddScoped<IMicroflowMetadataService, MicroflowMetadataService>();
         services.TryAddScoped<IMicroflowResourceQueryService, InMemoryMicroflowResourceQueryService>();
         services.TryAddScoped<IMicroflowMetadataQueryService, InMemoryMicroflowMetadataQueryService>();
         services.TryAddScoped<IMicroflowValidationService, SkeletonMicroflowValidationService>();

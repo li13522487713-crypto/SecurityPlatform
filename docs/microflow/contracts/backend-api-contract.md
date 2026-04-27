@@ -88,6 +88,17 @@
 - `GET /api/microflow-metadata/entities/{qualifiedName}` — `MetadataEntity`。
 - `GET /api/microflow-metadata/enumerations/{qualifiedName}` — `MetadataEnumeration`。
 - `GET /api/microflow-metadata/microflows` — `MetadataMicroflowRef[]`。
+- `GET /api/microflow-metadata/pages` — `MetadataPageRef[]`，第一版可为空数组。
+- `GET /api/microflow-metadata/workflows` — `MetadataWorkflowRef[]`，第一版可为空数组。
+- `GET /api/microflow-metadata/health` — `MicroflowMetadataHealth`，用于诊断 cache、seed 与 catalog 计数。
+
+第 39 轮后端实现说明：
+
+- `MicroflowMetadataService` 会优先读取 `MicroflowMetadataCache.CatalogJson`，无 cache 时返回后端 seed catalog；Development 默认会写入 `seed-v1` cache，非强制覆盖。
+- 后端 seed catalog 包含 `Sales`、`Inventory`、`System`、`Workflow` 模块，以及 `System.User`、`System.FileDocument`、`Sales.Order`、`Sales.OrderLine`、`Sales.Product`、`Sales.Member`、`Sales.Professor`、`Sales.Student` 等基础实体与枚举。
+- `catalog.microflows` 优先由 `MicroflowResource` 表动态生成，读取当前 schema 的 `parameters` 与 `returnType`；schema 解析失败时该 microflow ref 使用 unknown/空参数，不让整个 catalog 失败。
+- `includeSystem=false` 会过滤 `isSystemEntity=true` 的实体；`includeArchived=false` 会过滤归档微流；`moduleId` 对 entities/pages/workflows 做基础模块过滤，对 microflows 在资源查询阶段过滤。
+- Entity / Enumeration 未找到返回 `MICROFLOW_METADATA_NOT_FOUND`；cache JSON 反序列化失败返回 `MICROFLOW_METADATA_LOAD_FAILED`。
 
 前端使用 `createHttpMicroflowMetadataAdapter({ apiBaseUrl })` 请求 `GET /api/microflow-metadata`（及可选子资源）；响应须为 `MicroflowApiResponse`，`data` 与 `MicroflowMetadataCatalog` 类型对齐。生产 UI 不直接使用 mock catalog，仅通过 Adapter / Provider 消费上述 DTO。
 

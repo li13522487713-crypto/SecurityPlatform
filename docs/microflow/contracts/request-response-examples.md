@@ -138,6 +138,19 @@ Content-Type: application/json
 
 响应为 `MicroflowApiResponse`，`success: true` 时 `data` 为 `MicroflowMetadataCatalog`（与 TypeScript 类型一致，含必填 `updatedAt` 等）。前端 `createHttpMicroflowMetadataAdapter` 负责解包；校验器、表达式推断、变量索引均依赖该 catalog，**不**在业务代码中硬编码实体/枚举列表。
 
+常用子资源：
+
+```http
+GET /api/microflow-metadata/entities/Sales.Order
+GET /api/microflow-metadata/enumerations/Sales.OrderStatus
+GET /api/microflow-metadata/microflows?includeArchived=false
+GET /api/microflow-metadata/pages
+GET /api/microflow-metadata/workflows
+GET /api/microflow-metadata/health
+```
+
+`qualifiedName` 含点号时可直接传路径或 URL encode；后端使用 catch-all route 解析。未知实体或枚举返回 `MICROFLOW_METADATA_NOT_FOUND` 标准 envelope。
+
 ## 11. 通用 API 错误
 
 ```json

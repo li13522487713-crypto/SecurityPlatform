@@ -344,6 +344,76 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+### Microflow metadata include system
+GET {{host}}/api/microflow-metadata?includeSystem=true&includeArchived=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata entity Sales.Order
+GET {{host}}/api/microflow-metadata/entities/Sales.Order
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata entity System.User
+GET {{host}}/api/microflow-metadata/entities/System.User
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata entity not found
+GET {{host}}/api/microflow-metadata/entities/Unknown.Entity
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata enumeration Sales.OrderStatus
+GET {{host}}/api/microflow-metadata/enumerations/Sales.OrderStatus
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata enumeration not found
+GET {{host}}/api/microflow-metadata/enumerations/Unknown.Enum
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata microflow refs
+GET {{host}}/api/microflow-metadata/microflows?includeArchived=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata pages
+GET {{host}}/api/microflow-metadata/pages
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata workflows
+GET {{host}}/api/microflow-metadata/workflows
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata health
+GET {{host}}/api/microflow-metadata/health
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Microflow validation skeleton
 POST {{host}}/api/microflows/not-exist/validate
 Content-Type: application/json

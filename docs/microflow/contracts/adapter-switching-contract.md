@@ -67,6 +67,8 @@
 3. 进入资源库微流 Tab，确认列表、详情、保存、发布、版本、引用、校验、测试运行均走 HTTP。
 4. 后端 mock API server 可使用同一契约返回 `MicroflowApiResponse<T>`，前端无需改代码，只切换 base url。
 
+第 39 轮起，Metadata HTTP 路径已可真实联调：`MetadataProvider` 通过 `GET /api/microflow-metadata` 加载后端 catalog，Entity / Enumeration / Microflow selector 可通过子资源 API 读取；服务不可用或返回 `MICROFLOW_METADATA_*` 错误时，selector 展示错误态，不 fallback 到前端 mock metadata。
+
 ## Contract Mock
 
 第 34 轮起，`@atlas/mendix-studio-core` 提供 `startMicroflowContractMockWorker()`。app-web 仅在 `MICROFLOW_API_MOCK=msw` 且非生产时调用该公开 helper；Resource/Metadata/Runtime/Validation 仍由 HTTP Adapter 发请求，MSW 返回标准 `MicroflowApiResponse<T>`。详见 `contract-mock-readme.md`。
