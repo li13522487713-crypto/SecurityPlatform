@@ -224,10 +224,9 @@ export function getBreakContinueWarnings(schema: MicroflowSchema, objectId: stri
   if (!object || (object.kind !== "breakEvent" && object.kind !== "continueEvent")) {
     return [];
   }
-  const loops = schema.variables ? Object.values(schema.variables.loopVariables) : [];
   const loopObjects = collectLoopObjects(schema);
   const warnings: string[] = [];
-  if (loopObjects.length === 0 && loops.length === 0) {
+  if (loopObjects.length === 0) {
     warnings.push("No Loop exists in the current microflow.");
   }
   if (!located?.parentLoopObjectId) {

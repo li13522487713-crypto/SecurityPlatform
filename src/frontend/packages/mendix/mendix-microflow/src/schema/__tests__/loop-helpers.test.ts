@@ -68,10 +68,11 @@ describe("loop / break / continue helpers", () => {
     const withIterable = updateLoopIterableExpression(schemaWith([loop]), loop.id, "approvalUsers");
     const whileSchema = updateLoopType(withIterable, loop.id, "while");
     const conditioned = updateLoopConditionExpression(whileSchema, loop.id, "$retry");
+    const iterableLoop = withIterable.objectCollection.objects[0];
     const nextLoop = conditioned.objectCollection.objects[0];
 
-    expect(withIterable.objectCollection.objects[0]?.kind === "loopedActivity" ? withIterable.objectCollection.objects[0].loopSource.kind : undefined).toBe("iterableList");
-    expect(withIterable.objectCollection.objects[0]?.kind === "loopedActivity" && withIterable.objectCollection.objects[0].loopSource.kind === "iterableList" ? withIterable.objectCollection.objects[0].loopSource.listVariableName : undefined).toBe("approvalUsers");
+    expect(iterableLoop?.kind === "loopedActivity" ? iterableLoop.loopSource.kind : undefined).toBe("iterableList");
+    expect(iterableLoop?.kind === "loopedActivity" && iterableLoop.loopSource.kind === "iterableList" ? iterableLoop.loopSource.listVariableName : undefined).toBe("approvalUsers");
     expect(nextLoop?.kind === "loopedActivity" && nextLoop.loopSource.kind === "whileCondition" ? nextLoop.loopSource.expression.raw : undefined).toBe("$retry");
   });
 

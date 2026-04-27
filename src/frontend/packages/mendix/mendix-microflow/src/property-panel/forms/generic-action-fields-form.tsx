@@ -246,7 +246,7 @@ export function GenericActionFields({
   const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, metadataVersion]);
   const action = object.action;
   const fields = getGenericActionFields(action.kind);
-  const specializedKinds = ["retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "restCall", "logMessage", "callMicroflow", "createVariable", "changeVariable"];
+  const specializedKinds = ["retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "restCall", "logMessage", "callMicroflow", "createVariable", "changeVariable", "createList", "changeList", "aggregateList", "listOperation"];
   if (specializedKinds.includes(action.kind)) {
     return null;
   }

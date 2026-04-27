@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
-import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowSortItem } from "../../schema";
+import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowSortItem, MicroflowVariableSymbol } from "../../schema";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
 import { buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, resolveVariableReferenceFromIndex } from "../../variables";
 import { ErrorHandlingEditor, FieldError, FieldRow, OutputVariableEditor, VariableNameInput } from "../common";
@@ -8,7 +8,7 @@ import { ExpressionEditor } from "../expression";
 import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, MicroflowSelector, VariableSelector } from "../selectors";
 import type { MicroflowNodePatch, MicroflowPropertyPanelProps } from "../types";
 import { getIssuesForField, getIssuesForObject } from "../utils";
-import { dataTypeFromKey, dataTypeLabel, expression, Field, updateAction } from "../panel-shared";
+import { dataTypeLabel, expression, Field, updateAction } from "../panel-shared";
 import { GenericActionFields } from "./generic-action-fields-form";
 import {
   isVoidMicroflowReturn,
@@ -18,6 +18,9 @@ import {
 } from "../utils/call-microflow-config";
 
 const { Text, Title } = Typography;
+const changeListOperations = ["add", "addRange", "remove", "removeWhere", "clear", "set"];
+const aggregateListFunctions = ["count", "sum", "average", "min", "max"];
+const listOperationKinds = ["filter", "sort", "map", "distinct", "take", "skip", "union", "intersect"];
 
 function RequiredConfigWarning({ visible, children }: { visible: boolean; children: string }) {
   return visible ? <Text type="warning" size="small">{children}</Text> : null;
@@ -36,6 +39,17 @@ function retrieveOutputDataType(action: Extract<MicroflowAction, { kind: "retrie
     ? { kind: "object", entityQualifiedName: target.qualifiedName }
     : { kind: "unknown", reason: "Retrieve association target missing" };
   return association?.multiplicity === "oneToMany" || association?.multiplicity === "manyToMany" ? { kind: "list", itemType } : itemType;
+}
+
+function listOperationItemType(action: Extract<MicroflowAction, { kind: "listOperation" }>, source?: MicroflowVariableSymbol): MicroflowDataType {
+  if (action.outputElementType) {
+    return action.outputElementType;
+  }
+  return source?.dataType.kind === "list" ? source.dataType.itemType : { kind: "unknown", reason: "list operation source" };
+}
+
+function listVariableItemType(symbol?: MicroflowVariableSymbol): MicroflowDataType | undefined {
+  return symbol?.dataType.kind === "list" ? symbol.dataType.itemType : undefined;
 }
 
 export function ActionActivityForm({
@@ -72,6 +86,10 @@ export function ActionActivityForm({
   const restFormBody = action.kind === "restCall" && action.request.body.kind === "form" ? action.request.body : undefined;
   const createVariableConflicts = action.kind === "createVariable" ? getVariableNameConflicts(schema, action.variableName, action.id) : [];
   const createVariableReferences = action.kind === "createVariable" ? getVariableReferences(schema, action.id).filter(reference => reference.objectId !== object.id || reference.fieldPath !== "action.initialValue") : [];
+  const listVariables = useMemo(() => Object.values(variableIndex.listOutputs), [variableIndex]);
+  const listVariableNames = useMemo(() => new Set(listVariables.map(variable => variable.name)), [listVariables]);
+  const selectedSourceList = (name?: string) => name ? listVariables.find(variable => variable.name === name) : undefined;
+  const listVariableEmptyMessage = "No list variables available. Add a Create List node first.";
   const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -973,6 +991,284 @@ export function ActionActivityForm({
             />
             <Text type="tertiary" size="small">Available variables are computed from the current microflow schema only.</Text>
           </Field>
+        </>
+      ) : null}
+
+      {action.kind === "createList" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Create List</Title>
+          <FieldRow label="List Variable Name" fieldPath="action.outputListVariableName" required issues={getIssuesForField(issues, "action.outputListVariableName")}>
+            <OutputVariableEditor
+              value={action.outputListVariableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.outputListVariableName"
+              suggestedBaseName="NewList"
+              dataType={{ kind: "list", itemType: action.elementType }}
+              readonly={readonly}
+              required
+              issues={getIssuesForField(issues, "action.outputListVariableName")}
+              onChange={outputListVariableName => patchObject(updateAction(object, {
+                outputListVariableName: outputListVariableName ?? "",
+                listVariableName: outputListVariableName ?? "",
+              }))}
+            />
+            <RequiredConfigWarning visible={!action.outputListVariableName.trim()}>List variable name 未配置；保存为待配置状态。</RequiredConfigWarning>
+          </FieldRow>
+          <Field label="List Variable ID">
+            <Input value={action.listVariableId ?? action.id} disabled />
+          </Field>
+          <Field label="Element Type">
+            <DataTypeSelector
+              value={action.elementType}
+              disabled={readonly}
+              allowVoid={false}
+              onChange={elementType => patchObject(updateAction(object, { elementType, itemType: elementType }))}
+            />
+            {action.elementType.kind === "object" && !action.elementType.entityQualifiedName.trim() ? (
+              <Text type="warning" size="small">Entity metadata will be connected in Stage 19.</Text>
+            ) : null}
+          </Field>
+          <Field label="List Type">
+            <Select
+              value={action.listType}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              optionList={["mutable", "readonly"].map(value => ({ label: value, value }))}
+              onChange={listType => patchObject(updateAction(object, { listType: String(listType) as typeof action.listType }))}
+            />
+          </Field>
+          <Field label="Initial Items Expression">
+            <ExpressionEditor
+              value={action.initialItemsExpression ?? expression("", { kind: "list", itemType: action.elementType })}
+              schema={schema}
+              metadata={effectiveCatalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.initialItemsExpression"
+              expectedType={{ kind: "list", itemType: action.elementType }}
+              readonly={readonly}
+              onChange={initialItemsExpression => patchObject(updateAction(object, { initialItemsExpression }))}
+            />
+            <Text type="tertiary" size="small">Expression text is stored only; Stage 18 does not execute it.</Text>
+          </Field>
+          <Field label="Description">
+            <TextArea
+              value={action.description ?? action.documentation ?? ""}
+              autosize
+              disabled={readonly}
+              onChange={description => patchObject(updateAction(object, { description, documentation: description }))}
+            />
+          </Field>
+        </>
+      ) : null}
+
+      {action.kind === "changeList" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Change List</Title>
+          <Field label="Target List">
+            <VariableSelector
+              schema={schema}
+              objectId={object.id}
+              fieldPath="action.targetListVariableName"
+              allowedTypeKinds={["list"]}
+              value={action.targetListVariableName}
+              disabled={readonly}
+              includeSystem={false}
+              includeReadonly={false}
+              scopeMode="index"
+              emptyMessage={listVariableEmptyMessage}
+              onChange={targetListVariableName => patchObject(updateAction(object, { targetListVariableName: targetListVariableName ?? "" }))}
+            />
+            <RequiredConfigWarning visible={!action.targetListVariableName.trim()}>Target list 未配置；请选择当前微流中的 List 变量。</RequiredConfigWarning>
+            <RequiredConfigWarning visible={Boolean(action.targetListVariableName) && !listVariableNames.has(action.targetListVariableName)}>Selected target is stale or is not a List variable.</RequiredConfigWarning>
+          </Field>
+          <Field label="Operation">
+            <Select
+              value={action.operation}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              optionList={changeListOperations.map(value => ({ label: value, value }))}
+              onChange={operation => patchObject(updateAction(object, { operation: String(operation) as typeof action.operation }))}
+            />
+          </Field>
+          <Field label={action.operation === "addRange" ? "Items Expression" : "Item Expression"}>
+            <ExpressionEditor
+              value={action.operation === "addRange" ? action.itemsExpression ?? expression("") : action.itemExpression ?? expression("")}
+              schema={schema}
+              metadata={effectiveCatalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath={action.operation === "addRange" ? "action.itemsExpression" : "action.itemExpression"}
+              expectedType={listVariableItemType(selectedSourceList(action.targetListVariableName))}
+              readonly={readonly || action.operation === "clear" || action.operation === "removeWhere"}
+              onChange={nextExpression => patchObject(updateAction(object, action.operation === "addRange" ? { itemsExpression: nextExpression } : { itemExpression: nextExpression }))}
+            />
+            <RequiredConfigWarning visible={["add", "remove", "set"].includes(action.operation) && !(action.itemExpression?.raw ?? "").trim()}>Item expression is required for this operation.</RequiredConfigWarning>
+          </Field>
+          <Field label="Condition Expression">
+            <ExpressionEditor
+              value={action.conditionExpression ?? expression("", { kind: "boolean" })}
+              schema={schema}
+              metadata={effectiveCatalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.conditionExpression"
+              expectedType={{ kind: "boolean" }}
+              readonly={readonly || action.operation !== "removeWhere"}
+              onChange={conditionExpression => patchObject(updateAction(object, { conditionExpression }))}
+            />
+            <RequiredConfigWarning visible={action.operation === "removeWhere" && !(action.conditionExpression?.raw ?? "").trim()}>conditionExpression is required for removeWhere.</RequiredConfigWarning>
+          </Field>
+        </>
+      ) : null}
+
+      {action.kind === "aggregateList" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>Aggregate List</Title>
+          <Field label="Source List">
+            <VariableSelector
+              schema={schema}
+              objectId={object.id}
+              fieldPath="action.listVariableName"
+              allowedTypeKinds={["list"]}
+              value={action.listVariableName || action.sourceListVariableName}
+              disabled={readonly}
+              includeSystem={false}
+              scopeMode="index"
+              emptyMessage={listVariableEmptyMessage}
+              onChange={listVariableName => patchObject(updateAction(object, { listVariableName: listVariableName ?? "", sourceListVariableName: listVariableName ?? "" }))}
+            />
+            <RequiredConfigWarning visible={!action.listVariableName.trim()}>Source list 未配置；请选择当前微流中的 List 变量。</RequiredConfigWarning>
+            <RequiredConfigWarning visible={Boolean(action.listVariableName) && !listVariableNames.has(action.listVariableName)}>Selected source is stale or is not a List variable.</RequiredConfigWarning>
+          </Field>
+          <Field label="Aggregate Function">
+            <Select
+              value={action.aggregateFunction}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              optionList={aggregateListFunctions.map(value => ({ label: value, value }))}
+              onChange={aggregateFunction => {
+                const fn = String(aggregateFunction) as typeof action.aggregateFunction;
+                const resultType: MicroflowDataType = fn === "count" ? { kind: "integer" } : fn === "sum" || fn === "average" ? { kind: "decimal" } : { kind: "unknown", reason: "aggregate result type" };
+                patchObject(updateAction(object, { aggregateFunction: fn, resultType }));
+              }}
+            />
+          </Field>
+          <Field label="Member / Aggregate Expression">
+            <ExpressionEditor
+              value={action.aggregateExpression ?? expression(action.attributeQualifiedName ?? action.member ?? "")}
+              schema={schema}
+              metadata={effectiveCatalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.aggregateExpression"
+              readonly={readonly || action.aggregateFunction === "count"}
+              onChange={aggregateExpression => patchObject(updateAction(object, { aggregateExpression, attributeQualifiedName: aggregateExpression.raw, member: aggregateExpression.raw }))}
+            />
+            <RequiredConfigWarning visible={action.aggregateFunction !== "count" && !(action.aggregateExpression?.raw ?? action.attributeQualifiedName ?? "").trim()}>sum/average/min/max need a member or expression.</RequiredConfigWarning>
+          </Field>
+          <FieldRow label="Result Variable" fieldPath="action.outputVariableName" required issues={getIssuesForField(issues, "action.outputVariableName")}>
+            <OutputVariableEditor
+              value={action.outputVariableName || action.resultVariableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.outputVariableName"
+              suggestedBaseName="ListAggregateResult"
+              dataType={action.resultType ?? (action.aggregateFunction === "count" ? { kind: "integer" } : { kind: "decimal" })}
+              readonly={readonly}
+              required
+              issues={getIssuesForField(issues, "action.outputVariableName")}
+              onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "", resultVariableName: outputVariableName ?? "", resultVariableId: action.id }))}
+            />
+            <RequiredConfigWarning visible={!String(action.outputVariableName || action.resultVariableName || "").trim()}>Result variable 未配置；聚合结果不会进入 variable index。</RequiredConfigWarning>
+          </FieldRow>
+          <Tag color="grey">resultType: {dataTypeLabel(action.resultType ?? (action.aggregateFunction === "count" ? { kind: "integer" } : { kind: "decimal" }))}</Tag>
+        </>
+      ) : null}
+
+      {action.kind === "listOperation" ? (
+        <>
+          <Title heading={6} style={{ margin: "10px 0 0" }}>List Operation</Title>
+          <Field label="Source List">
+            <VariableSelector
+              schema={schema}
+              objectId={object.id}
+              fieldPath="action.leftListVariableName"
+              allowedTypeKinds={["list"]}
+              value={action.leftListVariableName || action.sourceListVariableName}
+              disabled={readonly}
+              includeSystem={false}
+              scopeMode="index"
+              emptyMessage={listVariableEmptyMessage}
+              onChange={leftListVariableName => {
+                const source = selectedSourceList(leftListVariableName);
+                const outputElementType = source?.dataType.kind === "list" ? source.dataType.itemType : action.outputElementType;
+                patchObject(updateAction(object, { leftListVariableName: leftListVariableName ?? "", sourceListVariableName: leftListVariableName ?? "", outputElementType }));
+              }}
+            />
+            <RequiredConfigWarning visible={!action.leftListVariableName.trim()}>Source list 未配置；请选择当前微流中的 List 变量。</RequiredConfigWarning>
+            <RequiredConfigWarning visible={Boolean(action.leftListVariableName) && !listVariableNames.has(action.leftListVariableName)}>Selected source is stale or is not a List variable.</RequiredConfigWarning>
+          </Field>
+          <Field label="Operation">
+            <Select
+              value={action.operation}
+              disabled={readonly}
+              style={{ width: "100%" }}
+              optionList={listOperationKinds.map(value => ({ label: value, value }))}
+              onChange={operation => patchObject(updateAction(object, { operation: String(operation) as typeof action.operation }))}
+            />
+          </Field>
+          <Field label="Filter Expression">
+            <ExpressionEditor
+              value={action.filterExpression ?? action.expression ?? expression("", { kind: "boolean" })}
+              schema={schema}
+              metadata={effectiveCatalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.filterExpression"
+              expectedType={{ kind: "boolean" }}
+              readonly={readonly || action.operation !== "filter"}
+              onChange={filterExpression => patchObject(updateAction(object, { filterExpression, expression: filterExpression }))}
+            />
+            <RequiredConfigWarning visible={action.operation === "filter" && !(action.filterExpression?.raw ?? action.expression?.raw ?? "").trim()}>filter requires filterExpression.</RequiredConfigWarning>
+          </Field>
+          <Field label="Sort Expression">
+            <ExpressionEditor
+              value={action.sortExpression ?? expression("")}
+              schema={schema}
+              metadata={effectiveCatalog}
+              variableIndex={variableIndex}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.sortExpression"
+              readonly={readonly || action.operation !== "sort"}
+              onChange={sortExpression => patchObject(updateAction(object, { sortExpression }))}
+            />
+          </Field>
+          <FieldRow label="Output List Variable" fieldPath="action.outputVariableName" required issues={getIssuesForField(issues, "action.outputVariableName")}>
+            <OutputVariableEditor
+              value={action.outputVariableName || action.outputListVariableName}
+              schema={schema}
+              objectId={object.id}
+              actionId={action.id}
+              fieldPath="action.outputVariableName"
+              suggestedBaseName="ListOperationResult"
+              dataType={{ kind: "list", itemType: listOperationItemType(action, selectedSourceList(action.leftListVariableName)) }}
+              readonly={readonly}
+              required
+              issues={getIssuesForField(issues, "action.outputVariableName")}
+              onChange={outputVariableName => patchObject(updateAction(object, { outputVariableName: outputVariableName ?? "", outputListVariableName: outputVariableName ?? "", targetListVariableId: action.id }))}
+            />
+            <RequiredConfigWarning visible={!String(action.outputVariableName || action.outputListVariableName || "").trim()}>Output list variable 未配置；结果不会进入 variable index。</RequiredConfigWarning>
+          </FieldRow>
         </>
       ) : null}
       <GenericActionFields schema={schema} object={object} issues={issues} readonly={readonly} onPatch={onPatch} />
