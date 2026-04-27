@@ -1,0 +1,147 @@
+using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Repositories;
+using Atlas.Domain.Microflows.Entities;
+using SqlSugar;
+
+namespace Atlas.Infrastructure.Repositories.Microflows;
+
+public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
+{
+    private readonly ISqlSugarClient _db;
+
+    public MicroflowResourceRepository(ISqlSugarClient db)
+    {
+        _db = db;
+    }
+
+    public Task<MicroflowResourceEntity?> GetByIdAsync(string id, CancellationToken cancellationToken)
+    {
+        return _db.Queryable<MicroflowResourceEntity>()
+            .Where(x => x.Id == id)
+            .FirstAsync(cancellationToken)!;
+    }
+
+    public async Task<IReadOnlyList<MicroflowResourceEntity>> ListAsync(
+        MicroflowResourceQueryDto query,
+        CancellationToken cancellationToken)
+    {
+        var pageIndex = query.PageIndex <= 0 ? 1 : query.PageIndex;
+        var pageSize = query.PageSize <= 0 ? 20 : query.PageSize;
+
+        return await ApplyOrdering(ApplyFilters(query), query.SortBy, query.SortOrder)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+    }
+
+    public Task<int> CountAsync(MicroflowResourceQueryDto query, CancellationToken cancellationToken)
+    {
+        return ApplyFilters(query).CountAsync(cancellationToken);
+    }
+
+    public Task InsertAsync(MicroflowResourceEntity entity, CancellationToken cancellationToken)
+    {
+        entity.CreatedAt = entity.CreatedAt == default ? DateTimeOffset.UtcNow : entity.CreatedAt;
+        entity.UpdatedAt = entity.UpdatedAt == default ? entity.CreatedAt : entity.UpdatedAt;
+        return _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task UpdateAsync(MicroflowResourceEntity entity, CancellationToken cancellationToken)
+    {
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+        entity.ConcurrencyStamp = Guid.NewGuid().ToString("N");
+        return _db.Updateable(entity).Where(x => x.Id == entity.Id).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task DeleteAsync(string id, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<MicroflowResourceEntity>().Where(x => x.Id == id).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task<bool> ExistsByNameAsync(string? workspaceId, string name, CancellationToken cancellationToken)
+    {
+        var q = _db.Queryable<MicroflowResourceEntity>().Where(x => x.Name == name);
+        if (!string.IsNullOrWhiteSpace(workspaceId))
+        {
+            q = q.Where(x => x.WorkspaceId == workspaceId);
+        }
+
+        return q.AnyAsync(cancellationToken);
+    }
+
+    private ISugarQueryable<MicroflowResourceEntity> ApplyFilters(MicroflowResourceQueryDto query)
+    {
+        var q = _db.Queryable<MicroflowResourceEntity>();
+
+        if (!string.IsNullOrWhiteSpace(query.WorkspaceId))
+        {
+            q = q.Where(x => x.WorkspaceId == query.WorkspaceId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.TenantId))
+        {
+            q = q.Where(x => x.TenantId == query.TenantId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Keyword))
+        {
+            var keyword = query.Keyword.Trim();
+            q = q.Where(x => x.Name.Contains(keyword) || x.DisplayName.Contains(keyword) || x.Description!.Contains(keyword));
+        }
+
+        if (query.Status.Count > 0)
+        {
+            var statuses = query.Status.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (statuses.Length > 0)
+            {
+                q = q.Where(x => SqlFunc.ContainsArray(statuses, x.Status));
+            }
+        }
+
+        if (query.PublishStatus.Count > 0)
+        {
+            var statuses = query.PublishStatus.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (statuses.Length > 0)
+            {
+                q = q.Where(x => SqlFunc.ContainsArray(statuses, x.PublishStatus));
+            }
+        }
+
+        if (query.FavoriteOnly)
+        {
+            q = q.Where(x => x.Favorite);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.ModuleId))
+        {
+            q = q.Where(x => x.ModuleId == query.ModuleId);
+        }
+
+        foreach (var tag in query.Tags.Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var token = $"\"{tag.Trim()}\"";
+            q = q.Where(x => x.TagsJson.Contains(token));
+        }
+
+        return q;
+    }
+
+    private static ISugarQueryable<MicroflowResourceEntity> ApplyOrdering(
+        ISugarQueryable<MicroflowResourceEntity> query,
+        string? sortBy,
+        string? sortOrder)
+    {
+        var orderByType = IsAscending(sortOrder) ? OrderByType.Asc : OrderByType.Desc;
+        return sortBy switch
+        {
+            "name" => query.OrderBy(x => x.Name, orderByType),
+            "createdAt" => query.OrderBy(x => x.CreatedAt, orderByType),
+            "version" => query.OrderBy(x => x.Version, orderByType),
+            "referenceCount" => query.OrderBy(x => x.ReferenceCount, orderByType),
+            _ => query.OrderBy(x => x.UpdatedAt, orderByType)
+        };
+    }
+
+    private static bool IsAscending(string? sortOrder)
+    {
+        return string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+    }
+}

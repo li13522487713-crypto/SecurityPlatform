@@ -15,18 +15,21 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     private readonly IMicroflowResourceQueryService _resourceQueryService;
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowRuntimeSkeletonService _runtimeService;
+    private readonly IMicroflowStorageDiagnosticsService _storageDiagnosticsService;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
 
     public MicroflowResourceController(
         IMicroflowResourceQueryService resourceQueryService,
         IMicroflowValidationService validationService,
         IMicroflowRuntimeSkeletonService runtimeService,
+        IMicroflowStorageDiagnosticsService storageDiagnosticsService,
         IMicroflowRequestContextAccessor requestContextAccessor)
         : base(requestContextAccessor)
     {
         _resourceQueryService = resourceQueryService;
         _validationService = validationService;
         _runtimeService = runtimeService;
+        _storageDiagnosticsService = storageDiagnosticsService;
         _requestContextAccessor = requestContextAccessor;
     }
 
@@ -45,11 +48,27 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         });
     }
 
+    [HttpGet("storage/health")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowStorageHealthDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowStorageHealthDto>>> GetStorageHealth(
+        CancellationToken cancellationToken)
+    {
+        var result = await _storageDiagnosticsService.GetHealthAsync(cancellationToken);
+        return MicroflowOk(result);
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowApiPageResult<MicroflowResourceDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<MicroflowApiPageResult<MicroflowResourceDto>>>> GetPaged(
         [FromQuery] string? workspaceId,
         [FromQuery] string? keyword,
+        [FromQuery] string[]? status,
+        [FromQuery] string[]? publishStatus,
+        [FromQuery] bool favoriteOnly = false,
+        [FromQuery] string? moduleId = null,
+        [FromQuery] string[]? tags = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortOrder = null,
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -59,7 +78,15 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
             new MicroflowResourceQueryDto
             {
                 WorkspaceId = workspaceId ?? current.WorkspaceId,
+                TenantId = current.TenantId,
                 Keyword = keyword,
+                Status = status ?? Array.Empty<string>(),
+                PublishStatus = publishStatus ?? Array.Empty<string>(),
+                FavoriteOnly = favoriteOnly,
+                ModuleId = moduleId,
+                Tags = tags ?? Array.Empty<string>(),
+                SortBy = sortBy,
+                SortOrder = sortOrder,
                 PageIndex = pageIndex,
                 PageSize = pageSize
             },

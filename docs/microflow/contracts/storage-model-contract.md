@@ -24,6 +24,44 @@
 | `MicroflowMetadataCache` | 全量/按工作区元数据 JSON 缓存。 |
 | `MicroflowSchemaMigration` | 已应用迁移记录（`FromVersion/ToVersion/AppliedAt`）。 |
 
+## 第 36 轮实现状态
+
+当前仓库按现有 .NET 分层落地：
+
+- `Atlas.Domain.Microflows`：SqlSugar 存储实体。
+- `Atlas.Application.Microflows`：Repository 接口、DTO mapper、storage diagnostics 抽象。
+- `Atlas.Infrastructure`：SqlSugar Repository 实现、DB-backed resource/metadata 查询、storage health、开发 seed。
+- `Atlas.AppHost`：仅暴露 API，不直接操作 ORM。
+
+数据库技术栈沿用现有 `SqlSugar` + `CodeFirst.InitTables`。微流实体已加入 `AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db)`，启动初始化会重复安全地确保表存在，不引入 EF Migration 或第二套 ORM。
+
+已创建的物理表：
+
+- `MicroflowResource`
+- `MicroflowSchemaSnapshot`
+- `MicroflowVersion`
+- `MicroflowPublishSnapshot`
+- `MicroflowReference`
+- `MicroflowRunSession`
+- `MicroflowRunTraceFrame`
+- `MicroflowRunLog`
+- `MicroflowMetadataCache`
+- `MicroflowSchemaMigration`
+
+`SchemaJson` 与发布快照中的 `SchemaJson` 只保存 `MicroflowAuthoringSchema` JSON；当前不会保存 FlowGram JSON。发布快照表按不可变写入模型设计，后续发布服务只能新增行，不应覆盖已有快照。Trace 按 `MicroflowRunSession` 主表、`MicroflowRunTraceFrame` 与 `MicroflowRunLog` 从表保存，`RunId` 已建查询索引。
+
+开发 seed：
+
+- 配置键：`Microflows:SeedData:Enabled=true`
+- 仅 Development 环境运行。
+- 默认 seed id：`mf-seed-blank`
+- seed schema 是最小 `MicroflowAuthoringSchema` 风格 JSON，不包含 FlowGram 字段。
+
+诊断接口：
+
+- `GET /api/microflows/storage/health`
+- 返回 provider 与上述表存在性，不泄露 connection string。
+
 ## 索引建议
 
 - `WorkspaceId` + `UpdatedAt`（列表）。

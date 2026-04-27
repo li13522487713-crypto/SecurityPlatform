@@ -29,6 +29,7 @@
     <Project Path="src/backend/Atlas.Domain.ExternalConnectors/Atlas.Domain.ExternalConnectors.csproj" />
     <Project Path="src/backend/Atlas.Domain.LogicFlow/Atlas.Domain.LogicFlow.csproj" />
     <Project Path="src/backend/Atlas.Domain.LowCode/Atlas.Domain.LowCode.csproj" />
+    <Project Path="src/backend/Atlas.Domain.Microflows/Atlas.Domain.Microflows.csproj" />
     <Project Path="src/backend/Atlas.Domain.Workflow/Atlas.Domain.Workflow.csproj" />
     <Project Path="src/backend/Atlas.Domain/Atlas.Domain.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure.BatchProcess/Atlas.Infrastructure.BatchProcess.csproj" />

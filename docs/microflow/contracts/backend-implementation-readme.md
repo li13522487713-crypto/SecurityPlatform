@@ -20,6 +20,15 @@
 - `GET /api/microflow-metadata`：返回空 catalog，`version=backend-skeleton`。
 - `POST /api/microflows/{id}/validate`：返回空 issues 和 0 计数 summary。
 - `POST /api/microflows/{id}/test-run`：返回 `503 MICROFLOW_SERVICE_UNAVAILABLE`。
+- `GET /api/microflows/storage/health`：返回微流存储表存在性诊断。
+
+第 36 轮已补充 DB / Repository 基础：
+
+- 新增 `Atlas.Domain.Microflows`，实体通过 `AtlasOrmSchemaCatalog.EnsureRuntimeSchema(db)` 参与现有 SqlSugar CodeFirst 初始化。
+- 新增 Repository 接口与 SqlSugar 实现，Controller 仍不直接操作 ORM。
+- `GET /api/microflows` 与 `GET /api/microflows/{id}` 已从 Repository 读取 DB 数据。
+- `GET /api/microflow-metadata` 优先读取 `MicroflowMetadataCache` 最新行，缺失时返回空 catalog。
+- 开发 seed 通过 `Microflows:SeedData:Enabled=true` 开启，且只在 Development 环境插入 `mf-seed-blank`。
 
 请求上下文支持 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`、`X-Locale`、`X-Trace-Id`，并会把 traceId 写入 Envelope 与 `X-Trace-Id` 响应头。`.http` 示例见 `src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http`。
 

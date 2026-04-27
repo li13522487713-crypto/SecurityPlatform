@@ -18,6 +18,20 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+### Microflow storage health
+GET {{host}}/api/microflows/storage/health
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow seed detail (requires Microflows:SeedData:Enabled=true in Development)
+GET {{host}}/api/microflows/mf-seed-blank
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Microflow not found
 GET {{host}}/api/microflows/not-exist
 X-Workspace-Id: {{workspaceId}}

@@ -32,6 +32,12 @@ public sealed record MicroflowResourceDto
     [JsonPropertyName("tags")]
     public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();
 
+    [JsonPropertyName("ownerId")]
+    public string? OwnerId { get; init; }
+
+    [JsonPropertyName("ownerName")]
+    public string? OwnerName { get; init; }
+
     [JsonPropertyName("version")]
     public string Version { get; init; } = "0.1.0";
 
@@ -55,6 +61,9 @@ public sealed record MicroflowResourceDto
 
     [JsonPropertyName("lastRunStatus")]
     public string? LastRunStatus { get; init; } = "neverRun";
+
+    [JsonPropertyName("lastRunAt")]
+    public DateTimeOffset? LastRunAt { get; init; }
 
     [JsonPropertyName("createdBy")]
     public string? CreatedBy { get; init; }

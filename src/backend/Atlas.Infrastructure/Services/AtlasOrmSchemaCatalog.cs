@@ -8,6 +8,7 @@ using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
+using Atlas.Domain.Microflows.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.Plugins;
 using Atlas.Domain.Setup.Entities;
@@ -337,7 +338,18 @@ public static class AtlasOrmSchemaCatalog
         typeof(LowCodePluginAuthorization),
         typeof(LowCodePluginUsage),
         typeof(NodeStateEntry),
-        typeof(AppTemplate)
+        typeof(AppTemplate),
+        // Mendix Microflow backend storage（第 36 轮）：仅保存 AuthoringSchema / Runtime DTO / Trace / MetadataCache，不保存 FlowGram JSON。
+        typeof(MicroflowResourceEntity),
+        typeof(MicroflowSchemaSnapshotEntity),
+        typeof(MicroflowVersionEntity),
+        typeof(MicroflowPublishSnapshotEntity),
+        typeof(MicroflowReferenceEntity),
+        typeof(MicroflowRunSessionEntity),
+        typeof(MicroflowRunTraceFrameEntity),
+        typeof(MicroflowRunLogEntity),
+        typeof(MicroflowMetadataCacheEntity),
+        typeof(MicroflowSchemaMigrationEntity)
     };
 
     private static readonly Type[] CriticalAppSetupEntityTypes =
