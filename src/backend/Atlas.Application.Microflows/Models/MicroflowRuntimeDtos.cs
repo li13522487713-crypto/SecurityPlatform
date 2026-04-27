@@ -89,6 +89,12 @@ public sealed record MicroflowRunSessionDto
     [JsonPropertyName("callDepth")]
     public int? CallDepth { get; init; }
 
+    [JsonPropertyName("correlationId")]
+    public string? CorrelationId { get; init; }
+
+    [JsonPropertyName("callStack")]
+    public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
+
     [JsonPropertyName("startedAt")]
     public DateTimeOffset StartedAt { get; init; }
 
@@ -136,6 +142,9 @@ public sealed record MicroflowTraceFrameDto
 
     [JsonPropertyName("runId")]
     public string RunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("microflowId")]
+    public string? MicroflowId { get; init; }
 
     [JsonPropertyName("parentRunId")]
     public string? ParentRunId { get; init; }
@@ -223,6 +232,12 @@ public sealed record MicroflowRuntimeErrorDto
 
     [JsonPropertyName("flowId")]
     public string? FlowId { get; init; }
+
+    [JsonPropertyName("microflowId")]
+    public string? MicroflowId { get; init; }
+
+    [JsonPropertyName("callStack")]
+    public IReadOnlyList<string>? CallStack { get; init; }
 
     [JsonPropertyName("details")]
     public string? Details { get; init; }
@@ -348,6 +363,14 @@ public static class RuntimeErrorCode
     public const string RuntimeRestResponseParseFailed = "RUNTIME_REST_RESPONSE_PARSE_FAILED";
     public const string RuntimeTimeout = "RUNTIME_TIMEOUT";
     public const string RuntimeCallMicroflowFailed = "RUNTIME_CALL_MICROFLOW_FAILED";
+    public const string RuntimeTargetMicroflowMissing = "RUNTIME_TARGET_MICROFLOW_MISSING";
+    public const string RuntimeTargetMicroflowNotFound = "RUNTIME_TARGET_MICROFLOW_NOT_FOUND";
+    public const string RuntimeTargetMicroflowSchemaMissing = "RUNTIME_TARGET_MICROFLOW_SCHEMA_MISSING";
+    public const string RuntimeParameterMappingMissing = "RUNTIME_PARAMETER_MAPPING_MISSING";
+    public const string RuntimeParameterMappingFailed = "RUNTIME_PARAMETER_MAPPING_FAILED";
+    public const string RuntimeReturnBindingFailed = "RUNTIME_RETURN_BINDING_FAILED";
+    public const string RuntimeChildMicroflowFailed = "RUNTIME_CHILD_MICROFLOW_FAILED";
+    public const string RuntimeUnsupportedCallMode = "RUNTIME_UNSUPPORTED_CALL_MODE";
     public const string RuntimeCallRecursionDetected = "RUNTIME_CALL_RECURSION_DETECTED";
     public const string RuntimeCallStackOverflow = "RUNTIME_CALL_STACK_OVERFLOW";
     public const string RuntimeUnsupportedAction = "RUNTIME_UNSUPPORTED_ACTION";

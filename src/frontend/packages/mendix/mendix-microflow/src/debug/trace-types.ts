@@ -38,6 +38,8 @@ export interface MicroflowRuntimeError {
   objectId?: string;
   actionId?: string;
   flowId?: string;
+  microflowId?: string;
+  callStack?: string[];
   details?: string;
   cause?: string;
 }
@@ -69,6 +71,7 @@ export interface MicroflowTraceFrame {
   id: string;
   frameId?: string;
   runId: string;
+  microflowId?: string;
   objectId: string;
   nodeId?: string;
   objectTitle?: string;
@@ -111,6 +114,12 @@ export interface MicroflowRunSession {
   schemaId: string;
   resourceId?: string;
   version?: string;
+  parentRunId?: string;
+  rootRunId?: string;
+  callFrameId?: string;
+  callDepth?: number;
+  correlationId?: string;
+  callStack?: string[];
   startedAt: string;
   endedAt?: string;
   status: MicroflowRunStatus;
@@ -121,6 +130,8 @@ export interface MicroflowRunSession {
   logs: MicroflowRuntimeLog[];
   variables: MicroflowRunSessionVariableSnapshot[];
   transactionSummary?: MicroflowRuntimeTransactionSummary;
+  childRuns?: MicroflowRunSession[];
+  childRunIds?: string[];
 }
 
 export interface MicroflowTestRunOptions {

@@ -104,6 +104,12 @@
 | 54 | Decision true/false 执行 | Stage 22 已完成：Decision / If 使用受限表达式 evaluator 求 boolean，按 true/false `caseValues` 选择分支，缺失/重复匹配返回 failed |
 | 55 | Run 面板真实返回 | Stage 22 已完成：前端继续通过 HTTP runtime adapter 消费真实后端 session，显示 output、error、trace/nodeResults、logs 与 duration；failed 不显示为 success |
 | 56 | Unsupported node 真实错误 | Stage 22 已完成：Call Microflow、Loop/List/Object/REST 等未支持节点命中执行路径时返回 `RUNTIME_UNSUPPORTED_ACTION`，错误包含 node id/name/type，不跳过、不假成功 |
+| 57 | Call Microflow 后端执行器 | Stage 23 已完成：`MicroflowRuntimeEngine` 命中 `callMicroflow` 时真实加载目标 schema 并递归执行子微流，不再 fallback fixed success |
+| 58 | Call Microflow 参数映射运行 | Stage 23 已完成：required 映射缺失/表达式失败/source variable 缺失均 failed；optional 支持 default/null |
+| 59 | Call Microflow 返回值绑定运行 | Stage 23 已完成：child output 可绑定回父变量；void/missing return + storeResult 返回 `RUNTIME_RETURN_BINDING_FAILED` |
+| 60 | 运行时调用栈 | Stage 23 已完成：session/error 返回 callStack、callDepth、correlationId，trace 包含 `microflowId` |
+| 61 | 简单循环调用检测 | Stage 23 已完成：self call 与 A->B->A active stack cycle 运行时拦截，返回 `RUNTIME_CALL_RECURSION_DETECTED` |
+| 62 | 子微流 nodeResults | Stage 23 已完成：`childRuns` 返回子微流 trace，父/子 trace 都标注 `microflowId`，前端 Run 面板可展示 |
 
 ---
 

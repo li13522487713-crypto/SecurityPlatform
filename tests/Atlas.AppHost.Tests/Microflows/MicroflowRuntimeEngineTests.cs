@@ -3,8 +3,11 @@ using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Services;
+using Atlas.Domain.Microflows.Entities;
+using NSubstitute;
 
 namespace Atlas.AppHost.Tests.Microflows;
 
@@ -201,35 +204,284 @@ public sealed class MicroflowRuntimeEngineTests
         Assert.Equal("B", second.Output?.GetString());
     }
 
+    [Fact]
+    public async Task Run_CallMicroflow_ExecutesChildAndBindsReturnValue()
+    {
+        const string childResourceId = "mf-child";
+        const string childSnapshotId = "snapshot-child";
+        var (resourceRepository, snapshotRepository) = BuildCallTargetRepositories(
+            childResourceId,
+            childSnapshotId,
+            ChildValidationSchema(childResourceId));
+        var parent = ParentCallSchema("mf-parent", childResourceId, includeMapping: true, callMode: "sync");
+
+        var result = await RunAsync(
+            parent,
+            new Dictionary<string, object?> { ["totalAmount"] = 150 },
+            resourceRepository: resourceRepository,
+            snapshotRepository: snapshotRepository);
+
+        Assert.Equal("success", result.Status);
+        Assert.Equal("High", result.Output?.GetString());
+        Assert.Single(result.ChildRuns);
+        Assert.Equal("success", result.ChildRuns[0].Status);
+        Assert.Contains(result.Trace, frame => frame.ObjectId == "call" && frame.MicroflowId == "mf-parent");
+        Assert.Contains(result.ChildRuns[0].Trace, frame => frame.ObjectId == "decision" && frame.MicroflowId == childResourceId);
+    }
+
+    [Fact]
+    public async Task Run_CallMicroflow_RequiredParameterMappingMissing_Fails()
+    {
+        const string childResourceId = "mf-child";
+        const string childSnapshotId = "snapshot-child";
+        var (resourceRepository, snapshotRepository) = BuildCallTargetRepositories(
+            childResourceId,
+            childSnapshotId,
+            ChildValidationSchema(childResourceId));
+        var parent = ParentCallSchema("mf-parent", childResourceId, includeMapping: false, callMode: "sync");
+
+        var result = await RunAsync(
+            parent,
+            new Dictionary<string, object?> { ["totalAmount"] = 150 },
+            resourceRepository: resourceRepository,
+            snapshotRepository: snapshotRepository);
+
+        Assert.Equal("failed", result.Status);
+        Assert.Equal(RuntimeErrorCode.RuntimeParameterMappingMissing, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task Run_CallMicroflow_UnsupportedCallMode_Fails()
+    {
+        const string childResourceId = "mf-child";
+        const string childSnapshotId = "snapshot-child";
+        var (resourceRepository, snapshotRepository) = BuildCallTargetRepositories(
+            childResourceId,
+            childSnapshotId,
+            ChildValidationSchema(childResourceId));
+        var parent = ParentCallSchema("mf-parent", childResourceId, includeMapping: true, callMode: "asyncReserved");
+
+        var result = await RunAsync(
+            parent,
+            new Dictionary<string, object?> { ["totalAmount"] = 150 },
+            resourceRepository: resourceRepository,
+            snapshotRepository: snapshotRepository);
+
+        Assert.Equal("failed", result.Status);
+        Assert.Equal(RuntimeErrorCode.RuntimeUnsupportedCallMode, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task Run_CallMicroflow_TargetNotFound_Fails()
+    {
+        var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        resourceRepository.GetByIdAsync("missing-target", Arg.Any<CancellationToken>())
+            .Returns((MicroflowResourceEntity?)null);
+        var snapshotRepository = Substitute.For<IMicroflowSchemaSnapshotRepository>();
+        var parent = ParentCallSchema("mf-parent", "missing-target", includeMapping: true, callMode: "sync");
+
+        var result = await RunAsync(
+            parent,
+            new Dictionary<string, object?> { ["totalAmount"] = 150 },
+            resourceRepository: resourceRepository,
+            snapshotRepository: snapshotRepository);
+
+        Assert.Equal("failed", result.Status);
+        Assert.Equal(RuntimeErrorCode.RuntimeTargetMicroflowNotFound, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task Run_CallMicroflow_DirectSelfCall_Fails()
+    {
+        var parent = ParentCallSchema("mf-parent", "mf-parent", includeMapping: true, callMode: "sync");
+
+        var result = await RunAsync(parent, new Dictionary<string, object?> { ["totalAmount"] = 150 });
+
+        Assert.Equal("failed", result.Status);
+        Assert.Equal(RuntimeErrorCode.RuntimeCallRecursionDetected, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task Run_CallMicroflow_CycleDetection_AtoBtoA_Fails()
+    {
+        const string resourceA = "mf-a";
+        const string resourceB = "mf-b";
+        const string snapshotA = "snapshot-a";
+        const string snapshotB = "snapshot-b";
+        var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        var snapshotRepository = Substitute.For<IMicroflowSchemaSnapshotRepository>();
+        resourceRepository.GetByIdAsync(resourceA, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowResourceEntity { Id = resourceA, Version = "1", CurrentSchemaSnapshotId = snapshotA });
+        resourceRepository.GetByIdAsync(resourceB, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowResourceEntity { Id = resourceB, Version = "1", CurrentSchemaSnapshotId = snapshotB });
+        snapshotRepository.GetByIdAsync(snapshotA, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowSchemaSnapshotEntity { Id = snapshotA, ResourceId = resourceA, SchemaJson = CallOnlySchema(resourceA, resourceB).GetRawText() });
+        snapshotRepository.GetByIdAsync(snapshotB, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowSchemaSnapshotEntity { Id = snapshotB, ResourceId = resourceB, SchemaJson = CallOnlySchema(resourceB, resourceA).GetRawText() });
+
+        var result = await RunAsync(
+            CallOnlySchema(resourceA, resourceB),
+            resourceRepository: resourceRepository,
+            snapshotRepository: snapshotRepository);
+
+        Assert.Equal("failed", result.Status);
+        Assert.Equal(RuntimeErrorCode.RuntimeCallRecursionDetected, result.Error?.Code);
+        Assert.NotNull(result.Error?.CallStack);
+    }
+
+    [Fact]
+    public async Task Run_CallMicroflow_MaxDepthExceeded_Fails()
+    {
+        const string childResourceId = "mf-child";
+        const string childSnapshotId = "snapshot-child";
+        const string grandResourceId = "mf-grand";
+        const string grandSnapshotId = "snapshot-grand";
+        var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        var snapshotRepository = Substitute.For<IMicroflowSchemaSnapshotRepository>();
+        resourceRepository.GetByIdAsync(childResourceId, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowResourceEntity { Id = childResourceId, Version = "1", CurrentSchemaSnapshotId = childSnapshotId });
+        resourceRepository.GetByIdAsync(grandResourceId, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowResourceEntity { Id = grandResourceId, Version = "1", CurrentSchemaSnapshotId = grandSnapshotId });
+        snapshotRepository.GetByIdAsync(childSnapshotId, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowSchemaSnapshotEntity
+            {
+                Id = childSnapshotId,
+                ResourceId = childResourceId,
+                SchemaJson = CallOnlySchema(childResourceId, grandResourceId).GetRawText()
+            });
+        snapshotRepository.GetByIdAsync(grandSnapshotId, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowSchemaSnapshotEntity
+            {
+                Id = grandSnapshotId,
+                ResourceId = grandResourceId,
+                SchemaJson = Schema(Objects(Start(), End()), Flows(Flow("f1", "start", "end")), id: grandResourceId).GetRawText()
+            });
+        var parent = CallOnlySchema("mf-parent", childResourceId);
+
+        var result = await RunAsync(
+            parent,
+            options: new MicroflowTestRunOptionsDto(),
+            maxCallDepth: 1,
+            resourceRepository: resourceRepository,
+            snapshotRepository: snapshotRepository);
+
+        Assert.Equal("failed", result.Status);
+        Assert.Equal(RuntimeErrorCode.RuntimeCallStackOverflow, result.Error?.Code);
+    }
+
     private static Task<MicroflowRunSessionDto> RunAsync(
         JsonElement schema,
         IReadOnlyDictionary<string, object?>? input = null,
-        MicroflowTestRunOptionsDto? options = null)
+        MicroflowTestRunOptionsDto? options = null,
+        int maxCallDepth = 10,
+        IMicroflowResourceRepository? resourceRepository = null,
+        IMicroflowSchemaSnapshotRepository? snapshotRepository = null)
     {
-        var engine = new MicroflowRuntimeEngine(new MicroflowSchemaReader(), new FixedClock());
+        var engine = new MicroflowRuntimeEngine(new MicroflowSchemaReader(), new FixedClock(), resourceRepository, snapshotRepository);
         var jsonInput = (input ?? new Dictionary<string, object?>())
             .ToDictionary(pair => pair.Key, pair => JsonSerializer.SerializeToElement(pair.Value, JsonOptions), StringComparer.Ordinal);
+        var schemaId = schema.TryGetProperty("id", out var idElement) && idElement.ValueKind == JsonValueKind.String
+            ? idElement.GetString() ?? "mf-test"
+            : "mf-test";
         return engine.RunAsync(
             new MicroflowMockRuntimeRequest
             {
-                ResourceId = "mf-test",
+                ResourceId = schemaId,
                 SchemaId = "schema-test",
                 Version = "1",
                 Schema = schema,
                 Input = jsonInput,
                 Options = options ?? new MicroflowTestRunOptionsDto(),
-                RequestContext = new MicroflowRequestContext { TraceId = Guid.NewGuid().ToString("N") }
+                RequestContext = new MicroflowRequestContext { TraceId = Guid.NewGuid().ToString("N") },
+                MaxCallDepth = maxCallDepth
             },
             CancellationToken.None);
     }
 
-    private static JsonElement Schema(IReadOnlyList<object> objects, IReadOnlyList<object> flows, IReadOnlyList<object>? parameters = null)
+    private static (IMicroflowResourceRepository ResourceRepository, IMicroflowSchemaSnapshotRepository SnapshotRepository) BuildCallTargetRepositories(
+        string targetResourceId,
+        string targetSnapshotId,
+        JsonElement targetSchema)
+    {
+        var resourceRepository = Substitute.For<IMicroflowResourceRepository>();
+        var snapshotRepository = Substitute.For<IMicroflowSchemaSnapshotRepository>();
+        resourceRepository.GetByIdAsync(targetResourceId, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowResourceEntity
+            {
+                Id = targetResourceId,
+                Version = "1",
+                CurrentSchemaSnapshotId = targetSnapshotId
+            });
+        snapshotRepository.GetByIdAsync(targetSnapshotId, Arg.Any<CancellationToken>())
+            .Returns(new MicroflowSchemaSnapshotEntity
+            {
+                Id = targetSnapshotId,
+                ResourceId = targetResourceId,
+                SchemaJson = targetSchema.GetRawText()
+            });
+
+        return (resourceRepository, snapshotRepository);
+    }
+
+    private static JsonElement ParentCallSchema(string resourceId, string targetMicroflowId, bool includeMapping, string callMode)
+    {
+        var mappings = includeMapping
+            ? new[] { new { parameterName = "amount", argumentExpression = "totalAmount" } }
+            : Array.Empty<object>();
+        return Schema(
+            Objects(
+                Start(),
+                Action("call", "callMicroflow", new
+                {
+                    targetMicroflowId,
+                    targetMicroflowQualifiedName = $"Module.{targetMicroflowId}",
+                    parameterMappings = mappings,
+                    returnValue = new { storeResult = true, outputVariableName = "validationResult" },
+                    callMode
+                }),
+                End(returnValue: "validationResult")),
+            Flows(
+                Flow("f1", "start", "call"),
+                Flow("f2", "call", "end")),
+            Parameters(Parameter("totalAmount", "Number", required: true)),
+            id: resourceId);
+    }
+
+    private static JsonElement ChildValidationSchema(string resourceId)
+        => Schema(
+            Objects(Start(), Decision("decision", "amount > 100"), End("high", "\"High\""), End("normal", "\"Normal\"")),
+            Flows(
+                Flow("f1", "start", "decision"),
+                Flow("fTrue", "decision", "high", true),
+                Flow("fFalse", "decision", "normal", false)),
+            Parameters(Parameter("amount", "Number", required: true)),
+            id: resourceId);
+
+    private static JsonElement CallOnlySchema(string resourceId, string targetMicroflowId)
+        => Schema(
+            Objects(
+                Start(),
+                Action("call", "callMicroflow", new
+                {
+                    targetMicroflowId,
+                    targetMicroflowQualifiedName = $"Module.{targetMicroflowId}",
+                    parameterMappings = Array.Empty<object>(),
+                    returnValue = new { storeResult = false },
+                    callMode = "sync"
+                }),
+                End()),
+            Flows(
+                Flow("f1", "start", "call"),
+                Flow("f2", "call", "end")),
+            id: resourceId);
+
+    private static JsonElement Schema(IReadOnlyList<object> objects, IReadOnlyList<object> flows, IReadOnlyList<object>? parameters = null, string id = "mf-test")
         => JsonSerializer.SerializeToElement(new
         {
             schemaVersion = "1.0.0",
-            id = "mf-test",
-            name = "MF_Test",
-            displayName = "MF Test",
+            id,
+            name = id,
+            displayName = id,
             moduleId = "mod",
             parameters = parameters ?? [],
             returnType = Type("unknown"),

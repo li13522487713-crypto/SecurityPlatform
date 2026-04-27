@@ -191,22 +191,45 @@ function RunResultPreview({ session, serviceError }: { session?: MicroflowRunSes
   const durationMs = session.endedAt ? Math.max(0, new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) : undefined;
   const nodeOutputs = session.trace.filter(frame => frame.output !== undefined).map(frame => ({
     objectId: frame.objectId,
+    microflowId: frame.microflowId,
     status: frame.status,
     output: frame.output,
   }));
+  const childRuns = session.childRuns ?? [];
   return (
     <Card style={{ width: "100%" }} bodyStyle={{ padding: 12 }}>
       <Space vertical align="start" style={{ width: "100%" }}>
         <Space wrap>
           <Tag color={session.status === "success" ? "green" : session.status === "failed" ? "red" : "orange"}>{session.status}</Tag>
           <Tag>runId {session.id}</Tag>
+          {session.callDepth !== undefined ? <Tag>depth {session.callDepth}</Tag> : null}
           {durationMs !== undefined ? <Tag>{durationMs}ms</Tag> : null}
           <Tag>{session.trace.length} frames</Tag>
           <Tag>{session.logs.length} logs</Tag>
+          {childRuns.length > 0 ? <Tag color="blue">{childRuns.length} child runs</Tag> : null}
         </Space>
         {session.error ? <Text type="danger">{session.error.code}: {session.error.message}</Text> : null}
+        {session.error?.callStack && session.error.callStack.length > 0 ? (
+          <Text type="warning">callStack: {session.error.callStack.join(" -> ")}</Text>
+        ) : null}
         <pre style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 220, overflow: "auto", width: "100%" }}>
-          {JSON.stringify({ output: session.output, nodeOutputs, logs: session.logs }, null, 2)}
+          {JSON.stringify({
+            output: session.output,
+            nodeOutputs,
+            childRuns: childRuns.map(item => ({
+              id: item.id,
+              status: item.status,
+              error: item.error,
+              trace: item.trace.map(frame => ({
+                objectId: frame.objectId,
+                microflowId: frame.microflowId,
+                status: frame.status,
+                output: frame.output,
+                error: frame.error,
+              })),
+            })),
+            logs: session.logs,
+          }, null, 2)}
         </pre>
       </Space>
     </Card>

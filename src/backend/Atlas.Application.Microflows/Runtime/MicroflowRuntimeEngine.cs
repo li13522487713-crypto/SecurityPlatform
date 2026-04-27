@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
 using Atlas.Application.Microflows.Abstractions;
+using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Repositories;
 using Atlas.Application.Microflows.Services;
 
 namespace Atlas.Application.Microflows.Runtime;
@@ -17,17 +19,59 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IMicroflowSchemaReader _schemaReader;
     private readonly IMicroflowClock _clock;
+    private readonly IMicroflowResourceRepository? _resourceRepository;
+    private readonly IMicroflowSchemaSnapshotRepository? _schemaSnapshotRepository;
 
     public MicroflowRuntimeEngine(IMicroflowSchemaReader schemaReader, IMicroflowClock clock)
+        : this(schemaReader, clock, null, null)
+    {
+    }
+
+    public MicroflowRuntimeEngine(
+        IMicroflowSchemaReader schemaReader,
+        IMicroflowClock clock,
+        IMicroflowResourceRepository? resourceRepository,
+        IMicroflowSchemaSnapshotRepository? schemaSnapshotRepository)
     {
         _schemaReader = schemaReader;
         _clock = clock;
+        _resourceRepository = resourceRepository;
+        _schemaSnapshotRepository = schemaSnapshotRepository;
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowMockRuntimeRequest request, CancellationToken cancellationToken)
     {
+        var state = new CallExecutionState();
+        return RunInternalAsync(request, state, parent: null, cancellationToken);
+    }
+
+    private async Task<MicroflowRunSessionDto> RunInternalAsync(
+        MicroflowMockRuntimeRequest request,
+        CallExecutionState state,
+        ParentCallContext? parent,
+        CancellationToken cancellationToken)
+    {
         var startedAt = _clock.UtcNow;
-        var context = new RuntimeContext(request, _schemaReader.Read(request.Schema), startedAt, _clock);
+        var runId = parent?.ChildRunId ?? request.RequestContext.TraceId;
+        if (string.IsNullOrWhiteSpace(runId))
+        {
+            runId = Guid.NewGuid().ToString("N");
+        }
+
+        var rootRunId = parent?.RootRunId ?? runId!;
+        var context = new RuntimeContext(
+            request,
+            _schemaReader.Read(request.Schema),
+            startedAt,
+            _clock,
+            runId!,
+            parent?.ParentRunId,
+            rootRunId,
+            parent?.CorrelationId ?? Guid.NewGuid().ToString("N"),
+            parent?.CallDepth ?? 0,
+            parent?.CallStack ?? [request.ResourceId],
+            parent?.CallerObjectId,
+            parent?.CallerActionId);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -35,13 +79,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             var bindingError = BindParameters(context);
             if (bindingError is not null)
             {
-                return Task.FromResult(context.BuildSession("failed", bindingError));
+                return context.BuildSession("failed", bindingError);
             }
 
             var start = graph.FindStart();
             if (!start.Success)
             {
-                return Task.FromResult(context.BuildSession("failed", start.Error));
+                return context.BuildSession("failed", start.Error);
             }
 
             var currentNodeId = start.Object!.Id;
@@ -51,42 +95,42 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!context.TryStep(out var stepError))
                 {
-                    return Task.FromResult(context.BuildSession("failed", stepError));
+                    return context.BuildSession("failed", stepError);
                 }
 
                 if (!graph.Objects.TryGetValue(currentNodeId, out var node))
                 {
-                    return Task.FromResult(context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeObjectNotFound, $"运行对象不存在：{currentNodeId}", currentNodeId, flowId: incomingFlowId)));
+                    return context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeObjectNotFound, $"运行对象不存在：{currentNodeId}", currentNodeId, flowId: incomingFlowId));
                 }
 
-                var execution = ExecuteNode(context, graph, node, incomingFlowId);
+                var execution = await ExecuteNodeAsync(context, graph, node, incomingFlowId, state, cancellationToken);
                 if (!execution.Success)
                 {
-                    return Task.FromResult(context.BuildSession("failed", execution.Error));
+                    return context.BuildSession("failed", execution.Error);
                 }
 
                 if (execution.Completed)
                 {
-                    return Task.FromResult(context.BuildSession("success", null, execution.Output));
+                    return context.BuildSession("success", null, execution.Output);
                 }
 
                 currentNodeId = execution.NextNodeId;
                 incomingFlowId = execution.OutgoingFlowId;
             }
 
-            return Task.FromResult(context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeEndNotReached, "微流未到达 End 节点。")));
+            return context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeEndNotReached, "微流未到达 End 节点。"));
         }
         catch (OperationCanceledException)
         {
-            return Task.FromResult(context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeCancelled, "微流运行已取消。")));
+            return context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeCancelled, "微流运行已取消。"));
         }
         catch (RuntimeExpressionException ex)
         {
-            return Task.FromResult(context.BuildSession("failed", ex.Error));
+            return context.BuildSession("failed", ex.Error);
         }
         catch (JsonException ex)
         {
-            return Task.FromResult(context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeUnknownError, "微流 schema 解析失败。", details: ex.Message)));
+            return context.BuildSession("failed", Error(RuntimeErrorCode.RuntimeUnknownError, "微流 schema 解析失败。", details: ex.Message));
         }
     }
 
@@ -144,17 +188,25 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         return null;
     }
 
-    private static NodeExecution ExecuteNode(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId)
-        => node.Kind switch
+    private async Task<NodeExecution> ExecuteNodeAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        CallExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        return node.Kind switch
         {
             "startEvent" => ExecuteSingleOutgoing(context, graph, node, incomingFlowId, "Start"),
             "parameterObject" => ExecuteSingleOutgoing(context, graph, node, incomingFlowId, "Parameter"),
             "exclusiveMerge" => ExecuteSingleOutgoing(context, graph, node, incomingFlowId, "Merge"),
             "endEvent" => ExecuteEnd(context, node, incomingFlowId),
             "exclusiveSplit" => ExecuteDecision(context, graph, node, incomingFlowId),
-            "actionActivity" => ExecuteAction(context, graph, node, incomingFlowId),
+            "actionActivity" => await ExecuteActionAsync(context, graph, node, incomingFlowId, state, cancellationToken),
             _ => Unsupported(context, node, incomingFlowId)
         };
+    }
 
     private static NodeExecution ExecuteSingleOutgoing(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId, string label)
     {
@@ -188,7 +240,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         return NodeExecution.Done(output);
     }
 
-    private static NodeExecution ExecuteAction(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId)
+    private async Task<NodeExecution> ExecuteActionAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        CallExecutionState state,
+        CancellationToken cancellationToken)
     {
         var action = node.Action;
         if (action is null)
@@ -202,6 +260,7 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         {
             "createVariable" => ExecuteCreateVariable(context, graph, node, action, incomingFlowId),
             "changeVariable" => ExecuteChangeVariable(context, graph, node, action, incomingFlowId),
+            "callMicroflow" => await ExecuteCallMicroflowAsync(context, graph, node, action, incomingFlowId, state, cancellationToken),
             _ => Unsupported(context, node, incomingFlowId, action.Kind)
         };
     }
@@ -255,6 +314,251 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         context.SetVariable(variableName!, current.Type, value, "changeVariable");
 
         return ContinueAfterAction(context, graph, node, incomingFlowId, JsonObj(new { variableName, oldValue = ToPlainValue(current.Value), newValue = ToPlainValue(value) }));
+    }
+
+    private async Task<NodeExecution> ExecuteCallMicroflowAsync(
+        RuntimeContext context,
+        MicroflowRuntimeGraph graph,
+        MicroflowObjectModel node,
+        MicroflowActionModel action,
+        string? incomingFlowId,
+        CallExecutionState state,
+        CancellationToken cancellationToken)
+    {
+        var callMode = ReadString(action.Raw, "callMode") ?? "sync";
+        if (!string.Equals(callMode, "sync", StringComparison.OrdinalIgnoreCase))
+        {
+            var unsupportedCallModeError = Error(
+                RuntimeErrorCode.RuntimeUnsupportedCallMode,
+                "Async call microflow execution is not supported in Stage 23.",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+            context.AddNodeFailure(node, incomingFlowId, unsupportedCallModeError);
+            return NodeExecution.Failed(unsupportedCallModeError);
+        }
+
+        var targetMicroflowId = ReadString(action.Raw, "targetMicroflowId");
+        if (string.IsNullOrWhiteSpace(targetMicroflowId))
+        {
+            var missingTargetError = Error(
+                RuntimeErrorCode.RuntimeTargetMicroflowMissing,
+                "CallMicroflow targetMicroflowId is required.",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+            context.AddNodeFailure(node, incomingFlowId, missingTargetError);
+            return NodeExecution.Failed(missingTargetError);
+        }
+
+        if (context.CallDepth >= context.MaxCallDepth)
+        {
+            var depthError = Error(
+                RuntimeErrorCode.RuntimeCallStackOverflow,
+                $"Max call depth exceeded ({context.MaxCallDepth}).",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+            context.AddNodeFailure(node, incomingFlowId, depthError);
+            return NodeExecution.Failed(depthError);
+        }
+
+        if (string.Equals(context.ResourceId, targetMicroflowId, StringComparison.Ordinal)
+            || context.CallStackPath.Contains(targetMicroflowId, StringComparer.Ordinal))
+        {
+            var cyclePath = context.CallStackPath.Concat([targetMicroflowId]).ToArray();
+            var recursionError = Error(
+                RuntimeErrorCode.RuntimeCallRecursionDetected,
+                $"Recursive microflow call detected: {string.Join(" -> ", cyclePath)}",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: cyclePath);
+            context.AddNodeFailure(node, incomingFlowId, recursionError);
+            return NodeExecution.Failed(recursionError);
+        }
+
+        if (_resourceRepository is null || _schemaSnapshotRepository is null)
+        {
+            var repositoryMissingError = Error(
+                RuntimeErrorCode.RuntimeTargetMicroflowNotFound,
+                "Runtime microflow repository is unavailable.",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+            context.AddNodeFailure(node, incomingFlowId, repositoryMissingError);
+            return NodeExecution.Failed(repositoryMissingError);
+        }
+
+        var targetResource = await _resourceRepository.GetByIdAsync(targetMicroflowId, cancellationToken);
+        if (targetResource is null)
+        {
+            var targetNotFoundError = Error(
+                RuntimeErrorCode.RuntimeTargetMicroflowNotFound,
+                $"Target microflow not found: {targetMicroflowId}",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+            context.AddNodeFailure(node, incomingFlowId, targetNotFoundError);
+            return NodeExecution.Failed(targetNotFoundError);
+        }
+
+        var snapshot = !string.IsNullOrWhiteSpace(targetResource.CurrentSchemaSnapshotId)
+            ? await _schemaSnapshotRepository.GetByIdAsync(targetResource.CurrentSchemaSnapshotId!, cancellationToken)
+            : null;
+        snapshot ??= !string.IsNullOrWhiteSpace(targetResource.SchemaId)
+            ? await _schemaSnapshotRepository.GetByIdAsync(targetResource.SchemaId!, cancellationToken)
+            : null;
+        snapshot ??= await _schemaSnapshotRepository.GetLatestByResourceIdAsync(targetResource.Id, cancellationToken);
+        if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.SchemaJson))
+        {
+            var targetSchemaMissingError = Error(
+                RuntimeErrorCode.RuntimeTargetMicroflowSchemaMissing,
+                $"Target microflow schema not found: {targetResource.Id}",
+                node.Id,
+                action.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+            context.AddNodeFailure(node, incomingFlowId, targetSchemaMissingError);
+            return NodeExecution.Failed(targetSchemaMissingError);
+        }
+
+        var targetSchema = MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson);
+        var targetModel = _schemaReader.Read(targetSchema);
+        var boundInput = BindCallMicroflowParameters(action, targetModel, context, node, incomingFlowId, out var bindings, out var bindingError);
+        if (bindingError is not null)
+        {
+            var outputWithBindingError = JsonObj(new
+            {
+                actionKind = "callMicroflow",
+                targetMicroflowId,
+                parameterBindings = bindings,
+                callStack = context.CallStackPath
+            });
+            context.AddFrame(node, incomingFlowId, null, "failed", JsonObj(new { actionKind = "callMicroflow" }), outputWithBindingError, bindingError);
+            return NodeExecution.Failed(bindingError);
+        }
+
+        var childRunId = Guid.NewGuid().ToString("N");
+        var nextStack = context.CallStackPath.Concat([targetMicroflowId]).ToArray();
+        var childSession = await RunInternalAsync(
+            new MicroflowMockRuntimeRequest
+            {
+                ResourceId = targetResource.Id,
+                SchemaId = snapshot.Id,
+                Version = targetResource.Version,
+                Schema = targetSchema,
+                Input = boundInput,
+                Options = context.Options,
+                RequestContext = context.RequestContext,
+                MaxCallDepth = context.MaxCallDepth
+            },
+            state,
+            new ParentCallContext(
+                context.RunId,
+                context.RootRunId,
+                context.CorrelationId,
+                context.CallDepth + 1,
+                nextStack,
+                node.Id,
+                action.Id,
+                childRunId),
+            cancellationToken);
+
+        context.AddChildRun(childSession);
+        if (!string.Equals(childSession.Status, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            var childFailedError = childSession.Error?.Code is RuntimeErrorCode.RuntimeCallRecursionDetected or RuntimeErrorCode.RuntimeCallStackOverflow
+                ? Error(
+                    childSession.Error.Code,
+                    childSession.Error.Message,
+                    node.Id,
+                    action.Id,
+                    incomingFlowId,
+                    details: childSession.Error.Details,
+                    microflowId: context.ResourceId,
+                    callStack: childSession.Error.CallStack ?? nextStack)
+                : Error(
+                    RuntimeErrorCode.RuntimeChildMicroflowFailed,
+                    $"Child microflow failed: {childSession.Error?.Message ?? childSession.Status}",
+                    node.Id,
+                    action.Id,
+                    incomingFlowId,
+                    details: childSession.Error is null ? null : JsonSerializer.Serialize(childSession.Error, JsonOptions),
+                    microflowId: context.ResourceId,
+                    callStack: nextStack);
+            context.AddFrame(
+                node,
+                incomingFlowId,
+                null,
+                "failed",
+                JsonObj(new { actionKind = "callMicroflow" }),
+                JsonObj(new
+                {
+                    targetMicroflowId,
+                    targetMicroflowQualifiedName = ReadString(action.Raw, "targetMicroflowQualifiedName"),
+                    parameterBindings = bindings,
+                    childRunId = childSession.Id,
+                    childStatus = childSession.Status,
+                    childError = childSession.Error
+                }),
+                childFailedError);
+            return NodeExecution.Failed(childFailedError);
+        }
+
+        var returnBindingError = TryBindCallMicroflowReturnValue(context, action, targetModel, childSession, node, incomingFlowId);
+        if (returnBindingError is not null)
+        {
+            context.AddFrame(
+                node,
+                incomingFlowId,
+                null,
+                "failed",
+                JsonObj(new { actionKind = "callMicroflow" }),
+                JsonObj(new
+                {
+                    targetMicroflowId,
+                    parameterBindings = bindings,
+                    childRunId = childSession.Id,
+                    childStatus = childSession.Status
+                }),
+                returnBindingError);
+            return NodeExecution.Failed(returnBindingError);
+        }
+
+        var callOutput = JsonObj(new
+        {
+            actionKind = "callMicroflow",
+            targetMicroflowId,
+            targetMicroflowQualifiedName = ReadString(action.Raw, "targetMicroflowQualifiedName"),
+            parameterBindings = bindings,
+            childRunId = childSession.Id,
+            childStatus = childSession.Status,
+            childOutput = childSession.Output,
+            childTrace = childSession.Trace.Select(frame => new
+            {
+                frame.ObjectId,
+                frame.ActionId,
+                frame.Status,
+                frame.MicroflowId,
+                frame.Error
+            }).ToArray(),
+            callStack = nextStack
+        });
+
+        return ContinueAfterAction(context, graph, node, incomingFlowId, callOutput);
     }
 
     private static NodeExecution ContinueAfterAction(RuntimeContext context, MicroflowRuntimeGraph graph, MicroflowObjectModel node, string? incomingFlowId, JsonElement output)
@@ -323,6 +627,226 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             incomingFlowId);
         context.AddNodeFailure(node, incomingFlowId, error);
         return NodeExecution.Failed(error);
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> BindCallMicroflowParameters(
+        MicroflowActionModel callAction,
+        MicroflowSchemaModel targetModel,
+        RuntimeContext context,
+        MicroflowObjectModel node,
+        string? incomingFlowId,
+        out IReadOnlyList<object> bindings,
+        out MicroflowRuntimeErrorDto? error)
+    {
+        var mappingRows = ReadCallParameterMappings(callAction.Raw);
+        var mappingByName = mappingRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.TargetParameterName))
+            .ToDictionary(row => row.TargetParameterName!, row => row, StringComparer.Ordinal);
+        var mappingById = mappingRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.TargetParameterId))
+            .ToDictionary(row => row.TargetParameterId!, row => row, StringComparer.Ordinal);
+        var input = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        var bindingRows = new List<object>();
+        error = null;
+
+        foreach (var parameter in targetModel.Parameters)
+        {
+            var required = ReadBool(parameter.Raw, "required");
+            mappingByName.TryGetValue(parameter.Name, out var mappingByParameterName);
+            mappingById.TryGetValue(parameter.Id, out var mappingByParameterId);
+            var mapping = mappingByParameterName ?? mappingByParameterId;
+            if (mapping is null)
+            {
+                if (required)
+                {
+                    error = Error(
+                        RuntimeErrorCode.RuntimeParameterMappingMissing,
+                        $"Required parameter mapping is missing: {parameter.Name}",
+                        node.Id,
+                        callAction.Id,
+                        incomingFlowId,
+                        microflowId: context.ResourceId,
+                        callStack: context.CallStackPath);
+                    bindingRows.Add(new { parameter.Name, status = "failed", code = RuntimeErrorCode.RuntimeParameterMappingMissing, message = error.Message });
+                    bindings = bindingRows;
+                    return input;
+                }
+
+                if (TryReadDefaultValue(parameter.Raw, out var defaultValue))
+                {
+                    var convertedDefault = ConvertToType(defaultValue, parameter.Type, parameter.Name, out var convertError);
+                    if (convertedDefault is null || convertError is not null)
+                    {
+                        error = convertError ?? Error(RuntimeErrorCode.RuntimeParameterMappingFailed, $"Default value type coercion failed: {parameter.Name}", node.Id, callAction.Id, incomingFlowId, microflowId: context.ResourceId, callStack: context.CallStackPath);
+                        bindingRows.Add(new { parameter.Name, status = "failed", code = RuntimeErrorCode.RuntimeParameterMappingFailed, message = error.Message });
+                        bindings = bindingRows;
+                        return input;
+                    }
+
+                    input[parameter.Name] = convertedDefault.Value;
+                    bindingRows.Add(new { parameter.Name, status = "defaulted", value = ToPlainValue(convertedDefault.Value) });
+                }
+                else
+                {
+                    input[parameter.Name] = JsonNull();
+                    bindingRows.Add(new { parameter.Name, status = "defaultedNull" });
+                }
+
+                continue;
+            }
+
+            JsonElement value;
+            if (!string.IsNullOrWhiteSpace(mapping.SourceVariableName))
+            {
+                if (!context.Variables.TryGetValue(mapping.SourceVariableName!, out var sourceVariable))
+                {
+                    error = Error(RuntimeErrorCode.RuntimeParameterMappingMissing, $"Mapped source variable not found: {mapping.SourceVariableName}", node.Id, callAction.Id, incomingFlowId, microflowId: context.ResourceId, callStack: context.CallStackPath);
+                    bindingRows.Add(new { parameter.Name, mapping.SourceVariableName, status = "failed", code = RuntimeErrorCode.RuntimeParameterMappingMissing, message = error.Message });
+                    bindings = bindingRows;
+                    return input;
+                }
+
+                value = sourceVariable.Value;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(mapping.Expression))
+                {
+                    error = Error(RuntimeErrorCode.RuntimeParameterMappingMissing, $"Parameter mapping expression is empty: {parameter.Name}", node.Id, callAction.Id, incomingFlowId, microflowId: context.ResourceId, callStack: context.CallStackPath);
+                    bindingRows.Add(new { parameter.Name, status = "failed", code = RuntimeErrorCode.RuntimeParameterMappingMissing, message = error.Message });
+                    bindings = bindingRows;
+                    return input;
+                }
+
+                try
+                {
+                    value = context.ExpressionEvaluator.Evaluate(mapping.Expression!, context.Variables);
+                }
+                catch (RuntimeExpressionException expressionException)
+                {
+                    error = Error(
+                        RuntimeErrorCode.RuntimeParameterMappingFailed,
+                        $"Parameter mapping expression failed: {parameter.Name}",
+                        node.Id,
+                        callAction.Id,
+                        incomingFlowId,
+                        details: expressionException.Error.Message,
+                        microflowId: context.ResourceId,
+                        callStack: context.CallStackPath);
+                    bindingRows.Add(new { parameter.Name, mapping.Expression, status = "failed", code = RuntimeErrorCode.RuntimeParameterMappingFailed, message = error.Message });
+                    bindings = bindingRows;
+                    return input;
+                }
+            }
+
+            var converted = ConvertToType(value, parameter.Type, parameter.Name, out var coercionError);
+            if (converted is null || coercionError is not null)
+            {
+                error = coercionError ?? Error(RuntimeErrorCode.RuntimeParameterMappingFailed, $"Parameter mapping type coercion failed: {parameter.Name}", node.Id, callAction.Id, incomingFlowId, microflowId: context.ResourceId, callStack: context.CallStackPath);
+                bindingRows.Add(new { parameter.Name, status = "failed", code = RuntimeErrorCode.RuntimeParameterMappingFailed, message = error.Message });
+                bindings = bindingRows;
+                return input;
+            }
+
+            input[parameter.Name] = converted.Value;
+            bindingRows.Add(new
+            {
+                parameter.Name,
+                mapping.SourceVariableName,
+                mapping.Expression,
+                status = "success",
+                value = ToPlainValue(converted.Value)
+            });
+        }
+
+        var knownParameterNames = targetModel.Parameters.Select(parameter => parameter.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (var mapping in mappingRows.Where(row => !string.IsNullOrWhiteSpace(row.TargetParameterName) && !knownParameterNames.Contains(row.TargetParameterName!)))
+        {
+            bindingRows.Add(new
+            {
+                parameterName = mapping.TargetParameterName,
+                mapping.Expression,
+                mapping.SourceVariableName,
+                status = "ignored",
+                warning = "Unknown target parameter"
+            });
+        }
+
+        bindings = bindingRows;
+        return input;
+    }
+
+    private static MicroflowRuntimeErrorDto? TryBindCallMicroflowReturnValue(
+        RuntimeContext context,
+        MicroflowActionModel callAction,
+        MicroflowSchemaModel targetModel,
+        MicroflowRunSessionDto childSession,
+        MicroflowObjectModel node,
+        string? incomingFlowId)
+    {
+        var storeResult = ReadBoolByPath(callAction.Raw, "returnValue", "storeResult");
+        var outputVariableName = ReadStringByPath(callAction.Raw, "returnValue", "outputVariableName")
+            ?? ReadString(callAction.Raw, "outputVariableName")
+            ?? ReadString(callAction.Raw, "resultVariableName");
+        if (!storeResult || string.IsNullOrWhiteSpace(outputVariableName))
+        {
+            return null;
+        }
+
+        var targetReturnKind = targetModel.ReturnType.HasValue ? ReadTypeKind(targetModel.ReturnType.Value) : "void";
+        if (string.Equals(targetReturnKind, "void", StringComparison.OrdinalIgnoreCase))
+        {
+            return Error(
+                RuntimeErrorCode.RuntimeReturnBindingFailed,
+                "Return binding is configured but target microflow return type is void.",
+                node.Id,
+                callAction.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+        }
+
+        if (!childSession.Output.HasValue || childSession.Output.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return Error(
+                RuntimeErrorCode.RuntimeReturnBindingFailed,
+                "Child microflow did not produce a return value.",
+                node.Id,
+                callAction.Id,
+                incomingFlowId,
+                microflowId: context.ResourceId,
+                callStack: context.CallStackPath);
+        }
+
+        var value = childSession.Output.Value;
+        if (context.Variables.TryGetValue(outputVariableName!, out var existing))
+        {
+            context.SetVariable(outputVariableName!, existing.Type, value, "callMicroflow");
+            return null;
+        }
+
+        var outputType = targetModel.ReturnType ?? Type("unknown");
+        context.SetVariable(outputVariableName!, outputType, value, "callMicroflow");
+        return null;
+    }
+
+    private static IReadOnlyList<CallParameterMapping> ReadCallParameterMappings(JsonElement actionRaw)
+    {
+        if (!actionRaw.TryGetProperty("parameterMappings", out var mappingsElement) || mappingsElement.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<CallParameterMapping>();
+        }
+
+        return mappingsElement.EnumerateArray()
+            .Select(mapping => new CallParameterMapping(
+                ReadString(mapping, "parameterName") ?? ReadString(mapping, "targetParameterName"),
+                ReadString(mapping, "parameterId") ?? ReadString(mapping, "targetParameterId"),
+                ReadExpressionText(mapping, "argumentExpression")
+                    ?? ReadExpressionText(mapping, "expression")
+                    ?? ReadExpressionText(mapping, "valueExpression"),
+                ReadString(mapping, "sourceVariableName"),
+                ReadString(mapping, "sourceVariableId")))
+            .ToArray();
     }
 
     private static JsonElement? ConvertToType(JsonElement value, JsonElement type, string name, out MicroflowRuntimeErrorDto? error)
@@ -459,6 +983,20 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             && element.TryGetProperty(propertyName, out var value)
             && value.ValueKind == JsonValueKind.True;
 
+    private static bool ReadBoolByPath(JsonElement element, params string[] path)
+    {
+        var current = element;
+        foreach (var part in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out current))
+            {
+                return false;
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.True;
+    }
+
     private static string? ReadString(JsonElement element, string propertyName)
         => MicroflowSchemaReader.ReadString(element, propertyName);
 
@@ -506,7 +1044,15 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             ?? ReadString(element, "expression");
     }
 
-    private static MicroflowRuntimeErrorDto Error(string code, string message, string? objectId = null, string? actionId = null, string? flowId = null, string? details = null)
+    private static MicroflowRuntimeErrorDto Error(
+        string code,
+        string message,
+        string? objectId = null,
+        string? actionId = null,
+        string? flowId = null,
+        string? details = null,
+        string? microflowId = null,
+        IReadOnlyList<string>? callStack = null)
         => new()
         {
             Code = code,
@@ -514,7 +1060,9 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             ObjectId = objectId,
             ActionId = actionId,
             FlowId = flowId,
-            Details = details
+            Details = details,
+            MicroflowId = microflowId,
+            CallStack = callStack
         };
 
     private static JsonElement Type(string kind)
@@ -537,32 +1085,99 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             _ => JsonSerializer.Deserialize<object?>(value.GetRawText(), JsonOptions)
         };
 
+    private sealed class CallExecutionState
+    {
+    }
+
+    private sealed record ParentCallContext(
+        string ParentRunId,
+        string RootRunId,
+        string CorrelationId,
+        int CallDepth,
+        IReadOnlyList<string> CallStack,
+        string? CallerObjectId,
+        string? CallerActionId,
+        string ChildRunId);
+
+    private sealed record CallParameterMapping(
+        string? TargetParameterName,
+        string? TargetParameterId,
+        string? Expression,
+        string? SourceVariableName,
+        string? SourceVariableId);
+
     private sealed class RuntimeContext
     {
         private readonly MicroflowMockRuntimeRequest _request;
         private readonly IMicroflowClock _clock;
         private int _steps;
 
-        public RuntimeContext(MicroflowMockRuntimeRequest request, MicroflowSchemaModel model, DateTimeOffset startedAt, IMicroflowClock clock)
+        public RuntimeContext(
+            MicroflowMockRuntimeRequest request,
+            MicroflowSchemaModel model,
+            DateTimeOffset startedAt,
+            IMicroflowClock clock,
+            string runId,
+            string? parentRunId,
+            string rootRunId,
+            string correlationId,
+            int callDepth,
+            IReadOnlyList<string> callStackPath,
+            string? callerObjectId,
+            string? callerActionId)
         {
             _request = request;
             Model = model;
             StartedAt = startedAt;
             _clock = clock;
             ExpressionEvaluator = new MicroflowRuntimeExpressionEvaluator();
+            RunId = runId;
+            ParentRunId = parentRunId;
+            RootRunId = rootRunId;
+            CorrelationId = correlationId;
+            CallDepth = callDepth;
+            CallStackPath = callStackPath;
+            CallerObjectId = callerObjectId;
+            CallerActionId = callerActionId;
         }
 
         public MicroflowSchemaModel Model { get; }
 
         public DateTimeOffset StartedAt { get; }
 
+        public string RunId { get; }
+
+        public string? ParentRunId { get; }
+
+        public string RootRunId { get; }
+
+        public string CorrelationId { get; }
+
+        public int CallDepth { get; }
+
+        public IReadOnlyList<string> CallStackPath { get; }
+
+        public string? CallerObjectId { get; }
+
+        public string? CallerActionId { get; }
+
         public IReadOnlyDictionary<string, JsonElement> Input => _request.Input;
+
+        public string ResourceId => _request.ResourceId;
+
+        public int MaxCallDepth => Math.Clamp(_request.MaxCallDepth, 1, 64);
+
+        public MicroflowTestRunOptionsDto Options => _request.Options;
+
+        public MicroflowRequestContext RequestContext => _request.RequestContext;
 
         public Dictionary<string, RuntimeVariable> Variables { get; } = new(StringComparer.Ordinal);
 
         public List<MicroflowTraceFrameDto> Frames { get; } = [];
 
         public List<MicroflowRuntimeLogDto> Logs { get; } = [];
+
+        public List<MicroflowRunSessionDto> ChildRuns { get; } = [];
 
         public MicroflowRuntimeExpressionEvaluator ExpressionEvaluator { get; }
 
@@ -583,6 +1198,11 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public void SetVariable(string name, JsonElement type, JsonElement value, string source)
         {
             Variables[name] = new RuntimeVariable(name, type.Clone(), value.Clone(), source);
+        }
+
+        public void AddChildRun(MicroflowRunSessionDto childRun)
+        {
+            ChildRuns.Add(childRun);
         }
 
         public void AddNodeFailure(MicroflowObjectModel node, string? incomingFlowId, MicroflowRuntimeErrorDto error)
@@ -629,7 +1249,13 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
             Frames.Add(new MicroflowTraceFrameDto
             {
                 Id = Guid.NewGuid().ToString("N"),
-                RunId = _request.RequestContext.TraceId ?? string.Empty,
+                RunId = RunId,
+                MicroflowId = ResourceId,
+                ParentRunId = ParentRunId,
+                RootRunId = RootRunId,
+                CallDepth = CallDepth,
+                CallerObjectId = CallerObjectId,
+                CallerActionId = CallerActionId,
                 ObjectId = objectId,
                 ActionId = actionId,
                 IncomingFlowId = incomingFlowId,
@@ -650,33 +1276,42 @@ public sealed class MicroflowRuntimeEngine : IMicroflowRuntimeEngine
         public MicroflowRunSessionDto BuildSession(string status, MicroflowRuntimeErrorDto? error, JsonElement? output = null)
         {
             var endedAt = _clock.UtcNow;
-            var runId = _request.RequestContext.TraceId;
-            if (string.IsNullOrWhiteSpace(runId))
+            if (error is not null)
             {
-                runId = Guid.NewGuid().ToString("N");
+                error = error with
+                {
+                    MicroflowId = error.MicroflowId ?? ResourceId,
+                    CallStack = error.CallStack ?? CallStackPath
+                };
             }
 
-            var frames = Frames.Select(frame => frame with { RunId = runId }).ToArray();
             return new MicroflowRunSessionDto
             {
-                Id = runId,
+                Id = RunId,
                 SchemaId = _request.SchemaId,
                 ResourceId = _request.ResourceId,
                 Version = _request.Version,
+                ParentRunId = ParentRunId,
+                RootRunId = RootRunId,
+                CallDepth = CallDepth,
+                CorrelationId = CorrelationId,
+                CallStack = CallStackPath,
                 StartedAt = StartedAt,
                 EndedAt = endedAt,
                 Status = status,
                 Input = _request.Input,
                 Output = string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) ? output : null,
                 Error = error,
-                Trace = frames,
+                Trace = Frames,
                 Logs = Logs,
-                Variables = frames.Select(frame => new MicroflowVariableSnapshotDto
+                Variables = Frames.Select(frame => new MicroflowVariableSnapshotDto
                 {
                     FrameId = frame.Id,
                     ObjectId = frame.ObjectId,
                     Variables = frame.VariablesSnapshot?.Values.ToArray() ?? Array.Empty<MicroflowRuntimeVariableValueDto>()
-                }).ToArray()
+                }).ToArray(),
+                ChildRuns = ChildRuns,
+                ChildRunIds = ChildRuns.Select(child => child.Id).ToArray()
             };
         }
 

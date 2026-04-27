@@ -275,6 +275,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 session.RootRunId,
                 session.CallFrameId,
                 session.CallDepth,
+                session.CorrelationId,
+                session.CallStack,
                 variables = session.Variables,
                 transactionSummary = session.TransactionSummary,
                 childRunIds = session.ChildRunIds.Count > 0 ? session.ChildRunIds : session.ChildRuns.Select(child => child.Id).ToArray()
@@ -310,7 +312,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 CallFrameId = frame.CallFrameId,
                 CallDepth = frame.CallDepth,
                 CallerObjectId = frame.CallerObjectId,
-                CallerActionId = frame.CallerActionId
+                CallerActionId = frame.CallerActionId,
+                MicroflowId = frame.MicroflowId
             }, JsonOptions)
         }).ToArray();
 
@@ -354,6 +357,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             RootRunId = extra.RootRunId,
             CallFrameId = extra.CallFrameId,
             CallDepth = extra.CallDepth,
+            CorrelationId = extra.CorrelationId,
+            CallStack = extra.CallStack,
             StartedAt = session.StartedAt,
             EndedAt = session.EndedAt,
             Status = session.Status,
@@ -373,6 +378,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         {
             Id = frame.Id,
             RunId = frame.RunId,
+            MicroflowId = ReadTraceFrameExtra(frame.ExtraJson).MicroflowId,
             ObjectId = frame.ObjectId,
             ActionId = frame.ActionId,
             CollectionId = frame.CollectionId,
@@ -482,6 +488,10 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
         public int? CallDepth { get; init; }
 
+        public string? CorrelationId { get; init; }
+
+        public IReadOnlyList<string> CallStack { get; init; } = Array.Empty<string>();
+
         public IReadOnlyList<string> ChildRunIds { get; init; } = Array.Empty<string>();
     }
 
@@ -525,5 +535,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         public string? CallerObjectId { get; init; }
 
         public string? CallerActionId { get; init; }
+
+        public string? MicroflowId { get; init; }
     }
 }
