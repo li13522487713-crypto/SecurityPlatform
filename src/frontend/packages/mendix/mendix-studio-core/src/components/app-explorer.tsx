@@ -1,55 +1,102 @@
-import { useState } from "react";
-import { Input } from "@douyinfe/semi-ui";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button, Input } from "@douyinfe/semi-ui";
 import { IconSearch, IconChevronDown, IconChevronRight } from "@douyinfe/semi-icons";
 import { useMendixStudioStore } from "../store";
 import type { ActiveTabId } from "../store";
+import { SAMPLE_PROCUREMENT_APP } from "../sample-app";
+import type { MicroflowAdapterBundle } from "../microflow/adapter/microflow-adapter-factory";
+import type { StudioMicroflowDefinitionView } from "../microflow/studio/studio-microflow-types";
+import { mapMicroflowResourceToStudioDefinitionView } from "../microflow/studio/studio-microflow-mappers";
 
 interface TreeNode {
   key: string;
   label: string;
   icon?: string;
+  kind?:
+    | "module"
+    | "folder"
+    | "entity"
+    | "page"
+    | "microflow"
+    | "workflow"
+    | "security"
+    | "navigation"
+    | "constant"
+    | "theme"
+    | "loading"
+    | "empty"
+    | "error";
   tabId?: ActiveTabId;
   studioTab?: import("../store").MendixStudioTab;
+  moduleId?: string;
+  microflowId?: string;
+  resourceId?: string;
+  readonly?: boolean;
+  dynamic?: boolean;
+  title?: string;
+  errorMessage?: string;
+  action?: "retryMicroflows";
   children?: TreeNode[];
   defaultOpen?: boolean;
+}
+
+interface AppExplorerProps {
+  adapterBundle?: MicroflowAdapterBundle;
+  workspaceId?: string;
+}
+
+type MicroflowLoadStatus = "idle" | "loading" | "success" | "error";
+
+const SAMPLE_PROCUREMENT_MODULE = SAMPLE_PROCUREMENT_APP.modules[0];
+const EXPLORER_MICROFLOWS_KEY = "microflows";
+const explorerMicroflowRequests = new Map<string, Promise<StudioMicroflowDefinitionView[]>>();
+
+function getExplorerModuleId(node?: TreeNode): string | undefined {
+  return node?.moduleId ?? SAMPLE_PROCUREMENT_MODULE?.moduleId;
 }
 
 const TREE_DATA: TreeNode[] = [
   {
     key: "procurement",
-    label: "Procurement",
+    label: SAMPLE_PROCUREMENT_MODULE?.name ?? "Procurement",
+    kind: "module",
+    moduleId: SAMPLE_PROCUREMENT_MODULE?.moduleId,
     defaultOpen: true,
     children: [
       {
         key: "domain-model",
         label: "Domain Model",
+        kind: "folder",
         defaultOpen: true,
         children: [
           {
             key: "entities",
             label: "实体",
+            kind: "folder",
             defaultOpen: true,
             children: [
-              { key: "ent_purchase_request", label: "PurchaseRequest", icon: "E" },
-              { key: "ent_department", label: "Department", icon: "E" },
-              { key: "ent_account", label: "Account", icon: "E" },
-              { key: "ent_approval_comment", label: "ApprovalComment", icon: "E" }
+              { key: "ent_purchase_request", label: "PurchaseRequest", icon: "E", kind: "entity" },
+              { key: "ent_department", label: "Department", icon: "E", kind: "entity" },
+              { key: "ent_account", label: "Account", icon: "E", kind: "entity" },
+              { key: "ent_approval_comment", label: "ApprovalComment", icon: "E", kind: "entity" }
             ]
           },
           {
             key: "enumerations",
             label: "枚举",
+            kind: "folder",
             children: [
-              { key: "enum_purchase_status", label: "PurchaseStatus", icon: "E" }
+              { key: "enum_purchase_status", label: "PurchaseStatus", icon: "E", kind: "entity" }
             ]
           },
           {
             key: "associations",
             label: "关联",
+            kind: "folder",
             children: [
-              { key: "assoc_applicant", label: "PurchaseRequest_Applicant", icon: "A" },
-              { key: "assoc_department", label: "PurchaseRequest_Department", icon: "A" },
-              { key: "assoc_approval", label: "PurchaseRequest_ApprovalComment", icon: "A" }
+              { key: "assoc_applicant", label: "PurchaseRequest_Applicant", icon: "A", kind: "entity" },
+              { key: "assoc_department", label: "PurchaseRequest_Department", icon: "A", kind: "entity" },
+              { key: "assoc_approval", label: "PurchaseRequest_ApprovalComment", icon: "A", kind: "entity" }
             ]
           }
         ]
@@ -57,40 +104,38 @@ const TREE_DATA: TreeNode[] = [
       {
         key: "pages",
         label: "Pages",
+        kind: "folder",
         defaultOpen: true,
         children: [
           {
             key: "page_purchase_request_edit",
             label: "PurchaseRequest_EditPage",
             icon: "P",
+            kind: "page",
             tabId: "page",
             studioTab: "pageBuilder"
           }
         ]
       },
       {
-        key: "microflows",
+        key: EXPLORER_MICROFLOWS_KEY,
         label: "Microflows",
+        kind: "folder",
+        moduleId: SAMPLE_PROCUREMENT_MODULE?.moduleId,
         defaultOpen: true,
-        children: [
-          {
-            key: "mf_submit_purchase_request",
-            label: "MF_SubmitPurchaseRequest",
-            icon: "M",
-            tabId: "microflow",
-            studioTab: "microflowDesigner"
-          }
-        ]
+        children: []
       },
       {
         key: "workflows",
         label: "Workflows",
+        kind: "folder",
         defaultOpen: true,
         children: [
           {
             key: "wf_purchase_approval",
             label: "WF_PurchaseApproval",
             icon: "W",
+            kind: "workflow",
             tabId: "workflow",
             studioTab: "workflowDesigner"
           }
@@ -99,6 +144,7 @@ const TREE_DATA: TreeNode[] = [
       {
         key: "security",
         label: "Security",
+        kind: "security",
         children: [
           { key: "user-roles", label: "用户角色" },
           { key: "module-roles", label: "模块角色" },
@@ -106,12 +152,68 @@ const TREE_DATA: TreeNode[] = [
           { key: "entity-access", label: "实体访问" }
         ]
       },
-      { key: "navigation", label: "Navigation" },
-      { key: "constants", label: "Constants" },
-      { key: "theme", label: "Theme" }
+      { key: "navigation", label: "Navigation", kind: "navigation" },
+      { key: "constants", label: "Constants", kind: "constant" },
+      { key: "theme", label: "Theme", kind: "theme" }
     ]
   }
 ];
+
+function sortMicroflowViews(items: StudioMicroflowDefinitionView[]): StudioMicroflowDefinitionView[] {
+  return [...items].sort((left, right) => {
+    const leftLabel = (left.displayName || left.name).toLocaleLowerCase();
+    const rightLabel = (right.displayName || right.name).toLocaleLowerCase();
+    return leftLabel.localeCompare(rightLabel);
+  });
+}
+
+function createMicroflowStateChildren(
+  status: MicroflowLoadStatus,
+  microflows: StudioMicroflowDefinitionView[],
+  error?: string
+): TreeNode[] {
+  if (status === "loading" || status === "idle") {
+    return [{ key: "microflows:loading", label: "Loading microflows...", kind: "loading", readonly: true }];
+  }
+
+  if (status === "error") {
+    return [{
+      key: "microflows:error",
+      label: "Load failed / Retry",
+      kind: "error",
+      readonly: true,
+      errorMessage: error,
+      action: "retryMicroflows"
+    }];
+  }
+
+  if (microflows.length === 0) {
+    return [{ key: "microflows:empty", label: "No microflows", kind: "empty", readonly: true }];
+  }
+
+  return microflows.map(resource => ({
+    key: `microflow:${resource.id}`,
+    label: resource.displayName || resource.name,
+    icon: "M",
+    kind: "microflow",
+    moduleId: resource.moduleId,
+    microflowId: resource.id,
+    resourceId: resource.id,
+    dynamic: true,
+    title: resource.qualifiedName
+  }));
+}
+
+function withMicroflowChildren(nodes: TreeNode[], children: TreeNode[]): TreeNode[] {
+  return nodes.map(node => ({
+    ...node,
+    children: node.key === EXPLORER_MICROFLOWS_KEY
+      ? children
+      : node.children
+        ? withMicroflowChildren(node.children, children)
+        : node.children
+  }));
+}
 
 function getIconColor(icon?: string): string {
   switch (icon) {
@@ -161,6 +263,7 @@ function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, initi
       <div
         className={"studio-structure-node" + (isSelected ? " studio-structure-node--selected" : "")}
         style={{ paddingLeft: 8 + depth * 14 }}
+        title={node.errorMessage ?? node.title ?? node.label}
         onClick={() => {
           if (hasChildren) {
             setOpen(o => !o);
@@ -205,6 +308,20 @@ function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, initi
         >
           {node.label}
         </span>
+
+        {node.action === "retryMicroflows" && (
+          <Button
+            theme="borderless"
+            type="primary"
+            size="small"
+            onClick={event => {
+              event.stopPropagation();
+              onSelect(node);
+            }}
+          >
+            Retry
+          </Button>
+        )}
       </div>
 
       {open && hasChildren && node.children?.map(child => (
@@ -222,16 +339,106 @@ function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, initi
   );
 }
 
-export function AppExplorer() {
+export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
   const [searchText, setSearchText] = useState("");
+  const [microflowStatus, setMicroflowStatus] = useState<MicroflowLoadStatus>("idle");
+  const [microflowError, setMicroflowError] = useState<string>();
+  const [microflows, setMicroflows] = useState<StudioMicroflowDefinitionView[]>([]);
+  const lastRequestKeyRef = useRef<string>();
   const selectedExplorerNodeId = useMendixStudioStore(state => state.selectedExplorerNodeId);
+  const activeModuleId = useMendixStudioStore(state => state.activeModuleId);
   const setSelectedExplorerNodeId = useMendixStudioStore(state => state.setSelectedExplorerNodeId);
   const setActiveTab = useMendixStudioStore(state => state.setActiveTab);
   const setActiveTabId = useMendixStudioStore(state => state.setActiveTabId);
   const setSelected = useMendixStudioStore(state => state.setSelected);
+  const setActiveModuleId = useMendixStudioStore(state => state.setActiveModuleId);
+  const setActiveMicroflowId = useMendixStudioStore(state => state.setActiveMicroflowId);
+  const setModuleMicroflows = useMendixStudioStore(state => state.setModuleMicroflows);
+  const moduleNode = useMemo(() => TREE_DATA[0], []);
+  const moduleId = getExplorerModuleId(moduleNode);
+
+  const loadMicroflows = useCallback(async (force = false) => {
+    if (!workspaceId) {
+      setMicroflowStatus("error");
+      setMicroflowError("无法加载：缺少 workspaceId");
+      setMicroflows([]);
+      return;
+    }
+    if (!moduleId) {
+      setMicroflowStatus("error");
+      setMicroflowError("无法加载：缺少 moduleId");
+      setMicroflows([]);
+      return;
+    }
+    if (!adapterBundle) {
+      setMicroflowStatus("error");
+      setMicroflowError("无法加载：缺少 microflow adapter");
+      setMicroflows([]);
+      return;
+    }
+
+    const requestKey = `${workspaceId}:${moduleId}:${adapterBundle.mode}`;
+    if (!force && lastRequestKeyRef.current === requestKey) {
+      return;
+    }
+
+    lastRequestKeyRef.current = requestKey;
+    setMicroflowStatus("loading");
+    setMicroflowError(undefined);
+    try {
+      const request = explorerMicroflowRequests.get(requestKey) ?? adapterBundle.resourceAdapter
+        .listMicroflows({
+          workspaceId,
+          moduleId,
+          status: ["draft", "published"],
+          sortBy: "name",
+          sortOrder: "asc",
+          pageIndex: 1,
+          pageSize: 100
+        })
+        .then(result => sortMicroflowViews(result.items.map(mapMicroflowResourceToStudioDefinitionView)))
+        .finally(() => {
+          explorerMicroflowRequests.delete(requestKey);
+        });
+      explorerMicroflowRequests.set(requestKey, request);
+      const nextMicroflows = await request;
+      setMicroflows(nextMicroflows);
+      setModuleMicroflows(moduleId, nextMicroflows);
+      if (!activeModuleId) {
+        setActiveModuleId(moduleId);
+      }
+      setMicroflowStatus("success");
+    } catch (caught) {
+      setMicroflowStatus("error");
+      setMicroflowError(caught instanceof Error ? caught.message : String(caught));
+      setMicroflows([]);
+    }
+  }, [activeModuleId, adapterBundle, moduleId, setActiveModuleId, setModuleMicroflows, workspaceId]);
+
+  useEffect(() => {
+    void loadMicroflows();
+  }, [loadMicroflows]);
+
+  const treeData = useMemo(
+    () => withMicroflowChildren(TREE_DATA, createMicroflowStateChildren(microflowStatus, microflows, microflowError)),
+    [microflowError, microflowStatus, microflows]
+  );
 
   const handleSelect = (node: TreeNode) => {
+    if (node.action === "retryMicroflows") {
+      lastRequestKeyRef.current = undefined;
+      void loadMicroflows(true);
+      return;
+    }
+
     setSelectedExplorerNodeId(node.key);
+    if (node.kind === "microflow" && node.microflowId) {
+      setSelected("microflow", node.microflowId);
+      setActiveMicroflowId(node.microflowId);
+      setActiveModuleId(node.moduleId);
+      return;
+    }
+
     if (node.studioTab) {
       setActiveTab(node.studioTab);
     }
@@ -264,7 +471,7 @@ export function AppExplorer() {
       </div>
 
       <div className="studio-explorer__tree">
-        {TREE_DATA.map(node => (
+        {treeData.map(node => (
           <ExplorerTreeNode
             key={node.key}
             node={node}

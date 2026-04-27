@@ -44,6 +44,8 @@ export function MendixStudioApp({
   const activeTab = useMendixStudioStore(state => state.activeTab);
   const microflowSchema = useMendixStudioStore(state => state.microflowSchema);
   const microflowImmersive = useMendixStudioStore(state => state.microflowImmersive);
+  const activeMicroflowId = useMendixStudioStore(state => state.activeMicroflowId);
+  const activeMicroflow = useMendixStudioStore(state => activeMicroflowId ? state.microflowResourcesById[activeMicroflowId] : undefined);
   const setMicroflowSchema = useMendixStudioStore(state => state.setMicroflowSchema);
   const setMicroflowImmersive = useMendixStudioStore(state => state.setMicroflowImmersive);
   const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
@@ -98,7 +100,7 @@ export function MendixStudioApp({
           overflow: "hidden"
         }}
       >
-        <ExplorerSplitLayout explorer={<AppExplorer />}>
+        <ExplorerSplitLayout explorer={<AppExplorer adapterBundle={_resolvedBundle} workspaceId={workspaceId} />}>
           <div
             style={{
               display: "flex",
@@ -128,10 +130,31 @@ export function MendixStudioApp({
               {isMicroflow ? (
                 /* 微流编辑器：占满中央列，自带节点面板/属性面板/底部面板 */
                 <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-                  <MicroflowEditor
-                    schema={microflowSchema}
-                    onSchemaChange={setMicroflowSchema}
-                  />
+                  {activeMicroflowId ? (
+                    <div
+                      style={{
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "#fff"
+                      }}
+                    >
+                      <Card style={{ width: 420, borderRadius: 12 }}>
+                        <Text strong>已选择微流 {activeMicroflow?.displayName ?? activeMicroflowId}</Text>
+                        <div style={{ marginTop: 8 }}>
+                          <Text type="tertiary" size="small">
+                            真实画布加载将在后续阶段接入；当前只展示真实资产列表，不加载 sampleOrderProcessingMicroflow。
+                          </Text>
+                        </div>
+                      </Card>
+                    </div>
+                  ) : (
+                    <MicroflowEditor
+                      schema={microflowSchema}
+                      onSchemaChange={setMicroflowSchema}
+                    />
+                  )}
                 </div>
               ) : (
                 <>
@@ -172,7 +195,7 @@ export function MendixStudioApp({
       <RuntimePreview />
 
       {/* 沉浸模式覆盖层 */}
-      {microflowImmersive && isMicroflow && (
+      {microflowImmersive && isMicroflow && !activeMicroflowId && (
         <div
           style={{
             position: "fixed",

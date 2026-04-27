@@ -74,6 +74,7 @@ type StudioState = {
   setActiveMicroflowId: (microflowId?: string) => void;
 
   /** 微流资产 CRUD action（仅更新 store 索引，不调用 API） */
+  setModuleMicroflows: (moduleId: string, microflows: StudioMicroflowDefinitionView[]) => void;
   upsertStudioMicroflow: (resource: StudioMicroflowDefinitionView) => void;
   removeStudioMicroflow: (id: string) => void;
 };
@@ -124,6 +125,25 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
   setStudioContext: ({ workspaceId, appId }) => set({ workspaceId, appId }),
   setActiveModuleId: activeModuleId => set({ activeModuleId }),
   setActiveMicroflowId: activeMicroflowId => set({ activeMicroflowId }),
+
+  setModuleMicroflows: (moduleId, microflows) => {
+    const { microflowResourcesById, microflowIdsByModuleId } = get();
+    const previousIds = new Set(microflowIdsByModuleId[moduleId] ?? []);
+    const nextById = { ...microflowResourcesById };
+    for (const id of previousIds) {
+      delete nextById[id];
+    }
+    for (const resource of microflows) {
+      nextById[resource.id] = resource;
+    }
+    set({
+      microflowResourcesById: nextById,
+      microflowIdsByModuleId: {
+        ...microflowIdsByModuleId,
+        [moduleId]: microflows.map(resource => resource.id)
+      }
+    });
+  },
 
   upsertStudioMicroflow: resource => {
     const { microflowResourcesById, microflowIdsByModuleId } = get();

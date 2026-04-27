@@ -13,9 +13,9 @@
 | 2 | Adapter Bundle 创建与保存 | MendixStudioApp 内未创建 bundle | 无法按真实 workspace/tenant 路由到正确后端 | **Stage 02** |
 | 3 | Studio Microflow 视图模型 | 无 | 缺少 StudioMicroflowDefinitionView 展示层类型 | **Stage 02** |
 | 4 | Store 微流资产索引骨架 | 无 | Store 中无 microflowResourcesById / idsByModuleId 索引 | **Stage 02** |
-| 5 | App Explorer 真实微流列表 | 静态 sample | 未接入 resourceAdapter.list() | Stage 03 |
-| 6 | 微流 CRUD 入口 | 无 | 新建 / 重命名 / 删除 UI 未实现 | Stage 03 |
-| 7 | 真实保存画布 | 未接入 | save → resourceAdapter.update() 链路缺失 | Stage 04 |
+| 5 | App Explorer 中 Microflows 分组真实管理多个微流 | Stage 03 已完成只读真实列表 | CRUD 仍未完成；点击打开真实画布仍未完成；保存加载仍未完成 | Stage 03+ |
+| 6 | 微流 CRUD 入口 | 无 | 新建 / 重命名 / 删除 UI 未实现 | Stage 04 |
+| 7 | 真实保存画布 | 未接入 | schema load / save → resourceAdapter.update() 链路缺失 | Stage 05 |
 | 8 | Call Microflow 目标选择 | 静态 | 节点属性面板未接入真实微流列表 | Stage 05 |
 | 9 | 执行引擎 / Trace | 未接入 | runtimeAdapter 链路未接前端 | Stage 06 |
 
