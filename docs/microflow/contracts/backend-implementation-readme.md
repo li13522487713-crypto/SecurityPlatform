@@ -212,11 +212,20 @@
 - 新增 `IMicroflowTransactionManager` / `MicroflowTransactionManager`，提供 begin/commit/rollback/savepoint/rollbackToSavepoint/trackCreate/trackUpdate/trackDelete/trackRollbackObject/trackCommitAction/snapshot 以及 ErrorHandling rollback 基础接口。
 - 新增 `IMicroflowUnitOfWork` / `MicroflowUnitOfWork`，仅维护内存 staged changes 与 operations，不访问业务数据库。
 - `RuntimeExecutionContext` 新增强类型 `Transaction`、`UnitOfWork`、`TransactionManager`、`TransactionOptions`、`CurrentTransactionId` 与 `TransactionDiagnostics`。
-- MockRuntimeRunner 对 P0 object actions 写 transaction change set、trace preview 和 runtime logs；成功 run 自动 commit，失败 rollback，`customWithoutRollback` / `continue` 不 rollback。
+- MockRuntimeRunner 对 P0 object actions 写 transaction change set、trace preview 和 runtime logs；`CommitAction` 会形成 `operation=commit` 结构化变更，成功 run 自动 commit，失败 rollback，`customWithoutRollback` / `continue` 不 rollback。
+- `Commit` 仅提交 staged/已提交的变更；`RollbackToSavepoint` 后标记为 rolledBack 的 staged changes 会保留诊断记录，但不会被最终提交。
 - `MicroflowRunSessionDto` 新增 `transactionSummary`；持久化 extra 同步保存 summary，成功输出可见 `output.transactionSummary`。
 - `.http` 已补 Round 53 TestRun 示例；自动化验证入口：`scripts/verify-microflow-transaction-manager.ts`。
 - 本轮不做真实业务表 CRUD、不调用 ORM SaveChanges、不执行 object events、refresh client、完整 ErrorHandling 或 EntityAccess enforcement。
 - 第 54 轮 Object CRUD Actions 应复用本轮 TransactionManager 作为唯一运行时对象变更日志入口。
+
+## 第 54 阶段加强版 Runtime ActionExecutor
+
+- 新增 `Runtime/Actions` 核心模型与 `MicroflowActionExecutorRegistry`，覆盖前端 51 个 actionKind，并保留后端 legacy aliases。
+- `MicroflowActionSupportMatrix` 改为读取 Registry descriptor，Validation / ExecutionPlan / Runtime 行为不再各自维护 P0 列表。
+- MockRuntimeRunner 接入 Registry：ServerExecutable 写变量/事务/日志/trace，RuntimeCommand 输出 `runtimeCommands`，ConnectorBacked 缺 capability 返回 `RUNTIME_CONNECTOR_REQUIRED`，ExplicitUnsupported 返回 `RUNTIME_UNSUPPORTED_ACTION`。
+- FlowNavigator 的 ActionActivity 输出包含 executorCategory/supportLevel/runtimeCommands/connectorRequests，不再只写模糊 placeholder。
+- 新增 `scripts/verify-microflow-action-executors-full-coverage.ts` 与 `MicroflowActionExecutorRegistryTests` 覆盖全量矩阵、RuntimeCommand、connector required 和 fallback unsupported。
 
 ## 未知项
 

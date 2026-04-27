@@ -73,5 +73,23 @@ FlowNavigator 生成 `MicroflowNavigationStep` 与 `MicroflowNavigationTraceFram
   - `diagnostics`
 - `RunSession.transactionSummary` 与成功 `RunSession.output.transactionSummary` 输出事务最终摘要。
 - `RuntimeLog.message` 以 `transaction.{operation}: {message}` 形式展示事务日志；当前不扩展独立结构化 log payload。
+- `CommitAction` 与 `commit.enabled=true` 的隐式提交会在 preview 中形成 `operation=commit` 的短变更记录；`customWithoutRollback` / `continue` 使用 `transaction.errorHandlingKeepActive` / `transaction.errorHandlingContinue`，不会伪装成 rollback 日志。
 - DebugPanel 继续按 JSON output 展示 transaction，无需复杂事务可视化。
 - Trace/log 只保存短 preview 与计数，不保存 FlowGram JSON、WorkflowJSON 或大 raw object。
+
+## 第 54 阶段 ActionExecutor Trace Output
+
+所有 ActionExecutor 的 `TraceFrame.output` 统一增加以下字段：
+
+- `actionKind`
+- `executorCategory`
+- `supportLevel`
+- `outputPreview`
+- `producedVariables`
+- `runtimeCommands`
+- `connectorRequests`
+- `transaction`
+- `diagnostics`
+- `durationMs`
+
+Connector missing 的 `TraceFrame.error.code` 为 `RUNTIME_CONNECTOR_REQUIRED`；Nanoflow-only / unknown action 的错误码为 `RUNTIME_UNSUPPORTED_ACTION`。DebugPanel 无需协议改造，继续展示 output JSON。

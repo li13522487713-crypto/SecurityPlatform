@@ -5,33 +5,15 @@ using Atlas.Application.Microflows.Exceptions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Repositories;
+using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Domain.Microflows.Entities;
 
 namespace Atlas.Application.Microflows.Services;
 
 public sealed class MicroflowActionSupportMatrix : IMicroflowActionSupportMatrix
 {
-    private static readonly HashSet<string> P0Supported = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "createVariable", "changeVariable",
-        "callMicroflow", "restCall", "logMessage"
-    };
-
-    private static readonly HashSet<string> ModeledOnly = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "listOperation", "aggregateList", "createList", "changeList", "webServiceCall", "importXml", "exportXml",
-        "showPage", "showMessage", "validationFeedback", "workflow", "workflowAction", "metrics", "mlModelCall"
-    };
-
-    private static readonly HashSet<string> NanoflowOnly = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "javascriptAction", "nanoflowCall", "nanoflowCallAction", "synchronize", "nanoflowOnlySynchronize"
-    };
-
-    private static readonly HashSet<string> RequiresConnector = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "externalObject", "connectorCall", "externalConnectorCall"
-    };
+    private static readonly IReadOnlyDictionary<string, MicroflowActionExecutorDescriptor> Descriptors =
+        MicroflowActionExecutorRegistry.BuiltInDescriptors().ToDictionary(descriptor => descriptor.ActionKind, StringComparer.OrdinalIgnoreCase);
 
     public MicroflowActionSupportDescriptor Resolve(string? actionKind, string? officialType, MicroflowExecutionPlanLoadOptions options)
     {
@@ -45,17 +27,21 @@ public sealed class MicroflowActionSupportMatrix : IMicroflowActionSupportMatrix
             };
         }
 
-        if (P0Supported.Contains(actionKind))
+        if (Descriptors.TryGetValue(actionKind, out var descriptor))
         {
+            var supportLevel = ToRuntimeSupportLevel(descriptor, options);
+            var reason = string.Equals(supportLevel, MicroflowRuntimeSupportLevel.Supported, StringComparison.OrdinalIgnoreCase)
+                ? descriptor.SupportLevel
+                : descriptor.Reason;
             return new MicroflowActionSupportDescriptor
             {
-                SupportLevel = MicroflowRuntimeSupportLevel.Supported,
-                Reason = "supported",
-                Message = "P0 supported action."
+                SupportLevel = supportLevel,
+                Reason = reason,
+                Message = descriptor.Reason
             };
         }
 
-        if (NanoflowOnly.Contains(actionKind) || Contains(officialType, "Nanoflow"))
+        if (Contains(officialType, "Nanoflow"))
         {
             return new MicroflowActionSupportDescriptor
             {
@@ -65,23 +51,13 @@ public sealed class MicroflowActionSupportMatrix : IMicroflowActionSupportMatrix
             };
         }
 
-        if (RequiresConnector.Contains(actionKind) && !options.ConnectorCapabilities.Contains(actionKind, StringComparer.OrdinalIgnoreCase))
+        if (Contains(officialType, "GenericAction"))
         {
             return new MicroflowActionSupportDescriptor
             {
-                SupportLevel = MicroflowRuntimeSupportLevel.RequiresConnector,
-                Reason = "requiresConnector",
-                Message = "Action requires a connector capability that is not enabled."
-            };
-        }
-
-        if (ModeledOnly.Contains(actionKind) || Contains(officialType, "GenericAction"))
-        {
-            return new MicroflowActionSupportDescriptor
-            {
-                SupportLevel = MicroflowRuntimeSupportLevel.ModeledOnly,
-                Reason = "modeledOnly",
-                Message = "Action is modeled but not executable by the P0 runtime."
+                SupportLevel = MicroflowRuntimeSupportLevel.Unsupported,
+                Reason = "genericUnsupported",
+                Message = $"Generic action kind '{actionKind}' has no registered executor strategy."
             };
         }
 
@@ -90,6 +66,32 @@ public sealed class MicroflowActionSupportMatrix : IMicroflowActionSupportMatrix
             SupportLevel = MicroflowRuntimeSupportLevel.Unsupported,
             Reason = "unsupported",
             Message = $"Unsupported action kind: {actionKind}."
+        };
+    }
+
+    private static string ToRuntimeSupportLevel(MicroflowActionExecutorDescriptor descriptor, MicroflowExecutionPlanLoadOptions options)
+    {
+        if (descriptor.RuntimeCategory == MicroflowActionRuntimeCategory.ConnectorBacked
+            && !string.IsNullOrWhiteSpace(descriptor.ConnectorCapability)
+            && !options.ConnectorCapabilities.Contains(descriptor.ConnectorCapability, StringComparer.OrdinalIgnoreCase))
+        {
+            return MicroflowRuntimeSupportLevel.RequiresConnector;
+        }
+
+        if (descriptor.RuntimeCategory == MicroflowActionRuntimeCategory.ConnectorBacked)
+        {
+            return descriptor.SupportLevel == MicroflowActionSupportLevel.Deprecated
+                ? MicroflowRuntimeSupportLevel.Deprecated
+                : MicroflowRuntimeSupportLevel.Supported;
+        }
+
+        return descriptor.SupportLevel switch
+        {
+            MicroflowActionSupportLevel.Supported or MicroflowActionSupportLevel.ModeledOnlyConverted => MicroflowRuntimeSupportLevel.Supported,
+            MicroflowActionSupportLevel.RequiresConnector => MicroflowRuntimeSupportLevel.RequiresConnector,
+            MicroflowActionSupportLevel.NanoflowOnly => MicroflowRuntimeSupportLevel.NanoflowOnly,
+            MicroflowActionSupportLevel.Deprecated => MicroflowRuntimeSupportLevel.Deprecated,
+            _ => MicroflowRuntimeSupportLevel.Unsupported
         };
     }
 

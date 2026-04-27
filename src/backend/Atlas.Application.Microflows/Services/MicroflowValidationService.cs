@@ -20,16 +20,12 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         "startEvent", "endEvent", "errorEvent", "breakEvent", "continueEvent", "exclusiveSplit", "inheritanceSplit",
         "exclusiveMerge", "actionActivity", "loopedActivity", "parameterObject", "annotation"
     };
-    private static readonly HashSet<string> P0ActionKinds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "createVariable", "changeVariable",
-        "callMicroflow", "restCall", "logMessage"
-    };
 
     private readonly IMicroflowResourceRepository _resourceRepository;
     private readonly IMicroflowSchemaSnapshotRepository _schemaSnapshotRepository;
     private readonly IMicroflowMetadataService _metadataService;
     private readonly IMicroflowSchemaReader _schemaReader;
+    private readonly IMicroflowActionSupportMatrix _actionSupportMatrix;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowClock _clock;
 
@@ -38,6 +34,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         IMicroflowSchemaSnapshotRepository schemaSnapshotRepository,
         IMicroflowMetadataService metadataService,
         IMicroflowSchemaReader schemaReader,
+        IMicroflowActionSupportMatrix actionSupportMatrix,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowClock clock)
     {
@@ -45,6 +42,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         _schemaSnapshotRepository = schemaSnapshotRepository;
         _metadataService = metadataService;
         _schemaReader = schemaReader;
+        _actionSupportMatrix = actionSupportMatrix;
         _requestContextAccessor = requestContextAccessor;
         _clock = clock;
     }
@@ -501,7 +499,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         }
     }
 
-    private static void ValidateActions(MicroflowValidationContext context, Dictionary<string, VariableInfo> variables)
+    private void ValidateActions(MicroflowValidationContext context, Dictionary<string, VariableInfo> variables)
     {
         foreach (var obj in context.SchemaModel.Objects.Where(o => IsKind(o, "actionActivity")))
         {
@@ -511,10 +509,21 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(action.Kind) || !P0ActionKinds.Contains(action.Kind))
+            var support = _actionSupportMatrix.Resolve(
+                action.Kind,
+                action.OfficialType,
+                new MicroflowExecutionPlanLoadOptions { Mode = context.Mode });
+            if (!string.Equals(support.SupportLevel, MicroflowRuntimeSupportLevel.Supported, StringComparison.OrdinalIgnoreCase))
             {
-                var severity = context.Mode == "testRun" ? "error" : context.Mode == "publish" ? "warning" : "warning";
-                Add(context, MicroflowValidationCodes.ActionUnsupported, $"Action 类型暂不支持 P0 后端校验：{action.Kind}", "action", $"{action.FieldPath}.kind", objectId: obj.Id, actionId: action.Id, severity: severity);
+                Add(
+                    context,
+                    MicroflowValidationCodes.ActionUnsupported,
+                    support.Message,
+                    "action",
+                    $"{action.FieldPath}.kind",
+                    objectId: obj.Id,
+                    actionId: action.Id,
+                    severity: ActionSupportSeverity(context, support.SupportLevel));
                 continue;
             }
 
@@ -1040,6 +1049,21 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
     private static string LenientSeverity(MicroflowValidationContext context)
         => context.Mode is "publish" or "testRun" ? "error" : "warning";
+
+    private static string ActionSupportSeverity(MicroflowValidationContext context, string supportLevel)
+    {
+        if (string.Equals(supportLevel, MicroflowRuntimeSupportLevel.Deprecated, StringComparison.OrdinalIgnoreCase))
+        {
+            return "warning";
+        }
+
+        if (string.Equals(supportLevel, MicroflowRuntimeSupportLevel.RequiresConnector, StringComparison.OrdinalIgnoreCase))
+        {
+            return context.Mode is "publish" or "testRun" ? "error" : "warning";
+        }
+
+        return context.Mode is "publish" or "testRun" ? "error" : "warning";
+    }
 
     private static void Add(
         MicroflowValidationContext context,

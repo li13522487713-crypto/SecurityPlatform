@@ -59,6 +59,8 @@ public static class MicroflowRuntimeTransactionLogOperation
     public const string Savepoint = "savepoint";
     public const string RollbackToSavepoint = "rollbackToSavepoint";
     public const string InvalidState = "invalidState";
+    public const string ErrorHandlingKeepActive = "errorHandlingKeepActive";
+    public const string ErrorHandlingContinue = "errorHandlingContinue";
 }
 
 public sealed record MicroflowRuntimeTransactionOptions

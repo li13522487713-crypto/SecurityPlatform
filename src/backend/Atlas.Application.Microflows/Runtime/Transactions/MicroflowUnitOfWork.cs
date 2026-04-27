@@ -31,7 +31,10 @@ public sealed class MicroflowUnitOfWork : IMicroflowUnitOfWork
     {
         for (var index = 0; index < _changes.Count; index++)
         {
-            _changes[index] = _changes[index] with { Status = MicroflowRuntimeObjectChangeStatus.Committed };
+            if (string.Equals(_changes[index].Status, MicroflowRuntimeObjectChangeStatus.Staged, StringComparison.OrdinalIgnoreCase))
+            {
+                _changes[index] = _changes[index] with { Status = MicroflowRuntimeObjectChangeStatus.Committed };
+            }
         }
 
         _operations.Add(new MicroflowRuntimeTransactionOperation

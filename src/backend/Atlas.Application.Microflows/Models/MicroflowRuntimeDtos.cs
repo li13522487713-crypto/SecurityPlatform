@@ -283,6 +283,7 @@ public static class RuntimeErrorCode
     public const string RuntimeCommitFailed = "RUNTIME_COMMIT_FAILED";
     public const string RuntimeDeleteFailed = "RUNTIME_DELETE_FAILED";
     public const string RuntimeRestCallFailed = "RUNTIME_REST_CALL_FAILED";
+    public const string RuntimeTimeout = "RUNTIME_TIMEOUT";
     public const string RuntimeCallMicroflowFailed = "RUNTIME_CALL_MICROFLOW_FAILED";
     public const string RuntimeUnsupportedAction = "RUNTIME_UNSUPPORTED_ACTION";
     public const string RuntimeConnectorRequired = "RUNTIME_CONNECTOR_REQUIRED";

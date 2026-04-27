@@ -1,27 +1,47 @@
-# Runtime 动作支持矩阵（P0 强类型）
+# Runtime 动作支持矩阵（第 54 阶段）
 
-| actionKind | 注册表 runtimeSupportLevel | ExecutionPlan（resolveActionRuntimeSupportLevel） | 说明 |
-|------------|-----------------------------|-----------------------------------------------|------|
-| retrieve, createObject, changeMembers, commit, delete, rollback, createVariable, changeVariable, callMicroflow, restCall, logMessage | **supported** | **supported** | 强类型 `Microflow*Action` + Runtime DTO 联合，不得使用 `MicroflowGenericAction` 表达 |
-| 其它 P1/P2 | modeledOnly / beta / ... | 多为 modeledOnly 或按 availability 映射 | 走 `MicroflowGenericAction` 或专用接口；Runtime 为 modeledOnly/unsupported 策略 |
+第 54 阶段后端以 `MicroflowActionExecutorRegistry` 作为 Action Runtime 行为的权威来源。所有已建模 `actionKind` 必须落入四类之一：
 
-校验：`MF_ACTION_P0_MUST_BE_STRONGLY_TYPED` 在 P0 kind 但结构不合法时触发。
+- `serverExecutable`：服务端 testRun 可执行可信运行语义，写变量、事务、日志或 trace。
+- `runtimeCommand`：服务端不假装执行 UI 行为，只返回 `MicroflowRuntimeCommand`。
+- `connectorBacked`：依赖外部系统，缺 capability 时返回 `RUNTIME_CONNECTOR_REQUIRED`。
+- `explicitUnsupported`：Nanoflow-only / unknown / unsafe 等明确返回 `RUNTIME_UNSUPPORTED_ACTION`。
 
-Flow 协议：P0 action execution 只跟随 `sequence` / `decisionCondition` / `objectTypeCondition` / `errorHandler` control flows；`AnnotationFlow`、FlowGram JSON、port label 与视觉 branch order 不作为 Runtime 执行依据。
+`modeledOnly` 不再作为运行时模糊状态；进入后端注册表的 P1/P2 动作会转成 `modeledOnlyConverted` 并拥有明确 executor 策略。
 
-第 30 轮：ExecutionPlan 的 `unsupportedActions` 是 Runtime 支持级权威列表。Mock Runner 执行到 modeledOnly / unsupported / requiresConnector 节点时，分别产生 `RUNTIME_UNSUPPORTED_ACTION` 或 `RUNTIME_CONNECTOR_REQUIRED`，并生成 failed trace。
+## 全量覆盖矩阵
 
-## 第 48 轮后端矩阵
+| 分组 | actionKind | runtimeCategory | executor | supportLevel | capability / error |
+|---|---|---|---|---|---|
+| Object | retrieve | serverExecutable | RetrieveActionExecutor | supported | testRun mock；真实 DB 后续需 objectStore.crud |
+| Object | createObject, changeMembers, commit, delete, rollback | serverExecutable | 对应 Object Action Executor | supported | 写 VariableStore/TransactionManager |
+| Object | cast | serverExecutable | CastObjectActionExecutor | modeledOnlyConverted | 输出目标类型变量 |
+| List | createList, changeList, listOperation, aggregateList | serverExecutable | List Action Executors | modeledOnlyConverted | 写 VariableStore |
+| Variable | createVariable, changeVariable | serverExecutable | Variable Action Executors | supported | 表达式求值 + VariableStore |
+| Call | callMicroflow | serverExecutable | CallMicroflowActionExecutor | supported | testRun 本地 mock return；递归完整化后续深化 |
+| Call | callJavaAction | connectorBacked | JavaActionExecutor | requiresConnector | java.action |
+| Call | callJavaScriptAction, callNanoflow | explicitUnsupported | ExplicitUnsupportedActionExecutor | nanoflowOnly | RUNTIME_UNSUPPORTED_ACTION |
+| Integration | restCall | serverExecutable | RestCallActionExecutor | supported | testRun mock；真实 HTTP 需 rest.realHttp |
+| Integration | webServiceCall | connectorBacked | WebServiceCallActionExecutor | requiresConnector | soap.webService |
+| Integration | importXml, exportXml | connectorBacked | XML Mapping Executors | requiresConnector | xml.importMapping / xml.exportMapping |
+| Integration | callExternalAction, restOperationCall | connectorBacked | External/REST Operation Executors | requiresConnector | external.action / rest.realHttp |
+| Client/UI | showPage, showHomePage, showMessage, closePage, validationFeedback, downloadFile | runtimeCommand | Client RuntimeCommand Executors | modeledOnlyConverted | MicroflowRuntimeCommand |
+| Client/UI | synchronize | explicitUnsupported | ExplicitUnsupportedActionExecutor | nanoflowOnly | RUNTIME_UNSUPPORTED_ACTION |
+| Logging | logMessage | serverExecutable | LogMessageActionExecutor | supported | RuntimeLog |
+| Document | generateDocument | connectorBacked | DocumentGenerationExecutor | deprecated | document.generation |
+| Metrics | counter, incrementCounter, gauge | serverExecutable | MetricsActionExecutor | modeledOnlyConverted | RuntimeLog fallback |
+| ML | mlModelCall | connectorBacked | MLModelCallExecutor | requiresConnector | ml.model |
+| Workflow | applyJumpToOption, callWorkflow, changeWorkflowState, completeUserTask, generateJumpToOptions, retrieveWorkflowActivityRecords, retrieveWorkflowContext, retrieveWorkflows, showUserTaskPage, showWorkflowAdminPage, lockWorkflow, unlockWorkflow, notifyWorkflow | connectorBacked | WorkflowActionExecutor | requiresConnector | workflow.action |
+| ExternalObject | deleteExternalObject, sendExternalObject | connectorBacked | ExternalObjectActionExecutor | requiresConnector | externalObject.crud |
+| Unknown / Generic | unknown actionKind | explicitUnsupported | FallbackUnsupportedActionExecutor | unsupported | RUNTIME_UNSUPPORTED_ACTION |
 
-后端新增 `MicroflowActionSupportMatrix`，供 RuntimeDtoBuilder / ExecutionPlanBuilder 复用，不写在 Controller 中。
+后端还保留 legacy aliases：`externalObject`、`connectorCall`、`externalConnectorCall`、`javascriptAction`、`nanoflowCall`、`nanoflowCallAction`、`nanoflowOnlySynchronize`、`workflow`、`workflowAction`、`metrics`。
 
-- `supported`：retrieve、createObject、changeMembers、commit、delete、rollback、createVariable、changeVariable、callMicroflow、restCall、logMessage，以及 Start/End/Error/Break/Continue/Split/Merge/Loop 这类 control object。
-- `modeledOnly`：listOperation、aggregateList、createList、changeList、webServiceCall、importXml、exportXml、showPage、showMessage、validationFeedback、workflow、metrics、mlModelCall 与 GenericAction。
-- `requiresConnector`：externalObject / connectorCall 类 action，未显式启用 connector capability 时不视为 supported。
-- `nanoflowOnly`：JavaScriptAction、NanoflowCallAction、nanoflow-only synchronize。
-- 未识别 actionKind 默认 `unsupported`。
+校验：`MicroflowValidationService` 通过同一 `MicroflowActionSupportMatrix` 判定 supportLevel；connector missing 在 `testRun/publish` 为 error，edit/save 为 warning；deprecated 为 warning。
 
-`failOnUnsupported=false` 时这些 descriptor 以 warning diagnostic 返回；`failOnUnsupported=true` 时 API 返回 `MICROFLOW_VALIDATION_FAILED`。
+Flow 协议：Runtime action execution 只跟随 `sequence` / `decisionCondition` / `objectTypeCondition` / `errorHandler` control flows；`AnnotationFlow`、FlowGram JSON、port label 与视觉 branch order 不作为 Runtime 执行依据。
+
+自动化验证：`scripts/verify-microflow-action-executors-full-coverage.ts` 静态覆盖所有前端 actionKind，并 smoke 验证 object/list/UI/connector/unsupported trace。
 
 ## 第 26 轮属性面板支持
 

@@ -107,10 +107,20 @@
 - MockRuntimeRunner 的 P0 object actions 已接入事务日志：
   - `CreateObject` -> `TrackCreate`，可记录 implicit commit。
   - `ChangeMembers` -> `TrackUpdate`，记录 changed members 与 `validateObject`。
-  - `CommitAction` -> `TrackCommitAction`，记录提交动作但不写 DB。
+  - `CommitAction` -> `TrackCommitAction`，记录 `operation=commit` 的结构化提交动作但不写 DB。
   - `DeleteAction` -> `TrackDelete`。
   - `RollbackAction` -> `TrackRollbackObject`，不等同 transaction rollback。
 - `TraceFrame.output.transaction` 输出对象变更 preview；`RuntimeLog` 写入 `transaction.*` 短文本；`RunSession.transactionSummary` 输出最终状态与计数。
-- ErrorHandling 仅提供 rollback/customWithRollback/customWithoutRollback/continue 的事务基础接口，不执行完整 error handler 语义。
+- ErrorHandling 仅提供 rollback/customWithRollback/customWithoutRollback/continue 的事务基础接口；`customWithoutRollback` 与 `continue` 明确写非 rollback 的 keep-active/continue 日志，不执行完整 error handler 语义。
 - 自动化验证：`npx tsx scripts/verify-microflow-transaction-manager.ts`（需 AppHost 已运行）。
 - 下一轮建议：第 54 轮 Object CRUD Actions，通过本轮 TransactionManager 记录真实对象 CRUD 的运行时 change set。
+
+## 第 54 阶段加强版 Runtime ActionExecutor
+
+- 后端新增 `Runtime/Actions`：`IMicroflowActionExecutor`、`MicroflowActionExecutorRegistry`、`MicroflowActionExecutionContext`、`MicroflowActionExecutionResult`、`MicroflowRuntimeCommand` 与 `IMicroflowRuntimeConnectorRegistry`。
+- 前端 51 个 `MicroflowActionKind` 已全部映射到 `serverExecutable`、`runtimeCommand`、`connectorBacked` 或 `explicitUnsupported`。
+- Object / Variable / Rest / LogMessage 继续执行既有可信 testRun 语义；List、Cast、Metrics 已从 modeledOnly 转为 serverExecutable mock 语义并写 VariableStore/RuntimeLog。
+- Client/UI actions 生成 `RuntimeCommand`，服务端不假装页面或消息已经执行。
+- WebService / XML / Workflow / Document / ML / ExternalObject / Java 等 connector-backed action 缺 capability 时返回 `RUNTIME_CONNECTOR_REQUIRED`。
+- Nanoflow-only 与 unknown action 走 `ExplicitUnsupportedActionExecutor`，返回 `RUNTIME_UNSUPPORTED_ACTION`，不再 silent skip。
+- `MicroflowValidationService` 通过 `MicroflowActionSupportMatrix` 与 Registry 对齐；自动化验证入口：`scripts/verify-microflow-action-executors-full-coverage.ts`。

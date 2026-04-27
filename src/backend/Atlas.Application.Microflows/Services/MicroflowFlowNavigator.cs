@@ -3,6 +3,7 @@ using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Expressions;
 
 namespace Atlas.Application.Microflows.Services;
@@ -13,11 +14,16 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
 
     private readonly IMicroflowClock _clock;
     private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
+    private readonly IMicroflowActionExecutorRegistry _actionExecutorRegistry;
 
-    public MicroflowFlowNavigator(IMicroflowClock clock, IMicroflowExpressionEvaluator expressionEvaluator)
+    public MicroflowFlowNavigator(
+        IMicroflowClock clock,
+        IMicroflowExpressionEvaluator expressionEvaluator,
+        IMicroflowActionExecutorRegistry actionExecutorRegistry)
     {
         _clock = clock;
         _expressionEvaluator = expressionEvaluator;
+        _actionExecutorRegistry = actionExecutorRegistry;
     }
 
     public Task<MicroflowNavigationResult> NavigateAsync(
@@ -395,6 +401,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         JsonElement? loopIteration)
     {
         var next = SelectNormalFlow(context, query, node, strict: false).Flow;
+        var executor = _actionExecutorRegistry.GetOrFallback(node.ActionKind);
         if (context.Options.SimulateActionFailureObjectIds.Contains(node.ObjectId, StringComparer.Ordinal))
         {
             var failure = Error(RuntimeErrorCode.RuntimeUnknownError, "Action failure simulated by FlowNavigator options.", node.ObjectId, node.ActionId, incomingFlowId);
@@ -409,8 +416,22 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
 
         if (string.Equals(node.SupportLevel, MicroflowRuntimeSupportLevel.Supported, StringComparison.OrdinalIgnoreCase))
         {
-            WritePlaceholderActionOutput(context, node);
-            AddStep(context, node, incomingFlowId, next?.FlowId, MicroflowNavigationStepStatus.Success, loopIteration, message: "Action execution skipped by FlowNavigator placeholder.");
+            if (executor.Category == MicroflowActionRuntimeCategory.ServerExecutable)
+            {
+                WritePlaceholderActionOutput(context, node);
+            }
+
+            AddStep(
+                context,
+                node,
+                incomingFlowId,
+                next?.FlowId,
+                MicroflowNavigationStepStatus.Success,
+                loopIteration,
+                message: executor.Category == MicroflowActionRuntimeCategory.RuntimeCommand
+                    ? "Action produced a RuntimeCommand for client handling."
+                    : "Action resolved through ActionExecutorRegistry.",
+                output: BuildNavigatorExecutorOutput(node, executor));
             return NavigationSignal.ContinueWith(next);
         }
 
@@ -427,10 +448,50 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             : RuntimeErrorCode.RuntimeUnsupportedAction;
         var message = string.Equals(node.SupportLevel, MicroflowRuntimeSupportLevel.NanoflowOnly, StringComparison.OrdinalIgnoreCase)
             ? "Nanoflow-only action cannot run in Microflow runtime."
-            : $"Action is not executable by FlowNavigator: {node.ActionKind ?? "missing"}.";
+            : executor.Category == MicroflowActionRuntimeCategory.ConnectorBacked
+                ? $"Connector capability required for action: {node.ActionKind ?? "missing"}."
+                : $"Action is not executable by FlowNavigator: {node.ActionKind ?? "missing"}.";
         var error = Error(code, message, node.ObjectId, node.ActionId, incomingFlowId);
-        AddStep(context, node, incomingFlowId, null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
+        AddStep(context, node, incomingFlowId, null, MicroflowNavigationStepStatus.Failed, loopIteration, error, output: BuildNavigatorExecutorOutput(node, executor));
         return NavigationSignal.Failed(error);
+    }
+
+    private static JsonElement BuildNavigatorExecutorOutput(MicroflowExecutionNode node, IMicroflowActionExecutor executor)
+    {
+        var command = executor.Category == MicroflowActionRuntimeCategory.RuntimeCommand
+            ? new MicroflowRuntimeCommand
+            {
+                CommandKind = node.ActionKind ?? executor.ActionKind,
+                SourceObjectId = node.ObjectId,
+                SourceActionId = node.ActionId,
+                PayloadJson = node.ConfigJson?.GetRawText(),
+                Message = "Client must handle this RuntimeCommand."
+            }
+            : null;
+        var connectorRequest = executor is ConfiguredMicroflowActionExecutor configured
+            && configured.Descriptor.ConnectorCapability is not null
+                ? new MicroflowConnectorExecutionRequest
+                {
+                    Capability = configured.Descriptor.ConnectorCapability,
+                    ActionKind = node.ActionKind ?? executor.ActionKind,
+                    ObjectId = node.ObjectId,
+                    ActionId = node.ActionId,
+                    PayloadJson = node.ConfigJson?.GetRawText()
+                }
+                : null;
+        return JsonSerializer.SerializeToElement(new
+        {
+            actionKind = node.ActionKind,
+            executorCategory = executor.Category,
+            supportLevel = executor.SupportLevel,
+            outputPreview = executor.Category == MicroflowActionRuntimeCategory.RuntimeCommand
+                ? "pending client command"
+                : executor.Category,
+            runtimeCommands = command is null ? Array.Empty<MicroflowRuntimeCommand>() : new[] { command },
+            connectorRequests = connectorRequest is null ? Array.Empty<MicroflowConnectorExecutionRequest>() : new[] { connectorRequest },
+            diagnostics = Array.Empty<MicroflowActionExecutionDiagnostic>(),
+            durationMs = 0
+        }, JsonOptions);
     }
 
     private NavigationSignal HandleActionFailure(

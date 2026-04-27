@@ -114,9 +114,25 @@
 5. `customWithoutRollback` 与 `continue` 不 rollback，成功结束后可 commit。
 6. `CreateObject` trace 有 `output.transaction.operation=createObject` 与 `stageCreate` log。
 7. `ChangeMembers` trace 有 update preview、changed members 和 `validateObject` 标记。
-8. `CommitAction` 生成 commit transaction log，并可标记匹配 staged changes 为 committed。
+8. `CommitAction` 生成 commit transaction log 与 `operation=commit` 的结构化变更，并可标记匹配 staged changes 为 committed。
 9. `DeleteAction` 生成 delete change 与 `stageDelete` log。
 10. `RollbackAction` 生成对象级 rollback operation，不等同 transaction rollback。
-11. savepoint 可创建，TestRun 默认创建 `run-start` savepoint；`RollbackToSavepoint` 为后续 ErrorHandling 深化保留基础能力。
+11. savepoint 可创建，TestRun 默认创建 `run-start` savepoint；`RollbackToSavepoint` 为后续 ErrorHandling 深化保留基础能力，已回滚 staged change 不会被最终 commit 重新提交。
 12. TraceFrame / RuntimeLog / RunSession summary 均不得包含 FlowGram JSON 或大 raw object。
 13. 本轮不验证真实数据库 CRUD、真实对象持久化、真实 REST 或 EntityAccess enforcement。
+
+## 第 54 阶段 ActionExecutor 全量覆盖场景
+
+自动化入口：`scripts/verify-microflow-action-executors-full-coverage.ts`。
+
+覆盖场景：
+
+1. 静态扫描前端 51 个 `actionKind`，每个都能从 `MicroflowActionExecutorRegistry` 获取 executor 或 fallback strategy。
+2. Registry 暴露 runtimeCategory、supportLevel、connector capability、错误码和 verify 覆盖标记。
+3. Object actions 继续写 VariableStore / TransactionManager / Trace。
+4. Cast、CreateList、ChangeList、ListOperation、AggregateList、Metrics 从 modeledOnly 转成 serverExecutable mock 语义。
+5. ShowMessage / ShowPage / ClosePage / ValidationFeedback / DownloadFile 生成 RuntimeCommand。
+6. WebService / XML / Workflow / Document / ML / ExternalObject / Java action 缺 connector capability 时返回 `RUNTIME_CONNECTOR_REQUIRED`。
+7. Nanoflow-only / unknown action 返回 `RUNTIME_UNSUPPORTED_ACTION`。
+8. Trace output 包含 `executorCategory`、`supportLevel`、`runtimeCommands`、`connectorRequests` 和 transaction preview。
+9. ValidationService 与 ActionSupportMatrix / Registry 对齐。

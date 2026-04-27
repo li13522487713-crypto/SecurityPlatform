@@ -49,7 +49,7 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
 
     public void Commit(RuntimeExecutionContext context, string? reason = null)
     {
-        var transaction = RequireActive(context, MicroflowRuntimeTransactionLogOperation.Commit);
+        var transaction = RequireCommittable(context);
         if (transaction is null)
         {
             return;
@@ -58,9 +58,17 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
         context.UnitOfWork?.MarkCommitted(reason);
         for (var index = 0; index < transaction.ChangedObjects.Count; index++)
         {
-            var committed = transaction.ChangedObjects[index] with { Status = MicroflowRuntimeObjectChangeStatus.Committed };
-            transaction.ChangedObjects[index] = committed;
-            AddCommitted(transaction, committed, reason);
+            var change = transaction.ChangedObjects[index];
+            if (string.Equals(change.Status, MicroflowRuntimeObjectChangeStatus.Staged, StringComparison.OrdinalIgnoreCase))
+            {
+                change = change with { Status = MicroflowRuntimeObjectChangeStatus.Committed };
+                transaction.ChangedObjects[index] = change;
+            }
+
+            if (string.Equals(change.Status, MicroflowRuntimeObjectChangeStatus.Committed, StringComparison.OrdinalIgnoreCase))
+            {
+                AddCommitted(transaction, change, reason);
+            }
         }
 
         transaction.Status = MicroflowRuntimeTransactionStatus.Committed;
@@ -222,6 +230,27 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
             AddCommitted(transaction, committed, input.Reason ?? "CommitAction");
         }
 
+        var commitChange = Stage(
+            context,
+            new MicroflowRuntimeObjectChangeInput
+            {
+                EntityQualifiedName = matched.Select(change => change.EntityQualifiedName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)),
+                VariableName = input.ObjectOrListVariableName,
+                SourceObjectId = input.SourceObjectId,
+                SourceActionId = input.SourceActionId,
+                CollectionId = input.CollectionId,
+                WithEvents = input.WithEvents,
+                RefreshInClient = input.RefreshInClient,
+                Preview = $"commit {input.ObjectOrListVariableName ?? "*"} ({matched.Length} matched)"
+            },
+            MicroflowRuntimeObjectChangeOperation.Commit,
+            MicroflowRuntimeTransactionLogOperation.Commit,
+            MicroflowRuntimeObjectChangeStatus.Committed);
+        if (commitChange is not null)
+        {
+            AddCommitted(transaction, commitChange, input.Reason ?? "CommitAction");
+        }
+
         AddLog(
             context,
             MicroflowRuntimeTransactionLogOperation.Commit,
@@ -291,13 +320,13 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
 
     public MicroflowRuntimeTransactionSnapshot PrepareCustomWithoutRollback(RuntimeExecutionContext context, MicroflowRuntimeErrorDto error)
     {
-        AddLog(context, MicroflowRuntimeTransactionLogOperation.Rollback, MicroflowRuntimeTransactionLogLevel.Warning, "customWithoutRollback kept transaction active.", error.ObjectId, error.ActionId);
+        AddLog(context, MicroflowRuntimeTransactionLogOperation.ErrorHandlingKeepActive, MicroflowRuntimeTransactionLogLevel.Warning, "customWithoutRollback kept transaction active.", error.ObjectId, error.ActionId);
         return CreateSnapshot(context, new MicroflowRuntimeTransactionSnapshotOptions { Operation = "customWithoutRollback" });
     }
 
     public MicroflowRuntimeTransactionSnapshot ContinueAfterError(RuntimeExecutionContext context, MicroflowRuntimeErrorDto error)
     {
-        AddLog(context, MicroflowRuntimeTransactionLogOperation.Rollback, MicroflowRuntimeTransactionLogLevel.Warning, "continue error handling kept transaction active.", error.ObjectId, error.ActionId);
+        AddLog(context, MicroflowRuntimeTransactionLogOperation.ErrorHandlingContinue, MicroflowRuntimeTransactionLogLevel.Warning, "continue error handling kept transaction active.", error.ObjectId, error.ActionId);
         return CreateSnapshot(context, new MicroflowRuntimeTransactionSnapshotOptions { Operation = "continue" });
     }
 
@@ -380,8 +409,45 @@ public sealed class MicroflowTransactionManager : IMicroflowTransactionManager
         return context.Transaction;
     }
 
+    private MicroflowRuntimeTransactionContext? RequireCommittable(RuntimeExecutionContext context)
+    {
+        var transaction = context.Transaction;
+        if (transaction is null
+            || string.Equals(transaction.Status, MicroflowRuntimeTransactionStatus.None, StringComparison.OrdinalIgnoreCase))
+        {
+            InvalidState(context, "RUNTIME_TRANSACTION_NOT_ACTIVE", "Cannot commit because no transaction is active.", null, null);
+            return null;
+        }
+
+        if (string.Equals(transaction.Status, MicroflowRuntimeTransactionStatus.Committed, StringComparison.OrdinalIgnoreCase))
+        {
+            InvalidState(context, "RUNTIME_TRANSACTION_ALREADY_COMMITTED", "Cannot commit a transaction that is already committed.", null, null);
+            return null;
+        }
+
+        if (string.Equals(transaction.Status, MicroflowRuntimeTransactionStatus.RolledBack, StringComparison.OrdinalIgnoreCase))
+        {
+            InvalidState(context, "RUNTIME_TRANSACTION_ALREADY_ROLLED_BACK", "Cannot commit a rolled back transaction.", null, null);
+            return null;
+        }
+
+        if (!string.Equals(transaction.Status, MicroflowRuntimeTransactionStatus.Active, StringComparison.OrdinalIgnoreCase))
+        {
+            InvalidState(context, "RUNTIME_TRANSACTION_NOT_ACTIVE", $"Cannot commit because transaction status is '{transaction.Status}'.", null, null);
+            return null;
+        }
+
+        return transaction;
+    }
+
     private void InvalidState(RuntimeExecutionContext context, string code, string message, string? objectId, string? actionId)
     {
+        context.Transaction ??= new MicroflowRuntimeTransactionContext
+        {
+            Mode = MicroflowRuntimeTransactionMode.None,
+            Status = MicroflowRuntimeTransactionStatus.None,
+            Options = context.TransactionOptions ?? new MicroflowRuntimeTransactionOptions { Mode = MicroflowRuntimeTransactionMode.None, AutoBegin = false }
+        };
         var diagnostic = new MicroflowRuntimeTransactionDiagnostic
         {
             Code = code,

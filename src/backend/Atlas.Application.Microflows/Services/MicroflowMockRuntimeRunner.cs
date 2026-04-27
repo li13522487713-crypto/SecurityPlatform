@@ -4,6 +4,7 @@ using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Transactions;
 
@@ -12,33 +13,33 @@ namespace Atlas.Application.Microflows.Services;
 public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly HashSet<string> SupportedActionKinds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "retrieve", "createObject", "changeMembers", "commit", "delete", "rollback", "createVariable", "changeVariable",
-        "callMicroflow", "restCall", "logMessage"
-    };
-
     private readonly IMicroflowSchemaReader _schemaReader;
     private readonly IMicroflowClock _clock;
     private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
     private readonly IMicroflowTransactionManager _transactionManager;
+    private readonly IMicroflowActionExecutorRegistry _actionExecutorRegistry;
+    private readonly IMicroflowRuntimeConnectorRegistry _connectorRegistry;
 
     public MicroflowMockRuntimeRunner(
         IMicroflowSchemaReader schemaReader,
         IMicroflowClock clock,
         IMicroflowExpressionEvaluator expressionEvaluator,
-        IMicroflowTransactionManager transactionManager)
+        IMicroflowTransactionManager transactionManager,
+        IMicroflowActionExecutorRegistry actionExecutorRegistry,
+        IMicroflowRuntimeConnectorRegistry connectorRegistry)
     {
         _schemaReader = schemaReader;
         _clock = clock;
         _expressionEvaluator = expressionEvaluator;
         _transactionManager = transactionManager;
+        _actionExecutorRegistry = actionExecutorRegistry;
+        _connectorRegistry = connectorRegistry;
     }
 
     public Task<MicroflowRunSessionDto> RunAsync(MicroflowMockRuntimeRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var context = new MockRuntimeContext(request, _schemaReader.Read(request.Schema), _clock, _expressionEvaluator, _transactionManager);
+        var context = new MockRuntimeContext(request, _schemaReader.Read(request.Schema), _clock, _expressionEvaluator, _transactionManager, _actionExecutorRegistry, _connectorRegistry);
         context.SeedInputVariables();
 
         var start = context.Model.Objects.SingleOrDefault(o => !o.InsideLoop && IsKind(o, "startEvent"));
@@ -337,18 +338,17 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         JsonElement? loopIteration)
     {
         var action = obj.Action;
-        if (action is null || string.IsNullOrWhiteSpace(action.Kind) || !SupportedActionKinds.Contains(action.Kind) || ReadBool(action.Raw, "modeledOnly"))
+        var executor = context.ActionExecutorRegistry.GetOrFallback(action?.Kind);
+        if (action is null || string.IsNullOrWhiteSpace(action.Kind) || ReadBool(action.Raw, "modeledOnly"))
         {
-            var error = new MicroflowRuntimeErrorDto
-            {
-                Code = RuntimeErrorCode.RuntimeUnsupportedAction,
-                Message = $"Action 类型暂不支持：{action?.Kind ?? "missing"}",
-                ObjectId = obj.Id,
-                ActionId = action?.Id,
-                FlowId = incomingFlowId
-            };
-            context.AddFrame(obj, incomingFlowId, null, "failed", input: FrameInput(obj), error: error, loopIteration: loopIteration);
-            return ActionOutcome.Failed(error);
+            return ExecuteRegistryOnlyAction(context, obj, action, executor, incomingFlowId, loopIteration);
+        }
+
+        if (executor.Category is MicroflowActionRuntimeCategory.RuntimeCommand
+            or MicroflowActionRuntimeCategory.ConnectorBacked
+            or MicroflowActionRuntimeCategory.ExplicitUnsupported)
+        {
+            return ExecuteRegistryOnlyAction(context, obj, action, executor, incomingFlowId, loopIteration);
         }
 
         if (string.Equals(action.Kind, "restCall", StringComparison.OrdinalIgnoreCase) && context.Options.SimulateRestError == true)
@@ -384,7 +384,13 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                 "callMicroflow" => MockCallMicroflow(context, obj, action),
                 "restCall" => MockRestCall(context, obj, action),
                 "logMessage" => MockLogMessage(context, obj, action),
-                _ => JsonObj(new { mocked = true })
+                "cast" => MockCastObject(context, obj, action),
+                "createList" => MockCreateList(context, obj, action),
+                "changeList" => MockChangeList(context, obj, action),
+                "listOperation" => MockListOperation(context, obj, action),
+                "aggregateList" => MockAggregateList(context, obj, action),
+                "counter" or "incrementCounter" or "gauge" or "metrics" => MockMetrics(context, obj, action),
+                _ => JsonObj(new { actionKind = action.Kind, executorCategory = executor.Category, mocked = true })
             };
         }
         catch (MicroflowExpressionRuntimeFailure ex)
@@ -421,8 +427,73 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         }
 
         context.DrainTransactionLogs();
-        context.AddFrame(obj, incomingFlowId, context.NextNormalFlow(obj.Id)?.Id, "success", input: FrameInput(obj), output: context.WithTransactionPreview(output, action.Kind), loopIteration: loopIteration);
+        context.AddFrame(obj, incomingFlowId, context.NextNormalFlow(obj.Id)?.Id, "success", input: FrameInput(obj), output: context.WithActionExecutionPreview(output, action.Kind, executor), loopIteration: loopIteration);
         return ActionOutcome.Success();
+    }
+
+    private static ActionOutcome ExecuteRegistryOnlyAction(
+        MockRuntimeContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel? action,
+        IMicroflowActionExecutor executor,
+        string? incomingFlowId,
+        JsonElement? loopIteration)
+    {
+        var node = context.RuntimeContext.ExecutionPlan.Nodes.FirstOrDefault(node => node.ObjectId == obj.Id)
+            ?? new MicroflowExecutionNode
+            {
+                ObjectId = obj.Id,
+                ActionId = action?.Id,
+                CollectionId = obj.CollectionId,
+                Kind = obj.Kind,
+                ActionKind = action?.Kind,
+                ConfigJson = action?.Raw
+            };
+        var result = executor.ExecuteAsync(
+            new MicroflowActionExecutionContext
+            {
+                RuntimeExecutionContext = context.RuntimeContext,
+                ExecutionPlan = context.RuntimeContext.ExecutionPlan,
+                ExecutionNode = node,
+                ActionConfig = action?.Raw ?? default,
+                ActionKind = action?.Kind ?? "unknown",
+                ObjectId = obj.Id,
+                ActionId = action?.Id,
+                CollectionId = obj.CollectionId,
+                VariableStore = context.RuntimeContext.VariableStore,
+                ExpressionEvaluator = context.ExpressionEvaluator,
+                TransactionManager = context.TransactionManager,
+                ConnectorRegistry = context.ConnectorRegistry,
+                RuntimeSecurityContext = context.RuntimeContext.RuntimeSecurityContext,
+                Options = new MicroflowActionExecutionOptions
+                {
+                    Mode = MicroflowRuntimeExecutionMode.TestRun
+                }
+            },
+            CancellationToken.None).GetAwaiter().GetResult();
+        var output = result.OutputJson ?? JsonObj(new
+        {
+            actionKind = action?.Kind ?? "missing",
+            executorCategory = executor.Category,
+            supportLevel = executor.SupportLevel,
+            outputPreview = result.OutputPreview,
+            runtimeCommands = result.RuntimeCommands,
+            connectorRequests = result.ConnectorRequests,
+            diagnostics = result.Diagnostics
+        });
+        context.AddFrame(
+            obj,
+            incomingFlowId,
+            result.Error is null ? context.NextNormalFlow(obj.Id)?.Id : null,
+            result.Error is null ? "success" : "failed",
+            input: FrameInput(obj),
+            output: context.WithActionExecutionPreview(output, action?.Kind ?? "unknown", executor, result),
+            error: result.Error,
+            loopIteration: loopIteration,
+            message: result.Message);
+        return result.Error is null
+            ? ActionOutcome.Success()
+            : ActionOutcome.Failed(result.Error);
     }
 
     private static JsonElement MockRetrieve(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
@@ -672,6 +743,95 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
 
         context.AddLog(level.ToLowerInvariant(), obj.Id, action.Id, message);
         return JsonObj(new { logged = true, level, message, expressionResults = argumentResults });
+    }
+
+    private static JsonElement MockCastObject(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var inputVariableName = ReadString(action.Raw, "inputVariableName") ?? ReadString(action.Raw, "objectVariableName");
+        var outputVariableName = ReadString(action.Raw, "outputVariableName") ?? inputVariableName;
+        var targetEntity = ReadString(action.Raw, "targetEntityQualifiedName") ?? ReadString(action.Raw, "entityQualifiedName") ?? "Mock.Entity";
+        MicroflowRuntimeVariableValue? source = null;
+        var sourceExists = !string.IsNullOrWhiteSpace(inputVariableName) && context.Variables.TryGetValue(inputVariableName!, out source);
+        var castValue = sourceExists
+            ? MicroflowVariableStore.ToJsonElement(source!.RawValueJson) ?? JsonObj(new { id = inputVariableName, entityQualifiedName = targetEntity })
+            : JsonSerializer.SerializeToElement((string?)null, JsonOptions);
+        if (!string.IsNullOrWhiteSpace(outputVariableName))
+        {
+            context.SetVariable(outputVariableName!, Type("object", targetEntity), castValue, "cast", obj.Id, action.Id, obj.CollectionId);
+        }
+
+        return JsonObj(new { inputVariableName, outputVariableName, targetEntityQualifiedName = targetEntity, castSucceeded = sourceExists });
+    }
+
+    private static JsonElement MockCreateList(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var variableName = ReadString(action.Raw, "outputVariableName") ?? ReadString(action.Raw, "listVariableName") ?? "list";
+        var itemType = action.Raw.TryGetProperty("itemType", out var configuredItemType)
+            ? configuredItemType.Clone()
+            : JsonSerializer.SerializeToElement(new { kind = "object", entityQualifiedName = ReadString(action.Raw, "entityQualifiedName") ?? "Mock.Entity" }, JsonOptions);
+        var value = JsonObj(new { items = Array.Empty<object>(), count = 0, itemType });
+        context.SetVariable(variableName, JsonSerializer.SerializeToElement(new { kind = "list", itemType }, JsonOptions), value, "createList", obj.Id, action.Id, obj.CollectionId);
+        return JsonObj(new { outputVariableName = variableName, count = 0, itemType });
+    }
+
+    private static JsonElement MockChangeList(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var variableName = ReadString(action.Raw, "listVariableName") ?? ReadString(action.Raw, "targetListVariableName") ?? ReadString(action.Raw, "targetVariableName") ?? "list";
+        var operation = ReadString(action.Raw, "operation") ?? ReadString(action.Raw, "changeKind") ?? ReadString(action.Raw, "type") ?? "add";
+        var expression = ReadExpressionText(action.Raw, "valueExpression") ?? ReadExpressionText(action.Raw, "value");
+        var evaluated = string.IsNullOrWhiteSpace(expression)
+            ? null
+            : context.EvaluateExpressionOrThrow(expression!, obj, action, expectedType: null);
+        var value = JsonObj(new { listVariableName = variableName, operation, valuePreview = evaluated?.ValuePreview, mockedChangeList = true });
+        context.SetVariable(variableName, Type("list"), value, "changeList", obj.Id, action.Id, obj.CollectionId);
+        return JsonObj(new { listVariableName = variableName, operation, valuePreview = evaluated?.ValuePreview, expressionResult = evaluated });
+    }
+
+    private static JsonElement MockListOperation(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var sourceVariableName = ReadString(action.Raw, "sourceListVariableName") ?? ReadString(action.Raw, "listVariableName") ?? ReadString(action.Raw, "inputVariableName");
+        var outputVariableName = ReadString(action.Raw, "outputVariableName") ?? sourceVariableName ?? "listResult";
+        var operation = ReadString(action.Raw, "operation") ?? ReadString(action.Raw, "operator") ?? ReadString(action.Raw, "listOperation") ?? "count";
+        JsonElement value = operation.ToLowerInvariant() switch
+        {
+            "contains" or "isempty" => JsonSerializer.SerializeToElement(false, JsonOptions),
+            "count" => JsonSerializer.SerializeToElement(0, JsonOptions),
+            "first" or "last" or "head" => JsonSerializer.SerializeToElement((string?)null, JsonOptions),
+            _ => JsonObj(new { items = Array.Empty<object>(), count = 0, operation })
+        };
+        var type = operation.Equals("contains", StringComparison.OrdinalIgnoreCase) || operation.Equals("isEmpty", StringComparison.OrdinalIgnoreCase)
+            ? Type("boolean")
+            : operation.Equals("count", StringComparison.OrdinalIgnoreCase)
+                ? Type("integer")
+                : Type("list");
+        context.SetVariable(outputVariableName, type, value, "listOperation", obj.Id, action.Id, obj.CollectionId);
+        return JsonObj(new { sourceVariableName, outputVariableName, operation, resultPreview = Preview(value) });
+    }
+
+    private static JsonElement MockAggregateList(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var sourceVariableName = ReadString(action.Raw, "sourceListVariableName") ?? ReadString(action.Raw, "listVariableName") ?? ReadString(action.Raw, "inputVariableName");
+        var outputVariableName = ReadString(action.Raw, "outputVariableName") ?? "aggregateResult";
+        var aggregate = ReadString(action.Raw, "aggregate") ?? ReadString(action.Raw, "operation") ?? "count";
+        JsonElement value = aggregate.Equals("any", StringComparison.OrdinalIgnoreCase) || aggregate.Equals("all", StringComparison.OrdinalIgnoreCase)
+            ? JsonSerializer.SerializeToElement(false, JsonOptions)
+            : JsonSerializer.SerializeToElement(0, JsonOptions);
+        var type = aggregate.Equals("any", StringComparison.OrdinalIgnoreCase) || aggregate.Equals("all", StringComparison.OrdinalIgnoreCase)
+            ? Type("boolean")
+            : Type("decimal");
+        context.SetVariable(outputVariableName, type, value, "aggregateList", obj.Id, action.Id, obj.CollectionId);
+        return JsonObj(new { sourceVariableName, outputVariableName, aggregate, resultPreview = Preview(value) });
+    }
+
+    private static JsonElement MockMetrics(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)
+    {
+        var name = ReadString(action.Raw, "metricName") ?? ReadString(action.Raw, "name") ?? action.Kind;
+        var valueExpression = ReadExpressionText(action.Raw, "valueExpression");
+        var evaluated = string.IsNullOrWhiteSpace(valueExpression)
+            ? null
+            : context.EvaluateExpressionOrThrow(valueExpression!, obj, action, expectedType: null);
+        context.AddLog("info", obj.Id, action.Id, $"metrics.{action.Kind}: {name}={evaluated?.ValuePreview ?? "1"}");
+        return JsonObj(new { emitted = true, metricKind = action.Kind, metricName = name, valuePreview = evaluated?.ValuePreview ?? "1", expressionResult = evaluated });
     }
 
     private static JsonElement BuildEndOutput(MockRuntimeContext context, MicroflowObjectModel obj)
@@ -991,8 +1151,10 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         return element.Clone();
     }
 
-    private static JsonElement Type(string kind)
-        => JsonObj(new { kind });
+    private static JsonElement Type(string kind, string? entityQualifiedName = null)
+        => string.IsNullOrWhiteSpace(entityQualifiedName)
+            ? JsonObj(new { kind })
+            : JsonObj(new { kind, entityQualifiedName });
 
     private static JsonElement JsonObj<T>(T value)
         => JsonSerializer.SerializeToElement(value, JsonOptions);
@@ -1047,7 +1209,9 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             MicroflowSchemaModel model,
             IMicroflowClock clock,
             IMicroflowExpressionEvaluator expressionEvaluator,
-            IMicroflowTransactionManager transactionManager)
+            IMicroflowTransactionManager transactionManager,
+            IMicroflowActionExecutorRegistry actionExecutorRegistry,
+            IMicroflowRuntimeConnectorRegistry connectorRegistry)
         {
             _request = request;
             Model = model;
@@ -1058,6 +1222,8 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             Flows = model.Flows.ToArray();
             StartedAt = clock.UtcNow;
             TransactionManager = transactionManager;
+            ActionExecutorRegistry = actionExecutorRegistry;
+            ConnectorRegistry = connectorRegistry;
             _runtimeContext = RuntimeExecutionContext.Create(
                 _runId,
                 request.ExecutionPlan ?? BuildFallbackExecutionPlan(request, model),
@@ -1094,6 +1260,10 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         public IMicroflowExpressionEvaluator ExpressionEvaluator { get; }
 
         public IMicroflowTransactionManager TransactionManager { get; }
+
+        public IMicroflowActionExecutorRegistry ActionExecutorRegistry { get; }
+
+        public IMicroflowRuntimeConnectorRegistry ConnectorRegistry { get; }
 
         public RuntimeExecutionContext RuntimeContext => _runtimeContext;
 
@@ -1284,18 +1454,26 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             _transactionLogCursor = transaction.Logs.Count;
         }
 
-        public JsonElement WithTransactionPreview(JsonElement output, string operation)
-        {
-            if (!ShouldAttachTransaction(operation))
+        public JsonElement WithActionExecutionPreview(
+            JsonElement output,
+            string operation,
+            IMicroflowActionExecutor executor,
+            MicroflowActionExecutionResult? result = null)
+            => MergeOutput(output, new
             {
-                return output;
-            }
-
-            return MergeOutput(output, new
-            {
-                transaction = _runtimeContext.CreateTransactionSnapshot(operation, maxChangedObjectPreviewCount: 8)
+                actionKind = operation,
+                executorCategory = executor.Category,
+                supportLevel = executor.SupportLevel,
+                outputPreview = result?.OutputPreview ?? Preview(output),
+                producedVariables = result?.ProducedVariables ?? Array.Empty<MicroflowRuntimeVariableValueDto>(),
+                runtimeCommands = result?.RuntimeCommands ?? Array.Empty<MicroflowRuntimeCommand>(),
+                connectorRequests = result?.ConnectorRequests ?? Array.Empty<MicroflowConnectorExecutionRequest>(),
+                transaction = ShouldAttachTransaction(operation)
+                    ? _runtimeContext.CreateTransactionSnapshot(operation, maxChangedObjectPreviewCount: 8)
+                    : null,
+                diagnostics = result?.Diagnostics ?? Array.Empty<MicroflowActionExecutionDiagnostic>(),
+                durationMs = result?.DurationMs ?? 0
             });
-        }
 
         public void SetVariable(
             string name,

@@ -72,10 +72,22 @@ TransactionManager 是真实 Runtime 引擎的第六块地基，链路为 `Runti
 - TestRun Mock Runtime 默认以 `singleRunTransaction` 自动 begin，并创建 `run-start` savepoint。
 - 成功结束时，active transaction 自动 commit；失败且仍 active 时自动 rollback。
 - `CreateObject`、`ChangeMembers`、`CommitAction`、`DeleteAction`、`RollbackAction` 只写运行时 change set 与 transaction log，不写业务表。
+- `CommitAction` 除标记匹配 staged changes 为 committed 外，还会写一条 `operation=commit` 的结构化 changed object，便于 Trace/RunSession 预览提交动作。
 - `RollbackAction` 是对象级 rollback operation；ErrorHandling `rollback` / `customWithRollback` 才是 transaction rollback 基础接口。
-- `customWithoutRollback` 与 `continue` 不 rollback，后续导航成功时仍可提交当前运行事务。
-- savepoint 本轮不复制大对象 JSON，不回滚 VariableStore；后续完整 ErrorHandling 可在此基础上扩展。
+- `customWithoutRollback` 与 `continue` 不 rollback，事务日志使用 `errorHandlingKeepActive` / `errorHandlingContinue`，后续导航成功时仍可提交当前运行事务。
+- savepoint 本轮不复制大对象 JSON，不回滚 VariableStore；rollbackToSavepoint 后的 rolledBack staged changes 会保留为回滚记录，但不会被最终 commit 重新写入 committedObjects。
 - Trace / RunSession 只保存 transaction summary 与对象短 preview，不保存 FlowGram JSON。
+
+## 第 54 阶段 ActionExecutor 运行语义
+
+Runtime 从 P0 placeholder 扩展为全量 action 行为分派：
+
+- `serverExecutable`：在 testRun 中执行可信语义，写 VariableStore、TransactionManager、RuntimeLog 和 Trace。
+- `runtimeCommand`：生成 `MicroflowRuntimeCommand`，由客户端后续消费；服务端不伪造 UI 已执行。
+- `connectorBacked`：生成 connector request，缺 capability 时失败并返回 `RUNTIME_CONNECTOR_REQUIRED`。
+- `explicitUnsupported`：Nanoflow-only、unknown 或 unsafe action 返回 `RUNTIME_UNSUPPORTED_ACTION`。
+
+`TraceFrame.output` 统一包含 `actionKind`、`executorCategory`、`supportLevel`、`outputPreview`、`producedVariables`、`runtimeCommands`、`connectorRequests`、`transaction`、`diagnostics` 与 `durationMs`。`modeledOnly` 不再是运行时模糊状态，已建模 action 必须转成上述四类之一。
 
 ## 第 52 轮 Metadata / Access 运行语义
 

@@ -4,6 +4,7 @@
 @userId = demo-user
 @traceId = demo-trace
 @microflowId = mf-seed-blank
+@runtimeMicroflowId = mf-seed-blank
 @versionId = replace-with-version-id-from-publish-response
 
 ### Microflow health
@@ -49,6 +50,128 @@ X-Trace-Id: {{traceId}}
     "workspaceId": "{{workspaceId}}",
     "tenantId": "{{tenantId}}",
     "applyEntityAccess": true
+  }
+}
+
+### TestRun Round 54 - ActionExecutor object/list/ui/runtimeCommand
+# Expected JSON paths:
+# - data.session.trace[*].output.executorCategory
+# - data.session.trace[*].output.runtimeCommands
+# - data.session.trace[*].output.transaction
+# - data.session.variables[*].variables[*].name contains order / orders / orderCount
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "maxSteps": 80 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound54ActionExecutorObjectListUi",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "create", "kind": "actionActivity", "action": { "id": "create-action", "kind": "createObject", "entityQualifiedName": "Sales.Order", "outputVariableName": "order", "commit": { "enabled": true } } },
+        { "id": "cast", "kind": "actionActivity", "action": { "id": "cast-action", "kind": "cast", "inputVariableName": "order", "outputVariableName": "specializedOrder", "targetEntityQualifiedName": "Sales.SpecialOrder" } },
+        { "id": "create-list", "kind": "actionActivity", "action": { "id": "create-list-action", "kind": "createList", "outputVariableName": "orders", "itemType": { "kind": "object", "entityQualifiedName": "Sales.Order" } } },
+        { "id": "change-list", "kind": "actionActivity", "action": { "id": "change-list-action", "kind": "changeList", "listVariableName": "orders", "operation": "add", "valueExpression": "$order" } },
+        { "id": "aggregate", "kind": "actionActivity", "action": { "id": "aggregate-action", "kind": "aggregateList", "sourceListVariableName": "orders", "outputVariableName": "orderCount", "aggregate": "count" } },
+        { "id": "show-message", "kind": "actionActivity", "action": { "id": "show-message-action", "kind": "showMessage", "template": { "text": "Order saved" }, "level": "info" } },
+        { "id": "end", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "f-start-create", "originObjectId": "start", "destinationObjectId": "create" },
+      { "id": "f-create-cast", "originObjectId": "create", "destinationObjectId": "cast" },
+      { "id": "f-cast-create-list", "originObjectId": "cast", "destinationObjectId": "create-list" },
+      { "id": "f-create-list-change-list", "originObjectId": "create-list", "destinationObjectId": "change-list" },
+      { "id": "f-change-list-aggregate", "originObjectId": "change-list", "destinationObjectId": "aggregate" },
+      { "id": "f-aggregate-message", "originObjectId": "aggregate", "destinationObjectId": "show-message" },
+      { "id": "f-message-end", "originObjectId": "show-message", "destinationObjectId": "end" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 54 - ActionExecutor connector required
+# Expected JSON paths:
+# - data.session.status == failed
+# - data.session.error.code == RUNTIME_CONNECTOR_REQUIRED
+# - data.session.trace[*].output.connectorRequests[0].capability == soap.webService
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound54ConnectorRequired",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "soap", "kind": "actionActivity", "action": { "id": "soap-action", "kind": "webServiceCall" } },
+        { "id": "end", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "f-start-soap", "originObjectId": "start", "destinationObjectId": "soap" },
+      { "id": "f-soap-end", "originObjectId": "soap", "destinationObjectId": "end" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 54 - ActionExecutor unsupported nanoflow
+# Expected JSON paths:
+# - data.session.status == failed
+# - data.session.error.code == RUNTIME_UNSUPPORTED_ACTION
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "RuntimeRound54UnsupportedNanoflow",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "nanoflow", "kind": "actionActivity", "action": { "id": "nanoflow-action", "kind": "callNanoflow" } },
+        { "id": "end", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "f-start-nanoflow", "originObjectId": "start", "destinationObjectId": "nanoflow" },
+      { "id": "f-nanoflow-end", "originObjectId": "nanoflow", "destinationObjectId": "end" }
+    ],
+    "variables": {}
   }
 }
 

@@ -18,9 +18,16 @@
 
 `@atlas/mendix-studio-core` 的 `contracts/runtime-dto-contract.ts` 提供 `MicroflowRuntimeParameterDto`、`MicroflowRuntimeActionDto` 等 **文档化/映射辅助** 类型，便于后端与 P0 动作对齐；全量动作载荷仍以 Authoring 侧 `MicroflowAction` 并集为准。
 
-## P0 动作
+## 第 54 阶段 ActionExecutor
 
-retrieve、createObject、changeMembers、commit、delete、rollback、createVariable、changeVariable、callMicroflow、restCall、logMessage — 由执行器按 `action.kind` 消费；未覆盖动作为 `modeledOnly` / executor `unsupported` 策略（与节点注册表一致）。
+后端新增 `MicroflowActionExecutorRegistry`，Runtime DTO / ExecutionPlan 不再把 P1/P2 统称为模糊 `modeledOnly`。所有 `action.kind` 都会映射到：
+
+- `serverExecutable`
+- `runtimeCommand`
+- `connectorBacked`
+- `explicitUnsupported`
+
+`TraceFrame.output` 可包含 `actionKind`、`executorCategory`、`supportLevel`、`runtimeCommands`、`connectorRequests`、`transaction` 与 diagnostics。全量矩阵见 `runtime-action-support-matrix.md`。
 
 ## 第 27 轮变量声明
 
@@ -47,9 +54,9 @@ retrieve、createObject、changeMembers、commit、delete、rollback、createVar
 
 转换规则：
 
-- P0 action 标记 `supportLevel=supported`。
-- P1/P2 / Generic action 标记 `modeledOnly` 并进入 `unsupportedActions`。
-- connector action 在 capabilities 未开启时标记 `requiresConnector`。
+- ServerExecutable / RuntimeCommand action 标记 `supportLevel=supported`。
+- P1/P2 modeled action 转成明确 `modeledOnlyConverted` executor 策略，不再 silent skip。
+- connector action 在 capabilities 未开启时标记 `requiresConnector`，运行期返回 `RUNTIME_CONNECTOR_REQUIRED`。
 - nanoflow-only action 标记 `nanoflowOnly`。
 - `AnnotationFlow` 标记为 ignored flow，只用于 plan inspection。
 - 变量声明先覆盖 parameters、action outputs、REST response/error context、system `$currentUser`，完整作用域算法留给第 50 轮 VariableStore。

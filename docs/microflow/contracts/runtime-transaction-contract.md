@@ -11,6 +11,7 @@
 - `RuntimeExecutionContext.Transaction` 保存 `MicroflowRuntimeTransactionContext`，包含 `changedObjects`、`committedObjects`、`rolledBackObjects`、`deletedObjects`、`savepoints`、`logs`、`diagnostics`。
 - 状态包含 `none`、`active`、`committed`、`rolledBack`、`failed`；模式包含 `none`、`singleRunTransaction`、`actionScoped`、`custom`。
 - `CreateSavepoint` 记录 operation index 与 changed object count；`RollbackToSavepoint` 只标记/整理内存 staged changes，本轮不回滚 `VariableStore`。
+- `Commit` 只把仍处于 `staged` 或已由 `TrackCommitAction` 标记为 `committed` 的变更写入 `committedObjects`，不会把 savepoint rollback 或对象级 rollback 的变更重新提交。
 - `withEvents`、`refreshInClient`、`validateObject` 本轮只记录，不触发对象事件、客户端刷新或真实校验。
 - `TraceFrame.output.transaction` 输出短 preview；`RunSession.transactionSummary` 与成功 `RunSession.output.transactionSummary` 输出会话摘要。
 - `MicroflowRuntimeTransactionLogEntry` 可转为 `MicroflowRuntimeLogDto`，当前以短文本写入 logs tab。
@@ -21,11 +22,17 @@
 
 - `CreateObject`：`TrackCreate` 记录 create change，`commit.enabled=true` 记录 implicit commit action。
 - `ChangeMembers`：`TrackUpdate` 记录 changed members、before/after preview 与 `validateObject` 标记。
-- `CommitAction`：`TrackCommitAction` 记录提交动作，可将匹配 staged changes 标记为 committed；不等于真实数据库提交。
+- `CommitAction`：`TrackCommitAction` 记录 `operation=commit` 的结构化变更，并可将匹配 staged changes 标记为 committed；不等于真实数据库提交。
 - `DeleteAction`：`TrackDelete` 记录 delete change 与 delete behavior preview。
 - `RollbackAction`：`TrackRollbackObject` 只记录指定对象 rollback operation，不等于整个 transaction rollback。
-- ErrorHandling `rollback` / `customWithRollback`：调用事务 rollback 基础接口；`customWithoutRollback` / `continue` 保持事务 active，由后续正常结束提交。
+- ErrorHandling `rollback` / `customWithRollback`：调用事务 rollback 基础接口；`customWithoutRollback` / `continue` 保持事务 active，并写入 `errorHandlingKeepActive` / `errorHandlingContinue` 日志，由后续正常结束提交。
 
 真实数据库提交、回滚、锁与权限由后端 Runtime 实现。
 
 第 54 轮 Object CRUD Actions 应通过 `TransactionManager.TrackCreate/TrackUpdate/TrackDelete/TrackCommitAction/TrackRollbackObject` 复用本轮 change set，不应绕过 `RuntimeExecutionContext.Transaction`。
+
+## 第 54 阶段 ActionExecutor 复用点
+
+- `CreateObjectActionExecutor` / `ChangeMembersActionExecutor` / `DeleteActionExecutor` / `CommitActionExecutor` / `RollbackActionExecutor` 继续通过 `TransactionManager` 记录对象变更。
+- List、Variable、Client RuntimeCommand、ConnectorBacked、ExplicitUnsupported action 不直接写业务事务；如后续 connector 返回对象变更，也必须回到同一 `RuntimeExecutionContext.Transaction`。
+- `TraceFrame.output.transaction` 与第 54 阶段 `executorCategory/supportLevel/runtimeCommands/connectorRequests` 可以共存，DebugPanel 只按 JSON 展示。
