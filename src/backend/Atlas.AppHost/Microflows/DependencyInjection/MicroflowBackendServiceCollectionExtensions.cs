@@ -1,5 +1,6 @@
 using Atlas.Application.Microflows.DependencyInjection;
 using Atlas.Application.Microflows.Infrastructure;
+using Atlas.Application.Microflows.Runtime.Actions.Http;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.AppHost.Microflows.Infrastructure;
 
@@ -13,6 +14,9 @@ public static class MicroflowBackendServiceCollectionExtensions
         var entityAccessOptions = new MicroflowEntityAccessOptions();
         configuration.GetSection("Microflow:Runtime").Bind(entityAccessOptions);
         services.AddSingleton(entityAccessOptions);
+        var restOptions = new MicroflowRestExecutionOptions();
+        configuration.GetSection("Microflow:Runtime:Rest").Bind(restOptions);
+        services.AddSingleton(restOptions);
         services.AddScoped<IMicroflowRequestContextAccessor, HttpMicroflowRequestContextAccessor>();
         services.AddScoped<MicroflowApiExceptionFilter>();
 

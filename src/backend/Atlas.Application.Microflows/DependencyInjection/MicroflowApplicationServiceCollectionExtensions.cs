@@ -2,6 +2,7 @@ using Atlas.Application.Microflows.Abstractions;
 using Atlas.Application.Microflows.Infrastructure;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
+using Atlas.Application.Microflows.Runtime.Actions.Http;
 using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.Expressions;
 using Atlas.Application.Microflows.Runtime.Loops;
@@ -39,6 +40,21 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddTransient<IMicroflowUnitOfWork, MicroflowUnitOfWork>();
         services.TryAddScoped<IMicroflowActionExecutorRegistry, MicroflowActionExecutorRegistry>();
         services.TryAddScoped<CallMicroflowActionExecutor>();
+        services.TryAddScoped<RestCallActionExecutor>();
+        services.TryAddScoped<LogMessageActionExecutor>();
+        services.TryAddSingleton<MicroflowRestExecutionOptions>();
+        services.TryAddSingleton<MicroflowRestSecurityPolicy>();
+        services.TryAddScoped<MicroflowRestRequestBuilder>();
+        services.TryAddScoped<MicroflowRestResponseHandler>();
+        services.TryAddScoped<IMicroflowRuntimeHttpClient, MicroflowRuntimeHttpClient>();
+        services.AddHttpClient(MicroflowRuntimeHttpClient.HttpClientName, client =>
+        {
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            AllowAutoRedirect = false
+        });
         services.TryAddScoped<IMicroflowCallStackService, MicroflowCallStackService>();
         services.TryAddScoped<IMicroflowLoopExecutor, MicroflowLoopExecutor>();
         services.TryAddScoped<IMicroflowRuntimeConnectorRegistry, MicroflowRuntimeConnectorRegistry>();

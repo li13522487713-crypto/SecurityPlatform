@@ -608,17 +608,124 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                     ValidateCallMicroflowReturn(context, obj, action, targetMicroflow, variables);
                     break;
                 case "restCall":
-                    RequireActionField(context, obj, action, "request.method", MicroflowValidationCodes.RestMethodMissing);
-                    ValidateExpression(context, obj, action, ReadExpressionTextByPath(action.Raw, "request", "urlExpression"), $"{action.FieldPath}.request.urlExpression", variables, required: true, code: MicroflowValidationCodes.RestUrlMissing);
+                    ValidateRestCallAction(context, obj, action, variables);
                     break;
                 case "logMessage":
-                    var text = MicroflowSchemaReader.ReadStringByPath(action.Raw, "template", "text") ?? MicroflowSchemaReader.ReadString(action.Raw, "text");
-                    if (string.IsNullOrWhiteSpace(text))
-                    {
-                        Add(context, MicroflowValidationCodes.LogMessageEmpty, "LogMessage 文本不能为空。", "action", $"{action.FieldPath}.template.text", objectId: obj.Id, actionId: action.Id);
-                    }
-
+                    ValidateLogMessageAction(context, obj, action, variables);
                     break;
+            }
+        }
+    }
+
+    private static void ValidateRestCallAction(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        Dictionary<string, VariableInfo> variables)
+    {
+        RequireActionField(context, obj, action, "request.method", MicroflowValidationCodes.RestMethodMissing);
+        var method = MicroflowSchemaReader.ReadStringByPath(action.Raw, "request", "method");
+        if (!string.IsNullOrWhiteSpace(method)
+            && !new[] { "GET", "POST", "PUT", "PATCH", "DELETE" }.Contains(method, StringComparer.OrdinalIgnoreCase))
+        {
+            Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, $"RestCall method 不支持：{method}", "action", $"{action.FieldPath}.request.method", objectId: obj.Id, actionId: action.Id);
+        }
+
+        ValidateExpression(context, obj, action, ReadExpressionTextByPath(action.Raw, "request", "urlExpression"), $"{action.FieldPath}.request.urlExpression", variables, required: true, code: MicroflowValidationCodes.RestUrlMissing);
+        if (action.Raw.TryGetProperty("request", out var request))
+        {
+            ValidateKeyValueExpressions(context, obj, action, request, "headers", $"{action.FieldPath}.request.headers", variables);
+            ValidateKeyValueExpressions(context, obj, action, request, "queryParameters", $"{action.FieldPath}.request.queryParameters", variables);
+            ValidateRestBody(context, obj, action, request, variables);
+        }
+
+        if (ReadInt(action.Raw, "timeoutSeconds") is { } timeout && timeout <= 0)
+        {
+            Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, "timeoutSeconds 必须大于 0。", "action", $"{action.FieldPath}.timeoutSeconds", objectId: obj.Id, actionId: action.Id);
+        }
+
+        var responseHandling = MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "handling", "kind")
+            ?? MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "handling", "type")
+            ?? MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "handling")
+            ?? "ignore";
+        if (responseHandling is "string" or "json" or "importMapping")
+        {
+            var outputVariable = MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "handling", "outputVariableName")
+                ?? MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "outputVariableName")
+                ?? MicroflowSchemaReader.ReadString(action.Raw, "outputVariableName");
+            RequireVariableName(context, obj, action, outputVariable, $"{action.FieldPath}.response.handling.outputVariableName");
+        }
+
+        ValidateOptionalVariableName(context, obj, action, MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "statusCodeVariableName") ?? MicroflowSchemaReader.ReadString(action.Raw, "statusCodeVariableName"), $"{action.FieldPath}.response.statusCodeVariableName");
+        ValidateOptionalVariableName(context, obj, action, MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "headersVariableName") ?? MicroflowSchemaReader.ReadString(action.Raw, "headersVariableName"), $"{action.FieldPath}.response.headersVariableName");
+
+        if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)
+            && action.Raw.TryGetProperty("request", out var requestForBody)
+            && requestForBody.TryGetProperty("body", out var body)
+            && !string.Equals(MicroflowSchemaReader.ReadString(body, "kind") ?? "none", "none", StringComparison.OrdinalIgnoreCase))
+        {
+            Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, "GET body will be ignored by runtime.", "action", $"{action.FieldPath}.request.body", objectId: obj.Id, actionId: action.Id, severity: "warning");
+        }
+    }
+
+    private static void ValidateRestBody(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        JsonElement request,
+        Dictionary<string, VariableInfo> variables)
+    {
+        if (!request.TryGetProperty("body", out var body) || body.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        var kind = MicroflowSchemaReader.ReadString(body, "kind") ?? MicroflowSchemaReader.ReadString(body, "type") ?? "none";
+        if (kind is "json" or "text")
+        {
+            ValidateExpression(context, obj, action, ReadExpressionText(body, "expression"), $"{action.FieldPath}.request.body.expression", variables, required: false);
+        }
+        else if (kind == "form")
+        {
+            ValidateKeyValueExpressions(context, obj, action, body, "fields", $"{action.FieldPath}.request.body.fields", variables);
+        }
+        else if (kind == "mapping")
+        {
+            Add(context, MicroflowValidationCodes.ActionUnsupported, "RestCall body mapping requires export mapping connector.", "action", $"{action.FieldPath}.request.body", objectId: obj.Id, actionId: action.Id, severity: ConnectorSeverity(context));
+        }
+    }
+
+    private static void ValidateLogMessageAction(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        Dictionary<string, VariableInfo> variables)
+    {
+        var text = MicroflowSchemaReader.ReadStringByPath(action.Raw, "template", "text") ?? MicroflowSchemaReader.ReadString(action.Raw, "text");
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            Add(context, MicroflowValidationCodes.LogMessageEmpty, "LogMessage 文本不能为空。", "action", $"{action.FieldPath}.template.text", objectId: obj.Id, actionId: action.Id);
+        }
+
+        var level = MicroflowSchemaReader.ReadString(action.Raw, "level") ?? MicroflowSchemaReader.ReadStringByPath(action.Raw, "template", "level");
+        if (string.IsNullOrWhiteSpace(level))
+        {
+            Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, "LogMessage level 不能为空。", "action", $"{action.FieldPath}.level", objectId: obj.Id, actionId: action.Id);
+        }
+        else if (!new[] { "trace", "debug", "info", "warning", "error", "critical" }.Contains(level, StringComparer.OrdinalIgnoreCase))
+        {
+            Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, $"LogMessage level 不支持：{level}", "action", $"{action.FieldPath}.level", objectId: obj.Id, actionId: action.Id);
+        }
+
+        if (action.Raw.TryGetProperty("template", out var template)
+            && template.TryGetProperty("arguments", out var arguments)
+            && arguments.ValueKind == JsonValueKind.Array)
+        {
+            var index = 0;
+            foreach (var argument in arguments.EnumerateArray())
+            {
+                ValidateExpression(context, obj, action, ReadExpressionText(argument), $"{action.FieldPath}.template.arguments.{index}", variables, required: false);
+                index++;
             }
         }
     }
@@ -753,6 +860,8 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         yield return MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "handling", "outputVariableName");
         yield return MicroflowSchemaReader.ReadString(action.Raw, "statusCodeVariableName");
         yield return MicroflowSchemaReader.ReadString(action.Raw, "headersVariableName");
+        yield return MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "statusCodeVariableName");
+        yield return MicroflowSchemaReader.ReadStringByPath(action.Raw, "response", "headersVariableName");
     }
 
     private static JsonElement InferOutputType(MicroflowValidationContext context, MicroflowActionModel action)
@@ -930,6 +1039,42 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         }
     }
 
+    private static void ValidateOptionalVariableName(MicroflowValidationContext context, MicroflowObjectModel obj, MicroflowActionModel action, string? name, string fieldPath)
+    {
+        if (!string.IsNullOrWhiteSpace(name) && !VariableNameRegex.IsMatch(name))
+        {
+            Add(context, MicroflowValidationCodes.VariableNameInvalid, "变量名必须合法。", "variables", fieldPath, objectId: obj.Id, actionId: action.Id);
+        }
+    }
+
+    private static void ValidateKeyValueExpressions(
+        MicroflowValidationContext context,
+        MicroflowObjectModel obj,
+        MicroflowActionModel action,
+        JsonElement owner,
+        string collectionName,
+        string fieldPath,
+        Dictionary<string, VariableInfo> variables)
+    {
+        if (!owner.TryGetProperty(collectionName, out var collection) || collection.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        var index = 0;
+        foreach (var item in collection.EnumerateArray())
+        {
+            var key = MicroflowSchemaReader.ReadString(item, "key");
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, $"{collectionName} key 不能为空。", "action", $"{fieldPath}.{index}.key", objectId: obj.Id, actionId: action.Id);
+            }
+
+            ValidateExpression(context, obj, action, ReadExpressionText(item, "valueExpression") ?? ReadExpressionText(item, "value"), $"{fieldPath}.{index}.valueExpression", variables, required: false);
+            index++;
+        }
+    }
+
     private static void RequireExpressionVariable(MicroflowValidationContext context, MicroflowObjectModel obj, MicroflowActionModel action, string? name, string fieldPath, Dictionary<string, VariableInfo> variables, string code = MicroflowValidationCodes.VariableNotFound)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -1039,6 +1184,23 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
     private static bool HasExpression(JsonElement element, string propertyName)
         => !string.IsNullOrWhiteSpace(ReadExpressionText(element, propertyName));
 
+    private static string? ReadExpressionText(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString();
+        }
+
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            return value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? null : value.GetRawText();
+        }
+
+        return MicroflowSchemaReader.ReadString(value, "raw")
+            ?? MicroflowSchemaReader.ReadString(value, "text")
+            ?? MicroflowSchemaReader.ReadString(value, "expression");
+    }
+
     private static string? ReadExpressionText(JsonElement element, string propertyName)
     {
         if (!element.TryGetProperty(propertyName, out var value))
@@ -1046,14 +1208,7 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
             return null;
         }
 
-        if (value.ValueKind == JsonValueKind.String)
-        {
-            return value.GetString();
-        }
-
-        return MicroflowSchemaReader.ReadString(value, "raw")
-            ?? MicroflowSchemaReader.ReadString(value, "text")
-            ?? MicroflowSchemaReader.ReadString(value, "expression");
+        return ReadExpressionText(value);
     }
 
     private static string? ReadExpressionTextByPath(JsonElement element, params string[] path)
@@ -1140,6 +1295,17 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
         return context.Mode is "publish" or "testRun" ? "error" : "warning";
     }
+
+    private static string ConnectorSeverity(MicroflowValidationContext context)
+        => context.Mode is "publish" or "testRun" ? "error" : "warning";
+
+    private static int? ReadInt(JsonElement element, string propertyName)
+        => element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var result)
+                ? result
+                : null;
 
     private static void Add(
         MicroflowValidationContext context,

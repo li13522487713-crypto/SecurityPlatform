@@ -33,6 +33,8 @@ public static class MicroflowRuntimeConnectorCapability
 {
     public const string ObjectStoreCrud = "objectStore.crud";
     public const string RestRealHttp = "rest.realHttp";
+    public const string RestExportMapping = "rest.exportMapping";
+    public const string RestImportMapping = "rest.importMapping";
     public const string SoapWebService = "soap.webService";
     public const string XmlImportMapping = "xml.importMapping";
     public const string XmlExportMapping = "xml.exportMapping";
@@ -181,6 +183,7 @@ public sealed record MicroflowActionExecutionOptions
 {
     public string Mode { get; init; } = MicroflowRuntimeExecutionMode.TestRun;
     public bool AllowRealHttp { get; init; }
+    public bool SimulateRestError { get; init; }
     public bool StopOnUnsupported { get; init; } = true;
     public bool StrictMetrics { get; init; }
     public int MaxCallDepth { get; init; } = 10;
@@ -221,6 +224,9 @@ public sealed record MicroflowActionExecutionResult
 
     [JsonPropertyName("error")]
     public MicroflowRuntimeErrorDto? Error { get; init; }
+
+    [JsonPropertyName("latestHttpResponse")]
+    public JsonElement? LatestHttpResponse { get; init; }
 
     [JsonPropertyName("durationMs")]
     public int DurationMs { get; init; }

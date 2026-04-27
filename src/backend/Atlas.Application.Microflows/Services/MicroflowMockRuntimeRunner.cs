@@ -640,7 +640,9 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
             return ExecuteRegistryOnlyAction(context, obj, action, executor, incomingFlowId, loopIteration, cancellationToken);
         }
 
-        if (string.Equals(action.Kind, "callMicroflow", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(action.Kind, "callMicroflow", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(action.Kind, "restCall", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(action.Kind, "logMessage", StringComparison.OrdinalIgnoreCase))
         {
             return ExecuteRegistryOnlyAction(context, obj, action, executor, incomingFlowId, loopIteration, cancellationToken);
         }
@@ -763,7 +765,10 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                 Options = new MicroflowActionExecutionOptions
                 {
                     Mode = MicroflowRuntimeExecutionMode.TestRun,
-                    MaxCallDepth = context.RuntimeContext.MaxCallDepth
+                    MaxCallDepth = context.RuntimeContext.MaxCallDepth,
+                    AllowRealHttp = context.Options.AllowRealHttp == true,
+                    SimulateRestError = context.Options.SimulateRestError == true,
+                    ConnectorCapabilities = context.ConnectorRegistry.ListEnabledCapabilities()
                 }
             },
             cancellationToken).GetAwaiter().GetResult();
@@ -791,7 +796,7 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
         context.AddChildRuns(result.ChildRunSessions);
         return result.Error is null
             ? ActionOutcome.Success()
-            : ActionOutcome.Failed(result.Error);
+            : ActionOutcome.Failed(result.Error, result.LatestHttpResponse);
     }
 
     private static JsonElement MockRetrieve(MockRuntimeContext context, MicroflowObjectModel obj, MicroflowActionModel action)

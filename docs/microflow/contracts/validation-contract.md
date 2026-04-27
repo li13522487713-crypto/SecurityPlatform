@@ -1,5 +1,12 @@
 # 校验：MicroflowValidationIssue 契约
 
+## 第 57 轮 RestCall / LogMessage 校验补充
+
+- RestCall 校验 `request.method`、`request.urlExpression`、headers/query key、headers/query value expression、body expression/form fields、`timeoutSeconds > 0`、string/json/importMapping response 的 `outputVariableName`、status/header variable name。
+- RestCall GET body 产生 warning；body mapping 与 importMapping 在缺 connector 的 publish/testRun 模式为 error，在 edit/save 模式为 warning。
+- LogMessage 校验 `level`、`template.text` 与 `template.arguments` expression；未知 level 为 error。
+- Runtime 仍保留兜底校验：即使 Validator 未阻断，RestCallActionExecutor 与 LogMessageActionExecutor 也会返回结构化 `RuntimeErrorCode`。
+
 ## 权威类型
 
 `MicroflowValidationIssue`（`@atlas/microflow/schema`）。可选别名：`ValidationIssue`（由 `mendix-studio-core/contracts` 导出 `ValidationIssue`）。
@@ -82,6 +89,14 @@ P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`actio
 - `destinationConnectionIndex`
 - `editor.edgeKind`
 - `isErrorHandler`
+
+## 第 56 轮 CallMicroflow 校验对齐
+
+- `callMicroflow` target 允许 `action.targetMicroflowId` 或 `action.targetMicroflowQualifiedName`，二者均缺失为 error；目标不存在为 metadata error，Nanoflow target 不进入 Microflow Runtime。
+- `action.parameterMappings.{index}.parameterName` 必须能匹配目标微流参数；目标 required parameter 必须有 mapping。
+- `action.parameterMappings.{index}.argumentExpression` 仍用表达式校验，运行时会再次用目标 parameter type 做 expectedType 兜底。
+- `action.returnValue.storeResult=true` 时 `action.returnValue.outputVariableName` 必填；目标 returnType=void 时不允许 storeResult。
+- 输出变量与已存在变量冲突使用 `MF_VARIABLE_DUPLICATED`，Runtime 仍会以 `RUNTIME_VARIABLE_DUPLICATED` / `RUNTIME_VARIABLE_TYPE_MISMATCH` 做兜底失败。
 
 ## 第 28 轮规则
 

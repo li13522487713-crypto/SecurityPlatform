@@ -1,5 +1,16 @@
 # Runtime Semantics Contract v2
 
+## 第 57 轮 RestCall / LogMessage 语义补充
+
+- `RestCallActionExecutor` 通过 `ActionExecutorRegistry` 执行，不绕过 `ExpressionEvaluator`、`VariableStore` 或 HTTP security policy。
+- `allowRealHttp=false` 为默认行为，Runtime 只构建 request、执行 SSRF/URL/header 策略并返回 mock response；不得发起真实网络请求。
+- `allowRealHttp=true` 时统一经 `IMicroflowRuntimeHttpClient` / `IHttpClientFactory` 调用，支持 GET/POST/PUT/PATCH/DELETE、timeout、cancellation、响应体大小限制、手动 redirect 策略与敏感 header 脱敏。
+- URL、header、query、json/text/form body 均通过表达式求值；body mapping 与 importMapping 仍为 connector-backed，缺 capability 返回 `RUNTIME_CONNECTOR_REQUIRED`。
+- 默认拒绝非 http/https scheme、localhost、loopback、0.0.0.0、link-local、私网和 denylist host；allowlist 配置存在时必须命中 allowlist。
+- RestCall 错误会写入 error handler scope 的 `$latestHttpResponse`，仅错误路径可见，`sourceKind=restResponse`、`kind=httpResponse`、readonly。
+- `LogMessageActionExecutor` 支持 `level`、`logNodeName`、`template.text`、`template.arguments`、`includeContextVariables`、`includeTraceId`，参数表达式默认失败即 action failed。
+- 本轮不实现完整 SOAP/XML mapping/document/workflow/ML 引擎；这些 integration action 必须保持 connector required，不允许 silent success。
+
 ## 执行图
 
 - Runtime 语义以 `MicroflowAuthoringSchema.objectCollection`、嵌套 Loop collection 与 `MicroflowFlow` 为准。
@@ -106,3 +117,14 @@ Runtime 从 P0 placeholder 扩展为全量 action 行为分派：
 - Nested loop 通过 Runtime loop scope stack 隔离；`$currentIndex` 解析最近 loop，外层 iterator 在内层仍可见，内层同名变量按 scope shadow 处理。
 - `maxIterations` 与既有 `maxSteps` 同时生效，超限返回 `RUNTIME_LOOP_MAX_ITERATIONS_EXCEEDED` 或 `RUNTIME_MAX_STEPS_EXCEEDED`，不允许 silent infinite loop。
 - 本轮不做 CallMicroflow 深度递归、真实 REST 深化、完整 ErrorHandling rollback 事务语义或真实 ObjectStore/权限专项；第 56-58 轮应复用本轮 loop scope、trace 与控制信号。
+
+## 第 56 轮 CallMicroflow / CallStack 语义
+
+- `callMicroflow` 从 mock return 升级为同步本地子微流调用，仍只消费 AuthoringSchema / ExecutionPlan / VariableStore / ActionExecutorRegistry，不读取 FlowGram JSON。
+- target 解析优先 `targetMicroflowId`，其次 `targetMicroflowQualifiedName`；运行时会查资源表并按模式选择 schema：`testRun/previewRun/dryRun` 默认 current，`publishedRun` 默认 latest published，显式 `targetVersion` 可加载版本或发布快照。
+- 参数映射通过 `ExpressionEvaluator` 在父 `VariableStore` 中求值；required parameter 缺失、表达式失败、未知参数或类型不匹配会失败并进入 `TraceFrame.output.callMicroflow.parameterBindings`。
+- 子调用创建独立 `RuntimeExecutionContext` 与 child `VariableStore`，继承 rootRunId、parentRunId、securityContext、metadata catalog、cancellation token 与 call stack；父局部变量不会直接暴露给子微流。
+- 默认事务边界为 `inherit/sharedTransaction`：child 复用父 transaction / UnitOfWork，child failure 由父 action error handling 决策；`childTransaction/noTransaction` 为后续保留策略并在 trace 中显式展示。
+- 返回绑定读取 child EndEvent output；`returnValue.storeResult=true` 时必须配置 `outputVariableName`，void target 不允许 store result，成功后以 `MicroflowReturn` 写回父 `VariableStore`。
+- CallStack 默认 `maxCallDepth=10`，禁止直接/间接递归；命中时返回 `RUNTIME_CALL_RECURSION_DETECTED` 或 `RUNTIME_CALL_STACK_OVERFLOW`，diagnostics 包含 call chain。
+- child failure 不会被吞掉：父 `CallMicroflowAction` failed，并可进入父 error handler；child error cause、childRunId 与 childTraceSummary 写入父 trace。

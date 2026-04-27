@@ -1,5 +1,11 @@
 # Runtime Expression Contract v2
 
+## 第 57 轮执行器表达式使用
+
+- RestCall 的 URL、header value、query value、json/text/form body 字段必须通过后端 `ExpressionEvaluator` 求值；URL/header/query 期望 string。
+- LogMessage 的 `template.arguments` 必须通过后端 `ExpressionEvaluator` 求值，默认任一参数求值失败即返回 `RUNTIME_EXPRESSION_ERROR` 并进入错误处理；仅显式配置 `logExpressionErrorsAsWarning` 时降级为 warning。
+- `$latestHttpResponse` 只在 RestCall 错误处理 scope 内可见，支持成员访问如 `$latestHttpResponse/statusCode`。
+
 ## 范围
 
 本轮只定义 P0 可用表达式子集，不实现完整 Mendix 表达式语言，也不提供真实表达式执行器。前端表达式解析、类型推断与校验均基于 `MicroflowAuthoringSchema`、`MicroflowMetadataCatalog` 与 v2 `MicroflowVariableIndex`，禁止 `eval`、`Function` 或动态 JS 执行。

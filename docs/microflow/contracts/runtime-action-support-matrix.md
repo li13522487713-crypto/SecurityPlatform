@@ -1,4 +1,6 @@
-# Runtime 动作支持矩阵（第 54 阶段）
+# Runtime 动作支持矩阵（第 57 阶段）
+
+第 57 轮将 `restCall` 从 preview/mock-only 推进为安全受控的 Runtime HTTP 动作：默认 mock，配置 `allowRealHttp=true` 后通过 `IMicroflowRuntimeHttpClient` 与 `IHttpClientFactory` 执行真实 HTTP，并强制 URL/SSRF/header policy、timeout、response size limit、response handling 与 `$latestHttpResponse` 错误上下文。`logMessage` 同步升级为结构化 RuntimeLog，支持模板参数表达式、`logNodeName`、`includeContextVariables` 与 `includeTraceId`。
 
 第 54 阶段后端以 `MicroflowActionExecutorRegistry` 作为 Action Runtime 行为的权威来源。所有已建模 `actionKind` 必须落入四类之一：
 
@@ -18,10 +20,10 @@
 | Object | cast | serverExecutable | CastObjectActionExecutor | modeledOnlyConverted | 输出目标类型变量 |
 | List | createList, changeList, listOperation, aggregateList | serverExecutable | List Action Executors | modeledOnlyConverted | 写 VariableStore |
 | Variable | createVariable, changeVariable | serverExecutable | Variable Action Executors | supported | 表达式求值 + VariableStore |
-| Call | callMicroflow | serverExecutable | CallMicroflowActionExecutor | supported | testRun 本地 mock return；递归完整化后续深化 |
+| Call | callMicroflow | serverExecutable | CallMicroflowActionExecutor | supported | testRun/previewRun/publishedRun 本地同步子微流调用；参数/返回绑定、callStack、childRunId、recursion guard |
 | Call | callJavaAction | connectorBacked | JavaActionExecutor | requiresConnector | java.action |
 | Call | callJavaScriptAction, callNanoflow | explicitUnsupported | ExplicitUnsupportedActionExecutor | nanoflowOnly | RUNTIME_UNSUPPORTED_ACTION |
-| Integration | restCall | serverExecutable | RestCallActionExecutor | supported | testRun mock；真实 HTTP 需 rest.realHttp |
+| Integration | restCall | serverExecutable | RestCallActionExecutor | supported | 默认 mock；allowRealHttp=true 时经 Runtime HTTP client 和安全策略真实执行 |
 | Integration | webServiceCall | connectorBacked | WebServiceCallActionExecutor | requiresConnector | soap.webService |
 | Integration | importXml, exportXml | connectorBacked | XML Mapping Executors | requiresConnector | xml.importMapping / xml.exportMapping |
 | Integration | callExternalAction, restOperationCall | connectorBacked | External/REST Operation Executors | requiresConnector | external.action / rest.realHttp |
@@ -41,7 +43,7 @@
 
 Flow 协议：Runtime action execution 只跟随 `sequence` / `decisionCondition` / `objectTypeCondition` / `errorHandler` control flows；`AnnotationFlow`、FlowGram JSON、port label 与视觉 branch order 不作为 Runtime 执行依据。
 
-自动化验证：`scripts/verify-microflow-action-executors-full-coverage.ts` 静态覆盖所有前端 actionKind，并 smoke 验证 object/list/UI/connector/unsupported trace。
+自动化验证：`scripts/verify-microflow-action-executors-full-coverage.ts` 静态覆盖所有前端 actionKind，并 smoke 验证 object/list/UI/connector/unsupported trace；第 56 轮 `scripts/verify-microflow-callstack-runtime.ts` 覆盖 CallMicroflow child execution / call stack / child trace。
 
 ## 第 26 轮属性面板支持
 

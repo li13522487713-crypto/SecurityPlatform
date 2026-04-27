@@ -1,5 +1,16 @@
 # Runtime Test Scenarios
 
+## 第 57 轮 RestCall / LogMessage 场景
+
+自动化入口：`npx tsx scripts/verify-microflow-restcall-logmessage-runtime.ts`。
+
+1. RestCall request building 覆盖 GET URL literal、URL from expression、headers/query expression、json/text/form body、mapping body connector required。
+2. HTTP security 覆盖 invalid URL、file scheme、localhost/private network、denied host、allowed host 与 sensitive header redaction。
+3. Mock execution 覆盖 `allowRealHttp=false`、string/json response variable、statusCode/header variables 与 invalid JSON response failure。
+4. Error path 覆盖 `simulateRestError`、non-success HTTP、timeout/network classification、response too large truncated/error metadata 与 `$latestHttpResponse`。
+5. LogMessage 覆盖 simple info、template arguments、includeTraceId、includeContextVariables、expression error failed 与 persisted logs。
+6. Integration 覆盖 TraceFrame.output.restCall、error handler scope `$latestHttpResponse`、DebugPanel-compatible logs、No FlowGram JSON、connector-backed action 不 silent success。
+
 本文件定义前端 Mock Runtime 的最小回归场景。自动化入口为 `verifyMicroflowContracts()`。
 
 1. 所有 manifest sample 可执行 `validate → authoringToFlowGram → toRuntimeDto → toExecutionPlan → mockRunExecutionPlan`。
@@ -150,3 +161,19 @@
 5. nested loop 通过独立 scope 区分 depth、inner iterator 与最近 `$currentIndex`。
 6. loop body action/error handler/transaction 均复用既有 Runtime pipeline。
 7. trace frame 带 `loopIteration`，不包含 FlowGram JSON。
+
+## 第 56 轮 CallMicroflow / CallStack 场景
+
+自动化入口：`scripts/verify-microflow-callstack-runtime.ts`。
+
+覆盖重点：
+
+1. parent 调 child，可按 id / qualifiedName 解析 target。
+2. child current schema 可执行 Start -> End，参数从父表达式映射。
+3. child string return 可通过 `returnValue.storeResult` 写回父 VariableStore。
+4. required parameter 缺失、未知参数、表达式失败、void storeResult、返回类型不匹配均失败。
+5. `TraceFrame.output.callMicroflow` 包含 parameterBindings、returnBinding、transactionBoundary、callFrameId、callDepth、childRunId 与 childTraceSummary。
+6. child RunSession / Trace / Log 可持久化并通过 `GET /api/microflows/runs/{childRunId}/trace` 查询。
+7. direct recursion 与 indirect recursion 被 `RUNTIME_CALL_RECURSION_DETECTED` 阻止，maxCallDepth 超限返回 `RUNTIME_CALL_STACK_OVERFLOW`。
+8. child failure 传播为父 CallMicroflow action failure，父 error handler 可继续沿用既有 `custom/continue` 骨架。
+9. trace / output 不包含 FlowGram JSON。

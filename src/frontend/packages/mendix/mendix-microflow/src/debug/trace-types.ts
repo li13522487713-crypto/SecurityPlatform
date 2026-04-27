@@ -49,6 +49,10 @@ export interface MicroflowRuntimeLog {
   objectId?: string;
   actionId?: string;
   message: string;
+  logNodeName?: string;
+  traceId?: string;
+  variablesPreview?: unknown;
+  structuredFieldsJson?: string;
 }
 
 export interface MicroflowRuntimeTransactionSummary {
@@ -121,6 +125,7 @@ export interface MicroflowRunSession {
 
 export interface MicroflowTestRunOptions {
   simulateRestError?: boolean;
+  allowRealHttp?: boolean;
   decisionBooleanResult?: boolean;
   enumerationCaseValue?: string;
   objectTypeCase?: string;

@@ -1,5 +1,14 @@
 # 前端 P0 强类型实现（第 25 轮）
 
+## 第 57 轮 Runtime RestCall / LogMessage 补充
+
+- 后端新增 `IMicroflowRuntimeHttpClient`、`MicroflowRuntimeHttpClient`、`MicroflowRestSecurityPolicy`、`MicroflowRestRequestBuilder`、`MicroflowRestResponseHandler` 与专用 `RestCallActionExecutor`。
+- RestCall request building 支持 method、URL expression、headers/query expression、body none/json/text/form；mapping body 与 importMapping response 继续要求 connector。
+- RestCall response handling 支持 ignore/string/json，支持 `outputVariableName`、`statusCodeVariableName`、`headersVariableName` 写入 `VariableStore`。
+- `MicroflowRestExecutionOptions` 控制 `allowRealHttp`、私网策略、allowlist/denylist、timeout、response body size、redirect、mock response 与 non-success classification。
+- 后端新增 `LogMessageActionExecutor`，支持 template arguments 表达式、`logNodeName`、`includeContextVariables`、`includeTraceId`，并写入结构化 `MicroflowRuntimeLogDto`。
+- DebugPanel 兼容展示 frame input/output/error、logNodeName、traceId 与 structured fields；不改 FlowGram 协议或 P0 action schema。
+
 - **源类型**：`@atlas/microflow/schema` 中各 `Microflow*Action`（P0）与 `MicroflowGenericAction`（排除 P0 kind）。
 - **映射**：`mapAuthoringP0ToRuntimeBlocks` / `tryMapP0ActionToDiscriminatedDto`（`@atlas/microflow/runtime`）。
 - **校验**：`p0-action-guards` + `validate-actions` 错误码 `MF_ACTION_P0_MUST_BE_STRONGLY_TYPED` 等。
@@ -131,3 +140,13 @@
 - FlowNavigator 与 TestRun 均接入真实 iterable / while 语义；loop body 仍通过统一 runtime path 执行 action、decision、nested loop 与 error handler。
 - ActionExecutorRegistry 不引入 Batch/Parallel 概念；现有 batch/parallel 类 action 仍只属于 ActionExecutor coverage，不影响 Mendix Microflow Loop 语义。
 - 自动化入口：`scripts/verify-microflow-loop-runtime.ts`；`.http` 增加 Round 55 iterable loop 与 while false 示例。
+
+## 第 56 轮 CallMicroflow / CallStack
+
+- 新增 `Runtime/Calls` 模型与 `IMicroflowCallStackService` / `MicroflowCallStackService`，`RuntimeExecutionContext` 增加 callStack frame、rootRunId、parentRunId、callCorrelationId 与 maxCallDepth。
+- 新增真实 `CallMicroflowActionExecutor`，由 `ActionExecutorRegistry` 延迟解析，避免子调用绕过 Registry、ExecutionPlanLoader、VariableStore 与 MockRuntimeRunner 执行管线。
+- target 支持 `targetMicroflowId` 与 `targetMicroflowQualifiedName`；current / latest published / targetVersion schema 选择复用资源、版本、发布快照仓储，并补齐 ExecutionPlanLoader 的 latest published 入口。
+- 参数映射执行 ExpressionEvaluator，返回绑定写回父 VariableStore；父 trace 输出 `output.callMicroflow`，包含 parameterBindings、returnBinding、transactionBoundary、callFrameId、callDepth、childRunId 与 childTraceSummary。
+- TestRun 持久化现在会递归保存 child RunSession/Trace/Log；`GET /api/microflows/runs/{childRunId}/trace` 可查询子调用 trace。
+- 默认事务边界为 inherit/sharedTransaction，child 复用父 transaction；`childTransaction/noTransaction` 仅保留策略，不做完整 ErrorHandling 事务语义。
+- 自动化入口：`scripts/verify-microflow-callstack-runtime.ts`；`.http` 增加 Round 56 verify 与 child trace 查询说明。

@@ -1,3 +1,204 @@
+### Runtime Round 57 - RestCall / LogMessage verify script
+# Covers mock REST execution, URL/header/query/body expression evaluation, sensitive header redaction,
+# response variables, simulateRestError + $latestHttpResponse, structured LogMessage logs, and connector-required guardrails.
+# Command:
+#   npx tsx scripts/verify-microflow-restcall-logmessage-runtime.ts
+# Expected:
+# - TraceFrame.output.restCall contains requestPreview/securityDecision/statusCode/responsePreview/producedVariables
+# - Authorization/Cookie/API key style headers are redacted in trace/log output
+# - allowRealHttp=false does not send external requests and returns mock response
+# - simulateRestError writes $latestHttpResponse in error handler scope
+# - LogMessage logs include logNodeName/traceId/structuredFieldsJson
+
+### Runtime Round 57 - TestRun RestCall mock GET/string response/status/header variables
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round57-rest-mock",
+    "name": "Round57RestMock",
+    "displayName": "Round57RestMock",
+    "moduleId": "verify-module",
+    "parameters": [
+      { "id": "p-url", "name": "url", "dataType": "string", "type": { "kind": "string" } },
+      { "id": "p-token", "name": "token", "dataType": "string", "type": { "kind": "string" } }
+    ],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "rest",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": {
+            "id": "rest-1",
+            "kind": "restCall",
+            "request": {
+              "method": "GET",
+              "urlExpression": "$url",
+              "headers": [{ "key": "Authorization", "valueExpression": "$token" }],
+              "queryParameters": [{ "key": "q", "valueExpression": "'demo'" }],
+              "body": { "kind": "none" }
+            },
+            "response": {
+              "handling": { "kind": "string", "outputVariableName": "responseText" },
+              "statusCodeVariableName": "statusCode",
+              "headersVariableName": "responseHeaders"
+            },
+            "timeoutSeconds": 5
+          }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-rest", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "rest" },
+        { "id": "f-rest-end", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": { "url": "https://example.com/api", "token": "Bearer demo-secret" },
+  "options": { "allowRealHttp": false }
+}
+
+### Runtime Round 57 - TestRun RestCall simulateRestError with latestHttpResponse
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round57-rest-error",
+    "name": "Round57RestError",
+    "displayName": "Round57RestError",
+    "moduleId": "verify-module",
+    "parameters": [{ "id": "p-url", "name": "url", "dataType": "string", "type": { "kind": "string" } }],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "rest", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "rest-1", "kind": "restCall", "request": { "method": "GET", "urlExpression": "$url" }, "response": { "handling": { "kind": "ignore" } } } },
+        { "id": "log-error", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "log-1", "kind": "logMessage", "level": "warning", "logNodeName": "RestErrorHandler", "template": { "text": "latest={0}", "arguments": ["$latestHttpResponse/statusCode"] }, "includeTraceId": true, "includeContextVariables": true } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-rest", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "rest" },
+        { "id": "f-rest-end", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "end" },
+        { "id": "f-rest-error", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "log-error", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } },
+        { "id": "f-log-end", "kind": "sequence", "originObjectId": "log-error", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": { "url": "https://example.com/api" },
+  "options": { "simulateRestError": true }
+}
+
+### Runtime Round 57 - TestRun LogMessage with arguments/context/traceId
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round57-log",
+    "name": "Round57Log",
+    "displayName": "Round57Log",
+    "moduleId": "verify-module",
+    "parameters": [{ "id": "p-name", "name": "name", "dataType": "string", "type": { "kind": "string" } }],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "log", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "log-1", "kind": "logMessage", "level": "info", "logNodeName": "Round57LogNode", "template": { "text": "hello {0}", "arguments": ["$name"] }, "includeTraceId": true, "includeContextVariables": true } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-log", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "log" },
+        { "id": "f-log-end", "kind": "sequence", "originObjectId": "log", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": { "name": "Atlas" }
+}
+
+### Runtime Round 57 - Connector required examples: WebService / ImportXml
+# Expected: RUNTIME_CONNECTOR_REQUIRED in trace/error, no silent success.
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "round57-connector-required",
+    "name": "Round57ConnectorRequired",
+    "displayName": "Round57ConnectorRequired",
+    "moduleId": "verify-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "soap", "kind": "actionActivity", "officialType": "Microflows$ActionActivity", "action": { "id": "soap-1", "kind": "webServiceCall" } },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-soap", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "soap" },
+        { "id": "f-soap-end", "kind": "sequence", "originObjectId": "soap", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  },
+  "input": {}
+}
+
+### Runtime Round 56 - CallMicroflow / CallStack verify script
+# Runs an end-to-end local child microflow call:
+# 1. create child + parent resources
+# 2. save child current schema with required string parameter and string return
+# 3. parent testRun calls child by id / qualifiedName
+# 4. assert output.callMicroflow.parameterBindings, returnBinding, childRunId, child trace parentRunId/callDepth
+# 5. assert missing parameter and recursion failure paths
+# Command:
+#   npx tsx scripts/verify-microflow-callstack-runtime.ts
+# Expected:
+# - parent trace frame output.callMicroflow.childRunId exists
+# - parent variablesSnapshot.childGreeting.valuePreview == "hello child"
+# - GET /api/microflows/runs/{childRunId}/trace returns frames with parentRunId and callDepth
+# - recursion failure includes RUNTIME_CALL_RECURSION_DETECTED
+
+### Runtime Round 56 - GET child trace by childRunId
+# Replace {{childRunId}} with output.callMicroflow.childRunId from the verify script or parent test-run response.
+GET {{host}}/api/microflows/runs/{{childRunId}}/trace
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 @host = http://localhost:5002
 @workspaceId = demo-workspace
 @tenantId = demo-tenant
@@ -6,6 +207,7 @@
 @microflowId = mf-seed-blank
 @runtimeMicroflowId = mf-seed-blank
 @versionId = replace-with-version-id-from-publish-response
+@childRunId = replace-with-child-run-id-from-callmicroflow-output
 
 ### Microflow health
 GET {{host}}/api/microflows/health

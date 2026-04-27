@@ -1149,7 +1149,16 @@ function DebugPanel({
           </Space>
         </Tabs.TabPane>
         <Tabs.TabPane tab="输入 / 输出" itemKey="io">
-          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify({ input: session.input, output: session.output }, null, 2)}</pre>
+          <Space vertical align="start" style={{ width: "100%" }}>
+            <Text strong>Run</Text>
+            <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify({ input: session.input, output: session.output }, null, 2)}</pre>
+            {activeFrame ? (
+              <>
+                <Text strong>Active frame</Text>
+                <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{JSON.stringify({ input: activeFrame.input, output: activeFrame.output, error: activeFrame.error }, null, 2)}</pre>
+              </>
+            ) : null}
+          </Space>
         </Tabs.TabPane>
         <Tabs.TabPane tab="变量" itemKey="variables">
           <Space vertical align="start" style={{ width: "100%" }}>
@@ -1209,18 +1218,35 @@ function DebugPanel({
 
 function LogRow({ log, onSelect }: { log: MicroflowRuntimeLog; onSelect: () => void }) {
   const color = log.level === "error" || log.level === "critical" ? "red" : log.level === "warning" ? "orange" : log.level === "info" ? "blue" : "grey";
+  const structuredFields = log.structuredFieldsJson ? tryParseJson(log.structuredFieldsJson) : undefined;
   return (
     <Card style={{ width: "100%" }} bodyStyle={{ padding: 8 }}>
       <button type="button" onClick={onSelect} style={{ textAlign: "left", border: "none", background: "transparent", padding: 0, cursor: "pointer", width: "100%" }}>
-        <Space>
+        <Space wrap>
           <Tag color={color}>{log.level}</Tag>
+          {log.logNodeName ? <Tag color="violet">{log.logNodeName}</Tag> : null}
+          {log.traceId ? <Tag color="grey">{log.traceId}</Tag> : null}
           <Text size="small" type="tertiary">{log.objectId}</Text>
         </Space>
         <br />
         <Text size="small">{log.message}</Text>
+        {structuredFields ? (
+          <>
+            <br />
+            <Text size="small" type="tertiary">{JSON.stringify(structuredFields)}</Text>
+          </>
+        ) : null}
       </button>
     </Card>
   );
+}
+
+function tryParseJson(value: string): unknown | undefined {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }
 
 function caseValueLabel(value: MicroflowCaseValue): string {

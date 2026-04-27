@@ -1,5 +1,13 @@
 # 后端实现指引与 Skeleton 现状
 
+## 第 57 轮 Runtime RestCall / LogMessage 实现现状
+
+- `Atlas.Application.Microflows` 已新增 Runtime HTTP 抽象与实现：`IMicroflowRuntimeHttpClient`、`MicroflowRuntimeHttpClient`、`MicroflowRestSecurityPolicy`、`MicroflowRestRequestBuilder`、`MicroflowRestResponseHandler`、`RestCallActionExecutor`、`LogMessageActionExecutor`。
+- `AddAtlasApplicationMicroflows()` 注册命名 HttpClient `microflow-runtime-rest`，禁用自动 redirect，由 Runtime 按策略手动处理。
+- AppHost 可通过 `Microflow:Runtime:Rest` 绑定 `MicroflowRestExecutionOptions`：`AllowRealHttp` 默认 false，另有 `AllowPrivateNetwork`、`AllowedHosts`、`DeniedHosts`、`MaxResponseBytes`、`TimeoutSecondsDefault`、`FollowRedirects`、`MaxRedirects`、mock response 等。
+- 本轮不新增数据库表；RuntimeLog 扩展字段写入已有 `MicroflowRunLog.ExtraJson`。
+- 完整 ErrorHandling 事务语义留第 58 轮，本轮只保证 RestCall error trace 与 `$latestHttpResponse` 上下文变量。
+
 供后端团队按**冻结契约**分阶段实现；不替代 OpenAPI/TS 类型。
 
 ## 第 35 轮 Skeleton
@@ -234,6 +242,16 @@
 - `MicroflowMockRuntimeRunner` 对 TestRun 同步实现 iterable / while / break / continue，DebugPanel 可通过 trace 看到 iteration、iterator、`$currentIndex` 与 control signal。
 - `RuntimeErrorCode` 新增 loop source、condition、iterator、control out-of-scope、body missing、dead-end、maxIterations 等稳定错误码。
 - 第 56 轮 CallMicroflow / CallStack 应复用当前 `RuntimeExecutionContext` 与 loop scope，不再新建第二套变量栈。
+
+## 第 56 轮 Runtime CallMicroflow / CallStack Backend
+
+- 新增 `MicroflowCallStackFrame`、`MicroflowCallMicroflowRequest/Result`、ParameterBinding、ReturnBinding、TraceLink、Diagnostic 与 `MicroflowChildExecutionContext` 等模型。
+- 新增 `IMicroflowCallStackService` / `MicroflowCallStackService`；`RuntimeExecutionContext` 挂载 call stack frame、current frame、root/parent run id、callCorrelationId、maxCallDepth 与 metadata catalog。
+- `CallMicroflowActionExecutor` 通过 `ActionExecutorRegistry` 执行，支持 target id / qualifiedName、current / latest published / targetVersion schema、参数表达式、子上下文、child runner、返回写回、错误传播与 recursion guard。
+- `MicroflowExecutionPlanLoader` 补充 latest published / published version 入口，并修正 current schema 缺指针时回退 latest snapshot。
+- `MicroflowTestRunService` 递归持久化 child RunSession / Trace / Log；trace frame extra JSON 保存 parentRunId/rootRunId/callFrameId/callDepth/caller。
+- `MicroflowValidationService` 与 Runtime 对齐：target id/qualifiedName、required parameter mapping、未知参数、returnValue.storeResult/void、output variable 重复等进入校验。
+- 当前仍不做异步微流队列、Workflow runtime、JavaAction host、真实 REST 深化或完整权限系统；第 57 轮 RestCall / LogMessage 可复用本轮 child trace 与 RuntimeLog 结构。
 
 ## 未知项
 

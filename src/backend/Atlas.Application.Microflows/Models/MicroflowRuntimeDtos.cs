@@ -23,6 +23,9 @@ public sealed record MicroflowTestRunOptionsDto
     [JsonPropertyName("simulateRestError")]
     public bool? SimulateRestError { get; init; }
 
+    [JsonPropertyName("allowRealHttp")]
+    public bool? AllowRealHttp { get; init; }
+
     [JsonPropertyName("decisionBooleanResult")]
     public bool? DecisionBooleanResult { get; init; }
 
@@ -243,6 +246,18 @@ public sealed record MicroflowRuntimeLogDto
 
     [JsonPropertyName("message")]
     public string Message { get; init; } = string.Empty;
+
+    [JsonPropertyName("logNodeName")]
+    public string? LogNodeName { get; init; }
+
+    [JsonPropertyName("traceId")]
+    public string? TraceId { get; init; }
+
+    [JsonPropertyName("variablesPreview")]
+    public JsonElement? VariablesPreview { get; init; }
+
+    [JsonPropertyName("structuredFieldsJson")]
+    public string? StructuredFieldsJson { get; init; }
 }
 
 public record MicroflowVariableSnapshotDto
@@ -319,12 +334,21 @@ public static class RuntimeErrorCode
     public const string RuntimeCommitFailed = "RUNTIME_COMMIT_FAILED";
     public const string RuntimeDeleteFailed = "RUNTIME_DELETE_FAILED";
     public const string RuntimeRestCallFailed = "RUNTIME_REST_CALL_FAILED";
+    public const string RuntimeRestInvalidUrl = "RUNTIME_REST_INVALID_URL";
+    public const string RuntimeRestUrlBlocked = "RUNTIME_REST_URL_BLOCKED";
+    public const string RuntimeRestPrivateNetworkBlocked = "RUNTIME_REST_PRIVATE_NETWORK_BLOCKED";
+    public const string RuntimeRestDeniedHost = "RUNTIME_REST_DENIED_HOST";
+    public const string RuntimeRestUnsupportedScheme = "RUNTIME_REST_UNSUPPORTED_SCHEME";
+    public const string RuntimeRestTimeout = "RUNTIME_REST_TIMEOUT";
+    public const string RuntimeRestResponseTooLarge = "RUNTIME_REST_RESPONSE_TOO_LARGE";
+    public const string RuntimeRestResponseParseFailed = "RUNTIME_REST_RESPONSE_PARSE_FAILED";
     public const string RuntimeTimeout = "RUNTIME_TIMEOUT";
     public const string RuntimeCallMicroflowFailed = "RUNTIME_CALL_MICROFLOW_FAILED";
     public const string RuntimeCallRecursionDetected = "RUNTIME_CALL_RECURSION_DETECTED";
     public const string RuntimeCallStackOverflow = "RUNTIME_CALL_STACK_OVERFLOW";
     public const string RuntimeUnsupportedAction = "RUNTIME_UNSUPPORTED_ACTION";
     public const string RuntimeConnectorRequired = "RUNTIME_CONNECTOR_REQUIRED";
+    public const string RuntimeLogMessageFailed = "RUNTIME_LOG_MESSAGE_FAILED";
     public const string RuntimeTransactionRolledBack = "RUNTIME_TRANSACTION_ROLLED_BACK";
     public const string RuntimeLoopSourceNotFound = "RUNTIME_LOOP_SOURCE_NOT_FOUND";
     public const string RuntimeLoopSourceNotList = "RUNTIME_LOOP_SOURCE_NOT_LIST";

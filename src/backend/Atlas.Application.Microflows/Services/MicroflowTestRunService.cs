@@ -315,13 +315,20 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
 
         var logs = session.Logs.Select(log => new MicroflowRunLogEntity
         {
-            Id = log.Id,
+            Id = Guid.NewGuid().ToString("N"),
             RunId = session.Id,
             Timestamp = log.Timestamp,
             Level = log.Level,
             ObjectId = log.ObjectId,
             ActionId = log.ActionId,
-            Message = log.Message
+            Message = log.Message,
+            ExtraJson = JsonSerializer.Serialize(new LogExtra
+            {
+                LogNodeName = log.LogNodeName,
+                TraceId = log.TraceId,
+                VariablesPreview = log.VariablesPreview,
+                StructuredFieldsJson = log.StructuredFieldsJson
+            }, JsonOptions)
         }).ToArray();
 
         return (entity, frames, logs);
@@ -393,15 +400,22 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         };
 
     private static MicroflowRuntimeLogDto ToLogDto(MicroflowRunLogEntity log)
-        => new()
+    {
+        var extra = ReadLogExtra(log.ExtraJson);
+        return new MicroflowRuntimeLogDto
         {
             Id = log.Id,
             Timestamp = log.Timestamp,
             Level = log.Level,
             ObjectId = log.ObjectId,
             ActionId = log.ActionId,
-            Message = log.Message
+            Message = log.Message,
+            LogNodeName = extra.LogNodeName,
+            TraceId = extra.TraceId,
+            VariablesPreview = extra.VariablesPreview,
+            StructuredFieldsJson = extra.StructuredFieldsJson
         };
+    }
 
     private static JsonElement? ParseOptional(string? json)
     {
@@ -434,6 +448,23 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         }
     }
 
+    private static LogExtra ReadLogExtra(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new LogExtra();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<LogExtra>(json, JsonOptions) ?? new LogExtra();
+        }
+        catch (JsonException)
+        {
+            return new LogExtra();
+        }
+    }
+
     private sealed record SessionExtra
     {
         public string Version { get; init; } = string.Empty;
@@ -451,6 +482,14 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         public int? CallDepth { get; init; }
 
         public IReadOnlyList<string> ChildRunIds { get; init; } = Array.Empty<string>();
+    }
+
+    private sealed record LogExtra
+    {
+        public string? LogNodeName { get; init; }
+        public string? TraceId { get; init; }
+        public JsonElement? VariablesPreview { get; init; }
+        public string? StructuredFieldsJson { get; init; }
     }
 
     private static TraceFrameExtra ReadTraceFrameExtra(string? json)

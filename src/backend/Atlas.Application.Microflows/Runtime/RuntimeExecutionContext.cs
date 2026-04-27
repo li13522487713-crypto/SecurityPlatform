@@ -214,7 +214,7 @@ public sealed class RuntimeExecutionContext
                 DataTypeJson = JsonSerializer.Serialize(new { kind = "httpResponse" }, JsonOptions),
                 RawValueJson = latestHttpResponse.Value.GetRawText(),
                 ValuePreview = latestHttpResponse.Value.TryGetProperty("statusCode", out var statusCode)
-                    ? $"HTTP {statusCode.GetRawText()}"
+                    ? $"HTTP {statusCode.GetRawText()} {ReadOptionalString(latestHttpResponse.Value, "reasonPhrase")}".Trim()
                     : "HTTP response",
                 SourceKind = MicroflowVariableSourceKind.RestResponse,
                 SourceObjectId = error.ObjectId,
@@ -345,6 +345,13 @@ public sealed class RuntimeExecutionContext
             concrete.ReportDiagnostic(code, severity, message, variableName, scopeKind: MicroflowVariableScopeKind.Global);
         }
     }
+
+    private static string? ReadOptionalString(JsonElement element, string propertyName)
+        => element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty(propertyName, out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
 
     private sealed class RuntimeScopeLease : IDisposable
     {

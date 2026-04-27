@@ -50,6 +50,26 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             }
         }
 
+        if (string.Equals(actionKind, "restCall", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<RestCallActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
+        if (string.Equals(actionKind, "logMessage", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<LogMessageActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(actionKind) && _executors.TryGetValue(actionKind, out var resolved))
         {
             executor = resolved;
@@ -134,7 +154,7 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
             Unsupported("callJavaScriptAction", "CallJavaScriptAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Nanoflow JavaScript actions must run on the client."),
             Unsupported("callNanoflow", "CallNanoflowAction", "call", MicroflowActionSupportLevel.NanoflowOnly, "Nanoflow calls cannot execute inside server Microflow runtime."),
 
-            Server("restCall", "RestCallAction", "integration", "RestCallActionExecutor", producesVariables: true, producesTransaction: false, reason: "testRun uses mock HTTP; real HTTP requires rest.realHttp capability."),
+            Server("restCall", "RestCallAction", "integration", "RestCallActionExecutor", producesVariables: true, producesTransaction: false, reason: "Runtime can build REST requests, enforce HTTP policy, mock by default, and use real HTTP when allowRealHttp is enabled."),
             Connector("webServiceCall", "WebServiceCallAction", "integration", "WebServiceCallActionExecutor", MicroflowRuntimeConnectorCapability.SoapWebService, "SOAP/WSDL execution requires web service connector."),
             Connector("importXml", "ImportXmlAction", "integration", "ImportXmlActionExecutor", MicroflowRuntimeConnectorCapability.XmlImportMapping, "XML import mapping requires mapping connector."),
             Connector("exportXml", "ExportXmlAction", "integration", "ExportXmlActionExecutor", MicroflowRuntimeConnectorCapability.XmlExportMapping, "XML export mapping requires mapping connector."),

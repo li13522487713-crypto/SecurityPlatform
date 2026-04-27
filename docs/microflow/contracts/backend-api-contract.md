@@ -68,6 +68,7 @@
 - `options` 支持 `simulateRestError`、`decisionBooleanResult`、`enumerationCaseValue`、`objectTypeCase`、`loopIterations`、`maxSteps`。
 - Decision/ObjectType trace 写入 `selectedCaseValue`，Loop trace 写入 `loopIteration`，RestCall 可通过 `simulateRestError=true` 进入 error handler mock path。
 - `Resource.LastRunStatus` / `LastRunAt` 会更新；TestRun 不修改 `CurrentSchemaSnapshotId`、dirty/publishStatus 或 AuthoringSchema。
+- 第 56 轮起，`callMicroflow` 会生成 child RunSession；父 `TraceFrame.output.callMicroflow.childRunId` 可用于 `GET /api/microflows/runs/{childRunId}/trace` 查询子调用 trace。子 trace frame 带 `parentRunId/rootRunId/callFrameId/callDepth/callerObjectId/callerActionId`，不新增 API 路径或数据库表。
 
 ## Runtime Plan Inspection
 

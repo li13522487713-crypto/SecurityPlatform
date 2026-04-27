@@ -149,6 +149,13 @@ pnpm run format
 - DAG 运行时需保障 Batch 子图、Loop + Break/Continue、Selector 分支裁剪、Resume（基于 preCompletedNodeKeys）。
 - 新增/修改节点能力必须同步节点目录/模板 API、前端节点面板与属性表单、i18n、单测/E2E、`.http` 示例和 `docs/workflow-editor-validation-matrix.md`。
 
+### Mendix 微流 Runtime
+
+- RestCall Runtime 默认不得真实访问网络；只有显式 `allowRealHttp=true` 且通过 `MicroflowRestSecurityPolicy` 后，才允许经 `IMicroflowRuntimeHttpClient` / `IHttpClientFactory` 执行真实 HTTP。
+- RestCall 必须使用 ExpressionEvaluator、VariableStore、ActionExecutorRegistry 和 Runtime HTTP security policy；不得在 executor 中散落裸 `HttpClient`。
+- LogMessage 必须写入结构化 RuntimeLog，不得直接 `Console.WriteLine`；template arguments 必须通过 ExpressionEvaluator。
+- SOAP/XML/Document/Workflow/ML/external object 等 connector-backed integration 在 connector 缺失时必须返回 `RUNTIME_CONNECTOR_REQUIRED`，禁止 silent success。
+
 ### 知识库 v5
 
 - 知识库 API 唯一路由前缀为 `api/v1/knowledge-bases`。
