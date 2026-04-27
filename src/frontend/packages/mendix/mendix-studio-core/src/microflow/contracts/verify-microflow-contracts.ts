@@ -9,6 +9,7 @@ import { validateMicroflowSchema } from "@atlas/microflow/validators";
 import { buildVariableIndex, getVariablesAfterObject, getVariablesBeforeObject } from "@atlas/microflow/variables";
 import { inferExpressionType, parseExpression, validateExpression } from "@atlas/microflow/expressions";
 import { getFlowSemanticHashForSchema } from "@atlas/microflow/layout";
+import { mockRunExecutionPlan } from "@atlas/microflow/debug";
 
 import { toExecutionPlan, toExecutionPlanFromSchema } from "./runtime-semantics";
 import { microflowSampleManifest } from "./sample-manifest";
@@ -220,6 +221,36 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       }
       if (getFlowSemanticHashForSchema(schema) !== getFlowSemanticHashForSchema(schema)) {
         errors.push(`${item.key}: flow semantic hash 不稳定`);
+      }
+      const runtimeSession = mockRunExecutionPlan(plan, {
+        parameters: {},
+        options: {
+          loopIterations: item.key === "sample-loop-processing" ? 2 : 1,
+          simulateRestError: false,
+          objectTypeCase: "University.Professor",
+        },
+      });
+      if (!runtimeSession.id || !Array.isArray(runtimeSession.trace) || !Array.isArray(runtimeSession.logs)) {
+        errors.push(`${item.key}: mockRunExecutionPlan 返回 RunSession 形状不完整`);
+      }
+      if (JSON.stringify(runtimeSession).toLowerCase().includes("flowgram")) {
+        errors.push(`${item.key}: RunSession 不应包含 FlowGram 关键字`);
+      }
+      if (item.key === "sample-loop-processing" && !runtimeSession.trace.some(frame => frame.loopIteration?.index === 0)) {
+        errors.push(`${item.key}: mockRunExecutionPlan 未产生 loopIteration trace`);
+      }
+      if (item.key === "sample-object-type-decision" && plan.decisionFlows.some(flow => flow.controlFlow === "objectType") && !runtimeSession.trace.some(frame => frame.selectedCaseValue)) {
+        errors.push(`${item.key}: object type sample 未产生 selectedCaseValue`);
+      }
+      if (item.key === "sample-rest-error-handling") {
+        const restErrorSession = mockRunExecutionPlan(plan, { parameters: {}, options: { simulateRestError: true } });
+        const restReached = restErrorSession.trace.some(frame => frame.actionId && frame.objectId === "rest-call");
+        if (restReached && !restErrorSession.trace.some(frame => frame.errorHandlerVisited || frame.outgoingFlowId && plan.errorHandlerFlows.some(flow => flow.flowId === frame.outgoingFlowId))) {
+          errors.push(`${item.key}: REST error path 未访问 errorHandler flow`);
+        }
+        if (plan.errorHandlerFlows.length === 0) {
+          errors.push(`${item.key}: ExecutionPlan 缺少 errorHandler flow`);
+        }
       }
       const plan2 = toExecutionPlanFromSchema(schema);
       if (plan2.startNodeId !== plan.startNodeId) {

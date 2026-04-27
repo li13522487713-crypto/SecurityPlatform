@@ -74,7 +74,7 @@ export const sampleRestErrorHandlingMicroflowSchema = (() => {
   const schema = appendLinearActions(
     cloneBase("sample-rest-error-handling", "SampleRestErrorHandling", "REST call with logging and error event sample."),
     [
-      { key: "restCall", id: "rest-call", caption: "Call REST", x: 280, y: 180, patch: { response: { handling: { kind: "json", outputVariableName: "restResponse" } } } },
+      { key: "restCall", id: "rest-call", caption: "Call REST", x: 280, y: 180, patch: { errorHandlingType: "customWithoutRollback", response: { handling: { kind: "json", outputVariableName: "restResponse" } } } },
       { key: "logMessage", id: "rest-log", caption: "Log REST", x: 520, y: 180, patch: { template: { text: "REST completed", arguments: [] } } }
     ]
   );

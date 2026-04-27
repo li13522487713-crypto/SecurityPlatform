@@ -29,6 +29,7 @@ retrieve、createObject、changeMembers、commit、delete、rollback、createVar
 - `visibility` 取值为 `definite` / `maybe` / `unavailable`；Runtime 执行前可用该字段生成后端变量槽位和发布期 warning。
 - ExecutionPlan 会从 DTO.variables 派生 `variableDeclarations`、`actionOutputs`、`loopVariables`、`systemVariables`、`errorContextVariables`、`variableScopes`、`variableDiagnostics`。
 - 第 29 轮起，ExecutionPlan 同时提供 `normalFlows`、`decisionFlows`、`errorHandlerFlows` 分组；`flows` 仍为 control-flow 超集，不含 AnnotationFlow。
+- 第 30 轮起，`toExecutionPlan` 的权威实现下沉到 `@atlas/microflow/runtime`，studio-core 契约层只做再导出，避免 Mock Runner 与契约验证使用两套 Plan 结构。
 
 ## 第 26 轮字段对齐
 

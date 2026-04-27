@@ -18,6 +18,7 @@
 - 作用域：按 `visibility=definite/maybe/unavailable` 实现发布期检查；`maybe` 可先 warning，`unavailable` 与类型不匹配应阻断保存/发布。
 - ErrorHandler：`$latestError` 仅在 error handler scope；RestCall error handler 额外支持 `$latestHttpResponse`，WebService error handler 额外支持 `$latestSoapFault`。
 - Flow：消费 Runtime DTO / ExecutionPlan 的 control flows；`AnnotationFlow` 不执行。Decision/ObjectType 读取 `caseValues`，ErrorHandler 读取 `isErrorHandler=true`，不要依赖 FlowGram port 或视觉顺序。
+- 后端真实 Runtime 建议从 `ExecutionPlanLoader` 开始：读取 `MicroflowExecutionPlan.nodes/flows/normalFlows/decisionFlows/errorHandlerFlows/loopCollections`，不要直接解释 FlowGram JSON。
 - 表达式：后端 Runtime 可按 `runtime-expression-contract.md` 实现 P0 子集；禁止把前端 AST 当持久化主数据，AuthoringSchema 中仍以 expression raw/text 为准。
 - Validation API：建议接收 AuthoringSchema + MetadataCatalog 版本，返回同构 `MicroflowValidationIssue`，并支持 edit/save/publish/testRun mode。
 - 微流资源 + Schema 存取 + 列表。

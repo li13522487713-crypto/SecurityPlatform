@@ -1,4 +1,6 @@
 import { validateMicroflowSchema } from "../schema/validator";
+import { toRuntimeDto } from "../adapters/microflow-adapters";
+import { toExecutionPlan } from "../runtime";
 import type {
   MicroflowDataType,
   MicroflowFlow,
@@ -26,6 +28,7 @@ import type {
   MicroflowTraceFrame,
   MockTestRunMicroflowInput,
 } from "./trace-types";
+import { mockRunExecutionPlan } from "./mock-execution-plan-runner";
 
 const MAX_STEPS = 500;
 
@@ -86,16 +89,11 @@ export function mockTestRunMicroflow(input: MockTestRunMicroflowInput): Promise<
     state.error = error;
     return Promise.resolve(finishSession(input, state, "failed", error));
   }
-
-  const start = getStartEvent(input.schema);
-  if (!start) {
-    const error: MicroflowRuntimeError = { code: "RUNTIME_START_NOT_FOUND", message: "No StartEvent found in the microflow." };
-    return Promise.resolve(finishSession(input, { ...state, error }, "failed", error));
-  }
-
-  executeFromObject(input, state, start, undefined, undefined);
-  const status = state.error ? "failed" : "success";
-  return Promise.resolve(finishSession(input, state, status, state.error));
+  const runtimeDto = { ...toRuntimeDto(input.schema), variables: input.variableIndex };
+  return Promise.resolve(mockRunExecutionPlan(toExecutionPlan(runtimeDto), {
+    parameters: input.parameters,
+    options: input.options,
+  }));
 }
 
 function executeFromObject(

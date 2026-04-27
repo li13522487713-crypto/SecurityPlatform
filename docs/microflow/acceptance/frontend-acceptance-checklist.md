@@ -37,6 +37,8 @@
 33. **Loop 边界**：root → loop internal、loop internal → root 被拒绝；同一 loop internal collection 内部可连；Break/Continue 无出边。
 34. **Runtime edge**：`toRuntimeDto().flows` 与 `toExecutionPlan().flows` 不包含 AnnotationFlow，且 plan 提供 normal/decision/errorHandler flow 分组。
 35. **AutoLayout 语义**：AutoLayout 前后 flow semantic hash 一致，case/errorHandler/annotation 类型不变化。
+36. **Runtime Pipeline**：编辑器 test-run 走 `toRuntimeDto → toExecutionPlan → mockRunExecutionPlan`，RunSession/TraceFrame 不含 FlowGram JSON。
+37. **Runtime 回归矩阵**：`sample-runtime-matrix.md` 中所有样例可完成 validate、FlowGram 投影、Runtime DTO、ExecutionPlan 与 mock run 契约验证。
 
 ## 自动化补充
 

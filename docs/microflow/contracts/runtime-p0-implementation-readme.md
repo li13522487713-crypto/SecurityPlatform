@@ -26,3 +26,11 @@
 - Decision/ObjectType 分支必须从 `caseValues` 读取，不得从 FlowGram port label 推断；`noCase` 表示 pending，publish/testRun 必须阻断。
 - ErrorHandler 必须由 `isErrorHandler=true` 与 `editor.edgeKind="errorHandler"` 同时表达；P0 每个 source object 最多一个。
 - AutoLayout、validation sync、runtime highlight 只能更新视图/状态，不得修改 flow semantic hash。
+
+## 第 30 轮 Mock Runtime 补充
+
+- `mockRunExecutionPlan(plan, input)` 是 Mock Runner 主入口；旧 `mockTestRunMicroflow(schema)` 只做 validate 与 DTO/Plan 转换。
+- P0 mock 执行以 `MicroflowExecutionNode.p0ActionRuntime` 为准，不再从 AuthoringSchema 扫 action 执行。
+- Decision/ObjectType 分支只从 `plan.decisionFlows[].caseValues` 选择。
+- RestCall `simulateRestError=true` 使用 `plan.errorHandlerFlows` 进入错误路径，并在 trace 中标记 `errorHandlerVisited`。
+- Unsupported/modeledOnly 到达时产生 `RUNTIME_UNSUPPORTED_ACTION` 或 `RUNTIME_CONNECTOR_REQUIRED`。

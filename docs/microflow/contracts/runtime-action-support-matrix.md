@@ -9,6 +9,8 @@
 
 Flow 协议：P0 action execution 只跟随 `sequence` / `decisionCondition` / `objectTypeCondition` / `errorHandler` control flows；`AnnotationFlow`、FlowGram JSON、port label 与视觉 branch order 不作为 Runtime 执行依据。
 
+第 30 轮：ExecutionPlan 的 `unsupportedActions` 是 Runtime 支持级权威列表。Mock Runner 执行到 modeledOnly / unsupported / requiresConnector 节点时，分别产生 `RUNTIME_UNSUPPORTED_ACTION` 或 `RUNTIME_CONNECTOR_REQUIRED`，并生成 failed trace。
+
 ## 第 26 轮属性面板支持
 
 | actionKind | 属性面板核心控件 | 输出变量 |
