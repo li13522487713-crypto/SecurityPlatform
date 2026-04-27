@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteObject, toEditorGraph } from "./adapters";
+import { applyEditorGraphPatchToAuthoring, createAutoLayoutPatch, createObjectFromRegistry, createSequenceFlow, deleteObject, duplicateObject, moveObject, toEditorGraph, updateObject } from "./adapters";
 import {
   addMicroflowObjectFromDragPayload,
   canConnectPorts,
@@ -107,6 +107,87 @@ describe("microflow editor interactions", () => {
     expect(microflowA.schema.objectCollection.objects[0]?.id).not.toBe(microflowB.schema.objectCollection.objects[0]?.id);
     expect(microflowA.schema.objectCollection.objects[0]?.kind).toBe("actionActivity");
     expect(microflowB.schema.objectCollection.objects[0]?.kind).toBe("exclusiveSplit");
+  });
+
+  it("persists node move by updating relativeMiddlePoint in schema", () => {
+    const start = createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }, "move-start");
+    const schema = schemaWith([start]);
+    const moved = moveObject(schema, start.id, { x: 240, y: 128 });
+
+    expect(moved.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 240, y: 128 });
+    expect(schema.objectCollection.objects.find(object => object.id === start.id)?.relativeMiddlePoint).toEqual({ x: 0, y: 0 });
+  });
+
+  it("deletes nodes from schema and removes related flows and parameter definitions", () => {
+    const parameterResult = addMicroflowObjectFromDragPayload({
+      schema: schemaWith([]),
+      payload: createDragPayloadFromRegistryItem(registry("parameter")),
+      position: { x: 0, y: 0 },
+    });
+    const parameterObject = parameterResult.objectId
+      ? parameterResult.schema.objectCollection.objects.find(object => object.id === parameterResult.objectId)
+      : undefined;
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 0 }, "delete-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "delete-end");
+    if (!parameterObject) {
+      throw new Error("Expected parameter object.");
+    }
+    const flow = createSequenceFlow({ originObjectId: retrieve.id, destinationObjectId: end.id });
+    const withObjects = schemaWith([parameterObject, retrieve, end], [flow]);
+    const schema = {
+      ...withObjects,
+      parameters: parameterResult.schema.parameters,
+      editor: { ...withObjects.editor, selection: { objectId: parameterObject.id, flowId: flow.id } }
+    };
+
+    const withoutRetrieve = deleteObject(schema, retrieve.id);
+    expect(withoutRetrieve.objectCollection.objects.some(object => object.id === retrieve.id)).toBe(false);
+    expect(collectFlowsRecursive(withoutRetrieve).some(item => item.originObjectId === retrieve.id || item.destinationObjectId === retrieve.id)).toBe(false);
+
+    const withoutParameter = deleteObject(schema, parameterObject.id);
+    expect(withoutParameter.objectCollection.objects.some(object => object.id === parameterObject.id)).toBe(false);
+    if (parameterObject.kind !== "parameterObject") {
+      throw new Error("Expected parameter object kind.");
+    }
+    expect(withoutParameter.parameters.some(parameter => parameter.id === parameterObject.parameterId)).toBe(false);
+    expect(withoutParameter.editor.selection.objectId).toBeUndefined();
+  });
+
+  it("duplicates a node with a new id, offset position, new caption, and no copied flows", () => {
+    const retrieve = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 200, y: 96 }, "dup-retrieve");
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 440, y: 96 }, "dup-end");
+    const flow = createSequenceFlow({ originObjectId: retrieve.id, destinationObjectId: end.id });
+    const schema = schemaWith([retrieve, end], [flow]);
+    const duplicated = duplicateObject(schema, retrieve.id);
+    const copied = duplicated.objectCollection.objects.find(object => object.id !== retrieve.id && object.id !== end.id);
+
+    expect(copied).toBeDefined();
+    expect(copied?.id).not.toBe(retrieve.id);
+    expect(copied?.caption).toBe(`${retrieve.caption} Copy`);
+    expect(copied?.relativeMiddlePoint).toEqual({ x: retrieve.relativeMiddlePoint.x + 80, y: retrieve.relativeMiddlePoint.y + 60 });
+    expect(copied?.kind === "actionActivity" ? copied.action.id : undefined).not.toBe(retrieve.kind === "actionActivity" ? retrieve.action.id : undefined);
+    expect(collectFlowsRecursive(duplicated).filter(item => item.originObjectId === copied?.id || item.destinationObjectId === copied?.id)).toHaveLength(0);
+    expect(duplicated.editor.selection.objectId).toBe(copied?.id);
+  });
+
+  it("renames node caption through schema object update", () => {
+    const end = createObjectFromRegistry(registry("endEvent"), { x: 400, y: 0 }, "rename-end");
+    const renamed = updateObject(schemaWith([end]), end.id, object => ({ ...object, caption: "End_Validate" }));
+
+    expect(renamed.objectCollection.objects.find(object => object.id === end.id)?.caption).toBe("End_Validate");
+    expect(toEditorGraph(renamed).nodes.find(node => node.objectId === end.id)?.title).toBe("End_Validate");
+  });
+
+  it("keeps move, delete, duplicate, and rename isolated between separate schemas", () => {
+    const sourceA = createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 100, y: 100 }, "a-retrieve");
+    const sourceB = createObjectFromRegistry(registry("decision"), { x: 300, y: 120 }, "b-decision");
+    const schemaA = updateObject(duplicateObject(moveObject(schemaWith([sourceA]), sourceA.id, { x: 180, y: 160 }), sourceA.id), sourceA.id, object => ({ ...object, caption: "Retrieve_A" }));
+    const schemaB = deleteObject(schemaWith([sourceB]), sourceB.id);
+
+    expect(schemaA.objectCollection.objects.some(object => object.caption === "Retrieve_A")).toBe(true);
+    expect(schemaA.objectCollection.objects).toHaveLength(2);
+    expect(schemaB.objectCollection.objects).toHaveLength(0);
+    expect(sourceB.caption).not.toBe("Retrieve_A");
   });
 
   it("creates concrete objects from registry entries", () => {

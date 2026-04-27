@@ -114,6 +114,57 @@ function collectDescendantIds(object: MicroflowObject): Set<string> {
   return ids;
 }
 
+function collectSchemaIds(schema: MicroflowSchema): Set<string> {
+  const ids = new Set<string>([
+    schema.id,
+    schema.stableId,
+    schema.objectCollection.id,
+    ...schema.parameters.flatMap(parameter => [parameter.id, parameter.stableId].filter((value): value is string => Boolean(value))),
+    ...collectFlowsRecursive(schema).flatMap(flow => [flow.id, flow.stableId].filter((value): value is string => Boolean(value))),
+  ].filter((value): value is string => Boolean(value)));
+
+  for (const object of flattenObjectCollection(schema.objectCollection)) {
+    ids.add(object.id);
+    ids.add(object.stableId);
+    if (object.kind === "actionActivity") {
+      ids.add(object.action.id);
+    }
+    if (object.kind === "loopedActivity") {
+      ids.add(object.objectCollection.id);
+    }
+  }
+
+  return ids;
+}
+
+function uniqueSchemaId(schema: MicroflowSchema, prefix: string): string {
+  const existingIds = collectSchemaIds(schema);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const id = createStableId(prefix);
+    if (!existingIds.has(id)) {
+      return id;
+    }
+  }
+  throw new Error(`Unable to generate unique id for ${prefix}.`);
+}
+
+function nextDuplicateCaption(caption: string | undefined, fallback: string): string {
+  const base = caption?.trim() || fallback;
+  return `${base} Copy`;
+}
+
+function nextParameterName(schema: MicroflowSchema): string {
+  const names = new Set(schema.parameters.map(parameter => parameter.name));
+  if (!names.has("parameter")) {
+    return "parameter";
+  }
+  let index = 1;
+  while (names.has(`parameter${index}`)) {
+    index += 1;
+  }
+  return `parameter${index}`;
+}
+
 function appendObjectToLoop(collection: MicroflowObjectCollection, loopObjectId: string, object: MicroflowObject): MicroflowObjectCollection {
   return {
     ...collection,
@@ -155,6 +206,10 @@ export function updateObject(schema: MicroflowSchema, objectId: string, mapper: 
 
 export function deleteObject(schema: MicroflowSchema, objectId: string): MicroflowSchema {
   const removedObjectIds = collectObjectAndDescendantIds(schema.objectCollection, objectId);
+  const removedObjects = flattenObjectCollection(schema.objectCollection).filter(object => removedObjectIds.has(object.id));
+  const removedParameterIds = new Set(removedObjects
+    .filter((object): object is Extract<MicroflowObject, { kind: "parameterObject" }> => object.kind === "parameterObject")
+    .map(object => object.parameterId));
   const flows = schema.flows.filter(flow => !removedObjectIds.has(flow.originObjectId) && !removedObjectIds.has(flow.destinationObjectId));
   const objectCollection = removeFlowsFromCollection(
     removeObjectFromCollection(schema.objectCollection, objectId),
@@ -167,29 +222,91 @@ export function deleteObject(schema: MicroflowSchema, objectId: string): Microfl
     ...schema,
     objectCollection,
     flows,
+    parameters: schema.parameters.filter(parameter => !removedParameterIds.has(parameter.id)),
     editor: {
       ...schema.editor,
       selection: {
         objectId: schema.editor.selection.objectId && removedObjectIds.has(schema.editor.selection.objectId)
           ? undefined
           : schema.editor.selection.objectId,
-        flowId: selectedFlowStillExists ? schema.editor.selection.flowId : undefined
-      }
+        flowId: selectedFlowStillExists ? schema.editor.selection.flowId : undefined,
+        collectionId: schema.editor.selection.objectId && removedObjectIds.has(schema.editor.selection.objectId)
+          ? undefined
+          : schema.editor.selection.collectionId
+      },
+      selectedObjectId: schema.editor.selectedObjectId && removedObjectIds.has(schema.editor.selectedObjectId)
+        ? undefined
+        : schema.editor.selectedObjectId,
+      selectedFlowId: selectedFlowStillExists ? schema.editor.selectedFlowId : undefined,
+      selectedCollectionId: schema.editor.selection.objectId && removedObjectIds.has(schema.editor.selection.objectId)
+        ? undefined
+        : schema.editor.selectedCollectionId
     }
   });
 }
 
 export function duplicateObject(schema: MicroflowSchema, objectId: string): MicroflowSchema {
-  const object = findObject(schema, objectId);
-  if (!object) {
+  const located = findObjectWithCollection(schema, objectId);
+  const object = located?.object;
+  if (!object || object.kind === "startEvent") {
     return schema;
   }
-  const copy = clone(object);
-  copy.id = `${object.id}-copy-${Date.now()}`;
+  const copy = clone(object) as MicroflowObject;
+  copy.id = uniqueSchemaId(schema, `${object.kind}-copy`);
   copy.stableId = copy.id;
-  copy.caption = `${object.caption ?? object.id} Copy`;
-  copy.relativeMiddlePoint = { x: object.relativeMiddlePoint.x + 36, y: object.relativeMiddlePoint.y + 36 };
-  return addObject(schema, copy);
+  copy.caption = nextDuplicateCaption(object.caption, object.kind);
+  copy.relativeMiddlePoint = { x: object.relativeMiddlePoint.x + 80, y: object.relativeMiddlePoint.y + 60 };
+
+  let parameters = schema.parameters;
+  if (copy.kind === "actionActivity") {
+    copy.action = { ...copy.action, id: uniqueSchemaId(schema, `action-${copy.action.kind}-copy`) } as MicroflowAction;
+  }
+  if (copy.kind === "parameterObject") {
+    const sourceParameterId = object.kind === "parameterObject" ? object.parameterId : undefined;
+    const parameter = schema.parameters.find(item => item.id === sourceParameterId);
+    const parameterId = uniqueSchemaId(schema, "param-copy");
+    const parameterName = nextParameterName(schema);
+    copy.parameterId = parameterId;
+    copy.parameterName = parameterName;
+    copy.caption = parameterName;
+    parameters = [
+      ...schema.parameters,
+      {
+        ...(parameter ?? {
+          dataType: { kind: "string" as const },
+          type: { kind: "primitive" as const, name: "String" },
+          required: true
+        }),
+        id: parameterId,
+        stableId: parameterId,
+        name: parameterName
+      }
+    ];
+  }
+  if (copy.kind === "loopedActivity") {
+    copy.objectCollection = {
+      ...copy.objectCollection,
+      id: uniqueSchemaId(schema, "loop-collection-copy"),
+      objects: [],
+      flows: []
+    };
+  }
+
+  const next = addObject({ ...schema, parameters }, copy, located.parentLoopObjectId);
+  return {
+    ...next,
+    editor: {
+      ...next.editor,
+      selection: {
+        objectId: copy.id,
+        flowId: undefined,
+        collectionId: located.collectionId
+      },
+      selectedObjectId: copy.id,
+      selectedFlowId: undefined,
+      selectedCollectionId: located.collectionId
+    }
+  };
 }
 
 export function moveObject(schema: MicroflowSchema, objectId: string, position: MicroflowPoint): MicroflowSchema {

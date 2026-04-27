@@ -64,7 +64,11 @@ export function ActionActivityForm({
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
       <Field label="Caption">
-        <Input value={object.caption} disabled={readonly} onChange={caption => patchObject({ ...object, caption })} />
+        <Input
+          value={object.caption}
+          disabled={readonly}
+          onChange={caption => patchObject({ ...object, caption: caption.trim() ? caption : object.caption || action.kind })}
+        />
       </Field>
       <Field label="Auto Generate Caption">
         <Switch checked={object.autoGenerateCaption} disabled={readonly} onChange={autoGenerateCaption => patchObject({ ...object, autoGenerateCaption })} />

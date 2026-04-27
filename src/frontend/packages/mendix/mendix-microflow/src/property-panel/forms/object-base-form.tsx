@@ -13,7 +13,14 @@ export function ObjectBaseForm({ object, readonly, patch }: {
         <Input value={object.kind} disabled />
       </Field>
       <Field label="Caption">
-        <Input value={object.caption ?? ""} disabled={readonly} onChange={caption => patch({ ...object, caption } as MicroflowObject)} />
+        <Input
+          value={object.caption ?? ""}
+          disabled={readonly}
+          onChange={caption => {
+            const nextCaption = caption.trim() ? caption : object.caption ?? object.kind;
+            patch({ ...object, caption: nextCaption } as MicroflowObject);
+          }}
+        />
       </Field>
       <Field label="Documentation">
         <TextArea value={object.documentation ?? ""} autosize disabled={readonly} onChange={documentation => patch({ ...object, documentation } as MicroflowObject)} />
