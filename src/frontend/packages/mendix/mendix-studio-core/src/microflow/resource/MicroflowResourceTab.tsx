@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { Button, Card, Dropdown, Empty, Input, Modal, Select, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconCode, IconCopy, IconDelete, IconEdit, IconMore, IconPlus, IconSearch, IconStar, IconStarStroked } from "@douyinfe/semi-icons";
 
+import { createMicroflowAdapterBundle, type MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
+import type { MicroflowAdapterFactoryConfig } from "../config/microflow-adapter-config";
 import { PublishMicroflowModal } from "../publish/PublishMicroflowModal";
 import { MicroflowReferencesDrawer } from "../references/MicroflowReferencesDrawer";
 import { MicroflowVersionsDrawer } from "../versions/MicroflowVersionsDrawer";
@@ -14,8 +16,11 @@ const { Text } = Typography;
 
 export interface MicroflowResourceTabProps {
   adapter?: MicroflowResourceAdapter;
+  adapterBundle?: MicroflowAdapterBundle;
+  adapterConfig?: MicroflowAdapterFactoryConfig;
   workspaceId?: string;
-  currentUser?: { id: string; name: string };
+  tenantId?: string;
+  currentUser?: { id: string; name: string; roles?: string[] };
   onOpenMicroflow?: (resourceId: string) => void;
   onOpenStudio?: () => void;
 }
@@ -163,10 +168,11 @@ export function ResourceTable({
   );
 }
 
-export function MendixMicroflowResourceTab({ adapter: adapterInput, workspaceId, currentUser, onOpenMicroflow, onOpenStudio }: MicroflowResourceTabProps) {
+export function MendixMicroflowResourceTab({ adapter: adapterInput, adapterBundle, adapterConfig, workspaceId, tenantId, currentUser, onOpenMicroflow, onOpenStudio }: MicroflowResourceTabProps) {
+  const bundle = useMemo(() => adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }), [adapterBundle, adapterConfig, currentUser, tenantId, workspaceId]);
   const [query, setQuery] = useState<MicroflowResourceQuery>({ sortBy: "updatedAt", sortOrder: "desc" });
   const [view, setView] = useState<"card" | "table">("table");
-  const { adapter, items, allItems, loading, reload } = useMicroflowResources({ adapter: adapterInput, workspaceId, currentUser, query });
+  const { adapter, items, allItems, loading, error, reload } = useMicroflowResources({ adapter: adapterInput ?? bundle.resourceAdapter, workspaceId, currentUser, query });
   const [createOpen, setCreateOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -272,6 +278,10 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, workspaceId,
       <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
         {loading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 48 }}><Spin /></div>
+        ) : error ? (
+          <Empty title="微流服务未连接" description={error.message || "请检查微流 HTTP 服务或切换到本地模式。"} style={{ padding: 48 }}>
+            <Button onClick={() => void reload()}>重试</Button>
+          </Empty>
         ) : items.length === 0 ? (
           <Empty title="暂无微流" description="新建微流后可在这里管理版本、发布和引用关系。" style={{ padding: 48 }} />
         ) : view === "card" ? (
@@ -290,6 +300,7 @@ export function MendixMicroflowResourceTab({ adapter: adapterInput, workspaceId,
         visible={publishOpen}
         resource={selectedResource}
         adapter={adapter}
+        validationAdapter={bundle.validationAdapter}
         onClose={() => setPublishOpen(false)}
         onPublished={handlePublished}
         onViewProblems={issues => Modal.info({ title: "校验问题", content: issues.map(issue => `${issue.severity}: ${issue.message}`).join("\n") || "无问题" })}

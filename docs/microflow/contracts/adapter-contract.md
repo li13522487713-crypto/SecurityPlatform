@@ -21,6 +21,21 @@
 - **权威对账**：[frontend-backend-mapping.md](./frontend-backend-mapping.md) + [backend-api-contract.md](./backend-api-contract.md) + [openapi-draft.yaml](./openapi-draft.yaml)。
 - **统一响应 Envelope**（`MicroflowApiResponse`）由 **HTTP 客户端** 解析；**Adapter 方法** 仍返回业务 DTO，不强制包 Envelope（与本地实现一致）。
 
+## 第 31 轮：统一 Adapter Bundle
+
+`mendix-studio-core` 现在提供统一切换层：
+
+- `MicroflowAdapterMode = "mock" | "local" | "http"`。
+- `MicroflowAdapterFactoryConfig` 只接收宿主上下文：`mode`、`apiBaseUrl`、`workspaceId`、`tenantId`、`currentUser`、请求头与错误回调。
+- `MicroflowAdapterBundle` 统一输出 `resourceAdapter`、`metadataAdapter`、`runtimeAdapter`、`validationAdapter` 与可选 HTTP `apiClient`。
+- `createMicroflowAdapterBundle(config)` 是默认入口；组件可直接传 `adapterBundle`，也可传 `adapterConfig` 由 core 内部创建。
+
+生产模式默认 `http`，开发模式默认 `local`。`http` 模式必须显式配置 `apiBaseUrl`，不会无声 fallback 到 mock；mock 仅用于 dev/test/sample，local 仅用于本地开发或离线调试。
+
 ## MicroflowStorageAdapter / 独立 ValidationAdapter
 
-本仓库**未**单独抽象；资源存储合并在 Local Adapter + `microflow-resource-storage`；前后端联合校验可统一为同一 `MicroflowValidationIssue` 结构。REST 校验见 `microflow/contracts/api/microflow-validation-api-contract.ts`。
+资源存储合并在 Local Adapter + `microflow-resource-storage`；前后端联合校验统一为同一 `MicroflowValidationIssue` 结构。第 31 轮新增 `MicroflowValidationAdapter`：
+
+- `createLocalMicroflowValidationAdapter` 调用本地 `validateMicroflowSchema`。
+- `createHttpMicroflowValidationAdapter` 调用 `POST /api/microflows/{id}/validate`。
+- mock/local 默认使用 local validation；http 默认使用 HTTP validation，可通过 `validationMode: "local"` 在开发联调时强制本地校验。

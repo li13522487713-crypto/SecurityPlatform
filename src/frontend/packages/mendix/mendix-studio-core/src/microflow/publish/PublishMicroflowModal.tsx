@@ -4,6 +4,7 @@ import { validateMicroflowSchema, type MicroflowValidationIssue } from "@atlas/m
 import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
+import type { MicroflowValidationAdapter } from "../adapter/microflow-validation-adapter";
 import { nextMicroflowVersion } from "../resource/resource-utils";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MicroflowReferenceImpactTag } from "../references/MicroflowReferenceImpactTag";
@@ -20,13 +21,14 @@ export interface PublishMicroflowModalProps {
   visible: boolean;
   resource?: MicroflowResource;
   adapter: MicroflowResourceAdapter;
+  validationAdapter?: MicroflowValidationAdapter;
   onClose: () => void;
   onPublished: (resource: MicroflowResource) => void;
   onViewProblems?: (issues: MicroflowValidationIssue[]) => void;
   onViewReferences?: () => void;
 }
 
-export function PublishMicroflowModal({ visible, resource, adapter, onClose, onPublished, onViewProblems, onViewReferences }: PublishMicroflowModalProps) {
+export function PublishMicroflowModal({ visible, resource, adapter, validationAdapter, onClose, onPublished, onViewProblems, onViewReferences }: PublishMicroflowModalProps) {
   const [version, setVersion] = useState("");
   const [description, setDescription] = useState("");
   const [issues, setIssues] = useState<MicroflowValidationIssue[]>([]);
@@ -59,17 +61,19 @@ export function PublishMicroflowModal({ visible, resource, adapter, onClose, onP
       return;
     }
     setLoading(true);
-    const validation = validateMicroflowSchema({
-      schema: resource.schema,
-      metadata: getDefaultMockMetadataCatalog(),
-      options: { mode: "publish", includeWarnings: true, includeInfo: true },
-    });
-    setIssues(validation.issues);
     Promise.all([
+      validationAdapter
+        ? validationAdapter.validate({ resourceId: resource.id, schema: resource.schema, mode: "publish" })
+        : Promise.resolve(validateMicroflowSchema({
+            schema: resource.schema,
+            metadata: getDefaultMockMetadataCatalog(),
+            options: { mode: "publish", includeWarnings: true, includeInfo: true },
+          })),
       adapter.getMicroflowVersions(resource.id),
       adapter.analyzeMicroflowPublishImpact(resource.id, { version: version.trim(), description })
     ])
-      .then(([versions, nextImpact]) => {
+      .then(([validation, versions, nextImpact]) => {
+        setIssues(validation.issues);
         const versionResult = validatePublishVersion(version, versions);
         setVersionMessage(versionResult.message ?? versionResult.warning);
         setImpact(nextImpact);

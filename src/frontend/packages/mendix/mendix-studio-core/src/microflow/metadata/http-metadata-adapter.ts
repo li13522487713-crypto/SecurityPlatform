@@ -1,48 +1,28 @@
 import type { MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 import type { GetMicroflowMetadataRequest, MicroflowMetadataAdapter } from "@atlas/microflow/metadata";
 
-import type { MicroflowApiResponse } from "../contracts/api/api-envelope";
 import type { GetMicroflowMetadataResponseBody } from "../contracts/api/microflow-metadata-api-contract";
+import { MicroflowApiClient, type MicroflowApiClientOptions } from "../adapter/http/microflow-api-client";
 
-export interface HttpMicroflowMetadataAdapterOptions {
-  apiBaseUrl: string;
-  fetchImpl?: typeof fetch;
+export interface HttpMicroflowMetadataAdapterOptions extends MicroflowApiClientOptions {
+  apiClient?: MicroflowApiClient;
 }
 
 /**
- * 预留：GET `{apiBaseUrl}/api/microflow-metadata`，解包 {@link MicroflowApiResponse}。
- * 默认工程仍使用 mock adapter；接入真实后端时替换为工厂返回值即可。
+ * HTTP metadata adapter：integration/production path。
+ * 失败时抛出统一 API error，不在内部 fallback 到 mock。
  */
 export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadataAdapterOptions): MicroflowMetadataAdapter {
-  const base = options.apiBaseUrl.replace(/\/$/, "");
-  const fetchFn = options.fetchImpl ?? fetch;
+  const client = options.apiClient ?? new MicroflowApiClient(options);
 
   async function load(request?: GetMicroflowMetadataRequest): Promise<MicroflowMetadataCatalog> {
-    const params = new URLSearchParams();
-    if (request?.workspaceId) {
-      params.set("workspaceId", request.workspaceId);
-    }
-    if (request?.moduleId) {
-      params.set("moduleId", request.moduleId);
-    }
-    if (request?.includeSystem !== undefined) {
-      params.set("includeSystem", String(request.includeSystem));
-    }
-    if (request?.includeArchived !== undefined) {
-      params.set("includeArchived", String(request.includeArchived));
-    }
-    const query = params.toString();
-    const url = `${base}/api/microflow-metadata${query ? `?${query}` : ""}`;
-    const response = await fetchFn(url, { method: "GET", headers: { Accept: "application/json" } });
-    if (!response.ok) {
-      throw new Error(`Microflow metadata HTTP ${response.status} ${response.statusText}`);
-    }
-    const envelope = await response.json() as MicroflowApiResponse<GetMicroflowMetadataResponseBody>;
-    if (!envelope.success || !envelope.data) {
-      const message = envelope.error?.message ?? "Microflow metadata response missing data";
-      throw new Error(message);
-    }
-    const { updatedAt: _updatedAt, catalogVersion: _catalogVersion, ...catalog } = envelope.data;
+    const body = await client.get<GetMicroflowMetadataResponseBody>("/api/microflow-metadata", {
+      workspaceId: request?.workspaceId ?? options.workspaceId,
+      moduleId: request?.moduleId,
+      includeSystem: request?.includeSystem,
+      includeArchived: request?.includeArchived,
+    });
+    const { updatedAt: _updatedAt, catalogVersion: _catalogVersion, ...catalog } = body;
     void _updatedAt;
     void _catalogVersion;
     return catalog as MicroflowMetadataCatalog;
@@ -51,5 +31,22 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
   return {
     getMetadataCatalog: load,
     refreshMetadataCatalog: load,
+    getEntity: qualifiedName => client.get(`/api/microflow-metadata/entities/${encodeURIComponent(qualifiedName)}`),
+    getEnumeration: qualifiedName => client.get(`/api/microflow-metadata/enumerations/${encodeURIComponent(qualifiedName)}`),
+    getMicroflowRefs: request => client.get("/api/microflow-metadata/microflows", {
+      workspaceId: request?.workspaceId ?? options.workspaceId,
+      moduleId: request?.moduleId,
+      includeSystem: request?.includeSystem,
+      includeArchived: request?.includeArchived,
+      keyword: request?.keyword,
+    }),
+    async getPageRefs(request) {
+      const catalog = await load(request);
+      return catalog.pages;
+    },
+    async getWorkflowRefs(request) {
+      const catalog = await load(request);
+      return catalog.workflows;
+    },
   };
 }

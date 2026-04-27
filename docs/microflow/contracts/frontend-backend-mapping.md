@@ -2,6 +2,8 @@
 
 > **说明**：`MicroflowResourceAdapter` / `MicroflowRuntimeAdapter` / `MicroflowMetadataAdapter` 的**方法签名**以 TypeScript 接口为准，返回**业务 DTO**；`MicroflowApiResponse` 由 **HTTP 客户端层** 解析 Envelope 后剥除。
 
+第 31 轮起，HTTP 映射统一由 `mendix-studio-core` 的 `createMicroflowAdapterBundle({ mode: "http", apiBaseUrl, workspaceId, tenantId, currentUser })` 创建；`app-web` 只传配置，不直接实现 fetch、mock、localStorage、metadata、validation 或 runtime 逻辑。
+
 ## ResourceAdapter
 
 | 方法 | HTTP | 请求 | 响应 data |

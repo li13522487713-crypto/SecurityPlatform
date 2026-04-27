@@ -11,6 +11,7 @@
     "lint:app-web": "pnpm --filter atlas-app-web run lint",
     "verify:microflow-contracts": "pnpm --filter @atlas/mendix-studio-core run verify-contracts",
     "verify:microflow-metadata-contract": "node ./scripts/verify-microflow-metadata-contract.mjs",
+    "verify:microflow-adapter-modes": "node ./scripts/verify-microflow-adapter-modes.mjs",
     "test:unit": "pnpm exec vitest run --passWithNoTests \"packages/**/src/**/*.spec.ts\" \"packages/**/src/**/*.spec.tsx\" \"packages/**/src/**/*.test.ts\" \"packages/**/src/**/*.test.tsx\" \"apps/**/src/**/*.spec.ts\" \"apps/**/src/**/*.spec.tsx\" \"apps/**/src/**/*.test.ts\" \"apps/**/src/**/*.test.tsx\"",
     "format": "pnpm -r run format",
     "test:e2e:full": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --config playwright.e2e-all.config.ts",

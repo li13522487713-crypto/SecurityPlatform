@@ -32,8 +32,8 @@ function toRuntimeResource(resource: MicroflowResource): RuntimeMicroflowResourc
   };
 }
 
-export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter, resource: MicroflowResource): MicroflowApiClient {
-  const local = createLocalMicroflowApiClient([resource.schema]);
+export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter, resource: MicroflowResource, runtimeAdapter?: MicroflowApiClient): MicroflowApiClient {
+  const local = runtimeAdapter ?? createLocalMicroflowApiClient([resource.schema]);
   return {
     ...local,
     async listMicroflows() {

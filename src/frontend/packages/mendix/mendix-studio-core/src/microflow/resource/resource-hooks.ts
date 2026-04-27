@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { createLocalMicroflowResourceAdapter } from "../adapter/local-microflow-resource-adapter";
+import { createMicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowResource, MicroflowResourceQuery } from "./resource-types";
 
@@ -13,7 +13,7 @@ export interface UseMicroflowResourcesOptions {
 
 export function useMicroflowResourceAdapter(adapter?: MicroflowResourceAdapter, workspaceId?: string, currentUser?: { id: string; name: string }) {
   return useMemo(
-    () => adapter ?? createLocalMicroflowResourceAdapter({ workspaceId, currentUser }),
+    () => adapter ?? createMicroflowAdapterBundle({ workspaceId, currentUser }).resourceAdapter,
     [adapter, currentUser, workspaceId]
   );
 }

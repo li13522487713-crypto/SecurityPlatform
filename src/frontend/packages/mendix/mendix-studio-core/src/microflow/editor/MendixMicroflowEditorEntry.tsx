@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { Button, Space, Tag, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowLeft } from "@douyinfe/semi-icons";
-import { MicroflowEditor, type MicroflowSchema } from "@atlas/microflow";
+import { MicroflowEditor, type MicroflowApiClient, type MicroflowSchema } from "@atlas/microflow";
 import type { MicroflowMetadataAdapter, MicroflowMetadataCatalog } from "@atlas/microflow/metadata";
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
+import type { MicroflowValidationAdapter } from "../adapter/microflow-validation-adapter";
 import { PublishMicroflowModal } from "../publish/PublishMicroflowModal";
 import { MicroflowReferencesDrawer } from "../references/MicroflowReferencesDrawer";
 import { MicroflowVersionsDrawer } from "../versions/MicroflowVersionsDrawer";
@@ -19,19 +20,21 @@ export interface MendixMicroflowEditorEntryProps {
   adapter: MicroflowResourceAdapter;
   metadataAdapter?: MicroflowMetadataAdapter;
   metadataCatalog?: MicroflowMetadataCatalog;
+  runtimeAdapter?: MicroflowApiClient;
+  validationAdapter?: MicroflowValidationAdapter;
   onSave?: (resource: MicroflowResource) => void;
   onPublish?: (resource: MicroflowResource) => void;
   onBack?: () => void;
   readonly?: boolean;
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, onSave, onPublish, onBack, readonly }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, onSave, onPublish, onBack, readonly }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowSchema>(resource.schema);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [referencesOpen, setReferencesOpen] = useState(false);
   const [currentResource, setCurrentResource] = useState(resource);
-  const apiClient = useMemo(() => createMicroflowEditorApiClient(adapter, resource), [adapter, resource]);
+  const apiClient = useMemo(() => createMicroflowEditorApiClient(adapter, resource, runtimeAdapter), [adapter, resource, runtimeAdapter]);
   const effectiveReadonly = readonly || currentResource.archived || !(currentResource.permissions?.canEdit ?? true);
 
   return (
@@ -80,6 +83,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
         visible={publishOpen}
         resource={currentResource}
         adapter={adapter}
+        validationAdapter={validationAdapter}
         onClose={() => setPublishOpen(false)}
         onPublished={published => {
           setCurrentResource(published);

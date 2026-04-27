@@ -1,21 +1,44 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Empty, Spin, Toast } from "@douyinfe/semi-ui";
 
-import { createLocalMicroflowResourceAdapter } from "../adapter/local-microflow-resource-adapter";
+import { createMicroflowAdapterBundle, type MicroflowAdapterBundle } from "../adapter/microflow-adapter-factory";
+import { isMicroflowApiClientError } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
+import type { MicroflowAdapterFactoryConfig } from "../config/microflow-adapter-config";
 import type { MicroflowResource } from "../resource/resource-types";
 import { MendixMicroflowEditorEntry } from "./MendixMicroflowEditorEntry";
+
+function getEditorLoadErrorTitle(error: Error): string {
+  if (!isMicroflowApiClientError(error)) {
+    return "加载微流失败";
+  }
+  if (error.status === 404) {
+    return "微流不存在";
+  }
+  if (error.status === 403 || error.status === 401) {
+    return "无权限访问该微流";
+  }
+  if (error.status === 409) {
+    return "微流版本冲突";
+  }
+  return "微流服务异常";
+}
 
 export interface MendixMicroflowEditorPageProps {
   resourceId: string;
   workspaceId?: string;
+  tenantId?: string;
+  currentUser?: { id: string; name: string; roles?: string[] };
+  adapterBundle?: MicroflowAdapterBundle;
+  adapterConfig?: MicroflowAdapterFactoryConfig;
   adapter?: MicroflowResourceAdapter;
   onBack?: () => void;
   readonly?: boolean;
 }
 
-export function MendixMicroflowEditorPage({ resourceId, workspaceId, adapter: adapterProp, onBack, readonly }: MendixMicroflowEditorPageProps) {
-  const [adapter] = useState(() => adapterProp ?? createLocalMicroflowResourceAdapter({ workspaceId }));
+export function MendixMicroflowEditorPage({ resourceId, workspaceId, tenantId, currentUser, adapterBundle, adapterConfig, adapter: adapterProp, onBack, readonly }: MendixMicroflowEditorPageProps) {
+  const bundle = useMemo(() => adapterBundle ?? createMicroflowAdapterBundle({ ...adapterConfig, workspaceId: adapterConfig?.workspaceId ?? workspaceId, tenantId: adapterConfig?.tenantId ?? tenantId, currentUser: adapterConfig?.currentUser ?? currentUser }), [adapterBundle, adapterConfig, currentUser, tenantId, workspaceId]);
+  const adapter = adapterProp ?? bundle.resourceAdapter;
   const [resource, setResource] = useState<MicroflowResource>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
@@ -43,8 +66,9 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, adapter: ad
 
   if (error) {
     return (
-      <Empty title="加载微流失败" description={error.message} style={{ padding: 80 }}>
+      <Empty title={getEditorLoadErrorTitle(error)} description={error.message} style={{ padding: 80 }}>
         <Button onClick={() => void load()}>重试</Button>
+        {onBack ? <Button onClick={onBack} style={{ marginLeft: 8 }}>返回资源库</Button> : null}
       </Empty>
     );
   }
@@ -61,6 +85,9 @@ export function MendixMicroflowEditorPage({ resourceId, workspaceId, adapter: ad
     <MendixMicroflowEditorEntry
       resource={resource}
       adapter={adapter}
+      metadataAdapter={bundle.metadataAdapter}
+      runtimeAdapter={bundle.runtimeAdapter}
+      validationAdapter={bundle.validationAdapter}
       readonly={readonly}
       onBack={onBack}
       onSave={saved => {

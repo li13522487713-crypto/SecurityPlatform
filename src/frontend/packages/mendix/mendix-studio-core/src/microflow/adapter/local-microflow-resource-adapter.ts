@@ -24,6 +24,7 @@ export interface LocalMicroflowResourceAdapterOptions {
   workspaceId?: string;
   currentUser?: { id: string; name: string };
   storageKey?: string;
+  enableLocalStorage?: boolean;
 }
 
 function nowIso(): string {
@@ -352,12 +353,15 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
   private readonly workspaceId: string;
   private readonly currentUser: { id: string; name: string };
   private readonly storageKey?: string;
+  private readonly enableLocalStorage: boolean;
 
   constructor(options: LocalMicroflowResourceAdapterOptions = {}) {
     this.workspaceId = options.workspaceId || "default-workspace";
     this.currentUser = options.currentUser || { id: "current-user", name: "Current User" };
     this.storageKey = options.storageKey;
-    const restored = readStoredMicroflowResources(this.storageKey) ?? seedResources({ workspaceId: this.workspaceId, currentUser: this.currentUser });
+    this.enableLocalStorage = options.enableLocalStorage !== false;
+    // local development only: persistence is opt-out so tests can run in-memory.
+    const restored = (this.enableLocalStorage ? readStoredMicroflowResources(this.storageKey) : undefined) ?? seedResources({ workspaceId: this.workspaceId, currentUser: this.currentUser });
     restored.resources.forEach(resource => this.resources.set(resource.id, clone(normalizeResource(resource))));
     Object.entries(restored.versions ?? {}).forEach(([id, versions]) => this.versions.set(id, clone(versions)));
     Object.entries(restored.snapshots ?? {}).forEach(([id, snapshot]) => this.snapshots.set(id, clone(normalizeSnapshot(snapshot))));
@@ -793,6 +797,9 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
   }
 
   private persist(): void {
+    if (!this.enableLocalStorage) {
+      return;
+    }
     writeStoredMicroflowResources({
       resources: [...this.resources.values()],
       versions: Object.fromEntries(this.versions.entries()),

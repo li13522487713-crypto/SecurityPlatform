@@ -4,6 +4,7 @@
 - **统一响应**：`MicroflowApiResponse<T>`。成功时 `success: true` 且 `data` 非空；失败时 `success: false` 且 `error` 非空。
 - **不存储 FlowGram JSON**：仅 `MicroflowAuthoringSchema` / Runtime DTO / Trace 等，见 `storage-model-contract.md`。
 - **分页**：`pageIndex` **1-based**；`MicroflowResourceQuery` 与 `ListMicroflowsRequest` 对齐；多选 `status` / `publishStatus` / `tags` 均为 **OR** 语义；`sortBy` 推荐：`name`、`updatedAt`、`createdAt`、`version`、`referenceCount`。
+- **前端 HTTP 客户端**：`MicroflowApiClient` 统一附加 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`，解析 `MicroflowApiResponse<T>` 后再交给 Resource / Metadata / Runtime / Validation Adapter。
 
 ## 资源
 
@@ -72,6 +73,7 @@
 
 - **UI / ResourceAdapter**：直接消费业务 DTO，不经 `MicroflowApiResponse`。
 - **HTTP 客户端**：解析 Envelope 后返回 DTO 或抛业务异常。
+- **生产配置**：`mode=http` 必须配置 `apiBaseUrl`；服务不可用时前端显示服务未连接或 API 错误，不 fallback 到 mock。
 
 ## OpenAPI
 
