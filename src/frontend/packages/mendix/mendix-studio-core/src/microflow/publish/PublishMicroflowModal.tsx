@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Input, Modal, Space, Spin, Tag, Toast, Typography } from "@douyinfe/semi-ui";
-import { validateMicroflowSchema, type MicroflowValidationIssue } from "@atlas/microflow";
+import type { MicroflowValidationIssue } from "@atlas/microflow";
 
 import { getMicroflowApiError, getMicroflowErrorUserMessage, isPublishBlockedError, isValidationFailedError, isVersionConflictError } from "../adapter/http/microflow-api-error";
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
@@ -68,12 +68,23 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
     Promise.all([
       validationAdapter
         ? validationAdapter.validate({ resourceId: resource.id, schema: resource.schema, mode: "publish" })
-        : Promise.resolve(validateMicroflowSchema({
-            schema: resource.schema,
-            options: { mode: "publish", includeWarnings: true, includeInfo: true },
-          })),
+        : Promise.resolve({
+            issues: [{
+              id: `MICROFLOW_VALIDATION_ADAPTER_MISSING:${resource.id}`,
+              code: "MICROFLOW_VALIDATION_ADAPTER_MISSING",
+              severity: "error",
+              source: "root",
+              fieldPath: "validation",
+              message: "发布前校验适配器未配置，已阻止发布。",
+            } satisfies MicroflowValidationIssue],
+            summary: { errorCount: 1, warningCount: 0, infoCount: 0 },
+          }),
       adapter.getMicroflowVersions(resource.id),
-      adapter.analyzeMicroflowPublishImpact(resource.id, { version: version.trim(), description })
+      adapter.analyzeMicroflowPublishImpact(resource.id, {
+        version: version.trim(),
+        includeBreakingChanges: true,
+        includeReferences: true,
+      })
     ])
       .then(([validation, versions, nextImpact]) => {
         setIssues(validation.issues);
@@ -90,7 +101,7 @@ export function PublishMicroflowModal({ visible, resource, adapter, validationAd
         Toast.error(getMicroflowErrorUserMessage(error));
       })
       .finally(() => setLoading(false));
-  }, [adapter, description, resource, version, visible]);
+  }, [adapter, description, resource, validationAdapter, version, visible]);
 
   const hasHighImpact = (impact?.summary.highImpactCount ?? 0) > 0;
   const canPublish = Boolean(resource && version.trim() && validationSummary.errorCount === 0 && confirmPublish && (!hasHighImpact || confirmBreakingChanges) && !versionMessage?.includes("需符合") && !versionMessage?.includes("必填") && !versionMessage?.includes("已存在"));

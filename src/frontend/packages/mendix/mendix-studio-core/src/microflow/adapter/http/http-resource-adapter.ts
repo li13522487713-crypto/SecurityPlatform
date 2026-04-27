@@ -15,7 +15,7 @@ import type {
   MicroflowResourceQuery,
 } from "../../resource/resource-types";
 import type { MicroflowVersionDetail, MicroflowVersionDiff, MicroflowVersionSummary } from "../../versions/microflow-version-types";
-import type { GetMicroflowReferencesRequest } from "../../contracts/api/microflow-reference-api-contract";
+import type { AnalyzeMicroflowImpactRequest, GetMicroflowReferencesRequest } from "../../contracts/api/microflow-reference-api-contract";
 import type { MicroflowApiPageResult } from "../../contracts/api/api-envelope";
 import type { SaveMicroflowSchemaResponse } from "../../contracts/api/microflow-schema-api-contract";
 import type { MicroflowResourceAdapter, SaveMicroflowSchemaOptions } from "../microflow-resource-adapter";
@@ -36,6 +36,14 @@ function toListQuery(query?: MicroflowResourceQuery): MicroflowQuery {
 
 function toReferenceQuery(query?: GetMicroflowReferencesRequest): MicroflowQuery {
   return query ? { ...query } : {};
+}
+
+function toImpactQuery(query?: AnalyzeMicroflowImpactRequest): MicroflowQuery {
+  return {
+    version: query?.version,
+    includeBreakingChanges: query?.includeBreakingChanges ?? true,
+    includeReferences: query?.includeReferences ?? true,
+  };
 }
 
 export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourceAdapterOptions): MicroflowResourceAdapter {
@@ -95,17 +103,14 @@ export function createHttpMicroflowResourceAdapter(options: HttpMicroflowResourc
     async getMicroflowVersionDetail(id: string, versionId: string) {
       return client.get<MicroflowVersionDetail>(`/api/microflows/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`);
     },
-    async rollbackMicroflowVersion(id: string, versionId: string) {
-      return client.post<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/rollback`, {});
+    async rollbackMicroflowVersion(id: string, versionId: string, request?: { reason?: string }) {
+      return client.post<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/rollback`, request ?? {});
     },
     async duplicateMicroflowVersion(id: string, versionId: string, input?: MicroflowDuplicateInput) {
       return client.post<MicroflowResource>(`/api/microflows/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/duplicate`, input ?? {});
     },
-    async analyzeMicroflowPublishImpact(id: string, input: MicroflowPublishInput) {
-      return client.get<MicroflowPublishImpactAnalysis>(`/api/microflows/${encodeURIComponent(id)}/impact`, {
-        version: input.version,
-        includeBreakingChanges: input.confirmBreakingChanges ?? true,
-      });
+    async analyzeMicroflowPublishImpact(id: string, query: AnalyzeMicroflowImpactRequest) {
+      return client.get<MicroflowPublishImpactAnalysis>(`/api/microflows/${encodeURIComponent(id)}/impact`, toImpactQuery(query));
     },
     async compareMicroflowVersion(id: string, versionId: string) {
       return client.get<MicroflowVersionDiff>(`/api/microflows/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/compare-current`);

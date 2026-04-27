@@ -43,14 +43,17 @@ export function createHttpMicroflowMetadataAdapter(options: HttpMicroflowMetadat
       includeSystem: request?.includeSystem,
       includeArchived: request?.includeArchived,
       keyword: request?.keyword,
+      status: request?.status,
     }),
-    async getPageRefs(request) {
-      const catalog = await load(request);
-      return catalog.pages;
-    },
-    async getWorkflowRefs(request) {
-      const catalog = await load(request);
-      return catalog.workflows;
-    },
+    getPageRefs: request => client.get("/api/microflow-metadata/pages", {
+      workspaceId: request?.workspaceId ?? options.workspaceId,
+      moduleId: request?.moduleId,
+      keyword: request?.keyword,
+    }),
+    getWorkflowRefs: request => client.get("/api/microflow-metadata/workflows", {
+      workspaceId: request?.workspaceId ?? options.workspaceId,
+      moduleId: request?.moduleId,
+      keyword: request?.keyword,
+    }),
   };
 }

@@ -57,7 +57,7 @@ import {
 import { validateMicroflowSchema } from "../schema/validator";
 import { collectFlowsRecursive, findFlowWithCollection, findObjectWithCollection } from "../schema/utils/object-utils";
 import { MicroflowTestRunModal, type MicroflowRunSession, type MicroflowRuntimeLog, type MicroflowTestRunInput } from "../debug";
-import { useDebouncedMicroflowValidation } from "../performance";
+import { useDebouncedMicroflowValidation, type MicroflowValidationAdapterLike, type MicroflowValidationMode } from "../performance";
 import { useMicroflowShortcuts } from "./shortcuts";
 import type {
   MicroflowCaseValue,
@@ -211,6 +211,8 @@ export interface MicroflowEditorProps {
   metadataAdapter?: MicroflowMetadataAdapter;
   /** 同步注入目录时可跳过首次异步加载。 */
   metadataCatalog?: MicroflowMetadataCatalog;
+  /** http/local/mock 校验统一入口；http mode 下由宿主注入后端 ValidationAdapter。 */
+  validationAdapter?: MicroflowValidationAdapterLike;
 }
 
 export interface MicroflowEditorLabels {
@@ -246,6 +248,17 @@ const defaultLabels: MicroflowEditorLabels = {
   problems: "Problems",
   debug: "Debug"
 };
+
+function createValidationServiceIssue(error: unknown, mode: MicroflowValidationMode): MicroflowValidationIssue {
+  return {
+    id: `MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE:${mode}:${Date.now()}`,
+    code: "MICROFLOW_VALIDATION_SERVICE_UNAVAILABLE",
+    severity: mode === "edit" ? "warning" : "error",
+    source: "root",
+    fieldPath: "validation",
+    message: error instanceof Error ? `校验服务不可用：${error.message}` : "校验服务不可用，请检查后端服务或网络。",
+  };
+}
 
 function readFavoriteNodeKeys(): string[] {
   if (typeof window === "undefined") {
@@ -1055,6 +1068,7 @@ function DebugPanel({
   onSelectError,
   onClear,
   onRerun,
+  onCancelRun,
 }: {
   session?: MicroflowRunSession;
   serviceError?: string;
@@ -1064,6 +1078,7 @@ function DebugPanel({
   onSelectError: (error: NonNullable<MicroflowTraceFrame["error"]>) => void;
   onClear: () => void;
   onRerun: () => void;
+  onCancelRun: () => void;
 }) {
   const [variableKeyword, setVariableKeyword] = useState("");
   const [logObjectFilter, setLogObjectFilter] = useState("all");
@@ -1090,6 +1105,7 @@ function DebugPanel({
         </Space>
         <Space>
           <Button size="small" onClick={onRerun}>重新运行</Button>
+          <Button size="small" type="warning" onClick={onCancelRun}>取消运行</Button>
           <Button size="small" type="danger" theme="borderless" onClick={onClear}>清空</Button>
         </Space>
       </Space>
@@ -1252,6 +1268,8 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     metadata: loadedMetadata,
     trigger: validationTrigger,
     initialIssues: schema.validation.issues ?? [],
+    validationAdapter: props.validationAdapter,
+    resourceId: schema.id,
   });
   const [traceFrames, setTraceFrames] = useState<MicroflowTraceFrame[]>([]);
   const [runSession, setRunSession] = useState<MicroflowRunSession>();
@@ -1283,6 +1301,38 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     return stored !== undefined ? stored : bottomPanelFallback;
   });
   const [bottomTab, setBottomTab] = useState<"problems" | "debug">(() => readStoredBottomTab() ?? "problems");
+
+  const validateForMode = useCallback(async (targetSchema: MicroflowSchema, mode: MicroflowValidationMode) => {
+    try {
+      const result = props.validationAdapter
+        ? await props.validationAdapter.validate({
+            resourceId: targetSchema.id,
+            schema: targetSchema,
+            metadata: loadedMetadata,
+            mode,
+            includeWarnings: true,
+            includeInfo: true,
+          })
+        : validateMicroflowSchema({
+            schema: targetSchema,
+            metadata: loadedMetadata,
+            options: { mode, includeWarnings: true, includeInfo: true },
+          });
+      setIssues(result.issues);
+      return result;
+    } catch (error) {
+      const issue = createValidationServiceIssue(error, mode);
+      setIssues([issue]);
+      return {
+        issues: [issue],
+        summary: {
+          errorCount: issue.severity === "error" ? 1 : 0,
+          warningCount: issue.severity === "warning" ? 1 : 0,
+          infoCount: 0,
+        },
+      };
+    }
+  }, [loadedMetadata, props.validationAdapter, setIssues]);
 
   const shellStyle = useMemo((): CSSProperties => ({
     display: "grid",
@@ -1459,8 +1509,13 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const handleSave = async () => {
-    const validation = validateMicroflowSchema({ schema, metadata: loadedMetadata, options: { mode: "save", includeWarnings: true } });
-    setIssues(validation.issues);
+    const validation = await validateForMode(schema, "save");
+    if (validation.summary.errorCount > 0) {
+      setBottomOpen(true);
+      setBottomTab("problems");
+      Toast.error(`Save blocked by ${validation.summary.errorCount} validation error(s).`);
+      return;
+    }
     setSaving(true);
     try {
       const response = await apiClient.saveMicroflow({ schema });
@@ -1483,9 +1538,11 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
 
   const handleValidate = async () => {
     try {
-      runValidationNow(schema);
-      const response = await apiClient.validateMicroflow({ schema });
-      setIssues(response.issues);
+      const issues = await runValidationNow(schema);
+      const response: ValidateMicroflowResponse = {
+        valid: issues.every(issue => issue.severity !== "error"),
+        issues,
+      };
       props.onValidateComplete?.(response);
       Toast[response.valid ? "success" : "warning"](response.valid ? "Validation passed" : `${response.issues.length} issue(s)`);
     } catch (error) {
@@ -1498,8 +1555,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
   };
 
   const handleTestRun = async () => {
-    const validation = validateMicroflowSchema({ schema, metadata: loadedMetadata, options: { mode: "testRun", includeWarnings: true } });
-    setIssues(validation.issues);
+    const validation = await validateForMode(schema, "testRun");
     if (validation.summary.errorCount > 0) {
       setBottomOpen(true);
       setBottomTab("problems");
@@ -1516,14 +1572,17 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRunning(true);
     try {
       const response = await apiClient.testRunMicroflow({ microflowId: schema.id, input: input.parameters, options: input.options, schema });
+      const persistedSession = await apiClient.getMicroflowRunSession(response.runId);
+      const persistedTrace = await apiClient.getMicroflowRunTrace(response.runId);
+      const session = { ...persistedSession, trace: persistedTrace };
       setRuntimeServiceError(undefined);
-      setRunSession(response.session);
-      setTraceFrames(response.frames);
-      setActiveTraceFrameId(response.frames[0]?.id);
+      setRunSession(session);
+      setTraceFrames(persistedTrace);
+      setActiveTraceFrameId(persistedTrace[0]?.id);
       setTestRunModalOpen(false);
       setBottomOpen(true);
       setBottomTab("debug");
-      props.onTestRunComplete?.(response);
+      props.onTestRunComplete?.({ ...response, session, frames: persistedTrace });
       Toast[response.status === "succeeded" ? "success" : "error"](response.status);
     } catch (error) {
       applyApiValidationIssues(error, setIssues, () => {
@@ -1547,6 +1606,31 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
     setRuntimeServiceError(undefined);
     setTraceFrames([]);
     setActiveTraceFrameId(undefined);
+  };
+
+  const cancelTestRun = async () => {
+    if (!runSession?.id) {
+      return;
+    }
+    setRunning(true);
+    try {
+      const cancelResult = await apiClient.cancelMicroflowRun(runSession.id);
+      const nextSession = await apiClient.getMicroflowRunSession(runSession.id);
+      const nextTrace = await apiClient.getMicroflowRunTrace(runSession.id);
+      const session = { ...nextSession, trace: nextTrace };
+      setRuntimeServiceError(undefined);
+      setRunSession(session);
+      setTraceFrames(nextTrace);
+      setActiveTraceFrameId(current => current ?? nextTrace[0]?.id);
+      Toast.info(`Run ${cancelResult?.status ?? session.status}`);
+    } catch (error) {
+      setRuntimeServiceError(getEditorApiErrorMessage(error));
+      setBottomOpen(true);
+      setBottomTab("debug");
+      Toast.error(getEditorApiErrorMessage(error));
+    } finally {
+      setRunning(false);
+    }
   };
 
   const selectTraceFrame = (frame: MicroflowTraceFrame) => {
@@ -2031,6 +2115,7 @@ function MicroflowEditorInner(props: MicroflowEditorProps) {
                   onSelectError={selectTraceError}
                   onClear={clearTestRun}
                   onRerun={handleTestRun}
+                  onCancelRun={cancelTestRun}
                 />
               </div>
             </Tabs.TabPane>

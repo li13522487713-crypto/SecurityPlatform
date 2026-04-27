@@ -108,6 +108,7 @@
 - `GET /api/microflows/{id}/references` — query：`GetMicroflowReferencesRequest`（`includeInactive`、`sourceType[]`、`impactLevel[]`）。
 - `GET /api/microflows/{id}/impact` — `AnalyzeMicroflowImpactRequest` → `MicroflowPublishImpactAnalysis`。
 - 来源类型：`microflow` | `workflow` | `page` | `form` | `button` | `schedule` | `api`（可扩展，与 `MicroflowReference` 一致）。
+- 第 46～47 轮前端 ReferencesDrawer 会把 `includeInactive/sourceType/impactLevel` 下推到后端；`MicroflowReferenceDto.active` 必须随响应返回，UI 仅对当前结果做 sourceName 搜索。
 - 第 38 轮 impact 是基础版：读取 `MicroflowReference` 当前 active 引用并基于当前 schema 与最新发布 schema 的 diff 计算 `impactLevel` 与 summary；完整 References 深度分析留后续轮次。
 
 ## 元数据

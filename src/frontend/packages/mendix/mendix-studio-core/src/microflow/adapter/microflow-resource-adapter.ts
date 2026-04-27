@@ -11,7 +11,7 @@ import type {
   MicroflowResourceQuery
 } from "../resource/resource-types";
 import type { MicroflowVersionDetail, MicroflowVersionDiff, MicroflowVersionSummary } from "../versions/microflow-version-types";
-import type { GetMicroflowReferencesRequest } from "../contracts/api/microflow-reference-api-contract";
+import type { AnalyzeMicroflowImpactRequest, GetMicroflowReferencesRequest } from "../contracts/api/microflow-reference-api-contract";
 
 /**
  * 与 `PUT /api/microflows/{id}/schema` 的 `SaveMicroflowSchemaRequest` 对齐的本地选项。
@@ -37,8 +37,8 @@ export interface MicroflowResourceAdapter {
   getMicroflowReferences(id: string, query?: GetMicroflowReferencesRequest): Promise<MicroflowReference[]>;
   getMicroflowVersions(id: string): Promise<MicroflowVersionSummary[]>;
   getMicroflowVersionDetail(id: string, versionId: string): Promise<MicroflowVersionDetail | undefined>;
-  rollbackMicroflowVersion(id: string, versionId: string): Promise<MicroflowResource>;
+  rollbackMicroflowVersion(id: string, versionId: string, request?: { reason?: string }): Promise<MicroflowResource>;
   duplicateMicroflowVersion(id: string, versionId: string, input?: MicroflowDuplicateInput): Promise<MicroflowResource>;
-  analyzeMicroflowPublishImpact(id: string, input: MicroflowPublishInput): Promise<MicroflowPublishImpactAnalysis>;
+  analyzeMicroflowPublishImpact(id: string, input: AnalyzeMicroflowImpactRequest): Promise<MicroflowPublishImpactAnalysis>;
   compareMicroflowVersion(id: string, versionId: string): Promise<MicroflowVersionDiff>;
 }

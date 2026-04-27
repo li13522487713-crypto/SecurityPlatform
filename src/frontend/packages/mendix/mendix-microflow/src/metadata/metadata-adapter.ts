@@ -21,6 +21,7 @@ export interface GetMicroflowMetadataRequest {
 
 export interface GetMicroflowRefsRequest extends GetMicroflowMetadataRequest {
   keyword?: string;
+  status?: string | readonly string[];
 }
 
 export interface GetPageRefsRequest extends GetMicroflowMetadataRequest {

@@ -455,7 +455,7 @@ X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
 ### Microflow impact analysis
-GET {{host}}/api/microflows/{{microflowId}}/impact?version=1.0.1&includeBreakingChanges=true
+GET {{host}}/api/microflows/{{microflowId}}/impact?version=1.0.1&includeBreakingChanges=true&includeReferences=true
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -577,6 +577,27 @@ X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
 X-Trace-Id: {{traceId}}
 
+### Microflow metadata exclude system
+GET {{host}}/api/microflow-metadata?includeSystem=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata include archived
+GET {{host}}/api/microflow-metadata?includeArchived=true
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata module filter
+GET {{host}}/api/microflow-metadata?moduleId=Sales
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
 ### Microflow metadata entity Sales.Order
 GET {{host}}/api/microflow-metadata/entities/Sales.Order
 X-Workspace-Id: {{workspaceId}}
@@ -614,6 +635,13 @@ X-Trace-Id: {{traceId}}
 
 ### Microflow metadata microflow refs
 GET {{host}}/api/microflow-metadata/microflows?includeArchived=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata microflow refs include archived
+GET {{host}}/api/microflow-metadata/microflows?includeArchived=true
 X-Workspace-Id: {{workspaceId}}
 X-Tenant-Id: {{tenantId}}
 X-User-Id: {{userId}}
@@ -943,6 +971,73 @@ X-Trace-Id: {{traceId}}
     "returnType": { "kind": "void" },
     "objectCollection": { "id": "root-collection", "objects": [] },
     "flows": [],
+    "variables": {}
+  }
+}
+
+### TestRun Round 46-47 - unsupported action failed session
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "UnsupportedActionRound47",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "generic", "kind": "actionActivity", "action": { "id": "generic-action", "kind": "unsupportedAction" } },
+        { "id": "end", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "f-start-generic", "originObjectId": "start", "destinationObjectId": "generic" },
+      { "id": "f-generic-end", "originObjectId": "generic", "destinationObjectId": "end" }
+    ],
+    "variables": {}
+  }
+}
+
+### TestRun Round 46-47 - max steps exceeded
+POST {{host}}/api/microflows/{{runtimeMicroflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {},
+  "options": { "maxSteps": 1 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "{{runtimeMicroflowId}}",
+    "name": "MaxStepsRound47",
+    "moduleId": "demo-module",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "log", "kind": "actionActivity", "action": { "id": "log-action", "kind": "logMessage", "template": { "text": "max steps" } } },
+        { "id": "end", "kind": "endEvent" }
+      ]
+    },
+    "flows": [
+      { "id": "f-start-log", "originObjectId": "start", "destinationObjectId": "log" },
+      { "id": "f-log-end", "originObjectId": "log", "destinationObjectId": "end" }
+    ],
     "variables": {}
   }
 }

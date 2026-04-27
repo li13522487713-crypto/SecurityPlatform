@@ -231,6 +231,9 @@ public sealed record MicroflowReferenceDto
     [JsonPropertyName("description")]
     public string? Description { get; init; }
 
+    [JsonPropertyName("active")]
+    public bool Active { get; init; } = true;
+
     [JsonPropertyName("canNavigate")]
     public bool CanNavigate { get; init; }
 }

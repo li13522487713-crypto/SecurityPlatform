@@ -107,7 +107,23 @@ export function MicroflowVersionsDrawer({ visible, resource, adapter, onClose, o
       const diff = await adapter.compareMicroflowVersion(resource.id, version.id);
       Modal.info({
         title: `比较当前版本与 ${version.version}`,
-        content: `参数 +${diff.addedParameters.length}/-${diff.removedParameters.length}，节点 +${diff.addedObjects.length}/-${diff.removedObjects.length}，破坏性变更 ${diff.breakingChanges.length} 个。`
+        width: 680,
+        content: diff.addedParameters.length === 0
+          && diff.removedParameters.length === 0
+          && diff.changedParameters.length === 0
+          && !diff.returnTypeChanged
+          && diff.addedObjects.length === 0
+          && diff.removedObjects.length === 0
+          && diff.changedObjects.length === 0
+          && diff.addedFlows.length === 0
+          && diff.removedFlows.length === 0
+          && diff.breakingChanges.length === 0
+          ? "无差异"
+          : (
+            <pre style={{ whiteSpace: "pre-wrap", maxHeight: 420, overflow: "auto" }}>
+              {JSON.stringify(diff, null, 2)}
+            </pre>
+          )
       });
     } catch (caught) {
       Toast.error(getMicroflowErrorUserMessage(caught));

@@ -23,3 +23,9 @@
 - `Microflow`：id、workspaceId、元数据、当前 draft schema 指针。
 - `MicroflowVersion`：resourceId、version、snapshotId、创建信息。
 - `MicroflowSchemaSnapshot`：id、content JSON（AuthoringSchema）、contentHash。
+
+## 第 46～47 轮联调补充
+
+- HTTP ResourceAdapter 已按真实后端路径回归 publish / versions / rollback / duplicate version / compare-current / references / impact；impact query 明确使用 `includeBreakingChanges` 与 `includeReferences`。
+- ReferencesDrawer 的 `includeInactive/sourceType/impactLevel` 由后端过滤，前端只做 sourceName 搜索。
+- RuntimeAdapter 的 test-run 后回读 get run / get trace，DebugPanel 使用持久化 RunSession / TraceFrame / RuntimeLog。

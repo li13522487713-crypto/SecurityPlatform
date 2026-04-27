@@ -30,7 +30,15 @@ export function getIssuesForField(
   validationIssues: MicroflowValidationIssue[],
   fieldPath: string,
 ): MicroflowValidationIssue[] {
-  return validationIssues.filter(issue => issue.fieldPath === fieldPath || issue.fieldPath?.endsWith(`.${fieldPath}`));
+  const normalizedFieldPath = normalizeFieldPath(fieldPath);
+  return validationIssues.filter(issue => {
+    const issueFieldPath = issue.fieldPath ? normalizeFieldPath(issue.fieldPath) : undefined;
+    return issueFieldPath === normalizedFieldPath || issueFieldPath?.endsWith(`.${normalizedFieldPath}`);
+  });
+}
+
+function normalizeFieldPath(fieldPath: string): string {
+  return fieldPath.replace(/\[(\d+)\]/gu, ".$1");
 }
 
 export function countIssuesBySeverity(validationIssues: MicroflowValidationIssue[]): { errors: number; warnings: number; infos: number } {

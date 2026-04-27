@@ -242,7 +242,10 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             OutputJson = frame.Output.HasValue ? frame.Output.Value.GetRawText() : null,
             ErrorJson = frame.Error is null ? null : JsonSerializer.Serialize(frame.Error, JsonOptions),
             VariablesSnapshotJson = frame.VariablesSnapshot is null ? null : JsonSerializer.Serialize(frame.VariablesSnapshot, JsonOptions),
-            Message = frame.Message
+            Message = frame.Message,
+            ExtraJson = frame.ErrorHandlerVisited.HasValue
+                ? JsonSerializer.Serialize(new TraceFrameExtra { ErrorHandlerVisited = frame.ErrorHandlerVisited }, JsonOptions)
+                : null
         }).ToArray();
 
         var logs = session.Logs.Select(log => new MicroflowRunLogEntity
@@ -308,7 +311,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             VariablesSnapshot = string.IsNullOrWhiteSpace(frame.VariablesSnapshotJson)
                 ? null
                 : Deserialize<Dictionary<string, MicroflowRuntimeVariableValueDto>>(frame.VariablesSnapshotJson),
-            Message = frame.Message
+            Message = frame.Message,
+            ErrorHandlerVisited = ReadTraceFrameExtra(frame.ExtraJson).ErrorHandlerVisited
         };
 
     private static MicroflowRuntimeLogDto ToLogDto(MicroflowRunLogEntity log)
@@ -358,5 +362,27 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         public string Version { get; init; } = string.Empty;
 
         public IReadOnlyList<MicroflowVariableSnapshotDto> Variables { get; init; } = Array.Empty<MicroflowVariableSnapshotDto>();
+    }
+
+    private static TraceFrameExtra ReadTraceFrameExtra(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new TraceFrameExtra();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<TraceFrameExtra>(json, JsonOptions) ?? new TraceFrameExtra();
+        }
+        catch (JsonException)
+        {
+            return new TraceFrameExtra();
+        }
+    }
+
+    private sealed record TraceFrameExtra
+    {
+        public bool? ErrorHandlerVisited { get; init; }
     }
 }

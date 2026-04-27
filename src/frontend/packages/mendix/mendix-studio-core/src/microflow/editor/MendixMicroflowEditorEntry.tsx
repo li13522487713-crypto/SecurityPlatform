@@ -52,6 +52,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
         apiClient={apiClient}
         metadataAdapter={metadataAdapter}
         metadataCatalog={metadataCatalog}
+        validationAdapter={validationAdapter}
         readonly={effectiveReadonly}
         onSchemaChange={setSchema}
         onSaveComplete={() => {

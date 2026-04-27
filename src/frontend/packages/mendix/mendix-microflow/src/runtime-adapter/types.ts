@@ -71,7 +71,8 @@ export interface MicroflowApiClient {
   loadMicroflow(id: string): Promise<MicroflowAuthoringSchema>;
   validateMicroflow(request: ValidateMicroflowRequest): Promise<ValidateMicroflowResponse>;
   testRunMicroflow(request: TestRunMicroflowRequest): Promise<TestRunMicroflowResponse>;
-  cancelMicroflowRun(runId: string): Promise<void>;
+  cancelMicroflowRun(runId: string): Promise<{ runId: string; status: "cancelled" | "success" | "failed" } | void>;
+  getMicroflowRunSession(runId: string): Promise<MicroflowRunSession>;
   getMicroflowRunTrace(runId: string): Promise<MicroflowTraceFrame[]>;
   publishMicroflow(id: string, payload?: PublishMicroflowPayload): Promise<PublishMicroflowResponse>;
   duplicateMicroflow(id: string): Promise<MicroflowResource>;

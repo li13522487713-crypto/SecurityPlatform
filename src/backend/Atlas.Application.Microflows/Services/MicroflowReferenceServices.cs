@@ -256,6 +256,7 @@ public sealed class MicroflowReferenceService : IMicroflowReferenceService
             ReferenceKind = entity.ReferenceKind,
             ImpactLevel = entity.ImpactLevel,
             Description = entity.Description,
+            Active = entity.Active,
             CanNavigate = string.Equals(entity.SourceType, "microflow", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(entity.SourceId)
         };

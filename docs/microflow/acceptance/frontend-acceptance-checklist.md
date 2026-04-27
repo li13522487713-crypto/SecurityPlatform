@@ -84,3 +84,12 @@
 4. `simulateRestError=true` 的 RestCall 样例应显示 failed rest frame 和 error handler 后续 frame；LogMessage 应出现在 logs。
 5. `GET /api/microflows/runs/{runId}` 与 `/trace` 可刷新同一 run；cancel API 可返回 cancelled。
 6. validation failed test-run 应进入 ProblemPanel，不生成 success session。
+
+## 第 46～47 轮 Publish / Version / References + Debug 验收
+
+1. PublishModal 使用后端 `mode=publish` validation 与 impact API；high impact 未确认禁止发布。
+2. VersionsDrawer / VersionDetailDrawer 使用真实 versions/detail/rollback/duplicate/compare-current API。
+3. ReferencesDrawer 支持 includeInactive/sourceType/impactLevel 后端筛选与 sourceName 搜索。
+4. ResourceCard / ResourceTable / EditorHeader 显示 `status`、`publishStatus`、`latestPublishedVersion`、`changedAfterPublish`。
+5. TestRunModal 使用后端 `mode=testRun` precheck，DebugPanel 使用持久化 get run/get trace，Cancel Run 可用。
+6. FlowGram runtime highlight 使用后端 trace 的 object/flow/errorHandler/loop/decision 字段，清除运行不修改 AuthoringSchema。

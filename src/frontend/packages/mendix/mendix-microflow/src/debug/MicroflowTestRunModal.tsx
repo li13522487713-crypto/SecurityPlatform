@@ -47,7 +47,7 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
       maskClosable={!props.running}
     >
       <Space vertical align="start" spacing={14} style={{ width: "100%" }}>
-        <Text type="secondary">参数只用于前端 mock runtime，不会调用后端、REST 或数据库。</Text>
+        <Text type="secondary">参数将提交给当前运行适配器；HTTP 模式会通过后端 Mock Runtime 生成持久化 RunSession 与 Trace。</Text>
         {props.schema.parameters.length === 0 ? <Text type="tertiary">当前微流没有输入参数。</Text> : null}
         {props.schema.parameters.map(parameter => (
           <ParameterField
@@ -85,6 +85,10 @@ export function MicroflowTestRunModal(props: MicroflowTestRunModalProps) {
             <label style={{ display: "grid", gap: 6, width: 220 }}>
               <Text size="small" strong>loopIterations</Text>
               <InputNumber min={0} max={50} value={options.loopIterations ?? 2} onChange={value => setOptions(current => ({ ...current, loopIterations: typeof value === "number" ? value : 2 }))} />
+            </label>
+            <label style={{ display: "grid", gap: 6, width: 220 }}>
+              <Text size="small" strong>maxSteps</Text>
+              <InputNumber min={1} max={1000} value={options.maxSteps ?? 200} onChange={value => setOptions(current => ({ ...current, maxSteps: typeof value === "number" ? value : 200 }))} />
             </label>
           </Space>
         </div>

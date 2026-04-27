@@ -152,6 +152,9 @@ public sealed record MicroflowTraceFrameDto
 
     [JsonPropertyName("message")]
     public string? Message { get; init; }
+
+    [JsonPropertyName("errorHandlerVisited")]
+    public bool? ErrorHandlerVisited { get; init; }
 }
 
 public sealed record MicroflowRuntimeErrorDto

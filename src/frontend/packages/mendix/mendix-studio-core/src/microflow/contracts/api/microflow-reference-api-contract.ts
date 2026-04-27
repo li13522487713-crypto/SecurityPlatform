@@ -20,6 +20,7 @@ export type GetMicroflowReferencesResponse = MicroflowApiResponse<MicroflowRefer
 export interface AnalyzeMicroflowImpactRequest {
   version?: string;
   includeBreakingChanges?: boolean;
+  includeReferences?: boolean;
 }
 
 export type AnalyzeMicroflowImpactResponse = MicroflowApiResponse<MicroflowPublishImpactAnalysis>;

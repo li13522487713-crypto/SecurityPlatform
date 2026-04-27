@@ -47,3 +47,9 @@
 - `simulateRestError` 只模拟 REST 失败和 `$latestError` / `$latestHttpResponse`，不发送真实 HTTP；Retrieve/Commit/Delete 只生成 mock output，不访问业务数据库。
 - max steps 默认 500，超过后返回 `RUNTIME_MAX_STEPS_EXCEEDED` failed session。
 - 第 48 轮真实 Runtime 应从 `ExecutionPlanLoader` 接管导航与执行，但沿用本轮 DTO、错误码和持久化表。
+
+## 第 46～47 轮前后端 Debug 联调
+
+- HTTP RuntimeAdapter 不回退前端 mock runner；`testRunMicroflow` 之后回读 `GET /runs/{runId}` 与 `/trace`。
+- DebugPanel 展示后端 RunSession / TraceFrame / RuntimeLog / VariableSnapshot / RuntimeError，Cancel Run 后再次回读持久化状态。
+- FlowGram runtime highlight 使用后端 `objectId/outgoingFlowId/selectedCaseValue/loopIteration/errorHandlerVisited`，不修改 AuthoringSchema 或 dirty。

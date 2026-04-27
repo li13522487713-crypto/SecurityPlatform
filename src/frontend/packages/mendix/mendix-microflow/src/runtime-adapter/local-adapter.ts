@@ -347,11 +347,20 @@ export class LocalMicroflowApiClient implements MicroflowApiClient {
     };
   }
 
-  async cancelMicroflowRun(runId: string): Promise<void> {
+  async cancelMicroflowRun(runId: string): Promise<{ runId: string; status: "cancelled" | "success" | "failed" }> {
     const session = this.sessions.get(runId);
     if (session) {
       this.sessions.set(runId, { ...session, status: "cancelled", endedAt: nowIso() });
     }
+    return { runId, status: "cancelled" };
+  }
+
+  async getMicroflowRunSession(runId: string): Promise<MicroflowRunSession> {
+    const session = this.sessions.get(runId);
+    if (!session) {
+      throw new Error(`Microflow run ${runId} was not found.`);
+    }
+    return session;
   }
 
   async publishMicroflow(id: string, payload: PublishMicroflowPayload = { version: "v1", releaseNote: "", overwriteCurrent: true }): Promise<PublishMicroflowResponse> {

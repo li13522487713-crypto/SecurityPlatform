@@ -154,6 +154,12 @@
 7. 错误响应请统一返回 `MicroflowApiResponse<T>`；401/403/404/409/422/5xx 应提供 `MicroflowApiError.code/message/traceId`。校验失败、发布阻断、试运行校验失败必须携带 `validationIssues`，前端会展示到 ProblemPanel / PublishModal。
 8. 前端 Contract Mock 已覆盖全量第 21 轮路径，可作为后端实现前的契约样板；真实后端应以 `backend-api-contract.md` 和 `openapi-draft.yaml` 为准，不依赖 MSW store 或 fixture。
 
+## 第 46～47 轮后端联调补充
+
+- Publish / Version / References / Impact 已通过综合脚本验证标准 envelope、版本冲突、high impact 阻断、rollback、duplicate version、references rebuild 与 delete referenced blocked。
+- TestRun / Debug 已通过综合脚本验证 Validation `mode=testRun`、RunSession / TraceFrame / RunLog 持久化、get run、get trace、cancel 与错误 envelope。
+- 仍不实现真实 Runtime、真实 DB CRUD action、真实外部 REST、完整表达式执行器与完整事务引擎。
+
 ## 未知项
 
 - 多区域复制与**最终一致**的 catalog 版本传播（可后续在 `metadata` 上扩展 ETag）。

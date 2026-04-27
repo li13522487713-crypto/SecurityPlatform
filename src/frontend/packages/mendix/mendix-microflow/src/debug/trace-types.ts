@@ -36,6 +36,7 @@ export interface MicroflowRuntimeError {
   actionId?: string;
   flowId?: string;
   details?: string;
+  cause?: string;
 }
 
 export interface MicroflowRuntimeLog {
@@ -91,6 +92,8 @@ export interface MicroflowRunSessionVariableSnapshot {
 export interface MicroflowRunSession {
   id: string;
   schemaId: string;
+  resourceId?: string;
+  version?: string;
   startedAt: string;
   endedAt?: string;
   status: MicroflowRunStatus;
@@ -108,6 +111,7 @@ export interface MicroflowTestRunOptions {
   enumerationCaseValue?: string;
   objectTypeCase?: string;
   loopIterations?: number;
+  maxSteps?: number;
 }
 
 export interface MicroflowTestRunInput {

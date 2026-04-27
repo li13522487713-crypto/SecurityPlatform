@@ -69,6 +69,8 @@
 
 第 39 轮起，Metadata HTTP 路径已可真实联调：`MetadataProvider` 通过 `GET /api/microflow-metadata` 加载后端 catalog，Entity / Enumeration / Microflow selector 可通过子资源 API 读取；服务不可用或返回 `MICROFLOW_METADATA_*` 错误时，selector 展示错误态，不 fallback 到前端 mock metadata。
 
+第 44～45 轮合并联调要求：HTTP MetadataAdapter 的 `pages/workflows` 必须调用独立后端端点并正确处理空数组；HTTP ValidationAdapter 注入编辑器后，手动校验、保存前校验、PublishModal 与 TestRun 前置校验都走后端 `POST /api/microflows/{id}/validate`，失败时显示服务错误，不静默 fallback 本地 validator。
+
 ## Contract Mock
 
 第 34 轮起，`@atlas/mendix-studio-core` 提供 `startMicroflowContractMockWorker()`。app-web 仅在 `MICROFLOW_API_MOCK=msw` 且非生产时调用该公开 helper；Resource/Metadata/Runtime/Validation 仍由 HTTP Adapter 发请求，MSW 返回标准 `MicroflowApiResponse<T>`。详见 `contract-mock-readme.md`。
@@ -84,3 +86,5 @@ pnpm run verify:microflow-contract-mock
 ```
 
 这些脚本检查三种 bundle 工厂、runtime policy、HTTP adapters、ValidationAdapter、app-web 边界、生产默认不回 mock，以及生产路径没有微流 mock/local import。
+
+真实联调可补充执行仓库根目录 `scripts/verify-microflow-metadata-integration.ts` 与 `scripts/verify-microflow-validation-integration.ts`，或按 `MicroflowBackend.http` 的 Metadata / Validation 段手工回归。

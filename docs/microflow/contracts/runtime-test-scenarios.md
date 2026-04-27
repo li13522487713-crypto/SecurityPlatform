@@ -18,3 +18,10 @@
 4. `decisionBooleanResult`、`enumerationCaseValue`、`objectTypeCase` 必须控制 selected case，并写入 trace `selectedCaseValue`。
 5. `loopIterations=2` 必须生成 index 0/1 的 `loopIteration` trace；Break/Continue frame 可见。
 6. `GET /api/microflows/runs/{runId}` 返回完整 RunSession；`GET /trace` 返回 trace/logs；`POST /cancel` 可把未完成 run 改为 cancelled。
+
+## 第 46～47 轮综合场景
+
+1. TestRunModal 参数表单覆盖 string / boolean / integer / long / decimal / dateTime / enumeration / object / list / json。
+2. DebugPanel 必须显示 trace sequence、object/action/flow、selectedCaseValue、loopIteration、variablesSnapshot、logs 与 errors。
+3. FlowGram runtime highlight 使用后端 trace，error handler flow 由 `errorHandlerVisited` 标识。
+4. `scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts` 作为真实 HTTP 综合回归入口。

@@ -52,6 +52,8 @@
 
 第 42 轮后端已实现 RuntimeAdapter 所需 Mock TestRun HTTP 路径：`testRunMicroflow` 返回 `data.session`，DebugPanel 可直接展示 `session.trace/logs/variables/error`；`getMicroflowRunTrace` 读取持久化 trace/logs；`cancelMicroflowRun` 返回 cancelled 状态。该路径仍是契约级 Mock Runtime，不是真实 Mendix 执行引擎，不访问业务库或外部 REST。
 
+第 46～47 轮联调要求：PublishModal 使用 `mode=publish` validation + impact API；ReferencesDrawer 将 `includeInactive/sourceType/impactLevel` 下推；RuntimeAdapter 在 `testRunMicroflow` 后调用 `getMicroflowRunSession` 与 `getMicroflowRunTrace`，Cancel Run 后同样回读持久化 session/trace。
+
 ## MicroflowMetadataAdapter
 
 前端**生产路径**通过 Adapter / `MicroflowMetadataProvider` 获取 `MicroflowMetadataCatalog`；不得在生产组件、校验器、表达式与变量模块中直接 `import` mock catalog 或 `mockEntities`。同步桥接仅使用 `getDefaultMockMetadataCatalog()`（测试与过渡工具），新代码应 `await adapter.getMetadataCatalog()`。

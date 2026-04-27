@@ -40,7 +40,7 @@ export function buildRuntimeHighlightState(runSession?: MicroflowRunSession, act
       state.flows[frame.outgoingFlowId] = {
         ...flowState,
         visited: true,
-        errorHandlerVisited: Boolean(frame.error) || flowState.errorHandlerVisited,
+        errorHandlerVisited: Boolean(frame.errorHandlerVisited ?? frame.error) || flowState.errorHandlerVisited,
         selectedCase: Boolean(frame.selectedCaseValue) || flowState.selectedCase,
       };
       const sourceVisited = visitedBranchSources.get(frame.objectId) ?? new Set<string>();

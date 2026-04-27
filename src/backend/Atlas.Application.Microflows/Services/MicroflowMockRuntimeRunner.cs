@@ -689,9 +689,14 @@ public sealed class MicroflowMockRuntimeRunner : IMicroflowMockRuntimeRunner
                 Output = output,
                 Error = error,
                 VariablesSnapshot = SnapshotVariables(),
-                Message = message
+                Message = message,
+                ErrorHandlerVisited = IsErrorHandlerFlow(incomingFlowId) || IsErrorHandlerFlow(outgoingFlowId)
             });
         }
+
+        private bool IsErrorHandlerFlow(string? flowId)
+            => !string.IsNullOrWhiteSpace(flowId)
+                && Flows.Any(flow => string.Equals(flow.Id, flowId, StringComparison.Ordinal) && flow.IsErrorHandler);
 
         public void AddLog(string level, string? objectId, string? actionId, string message)
         {

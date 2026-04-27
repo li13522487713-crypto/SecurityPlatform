@@ -43,7 +43,7 @@
 
 ## fieldPath 规范
 
-P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`action.memberChanges.0.valueExpression`、`action.parameterMappings.0.argumentExpression`、`action.request.headers.0.valueExpression`。常用稳定路径包括：
+P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`action.memberChanges.0.valueExpression`、`action.parameterMappings.0.argumentExpression`、`action.request.headers.0.valueExpression`。第 45 轮前端 FieldError 会兼容显示 `memberChanges[0]` 形式，但后端与契约仍以点号下标为准。常用稳定路径包括：
 
 - `action.retrieveSource.kind`
 - `action.retrieveSource.entityQualifiedName`

@@ -349,3 +349,9 @@ x-microflow-mock-error: version-conflict
 - `409` → 保存/发布显示版本冲突，保留本地 dirty schema。
 - `422` → `MICROFLOW_VALIDATION_FAILED`，`validationIssues` 进入 ProblemPanel。
 - `5xx/network/timeout` → ResourceTab / Metadata selector / DebugPanel 显示服务不可用并提供重试。
+
+## 15. 第 46～47 轮综合回归
+
+- Publish / Version / References 示例见 `MicroflowBackend.http`：publish、duplicate version conflict、impact、rollback、duplicate historical version、references rebuild、reference blocked。
+- TestRun / Debug 示例见 `MicroflowBackend.http`：validate `mode=testRun`、success、decision true/false、loopIterations、simulateRestError、get run、get trace、cancel、unsupported action、max steps exceeded。
+- 自动脚本：`scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts`。

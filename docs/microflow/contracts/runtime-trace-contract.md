@@ -25,7 +25,8 @@
 ## 第 42 轮后端 Mock Trace
 
 - `POST /api/microflows/{id}/test-run` 已返回 `MicroflowApiResponse<{ session }>`；`session.trace/logs/variables/error` 与 DebugPanel 契约同构。
-- TraceFrame 按执行顺序持久化，字段包含 `objectId`、`actionId`、`collectionId`、incoming/outgoing flow、`selectedCaseValue`、`loopIteration`、input/output/error、`variablesSnapshot` 与 message。
+- TraceFrame 按执行顺序持久化，字段包含 `objectId`、`actionId`、`collectionId`、incoming/outgoing flow、`selectedCaseValue`、`loopIteration`、input/output/error、`variablesSnapshot`、`errorHandlerVisited` 与 message。
+- 第 46～47 轮前端 HTTP RuntimeAdapter 在 test-run 返回后会回读 `GET /api/microflows/runs/{runId}` 与 `GET /api/microflows/runs/{runId}/trace`，DebugPanel 与 FlowGram runtime highlight 均消费后端持久化 trace。
 - RuntimeLog 单独持久化并按 timestamp 查询；LogMessage action 会生成对应 log。
 - Mock Runtime 不是真实 Runtime，不执行数据库 Retrieve/Commit/Delete，不调用外部 REST；RestCall success/error 只产生契约级输出与错误路径。
 - 第 48 轮真实 `ExecutionPlanLoader` 接入后，应继续复用本轮 DTO 与持久化结构。

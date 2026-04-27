@@ -29,27 +29,38 @@ export function MicroflowReferencesDrawer({ visible, resource, adapter, onClose 
   const [error, setError] = useState<unknown>();
   const [keyword, setKeyword] = useState("");
   const [impact, setImpact] = useState<"all" | MicroflowImpactLevel>("all");
+  const [sourceType, setSourceType] = useState<"all" | MicroflowReference["sourceType"]>("all");
+  const [includeInactive, setIncludeInactive] = useState(false);
 
-  useEffect(() => {
-    if (!visible || !resource) {
+  async function loadReferences() {
+    if (!resource) {
       return;
     }
     setLoading(true);
     setError(undefined);
-    adapter.getMicroflowReferences(resource.id)
+    adapter.getMicroflowReferences(resource.id, {
+      includeInactive,
+      sourceType: sourceType === "all" ? undefined : [sourceType],
+      impactLevel: impact === "all" ? undefined : [impact],
+    })
       .then(setReferences)
       .catch(setError)
       .finally(() => setLoading(false));
-  }, [adapter, resource, visible]);
+  }
+
+  useEffect(() => {
+    if (visible) {
+      void loadReferences();
+    }
+  }, [visible, resource?.id, sourceType, impact, includeInactive]);
 
   const filtered = useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
     return references.filter(reference => {
       const matchesKeyword = !normalized || reference.sourceName.toLowerCase().includes(normalized);
-      const matchesImpact = impact === "all" || reference.impactLevel === impact;
-      return matchesKeyword && matchesImpact;
+      return matchesKeyword;
     });
-  }, [impact, keyword, references]);
+  }, [keyword, references]);
 
   const grouped = useMemo(() => groupReferencesBySourceType(filtered), [filtered]);
   const summary = useMemo(() => getReferenceImpactSummary(references), [references]);
@@ -81,18 +92,30 @@ export function MicroflowReferencesDrawer({ visible, resource, adapter, onClose 
                 { value: "none", label: "无影响" }
               ]}
             />
+            <Select
+              value={sourceType}
+              onChange={value => setSourceType(value as "all" | MicroflowReference["sourceType"])}
+              style={{ width: 140 }}
+              optionList={[
+                { value: "all", label: "全部来源" },
+                { value: "microflow", label: "微流" },
+                { value: "workflow", label: "工作流" },
+                { value: "page", label: "页面" },
+                { value: "form", label: "表单" },
+                { value: "button", label: "按钮" },
+                { value: "schedule", label: "定时任务" },
+                { value: "api", label: "API" },
+                { value: "unknown", label: "未知" }
+              ]}
+            />
+            <Button size="small" type={includeInactive ? "primary" : "tertiary"} onClick={() => setIncludeInactive(current => !current)}>
+              {includeInactive ? "含 inactive" : "仅 active"}
+            </Button>
           </Space>
           {loading ? (
             <Spin />
           ) : error ? (
-            <MicroflowErrorState error={error} title="引用服务不可用" compact onRetry={() => {
-              if (!resource) {
-                return;
-              }
-              setLoading(true);
-              setError(undefined);
-              adapter.getMicroflowReferences(resource.id).then(setReferences).catch(setError).finally(() => setLoading(false));
-            }} />
+            <MicroflowErrorState error={error} title="引用服务不可用" compact onRetry={() => void loadReferences()} />
           ) : filtered.length === 0 ? (
             <Empty title="暂无引用" description="当前筛选条件下没有引用来源。" />
           ) : (

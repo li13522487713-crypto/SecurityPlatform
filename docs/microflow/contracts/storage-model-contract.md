@@ -92,3 +92,4 @@
 ## JSON 列
 
 - `SchemaJson` / `CatalogJson` / `ValidationSummaryJson` / `ImpactAnalysisJson` / 变量与 trace 的 JSON 等，**形状**以 TypeScript 契约为准，不嵌入 FlowGram。
+- 第 46～47 轮 `MicroflowRunTraceFrame.ExtraJson` 可保存 `errorHandlerVisited` 等 trace 扩展字段；get run / get trace 反序列化后仍按 `MicroflowTraceFrame` 契约返回。

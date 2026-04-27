@@ -45,6 +45,7 @@
 
 - `GET /api/microflow-metadata` 返回与 `MicroflowMetadataCatalog` **同构** JSON（及契约要求的 `updatedAt` 等），字段需与前端类型一致；分页或按模块拆分须可还原为单一 Catalog。
 - 第 39 轮后端已实现 `GET /api/microflow-metadata`、`/entities/{qualifiedName}`、`/enumerations/{qualifiedName}`、`/microflows`、`/pages`、`/workflows`、`/health`。
+- 第 44 轮 HTTP MetadataAdapter 回归要求 `/pages` 与 `/workflows` 使用独立 API 端点；后端返回 `[]` 时前端 selector 显示空态，不白屏。
 - 后端不读取前端 `mock-metadata.ts`。无真实建模器或 cache 时使用后端 `seed-v1` catalog，并可在 Development 启动时写入 `MicroflowMetadataCache`。
 - `MicroflowMetadataCache.CatalogJson` 保存完整 `MicroflowMetadataCatalog`；`catalog.microflows` 在返回前由 `MicroflowResource` 表生成并覆盖缓存中的 microflows。
 - 当前限制：Page / Workflow 第一版可为空；完整 Domain Model 后端服务尚未接入；seed catalog 后续会被真实模型服务替代。

@@ -11,7 +11,7 @@ import type { MicroflowReference } from "../references/microflow-reference-types
 import { createDefaultMicroflowSchema } from "../schema/create-default-microflow-schema";
 import { diffMicroflowSchemas } from "../versions/microflow-version-diff";
 import type { MicroflowPublishedSnapshot, MicroflowVersionDetail, MicroflowVersionDiff, MicroflowVersionSummary } from "../versions/microflow-version-types";
-import type { GetMicroflowReferencesRequest } from "../contracts/api/microflow-reference-api-contract";
+import type { AnalyzeMicroflowImpactRequest, GetMicroflowReferencesRequest } from "../contracts/api/microflow-reference-api-contract";
 import type { MicroflowResourceAdapter, SaveMicroflowSchemaOptions } from "./microflow-resource-adapter";
 import { readStoredMicroflowResources, writeStoredMicroflowResources, type StoredMicroflowResources } from "./microflow-resource-storage";
 import type {
@@ -768,7 +768,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     return clone(duplicate);
   }
 
-  async analyzeMicroflowPublishImpact(id: string, input: MicroflowPublishInput) {
+  async analyzeMicroflowPublishImpact(id: string, input: AnalyzeMicroflowImpactRequest) {
     const current = this.requireResource(id);
     const latestSnapshot = [...this.snapshots.values()]
       .filter(snapshot => snapshot.resourceId === id && snapshot.version === current.latestPublishedVersion)
@@ -776,7 +776,7 @@ export class LocalMicroflowResourceAdapter implements MicroflowResourceAdapter {
     return analyzeMicroflowPublishImpact({
       resourceId: id,
       currentVersion: current.latestPublishedVersion,
-      nextVersion: input.version,
+      nextVersion: input.version ?? current.version,
       currentSchema: current.schema,
       latestSnapshot,
       references: await this.getMicroflowReferences(id)

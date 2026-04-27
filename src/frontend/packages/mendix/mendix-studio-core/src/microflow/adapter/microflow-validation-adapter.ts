@@ -10,6 +10,8 @@ export interface MicroflowValidationInput {
   schema: MicroflowAuthoringSchema;
   metadata?: MicroflowMetadataCatalog;
   mode: MicroflowValidationMode;
+  includeInfo?: boolean;
+  includeWarnings?: boolean;
 }
 
 export interface MicroflowValidationResult {
@@ -19,6 +21,7 @@ export interface MicroflowValidationResult {
     warningCount: number;
     infoCount: number;
   };
+  serverValidatedAt?: string;
 }
 
 export interface MicroflowValidationAdapter {
@@ -33,8 +36,8 @@ export function createLocalMicroflowValidationAdapter(): MicroflowValidationAdap
         metadata: input.metadata,
         options: {
           mode: input.mode,
-          includeWarnings: true,
-          includeInfo: true,
+          includeWarnings: input.includeWarnings ?? true,
+          includeInfo: input.includeInfo ?? true,
         },
       });
       return {
@@ -57,8 +60,8 @@ export function createHttpMicroflowValidationAdapter(options: HttpMicroflowValid
       return client.post<MicroflowValidationResult>(`/api/microflows/${encodeURIComponent(id)}/validate`, {
         schema: input.schema,
         mode: input.mode,
-        includeWarnings: true,
-        includeInfo: true,
+        includeWarnings: input.includeWarnings ?? true,
+        includeInfo: input.includeInfo ?? true,
       });
     },
   };

@@ -133,7 +133,10 @@ export function createHttpMicroflowRuntimeAdapter(options: HttpMicroflowRuntimeA
       };
     },
     async cancelMicroflowRun(runId: string) {
-      await client.post(`/api/microflows/runs/${encodeURIComponent(runId)}/cancel`, {});
+      return client.post<{ runId: string; status: "cancelled" | "success" | "failed" }>(`/api/microflows/runs/${encodeURIComponent(runId)}/cancel`, {});
+    },
+    async getMicroflowRunSession(runId: string) {
+      return client.get<MicroflowRunSession>(`/api/microflows/runs/${encodeURIComponent(runId)}`);
     },
     async getMicroflowRunTrace(runId: string) {
       const result = await client.get<{ trace: MicroflowTraceFrame[] }>(`/api/microflows/runs/${encodeURIComponent(runId)}/trace`);
