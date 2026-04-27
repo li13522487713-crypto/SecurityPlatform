@@ -55,3 +55,11 @@
 - `MicroflowRuntimeVariableValue` 增加 `typePreview`，用于 DebugPanel 更友好展示 `Object<Sales.Order>`、`List<Sales.Order>`、`Enum<Sales.OrderStatus>`。
 - VariableStore 仍不访问 MetadataService、不修改 rawValueJson；metadata 缺失只形成诊断或 unknown preview，不导致 NullReference。
 - Object/list/enumeration 的强校验由 `MicroflowMetadataResolver.ResolveDataType` 提供，VariableStore 保持运行时变量边界。
+
+## 第 55 轮 Loop Scope
+
+- `MicroflowLoopExecutor` 每个 iteration 调用 `RuntimeExecutionContext.PushLoopScope`，scope 内定义 iterator 与 `$currentIndex`；scope dispose 后 iterator、`$currentIndex` 和 loop-local action output 均不可见。
+- iterable loop 的 iterator raw value 来自 list item，dataType 使用 list `itemType`，`valuePreview` 使用 item JSON 短 preview。
+- while loop 默认只定义 `$currentIndex`；若 schema 显式给 `iteratorVariableName`，才定义 iterator。
+- nested loop 使用独立 scope frame；内层 `$currentIndex` 覆盖外层最近索引，外层 iterator 除非同名 shadow 仍可读取。
+- ErrorHandler scope 可在 loop body 内进入，`$latestError` / `$latestHttpResponse` 与当前 loopIteration 同时出现在 trace snapshot。

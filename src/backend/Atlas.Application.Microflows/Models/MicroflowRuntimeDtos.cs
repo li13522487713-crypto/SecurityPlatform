@@ -73,6 +73,18 @@ public sealed record MicroflowRunSessionDto
     [JsonPropertyName("version")]
     public string Version { get; init; } = string.Empty;
 
+    [JsonPropertyName("parentRunId")]
+    public string? ParentRunId { get; init; }
+
+    [JsonPropertyName("rootRunId")]
+    public string? RootRunId { get; init; }
+
+    [JsonPropertyName("callFrameId")]
+    public string? CallFrameId { get; init; }
+
+    [JsonPropertyName("callDepth")]
+    public int? CallDepth { get; init; }
+
     [JsonPropertyName("startedAt")]
     public DateTimeOffset StartedAt { get; init; }
 
@@ -102,6 +114,12 @@ public sealed record MicroflowRunSessionDto
 
     [JsonPropertyName("transactionSummary")]
     public MicroflowRuntimeTransactionSummary? TransactionSummary { get; init; }
+
+    [JsonPropertyName("childRuns")]
+    public IReadOnlyList<MicroflowRunSessionDto> ChildRuns { get; init; } = Array.Empty<MicroflowRunSessionDto>();
+
+    [JsonPropertyName("childRunIds")]
+    public IReadOnlyList<string> ChildRunIds { get; init; } = Array.Empty<string>();
 }
 
 public sealed record MicroflowTraceFrameDto
@@ -111,6 +129,24 @@ public sealed record MicroflowTraceFrameDto
 
     [JsonPropertyName("runId")]
     public string RunId { get; init; } = string.Empty;
+
+    [JsonPropertyName("parentRunId")]
+    public string? ParentRunId { get; init; }
+
+    [JsonPropertyName("rootRunId")]
+    public string? RootRunId { get; init; }
+
+    [JsonPropertyName("callFrameId")]
+    public string? CallFrameId { get; init; }
+
+    [JsonPropertyName("callDepth")]
+    public int? CallDepth { get; init; }
+
+    [JsonPropertyName("callerObjectId")]
+    public string? CallerObjectId { get; init; }
+
+    [JsonPropertyName("callerActionId")]
+    public string? CallerActionId { get; init; }
 
     [JsonPropertyName("objectId")]
     public string ObjectId { get; init; } = string.Empty;
@@ -285,9 +321,20 @@ public static class RuntimeErrorCode
     public const string RuntimeRestCallFailed = "RUNTIME_REST_CALL_FAILED";
     public const string RuntimeTimeout = "RUNTIME_TIMEOUT";
     public const string RuntimeCallMicroflowFailed = "RUNTIME_CALL_MICROFLOW_FAILED";
+    public const string RuntimeCallRecursionDetected = "RUNTIME_CALL_RECURSION_DETECTED";
+    public const string RuntimeCallStackOverflow = "RUNTIME_CALL_STACK_OVERFLOW";
     public const string RuntimeUnsupportedAction = "RUNTIME_UNSUPPORTED_ACTION";
     public const string RuntimeConnectorRequired = "RUNTIME_CONNECTOR_REQUIRED";
     public const string RuntimeTransactionRolledBack = "RUNTIME_TRANSACTION_ROLLED_BACK";
+    public const string RuntimeLoopSourceNotFound = "RUNTIME_LOOP_SOURCE_NOT_FOUND";
+    public const string RuntimeLoopSourceNotList = "RUNTIME_LOOP_SOURCE_NOT_LIST";
+    public const string RuntimeLoopIteratorInvalid = "RUNTIME_LOOP_ITERATOR_INVALID";
+    public const string RuntimeLoopConditionError = "RUNTIME_LOOP_CONDITION_ERROR";
+    public const string RuntimeLoopConditionNotBoolean = "RUNTIME_LOOP_CONDITION_NOT_BOOLEAN";
+    public const string RuntimeLoopMaxIterationsExceeded = "RUNTIME_LOOP_MAX_ITERATIONS_EXCEEDED";
+    public const string RuntimeLoopBodyNotFound = "RUNTIME_LOOP_BODY_NOT_FOUND";
+    public const string RuntimeLoopControlOutOfScope = "RUNTIME_LOOP_CONTROL_OUT_OF_SCOPE";
+    public const string RuntimeLoopDeadEnd = "RUNTIME_LOOP_DEAD_END";
     public const string RuntimeMaxStepsExceeded = "RUNTIME_MAX_STEPS_EXCEEDED";
     public const string RuntimeCancelled = "RUNTIME_CANCELLED";
     public const string RuntimeErrorEventReached = "RUNTIME_ERROR_EVENT_REACHED";

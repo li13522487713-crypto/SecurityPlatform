@@ -802,6 +802,7 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
     private readonly IMicroflowResourceRepository _resourceRepository;
     private readonly IMicroflowSchemaSnapshotRepository _schemaSnapshotRepository;
     private readonly IMicroflowVersionRepository _versionRepository;
+    private readonly IMicroflowPublishSnapshotRepository _publishSnapshotRepository;
     private readonly IMicroflowRuntimeDtoBuilder _runtimeDtoBuilder;
     private readonly IMicroflowExecutionPlanBuilder _planBuilder;
 
@@ -809,12 +810,14 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         IMicroflowResourceRepository resourceRepository,
         IMicroflowSchemaSnapshotRepository schemaSnapshotRepository,
         IMicroflowVersionRepository versionRepository,
+        IMicroflowPublishSnapshotRepository publishSnapshotRepository,
         IMicroflowRuntimeDtoBuilder runtimeDtoBuilder,
         IMicroflowExecutionPlanBuilder planBuilder)
     {
         _resourceRepository = resourceRepository;
         _schemaSnapshotRepository = schemaSnapshotRepository;
         _versionRepository = versionRepository;
+        _publishSnapshotRepository = publishSnapshotRepository;
         _runtimeDtoBuilder = runtimeDtoBuilder;
         _planBuilder = planBuilder;
     }
@@ -823,11 +826,39 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
     {
         var resource = await _resourceRepository.GetByIdAsync(resourceId, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
-        var snapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId ?? resource.SchemaId, cancellationToken);
+        var snapshot = await LoadSnapshotAsync(resource.CurrentSchemaSnapshotId ?? resource.SchemaId, cancellationToken)
+            ?? await _schemaSnapshotRepository.GetLatestByResourceIdAsync(resource.Id, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流当前 Schema 快照不存在。", 400);
         return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
         {
             ResourceId = resource.Id,
             Version = string.IsNullOrWhiteSpace(options.Version) ? resource.Version : options.Version
+        });
+    }
+
+    public async Task<MicroflowExecutionPlan> LoadPublishedVersionAsync(string resourceId, string version, MicroflowExecutionPlanLoadOptions options, CancellationToken cancellationToken)
+    {
+        _ = await _resourceRepository.GetByIdAsync(resourceId, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
+        var snapshot = await _publishSnapshotRepository.GetByResourceVersionAsync(resourceId, version, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流发布版本不存在。", 404);
+        return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
+        {
+            ResourceId = resourceId,
+            Version = snapshot.Version
+        });
+    }
+
+    public async Task<MicroflowExecutionPlan> LoadLatestPublishedAsync(string resourceId, MicroflowExecutionPlanLoadOptions options, CancellationToken cancellationToken)
+    {
+        _ = await _resourceRepository.GetByIdAsync(resourceId, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流资源不存在。", 404);
+        var snapshot = await _publishSnapshotRepository.GetLatestByResourceIdAsync(resourceId, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流最新发布快照不存在。", 404);
+        return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
+        {
+            ResourceId = resourceId,
+            Version = snapshot.Version
         });
     }
 
@@ -840,7 +871,8 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         {
             throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowNotFound, "微流版本不存在。", 404);
         }
-        var snapshot = await LoadSnapshotAsync(version.SchemaSnapshotId, cancellationToken);
+        var snapshot = await LoadSnapshotAsync(version.SchemaSnapshotId, cancellationToken)
+            ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流版本 Schema 快照不存在。", 400);
         return BuildPlan(MicroflowSchemaJsonHelper.ParseRequired(snapshot.SchemaJson), options with
         {
             ResourceId = resourceId,
@@ -873,11 +905,11 @@ public sealed class MicroflowExecutionPlanLoader : IMicroflowExecutionPlanLoader
         return plan;
     }
 
-    private async Task<MicroflowSchemaSnapshotEntity> LoadSnapshotAsync(string? snapshotId, CancellationToken cancellationToken)
+    private async Task<MicroflowSchemaSnapshotEntity?> LoadSnapshotAsync(string? snapshotId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(snapshotId))
         {
-            throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流当前 Schema 快照不存在。", 400);
+            return null;
         }
         return await _schemaSnapshotRepository.GetByIdAsync(snapshotId, cancellationToken)
             ?? throw new MicroflowApiException(MicroflowApiErrorCode.MicroflowSchemaInvalid, "微流 Schema 快照不存在。", 400);

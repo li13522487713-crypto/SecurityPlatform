@@ -16,6 +16,17 @@ public interface IMicroflowExecutionPlanLoader
         MicroflowExecutionPlanLoadOptions options,
         CancellationToken cancellationToken);
 
+    Task<MicroflowExecutionPlan> LoadPublishedVersionAsync(
+        string resourceId,
+        string version,
+        MicroflowExecutionPlanLoadOptions options,
+        CancellationToken cancellationToken);
+
+    Task<MicroflowExecutionPlan> LoadLatestPublishedAsync(
+        string resourceId,
+        MicroflowExecutionPlanLoadOptions options,
+        CancellationToken cancellationToken);
+
     Task<MicroflowExecutionPlan> LoadFromSchemaAsync(
         JsonElement schema,
         MicroflowExecutionPlanLoadOptions options,

@@ -104,15 +104,12 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             },
             cancellationToken);
 
-        var entities = ToEntities(session, resource, _requestContextAccessor.Current);
         try
         {
             await _storageTransaction.ExecuteAsync(
                 async () =>
                 {
-                    await _runRepository.InsertSessionAsync(entities.Session, cancellationToken);
-                    await _runRepository.InsertTraceFramesAsync(session.Id, entities.TraceFrames, cancellationToken);
-                    await _runRepository.InsertLogsAsync(session.Id, entities.Logs, cancellationToken);
+                    await PersistSessionGraphAsync(session, resource, cancellationToken);
                     await _resourceRepository.UpdateLastRunAsync(
                         resource.Id,
                         session.Status,
@@ -132,6 +129,20 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         }
 
         return new TestRunMicroflowApiResponse { Session = session };
+    }
+
+    private async Task PersistSessionGraphAsync(MicroflowRunSessionDto session, MicroflowResourceEntity fallbackResource, CancellationToken cancellationToken)
+    {
+        var resource = await _resourceRepository.GetByIdAsync(session.ResourceId, cancellationToken) ?? fallbackResource;
+        var entities = ToEntities(session, resource, _requestContextAccessor.Current);
+        await _runRepository.InsertSessionAsync(entities.Session, cancellationToken);
+        await _runRepository.InsertTraceFramesAsync(entities.TraceFrames, cancellationToken);
+        await _runRepository.InsertLogsAsync(entities.Logs, cancellationToken);
+
+        foreach (var child in session.ChildRuns)
+        {
+            await PersistSessionGraphAsync(child, resource, cancellationToken);
+        }
     }
 
     public async Task<CancelMicroflowRunResponse> CancelAsync(string runId, CancellationToken cancellationToken)
@@ -256,7 +267,17 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             Mode = "testRun",
             TraceFrameCount = session.Trace.Count,
             LogCount = session.Logs.Count,
-            ExtraJson = JsonSerializer.Serialize(new { session.Version, variables = session.Variables, transactionSummary = session.TransactionSummary }, JsonOptions)
+            ExtraJson = JsonSerializer.Serialize(new
+            {
+                session.Version,
+                session.ParentRunId,
+                session.RootRunId,
+                session.CallFrameId,
+                session.CallDepth,
+                variables = session.Variables,
+                transactionSummary = session.TransactionSummary,
+                childRunIds = session.ChildRunIds.Count > 0 ? session.ChildRunIds : session.ChildRuns.Select(child => child.Id).ToArray()
+            }, JsonOptions)
         };
 
         var frames = session.Trace.Select((frame, index) => new MicroflowRunTraceFrameEntity
@@ -280,9 +301,16 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             ErrorJson = frame.Error is null ? null : JsonSerializer.Serialize(frame.Error, JsonOptions),
             VariablesSnapshotJson = frame.VariablesSnapshot is null ? null : JsonSerializer.Serialize(frame.VariablesSnapshot, JsonOptions),
             Message = frame.Message,
-            ExtraJson = frame.ErrorHandlerVisited.HasValue
-                ? JsonSerializer.Serialize(new TraceFrameExtra { ErrorHandlerVisited = frame.ErrorHandlerVisited }, JsonOptions)
-                : null
+            ExtraJson = JsonSerializer.Serialize(new TraceFrameExtra
+            {
+                ErrorHandlerVisited = frame.ErrorHandlerVisited,
+                ParentRunId = frame.ParentRunId,
+                RootRunId = frame.RootRunId,
+                CallFrameId = frame.CallFrameId,
+                CallDepth = frame.CallDepth,
+                CallerObjectId = frame.CallerObjectId,
+                CallerActionId = frame.CallerActionId
+            }, JsonOptions)
         }).ToArray();
 
         var logs = session.Logs.Select(log => new MicroflowRunLogEntity
@@ -314,6 +342,10 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             SchemaId = session.SchemaSnapshotId ?? string.Empty,
             ResourceId = session.ResourceId,
             Version = extra.Version,
+            ParentRunId = extra.ParentRunId,
+            RootRunId = extra.RootRunId,
+            CallFrameId = extra.CallFrameId,
+            CallDepth = extra.CallDepth,
             StartedAt = session.StartedAt,
             EndedAt = session.EndedAt,
             Status = session.Status,
@@ -323,7 +355,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             Trace = frames.Select(ToFrameDto).ToArray(),
             Logs = logs.Select(ToLogDto).ToArray(),
             Variables = extra.Variables,
-            TransactionSummary = extra.TransactionSummary
+            TransactionSummary = extra.TransactionSummary,
+            ChildRunIds = extra.ChildRunIds
         };
     }
 
@@ -350,7 +383,13 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 ? null
                 : Deserialize<Dictionary<string, MicroflowRuntimeVariableValueDto>>(frame.VariablesSnapshotJson),
             Message = frame.Message,
-            ErrorHandlerVisited = ReadTraceFrameExtra(frame.ExtraJson).ErrorHandlerVisited
+            ErrorHandlerVisited = ReadTraceFrameExtra(frame.ExtraJson).ErrorHandlerVisited,
+            ParentRunId = ReadTraceFrameExtra(frame.ExtraJson).ParentRunId,
+            RootRunId = ReadTraceFrameExtra(frame.ExtraJson).RootRunId,
+            CallFrameId = ReadTraceFrameExtra(frame.ExtraJson).CallFrameId,
+            CallDepth = ReadTraceFrameExtra(frame.ExtraJson).CallDepth,
+            CallerObjectId = ReadTraceFrameExtra(frame.ExtraJson).CallerObjectId,
+            CallerActionId = ReadTraceFrameExtra(frame.ExtraJson).CallerActionId
         };
 
     private static MicroflowRuntimeLogDto ToLogDto(MicroflowRunLogEntity log)
@@ -402,6 +441,16 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         public IReadOnlyList<MicroflowVariableSnapshotDto> Variables { get; init; } = Array.Empty<MicroflowVariableSnapshotDto>();
 
         public MicroflowRuntimeTransactionSummary? TransactionSummary { get; init; }
+
+        public string? ParentRunId { get; init; }
+
+        public string? RootRunId { get; init; }
+
+        public string? CallFrameId { get; init; }
+
+        public int? CallDepth { get; init; }
+
+        public IReadOnlyList<string> ChildRunIds { get; init; } = Array.Empty<string>();
     }
 
     private static TraceFrameExtra ReadTraceFrameExtra(string? json)
@@ -424,5 +473,17 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private sealed record TraceFrameExtra
     {
         public bool? ErrorHandlerVisited { get; init; }
+
+        public string? ParentRunId { get; init; }
+
+        public string? RootRunId { get; init; }
+
+        public string? CallFrameId { get; init; }
+
+        public int? CallDepth { get; init; }
+
+        public string? CallerObjectId { get; init; }
+
+        public string? CallerActionId { get; init; }
     }
 }

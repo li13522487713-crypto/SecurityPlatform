@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime.Expressions;
+using Atlas.Application.Microflows.Runtime.Loops;
 using Atlas.Application.Microflows.Runtime.Metadata;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Runtime.Transactions;
@@ -165,11 +166,14 @@ public sealed record MicroflowActionExecutionContext
     public IMicroflowVariableStore VariableStore { get; init; } = null!;
     public IMicroflowExpressionEvaluator? ExpressionEvaluator { get; init; }
     public IMicroflowMetadataResolver? MetadataResolver { get; init; }
+    public MicroflowMetadataCatalogDto? MetadataCatalog { get; init; }
     public IMicroflowEntityAccessService? EntityAccessService { get; init; }
     public IMicroflowTransactionManager? TransactionManager { get; init; }
     public IMicroflowRuntimeConnectorRegistry ConnectorRegistry { get; init; } = null!;
     public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
     public MicroflowActionExecutionOptions Options { get; init; } = new();
+    public MicroflowLoopExecutionOptions? LoopExecutionOptions { get; init; }
+    public Func<MicroflowLoopIterationContext, CancellationToken, Task<MicroflowLoopBodyExecutionResult>>? LoopBodyExecutor { get; init; }
     public ILogger? Logger { get; init; }
 }
 
@@ -208,6 +212,9 @@ public sealed record MicroflowActionExecutionResult
 
     [JsonPropertyName("logs")]
     public IReadOnlyList<MicroflowRuntimeLogDto> Logs { get; init; } = Array.Empty<MicroflowRuntimeLogDto>();
+
+    [JsonPropertyName("childRunSessions")]
+    public IReadOnlyList<MicroflowRunSessionDto> ChildRunSessions { get; init; } = Array.Empty<MicroflowRunSessionDto>();
 
     [JsonPropertyName("diagnostics")]
     public IReadOnlyList<MicroflowActionExecutionDiagnostic> Diagnostics { get; init; } = Array.Empty<MicroflowActionExecutionDiagnostic>();

@@ -53,6 +53,133 @@ X-Trace-Id: {{traceId}}
   }
 }
 
+### Runtime Round 55 - TestRun iterable list loop, iterator/$currentIndex/continue trace
+# Expected:
+# - data.session.status == "success"
+# - data.session.trace[*].loopIteration.index == 0,1,2
+# - loop body frames contain variablesSnapshot.item and variablesSnapshot.$currentIndex
+# - ContinueEvent frames show message "Continue loop." and loopIteration.controlSignal == "continue"
+POST {{host}}/api/microflows/{{microflowId}}/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {
+    "items": [
+      { "id": "order-1", "amount": 10 },
+      { "id": "order-2", "amount": 20 },
+      { "id": "order-3", "amount": 30 }
+    ]
+  },
+  "options": { "maxSteps": 100 },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "runtime-round55-iterable-loop",
+    "name": "RuntimeRound55IterableLoop",
+    "parameters": [
+      {
+        "id": "param-items",
+        "name": "items",
+        "dataType": { "kind": "list", "itemType": { "kind": "object", "entityQualifiedName": "Sales.Order" } },
+        "required": true
+      }
+    ],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "loop",
+          "kind": "loopedActivity",
+          "officialType": "Microflows$LoopedActivity",
+          "loopSource": { "kind": "iterableList", "listVariableName": "items", "iteratorVariableName": "item" },
+          "objectCollection": {
+            "id": "loop-collection",
+            "objects": [
+              {
+                "id": "loop-log",
+                "kind": "actionActivity",
+                "officialType": "Microflows$ActionActivity",
+                "action": { "id": "loop-log-action", "kind": "logMessage", "text": "loop item" }
+              },
+              { "id": "loop-continue", "kind": "continueEvent", "officialType": "Microflows$ContinueEvent" }
+            ],
+            "flows": [
+              { "id": "lf-log-continue", "kind": "sequence", "originObjectId": "loop-log", "destinationObjectId": "loop-continue" }
+            ]
+          }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-loop", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "loop" },
+        { "id": "f-loop-end", "kind": "sequence", "originObjectId": "loop", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime Round 55 - FlowNavigator while false loop
+# Expected:
+# - data.status == "success"
+# - data.steps has no loop body action frame
+# - loop summary output.mode == "whileCondition" and conditionResult == false
+POST {{host}}/api/microflows/runtime/navigate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "dryRun", "maxSteps": 50, "includeVariableSnapshots": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "runtime-round55-while-false",
+    "name": "RuntimeRound55WhileFalse",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "loop",
+          "kind": "loopedActivity",
+          "officialType": "Microflows$LoopedActivity",
+          "loopSource": { "kind": "whileCondition", "expression": "false", "maxIterations": 2 },
+          "objectCollection": {
+            "id": "loop-collection",
+            "objects": [
+              {
+                "id": "loop-log",
+                "kind": "actionActivity",
+                "officialType": "Microflows$ActionActivity",
+                "action": { "id": "loop-log-action", "kind": "logMessage", "text": "should-not-run" }
+              },
+              { "id": "loop-continue", "kind": "continueEvent", "officialType": "Microflows$ContinueEvent" }
+            ],
+            "flows": [
+              { "id": "lf-log-continue", "kind": "sequence", "originObjectId": "loop-log", "destinationObjectId": "loop-continue" }
+            ]
+          }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-start-loop", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "loop" },
+        { "id": "f-loop-end", "kind": "sequence", "originObjectId": "loop", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
 ### TestRun Round 54 - ActionExecutor object/list/ui/runtimeCommand
 # Expected JSON paths:
 # - data.session.trace[*].output.executorCategory

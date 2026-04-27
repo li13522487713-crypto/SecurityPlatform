@@ -21,6 +21,24 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
             .FirstAsync(cancellationToken)!;
     }
 
+    public async Task<MicroflowResourceEntity?> GetByQualifiedNameAsync(string? workspaceId, string qualifiedName, CancellationToken cancellationToken)
+    {
+        var normalized = qualifiedName.Trim();
+        var name = normalized.Contains('.', StringComparison.Ordinal)
+            ? normalized[(normalized.LastIndexOf('.') + 1)..]
+            : normalized;
+        var q = _db.Queryable<MicroflowResourceEntity>().Where(x => x.Name == name);
+        if (!string.IsNullOrWhiteSpace(workspaceId))
+        {
+            q = q.Where(x => x.WorkspaceId == workspaceId);
+        }
+
+        var candidates = await q.ToListAsync(cancellationToken);
+        return candidates.FirstOrDefault(resource =>
+            string.Equals(BuildQualifiedName(resource), normalized, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(resource.Name, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
     public async Task<IReadOnlyList<MicroflowResourceEntity>> ListAsync(
         MicroflowResourceQueryDto query,
         CancellationToken cancellationToken)
@@ -168,6 +186,12 @@ public sealed class MicroflowResourceRepository : IMicroflowResourceRepository
         q = q.Where(x => x.ExtraJson == null || !x.ExtraJson.Contains("\"deleted\":true"));
 
         return q;
+    }
+
+    private static string BuildQualifiedName(MicroflowResourceEntity resource)
+    {
+        var moduleName = string.IsNullOrWhiteSpace(resource.ModuleName) ? resource.ModuleId : resource.ModuleName!;
+        return $"{moduleName}.{resource.Name}";
     }
 
     private static ISugarQueryable<MicroflowResourceEntity> ApplyOrdering(

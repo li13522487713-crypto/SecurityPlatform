@@ -136,3 +136,17 @@
 7. Nanoflow-only / unknown action 返回 `RUNTIME_UNSUPPORTED_ACTION`。
 8. Trace output 包含 `executorCategory`、`supportLevel`、`runtimeCommands`、`connectorRequests` 和 transaction preview。
 9. ValidationService 与 ActionSupportMatrix / Registry 对齐。
+
+## 第 55 轮 Loop Runtime 场景
+
+自动化入口：`scripts/verify-microflow-loop-runtime.ts`。
+
+覆盖重点：
+
+1. iterable list 3 items 执行 3 次，empty list 执行 0 次。
+2. iterator 与 `$currentIndex` 只在 loop iteration scope 可见，loop 后不泄漏。
+3. while false 直接跳过；while true 受 `maxIterations` 保护。
+4. Break 只终止最近 loop；Continue 跳过当前 iteration 剩余节点并进入下一轮。
+5. nested loop 通过独立 scope 区分 depth、inner iterator 与最近 `$currentIndex`。
+6. loop body action/error handler/transaction 均复用既有 Runtime pipeline。
+7. trace frame 带 `loopIteration`，不包含 FlowGram JSON。

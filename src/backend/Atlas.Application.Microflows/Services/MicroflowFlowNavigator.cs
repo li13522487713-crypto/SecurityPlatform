@@ -5,6 +5,7 @@ using Atlas.Application.Microflows.Models;
 using Atlas.Application.Microflows.Runtime;
 using Atlas.Application.Microflows.Runtime.Actions;
 using Atlas.Application.Microflows.Runtime.Expressions;
+using Atlas.Application.Microflows.Runtime.Loops;
 
 namespace Atlas.Application.Microflows.Services;
 
@@ -15,15 +16,21 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
     private readonly IMicroflowClock _clock;
     private readonly IMicroflowExpressionEvaluator _expressionEvaluator;
     private readonly IMicroflowActionExecutorRegistry _actionExecutorRegistry;
+    private readonly IMicroflowLoopExecutor _loopExecutor;
+    private readonly IMicroflowRuntimeConnectorRegistry _connectorRegistry;
 
     public MicroflowFlowNavigator(
         IMicroflowClock clock,
         IMicroflowExpressionEvaluator expressionEvaluator,
-        IMicroflowActionExecutorRegistry actionExecutorRegistry)
+        IMicroflowActionExecutorRegistry actionExecutorRegistry,
+        IMicroflowLoopExecutor loopExecutor,
+        IMicroflowRuntimeConnectorRegistry connectorRegistry)
     {
         _clock = clock;
         _expressionEvaluator = expressionEvaluator;
         _actionExecutorRegistry = actionExecutorRegistry;
+        _loopExecutor = loopExecutor;
+        _connectorRegistry = connectorRegistry;
     }
 
     public Task<MicroflowNavigationResult> NavigateAsync(
@@ -66,7 +73,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
                     if (signal.Kind is NavigationSignalKind.Break or NavigationSignalKind.Continue)
                     {
                         signal = NavigationSignal.Failed(Error(
-                            RuntimeErrorCode.RuntimeFlowNotFound,
+                            RuntimeErrorCode.RuntimeLoopControlOutOfScope,
                             "BreakEvent or ContinueEvent reached outside loop context.",
                             objectId: context.CurrentNodeId,
                             flowId: context.CurrentFlowId));
@@ -205,13 +212,13 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             {
                 if (context.LoopStack.Count == 0)
                 {
-                    var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, "BreakEvent is only valid inside loop context.", node.ObjectId, flowId: incoming);
+                    var error = Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, "BreakEvent is only valid inside loop context.", node.ObjectId, flowId: incoming);
                     AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
                     return NavigationSignal.Failed(error);
                 }
 
                 context.LoopStack.Peek().BreakRequested = true;
-                AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, loopIteration, message: "BreakEvent requested loop exit.");
+                AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, WithLoopControl(loopIteration, MicroflowLoopControlSignal.Break), message: "Break loop.", output: JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Break }, JsonOptions));
                 return NavigationSignal.Break(node.ObjectId);
             }
 
@@ -219,13 +226,13 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             {
                 if (context.LoopStack.Count == 0)
                 {
-                    var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, "ContinueEvent is only valid inside loop context.", node.ObjectId, flowId: incoming);
+                    var error = Error(RuntimeErrorCode.RuntimeLoopControlOutOfScope, "ContinueEvent is only valid inside loop context.", node.ObjectId, flowId: incoming);
                     AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Failed, loopIteration, error);
                     return NavigationSignal.Failed(error);
                 }
 
                 context.LoopStack.Peek().ContinueRequested = true;
-                AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, loopIteration, message: "ContinueEvent requested next loop iteration.");
+                AddStep(context, node, incoming, outgoingFlowId: null, MicroflowNavigationStepStatus.Success, WithLoopControl(loopIteration, MicroflowLoopControlSignal.Continue), message: "Continue loop.", output: JsonSerializer.SerializeToElement(new { controlSignal = MicroflowLoopControlSignal.Continue }, JsonOptions));
                 return NavigationSignal.Continue(node.ObjectId);
             }
 
@@ -325,17 +332,10 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
             return NavigationSignal.Failed(error);
         }
 
-        var iterations = Math.Clamp(context.Options.LoopIterations ?? 2, 0, 50);
-        AddStep(context, loopNode, incomingFlowId, query.GetDefaultNormalOutgoingFlow(context.Plan, loopNode.ObjectId, loopNode.CollectionId)?.FlowId, MicroflowNavigationStepStatus.Success, outerLoopIteration, message: $"Loop skeleton iterations={iterations}.");
-        if (iterations == 0)
-        {
-            return NavigationSignal.LoopIterationCompleted(loopNode.ObjectId);
-        }
-
         var entryNodeId = query.FindLoopEntryNodeId(context.Plan, loop);
         if (string.IsNullOrWhiteSpace(entryNodeId))
         {
-            var error = Error(RuntimeErrorCode.RuntimeFlowNotFound, "Loop internal entry node is missing.", loopNode.ObjectId, loopNode.ActionId, incomingFlowId);
+            var error = Error(RuntimeErrorCode.RuntimeLoopBodyNotFound, "Loop internal entry node is missing.", loopNode.ObjectId, loopNode.ActionId, incomingFlowId);
             return NavigationSignal.Failed(error);
         }
 
@@ -343,55 +343,124 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         {
             LoopObjectId = loop.LoopObjectId,
             CollectionId = loop.CollectionId,
-            MaxIterations = iterations
+            MaxIterations = context.Options.LoopIterations ?? 100
         };
         context.LoopStack.Push(frame);
+        MicroflowLoopExecutionResult loopResult;
         try
         {
-            for (var index = 0; index < iterations; index++)
+            var actionContext = new MicroflowActionExecutionContext
             {
-                frame.CurrentIndex = index;
-                frame.BreakRequested = false;
-                frame.ContinueRequested = false;
-                var iteration = JsonSerializer.SerializeToElement(new
+                RuntimeExecutionContext = context.RuntimeContext,
+                ExecutionPlan = context.Plan,
+                ExecutionNode = loopNode,
+                ActionConfig = loopNode.ConfigJson ?? default,
+                ActionKind = loopNode.ActionKind ?? "loopedActivity",
+                ObjectId = loopNode.ObjectId,
+                ActionId = loopNode.ActionId,
+                CollectionId = loopNode.CollectionId,
+                VariableStore = context.RuntimeContext.VariableStore,
+                ExpressionEvaluator = _expressionEvaluator,
+                TransactionManager = context.RuntimeContext.TransactionManager,
+                ConnectorRegistry = _connectorRegistry,
+                RuntimeSecurityContext = context.RuntimeContext.RuntimeSecurityContext,
+                Options = new MicroflowActionExecutionOptions
                 {
-                    loopObjectId = loop.LoopObjectId,
-                    collectionId = loop.CollectionId,
-                    index,
-                    iteratorVariableName = "$iterator",
-                    iteratorValuePreview = $"$iterator[{index}]"
-                }, JsonOptions);
-                using (context.RuntimeContext.PushLoopScope(
-                    loop.LoopObjectId,
-                    loop.CollectionId,
-                    "$iterator",
-                    index,
-                    JsonSerializer.SerializeToElement(new { id = $"{loop.LoopObjectId}-item-{index}", index }, JsonOptions),
-                    $"$iterator[{index}]"))
+                    Mode = context.Options.Mode,
+                    StopOnUnsupported = context.Options.EffectiveStopOnUnsupported
+                },
+                LoopExecutionOptions = new MicroflowLoopExecutionOptions
                 {
-                    var signal = NavigatePath(context, query, entryNodeId!, null, loop.CollectionId, iteration);
-                    if (signal.Kind == NavigationSignalKind.Break)
-                    {
-                        break;
-                    }
-                    if (signal.Kind == NavigationSignalKind.Continue || signal.Kind == NavigationSignalKind.LoopIterationCompleted)
-                    {
-                        continue;
-                    }
-                    if (signal.Kind != NavigationSignalKind.Success)
-                    {
-                        return signal;
-                    }
+                    MaxIterations = context.Options.LoopIterations is > 0 ? context.Options.LoopIterations.Value : 100,
+                    LoopIterationsOverride = context.Options.LoopIterations,
+                    StopOnActionError = context.Options.StopOnFirstError
+                },
+                LoopBodyExecutor = (iteration, ct) =>
+                {
+                    frame.CurrentIndex = iteration.Index;
+                    frame.BreakRequested = false;
+                    frame.ContinueRequested = false;
+                    var signal = NavigatePath(context, query, entryNodeId!, null, loop.CollectionId, iteration.LoopIterationJson);
+                    frame.BreakRequested = signal.Kind == NavigationSignalKind.Break;
+                    frame.ContinueRequested = signal.Kind == NavigationSignalKind.Continue;
+                    return Task.FromResult(ToLoopBodyExecutionResult(signal));
                 }
-            }
+            };
+            loopResult = _loopExecutor.ExecuteLoopAsync(actionContext, loopNode, context.CancellationToken).GetAwaiter().GetResult();
         }
         finally
         {
             context.LoopStack.Pop();
         }
 
+        var status = loopResult.Status is MicroflowLoopExecutionStatus.Failed or MicroflowLoopExecutionStatus.MaxIterationsExceeded or MicroflowLoopExecutionStatus.Cancelled
+            ? MicroflowNavigationStepStatus.Failed
+            : MicroflowNavigationStepStatus.Success;
+        var message = loopResult.Status switch
+        {
+            MicroflowLoopExecutionStatus.Break => "Break loop.",
+            MicroflowLoopExecutionStatus.Continue => "Continue loop.",
+            MicroflowLoopExecutionStatus.MaxIterationsExceeded => "Loop maxIterations exceeded.",
+            MicroflowLoopExecutionStatus.Cancelled => "Loop cancelled.",
+            MicroflowLoopExecutionStatus.Failed => "Loop failed.",
+            _ => $"Loop executed iterations={loopResult.IterationCount}."
+        };
+        AddStep(
+            context,
+            loopNode,
+            incomingFlowId,
+            query.GetDefaultNormalOutgoingFlow(context.Plan, loopNode.ObjectId, loopNode.CollectionId)?.FlowId,
+            status,
+            outerLoopIteration,
+            loopResult.Error is null ? null : ToNavigationError(loopResult.Error, incomingFlowId),
+            message,
+            output: loopResult.OutputPreview);
+        if (loopResult.Status is MicroflowLoopExecutionStatus.Failed or MicroflowLoopExecutionStatus.MaxIterationsExceeded)
+        {
+            return NavigationSignal.Failed(loopResult.Error is null ? Error(RuntimeErrorCode.RuntimeLoopDeadEnd, "Loop failed.", loopNode.ObjectId, loopNode.ActionId, incomingFlowId) : ToNavigationError(loopResult.Error, incomingFlowId));
+        }
+        if (loopResult.Status == MicroflowLoopExecutionStatus.Cancelled)
+        {
+            return NavigationSignal.Cancelled(loopResult.Error is null ? CancelledError() : ToNavigationError(loopResult.Error, incomingFlowId));
+        }
         return NavigationSignal.LoopIterationCompleted(loopNode.ObjectId);
     }
+
+    private static MicroflowLoopBodyExecutionResult ToLoopBodyExecutionResult(NavigationSignal signal)
+        => signal.Kind switch
+        {
+            NavigationSignalKind.Break => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Break },
+            NavigationSignalKind.Continue => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Continue },
+            NavigationSignalKind.Cancelled => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Cancelled, Error = signal.Error is null ? null : ToRuntimeError(signal.Error) },
+            NavigationSignalKind.MaxStepsExceeded => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.MaxStepsExceeded, Error = signal.Error is null ? null : ToRuntimeError(signal.Error) },
+            NavigationSignalKind.Failed => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Failed, Error = signal.Error is null ? null : ToRuntimeError(signal.Error) },
+            NavigationSignalKind.LoopIterationCompleted => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.IterationCompleted },
+            _ => new MicroflowLoopBodyExecutionResult { Status = MicroflowLoopBodyExecutionStatus.Success }
+        };
+
+    private static MicroflowRuntimeErrorDto ToRuntimeError(MicroflowNavigationError error)
+        => new()
+        {
+            Code = error.Code,
+            Message = error.Message,
+            ObjectId = error.ObjectId,
+            ActionId = error.ActionId,
+            FlowId = error.FlowId,
+            Details = error.Details,
+            Cause = error.Cause
+        };
+
+    private static MicroflowNavigationError ToNavigationError(MicroflowRuntimeErrorDto error, string? fallbackFlowId)
+        => new()
+        {
+            Code = error.Code,
+            Message = error.Message,
+            ObjectId = error.ObjectId,
+            ActionId = error.ActionId,
+            FlowId = error.FlowId ?? fallbackFlowId,
+            Details = error.Details,
+            Cause = error.Cause
+        };
 
     private NavigationSignal NavigateAction(
         MicroflowNavigationContext context,
@@ -555,6 +624,7 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
         var config = node.ConfigJson.Value;
         var outputName = ReadString(config, "outputVariableName")
             ?? ReadString(config, "resultVariableName")
+            ?? ReadStringByPath(config, "returnValue", "outputVariableName")
             ?? ReadStringByPath(config, "response", "handling", "outputVariableName");
         if (string.IsNullOrWhiteSpace(outputName))
         {
@@ -918,6 +988,28 @@ public sealed class MicroflowFlowNavigator : IMicroflowFlowNavigator
     {
         context.CurrentFlowId = flow.FlowId;
         context.VisitedFlowIds.Add(flow.FlowId);
+    }
+
+    private static JsonElement? WithLoopControl(JsonElement? loopIteration, string controlSignal)
+    {
+        if (!loopIteration.HasValue || loopIteration.Value.ValueKind != JsonValueKind.Object)
+        {
+            return loopIteration;
+        }
+
+        var values = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["controlSignal"] = controlSignal
+        };
+        foreach (var property in loopIteration.Value.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, "controlSignal", StringComparison.Ordinal))
+            {
+                values[property.Name] = property.Value.Clone();
+            }
+        }
+
+        return JsonSerializer.SerializeToElement(values, JsonOptions);
     }
 
     private static void DisposeErrorScopeIfAny(MicroflowNavigationContext context)

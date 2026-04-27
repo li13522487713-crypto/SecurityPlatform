@@ -112,3 +112,11 @@ P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`actio
 - `issue.id` 由 `code + objectId + flowId + actionId + parameterId + collectionId + fieldPath` 哈希生成，保持相对稳定。
 - 当前表达式与变量作用域是基础版：扫描 `$variable` / `$object/member`、必填表达式、未闭合字符串和未知变量/成员；完整表达式执行器和变量作用域图留 Runtime 前深化。
 - `edit/save/publish/testRun` mode 已生效：`edit` 对部分未完成配置降级 warning；`testRun` 对 unsupported/modeledOnly P0 执行阻断类问题按 error 返回。
+
+## 第 55 轮 Loop Validation 对齐
+
+- `iterableList` 要求 `loopSource.listVariableName` 必填、存在且类型为 `list`，`iteratorVariableName` 必填且满足变量名正则。
+- `whileCondition` 要求 `loopSource.expression` 必填；Runtime 会按 boolean expectedType 再做最终求值校验。
+- loop body 仍禁止 StartEvent / EndEvent；Runtime 若遇到缺失 body entry 或 dead-end 返回 `RUNTIME_LOOP_BODY_NOT_FOUND` / `RUNTIME_LOOP_DEAD_END`。
+- Break / Continue 必须位于 loop 内且不允许 outgoing；Runtime 兜底错误码为 `RUNTIME_LOOP_CONTROL_OUT_OF_SCOPE`。
+- loop internal flow 不能跨 collection；testRun / publish mode 下 loop 相关阻断类问题保持 error。

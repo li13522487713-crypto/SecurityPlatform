@@ -7,6 +7,8 @@ public interface IMicroflowResourceRepository
 {
     Task<MicroflowResourceEntity?> GetByIdAsync(string id, CancellationToken cancellationToken);
 
+    Task<MicroflowResourceEntity?> GetByQualifiedNameAsync(string? workspaceId, string qualifiedName, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<MicroflowResourceEntity>> ListAsync(MicroflowResourceQueryDto query, CancellationToken cancellationToken);
 
     Task<int> CountAsync(MicroflowResourceQueryDto query, CancellationToken cancellationToken);

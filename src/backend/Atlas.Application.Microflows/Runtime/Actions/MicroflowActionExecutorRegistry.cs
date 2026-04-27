@@ -1,11 +1,13 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Application.Microflows.Runtime.Actions;
 
 public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRegistry
 {
     private readonly Dictionary<string, IMicroflowActionExecutor> _executors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IServiceProvider? _serviceProvider;
     private readonly IMicroflowActionExecutor _fallback = new ConfiguredMicroflowActionExecutor(Descriptor(
         "unknown",
         "MicroflowGenericAction",
@@ -21,8 +23,9 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
         producesTransaction: false,
         producesRuntimeCommand: false));
 
-    public MicroflowActionExecutorRegistry()
+    public MicroflowActionExecutorRegistry(IServiceProvider? serviceProvider = null)
     {
+        _serviceProvider = serviceProvider;
         foreach (var descriptor in BuiltInDescriptors())
         {
             Register(new ConfiguredMicroflowActionExecutor(descriptor));
@@ -37,6 +40,16 @@ public sealed class MicroflowActionExecutorRegistry : IMicroflowActionExecutorRe
 
     public bool TryGet(string? actionKind, out IMicroflowActionExecutor executor)
     {
+        if (string.Equals(actionKind, "callMicroflow", StringComparison.OrdinalIgnoreCase))
+        {
+            var specialized = _serviceProvider?.GetService<CallMicroflowActionExecutor>();
+            if (specialized is not null)
+            {
+                executor = specialized;
+                return true;
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(actionKind) && _executors.TryGetValue(actionKind, out var resolved))
         {
             executor = resolved;

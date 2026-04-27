@@ -124,3 +124,10 @@
 - WebService / XML / Workflow / Document / ML / ExternalObject / Java 等 connector-backed action 缺 capability 时返回 `RUNTIME_CONNECTOR_REQUIRED`。
 - Nanoflow-only 与 unknown action 走 `ExplicitUnsupportedActionExecutor`，返回 `RUNTIME_UNSUPPORTED_ACTION`，不再 silent skip。
 - `MicroflowValidationService` 通过 `MicroflowActionSupportMatrix` 与 Registry 对齐；自动化验证入口：`scripts/verify-microflow-action-executors-full-coverage.ts`。
+
+## 第 55 轮 Loop Runtime 闭环
+
+- 新增 `Runtime/Loops`：`IMicroflowLoopExecutor`、`MicroflowLoopExecutor`、`MicroflowLoopExecutionContext`、`MicroflowLoopIterationContext`、`MicroflowLoopExecutionResult` 与 `MicroflowLoopControlSignal`。
+- FlowNavigator 与 TestRun 均接入真实 iterable / while 语义；loop body 仍通过统一 runtime path 执行 action、decision、nested loop 与 error handler。
+- ActionExecutorRegistry 不引入 Batch/Parallel 概念；现有 batch/parallel 类 action 仍只属于 ActionExecutor coverage，不影响 Mendix Microflow Loop 语义。
+- 自动化入口：`scripts/verify-microflow-loop-runtime.ts`；`.http` 增加 Round 55 iterable loop 与 while false 示例。

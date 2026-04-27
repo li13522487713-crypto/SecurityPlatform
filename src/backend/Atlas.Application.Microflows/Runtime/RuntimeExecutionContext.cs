@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Runtime.Calls;
 using Atlas.Application.Microflows.Runtime.Security;
 using Atlas.Application.Microflows.Runtime.Transactions;
 
@@ -47,6 +48,12 @@ public sealed class RuntimeExecutionContext
     public string? CurrentLoopObjectId { get; set; }
     public int StepIndex { get; set; }
     public Stack<string> CallStack { get; } = new();
+    public List<MicroflowCallStackFrame> CallStackFrames { get; } = [];
+    public MicroflowCallStackFrame? CurrentCallFrame { get; set; }
+    public int MaxCallDepth { get; init; } = 10;
+    public string CallCorrelationId { get; init; } = Guid.NewGuid().ToString("N");
+    public string? ParentRunId { get; init; }
+    public string RootRunId { get; init; } = string.Empty;
     public Stack<MicroflowVariableScopeFrame> LoopStack { get; } = new();
     public Stack<MicroflowVariableScopeFrame> ErrorStack { get; } = new();
     public MicroflowRuntimeTransactionContext? Transaction { get; set; }
@@ -58,6 +65,7 @@ public sealed class RuntimeExecutionContext
     public object? TransactionContext => Transaction;
     public MicroflowRequestContext SecurityContext { get; init; } = new();
     public MicroflowRuntimeSecurityContext RuntimeSecurityContext { get; init; } = MicroflowRuntimeSecurityContext.System();
+    public MicroflowMetadataCatalogDto? MetadataCatalog { get; init; }
     public string? MetadataVersion { get; init; }
     public DateTimeOffset StartedAt { get; }
     public IReadOnlyList<MicroflowVariableStoreDiagnostic> Diagnostics => VariableStore.Diagnostics;
@@ -70,7 +78,14 @@ public sealed class RuntimeExecutionContext
         MicroflowRequestContext? securityContext,
         DateTimeOffset startedAt,
         IMicroflowTransactionManager? transactionManager = null,
-        MicroflowRuntimeTransactionOptions? transactionOptions = null)
+        MicroflowRuntimeTransactionOptions? transactionOptions = null,
+        string? parentRunId = null,
+        string? rootRunId = null,
+        string? callCorrelationId = null,
+        int maxCallDepth = 10,
+        MicroflowMetadataCatalogDto? metadataCatalog = null,
+        MicroflowCallStackFrame? currentCallFrame = null,
+        IReadOnlyList<MicroflowCallStackFrame>? callStackFrames = null)
     {
         var store = new MicroflowVariableStore(() => DateTimeOffset.UtcNow);
         var context = new RuntimeExecutionContext(runId, executionPlan, store, startedAt)
@@ -79,8 +94,18 @@ public sealed class RuntimeExecutionContext
             SecurityContext = securityContext ?? new MicroflowRequestContext(),
             RuntimeSecurityContext = MicroflowRuntimeSecurityContext.FromRequestContext(securityContext, applyEntityAccess: true),
             TransactionManager = transactionManager,
-            TransactionOptions = transactionOptions
+            TransactionOptions = transactionOptions,
+            ParentRunId = parentRunId,
+            RootRunId = string.IsNullOrWhiteSpace(rootRunId) ? runId : rootRunId!,
+            CallCorrelationId = string.IsNullOrWhiteSpace(callCorrelationId) ? Guid.NewGuid().ToString("N") : callCorrelationId!,
+            MaxCallDepth = maxCallDepth,
+            MetadataCatalog = metadataCatalog,
+            CurrentCallFrame = currentCallFrame
         };
+        if (callStackFrames is not null)
+        {
+            context.CallStackFrames.AddRange(callStackFrames);
+        }
 
         context.InitializeParameters(input ?? new Dictionary<string, JsonElement>());
         context.InitializeSystemVariables();
@@ -98,7 +123,9 @@ public sealed class RuntimeExecutionContext
         string? iteratorVariableName,
         int index,
         JsonElement? iteratorRawValue,
-        string? iteratorPreview = null)
+        string? iteratorPreview = null,
+        string? iteratorDataTypeJson = null,
+        bool defineIterator = true)
     {
         var frame = new MicroflowVariableScopeFrame
         {
@@ -110,21 +137,26 @@ public sealed class RuntimeExecutionContext
         var lease = VariableStore.PushScope(frame);
         LoopStack.Push(frame);
         var iteratorName = string.IsNullOrWhiteSpace(iteratorVariableName) ? "$iterator" : iteratorVariableName!;
-        VariableStore.Define(new MicroflowVariableDefinition
+        if (defineIterator)
         {
-            Name = iteratorName,
-            DataTypeJson = JsonSerializer.Serialize(new { kind = "object" }, JsonOptions),
-            RawValueJson = iteratorRawValue.HasValue
-                ? iteratorRawValue.Value.GetRawText()
-                : JsonSerializer.Serialize(new { id = $"{loopObjectId}-item-{index}", index }, JsonOptions),
-            ValuePreview = iteratorPreview ?? $"{iteratorName}[{index}]",
-            SourceKind = MicroflowVariableSourceKind.LoopIterator,
-            CollectionId = collectionId,
-            LoopObjectId = loopObjectId,
-            ScopeKind = MicroflowVariableScopeKind.Loop,
-            Readonly = true,
-            AllowShadowing = true
-        });
+            VariableStore.Define(new MicroflowVariableDefinition
+            {
+                Name = iteratorName,
+                DataTypeJson = string.IsNullOrWhiteSpace(iteratorDataTypeJson)
+                    ? JsonSerializer.Serialize(new { kind = "object" }, JsonOptions)
+                    : iteratorDataTypeJson,
+                RawValueJson = iteratorRawValue.HasValue
+                    ? iteratorRawValue.Value.GetRawText()
+                    : JsonSerializer.Serialize(new { id = $"{loopObjectId}-item-{index}", index }, JsonOptions),
+                ValuePreview = iteratorPreview ?? $"{iteratorName}[{index}]",
+                SourceKind = MicroflowVariableSourceKind.LoopIterator,
+                CollectionId = collectionId,
+                LoopObjectId = loopObjectId,
+                ScopeKind = MicroflowVariableScopeKind.Loop,
+                Readonly = true,
+                AllowShadowing = true
+            });
+        }
         VariableStore.Define(new MicroflowVariableDefinition
         {
             Name = "$currentIndex",

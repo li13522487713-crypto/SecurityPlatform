@@ -93,3 +93,11 @@ FlowNavigator 生成 `MicroflowNavigationStep` 与 `MicroflowNavigationTraceFram
 - `durationMs`
 
 Connector missing 的 `TraceFrame.error.code` 为 `RUNTIME_CONNECTOR_REQUIRED`；Nanoflow-only / unknown action 的错误码为 `RUNTIME_UNSUPPORTED_ACTION`。DebugPanel 无需协议改造，继续展示 output JSON。
+
+## 第 55 轮 Loop Trace / DebugPanel
+
+- Loop body frame 的 `loopIteration` 至少包含 `loopObjectId`、`collectionId`、`index`、`iteratorVariableName`、`iteratorValuePreview`、`parentLoopObjectId`、`depth`、`controlSignal`、`conditionResult`、`itemCount`。
+- `BreakEvent` / `ContinueEvent` trace message 分别为 `Break loop.` / `Continue loop.`，并写 `loopIteration.controlSignal`。
+- iterable loop 的 action frame snapshot 可展示 iterator 与 `$currentIndex`；loop scope pop 后后续 frame 不再展示这些变量。
+- while loop 在 summary output 展示 mode、conditionResult 与 iteration 计数；condition error 写稳定 RuntimeErrorCode。
+- Runtime highlight 仍使用 `objectId` + `collectionId` 定位 loop internal node，不引入 FlowGram JSON。

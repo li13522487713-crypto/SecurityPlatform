@@ -484,6 +484,10 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                 {
                     Add(context, MicroflowValidationCodes.VariableNotFound, $"Loop listVariableName 不存在：{listVariable}", "variables", $"{loop.FieldPath}.loopSource.listVariableName", objectId: loop.Id);
                 }
+                else if (!string.Equals(ReadKind(variables[listVariable].Type), "list", StringComparison.OrdinalIgnoreCase))
+                {
+                    Add(context, MicroflowValidationCodes.VariableTypeMismatch, $"Loop listVariableName 必须引用 list 变量：{listVariable}", "variables", $"{loop.FieldPath}.loopSource.listVariableName", objectId: loop.Id);
+                }
 
                 var iterator = MicroflowSchemaReader.ReadString(source, "iteratorVariableName");
                 if (string.IsNullOrWhiteSpace(iterator) || !VariableNameRegex.IsMatch(iterator))
@@ -584,16 +588,24 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
                     break;
                 case "callMicroflow":
                     var targetId = MicroflowSchemaReader.ReadString(action.Raw, "targetMicroflowId");
-                    if (string.IsNullOrWhiteSpace(targetId))
+                    var targetQualifiedName = MicroflowSchemaReader.ReadString(action.Raw, "targetMicroflowQualifiedName");
+                    var targetKey = targetId ?? targetQualifiedName;
+                    MetadataMicroflowRefDto? targetMicroflow = null;
+                    if (string.IsNullOrWhiteSpace(targetKey))
                     {
-                        Add(context, MicroflowValidationCodes.CallMicroflowTargetMissing, "targetMicroflowId 不能为空。", "action", $"{action.FieldPath}.targetMicroflowId", objectId: obj.Id, actionId: action.Id);
+                        Add(context, MicroflowValidationCodes.CallMicroflowTargetMissing, "targetMicroflowId 或 targetMicroflowQualifiedName 不能为空。", "action", $"{action.FieldPath}.targetMicroflowId", objectId: obj.Id, actionId: action.Id);
                     }
-                    else if (context.Metadata.Microflows.All(mf => mf.Id != targetId && mf.QualifiedName != targetId))
+                    else
                     {
-                        Add(context, MicroflowValidationCodes.MetadataMicroflowNotFound, $"目标微流不存在：{targetId}", "metadata", $"{action.FieldPath}.targetMicroflowId", objectId: obj.Id, actionId: action.Id);
+                        targetMicroflow = context.Metadata.Microflows.FirstOrDefault(mf => mf.Id == targetKey || mf.QualifiedName == targetKey);
+                        if (targetMicroflow is null)
+                        {
+                            Add(context, MicroflowValidationCodes.MetadataMicroflowNotFound, $"目标微流不存在：{targetKey}", "metadata", $"{action.FieldPath}.targetMicroflowId", objectId: obj.Id, actionId: action.Id);
+                        }
                     }
 
-                    ValidateParameterMappingExpressions(context, obj, action, variables);
+                    ValidateParameterMappingExpressions(context, obj, action, variables, targetMicroflow);
+                    ValidateCallMicroflowReturn(context, obj, action, targetMicroflow, variables);
                     break;
                 case "restCall":
                     RequireActionField(context, obj, action, "request.method", MicroflowValidationCodes.RestMethodMissing);
@@ -758,7 +770,8 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
 
         if (action.Kind == "callMicroflow")
         {
-            var target = MicroflowSchemaReader.ReadString(action.Raw, "targetMicroflowId");
+            var target = MicroflowSchemaReader.ReadString(action.Raw, "targetMicroflowId")
+                ?? MicroflowSchemaReader.ReadString(action.Raw, "targetMicroflowQualifiedName");
             var microflow = context.Metadata.Microflows.FirstOrDefault(m => m.Id == target || m.QualifiedName == target);
             return microflow?.ReturnType ?? MicroflowSeedMetadataCatalog.UnknownType("call microflow return type unknown");
         }
@@ -802,18 +815,81 @@ public sealed class MicroflowValidationService : IMicroflowValidationService
         }
     }
 
-    private static void ValidateParameterMappingExpressions(MicroflowValidationContext context, MicroflowObjectModel obj, MicroflowActionModel action, Dictionary<string, VariableInfo> variables)
+    private static void ValidateParameterMappingExpressions(MicroflowValidationContext context, MicroflowObjectModel obj, MicroflowActionModel action, Dictionary<string, VariableInfo> variables, MetadataMicroflowRefDto? targetMicroflow)
     {
+        var mapped = new HashSet<string>(StringComparer.Ordinal);
         if (!action.Raw.TryGetProperty("parameterMappings", out var mappings) || mappings.ValueKind != JsonValueKind.Array)
         {
+            if (targetMicroflow is not null)
+            {
+                foreach (var required in targetMicroflow.Parameters.Where(parameter => parameter.Required))
+                {
+                    Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, $"缺少必填参数映射：{required.Name}", "action", $"{action.FieldPath}.parameterMappings", objectId: obj.Id, actionId: action.Id);
+                }
+            }
             return;
         }
 
         var index = 0;
         foreach (var mapping in mappings.EnumerateArray())
         {
-            ValidateExpression(context, obj, action, ReadExpressionText(mapping, "argumentExpression"), $"{action.FieldPath}.parameterMappings.{index}.argumentExpression", variables, required: true);
+            var parameterName = MicroflowSchemaReader.ReadString(mapping, "parameterName");
+            var targetParameter = targetMicroflow?.Parameters.FirstOrDefault(parameter => string.Equals(parameter.Name, parameterName, StringComparison.Ordinal));
+            if (string.IsNullOrWhiteSpace(parameterName))
+            {
+                Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, "parameterName 不能为空。", "action", $"{action.FieldPath}.parameterMappings.{index}.parameterName", objectId: obj.Id, actionId: action.Id);
+            }
+            else if (targetMicroflow is not null && targetParameter is null)
+            {
+                Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, $"目标微流不存在参数：{parameterName}", "action", $"{action.FieldPath}.parameterMappings.{index}.parameterName", objectId: obj.Id, actionId: action.Id);
+            }
+            else
+            {
+                mapped.Add(parameterName!);
+            }
+
+            ValidateExpression(context, obj, action, ReadExpressionText(mapping, "argumentExpression") ?? ReadExpressionText(mapping, "expression"), $"{action.FieldPath}.parameterMappings.{index}.argumentExpression", variables, required: true);
             index++;
+        }
+
+        if (targetMicroflow is not null)
+        {
+            foreach (var required in targetMicroflow.Parameters.Where(parameter => parameter.Required && !mapped.Contains(parameter.Name)))
+            {
+                Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, $"缺少必填参数映射：{required.Name}", "action", $"{action.FieldPath}.parameterMappings", objectId: obj.Id, actionId: action.Id);
+            }
+        }
+    }
+
+    private static void ValidateCallMicroflowReturn(MicroflowValidationContext context, MicroflowObjectModel obj, MicroflowActionModel action, MetadataMicroflowRefDto? targetMicroflow, Dictionary<string, VariableInfo> variables)
+    {
+        if (targetMicroflow is null)
+        {
+            return;
+        }
+
+        var storeResult = action.Raw.TryGetProperty("returnValue", out var returnValue)
+            && MicroflowSchemaReader.ReadBool(returnValue, "storeResult");
+        var outputVariableName = MicroflowSchemaReader.ReadStringByPath(action.Raw, "returnValue", "outputVariableName")
+            ?? MicroflowSchemaReader.ReadString(action.Raw, "outputVariableName");
+        var returnKind = targetMicroflow.ReturnType.ValueKind == JsonValueKind.Object
+            ? MicroflowSchemaReader.ReadString(targetMicroflow.ReturnType, "kind")
+            : "unknown";
+        if (storeResult && string.IsNullOrWhiteSpace(outputVariableName))
+        {
+            Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, "storeResult=true 时 outputVariableName 不能为空。", "action", $"{action.FieldPath}.returnValue.outputVariableName", objectId: obj.Id, actionId: action.Id);
+        }
+
+        if (storeResult && string.Equals(returnKind, "void", StringComparison.OrdinalIgnoreCase))
+        {
+            Add(context, MicroflowValidationCodes.ActionRequiredFieldMissing, "void 返回微流不能 storeResult。", "action", $"{action.FieldPath}.returnValue.storeResult", objectId: obj.Id, actionId: action.Id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(outputVariableName)
+            && variables.TryGetValue(outputVariableName!, out var existing)
+            && !string.Equals(existing.ActionId, action.Id, StringComparison.Ordinal))
+        {
+            Add(context, MicroflowValidationCodes.VariableDuplicated, $"变量 {outputVariableName} 重复。", "variables", $"{action.FieldPath}.returnValue.outputVariableName", objectId: obj.Id, actionId: action.Id);
         }
     }
 

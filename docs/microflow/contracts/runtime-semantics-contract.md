@@ -95,3 +95,14 @@ Runtime 从 P0 placeholder 扩展为全量 action 行为分派：
 - ExpressionEvaluator、Object CRUD metadata plan 与后续 CallMicroflow 均复用同一个 resolution context，unknown metadata 返回 diagnostic，不抛 NullReference。
 - EntityAccess 当前只做 stub decision：system context 与 `applyEntityAccess=false` 可 bypass 但必须记录 decision source；普通 user 由 configured mode 判断。
 - 本轮不做完整权限系统、真实 CRUD、真实事务、真实 REST、完整 Domain Model 管理器。
+
+## 第 55 轮 Runtime Loop 语义
+
+- 新增 `IMicroflowLoopExecutor` / `MicroflowLoopExecutor`，Loop 执行只消费 `MicroflowExecutionPlan.loopCollections` 与 `RuntimeExecutionContext`，不读取 FlowGram JSON，也不改 AuthoringSchema。
+- `iterableList` 从 VariableStore 读取 `loopSource.listVariableName`，变量缺失返回 `RUNTIME_VARIABLE_NOT_FOUND`，非 list 返回 `RUNTIME_LOOP_SOURCE_NOT_LIST`；空 list 迭代 0 次并走 LoopedActivity normal outgoing。
+- 每次 iteration push loop scope，写入 iterator 与 readonly/system `$currentIndex`；iteration 结束 pop scope，loop-local action output 默认不外泄。
+- `whileCondition` 每轮执行 ExpressionEvaluator，期望 boolean；false 退出，求值失败返回 `RUNTIME_LOOP_CONDITION_ERROR`，非 boolean 返回 `RUNTIME_LOOP_CONDITION_NOT_BOOLEAN`。
+- `BreakEvent` / `ContinueEvent` 在 loop 外返回 `RUNTIME_LOOP_CONTROL_OUT_OF_SCOPE`；在 loop 内只作用于最近 loop，break 后执行 LoopedActivity normal outgoing，continue 跳到下一 iteration。
+- Nested loop 通过 Runtime loop scope stack 隔离；`$currentIndex` 解析最近 loop，外层 iterator 在内层仍可见，内层同名变量按 scope shadow 处理。
+- `maxIterations` 与既有 `maxSteps` 同时生效，超限返回 `RUNTIME_LOOP_MAX_ITERATIONS_EXCEEDED` 或 `RUNTIME_MAX_STEPS_EXCEEDED`，不允许 silent infinite loop。
+- 本轮不做 CallMicroflow 深度递归、真实 REST 深化、完整 ErrorHandling rollback 事务语义或真实 ObjectStore/权限专项；第 56-58 轮应复用本轮 loop scope、trace 与控制信号。

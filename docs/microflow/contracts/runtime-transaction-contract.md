@@ -36,3 +36,10 @@
 - `CreateObjectActionExecutor` / `ChangeMembersActionExecutor` / `DeleteActionExecutor` / `CommitActionExecutor` / `RollbackActionExecutor` 继续通过 `TransactionManager` 记录对象变更。
 - List、Variable、Client RuntimeCommand、ConnectorBacked、ExplicitUnsupported action 不直接写业务事务；如后续 connector 返回对象变更，也必须回到同一 `RuntimeExecutionContext.Transaction`。
 - `TraceFrame.output.transaction` 与第 54 阶段 `executorCategory/supportLevel/runtimeCommands/connectorRequests` 可以共存，DebugPanel 只按 JSON 展示。
+
+## 第 55 轮 Loop Transaction
+
+- Loop 不创建独立 transaction；`singleRunTransaction` 下所有 iteration 共享同一个 `RuntimeExecutionContext.Transaction`。
+- Loop body 内 `CreateObject`、`ChangeMembers`、`Commit`、`Delete`、`RollbackAction` 继续写 TransactionManager log，并在对应 action trace output 中带 transaction preview。
+- `BreakEvent` / `ContinueEvent` 不自动 commit 或 rollback；已 staged 的 changes 保留在当前 run transaction 中，完整 error rollback 策略留第 58 轮。
+- Loop summary 可通过 `RuntimeExecutionContext.CreateTransactionSnapshot("loop")` 输出当前 transaction preview，RunSession transaction summary 包含 loop 内变更。

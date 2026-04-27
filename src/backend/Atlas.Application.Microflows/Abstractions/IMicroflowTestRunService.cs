@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Atlas.Application.Microflows.Contracts;
 using Atlas.Application.Microflows.Models;
+using Atlas.Application.Microflows.Runtime;
+using Atlas.Application.Microflows.Runtime.Calls;
 
 namespace Atlas.Application.Microflows.Abstractions;
 
@@ -50,4 +52,12 @@ public sealed record MicroflowMockRuntimeRequest
     public MicroflowMetadataCatalogDto? Metadata { get; init; }
 
     public MicroflowRequestContext RequestContext { get; init; } = new();
+
+    public RuntimeExecutionContext? ParentRuntimeContext { get; init; }
+
+    public MicroflowCallStackFrame? CallFrame { get; init; }
+
+    public string TransactionBoundary { get; init; } = MicroflowCallTransactionBoundary.Inherit;
+
+    public int MaxCallDepth { get; init; } = 10;
 }

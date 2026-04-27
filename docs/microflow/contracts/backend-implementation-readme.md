@@ -227,6 +227,14 @@
 - FlowNavigator 的 ActionActivity 输出包含 executorCategory/supportLevel/runtimeCommands/connectorRequests，不再只写模糊 placeholder。
 - 新增 `scripts/verify-microflow-action-executors-full-coverage.ts` 与 `MicroflowActionExecutorRegistryTests` 覆盖全量矩阵、RuntimeCommand、connector required 和 fallback unsupported。
 
+## 第 55 轮 Runtime Loop Backend
+
+- 后端新增 `Runtime/Loops` 执行器族，并在 DI 中注册 `IMicroflowLoopExecutor`。
+- `MicroflowFlowNavigator` 的 LoopedActivity 不再固定模拟次数，改为委托 `MicroflowLoopExecutor` 读取 VariableStore list 或执行 while expression。
+- `MicroflowMockRuntimeRunner` 对 TestRun 同步实现 iterable / while / break / continue，DebugPanel 可通过 trace 看到 iteration、iterator、`$currentIndex` 与 control signal。
+- `RuntimeErrorCode` 新增 loop source、condition、iterator、control out-of-scope、body missing、dead-end、maxIterations 等稳定错误码。
+- 第 56 轮 CallMicroflow / CallStack 应复用当前 `RuntimeExecutionContext` 与 loop scope，不再新建第二套变量栈。
+
 ## 未知项
 
 - 多区域复制与**最终一致**的 catalog 版本传播（可后续在 `metadata` 上扩展 ETag）。
