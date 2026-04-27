@@ -1,6 +1,6 @@
 import "./studio.css";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconArrowRight } from "@douyinfe/semi-icons";
 
@@ -20,7 +20,7 @@ import { RightInspectorRail } from "./components/right-inspector-rail";
 import { BottomPanel } from "./components/bottom-panel";
 import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
-import { MicroflowWorkbenchPlaceholder } from "./microflow/studio/MicroflowWorkbenchPlaceholder";
+import { StudioEmbeddedMicroflowEditor } from "./microflow/studio/StudioEmbeddedMicroflowEditor";
 
 export interface MendixStudioAppProps {
   appId?: string;
@@ -47,16 +47,9 @@ export function MendixStudioApp({
       ? state.workbenchTabs.find(tab => tab.id === state.activeWorkbenchTabId)
       : undefined
   );
-  const activeMicroflow = useMendixStudioStore(state => {
-    const activeTab = state.activeWorkbenchTabId
-      ? state.workbenchTabs.find(tab => tab.id === state.activeWorkbenchTabId)
-      : undefined;
-    const microflowId = activeTab?.kind === "microflow"
-      ? activeTab.microflowId ?? activeTab.resourceId
-      : undefined;
-    return microflowId ? state.microflowResourcesById[microflowId] : undefined;
-  });
   const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
+  const updateStudioMicroflowFromResource = useMendixStudioStore(state => state.updateStudioMicroflowFromResource);
+  const markWorkbenchTabDirty = useMendixStudioStore(state => state.markWorkbenchTabDirty);
 
   // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
   const _resolvedBundle = useMemo<MicroflowAdapterBundle | undefined>(() => {
@@ -80,6 +73,15 @@ export function MendixStudioApp({
   }, [appId, workspaceId, setStudioContext]);
 
   const isMicroflow = activeWorkbenchTab?.kind === "microflow";
+  const activeMicroflowId = isMicroflow
+    ? activeWorkbenchTab.microflowId ?? activeWorkbenchTab.resourceId
+    : undefined;
+
+  const handleMicroflowDirtyChange = useCallback((dirty: boolean) => {
+    if (activeWorkbenchTab?.id) {
+      markWorkbenchTabDirty(activeWorkbenchTab.id, dirty);
+    }
+  }, [activeWorkbenchTab?.id, markWorkbenchTabDirty]);
 
   return (
     <div
@@ -137,8 +139,15 @@ export function MendixStudioApp({
               {/* 内容区 */}
               {isMicroflow ? (
                 <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-                  {activeMicroflow ? (
-                    <MicroflowWorkbenchPlaceholder microflow={activeMicroflow} />
+                  {activeMicroflowId ? (
+                    <StudioEmbeddedMicroflowEditor
+                      microflowId={activeMicroflowId}
+                      workspaceId={workspaceId}
+                      moduleId={activeWorkbenchTab.moduleId}
+                      adapterBundle={_resolvedBundle}
+                      onResourceUpdated={updateStudioMicroflowFromResource}
+                      onDirtyChange={handleMicroflowDirtyChange}
+                    />
                   ) : (
                     <div
                       style={{
@@ -150,10 +159,10 @@ export function MendixStudioApp({
                       }}
                     >
                       <Card style={{ width: 420, borderRadius: 12 }}>
-                        <Text strong>微流资源不可用</Text>
+                        <Text strong>微流 Workbench tab 缺少 microflowId</Text>
                         <div style={{ marginTop: 8 }}>
                           <Text type="tertiary" size="small">
-                            当前 Workbench tab 指向的真实微流资源不存在，可能已被删除或列表尚未刷新。
+                            无法加载真实 schema，请关闭该 tab 后从 App Explorer 重新打开真实微流。
                           </Text>
                         </div>
                       </Card>

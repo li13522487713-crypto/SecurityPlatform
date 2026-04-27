@@ -90,16 +90,16 @@ export function WorkbenchToolbar() {
         )}
       </div>
 
-      {/* Stage 05 仅显示真实微流上下文，真实画布与沉浸编辑在 Stage 06 接入。 */}
+      {/* 嵌入式微流编辑器自身提供保存、校验和画布工具栏。 */}
       {isMicroflowWorkbench && (
         <button
           type="button"
           className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--with-label studio-workbench-toolbar__btn--disabled"
-          title="Stage 06 将接入真实微流 schema 加载与画布编辑"
+          title="微流画布工具栏位于嵌入式编辑器内部"
           disabled
         >
           <IconFullScreenStroked style={{ fontSize: 15, flexShrink: 0 }} aria-hidden />
-          <span className="studio-workbench-toolbar__btn-label">Stage 06 画布接入</span>
+          <span className="studio-workbench-toolbar__btn-label">真实微流编辑中</span>
         </button>
       )}
 

@@ -1,5 +1,4 @@
 import {
-  createLocalMicroflowApiClient,
   type CreateMicroflowInput as RuntimeCreateMicroflowInput,
   type MicroflowApiClient,
   type MicroflowResource as RuntimeMicroflowResource,
@@ -12,6 +11,10 @@ import {
 
 import type { MicroflowResourceAdapter } from "../adapter/microflow-resource-adapter";
 import type { MicroflowResource } from "../resource/resource-types";
+
+function unavailableRuntimeMethod(name: string): never {
+  throw new Error(`${name} 需要真实 runtimeAdapter；当前 Stage 06 仅接入真实 schema 加载与保存。`);
+}
 
 function toRuntimeResource(resource: MicroflowResource): RuntimeMicroflowResource {
   return {
@@ -33,9 +36,8 @@ function toRuntimeResource(resource: MicroflowResource): RuntimeMicroflowResourc
 }
 
 export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter, resource: MicroflowResource, runtimeAdapter?: MicroflowApiClient): MicroflowApiClient {
-  const local = runtimeAdapter ?? createLocalMicroflowApiClient([resource.schema]);
   return {
-    ...local,
+    ...(runtimeAdapter ?? {}),
     async listMicroflows() {
       const result = await adapter.listMicroflows({});
       return result.items.map(toRuntimeResource);
@@ -62,6 +64,9 @@ export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter
       return toRuntimeResource(loaded);
     },
     async loadMicroflow(id: string) {
+      if (runtimeAdapter) {
+        return runtimeAdapter.loadMicroflow(id);
+      }
       const loaded = await adapter.getMicroflow(id);
       if (!loaded) {
         throw new Error(`Microflow ${id} was not found.`);
@@ -119,6 +124,24 @@ export function createMicroflowEditorApiClient(adapter: MicroflowResourceAdapter
         sourceId: reference.sourceId ?? reference.sourcePath ?? reference.id,
         updatedAt: new Date().toISOString()
       }));
+    },
+    async validateMicroflow(request) {
+      return runtimeAdapter?.validateMicroflow(request) ?? unavailableRuntimeMethod("validateMicroflow");
+    },
+    async testRunMicroflow(request) {
+      return runtimeAdapter?.testRunMicroflow(request) ?? unavailableRuntimeMethod("testRunMicroflow");
+    },
+    async cancelMicroflowRun(runId: string) {
+      return runtimeAdapter?.cancelMicroflowRun(runId) ?? unavailableRuntimeMethod("cancelMicroflowRun");
+    },
+    async getMicroflowRunSession(runId: string) {
+      return runtimeAdapter?.getMicroflowRunSession(runId) ?? unavailableRuntimeMethod("getMicroflowRunSession");
+    },
+    async getMicroflowRunTrace(runId: string) {
+      return runtimeAdapter?.getMicroflowRunTrace(runId) ?? unavailableRuntimeMethod("getMicroflowRunTrace");
+    },
+    async getTrace(runId: string) {
+      return runtimeAdapter?.getTrace(runId) ?? unavailableRuntimeMethod("getTrace");
     }
   };
 }

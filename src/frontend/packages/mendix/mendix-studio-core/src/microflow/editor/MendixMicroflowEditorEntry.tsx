@@ -27,11 +27,12 @@ export interface MendixMicroflowEditorEntryProps {
   apiBaseUrl?: string;
   onSave?: (resource: MicroflowResource) => void;
   onPublish?: (resource: MicroflowResource) => void;
+  onDirtyChange?: (dirty: boolean) => void;
   onBack?: () => void;
   readonly?: boolean;
 }
 
-export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onBack, readonly }: MendixMicroflowEditorEntryProps) {
+export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter, metadataCatalog, runtimeAdapter, validationAdapter, adapterMode, apiBaseUrl, onSave, onPublish, onDirtyChange, onBack, readonly }: MendixMicroflowEditorEntryProps) {
   const [schema, setSchema] = useState<MicroflowSchema>(resource.schema);
   const [publishOpen, setPublishOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -43,22 +44,29 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
   useEffect(() => {
     setCurrentResource(resource);
     setSchema(resource.schema);
-  }, [resource]);
+    onDirtyChange?.(false);
+  }, [onDirtyChange, resource]);
 
   return (
     <div style={{ height: "100%", minHeight: 720, overflow: "hidden", background: "var(--semi-color-bg-0)" }}>
       <MicroflowEditor
+        key={`${currentResource.id}:${currentResource.schemaId}:${currentResource.version}`}
         schema={schema}
         apiClient={apiClient}
         metadataAdapter={metadataAdapter}
         metadataCatalog={metadataCatalog}
         validationAdapter={validationAdapter}
         readonly={effectiveReadonly}
-        onSchemaChange={setSchema}
+        onSchemaChange={nextSchema => {
+          setSchema(nextSchema);
+          onDirtyChange?.(true);
+        }}
         onSaveComplete={() => {
           void adapter.getMicroflow(currentResource.id).then(saved => {
             if (saved) {
               setCurrentResource(saved);
+              setSchema(saved.schema);
+              onDirtyChange?.(false);
               onSave?.(saved);
             }
           });
@@ -98,6 +106,7 @@ export function MendixMicroflowEditorEntry({ resource, adapter, metadataAdapter,
         onPublished={published => {
           setCurrentResource(published);
           setSchema(published.schema);
+          onDirtyChange?.(false);
           onPublish?.(published);
           Toast.success("微流发布成功");
         }}

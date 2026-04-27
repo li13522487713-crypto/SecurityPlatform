@@ -9,6 +9,8 @@ import { sampleOrderProcessingMicroflow } from "@atlas/microflow";
 import type { MicroflowSchema } from "@atlas/microflow";
 import { SAMPLE_PROCUREMENT_APP, SAMPLE_RUNTIME_OBJECT } from "./sample-app";
 import type { StudioMicroflowDefinitionView } from "./microflow/studio/studio-microflow-types";
+import { mapMicroflowResourceToStudioDefinitionView } from "./microflow/studio/studio-microflow-mappers";
+import type { MicroflowResource } from "./microflow/resource/resource-types";
 
 export type MendixStudioTab =
   | "domainModel"
@@ -97,10 +99,12 @@ type StudioState = {
   closeWorkbenchTab: (tabId: string) => void;
   renameMicroflowWorkbenchTab: (microflowId: string, title: string) => void;
   removeMicroflowWorkbenchTab: (microflowId: string) => void;
+  markWorkbenchTabDirty: (tabId: string, dirty: boolean) => void;
 
   /** 微流资产 CRUD action（仅更新 store 索引，不调用 API） */
   setModuleMicroflows: (moduleId: string, microflows: StudioMicroflowDefinitionView[]) => void;
   upsertStudioMicroflow: (resource: StudioMicroflowDefinitionView) => void;
+  updateStudioMicroflowFromResource: (resource: MicroflowResource) => void;
   removeStudioMicroflow: (id: string) => void;
 };
 
@@ -333,6 +337,14 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
     }
   },
 
+  markWorkbenchTabDirty: (tabId, dirty) => set({
+    workbenchTabs: get().workbenchTabs.map(tab =>
+      tab.id === tabId
+        ? { ...tab, dirty }
+        : tab
+    )
+  }),
+
   setModuleMicroflows: (moduleId, microflows) => {
     const { microflowResourcesById, microflowIdsByModuleId } = get();
     const previousIds = new Set(microflowIdsByModuleId[moduleId] ?? []);
@@ -374,6 +386,10 @@ export const useMendixStudioStore = create<StudioState>((set, get) => ({
           : tab
       )
     });
+  },
+
+  updateStudioMicroflowFromResource: resource => {
+    get().upsertStudioMicroflow(mapMicroflowResourceToStudioDefinitionView(resource));
   },
 
   removeStudioMicroflow: id => {

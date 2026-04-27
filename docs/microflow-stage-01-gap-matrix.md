@@ -13,12 +13,16 @@
 | 2 | Adapter Bundle 创建与保存 | MendixStudioApp 内未创建 bundle | 无法按真实 workspace/tenant 路由到正确后端 | **Stage 02** |
 | 3 | Studio Microflow 视图模型 | 无 | 缺少 StudioMicroflowDefinitionView 展示层类型 | **Stage 02** |
 | 4 | Store 微流资产索引骨架 | 无 | Store 中无 microflowResourcesById / idsByModuleId 索引 | **Stage 02** |
-| 5 | App Explorer 中 Microflows 分组真实管理多个微流 | Stage 04 已完成真实列表 + CRUD 入口 | 真实画布 schema load/save 仍未完成 | Stage 03-04 已完成列表/CRUD；Stage 05+ 接入画布 |
+| 5 | App Explorer 中 Microflows 分组真实管理多个微流 | Stage 04 已完成真实列表 + CRUD 入口；Stage 05-06 已接 Workbench 与真实编辑器 | Call Microflow metadata 等深度能力仍在后续阶段 | Stage 03-06 分阶段完成 |
 | 6 | 微流 CRUD 入口 | Stage 04 已完成 | 新建 / 重命名 / 复制 / 删除均已通过真实 Microflow Resource API 接入 App Explorer | **Stage 04** |
-| 7 | 点击微流真实打开指定 microflowId 的画布 | Stage 05 已完成 activeMicroflowId 驱动的 Workbench/tab 编辑上下文 | 真实 schema 加载与画布渲染仍未完成 | Stage 06 |
-| 8 | 真实保存画布 | 未接入 | schema load / save → resourceAdapter.update() 链路缺失 | Stage 06 |
-| 9 | Call Microflow 目标选择 | 静态 | 节点属性面板未接入真实微流列表 | 后续阶段 |
-| 10 | 执行引擎 / Trace | 未接入 | runtimeAdapter 链路未接前端 | 后续阶段 |
+| 7 | 点击微流真实打开指定 microflowId 的画布 | Stage 06 已完成：activeMicroflowId 打开嵌入式真实 MicroflowEditor | 深度属性与 metadata 仍在后续阶段 | **Stage 06** |
+| 8 | 画布按 microflowId 保存和加载 | Stage 06 已完成：GET resource/schema，PUT schema 保存 | 未保存切换 guard 待后续增强 | **Stage 06** |
+| 9 | 节点拖拽后真实进入当前微流定义 | Stage 06 已完成：编辑器修改当前 microflowId 的 authoring schema | 不新增节点类型 | **Stage 06** |
+| 10 | 节点位置、类型、名称、配置真实保存 | Stage 06 基础完成：随 MicroflowAuthoringSchema 保存 | 节点属性深度增强留到后续阶段 | **Stage 06 / 后续增强** |
+| 11 | 连接线可以创建、删除、保存 | Stage 06 已完成：连接线随当前微流 schema 保存 | 高级引用重建优化留到后续阶段 | **Stage 06** |
+| 12 | 节点属性面板可以编辑并保存 | Stage 06 基础完成：已有属性面板改动随 schema 保存 | Call Microflow metadata 与深度属性体验仍未接入 | 后续阶段 |
+| 13 | Call Microflow 目标选择 | 静态 | 节点属性面板未接入真实微流列表 | 后续阶段 |
+| 14 | 执行引擎 / Trace | 未接入 | runtimeAdapter 链路未作为本轮目标接入 | 后续阶段 |
 
 ---
 
