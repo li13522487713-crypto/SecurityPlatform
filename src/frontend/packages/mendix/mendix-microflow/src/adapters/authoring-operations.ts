@@ -314,7 +314,7 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       ...base,
       kind: "exclusiveSplit",
       officialType: "Microflows$ExclusiveSplit",
-      splitCondition: { kind: "expression", expression: expression("true", { kind: "boolean" }), resultType: "boolean" },
+      splitCondition: { kind: "expression", expression: expression("", { kind: "boolean" }), resultType: "boolean" },
       errorHandlingType: "rollback"
     };
   }
@@ -323,10 +323,10 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       ...base,
       kind: "inheritanceSplit",
       officialType: "Microflows$InheritanceSplit",
-      inputObjectVariableName: "object",
-      generalizedEntityQualifiedName: "System.Object",
+      inputObjectVariableName: "",
+      generalizedEntityQualifiedName: "",
       allowedSpecializations: [],
-      entity: { generalizedEntityQualifiedName: "System.Object", allowedSpecializations: [] },
+      entity: { generalizedEntityQualifiedName: "", allowedSpecializations: [] },
       errorHandlingType: "rollback"
     };
   }
@@ -348,8 +348,8 @@ export function createObjectFromRegistry(entry: MicroflowNodeRegistryEntry, posi
       loopSource: {
         kind: "iterableList",
         officialType: "Microflows$IterableList",
-        listVariableName: String(config.iterableVariableName ?? "items"),
-        iteratorVariableName: String(config.itemVariableName ?? "item"),
+        listVariableName: String(config.iterableVariableName ?? ""),
+        iteratorVariableName: String(config.itemVariableName ?? "currentItem"),
         currentIndexVariableName: "$currentIndex"
       },
       objectCollection: {
@@ -401,6 +401,13 @@ function expression(raw: string, inferredType?: MicroflowDataType): MicroflowExp
 
 function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: string, config: Record<string, unknown>): MicroflowAction {
   const registryAction = entry.activityType ? microflowActionRegistryByActivityType.get(entry.activityType) : undefined;
+  if (registryAction) {
+    return registryAction.createAction({
+      id: `action-${objectId}`,
+      config,
+      caption: entry.defaultCaption
+    });
+  }
   const kind = registryAction?.kind ?? "logMessage";
   const base = {
     id: `action-${objectId}`,

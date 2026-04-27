@@ -4,6 +4,7 @@ import {
   addMicroflowObjectFromDragPayload,
   canConnectPorts,
   createDragPayloadFromRegistryItem,
+  createDefaultActionConfig,
   defaultMicroflowNodeRegistry,
   getMicroflowNodeRegistryKey,
 } from "./node-registry";
@@ -44,6 +45,27 @@ function schemaWith(objects: MicroflowObject[], flows: MicroflowSchema["flows"] 
 }
 
 describe("microflow editor interactions", () => {
+  it("keeps node registry defaults free of demo business references", () => {
+    const demoPattern = /Sales|MF_ValidateOrder|ValidateOrder|ProcessOrder|CheckInventory|NotifyUser|OrderLine|Customer|Product|Inventory|\/api\/orders|api\.example\.com/i;
+    const defaults = defaultMicroflowNodeRegistry.map(entry => ({
+      key: getMicroflowNodeRegistryKey(entry),
+      defaultConfig: entry.defaultConfig
+    }));
+
+    expect(JSON.stringify(defaults)).not.toMatch(demoPattern);
+  });
+
+  it("creates safe pending defaults for Stage 07 governed action types", () => {
+    expect(createDefaultActionConfig("callMicroflow")).toMatchObject({
+      targetMicroflowId: "",
+      targetMicroflowQualifiedName: "",
+      parameterMappings: [],
+      configurationState: "incomplete"
+    });
+    expect(JSON.stringify(createDefaultActionConfig("createObject"))).not.toContain("Sales");
+    expect(createDefaultActionConfig("restCall")).toMatchObject({ method: "GET", url: "" });
+  });
+
   it("creates concrete objects from registry entries", () => {
     expect(createObjectFromRegistry(registry("startEvent"), { x: 0, y: 0 }).kind).toBe("startEvent");
     expect(createObjectFromRegistry(registry("activity:objectRetrieve"), { x: 100, y: 0 }).kind).toBe("actionActivity");

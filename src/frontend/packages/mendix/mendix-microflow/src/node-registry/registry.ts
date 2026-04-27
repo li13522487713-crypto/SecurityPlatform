@@ -22,14 +22,18 @@ import type {
   MicroflowValidationIssue
 } from "../schema/types";
 import { defaultMicroflowActionRegistry, microflowActionRegistryByActivityType, type MicroflowActionRegistryItem } from "./action-registry";
+import { createDefaultActivityConfig, type MicroflowNodeCreateContext } from "./default-node-config";
 
 export type MicroflowNodePanelCategoryKey =
   | "events"
-  | "decisions"
-  | "activities"
-  | "loop"
   | "parameters"
-  | "annotations";
+  | "flowControl"
+  | "variables"
+  | "objects"
+  | "lists"
+  | "integration"
+  | "documentation"
+  | "other";
 
 export type MicroflowNodeGroup = MicroflowActivityCategory;
 export type MicroflowNodeCardStatus = "default" | "hover" | "favorite" | "disabled" | "dragging";
@@ -101,6 +105,8 @@ export interface MicroflowNodeRegistryEntry<TConfig extends object = Record<stri
   keywords: string[];
   availability: MicroflowNodeAvailability;
   availabilityReason?: string;
+  disabled?: boolean | ((context: MicroflowNodeCreateContext) => boolean);
+  warning?: string | ((context: MicroflowNodeCreateContext) => string | undefined);
   defaultConfig: TConfig;
   defaultCaption?: string;
   defaultSize?: { width: number; height: number };
@@ -135,29 +141,14 @@ export type MicroflowNodeRegistryItem<TConfig extends object = Record<string, un
 
 export const microflowNodeCategoryDefinitions: MicroflowNodeCategoryDefinition[] = [
   { key: "events", label: "Events", category: "events" },
-  { key: "decisions", label: "Decisions", category: "decisions" },
-  {
-    key: "activities",
-    label: "Activities",
-    category: "activities",
-    groups: [
-      { key: "object", label: "Object" },
-      { key: "list", label: "List" },
-      { key: "call", label: "Call" },
-      { key: "variable", label: "Variable" },
-      { key: "client", label: "Client" },
-      { key: "integration", label: "Integration" },
-      { key: "logging", label: "Logging" },
-      { key: "documentGeneration", label: "Document Generation" },
-      { key: "metrics", label: "Metrics" },
-      { key: "mlKit", label: "ML Kit" },
-      { key: "workflow", label: "Workflow" },
-      { key: "externalObject", label: "External Object" }
-    ]
-  },
-  { key: "loop", label: "Loop", category: "loop" },
   { key: "parameters", label: "Parameters", category: "parameters" },
-  { key: "annotations", label: "Annotations", category: "annotations" }
+  { key: "flowControl", label: "Flow Control", category: "decisions" },
+  { key: "variables", label: "Variables", category: "activities" },
+  { key: "objects", label: "Objects", category: "activities" },
+  { key: "lists", label: "Lists / Collections", category: "activities" },
+  { key: "integration", label: "Integration", category: "activities" },
+  { key: "documentation", label: "Documentation", category: "annotations" },
+  { key: "other", label: "Other", category: "activities" }
 ];
 
 function port(id: string, label: string, direction: MicroflowPort["direction"], kind: MicroflowPortKind, cardinality: MicroflowPortCardinality, edgeTypes: MicroflowPort["edgeTypes"]): MicroflowPort {
@@ -350,53 +341,53 @@ function activityEntry(item: {
 }
 
 const activityDefinitions: Array<Parameters<typeof activityEntry>[0]> = [
-  { activityType: "objectCast", title: "Cast Object", titleZh: "转换对象", activityCategory: "object", config: { objectVariableName: "sourceObject", targetEntity: "Sales.Professor", resultVariableName: "professor" }, description: "Casts a generalized object to a specialization entity." },
-  { activityType: "objectCreate", title: "Create Object", titleZh: "创建对象", activityCategory: "object", config: { entity: "Sales.Order", objectVariableName: "newOrder" }, description: "Creates an object instance and stores it in a variable." },
-  { activityType: "objectChange", title: "Change Object", titleZh: "修改对象", activityCategory: "object", config: { objectVariableName: "order" }, description: "Changes values on an existing object." },
-  { activityType: "objectCommit", title: "Commit Object(s)", titleZh: "提交对象", activityCategory: "object", config: { objectVariableName: "order" }, description: "Persists one object or object list and optionally triggers events." },
-  { activityType: "objectDelete", title: "Delete Object(s)", titleZh: "删除对象", activityCategory: "object", config: { objectVariableName: "order" }, description: "Deletes one object or object list." },
-  { activityType: "objectRetrieve", title: "Retrieve Object(s)", titleZh: "检索对象", activityCategory: "object", config: { entity: "Sales.Order", listVariableName: "orders" }, description: "Retrieves one or more objects from association or database." },
-  { activityType: "objectRollback", title: "Rollback Object", titleZh: "回滚对象", activityCategory: "object", config: { objectVariableName: "order" }, description: "Rolls back uncommitted changes on an object or object list." },
-  { activityType: "listAggregate", title: "Aggregate List", titleZh: "列表聚合", activityCategory: "list", config: { listVariableName: "orders", operation: "count", resultVariableName: "orderCount" }, description: "Aggregates a list with count, sum, average, min, or max." },
-  { activityType: "listCreate", title: "Create List", titleZh: "创建列表", activityCategory: "list", config: { entity: "Sales.Order", listVariableName: "orders" }, description: "Creates an empty typed list variable." },
-  { activityType: "listChange", title: "Change List", titleZh: "修改列表", activityCategory: "list", config: { listVariableName: "orders", operation: "add" }, description: "Adds, removes, clears, or replaces list contents." },
-  { activityType: "listOperation", title: "List Operation", titleZh: "列表操作", activityCategory: "list", config: { listVariableName: "orders", operation: "filter" }, description: "Combines, compares, filters, sorts, or selects list items." },
-  { activityType: "callMicroflow", title: "Call Microflow", titleZh: "调用微流", activityCategory: "call", config: { targetMicroflowId: "MF_ValidateOrder" }, description: "Calls another microflow with parameter mapping.", supportedErrorHandlingTypes: ["rollback", "customWithRollback", "customWithoutRollback", "continue"] },
-  { activityType: "callJavaAction", title: "Call Java Action", titleZh: "调用 Java 动作", activityCategory: "call", config: { targetMicroflowId: "JA_Action" }, description: "Calls a server-side Java action." },
-  { activityType: "callJavaScriptAction", title: "Call JavaScript Action", titleZh: "调用 JavaScript 动作", activityCategory: "call", config: { targetMicroflowId: "JS_ClientAction" }, description: "Nanoflow-only JavaScript action, disabled in Microflow.", availability: "nanoflowOnlyDisabled" },
-  { activityType: "variableCreate", title: "Create Variable", titleZh: "创建变量", activityCategory: "variable", config: { variableName: "result", variableType: { kind: "primitive", name: "String" } }, description: "Creates a local microflow variable.", supportsErrorHandling: false },
-  { activityType: "variableChange", title: "Change Variable", titleZh: "修改变量", activityCategory: "variable", config: { variableName: "result" }, description: "Changes the value of an existing variable.", supportsErrorHandling: false },
+  { activityType: "objectCast", title: "Cast Object", titleZh: "转换对象", activityCategory: "object", config: createDefaultActivityConfig("objectCast"), description: "Casts a generalized object to a specialization entity." },
+  { activityType: "objectCreate", title: "Create Object", titleZh: "创建对象", activityCategory: "object", config: createDefaultActivityConfig("objectCreate"), description: "Creates an object instance and stores it in a variable." },
+  { activityType: "objectChange", title: "Change Object", titleZh: "修改对象", activityCategory: "object", config: createDefaultActivityConfig("objectChange"), description: "Changes values on an existing object." },
+  { activityType: "objectCommit", title: "Commit Object(s)", titleZh: "提交对象", activityCategory: "object", config: createDefaultActivityConfig("objectCommit"), description: "Persists one object or object list and optionally triggers events." },
+  { activityType: "objectDelete", title: "Delete Object(s)", titleZh: "删除对象", activityCategory: "object", config: createDefaultActivityConfig("objectDelete"), description: "Deletes one object or object list." },
+  { activityType: "objectRetrieve", title: "Retrieve Object(s)", titleZh: "检索对象", activityCategory: "object", config: createDefaultActivityConfig("objectRetrieve"), description: "Retrieves one or more objects from association or database." },
+  { activityType: "objectRollback", title: "Rollback Object", titleZh: "回滚对象", activityCategory: "object", config: createDefaultActivityConfig("objectRollback"), description: "Rolls back uncommitted changes on an object or object list." },
+  { activityType: "listAggregate", title: "Aggregate List", titleZh: "列表聚合", activityCategory: "list", config: createDefaultActivityConfig("listAggregate"), description: "Aggregates a list with count, sum, average, min, or max." },
+  { activityType: "listCreate", title: "Create List", titleZh: "创建列表", activityCategory: "list", config: createDefaultActivityConfig("listCreate"), description: "Creates an empty typed list variable." },
+  { activityType: "listChange", title: "Change List", titleZh: "修改列表", activityCategory: "list", config: createDefaultActivityConfig("listChange"), description: "Adds, removes, clears, or replaces list contents." },
+  { activityType: "listOperation", title: "List Operation", titleZh: "列表操作", activityCategory: "list", config: createDefaultActivityConfig("listOperation"), description: "Combines, compares, filters, sorts, or selects list items." },
+  { activityType: "callMicroflow", title: "Call Microflow", titleZh: "调用微流", activityCategory: "call", config: createDefaultActivityConfig("callMicroflow"), description: "Calls another microflow with parameter mapping.", supportedErrorHandlingTypes: ["rollback", "customWithRollback", "customWithoutRollback", "continue"] },
+  { activityType: "callJavaAction", title: "Call Java Action", titleZh: "调用 Java 动作", activityCategory: "call", config: createDefaultActivityConfig("callJavaAction"), description: "Calls a server-side Java action." },
+  { activityType: "callJavaScriptAction", title: "Call JavaScript Action", titleZh: "调用 JavaScript 动作", activityCategory: "call", config: createDefaultActivityConfig("callJavaScriptAction"), description: "Nanoflow-only JavaScript action, disabled in Microflow.", availability: "nanoflowOnlyDisabled" },
+  { activityType: "variableCreate", title: "Create Variable", titleZh: "创建变量", activityCategory: "variable", config: createDefaultActivityConfig("variableCreate"), description: "Creates a local microflow variable.", supportsErrorHandling: false },
+  { activityType: "variableChange", title: "Change Variable", titleZh: "修改变量", activityCategory: "variable", config: createDefaultActivityConfig("variableChange"), description: "Changes the value of an existing variable.", supportsErrorHandling: false },
   { activityType: "closePage", title: "Close Page", titleZh: "关闭页面", activityCategory: "client", config: { closeMode: "current" }, description: "Closes the current or last opened page.", supportsErrorHandling: false },
   { activityType: "downloadFile", title: "Download File", titleZh: "下载文件", activityCategory: "client", config: { objectVariableName: "fileDocument" }, description: "Downloads a FileDocument in the browser.", supportsErrorHandling: false },
   { activityType: "showHomePage", title: "Show Home Page", titleZh: "显示首页", activityCategory: "client", config: {}, description: "Navigates the user to the home page.", supportsErrorHandling: false },
   { activityType: "showMessage", title: "Show Message", titleZh: "显示消息", activityCategory: "client", config: { messageExpression: { id: "expr-message", language: "plainText", text: "", raw: "", referencedVariables: [] } }, description: "Displays a blocking or non-blocking message.", supportsErrorHandling: false },
-  { activityType: "showPage", title: "Show Page", titleZh: "显示页面", activityCategory: "client", config: { pageName: "Order.Detail" }, description: "Opens a page for the current user.", supportsErrorHandling: false },
-  { activityType: "synchronizeToDevice", title: "Synchronize To Device", titleZh: "同步到设备", activityCategory: "client", config: { objectVariableName: "objectOrList" }, description: "Synchronizes objects to an offline device.", supportsErrorHandling: false },
-  { activityType: "validationFeedback", title: "Validation Feedback", titleZh: "验证反馈", activityCategory: "client", config: { objectVariableName: "order", targetMember: "Status" }, description: "Shows validation feedback under a page field.", supportsErrorHandling: false },
-  { activityType: "callNanoflow", title: "Call Nanoflow", titleZh: "调用纳流", activityCategory: "client", config: { targetMicroflowId: "NF_ClientAction" }, description: "Nanoflow-only call node, disabled in Microflow.", availability: "nanoflowOnlyDisabled", supportsErrorHandling: false },
+  { activityType: "showPage", title: "Show Page", titleZh: "显示页面", activityCategory: "client", config: createDefaultActivityConfig("showPage"), description: "Opens a page for the current user.", supportsErrorHandling: false },
+  { activityType: "synchronizeToDevice", title: "Synchronize To Device", titleZh: "同步到设备", activityCategory: "client", config: createDefaultActivityConfig("synchronizeToDevice"), description: "Synchronizes objects to an offline device.", supportsErrorHandling: false },
+  { activityType: "validationFeedback", title: "Validation Feedback", titleZh: "验证反馈", activityCategory: "client", config: createDefaultActivityConfig("validationFeedback"), description: "Shows validation feedback under a page field.", supportsErrorHandling: false },
+  { activityType: "callNanoflow", title: "Call Nanoflow", titleZh: "调用纳流", activityCategory: "client", config: createDefaultActivityConfig("callNanoflow"), description: "Nanoflow-only call node, disabled in Microflow.", availability: "nanoflowOnlyDisabled", supportsErrorHandling: false },
   { activityType: "synchronize", title: "Synchronize", titleZh: "同步", activityCategory: "client", config: {}, description: "Nanoflow-only synchronize node, disabled in Microflow.", availability: "nanoflowOnlyDisabled", supportsErrorHandling: false },
-  { activityType: "callRest", title: "Call REST Service", titleZh: "调用 REST 服务", activityCategory: "integration", config: { method: "POST", url: "/api/orders/sync" }, description: "Calls a REST endpoint with request and response mapping." },
+  { activityType: "callRest", title: "Call REST Service", titleZh: "调用 REST 服务", activityCategory: "integration", config: createDefaultActivityConfig("callRest"), description: "Calls a REST endpoint with request and response mapping." },
   { activityType: "callWebService", title: "Call Web Service", titleZh: "调用 Web Service", activityCategory: "integration", config: { serviceId: "", operation: "" }, description: "Calls an imported SOAP/Web Service." },
   { activityType: "callExternalAction", title: "Call External Action", titleZh: "调用外部动作", activityCategory: "integration", config: { serviceId: "", externalActionId: "" }, description: "Calls an OData consumed service external action." },
   { activityType: "importWithMapping", title: "Import With Mapping", titleZh: "使用映射导入", activityCategory: "integration", config: { sourceVariableName: "", mappingId: "" }, description: "Imports XML/JSON through an import mapping." },
   { activityType: "exportWithMapping", title: "Export With Mapping", titleZh: "使用映射导出", activityCategory: "integration", config: { sourceVariableName: "", mappingId: "", outputType: "string" }, description: "Exports objects through an export mapping." },
   { activityType: "queryExternalDatabase", title: "Query External Database", titleZh: "查询外部数据库", activityCategory: "integration", config: { connectorId: "", operation: "query" }, description: "Queries an external database connector.", availability: "requiresConnector" },
   { activityType: "sendRestRequestBeta", title: "Send REST Request", titleZh: "发送 REST 请求", activityCategory: "integration", config: { serviceId: "", operation: "" }, description: "Sends a request from a consumed REST service document.", availability: "beta" },
-  { activityType: "logMessage", title: "Log Message", titleZh: "记录日志", activityCategory: "logging", config: { logLevel: "info", messageExpression: { id: "expr-log", language: "plainText", text: "Order processed", raw: "Order processed", referencedVariables: [] } }, description: "Writes an application log entry.", supportsErrorHandling: false },
+  { activityType: "logMessage", title: "Log Message", titleZh: "记录日志", activityCategory: "logging", config: createDefaultActivityConfig("logMessage"), description: "Writes an application log entry.", supportsErrorHandling: false },
   { activityType: "generateDocument", title: "Generate Document", titleZh: "生成文档", activityCategory: "documentGeneration", config: { mappingId: "", objectVariableName: "fileDocument" }, description: "Generates a document from a template for legacy compatibility.", availability: "deprecated" },
   { activityType: "counter", title: "Counter", titleZh: "计数器", activityCategory: "metrics", config: { metricName: "", valueExpression: { id: "expr-counter", language: "mendix", text: "1", raw: "1", referencedVariables: [] } }, description: "Sets or increases a custom counter metric.", supportsErrorHandling: false },
   { activityType: "incrementCounter", title: "Increment Counter", titleZh: "计数器加一", activityCategory: "metrics", config: { metricName: "" }, description: "Increments a counter metric by one.", supportsErrorHandling: false },
   { activityType: "gauge", title: "Gauge", titleZh: "仪表指标", activityCategory: "metrics", config: { metricName: "", valueExpression: { id: "expr-gauge", language: "mendix", text: "0", raw: "0", referencedVariables: [] } }, description: "Sets a gauge metric value.", supportsErrorHandling: false },
   { activityType: "callMlModel", title: "Call ML Model", titleZh: "调用 ML 模型", activityCategory: "mlKit", config: { mappingId: "" }, description: "Calls an ML model mapping." },
   { activityType: "applyJumpToOption", title: "Apply Jump-To Option", titleZh: "应用跳转选项", activityCategory: "workflow", config: { workflowInstanceVariable: "", objectVariableName: "jumpToOption" }, description: "Applies a generated workflow jump-to option." },
-  { activityType: "callWorkflow", title: "Call Workflow", titleZh: "调用工作流", activityCategory: "workflow", config: { targetMicroflowId: "WF_Order", objectVariableName: "contextObject" }, description: "Starts a target workflow." },
+  { activityType: "callWorkflow", title: "Call Workflow", titleZh: "调用工作流", activityCategory: "workflow", config: createDefaultActivityConfig("callWorkflow"), description: "Starts a target workflow." },
   { activityType: "changeWorkflowState", title: "Change Workflow State", titleZh: "修改工作流状态", activityCategory: "workflow", config: { workflowInstanceVariable: "", operation: "pause" }, description: "Changes workflow state such as abort, continue, pause, retry." },
   { activityType: "completeUserTask", title: "Complete User Task", titleZh: "完成用户任务", activityCategory: "workflow", config: { objectVariableName: "userTask", operation: "outcome" }, description: "Completes a user task with an outcome." },
   { activityType: "generateJumpToOptions", title: "Generate Jump-To Options", titleZh: "生成跳转选项", activityCategory: "workflow", config: { workflowInstanceVariable: "", resultVariableName: "jumpToOptions" }, description: "Generates workflow jump-to options." },
   { activityType: "retrieveWorkflowActivityRecords", title: "Retrieve Workflow Activity Records", titleZh: "检索工作流活动记录", activityCategory: "workflow", config: { workflowInstanceVariable: "", listVariableName: "activityRecords" }, description: "Retrieves workflow activity records." },
-  { activityType: "retrieveWorkflowContext", title: "Retrieve Workflow Context", titleZh: "检索工作流上下文", activityCategory: "workflow", config: { workflowInstanceVariable: "", entity: "Workflow.Context", objectVariableName: "context" }, description: "Retrieves workflow context object." },
-  { activityType: "retrieveWorkflows", title: "Retrieve Workflows", titleZh: "检索工作流", activityCategory: "workflow", config: { objectVariableName: "contextObject", listVariableName: "workflows" }, description: "Retrieves workflows by context." },
-  { activityType: "showUserTaskPage", title: "Show User Task Page", titleZh: "显示用户任务页面", activityCategory: "workflow", config: { objectVariableName: "userTask" }, description: "Opens the configured user task page.", supportsErrorHandling: false },
+  { activityType: "retrieveWorkflowContext", title: "Retrieve Workflow Context", titleZh: "检索工作流上下文", activityCategory: "workflow", config: createDefaultActivityConfig("retrieveWorkflowContext"), description: "Retrieves workflow context object." },
+  { activityType: "retrieveWorkflows", title: "Retrieve Workflows", titleZh: "检索工作流", activityCategory: "workflow", config: createDefaultActivityConfig("retrieveWorkflows"), description: "Retrieves workflows by context." },
+  { activityType: "showUserTaskPage", title: "Show User Task Page", titleZh: "显示用户任务页面", activityCategory: "workflow", config: createDefaultActivityConfig("showUserTaskPage"), description: "Opens the configured user task page.", supportsErrorHandling: false },
   { activityType: "showWorkflowAdminPage", title: "Show Workflow Admin Page", titleZh: "显示工作流管理页", activityCategory: "workflow", config: { workflowInstanceVariable: "" }, description: "Opens the workflow admin page.", supportsErrorHandling: false },
   { activityType: "lockWorkflow", title: "Lock Workflow", titleZh: "锁定工作流", activityCategory: "workflow", config: { workflowInstanceVariable: "" }, description: "Locks a workflow instance.", supportsErrorHandling: false },
   { activityType: "unlockWorkflow", title: "Unlock Workflow", titleZh: "解锁工作流", activityCategory: "workflow", config: { workflowInstanceVariable: "" }, description: "Unlocks a workflow instance.", supportsErrorHandling: false },
@@ -535,6 +526,7 @@ function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryIte
     ...activityItem,
     key: `activity:${actionItem.legacyActivityType}`,
     actionKind: actionItem.actionKind,
+    warning: defaultWarningForActionKind(actionItem.actionKind),
     officialType: "Microflows$ActionActivity",
     defaultCaption: actionItem.defaultCaption,
     propertyTabs: actionItem.propertyTabs,
@@ -552,6 +544,24 @@ function nodePanelEntryFromActionRegistry(actionItem: MicroflowActionRegistryIte
       }
     })
   };
+}
+
+function defaultWarningForActionKind(actionKind?: MicroflowActionKind): MicroflowNodeRegistryEntry["warning"] {
+  if (actionKind === "callMicroflow") {
+    return context => context.metadataAvailable === false
+      ? "Target microflow metadata is not loaded. Configure the target after metadata is available."
+      : "Target microflow is empty until configured.";
+  }
+  if (actionKind === "createObject" || actionKind === "retrieve" || actionKind === "changeMembers") {
+    return "Entity or object variable is empty until configured.";
+  }
+  if (actionKind === "createList" || actionKind === "changeList" || actionKind === "aggregateList" || actionKind === "listOperation") {
+    return "List/entity fields are empty until configured.";
+  }
+  if (actionKind === "restCall") {
+    return "REST URL is empty until configured.";
+  }
+  return undefined;
 }
 
 export const microflowActionNodePanelRegistries: MicroflowNodeRegistryEntry[] = defaultMicroflowActionRegistry
@@ -675,22 +685,31 @@ export const canDragMicroflowRegistryItem = canDragRegistryItem;
 export const getMicroflowDragDisabledReason = getDisabledDragReason;
 
 function categoryKeyForEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodePanelCategoryKey {
-  if (entry.group === "Events") {
+  if (entry.group === "Events" && entry.type !== "breakEvent" && entry.type !== "continueEvent") {
     return "events";
-  }
-  if (entry.group === "Decisions") {
-    return "decisions";
-  }
-  if (entry.group === "Activities") {
-    return "activities";
-  }
-  if (entry.group === "Loop") {
-    return "loop";
   }
   if (entry.group === "Parameters") {
     return "parameters";
   }
-  return "annotations";
+  if (entry.group === "Decisions" || entry.group === "Loop" || entry.type === "breakEvent" || entry.type === "continueEvent") {
+    return "flowControl";
+  }
+  if (entry.subgroup === "variable") {
+    return "variables";
+  }
+  if (entry.subgroup === "object") {
+    return "objects";
+  }
+  if (entry.subgroup === "list") {
+    return "lists";
+  }
+  if (entry.subgroup === "call" || entry.subgroup === "integration") {
+    return "integration";
+  }
+  if (entry.group === "Annotations") {
+    return "documentation";
+  }
+  return "other";
 }
 
 export function getMicroflowNodeCategories(registry: MicroflowNodeRegistryEntry[] = defaultMicroflowNodePanelRegistry): MicroflowNodeCategoryDefinition[] {

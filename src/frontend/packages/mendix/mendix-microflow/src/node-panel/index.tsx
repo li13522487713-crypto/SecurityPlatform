@@ -22,6 +22,7 @@ import {
   groupMicroflowNodesByCategory,
   searchMicroflowNodes,
   type MicroflowNodeDragPayload,
+  type MicroflowNodeCreateContext,
   type MicroflowNodeFilterKey,
   type MicroflowNodePanelCategoryKey,
   type MicroflowNodeRegistryEntry,
@@ -98,6 +99,7 @@ export interface MicroflowNodePanelProps {
   onStartDrag?: (payload: MicroflowNodeDragPayload) => void;
   onShowDocumentation?: (item: MicroflowNodeRegistryItem) => void;
   labels?: Partial<MicroflowNodePanelLabels>;
+  createContext?: MicroflowNodeCreateContext;
 }
 
 interface ContextMenuState {
@@ -115,11 +117,14 @@ interface RegistryAdapterOptions {
 
 const categoryFilterLabels: Record<MicroflowNodePanelCategoryKey, string> = {
   events: "Events",
-  decisions: "Decisions",
-  activities: "Activities",
-  loop: "Loop",
   parameters: "Parameters",
-  annotations: "Annotations"
+  flowControl: "Flow Control",
+  variables: "Variables",
+  objects: "Objects",
+  lists: "Lists / Collections",
+  integration: "Integration",
+  documentation: "Documentation",
+  other: "Other"
 };
 
 const categoryStyle: CSSProperties = {
@@ -171,26 +176,35 @@ function writeStoredStringList(key: string, value: string[]): void {
 }
 
 function isCategoryFilter(filterKey: MicroflowNodeFilterKey): filterKey is MicroflowNodePanelCategoryKey {
-  return ["events", "decisions", "activities", "loop", "parameters", "annotations"].includes(filterKey);
+  return ["events", "parameters", "flowControl", "variables", "objects", "lists", "integration", "documentation", "other"].includes(filterKey);
 }
 
 function categoryKeyFromEntry(entry: MicroflowNodeRegistryEntry): MicroflowNodePanelCategoryKey {
-  if (entry.group === "Events") {
+  if (entry.group === "Events" && entry.type !== "breakEvent" && entry.type !== "continueEvent") {
     return "events";
-  }
-  if (entry.group === "Decisions") {
-    return "decisions";
-  }
-  if (entry.group === "Activities") {
-    return "activities";
-  }
-  if (entry.group === "Loop") {
-    return "loop";
   }
   if (entry.group === "Parameters") {
     return "parameters";
   }
-  return "annotations";
+  if (entry.group === "Decisions" || entry.group === "Loop" || entry.type === "breakEvent" || entry.type === "continueEvent") {
+    return "flowControl";
+  }
+  if (entry.subgroup === "variable") {
+    return "variables";
+  }
+  if (entry.subgroup === "object") {
+    return "objects";
+  }
+  if (entry.subgroup === "list") {
+    return "lists";
+  }
+  if (entry.subgroup === "call" || entry.subgroup === "integration") {
+    return "integration";
+  }
+  if (entry.group === "Annotations") {
+    return "documentation";
+  }
+  return "other";
 }
 
 function iconTone(item: MicroflowNodeRegistryItem): { background: string; color: string } {
@@ -245,7 +259,12 @@ function MicroflowNodeIcon({ item }: { item: MicroflowNodeRegistryItem }) {
   );
 }
 
-function TooltipContent({ item, labels }: { item: MicroflowNodeRegistryItem; labels: MicroflowNodePanelLabels }) {
+function resolveWarning(item: MicroflowNodeRegistryItem, context?: MicroflowNodeCreateContext): string | undefined {
+  return typeof item.warning === "function" ? item.warning(context ?? {}) : item.warning;
+}
+
+function TooltipContent({ item, labels, createContext }: { item: MicroflowNodeRegistryItem; labels: MicroflowNodePanelLabels; createContext?: MicroflowNodeCreateContext }) {
+  const warning = resolveWarning(item, createContext);
   return (
     <Space vertical align="start" spacing={6} style={{ maxWidth: 280 }}>
       <Text strong>{item.title}</Text>
@@ -255,6 +274,7 @@ function TooltipContent({ item, labels }: { item: MicroflowNodeRegistryItem; lab
       <Text type="tertiary">{labels.outputs}: {(item.outputs ?? []).map(output => output.title).join(", ") || "-"}</Text>
       {item.useCases?.length ? <Text type="tertiary">{labels.useCases}: {item.useCases.join(" ")}</Text> : null}
       {item.availability !== "supported" ? <Tag color={item.availability === "deprecated" ? "orange" : item.availability === "beta" ? "blue" : "grey"}>{item.availabilityReason ?? item.availability}</Tag> : null}
+      {warning ? <Tag color="orange">{warning}</Tag> : null}
       {!item.enabled && item.disabledReason ? <Tag color="grey">{item.disabledReason}</Tag> : null}
     </Space>
   );
@@ -354,7 +374,8 @@ export function MicroflowNodeCard({
   onAdd,
   onFavoriteToggle,
   onContextMenu,
-  onStartDrag
+  onStartDrag,
+  createContext
 }: {
   item: MicroflowNodeRegistryItem;
   favorite: boolean;
@@ -364,6 +385,7 @@ export function MicroflowNodeCard({
   onFavoriteToggle: (item: MicroflowNodeRegistryItem) => void;
   onContextMenu: (item: MicroflowNodeRegistryItem, point: { x: number; y: number }) => void;
   onStartDrag?: (payload: MicroflowNodeDragPayload) => void;
+  createContext?: MicroflowNodeCreateContext;
 }) {
   const disabledReason = getDisabledDragReason(item);
   const disabled = Boolean(disabledReason);
@@ -378,7 +400,7 @@ export function MicroflowNodeCard({
   };
 
   return (
-    <Tooltip content={<TooltipContent item={item} labels={labels} />} position="right">
+    <Tooltip content={<TooltipContent item={item} labels={labels} createContext={createContext} />} position="right">
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -417,6 +439,7 @@ export function MicroflowNodeCard({
             {item.availability === "deprecated" ? <Tag size="small" color="orange">Deprecated</Tag> : null}
             {item.availability === "requiresConnector" ? <Tag size="small" color="grey">Connector Required</Tag> : null}
             {item.availability === "nanoflowOnlyDisabled" ? <Tag size="small" color="grey">Nanoflow Only</Tag> : null}
+            {resolveWarning(item, createContext) ? <Tag size="small" color="orange">Needs Config</Tag> : null}
           </Space>
           <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: "block", maxWidth: "100%" }}>
             {item.title}
@@ -447,6 +470,7 @@ export function MicroflowNodeFavorites({
   items,
   favoriteNodeKeys,
   labels,
+  createContext,
   onAdd,
   onFavoriteToggle,
   onContextMenu,
@@ -455,6 +479,7 @@ export function MicroflowNodeFavorites({
   items: MicroflowNodeRegistryItem[];
   favoriteNodeKeys: string[];
   labels: MicroflowNodePanelLabels;
+  createContext?: MicroflowNodeCreateContext;
   onAdd: (item: MicroflowNodeRegistryItem) => void;
   onFavoriteToggle: (item: MicroflowNodeRegistryItem) => void;
   onContextMenu: (item: MicroflowNodeRegistryItem, point: { x: number; y: number }) => void;
@@ -486,6 +511,7 @@ export function MicroflowNodeFavorites({
               onFavoriteToggle={onFavoriteToggle}
               onContextMenu={onContextMenu}
               onStartDrag={onStartDrag}
+              createContext={createContext}
             />
           ))}
         </div>
@@ -500,6 +526,7 @@ export function MicroflowNodeCategorySection({
   expandedGroups,
   favoriteNodeKeys,
   labels,
+  createContext,
   onToggle,
   onToggleGroup,
   onAdd,
@@ -512,6 +539,7 @@ export function MicroflowNodeCategorySection({
   expandedGroups: string[];
   favoriteNodeKeys: string[];
   labels: MicroflowNodePanelLabels;
+  createContext?: MicroflowNodeCreateContext;
   onToggle: (key: string) => void;
   onToggleGroup: (key: string) => void;
   onAdd: (item: MicroflowNodeRegistryItem) => void;
@@ -580,6 +608,7 @@ export function MicroflowNodeCategorySection({
                     onFavoriteToggle={onFavoriteToggle}
                     onContextMenu={onContextMenu}
                     onStartDrag={onStartDrag}
+                    createContext={createContext}
                   />
                 )) : null}
               </div>
@@ -594,6 +623,7 @@ export function MicroflowNodeCategorySection({
               onFavoriteToggle={onFavoriteToggle}
               onContextMenu={onContextMenu}
               onStartDrag={onStartDrag}
+              createContext={createContext}
             />
           ))}
         </div>
@@ -608,6 +638,7 @@ export function MicroflowNodeCategoryList({
   expandedGroups,
   favoriteNodeKeys,
   labels,
+  createContext,
   onToggleCategory,
   onToggleGroup,
   onAdd,
@@ -620,6 +651,7 @@ export function MicroflowNodeCategoryList({
   expandedGroups: string[];
   favoriteNodeKeys: string[];
   labels: MicroflowNodePanelLabels;
+  createContext?: MicroflowNodeCreateContext;
   onToggleCategory: (key: string) => void;
   onToggleGroup: (key: string) => void;
   onAdd: (item: MicroflowNodeRegistryItem) => void;
@@ -643,6 +675,7 @@ export function MicroflowNodeCategoryList({
           onFavoriteToggle={onFavoriteToggle}
           onContextMenu={onContextMenu}
           onStartDrag={onStartDrag}
+          createContext={createContext}
         />
       ))}
     </div>
@@ -770,14 +803,15 @@ export function MicroflowNodePanel({
   onAddNode,
   onStartDrag,
   onShowDocumentation,
-  labels: labelOverrides
+  labels: labelOverrides,
+  createContext
 }: MicroflowNodePanelProps) {
   const labels = { ...defaultMicroflowNodePanelLabels, ...labelOverrides };
   const [activeTab, setActiveTab] = useState<"nodes" | "components" | "templates">("nodes");
   const [keyword, setKeyword] = useState("");
   const [filterKey, setFilterKey] = useState<MicroflowNodeFilterKey>("all");
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, ["events", "decisions", "activities"]));
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(() => readStoredStringList(nodePanelGroupStorageKey, ["activities:object"]));
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(() => readStoredStringList(nodePanelCategoryStorageKey, ["events", "parameters", "flowControl", "objects", "integration"]));
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(() => readStoredStringList(nodePanelGroupStorageKey, []));
   const [contextMenu, setContextMenu] = useState<ContextMenuState>();
 
   const grouped = useMemo(() => MicroflowNodePanelRegistryAdapter({
@@ -846,6 +880,7 @@ export function MicroflowNodePanel({
               items={registry}
               favoriteNodeKeys={favoriteNodeKeys}
               labels={labels}
+              createContext={createContext}
               onAdd={item => handleAdd(item, "doubleClick")}
               onFavoriteToggle={toggleFavorite}
               onContextMenu={(item, point) => setContextMenu({ item, ...point })}
@@ -866,6 +901,7 @@ export function MicroflowNodePanel({
                 expandedGroups={expandedGroups}
                 favoriteNodeKeys={favoriteNodeKeys}
                 labels={labels}
+                createContext={createContext}
                 onToggleCategory={key => setExpandedCategories(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])}
                 onToggleGroup={key => setExpandedGroups(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])}
                 onAdd={item => handleAdd(item, "doubleClick")}
