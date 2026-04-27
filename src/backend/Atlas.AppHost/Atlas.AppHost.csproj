@@ -33,6 +33,7 @@
     <ProjectReference Include="..\Atlas.Application.Workflow\Atlas.Application.Workflow.csproj" />
     <ProjectReference Include="..\Atlas.Application.LogicFlow\Atlas.Application.LogicFlow.csproj" />
     <ProjectReference Include="..\Atlas.Application.LowCode\Atlas.Application.LowCode.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Microflows\Atlas.Application.Microflows.csproj" />
     <ProjectReference Include="..\Atlas.AppHost.Sdk\Atlas.AppHost.Sdk.csproj" />
     <ProjectReference Include="..\Atlas.Application.ExternalConnectors\Atlas.Application.ExternalConnectors.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />

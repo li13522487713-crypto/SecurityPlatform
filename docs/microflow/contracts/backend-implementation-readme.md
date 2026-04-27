@@ -1,6 +1,37 @@
-# 后端实现指引（本仓库不实现）
+# 后端实现指引与 Skeleton 现状
 
 供后端团队按**冻结契约**分阶段实现；不替代 OpenAPI/TS 类型。
+
+## 第 35 轮 Skeleton
+
+本仓库已新增核心微流应用模块 `src/backend/Atlas.Application.Microflows`，并由 `src/backend/Atlas.AppHost` 引用后暴露最小 API。当前只提供后端骨架、统一 Envelope、错误结构、请求上下文和联调占位服务，不包含数据库、ORM 实体、真实资源 CRUD、真实 Metadata、真实 Validation 或 Runtime。
+
+前端联调配置：
+
+- `adapterMode=http`
+- `apiBaseUrl=/api`
+- AppWeb 仍通过统一 Microflow HTTP Adapter 访问，不在页面内直接 `fetch`。
+
+当前可用接口：
+
+- `GET /api/microflows/health`：返回 `MicroflowApiResponse<MicroflowHealthDto>`。
+- `GET /api/microflows`：返回空 `MicroflowApiPageResult<MicroflowResourceDto>`。
+- `GET /api/microflows/{id}`：当前无数据库，统一返回 `404 MICROFLOW_NOT_FOUND`。
+- `GET /api/microflow-metadata`：返回空 catalog，`version=backend-skeleton`。
+- `POST /api/microflows/{id}/validate`：返回空 issues 和 0 计数 summary。
+- `POST /api/microflows/{id}/test-run`：返回 `503 MICROFLOW_SERVICE_UNAVAILABLE`。
+
+请求上下文支持 `X-Workspace-Id`、`X-Tenant-Id`、`X-User-Id`、`X-Locale`、`X-Trace-Id`，并会把 traceId 写入 Envelope 与 `X-Trace-Id` 响应头。`.http` 示例见 `src/backend/Atlas.AppHost/Bosch.http/MicroflowBackend.http`。
+
+后续建议：
+
+- 第 36 轮：DB Migration / Repository / 存储行模型。
+- 第 37 轮：Resource CRUD + Schema Save/Load。
+- 第 39 轮：Metadata API。
+- 第 40 轮：Validation API。
+- 第 42 轮：TestRun Mock API + Trace 存储。
+
+当前实现仍坚持不保存 FlowGram JSON，后端只围绕 `MicroflowAuthoringSchema` / Runtime DTO / Trace 等契约概念展开。
 
 ## 建议启动顺序
 

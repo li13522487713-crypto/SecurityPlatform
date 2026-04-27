@@ -1,0 +1,59 @@
+@host = http://localhost:5002
+@workspaceId = demo-workspace
+@tenantId = demo-tenant
+@userId = demo-user
+@traceId = demo-trace
+
+### Microflow health
+GET {{host}}/api/microflows/health
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow list
+GET {{host}}/api/microflows?pageIndex=1&pageSize=20
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow not found
+GET {{host}}/api/microflows/not-exist
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow metadata
+GET {{host}}/api/microflow-metadata
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Microflow validation skeleton
+POST {{host}}/api/microflows/not-exist/validate
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "mode": "edit",
+  "includeWarnings": true,
+  "includeInfo": true
+}
+
+### Microflow test-run skeleton
+POST {{host}}/api/microflows/not-exist/test-run
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "input": {}
+}
