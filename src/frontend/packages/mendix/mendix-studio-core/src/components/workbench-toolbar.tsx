@@ -13,9 +13,14 @@ import { useMendixStudioStore } from "../store";
 export function WorkbenchToolbar() {
   const setPreviewMode = useMendixStudioStore(state => state.setPreviewMode);
   const activeTab = useMendixStudioStore(state => state.activeTab);
-  const setMicroflowImmersive = useMendixStudioStore(state => state.setMicroflowImmersive);
+  const activeWorkbenchTab = useMendixStudioStore(state =>
+    state.activeWorkbenchTabId
+      ? state.workbenchTabs.find(tab => tab.id === state.activeWorkbenchTabId)
+      : undefined
+  );
 
   const isPage = activeTab === "pageBuilder";
+  const isMicroflowWorkbench = activeWorkbenchTab?.kind === "microflow";
 
   return (
     <div className="studio-workbench-toolbar">
@@ -85,16 +90,16 @@ export function WorkbenchToolbar() {
         )}
       </div>
 
-      {/* 微流模式：沉浸模式入口 */}
-      {activeTab === "microflowDesigner" && (
+      {/* Stage 05 仅显示真实微流上下文，真实画布与沉浸编辑在 Stage 06 接入。 */}
+      {isMicroflowWorkbench && (
         <button
           type="button"
-          className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--with-label"
-          title="沉浸模式：全屏展示微流设计器"
-          onClick={() => setMicroflowImmersive(true)}
+          className="studio-workbench-toolbar__btn studio-workbench-toolbar__btn--with-label studio-workbench-toolbar__btn--disabled"
+          title="Stage 06 将接入真实微流 schema 加载与画布编辑"
+          disabled
         >
           <IconFullScreenStroked style={{ fontSize: 15, flexShrink: 0 }} aria-hidden />
-          <span className="studio-workbench-toolbar__btn-label">沉浸模式</span>
+          <span className="studio-workbench-toolbar__btn-label">Stage 06 画布接入</span>
         </button>
       )}
 

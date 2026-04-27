@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Input } from "@douyinfe/semi-ui";
+import { Button, Dropdown, Input, Modal, Space, Toast, Typography } from "@douyinfe/semi-ui";
 import { IconSearch, IconChevronDown, IconChevronRight } from "@douyinfe/semi-icons";
 import { useMendixStudioStore } from "../store";
 import type { ActiveTabId } from "../store";
 import { SAMPLE_PROCUREMENT_APP } from "../sample-app";
 import type { MicroflowAdapterBundle } from "../microflow/adapter/microflow-adapter-factory";
+import { getMicroflowApiError, getMicroflowErrorUserMessage } from "../microflow/adapter/http/microflow-api-error";
 import type { StudioMicroflowDefinitionView } from "../microflow/studio/studio-microflow-types";
 import { mapMicroflowResourceToStudioDefinitionView } from "../microflow/studio/studio-microflow-mappers";
+import { CreateMicroflowModal } from "../microflow/resource/CreateMicroflowModal";
+import { RenameMicroflowModal } from "../microflow/resource/RenameMicroflowModal";
+import { DuplicateMicroflowModal } from "../microflow/resource/DuplicateMicroflowModal";
+import type { MicroflowCreateInput, MicroflowDuplicateInput, MicroflowReference } from "../microflow/resource/resource-types";
 
 interface TreeNode {
   key: string;
@@ -46,13 +51,68 @@ interface AppExplorerProps {
 }
 
 type MicroflowLoadStatus = "idle" | "loading" | "success" | "error";
+type MicroflowCrudAction = "create" | "rename" | "duplicate" | "delete" | "refresh";
 
 const SAMPLE_PROCUREMENT_MODULE = SAMPLE_PROCUREMENT_APP.modules[0];
 const EXPLORER_MICROFLOWS_KEY = "microflows";
 const explorerMicroflowRequests = new Map<string, Promise<StudioMicroflowDefinitionView[]>>();
+const { Text } = Typography;
 
 function getExplorerModuleId(node?: TreeNode): string | undefined {
   return node?.moduleId ?? SAMPLE_PROCUREMENT_MODULE?.moduleId;
+}
+
+function getMissingCrudReason(input: {
+  workspaceId?: string;
+  moduleId?: string;
+  adapterBundle?: MicroflowAdapterBundle;
+}): string | undefined {
+  if (!input.workspaceId) {
+    return "缺少 workspaceId";
+  }
+  if (!input.moduleId) {
+    return "缺少 moduleId";
+  }
+  if (!input.adapterBundle?.resourceAdapter) {
+    return "缺少 microflow resource adapter";
+  }
+  return undefined;
+}
+
+function isDuplicateMicroflowName(
+  microflows: StudioMicroflowDefinitionView[],
+  moduleId: string | undefined,
+  name: string,
+  excludeId?: string
+): boolean {
+  const normalizedName = name.trim().toLocaleLowerCase();
+  if (!normalizedName) {
+    return false;
+  }
+  return microflows.some(resource =>
+    resource.moduleId === moduleId &&
+    resource.id !== excludeId &&
+    resource.name.toLocaleLowerCase() === normalizedName
+  );
+}
+
+function validateMicroflowName(
+  microflows: StudioMicroflowDefinitionView[],
+  moduleId: string | undefined,
+  name: string,
+  excludeId?: string
+): string | undefined {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    return "微流 name 不能为空";
+  }
+  if (trimmedName.includes(" ")) {
+    return "微流 name 不能包含空格，请使用下划线";
+  }
+  if (isDuplicateMicroflowName(microflows, moduleId, trimmedName, excludeId)) {
+    return "同一模块下已存在同名微流";
+  }
+  return undefined;
 }
 
 const TREE_DATA: TreeNode[] = [
@@ -243,10 +303,11 @@ interface TreeNodeProps {
   selectedId: string;
   searchText: string;
   onSelect: (node: TreeNode) => void;
+  renderContextMenu?: (node: TreeNode) => JSX.Element | undefined;
   initialOpen?: boolean;
 }
 
-function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, initialOpen }: TreeNodeProps) {
+function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, renderContextMenu, initialOpen }: TreeNodeProps) {
   const [open, setOpen] = useState(initialOpen ?? node.defaultOpen ?? false);
   const hasChildren = (node.children?.length ?? 0) > 0;
 
@@ -257,72 +318,80 @@ function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, initi
   }
 
   const isSelected = selectedId === node.key;
+  const contextMenu = renderContextMenu?.(node);
+  const nodeContent = (
+    <div
+      className={"studio-structure-node" + (isSelected ? " studio-structure-node--selected" : "")}
+      style={{ paddingLeft: 8 + depth * 14 }}
+      title={node.errorMessage ?? node.title ?? node.label}
+      onClick={() => {
+        if (hasChildren) {
+          setOpen(o => !o);
+        }
+        onSelect(node);
+      }}
+    >
+      {/* 展开箭头 */}
+      {hasChildren ? (
+        <span style={{ width: 14, flexShrink: 0, color: "#9ca3af", display: "flex", alignItems: "center" }}>
+          {open ? <IconChevronDown style={{ fontSize: 12 }} /> : <IconChevronRight style={{ fontSize: 12 }} />}
+        </span>
+      ) : (
+        <span style={{ width: 14, flexShrink: 0 }} />
+      )}
+
+      {/* 类型图标 */}
+      {node.icon && (
+        <span
+          className="studio-structure-node__type-badge"
+          style={{
+            background: getIconBg(node.icon),
+            color: getIconColor(node.icon),
+            marginRight: 4,
+            fontSize: 9
+          }}
+        >
+          {node.icon}
+        </span>
+      )}
+
+      {/* 标签 */}
+      <span
+        style={{
+          fontSize: 12,
+          flex: 1,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          color: isSelected ? "var(--studio-blue)" : "var(--studio-text-primary)"
+        }}
+      >
+        {node.label}
+      </span>
+
+      {node.action === "retryMicroflows" && (
+        <Button
+          theme="borderless"
+          type="primary"
+          size="small"
+          onClick={event => {
+            event.stopPropagation();
+            onSelect(node);
+          }}
+        >
+          Retry
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div>
-      <div
-        className={"studio-structure-node" + (isSelected ? " studio-structure-node--selected" : "")}
-        style={{ paddingLeft: 8 + depth * 14 }}
-        title={node.errorMessage ?? node.title ?? node.label}
-        onClick={() => {
-          if (hasChildren) {
-            setOpen(o => !o);
-          }
-          onSelect(node);
-        }}
-      >
-        {/* 展开箭头 */}
-        {hasChildren ? (
-          <span style={{ width: 14, flexShrink: 0, color: "#9ca3af", display: "flex", alignItems: "center" }}>
-            {open ? <IconChevronDown style={{ fontSize: 12 }} /> : <IconChevronRight style={{ fontSize: 12 }} />}
-          </span>
-        ) : (
-          <span style={{ width: 14, flexShrink: 0 }} />
-        )}
-
-        {/* 类型图标 */}
-        {node.icon && (
-          <span
-            className="studio-structure-node__type-badge"
-            style={{
-              background: getIconBg(node.icon),
-              color: getIconColor(node.icon),
-              marginRight: 4,
-              fontSize: 9
-            }}
-          >
-            {node.icon}
-          </span>
-        )}
-
-        {/* 标签 */}
-        <span
-          style={{
-            fontSize: 12,
-            flex: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: isSelected ? "var(--studio-blue)" : "var(--studio-text-primary)"
-          }}
-        >
-          {node.label}
-        </span>
-
-        {node.action === "retryMicroflows" && (
-          <Button
-            theme="borderless"
-            type="primary"
-            size="small"
-            onClick={event => {
-              event.stopPropagation();
-              onSelect(node);
-            }}
-          >
-            Retry
-          </Button>
-        )}
-      </div>
+      {contextMenu ? (
+        <Dropdown trigger="contextMenu" position="bottomLeft" render={contextMenu}>
+          {nodeContent}
+        </Dropdown>
+      ) : nodeContent}
 
       {open && hasChildren && node.children?.map(child => (
         <ExplorerTreeNode
@@ -332,6 +401,7 @@ function ExplorerTreeNode({ node, depth, selectedId, searchText, onSelect, initi
           selectedId={selectedId}
           searchText={searchText}
           onSelect={onSelect}
+          renderContextMenu={renderContextMenu}
           initialOpen={child.defaultOpen}
         />
       ))}
@@ -344,16 +414,27 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
   const [microflowStatus, setMicroflowStatus] = useState<MicroflowLoadStatus>("idle");
   const [microflowError, setMicroflowError] = useState<string>();
   const [microflows, setMicroflows] = useState<StudioMicroflowDefinitionView[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [renamingMicroflow, setRenamingMicroflow] = useState<StudioMicroflowDefinitionView>();
+  const [duplicatingMicroflow, setDuplicatingMicroflow] = useState<StudioMicroflowDefinitionView>();
+  const [deleteTarget, setDeleteTarget] = useState<StudioMicroflowDefinitionView>();
+  const [deleteReferences, setDeleteReferences] = useState<MicroflowReference[]>();
+  const [deleteReferenceError, setDeleteReferenceError] = useState<string>();
+  const [deleteReferencesLoading, setDeleteReferencesLoading] = useState(false);
+  const [crudAction, setCrudAction] = useState<MicroflowCrudAction>();
   const lastRequestKeyRef = useRef<string>();
   const selectedExplorerNodeId = useMendixStudioStore(state => state.selectedExplorerNodeId);
   const activeModuleId = useMendixStudioStore(state => state.activeModuleId);
+  const microflowResourcesById = useMendixStudioStore(state => state.microflowResourcesById);
   const setSelectedExplorerNodeId = useMendixStudioStore(state => state.setSelectedExplorerNodeId);
-  const setActiveTab = useMendixStudioStore(state => state.setActiveTab);
-  const setActiveTabId = useMendixStudioStore(state => state.setActiveTabId);
+  const setActiveWorkbenchTab = useMendixStudioStore(state => state.setActiveWorkbenchTab);
   const setSelected = useMendixStudioStore(state => state.setSelected);
   const setActiveModuleId = useMendixStudioStore(state => state.setActiveModuleId);
-  const setActiveMicroflowId = useMendixStudioStore(state => state.setActiveMicroflowId);
+  const openMicroflowWorkbenchTab = useMendixStudioStore(state => state.openMicroflowWorkbenchTab);
   const setModuleMicroflows = useMendixStudioStore(state => state.setModuleMicroflows);
+  const upsertStudioMicroflow = useMendixStudioStore(state => state.upsertStudioMicroflow);
+  const removeStudioMicroflow = useMendixStudioStore(state => state.removeStudioMicroflow);
+  const renameMicroflowWorkbenchTab = useMendixStudioStore(state => state.renameMicroflowWorkbenchTab);
   const moduleNode = useMemo(() => TREE_DATA[0], []);
   const moduleId = getExplorerModuleId(moduleNode);
 
@@ -378,6 +459,10 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
     }
 
     const requestKey = `${workspaceId}:${moduleId}:${adapterBundle.mode}`;
+    if (force) {
+      explorerMicroflowRequests.delete(requestKey);
+      lastRequestKeyRef.current = undefined;
+    }
     if (!force && lastRequestKeyRef.current === requestKey) {
       return;
     }
@@ -419,6 +504,170 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
     void loadMicroflows();
   }, [loadMicroflows]);
 
+  const syncResourceToExplorer = useCallback((resource: Parameters<typeof mapMicroflowResourceToStudioDefinitionView>[0]) => {
+    const view = mapMicroflowResourceToStudioDefinitionView(resource);
+    upsertStudioMicroflow(view);
+    setMicroflows(current => sortMicroflowViews([...current.filter(item => item.id !== view.id), view]));
+    return view;
+  }, [upsertStudioMicroflow]);
+
+  const refreshMicroflows = useCallback(async () => {
+    setCrudAction("refresh");
+    try {
+      await loadMicroflows(true);
+      Toast.success("微流列表已刷新");
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
+    } finally {
+      setCrudAction(undefined);
+    }
+  }, [loadMicroflows]);
+
+  const handleCreateMicroflow = useCallback(async (input: MicroflowCreateInput) => {
+    const targetModuleId = input.moduleId || moduleId;
+    const validationError = validateMicroflowName(microflows, targetModuleId, input.name);
+    if (validationError) {
+      throw new Error(validationError);
+    }
+    if (!adapterBundle?.resourceAdapter || !workspaceId || !targetModuleId) {
+      throw new Error(getMissingCrudReason({ adapterBundle, moduleId: targetModuleId, workspaceId }) ?? "微流资源服务未就绪");
+    }
+    setCrudAction("create");
+    try {
+      const created = await adapterBundle.resourceAdapter.createMicroflow({
+        ...input,
+        moduleId: targetModuleId,
+        moduleName: input.moduleName || targetModuleId,
+        displayName: input.displayName?.trim() || input.name.trim()
+      });
+      syncResourceToExplorer(created);
+      Toast.success("微流已创建");
+      await loadMicroflows(true);
+      return created;
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
+      throw caught;
+    } finally {
+      setCrudAction(undefined);
+    }
+  }, [adapterBundle, loadMicroflows, microflows, moduleId, syncResourceToExplorer, workspaceId]);
+
+  const handleRenameMicroflow = useCallback(async (name: string, displayName?: string) => {
+    if (!renamingMicroflow) {
+      return;
+    }
+    const validationError = validateMicroflowName(microflows, renamingMicroflow.moduleId, name, renamingMicroflow.id);
+    if (validationError) {
+      throw new Error(validationError);
+    }
+    if (!adapterBundle?.resourceAdapter) {
+      throw new Error("缺少 microflow resource adapter");
+    }
+    setCrudAction("rename");
+    try {
+      const renamed = await adapterBundle.resourceAdapter.renameMicroflow(renamingMicroflow.id, name.trim(), displayName?.trim() || name.trim());
+      const view = syncResourceToExplorer(renamed);
+      renameMicroflowWorkbenchTab(view.id, view.displayName || view.name);
+      Toast.success("微流已重命名");
+      await loadMicroflows(true);
+    } finally {
+      setCrudAction(undefined);
+    }
+  }, [adapterBundle, loadMicroflows, microflows, renameMicroflowWorkbenchTab, renamingMicroflow, syncResourceToExplorer]);
+
+  const handleDuplicateMicroflow = useCallback(async (input: MicroflowDuplicateInput) => {
+    if (!duplicatingMicroflow) {
+      return;
+    }
+    const targetModuleId = input.moduleId || duplicatingMicroflow.moduleId;
+    const targetName = input.name?.trim() ?? "";
+    const validationError = validateMicroflowName(microflows, targetModuleId, targetName);
+    if (validationError) {
+      throw new Error(validationError);
+    }
+    if (!adapterBundle?.resourceAdapter) {
+      throw new Error("缺少 microflow resource adapter");
+    }
+    setCrudAction("duplicate");
+    try {
+      const duplicated = await adapterBundle.resourceAdapter.duplicateMicroflow(duplicatingMicroflow.id, {
+        ...input,
+        name: targetName,
+        displayName: input.displayName?.trim() || targetName,
+        moduleId: targetModuleId,
+        moduleName: input.moduleName || duplicatingMicroflow.moduleName || targetModuleId
+      });
+      syncResourceToExplorer(duplicated);
+      Toast.success("微流已复制");
+      await loadMicroflows(true);
+    } finally {
+      setCrudAction(undefined);
+    }
+  }, [adapterBundle, duplicatingMicroflow, loadMicroflows, microflows, syncResourceToExplorer]);
+
+  const openDeleteDialog = useCallback((resource: StudioMicroflowDefinitionView) => {
+    setDeleteTarget(resource);
+    setDeleteReferences(undefined);
+    setDeleteReferenceError(undefined);
+    if (!adapterBundle?.resourceAdapter) {
+      setDeleteReferenceError("缺少 microflow resource adapter，无法预检查引用关系。");
+      return;
+    }
+    setDeleteReferencesLoading(true);
+    void adapterBundle.resourceAdapter.getMicroflowReferences(resource.id, { includeInactive: false })
+      .then(references => {
+        setDeleteReferences(references);
+      })
+      .catch(caught => {
+        setDeleteReferenceError(getMicroflowErrorUserMessage(caught));
+      })
+      .finally(() => {
+        setDeleteReferencesLoading(false);
+      });
+  }, [adapterBundle]);
+
+  const handleDeleteMicroflow = useCallback(async () => {
+    if (!deleteTarget) {
+      return;
+    }
+    const activeReferences = (deleteReferences ?? []).filter(reference => reference.active !== false);
+    if (activeReferences.length > 0) {
+      Toast.warning("该微流正在被其他对象引用，不能直接删除。");
+      return;
+    }
+    if (!adapterBundle?.resourceAdapter) {
+      Toast.error("缺少 microflow resource adapter");
+      return;
+    }
+    setCrudAction("delete");
+    try {
+      await adapterBundle.resourceAdapter.deleteMicroflow(deleteTarget.id);
+      removeStudioMicroflow(deleteTarget.id);
+      setMicroflows(current => current.filter(item => item.id !== deleteTarget.id));
+      setSelectedExplorerNodeId(EXPLORER_MICROFLOWS_KEY);
+      setDeleteTarget(undefined);
+      Toast.success("微流已删除");
+      await loadMicroflows(true);
+    } catch (caught) {
+      const apiError = getMicroflowApiError(caught);
+      if (apiError.code === "MICROFLOW_REFERENCE_BLOCKED" || apiError.httpStatus === 409) {
+        Toast.error(apiError.message || "该微流正在被其他对象引用，不能直接删除。");
+      } else {
+        Toast.error(getMicroflowErrorUserMessage(caught));
+      }
+    } finally {
+      setCrudAction(undefined);
+    }
+  }, [
+    activeMicroflowId,
+    adapterBundle,
+    deleteReferences,
+    deleteTarget,
+    loadMicroflows,
+    removeStudioMicroflow,
+    setSelectedExplorerNodeId
+  ]);
+
   const treeData = useMemo(
     () => withMicroflowChildren(TREE_DATA, createMicroflowStateChildren(microflowStatus, microflows, microflowError)),
     [microflowError, microflowStatus, microflows]
@@ -433,17 +682,19 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
 
     setSelectedExplorerNodeId(node.key);
     if (node.kind === "microflow" && node.microflowId) {
+      const resource = microflowResourcesById[node.microflowId];
+      if (!resource) {
+        console.warn(`[AppExplorer] Cannot open missing microflow resource: ${node.microflowId}`);
+        Toast.warning("微流资源尚未加载完成，请刷新 Microflows 后重试。");
+        return;
+      }
       setSelected("microflow", node.microflowId);
-      setActiveMicroflowId(node.microflowId);
-      setActiveModuleId(node.moduleId);
+      openMicroflowWorkbenchTab(node.microflowId);
       return;
     }
 
-    if (node.studioTab) {
-      setActiveTab(node.studioTab);
-    }
     if (node.tabId) {
-      setActiveTabId(node.tabId);
+      setActiveWorkbenchTab(node.tabId);
     }
     if (node.icon === "E") {
       setSelected("entity", node.key);
@@ -454,6 +705,78 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
     } else if (node.icon === "W") {
       setSelected("workflow", node.key);
     }
+  };
+
+  const renderContextMenu = (node: TreeNode): JSX.Element | undefined => {
+    const targetModuleId = getExplorerModuleId(node);
+    const missingReason = getMissingCrudReason({ adapterBundle, moduleId: targetModuleId, workspaceId });
+    const busy = Boolean(crudAction);
+
+    if (node.key === EXPLORER_MICROFLOWS_KEY) {
+      return (
+        <Dropdown.Menu>
+          {missingReason ? <Dropdown.Item disabled>{missingReason}</Dropdown.Item> : null}
+          <Dropdown.Item
+            disabled={Boolean(missingReason) || busy}
+            onClick={() => setCreateOpen(true)}
+          >
+            New Microflow
+          </Dropdown.Item>
+          <Dropdown.Item
+            disabled={Boolean(missingReason) || busy}
+            onClick={() => void refreshMicroflows()}
+          >
+            Refresh
+          </Dropdown.Item>
+        </Dropdown.Menu>
+      );
+    }
+
+    if (node.kind !== "microflow" || node.readonly || !node.microflowId || !node.dynamic) {
+      return undefined;
+    }
+
+    const resource = microflows.find(item => item.id === node.microflowId);
+    if (!resource) {
+      return undefined;
+    }
+
+    return (
+      <Dropdown.Menu>
+        {missingReason ? <Dropdown.Item disabled>{missingReason}</Dropdown.Item> : null}
+        <Dropdown.Item
+          disabled={Boolean(missingReason) || busy}
+          onClick={() => handleSelect(node)}
+        >
+          Open / Select
+        </Dropdown.Item>
+        <Dropdown.Item
+          disabled={Boolean(missingReason) || busy}
+          onClick={() => setRenamingMicroflow(resource)}
+        >
+          Rename
+        </Dropdown.Item>
+        <Dropdown.Item
+          disabled={Boolean(missingReason) || busy}
+          onClick={() => setDuplicatingMicroflow(resource)}
+        >
+          Duplicate
+        </Dropdown.Item>
+        <Dropdown.Item
+          disabled={Boolean(missingReason) || busy}
+          onClick={() => void refreshMicroflows()}
+        >
+          Refresh
+        </Dropdown.Item>
+        <Dropdown.Item
+          type="danger"
+          disabled={Boolean(missingReason) || busy}
+          onClick={() => openDeleteDialog(resource)}
+        >
+          Delete
+        </Dropdown.Item>
+      </Dropdown.Menu>
+    );
   };
 
   return (
@@ -479,10 +802,69 @@ export function AppExplorer({ adapterBundle, workspaceId }: AppExplorerProps) {
             selectedId={selectedExplorerNodeId}
             searchText={searchText}
             onSelect={handleSelect}
+            renderContextMenu={renderContextMenu}
             initialOpen={true}
           />
         ))}
       </div>
+      <CreateMicroflowModal
+        visible={createOpen}
+        existingResources={microflows}
+        initialModuleId={moduleId}
+        initialModuleName={SAMPLE_PROCUREMENT_MODULE?.name}
+        moduleLocked
+        onClose={() => setCreateOpen(false)}
+        onSubmit={handleCreateMicroflow}
+      />
+      <RenameMicroflowModal
+        visible={Boolean(renamingMicroflow)}
+        resource={renamingMicroflow}
+        onClose={() => setRenamingMicroflow(undefined)}
+        onSubmit={handleRenameMicroflow}
+      />
+      <DuplicateMicroflowModal
+        visible={Boolean(duplicatingMicroflow)}
+        resource={duplicatingMicroflow}
+        onClose={() => setDuplicatingMicroflow(undefined)}
+        onSubmit={handleDuplicateMicroflow}
+      />
+      <Modal
+        visible={Boolean(deleteTarget)}
+        title="确认删除微流"
+        okText="删除"
+        cancelText="取消"
+        okButtonProps={{
+          disabled: deleteReferencesLoading || (deleteReferences ?? []).some(reference => reference.active !== false),
+          type: "danger"
+        }}
+        confirmLoading={crudAction === "delete"}
+        onCancel={() => setDeleteTarget(undefined)}
+        onOk={() => void handleDeleteMicroflow()}
+      >
+        <Space vertical align="start" spacing={12} style={{ width: "100%" }}>
+          <Text strong>{deleteTarget?.qualifiedName ?? deleteTarget?.displayName}</Text>
+          <Text type="danger">删除后不可恢复。</Text>
+          {deleteReferencesLoading ? (
+            <Text type="tertiary">正在检查引用关系...</Text>
+          ) : (deleteReferences ?? []).some(reference => reference.active !== false) ? (
+            <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
+              <Text type="danger">该微流正在被其他对象引用，不能直接删除。</Text>
+              {(deleteReferences ?? []).filter(reference => reference.active !== false).map(reference => (
+                <Text key={reference.id} size="small">
+                  {reference.sourceType} · {reference.sourceName || reference.sourceId || reference.id}
+                  {reference.sourcePath ? ` · ${reference.sourcePath}` : ""}
+                </Text>
+              ))}
+            </Space>
+          ) : deleteReferenceError ? (
+            <Text type="warning">
+              引用关系预检查失败：{deleteReferenceError}。仍可继续确认，最终以后端引用保护校验为准。
+            </Text>
+          ) : (
+            <Text type="tertiary">未发现 active 引用，删除时仍以后端校验为准。</Text>
+          )}
+        </Space>
+      </Modal>
     </div>
   );
 }

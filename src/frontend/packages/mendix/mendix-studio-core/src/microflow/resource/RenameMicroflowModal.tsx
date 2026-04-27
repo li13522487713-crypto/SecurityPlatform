@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Input, Modal, Space, Toast } from "@douyinfe/semi-ui";
 
+import { getMicroflowErrorUserMessage } from "../adapter/http/microflow-api-error";
 import type { MicroflowResource } from "./resource-types";
 
+type RenameMicroflowSource = Pick<MicroflowResource, "name" | "displayName">;
+
 interface RenameMicroflowModalProps {
-  resource?: MicroflowResource;
+  resource?: RenameMicroflowSource;
   visible: boolean;
   onClose: () => void;
   onSubmit: (name: string, displayName?: string) => Promise<void>;
@@ -32,6 +35,8 @@ export function RenameMicroflowModal({ resource, visible, onClose, onSubmit }: R
     try {
       await onSubmit(trimmedName, displayName.trim() || trimmedName);
       onClose();
+    } catch (caught) {
+      Toast.error(getMicroflowErrorUserMessage(caught));
     } finally {
       setSubmitting(false);
     }

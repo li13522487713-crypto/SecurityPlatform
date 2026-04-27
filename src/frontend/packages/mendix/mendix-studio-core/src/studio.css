@@ -375,6 +375,16 @@
   background: #fff7e6;
   color: #d46b08;
 }
+.studio-workbench-tab__type-icon--other {
+  background: #f0f2f5;
+  color: #6b7280;
+}
+.studio-workbench-tab__dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--studio-warning-color);
+}
 
 .studio-workbench-tab-add {
   display: flex;
@@ -481,6 +491,59 @@
 }
 .studio-workbench-toolbar__preview-btn:hover {
   background: #0a6aed;
+}
+
+/* ============================================================
+   Microflow Workbench Placeholder
+   ============================================================ */
+.studio-microflow-placeholder {
+  height: 100%;
+  overflow: auto;
+  background: linear-gradient(180deg, #f8fbff 0%, #f0f2f5 100%);
+  padding: 32px;
+}
+
+.studio-microflow-placeholder__card {
+  max-width: 920px;
+  margin: 0 auto;
+  border-radius: 12px;
+  border: 1px solid var(--studio-border);
+  box-shadow: var(--studio-shadow-sm);
+}
+
+.studio-microflow-placeholder__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.studio-microflow-placeholder__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  width: 100%;
+}
+
+.studio-microflow-placeholder__meta-row {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--studio-border);
+  border-radius: 8px;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.studio-microflow-placeholder__notice {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #91caff;
+  border-radius: 8px;
+  background: #e6f4ff;
+  color: #0958d9;
 }
 
 /* ============================================================

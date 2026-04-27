@@ -4,9 +4,14 @@ import type { MicroflowDataType, MicroflowParameter } from "@atlas/microflow";
 
 import type { MicroflowCreateInput, MicroflowResource } from "./resource-types";
 
+type ExistingMicroflowName = Pick<MicroflowResource, "name">;
+
 interface CreateMicroflowModalProps {
   visible: boolean;
-  existingResources: MicroflowResource[];
+  existingResources?: ExistingMicroflowName[];
+  initialModuleId?: string;
+  initialModuleName?: string;
+  moduleLocked?: boolean;
   onClose: () => void;
   onSubmit: (input: MicroflowCreateInput) => Promise<MicroflowResource>;
   onCreated?: (resource: MicroflowResource) => void;
@@ -50,7 +55,16 @@ function makeParameter(name: string, dataType: DataTypeValue): MicroflowParamete
   };
 }
 
-export function CreateMicroflowModal({ visible, existingResources, onClose, onSubmit, onCreated }: CreateMicroflowModalProps) {
+export function CreateMicroflowModal({
+  visible,
+  existingResources = [],
+  initialModuleId,
+  initialModuleName,
+  moduleLocked = false,
+  onClose,
+  onSubmit,
+  onCreated
+}: CreateMicroflowModalProps) {
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
@@ -84,13 +98,13 @@ export function CreateMicroflowModal({ visible, existingResources, onClose, onSu
     setName("");
     setDisplayName("");
     setDescription("");
-    setModuleId("sales");
+    setModuleId(initialModuleId ?? "sales");
     setTags("microflow");
     setReturnType("void");
     setReturnVariableName("");
     setParameters([]);
     setTemplate("blank");
-  }, [visible]);
+  }, [initialModuleId, visible]);
 
   function validate(): boolean {
     const trimmedName = name.trim();
@@ -137,7 +151,7 @@ export function CreateMicroflowModal({ visible, existingResources, onClose, onSu
         displayName: displayName.trim() || name.trim(),
         description: description.trim(),
         moduleId: moduleId.trim(),
-        moduleName: moduleId.trim(),
+        moduleName: initialModuleName?.trim() || moduleId.trim(),
         tags: tags.split(",").map(tag => tag.trim()).filter(Boolean),
         parameters,
         returnType: toDataType(returnType),
@@ -176,7 +190,7 @@ export function CreateMicroflowModal({ visible, existingResources, onClose, onSu
           <Form.Input field="name" label="Name" value={name} onChange={value => setName(String(value))} placeholder="OrderProcessing" />
           <Form.Input field="displayName" label="显示名称" value={displayName} onChange={value => setDisplayName(String(value))} placeholder="订单处理微流" />
           <Form.TextArea field="description" label="描述" value={description} onChange={value => setDescription(String(value))} autosize />
-          <Form.Input field="moduleId" label="模块" value={moduleId} onChange={value => setModuleId(String(value))} />
+          <Form.Input field="moduleId" label="模块" value={moduleId} onChange={value => setModuleId(String(value))} disabled={moduleLocked} />
           <Form.Input field="tags" label="标签（逗号分隔）" value={tags} onChange={value => setTags(String(value))} />
           <Form.Select field="template" label="模板" value={template} onChange={value => setTemplate(value as MicroflowCreateInput["template"])} optionList={templateOptions} />
         </Form.Section>

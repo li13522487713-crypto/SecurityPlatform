@@ -2,8 +2,7 @@ import "./studio.css";
 
 import { useEffect, useMemo } from "react";
 import { Button, Card, Space, Toast, Typography } from "@douyinfe/semi-ui";
-import { IconArrowRight, IconFullScreenStroked } from "@douyinfe/semi-icons";
-import { MicroflowEditor } from "@atlas/microflow";
+import { IconArrowRight } from "@douyinfe/semi-icons";
 
 import type { MicroflowAdapterFactoryConfig } from "./microflow/config/microflow-adapter-config";
 import type { MicroflowAdapterBundle } from "./microflow/adapter/microflow-adapter-factory";
@@ -21,6 +20,7 @@ import { RightInspectorRail } from "./components/right-inspector-rail";
 import { BottomPanel } from "./components/bottom-panel";
 import { RuntimePreview } from "./components/runtime-preview";
 import { useMendixStudioStore } from "./store";
+import { MicroflowWorkbenchPlaceholder } from "./microflow/studio/MicroflowWorkbenchPlaceholder";
 
 export interface MendixStudioAppProps {
   appId?: string;
@@ -42,12 +42,20 @@ export function MendixStudioApp({
   adapterBundle,
 }: MendixStudioAppProps) {
   const activeTab = useMendixStudioStore(state => state.activeTab);
-  const microflowSchema = useMendixStudioStore(state => state.microflowSchema);
-  const microflowImmersive = useMendixStudioStore(state => state.microflowImmersive);
-  const activeMicroflowId = useMendixStudioStore(state => state.activeMicroflowId);
-  const activeMicroflow = useMendixStudioStore(state => activeMicroflowId ? state.microflowResourcesById[activeMicroflowId] : undefined);
-  const setMicroflowSchema = useMendixStudioStore(state => state.setMicroflowSchema);
-  const setMicroflowImmersive = useMendixStudioStore(state => state.setMicroflowImmersive);
+  const activeWorkbenchTab = useMendixStudioStore(state =>
+    state.activeWorkbenchTabId
+      ? state.workbenchTabs.find(tab => tab.id === state.activeWorkbenchTabId)
+      : undefined
+  );
+  const activeMicroflow = useMendixStudioStore(state => {
+    const activeTab = state.activeWorkbenchTabId
+      ? state.workbenchTabs.find(tab => tab.id === state.activeWorkbenchTabId)
+      : undefined;
+    const microflowId = activeTab?.kind === "microflow"
+      ? activeTab.microflowId ?? activeTab.resourceId
+      : undefined;
+    return microflowId ? state.microflowResourcesById[microflowId] : undefined;
+  });
   const setStudioContext = useMendixStudioStore(state => state.setStudioContext);
 
   // 创建 adapter bundle；如果构建失败，仅 console.warn，不阻断页面渲染。
@@ -71,7 +79,7 @@ export function MendixStudioApp({
     setStudioContext({ appId, workspaceId });
   }, [appId, workspaceId, setStudioContext]);
 
-  const isMicroflow = activeTab === "microflowDesigner";
+  const isMicroflow = activeWorkbenchTab?.kind === "microflow";
 
   return (
     <div
@@ -128,9 +136,10 @@ export function MendixStudioApp({
 
               {/* 内容区 */}
               {isMicroflow ? (
-                /* 微流编辑器：占满中央列，自带节点面板/属性面板/底部面板 */
                 <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-                  {activeMicroflowId ? (
+                  {activeMicroflow ? (
+                    <MicroflowWorkbenchPlaceholder microflow={activeMicroflow} />
+                  ) : (
                     <div
                       style={{
                         height: "100%",
@@ -141,19 +150,14 @@ export function MendixStudioApp({
                       }}
                     >
                       <Card style={{ width: 420, borderRadius: 12 }}>
-                        <Text strong>已选择微流 {activeMicroflow?.displayName ?? activeMicroflowId}</Text>
+                        <Text strong>微流资源不可用</Text>
                         <div style={{ marginTop: 8 }}>
                           <Text type="tertiary" size="small">
-                            真实画布加载将在后续阶段接入；当前只展示真实资产列表，不加载 sampleOrderProcessingMicroflow。
+                            当前 Workbench tab 指向的真实微流资源不存在，可能已被删除或列表尚未刷新。
                           </Text>
                         </div>
                       </Card>
                     </div>
-                  ) : (
-                    <MicroflowEditor
-                      schema={microflowSchema}
-                      onSchemaChange={setMicroflowSchema}
-                    />
                   )}
                 </div>
               ) : (
@@ -193,44 +197,6 @@ export function MendixStudioApp({
 
       {/* 运行预览侧拉板 */}
       <RuntimePreview />
-
-      {/* 沉浸模式覆盖层 */}
-      {microflowImmersive && isMicroflow && !activeMicroflowId && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "#fff"
-          }}
-        >
-          <MicroflowEditor
-            schema={microflowSchema}
-            onSchemaChange={setMicroflowSchema}
-            immersive={true}
-            toolbarSuffix={
-              <button
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "4px 10px",
-                  fontSize: 12,
-                  border: "1px solid #d9d9d9",
-                  borderRadius: 4,
-                  background: "#fff",
-                  cursor: "pointer",
-                  color: "#374151"
-                }}
-                onClick={() => setMicroflowImmersive(false)}
-              >
-                <IconFullScreenStroked style={{ fontSize: 13 }} />
-                退出沉浸
-              </button>
-            }
-          />
-        </div>
-      )}
     </div>
   );
 }
