@@ -1,5 +1,5 @@
 import { createActionActivityFromActionRegistry, createFlowFromEdgeRegistry } from "../../node-registry";
-import type { MicroflowFlow, MicroflowSchema } from "../types";
+import type { MicroflowFlow, MicroflowLogMessageAction, MicroflowSchema } from "../types";
 import { sampleMicroflowSchema } from "../sample";
 
 function cloneBase(id: string, name: string, description: string): MicroflowSchema {
@@ -70,13 +70,42 @@ export const sampleApprovalFlowMicroflowSchema = appendLinearActions(
   ]
 );
 
-export const sampleRestErrorHandlingMicroflowSchema = appendLinearActions(
-  cloneBase("sample-rest-error-handling", "SampleRestErrorHandling", "REST call with logging and error event sample."),
-  [
-    { key: "restCall", id: "rest-call", caption: "Call REST", x: 280, y: 180, patch: { response: { handling: { kind: "json", outputVariableName: "restResponse" } } } },
-    { key: "logMessage", id: "rest-log", caption: "Log REST", x: 520, y: 180, patch: { template: { text: "REST completed", arguments: [] } } }
-  ]
-);
+export const sampleRestErrorHandlingMicroflowSchema = (() => {
+  const schema = appendLinearActions(
+    cloneBase("sample-rest-error-handling", "SampleRestErrorHandling", "REST call with logging and error event sample."),
+    [
+      { key: "restCall", id: "rest-call", caption: "Call REST", x: 280, y: 180, patch: { response: { handling: { kind: "json", outputVariableName: "restResponse" } } } },
+      { key: "logMessage", id: "rest-log", caption: "Log REST", x: 520, y: 180, patch: { template: { text: "REST completed", arguments: [] } } }
+    ]
+  );
+  const errorLog = createActionActivityFromActionRegistry({
+    actionRegistryKey: "logMessage",
+    id: "rest-error-log",
+    position: { x: 520, y: 340 },
+    overrides: {
+      caption: "Log REST Error",
+      action: {
+        ...createActionActivityFromActionRegistry({ actionRegistryKey: "logMessage", id: "rest-error-log-tmp", position: { x: 520, y: 340 } }).action,
+        template: { text: "REST failed", arguments: [] }
+      } as MicroflowLogMessageAction
+    }
+  });
+  return {
+    ...schema,
+    objectCollection: {
+      ...schema.objectCollection,
+      objects: [...schema.objectCollection.objects, errorLog],
+    },
+    flows: [
+      ...schema.flows,
+      createFlowFromEdgeRegistry({
+        edgeKind: "errorHandler",
+        originObjectId: "rest-call",
+        destinationObjectId: "rest-error-log"
+      }),
+    ],
+  };
+})();
 
 export const sampleLoopProcessingMicroflowSchema: MicroflowSchema = {
   ...JSON.parse(JSON.stringify(sampleMicroflowSchema)) as MicroflowSchema,

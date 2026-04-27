@@ -9,6 +9,7 @@ import type {
   MicroflowObjectCollection,
   MicroflowRuntimeDto,
   MicroflowSequenceFlow,
+  MicroflowVariableSymbol,
 } from "@atlas/microflow/schema/types";
 import type { MicroflowRuntimeMetadataRefDto } from "../runtime-dto-contract";
 import { resolveActionRuntimeSupportLevel } from "./runtime-action-support";
@@ -17,6 +18,8 @@ import type {
   MicroflowExecutionNode,
   MicroflowExecutionParameter,
   MicroflowExecutionPlan,
+  MicroflowExecutionVariableDeclaration,
+  MicroflowExecutionVariableScope,
   MicroflowUnsupportedActionDescriptor,
 } from "./runtime-execution-plan";
 
@@ -171,6 +174,55 @@ function addNodesFromCollection(
   }
 }
 
+function sourceObjectId(symbol: MicroflowVariableSymbol): string | undefined {
+  return "objectId" in symbol.source ? symbol.source.objectId : symbol.source.kind === "errorContext" ? symbol.source.sourceObjectId : undefined;
+}
+
+function sourceActionId(symbol: MicroflowVariableSymbol): string | undefined {
+  return "actionId" in symbol.source ? symbol.source.actionId : undefined;
+}
+
+function sourceFlowId(symbol: MicroflowVariableSymbol): string | undefined {
+  return symbol.source.kind === "errorContext" ? symbol.source.flowId : undefined;
+}
+
+function toVariableDeclaration(symbol: MicroflowVariableSymbol): MicroflowExecutionVariableDeclaration {
+  return {
+    name: symbol.name,
+    dataType: symbol.dataType,
+    kind: symbol.kind,
+    source: symbol.source,
+    scope: symbol.scope,
+    readonly: symbol.readonly,
+    objectId: sourceObjectId(symbol),
+    actionId: sourceActionId(symbol),
+    flowId: sourceFlowId(symbol),
+    loopObjectId: symbol.scope.loopObjectId,
+  };
+}
+
+function scopeKey(scope: MicroflowVariableSymbol["scope"]): string {
+  return [
+    scope.kind ?? "collection",
+    scope.collectionId,
+    scope.startObjectId,
+    scope.loopObjectId,
+    scope.errorHandlerFlowId,
+    scope.branchFlowId,
+  ].filter(Boolean).join(":");
+}
+
+function toVariableScopes(symbols: MicroflowVariableSymbol[]): MicroflowExecutionVariableScope[] {
+  const scopes = new Map<string, MicroflowExecutionVariableScope>();
+  for (const symbol of symbols) {
+    const key = scopeKey(symbol.scope);
+    const current = scopes.get(key) ?? { key, scope: symbol.scope, variableNames: [] };
+    current.variableNames.push(symbol.name);
+    scopes.set(key, current);
+  }
+  return [...scopes.values()];
+}
+
 /**
  * 将 `MicroflowRuntimeDto` 编译为不含 FlowGram 的执行计划。后端可线性加载 nodes/flows 与 unsupportedActions。
  */
@@ -194,6 +246,8 @@ export function toExecutionPlan(
   const nodes: MicroflowExecutionNode[] = [];
   const unsupported: MicroflowUnsupportedActionDescriptor[] = [];
   addNodesFromCollection(dto.objectCollection, dto.objectCollection.id, undefined, nodes, unsupported);
+  const variableSymbols = dto.variables.all ?? [];
+  const variableDeclarations = variableSymbols.map(toVariableDeclaration);
 
   const metadataRefs: MicroflowRuntimeMetadataRefDto[] = [];
   collectMetadataRefsFromObjects(allObjects, metadataRefs);
@@ -204,6 +258,13 @@ export function toExecutionPlan(
     resourceId: options?.resourceId,
     version: options?.version ?? dto.schemaVersion,
     parameters,
+    variableDeclarations,
+    actionOutputs: variableDeclarations.filter(item => item.source.kind === "actionOutput" || item.source.kind === "microflowReturn" || item.source.kind === "restResponse" || item.source.kind === "createVariable" || item.source.kind === "modeledOnly"),
+    loopVariables: variableDeclarations.filter(item => item.source.kind === "loopIterator" || item.scope.kind === "loop"),
+    systemVariables: variableDeclarations.filter(item => item.source.kind === "system"),
+    errorContextVariables: variableDeclarations.filter(item => item.source.kind === "errorContext" || item.scope.kind === "errorHandler"),
+    variableScopes: toVariableScopes(variableSymbols),
+    variableDiagnostics: dto.variables.diagnostics ?? [],
     nodes,
     flows: allFlows,
     startNodeId: start?.id ?? "missing-start",

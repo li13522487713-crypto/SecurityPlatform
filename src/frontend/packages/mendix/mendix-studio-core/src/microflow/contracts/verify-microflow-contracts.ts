@@ -6,7 +6,7 @@ import { normalizeMicroflowSchema } from "@atlas/microflow/schema/legacy";
 import type { MicroflowAction } from "@atlas/microflow/schema/types";
 import { collectObjectsRecursive } from "@atlas/microflow/schema/utils";
 import { validateMicroflowSchema } from "@atlas/microflow/validators";
-import { buildVariableIndex } from "@atlas/microflow/variables";
+import { buildVariableIndex, getVariablesAfterObject, getVariablesBeforeObject } from "@atlas/microflow/variables";
 
 import { toExecutionPlan, toExecutionPlanFromSchema } from "./runtime-semantics";
 import { microflowSampleManifest } from "./sample-manifest";
@@ -116,6 +116,12 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       if (plan.schemaId !== schema.id || plan.nodes.length < 1) {
         errors.push(`${item.key}: toExecutionPlan 与 schema 不一致或 nodes 为空`);
       }
+      if (!dto.variables.all?.length || !plan.variableDeclarations.length) {
+        errors.push(`${item.key}: Runtime DTO / ExecutionPlan 缺少变量声明`);
+      }
+      if (plan.variableDeclarations.length !== (dto.variables.all?.length ?? 0)) {
+        errors.push(`${item.key}: ExecutionPlan variableDeclarations 与 Runtime DTO variables 不一致`);
+      }
       if (JSON.stringify(plan).includes("flowGram") || JSON.stringify(plan).toLowerCase().includes("flowgram")) {
         errors.push(`${item.key}: execution plan 不应包含 FlowGram 关键字`);
       }
@@ -125,6 +131,29 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       }
       const variableIndex = buildVariableIndex(schema, getDefaultMockMetadataCatalog());
       for (const object of collectObjectsRecursive(schema.objectCollection)) {
+        if (object.kind === "loopedActivity" && object.loopSource.kind === "iterableList") {
+          const loopVariables = variableIndex.all?.filter(symbol => symbol.scope.loopObjectId === object.id) ?? [];
+          if (!loopVariables.some(symbol => symbol.name === object.loopSource.iteratorVariableName)) {
+            errors.push(`${item.key}: Loop iterator 未进入 loop scope`);
+          }
+          if (!loopVariables.some(symbol => symbol.name === object.loopSource.currentIndexVariableName)) {
+            errors.push(`${item.key}: $currentIndex 未进入 loop scope`);
+          }
+          const inner = object.objectCollection.objects.find(candidate => candidate.kind !== "startEvent");
+          if (inner) {
+            const innerVars = getVariablesBeforeObject(schema, variableIndex, inner.id, { includeSystem: true });
+            if (!innerVars.some(symbol => symbol.name === object.loopSource.iteratorVariableName)) {
+              errors.push(`${item.key}: Loop iterator 在循环内部不可见`);
+            }
+            if (!innerVars.some(symbol => symbol.name === object.loopSource.currentIndexVariableName)) {
+              errors.push(`${item.key}: $currentIndex 在循环内部不可见`);
+            }
+          }
+          const outerVars = getVariablesAfterObject(schema, variableIndex, object.id, { includeSystem: true });
+          if (outerVars.some(symbol => symbol.name === object.loopSource.iteratorVariableName || symbol.name === object.loopSource.currentIndexVariableName)) {
+            errors.push(`${item.key}: Loop 内变量泄漏到循环外`);
+          }
+        }
         if (object.kind !== "actionActivity" || !isMicroflowP0ActionStronglyTyped(object.action)) {
           continue;
         }
@@ -132,7 +161,21 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
           if (!variableIndex.byName?.[outputName]?.length) {
             errors.push(`${item.key}: P0 输出变量 ${outputName} 未进入 VariableIndex`);
           }
+          const before = getVariablesBeforeObject(schema, variableIndex, object.id);
+          const after = getVariablesAfterObject(schema, variableIndex, object.id);
+          if (before.some(symbol => symbol.name === outputName)) {
+            errors.push(`${item.key}: P0 输出变量 ${outputName} 在节点前错误可见`);
+          }
+          if (!after.some(symbol => symbol.name === outputName)) {
+            errors.push(`${item.key}: P0 输出变量 ${outputName} 在节点后不可见`);
+          }
         }
+      }
+      if (item.key === "sample-rest-error-handling" && !variableIndex.all?.some(symbol => symbol.name === "$latestError" && symbol.scope.kind === "errorHandler")) {
+        errors.push(`${item.key}: ErrorHandler 内缺少 $latestError`);
+      }
+      if (item.key === "sample-rest-error-handling" && !variableIndex.all?.some(symbol => symbol.name === "$latestHttpResponse" && symbol.scope.kind === "errorHandler")) {
+        errors.push(`${item.key}: RestCall ErrorHandler 内缺少 $latestHttpResponse`);
       }
     } catch (caught) {
       errors.push(`${item.key}: ${caught instanceof Error ? caught.message : String(caught)}`);

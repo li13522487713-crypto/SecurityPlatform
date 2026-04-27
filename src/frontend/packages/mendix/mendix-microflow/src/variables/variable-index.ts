@@ -22,8 +22,20 @@ import type {
   MicroflowVariableVisibility,
 } from "../schema/types";
 import { collectFlowsRecursive, findObjectWithCollection } from "../schema/utils/object-utils";
+import { buildVariableGraphAnalysis } from "./microflow-graph-analysis";
 
 const variableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+export interface MicroflowVariableIndexBuildOptions {
+  includeDiagnostics?: boolean;
+  mode?: "edit" | "save" | "publish" | "testRun";
+}
+
+export interface MicroflowVariableIndexBuildInput {
+  schema: MicroflowSchema;
+  metadata: MicroflowMetadataCatalog;
+  options?: MicroflowVariableIndexBuildOptions;
+}
 
 function emptyIndex(schema: MicroflowSchema): MicroflowVariableIndex {
   return {
@@ -33,8 +45,10 @@ function emptyIndex(schema: MicroflowSchema): MicroflowVariableIndex {
     byName: {},
     byObjectId: {},
     byActionId: {},
+    byCollectionId: {},
     byScopeKey: {},
     diagnostics: [],
+    graphAnalysis: buildVariableGraphAnalysis(schema),
     parameters: {},
     localVariables: {},
     objectOutputs: {},
@@ -97,14 +111,16 @@ function addSymbol(index: MicroflowVariableIndex, symbol: MicroflowVariableSymbo
   index.byName ??= {};
   index.byObjectId ??= {};
   index.byActionId ??= {};
+  index.byCollectionId ??= {};
   index.byScopeKey ??= {};
   index.all.push(normalized);
   index.byName[normalized.name] = [...(index.byName[normalized.name] ?? []), normalized];
+  index.byCollectionId[normalized.scope.collectionId] = [...(index.byCollectionId[normalized.scope.collectionId] ?? []), normalized];
   index.byScopeKey[scopeKey(normalized.scope)] = [...(index.byScopeKey[scopeKey(normalized.scope)] ?? []), normalized];
-  if ("objectId" in normalized.source) {
+  if ("objectId" in normalized.source && normalized.source.objectId) {
     index.byObjectId[normalized.source.objectId] = [...(index.byObjectId[normalized.source.objectId] ?? []), normalized];
   }
-  if ("actionId" in normalized.source) {
+  if ("actionId" in normalized.source && normalized.source.actionId) {
     index.byActionId[normalized.source.actionId] = [...(index.byActionId[normalized.source.actionId] ?? []), normalized];
   }
   if (normalized.kind === "parameter") {
@@ -137,6 +153,7 @@ function createSymbol(input: {
   return {
     id: `${input.source.kind}:${input.name}:${"objectId" in input.source ? input.source.objectId : input.scope.collectionId}`,
     name: input.name,
+    displayName: input.name,
     kind: input.kind,
     dataType: input.dataType,
     source: input.source,
@@ -144,6 +161,11 @@ function createSymbol(input: {
     readonly: input.readonly,
     visibility: input.visibility ?? "definite",
     availableFromObjectId: input.scope.startObjectId,
+    availableInCollectionId: input.scope.collectionId,
+    branchSourceObjectId: input.scope.branchSourceObjectId,
+    branchFlowId: input.scope.branchFlowId,
+    loopObjectId: input.scope.loopObjectId,
+    errorHandlerFlowId: input.scope.errorHandlerFlowId,
     documentation: input.documentation,
   };
 }
@@ -191,7 +213,15 @@ function addOutput(index: MicroflowVariableIndex, symbol: MicroflowVariableSymbo
   addSymbol(index, symbol);
 }
 
-function retrieveOutputType(action: Extract<MicroflowAction, { kind: "retrieve" }>, metadata: MicroflowMetadataCatalog): MicroflowDataType {
+function associationStartEntity(action: Extract<MicroflowAction, { kind: "retrieve" }>, index: MicroflowVariableIndex): string | undefined {
+  if (action.retrieveSource.kind !== "association") {
+    return undefined;
+  }
+  const startSymbol = (index.byName?.[action.retrieveSource.startVariableName] ?? []).find(symbol => symbol.dataType.kind === "object");
+  return startSymbol?.dataType.kind === "object" ? startSymbol.dataType.entityQualifiedName : undefined;
+}
+
+function retrieveOutputType(action: Extract<MicroflowAction, { kind: "retrieve" }>, metadata: MicroflowMetadataCatalog, index: MicroflowVariableIndex): MicroflowDataType {
   if (action.retrieveSource.kind === "database") {
     const entityQualifiedName = action.retrieveSource.entityQualifiedName ?? "";
     const itemType: MicroflowDataType = entityQualifiedName
@@ -200,7 +230,7 @@ function retrieveOutputType(action: Extract<MicroflowAction, { kind: "retrieve" 
     return action.retrieveSource.range.kind === "first" ? itemType : { kind: "list", itemType };
   }
   const association = getAssociationByQualifiedName(metadata, action.retrieveSource.associationQualifiedName ?? undefined);
-  const target = getTargetEntityByAssociation(metadata, action.retrieveSource.associationQualifiedName ?? undefined);
+  const target = getTargetEntityByAssociation(metadata, action.retrieveSource.associationQualifiedName ?? undefined, associationStartEntity(action, index));
   const itemType: MicroflowDataType = target
     ? { kind: "object", entityQualifiedName: target.qualifiedName }
     : { kind: "unknown", reason: action.retrieveSource.associationQualifiedName ?? "association retrieve" };
@@ -292,7 +322,7 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
   const action = object.action;
   const downstream: MicroflowVariableScope = { kind: "downstream", collectionId, startObjectId: object.id };
   if (action.kind === "retrieve") {
-    const dataType = retrieveOutputType(action, metadata);
+    const dataType = retrieveOutputType(action, metadata, index);
     addOutput(index, createSymbol({
       name: action.outputVariableName,
       kind: dataTypeKind(dataType),
@@ -301,16 +331,66 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
       scope: downstream,
       readonly: false,
     }), "action.outputVariableName");
+    if (dataType.kind === "unknown") {
+      addDiagnostic(index, {
+        severity: "warning",
+        code: "MF_VARIABLE_OUTPUT_TYPE_UNKNOWN",
+        message: `Retrieve output "${action.outputVariableName}" has an unknown type: ${dataType.reason ?? "metadata missing"}.`,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.outputVariableName",
+        variableName: action.outputVariableName,
+      });
+    }
+    if (action.retrieveSource.kind === "association") {
+      const startSymbol = (index.byName?.[action.retrieveSource.startVariableName] ?? [])[0];
+      if (startSymbol && startSymbol.dataType.kind !== "object") {
+        addDiagnostic(index, {
+          severity: "error",
+          code: "MF_VARIABLE_TYPE_MISMATCH",
+          message: `Association retrieve start variable "${action.retrieveSource.startVariableName}" must be an object.`,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.retrieveSource.startVariableName",
+          variableName: action.retrieveSource.startVariableName,
+        });
+      }
+      if (!getAssociationByQualifiedName(metadata, action.retrieveSource.associationQualifiedName ?? undefined)) {
+        addDiagnostic(index, {
+          severity: "warning",
+          code: "MF_VARIABLE_METADATA_ASSOCIATION_NOT_FOUND",
+          message: `Association "${action.retrieveSource.associationQualifiedName ?? ""}" is not found in metadata.`,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.retrieveSource.associationQualifiedName",
+          variableName: action.outputVariableName,
+        });
+      }
+    }
   }
   if (action.kind === "createObject") {
+    const dataType: MicroflowDataType = action.entityQualifiedName
+      ? { kind: "object", entityQualifiedName: action.entityQualifiedName }
+      : { kind: "unknown", reason: action.entityQualifiedName ? `entity ${action.entityQualifiedName} missing` : "createObject entity missing" };
     addOutput(index, createSymbol({
       name: action.outputVariableName,
       kind: "objectOutput",
-      dataType: action.entityQualifiedName ? { kind: "object", entityQualifiedName: action.entityQualifiedName } : { kind: "unknown", reason: "createObject entity missing" },
+      dataType,
       source: { kind: "actionOutput", objectId: object.id, actionId: action.id, actionKind: action.kind },
       scope: downstream,
       readonly: false,
     }), "action.outputVariableName");
+    if (dataType.kind === "unknown" || (action.entityQualifiedName && !getEntityByQualifiedName(metadata, action.entityQualifiedName))) {
+      addDiagnostic(index, {
+        severity: "warning",
+        code: "MF_VARIABLE_METADATA_ENTITY_NOT_FOUND",
+        message: `CreateObject output "${action.outputVariableName}" has an unknown type because the entity is not found.`,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.entityQualifiedName",
+        variableName: action.outputVariableName,
+      });
+    }
   }
   if (action.kind === "createVariable") {
     addOutput(index, createSymbol({
@@ -325,6 +405,18 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
   if (action.kind === "callMicroflow" && action.returnValue.storeResult && action.returnValue.outputVariableName) {
     const target = getMicroflowById(metadata, action.targetMicroflowId);
     const dataType = target?.returnType ?? action.returnValue.dataType ?? { kind: "unknown", reason: "microflow return" };
+    if (dataType.kind === "void") {
+      addDiagnostic(index, {
+        severity: "warning",
+        code: "MF_VARIABLE_MICROFLOW_RETURN_VOID",
+        message: `Microflow "${action.targetMicroflowId}" returns void and should not store a result.`,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.returnValue.outputVariableName",
+        variableName: action.returnValue.outputVariableName,
+      });
+      return;
+    }
     addOutput(index, createSymbol({
       name: action.returnValue.outputVariableName,
       kind: "microflowReturn",
@@ -333,6 +425,17 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
       scope: downstream,
       readonly: false,
     }), "action.returnValue.outputVariableName");
+    if (!target || dataType.kind === "unknown") {
+      addDiagnostic(index, {
+        severity: "warning",
+        code: "MF_VARIABLE_MICROFLOW_RETURN_UNKNOWN",
+        message: `CallMicroflow output "${action.returnValue.outputVariableName}" uses an unknown return type until metadata is configured.`,
+        objectId: object.id,
+        actionId: action.id,
+        fieldPath: "action.returnValue.outputVariableName",
+        variableName: action.returnValue.outputVariableName,
+      });
+    }
   }
   if (action.kind === "restCall") {
     if (action.response.handling.kind !== "ignore") {
@@ -349,6 +452,17 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
         scope: downstream,
         readonly: false,
       }), "action.response.handling.outputVariableName");
+      if (dataType.kind === "unknown") {
+        addDiagnostic(index, {
+          severity: "warning",
+          code: "MF_VARIABLE_REST_RESPONSE_UNKNOWN",
+          message: `REST response "${action.response.handling.outputVariableName}" uses an import mapping and is modeled as unknown.`,
+          objectId: object.id,
+          actionId: action.id,
+          fieldPath: "action.response.handling.outputVariableName",
+          variableName: action.response.handling.outputVariableName,
+        });
+      }
     }
     if (action.response.statusCodeVariableName) {
       addOutput(index, createSymbol({
@@ -376,23 +490,21 @@ function addActionOutputs(index: MicroflowVariableIndex, object: MicroflowAction
   if (genericName && genericType) {
     addOutput(index, createSymbol({
       name: genericName.name,
-      kind: dataTypeKind(genericType),
+      kind: genericType.kind === "unknown" ? "unknown" : "modeledOnly",
       dataType: genericType,
-      source: { kind: "actionOutput", objectId: object.id, actionId: action.id, actionKind: action.kind },
+      source: { kind: "modeledOnly", objectId: object.id, actionId: action.id, actionKind: action.kind },
       scope: downstream,
       readonly: false,
     }), genericName.fieldPath);
-    if (genericType.kind === "unknown") {
-      addDiagnostic(index, {
-        severity: "warning",
-        code: "MF_VARIABLE_OUTPUT_TYPE_UNKNOWN",
-        message: `Variable "${genericName.name}" has an unknown type until metadata is configured.`,
-        objectId: object.id,
-        actionId: action.id,
-        fieldPath: genericName.fieldPath,
-        variableName: genericName.name,
-      });
-    }
+    addDiagnostic(index, {
+      severity: "warning",
+      code: genericType.kind === "unknown" ? "MF_VARIABLE_OUTPUT_TYPE_UNKNOWN" : "MF_VARIABLE_OUTPUT_MODELED_ONLY",
+      message: `Variable "${genericName.name}" is produced by modeled-only action "${action.kind}" and is not a strong P0 runtime output.`,
+      objectId: object.id,
+      actionId: action.id,
+      fieldPath: genericName.fieldPath,
+      variableName: genericName.name,
+    });
   }
 }
 
@@ -494,8 +606,20 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
   }
 }
 
-export function buildVariableIndex(schema: MicroflowSchema, metadata: MicroflowMetadataCatalog): MicroflowVariableIndex {
+export function buildVariableIndex(input: MicroflowVariableIndexBuildInput): MicroflowVariableIndex;
+export function buildVariableIndex(schema: MicroflowSchema, metadata: MicroflowMetadataCatalog, options?: MicroflowVariableIndexBuildOptions): MicroflowVariableIndex;
+export function buildVariableIndex(
+  schemaOrInput: MicroflowSchema | MicroflowVariableIndexBuildInput,
+  metadataArg?: MicroflowMetadataCatalog,
+  _options?: MicroflowVariableIndexBuildOptions,
+): MicroflowVariableIndex {
+  const schema = "schema" in schemaOrInput ? schemaOrInput.schema : schemaOrInput;
+  const metadata = "schema" in schemaOrInput ? schemaOrInput.metadata : metadataArg;
+  if (!metadata) {
+    throw new Error("buildVariableIndex requires an explicit MetadataCatalog.");
+  }
   const index = emptyIndex(schema);
+  index.metadataVersion = metadata.version;
   addSymbol(index, createSymbol({
     name: "$currentUser",
     kind: "system",

@@ -28,6 +28,7 @@ function checkVariableReference(input: {
   expectedKinds: MicroflowDataType["kind"][];
   label: string;
   issues: MicroflowValidationIssue[];
+  writable?: boolean;
 }) {
   const index = buildVariableIndex(input.schema, input.metadata);
   const symbol = resolveVariableReferenceFromIndex(input.schema, index, { objectId: input.objectId, actionId: input.actionId, fieldPath: input.fieldPath }, input.value);
@@ -44,6 +45,12 @@ function checkVariableReference(input: {
   }
   if (symbol.visibility === "maybe") {
     input.issues.push(variableIssue("MF_VARIABLE_MAYBE_SCOPE", `Variable "${input.value}" may not be assigned on every incoming path.`, input.objectId, input.actionId, input.fieldPath, "warning"));
+  }
+  if (input.writable && symbol.readonly) {
+    input.issues.push(variableIssue("MF_VARIABLE_READONLY", `Variable "${input.value}" is readonly and cannot be changed.`, input.objectId, input.actionId, input.fieldPath));
+  }
+  if (input.writable && symbol.kind === "system") {
+    input.issues.push(variableIssue("MF_VARIABLE_SYSTEM_READONLY", `System variable "${input.value}" cannot be changed.`, input.objectId, input.actionId, input.fieldPath));
   }
 }
 
@@ -134,6 +141,7 @@ export function validateVariables(schema: MicroflowSchema, context: MicroflowVal
         expectedKinds: ["boolean", "integer", "long", "decimal", "string", "dateTime", "enumeration", "object", "list", "fileDocument", "json", "unknown"],
         label: "Change variable",
         issues,
+        writable: true,
       });
     }
   }

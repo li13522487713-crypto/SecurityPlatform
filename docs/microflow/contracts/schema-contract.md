@@ -54,3 +54,12 @@ TypeScript 定义见 `@atlas/microflow`（`schema/types.ts`）中的 `MicroflowA
 - P0 属性面板字段必须直接回写 `MicroflowAuthoringSchema` 中的强类型 action 字段，禁止以 FlowGram JSON、generic config 或 raw JSON dump 作为主数据。
 - 稳定 `fieldPath` 以 `action.*` 为准：Retrieve `action.retrieveSource.*` / `action.outputVariableName`，CreateObject `action.entityQualifiedName` / `action.memberChanges.*`，CallMicroflow `action.parameterMappings.*.argumentExpression` / `action.returnValue.outputVariableName`，RestCall `action.request.*` / `action.response.*`。
 - 输出变量统一进入 VariableIndex：Retrieve、CreateObject、CreateVariable、CallMicroflow return、RestCall response/status/headers；重复名、非法名和空名必须挂到对应 `fieldPath`。
+
+## 第 27 轮变量作用域 v2
+
+- `MicroflowVariableVisibility` 固定为 `definite` / `maybe` / `unavailable`。
+- `MicroflowVariableScope.kind` 覆盖 `global`、`downstream`、`branch`、`loop`、`errorHandler`、`system`、`collection`。
+- `MicroflowVariableKind` 覆盖参数、P0 action 输出、local/create variable、object/list/primitive output、microflow return、REST response、loop iterator、system、error context、modeledOnly 与 unknown。
+- `VariableIndex` 是派生结构，禁止作为业务主存储；构建必须显式接收 `MicroflowMetadataCatalog`，不得直接依赖 mock metadata。
+- FlowGraph 分析基于 AuthoringSchema：AnnotationFlow 不参与 normal graph，ErrorHandlerFlow 只参与 error scope，Loop nested collection 单独建图。
+- P0 Action 输出类型规则见 `runtime-variable-scope-contract.md`；GenericAction 只允许 modeledOnly/unknown 输出并产生 warning。

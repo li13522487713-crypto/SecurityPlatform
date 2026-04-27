@@ -71,10 +71,25 @@ export function ExpressionEditor({
     context: { objectId, actionId, flowId, fieldPath, expectedType, required },
   }), [actionId, debouncedRaw, expectedType, fieldPath, flowId, metadata, objectId, required, schema, variableIndex]);
   const insertOptions = useMemo(() => variables.flatMap(variable => {
+    const suffix = [
+      expressionTypeLabel(variable.dataType),
+      variable.visibility === "maybe" ? "maybe" : undefined,
+      variable.dataType.kind === "unknown" ? "unknown" : undefined,
+    ].filter(Boolean).join(", ");
     const variableOption = {
-      label: `$${variable.name} (${expressionTypeLabel(variable.dataType)})`,
+      label: `$${variable.name} (${suffix})`,
       value: `$${variable.name}`,
     };
+    if (variable.dataType.kind === "list" && variable.dataType.itemType.kind === "object") {
+      return [
+        variableOption,
+        {
+          label: `$${variable.name}/... (列表需要循环后访问成员)`,
+          value: `$${variable.name}`,
+          disabled: true,
+        },
+      ];
+    }
     if (variable.dataType.kind !== "object") {
       return [variableOption];
     }

@@ -10,7 +10,9 @@ export function VariableOptionLabel({ symbol }: { symbol: MicroflowVariableSymbo
       <Text size="small">{symbol.name}</Text>
       <Text type="tertiary" size="small">{dataTypeLabel(symbol.dataType)}</Text>
       <Tag size="small">{variableSourceLabel(symbol)}</Tag>
+      <Tag size="small" color="blue">{symbol.scope.kind ?? "collection"}</Tag>
       {symbol.visibility === "maybe" ? <Tag size="small" color="orange">maybe</Tag> : null}
+      {symbol.dataType.kind === "unknown" ? <Tag size="small" color="red">unknown</Tag> : null}
       {symbol.readonly ? <Tag size="small" color="grey">readonly</Tag> : null}
     </Space>
   );

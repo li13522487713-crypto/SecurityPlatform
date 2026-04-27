@@ -5,6 +5,7 @@ export * from "./variable-visibility";
 export * from "./variable-index";
 export * from "./variable-scope-engine";
 export * from "./variable-scope-query";
+export * from "./microflow-graph-analysis";
 export * from "./variable-diagnostics";
 export * from "./variable-type-utils";
 export * from "./variable-selector-model";

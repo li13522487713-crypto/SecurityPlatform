@@ -11,7 +11,7 @@ import {
   collectRuntimeObjects,
   getFlowTargetObject,
   getNextNormalFlow,
-  getOutgoingErrorHandlerFlows,
+  getOutgoingRuntimeErrorHandlerFlows,
   getOutgoingSequenceFlows,
   getStartEvent,
   isExecutableObject,
@@ -260,7 +260,7 @@ function selectOutgoingFlow(
   }
   const isRestError = object.kind === "actionActivity" && object.action.kind === "restCall" && input.options?.simulateRestError === true;
   if (isRestError) {
-    const errorFlow = getOutgoingErrorHandlerFlows(input.schema, object.id)[0];
+    const errorFlow = getOutgoingRuntimeErrorHandlerFlows(input.schema, object.id)[0];
     const error: MicroflowRuntimeError = {
       code: "RUNTIME_REST_CALL_FAILED",
       message: "Mock REST call failed by test option simulateRestError.",

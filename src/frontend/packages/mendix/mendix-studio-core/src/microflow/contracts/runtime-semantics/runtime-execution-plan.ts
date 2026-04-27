@@ -1,4 +1,12 @@
-import type { MicroflowCaseValue, MicroflowDataType, MicroflowDiscriminatedRuntimeP0ActionDto } from "@atlas/microflow/schema";
+import type {
+  MicroflowCaseValue,
+  MicroflowDataType,
+  MicroflowDiscriminatedRuntimeP0ActionDto,
+  MicroflowVariableDiagnostic,
+  MicroflowVariableKind,
+  MicroflowVariableScope,
+  MicroflowVariableSource,
+} from "@atlas/microflow/schema";
 import type { MicroflowRuntimeErrorHandlingDto, MicroflowRuntimeMetadataRefDto } from "../runtime-dto-contract";
 
 /**
@@ -11,6 +19,13 @@ export interface MicroflowExecutionPlan {
   resourceId?: string;
   version?: string;
   parameters: MicroflowExecutionParameter[];
+  variableDeclarations: MicroflowExecutionVariableDeclaration[];
+  actionOutputs: MicroflowExecutionVariableDeclaration[];
+  loopVariables: MicroflowExecutionVariableDeclaration[];
+  systemVariables: MicroflowExecutionVariableDeclaration[];
+  errorContextVariables: MicroflowExecutionVariableDeclaration[];
+  variableScopes: MicroflowExecutionVariableScope[];
+  variableDiagnostics: MicroflowVariableDiagnostic[];
   nodes: MicroflowExecutionNode[];
   flows: MicroflowExecutionFlow[];
   startNodeId: string;
@@ -25,6 +40,25 @@ export interface MicroflowExecutionParameter {
   name: string;
   dataType: MicroflowDataType;
   required: boolean;
+}
+
+export interface MicroflowExecutionVariableDeclaration {
+  name: string;
+  dataType: MicroflowDataType;
+  kind?: MicroflowVariableKind;
+  source: MicroflowVariableSource;
+  scope: MicroflowVariableScope;
+  readonly: boolean;
+  objectId?: string;
+  actionId?: string;
+  flowId?: string;
+  loopObjectId?: string;
+}
+
+export interface MicroflowExecutionVariableScope {
+  key: string;
+  scope: MicroflowVariableScope;
+  variableNames: string[];
 }
 
 export interface MicroflowExecutionNode {

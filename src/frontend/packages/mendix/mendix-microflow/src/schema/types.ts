@@ -1132,16 +1132,19 @@ export type MicroflowVariableVisibility = "definite" | "maybe" | "unavailable";
 
 export type MicroflowVariableKind =
   | "parameter"
+  | "actionOutput"
   | "localVariable"
   | "objectOutput"
   | "listOutput"
   | "primitiveOutput"
+  | "microflowReturn"
+  | "restResponse"
   | "loopIterator"
   | "system"
   | "errorContext"
-  | "restResponse"
   | "soapFault"
-  | "microflowReturn";
+  | "modeledOnly"
+  | "unknown";
 
 export type MicroflowVariableSource =
   | { kind: "parameter"; parameterId: string }
@@ -1152,10 +1155,12 @@ export type MicroflowVariableSource =
   | { kind: "system"; name: "$currentUser" | "$currentIndex" }
   | { kind: "errorContext"; flowId: string; sourceObjectId?: string; errorVariable?: "$latestError" | "$latestHttpResponse" | "$latestSoapFault" }
   | { kind: "microflowReturn"; objectId: string; targetMicroflowId: string }
-  | { kind: "restResponse"; objectId: string; responseKind: "string" | "json" | "importMapping" | "statusCode" | "headers" };
+  | { kind: "restResponse"; objectId: string; responseKind: "string" | "json" | "importMapping" | "statusCode" | "headers" }
+  | { kind: "modeledOnly"; objectId: string; actionId?: string; actionKind?: MicroflowActionKind }
+  | { kind: "unknown"; objectId?: string; actionId?: string; reason?: string };
 
 export interface MicroflowVariableScope {
-  kind?: "global" | "objectCollection" | "downstream" | "loop" | "errorHandler" | "branch";
+  kind?: "global" | "objectCollection" | "downstream" | "branch" | "loop" | "errorHandler" | "system" | "collection";
   collectionId: string;
   startObjectId?: string;
   endObjectId?: string;
@@ -1189,20 +1194,39 @@ export interface MicroflowVariableSymbol {
   visibility?: MicroflowVariableVisibility;
   readonly: boolean;
   availableFromObjectId?: string;
+  availableInCollectionId?: string;
   availableInObjectIds?: string[];
+  branchSourceObjectId?: string;
+  branchFlowId?: string;
+  loopObjectId?: string;
+  errorHandlerFlowId?: string;
+  maybeReason?: string;
   unavailableReason?: string;
+  diagnostics?: MicroflowVariableDiagnostic[];
   documentation?: string;
+}
+
+export interface MicroflowVariableGraphAnalysis {
+  collectionIds: string[];
+  objectIds: string[];
+  normalEdges: Array<{ flowId: string; fromObjectId: string; toObjectId: string; collectionId: string; edgeKind: "sequence" | "decisionCondition" | "objectTypeCondition" | "loopEntry" }>;
+  errorHandlerEdges: Array<{ flowId: string; fromObjectId: string; toObjectId: string; collectionId: string }>;
+  annotationFlowIds: string[];
+  startObjectIdsByCollection: Record<string, string[]>;
 }
 
 export interface MicroflowVariableIndex {
   schemaId?: string;
   builtAt?: string;
+  metadataVersion?: string;
   all?: MicroflowVariableSymbol[];
   byName?: Record<string, MicroflowVariableSymbol[]>;
   byObjectId?: Record<string, MicroflowVariableSymbol[]>;
   byActionId?: Record<string, MicroflowVariableSymbol[]>;
+  byCollectionId?: Record<string, MicroflowVariableSymbol[]>;
   byScopeKey?: Record<string, MicroflowVariableSymbol[]>;
   diagnostics?: MicroflowVariableDiagnostic[];
+  graphAnalysis?: MicroflowVariableGraphAnalysis;
   parameters: Record<string, MicroflowVariableSymbol>;
   localVariables: Record<string, MicroflowVariableSymbol>;
   objectOutputs: Record<string, MicroflowVariableSymbol>;

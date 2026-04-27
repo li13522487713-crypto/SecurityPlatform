@@ -4,7 +4,6 @@ import { EMPTY_MICROFLOW_METADATA_CATALOG, useMicroflowMetadata } from "../../me
 import type { MicroflowAuthoringSchema, MicroflowDataType } from "../../schema";
 import {
   buildVariableIndex,
-  filterVariableByType,
   getAvailableVariablesAtField,
   resolveVariableReferenceFromIndex,
 } from "../../variables";
@@ -15,14 +14,18 @@ const { Text } = Typography;
 export function VariableSelector({
   schema,
   objectId,
+  actionId,
   fieldPath = "",
+  collectionId,
   value,
   onChange,
+  allowedTypes,
   allowedTypeKinds,
   includeMaybe = true,
   includeSystem = true,
   includeErrorContext = true,
   includeReadonly = true,
+  writableOnly = false,
   disabled,
   placeholder = "Select variable",
 }: {
@@ -30,6 +33,7 @@ export function VariableSelector({
   objectId?: string;
   actionId?: string;
   fieldPath?: string;
+  collectionId?: string;
   value?: string;
   onChange: (variableName?: string) => void;
   allowedTypes?: MicroflowDataType[];
@@ -38,6 +42,7 @@ export function VariableSelector({
   includeSystem?: boolean;
   includeErrorContext?: boolean;
   includeReadonly?: boolean;
+  writableOnly?: boolean;
   disabled?: boolean;
   placeholder?: string;
 }) {
@@ -48,15 +53,18 @@ export function VariableSelector({
     if (!objectId) {
       return [];
     }
-    return getAvailableVariablesAtField(schema, variableIndex, objectId, fieldPath)
-      .filter(symbol => includeMaybe || symbol.visibility !== "maybe")
-      .filter(symbol => includeSystem || symbol.kind !== "system")
-      .filter(symbol => includeErrorContext || (symbol.kind !== "errorContext" && symbol.kind !== "restResponse" && symbol.kind !== "soapFault"))
-      .filter(symbol => includeReadonly || !symbol.readonly)
-      .filter(symbol => filterVariableByType(symbol, allowedTypeKinds));
-  }, [allowedTypeKinds, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, variableIndex]);
+    return getAvailableVariablesAtField(schema, variableIndex, objectId, fieldPath, {
+      allowedTypeKinds,
+      allowedTypes,
+      collectionId,
+      includeErrorContext,
+      includeMaybe,
+      includeSystem,
+      writableOnly: writableOnly || !includeReadonly,
+    });
+  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, variableIndex, writableOnly]);
   const current = value && objectId
-    ? resolveVariableReferenceFromIndex(schema, variableIndex, { objectId, fieldPath }, value)
+    ? resolveVariableReferenceFromIndex(schema, variableIndex, { objectId, actionId, fieldPath, collectionId }, value)
     : null;
   const currentVisible = !value || Boolean(current);
   if (error) {

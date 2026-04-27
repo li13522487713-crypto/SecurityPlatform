@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Input, Select, Switch, TextArea, Typography } from "@douyinfe/semi-ui";
-import type { MicroflowAction, MicroflowObject, MicroflowParameter } from "../../schema";
+import { Input, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
+import type { MicroflowAction, MicroflowObject, MicroflowParameter, MicroflowVariableIndex, MicroflowVariableSymbol } from "../../schema";
 import type { MicroflowPropertyTabKey } from "../../schema/types";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, useMetadataStatus, useMicroflowMetadataCatalog } from "../../metadata";
-import { buildVariableIndex } from "../../variables";
+import { buildVariableIndex, getOutputVariablesForObject, variableSourceLabel } from "../../variables";
 import { collectFlowsRecursive } from "../../schema/utils/object-utils";
 import { ValidationIssueList } from "../common";
 import type { MicroflowPropertyPanelProps } from "../types";
@@ -62,6 +62,24 @@ function p0OutputSummary(action: MicroflowAction): string {
     return "该节点不产生变量";
   }
   return genericOutputSummary(action) ?? "该节点不产生变量";
+}
+
+function outputLine(symbol: MicroflowVariableSymbol): string {
+  return `${symbol.name}: ${dataTypeLabel(symbol.dataType)} | ${variableSourceLabel(symbol)} | ${symbol.scope.kind ?? "collection"} | ${symbol.visibility ?? "definite"}`;
+}
+
+function outputSymbolsForObject(index: MicroflowVariableIndex, object: MicroflowObject, parameter?: MicroflowParameter): MicroflowVariableSymbol[] {
+  const direct = getOutputVariablesForObject(index, object.id);
+  if (direct.length) {
+    return direct;
+  }
+  if (object.kind === "parameterObject" && parameter) {
+    return index.byName?.[parameter.name] ?? [];
+  }
+  if (object.kind === "loopedActivity") {
+    return (index.all ?? []).filter(symbol => symbol.scope.loopObjectId === object.id);
+  }
+  return [];
 }
 
 export function ObjectPanel(props: MicroflowPropertyPanelProps) {
@@ -145,6 +163,19 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
         ) : null}
         {activeTab === "output" ? (
           <>
+            <Field label="Variable Declarations">
+              {outputSymbolsForObject(variableIndex, object, parameter).length ? (
+                <Space vertical align="start" spacing={6}>
+                  {outputSymbolsForObject(variableIndex, object, parameter).map(symbol => (
+                    <Space key={symbol.id ?? `${symbol.name}:${symbol.scope.collectionId}`} align="center" spacing={6}>
+                      <Text size="small">{outputLine(symbol)}</Text>
+                      {symbol.dataType.kind === "unknown" ? <Tag size="small" color="red">unknown</Tag> : null}
+                      {symbol.visibility === "maybe" ? <Tag size="small" color="orange">maybe</Tag> : null}
+                    </Space>
+                  ))}
+                </Space>
+              ) : <Text type="tertiary">该节点不产生变量</Text>}
+            </Field>
             {object.kind === "actionActivity" ? <Field label="Output Spec"><TextArea value={p0OutputSummary(object.action)} disabled autosize /></Field> : null}
             {object.kind === "parameterObject" ? <Field label="Parameter"><Input value={`${parameter?.name ?? object.parameterName ?? ""}: ${dataTypeLabel(parameter?.dataType)}`} disabled /></Field> : null}
             {object.kind === "loopedActivity" && object.loopSource.kind === "iterableList" ? <Field label="Loop Variables"><Input value={`${object.loopSource.iteratorVariableName}, ${object.loopSource.currentIndexVariableName}`} disabled /></Field> : null}

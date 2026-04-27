@@ -45,6 +45,8 @@ import type {
 } from "../schema/types";
 import { mapAuthoringP0ToRuntimeBlocks } from "../runtime/map-authoring-p0-runtime";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
+import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
+import { buildVariableIndex as buildVariableIndexV2 } from "../variables/variable-index";
 
 const defaultLineStyle: MicroflowLine["style"] = {
   strokeType: "solid",
@@ -1368,6 +1370,8 @@ export function fromMendixCompat(input: MendixCompatMicroflow): MicroflowAuthori
 }
 
 export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntimeDto {
+  const existingVariables = schema.variables;
+  const hasExistingVariables = Boolean(existingVariables?.all?.length);
   return {
     microflowId: schema.id,
     schemaVersion: schema.schemaVersion,
@@ -1376,7 +1380,7 @@ export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntime
     parameters: schema.parameters,
     objectCollection: schema.objectCollection,
     flows: schema.flows,
-    variables: schema.variables ?? buildVariableIndex(schema.parameters, schema.objectCollection, schema.flows),
+    variables: hasExistingVariables && existingVariables ? existingVariables : buildVariableIndexV2(schema, EMPTY_MICROFLOW_METADATA_CATALOG),
     p0RuntimeActionBlocks: mapAuthoringP0ToRuntimeBlocks(schema)
   };
 }

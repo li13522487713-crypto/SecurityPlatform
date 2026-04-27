@@ -33,6 +33,10 @@ export function variableSourceLabel(symbol: MicroflowVariableSymbol): string {
       return "SOAP fault";
     case "microflowReturn":
       return "microflow return";
+    case "modeledOnly":
+      return "modeled-only output";
+    case "unknown":
+      return "unknown output";
     default:
       return symbol.source.kind;
   }

@@ -23,6 +23,11 @@
 19. **字段级错误**：清空输出变量、REST URL、CallMicroflow 参数或 Loop iterator 时，字段下方显示对应 `ValidationIssue.fieldPath`。
 20. **变量联动**：修改 Retrieve/CreateObject/CreateVariable/CallMicroflow/RestCall 输出变量后，下游 VariableSelector 可见，重复名提示错误。
 21. **FlowGram 同步**：修改 caption、REST method/url、Log level、CallMicroflow target、输出变量、Loop iterator 后，节点标题或副标题同步更新且视口不跳回原点。
+22. **变量作用域 v2**：Retrieve 输出在节点前不可见、节点后可见；Decision 分支变量在 Merge 后显示 maybe；Loop 内可见 iterator 与 `$currentIndex`，Loop 外不可见。
+23. **ErrorHandler 变量**：REST error handler 内可见 `$latestError` 与 `$latestHttpResponse`，主路径不可见；WebService error handler 内可见 `$latestSoapFault`。
+24. **VariableSelector v2**：显示变量名、类型、来源、scope、visibility、readonly/unknown tag；ChangeVariable 不显示 readonly/system，Commit/Delete/Rollback 只显示 object/list。
+25. **ExpressionEditor v2**：插入菜单使用同一 VariableIndex；object 可插属性，list<object> 提示需循环访问成员，maybe/unknown 有提示。
+26. **Runtime 契约**：`toRuntimeDto().variables.all` 与 `toExecutionPlan().variableDeclarations` 非空且数量一致。
 
 ## 自动化补充
 

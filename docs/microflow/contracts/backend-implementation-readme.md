@@ -14,6 +14,9 @@
 ## P0 可先交付
 
 - 优先级：消费 `toRuntimeDto().p0RuntimeActionBlocks` 与 `toExecutionPlan().nodes[].p0ActionRuntime` 中的 **P0 强类型 DTO**（非 `unknown` blob）；`MicroflowGenericAction` 仅对应 P1/P2 modeledOnly。
+- 变量：消费 `toRuntimeDto().variables` 或 `toExecutionPlan().variableDeclarations`。后者已拆出 `actionOutputs`、`loopVariables`、`systemVariables`、`errorContextVariables`、`variableScopes` 与 `variableDiagnostics`，不含 FlowGram/UI-only 信息。
+- 作用域：按 `visibility=definite/maybe/unavailable` 实现发布期检查；`maybe` 可先 warning，`unavailable` 与类型不匹配应阻断保存/发布。
+- ErrorHandler：`$latestError` 仅在 error handler scope；RestCall error handler 额外支持 `$latestHttpResponse`，WebService error handler 额外支持 `$latestSoapFault`。
 - 微流资源 + Schema 存取 + 列表。
 - 发布 + 只读发布快照 + 基础版本树。
 - 元数据全量 `GET`。

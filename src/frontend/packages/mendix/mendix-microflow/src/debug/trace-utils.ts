@@ -38,7 +38,7 @@ export function getOutgoingSequenceFlows(schema: MicroflowAuthoringSchema, objec
   ).sort(byBranchOrder);
 }
 
-export function getOutgoingErrorHandlerFlows(schema: MicroflowAuthoringSchema, objectId: string): MicroflowSequenceFlow[] {
+export function getOutgoingRuntimeErrorHandlerFlows(schema: MicroflowAuthoringSchema, objectId: string): MicroflowSequenceFlow[] {
   return collectRuntimeFlows(schema).filter((flow): flow is MicroflowSequenceFlow =>
     flow.kind === "sequence" && flow.originObjectId === objectId && flow.isErrorHandler
   ).sort(byBranchOrder);
