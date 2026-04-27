@@ -19,3 +19,10 @@
 - `validateActions` 覆盖 P0 必填字段、Rest header/query/body、CallMicroflow 参数与 void return storeResult。
 - `validateExpressions` 覆盖 Retrieve custom range、REST form body、LogMessage arguments 等第 27 轮遗漏字段。
 - modeledOnly / requiresConnector / nanoflowOnly 进入 Validator，并按 edit/save/publish/testRun 模式调整 severity。
+
+## 第 29 轮 Flow 协议补充
+
+- P0 Runtime 只消费 `SequenceFlow` control flow；`AnnotationFlow` 仅用于编辑器说明与导出展示，不进入 ExecutionPlan control flows。
+- Decision/ObjectType 分支必须从 `caseValues` 读取，不得从 FlowGram port label 推断；`noCase` 表示 pending，publish/testRun 必须阻断。
+- ErrorHandler 必须由 `isErrorHandler=true` 与 `editor.edgeKind="errorHandler"` 同时表达；P0 每个 source object 最多一个。
+- AutoLayout、validation sync、runtime highlight 只能更新视图/状态，不得修改 flow semantic hash。

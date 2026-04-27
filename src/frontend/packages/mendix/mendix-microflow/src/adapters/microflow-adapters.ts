@@ -45,6 +45,7 @@ import type {
 } from "../schema/types";
 import { mapAuthoringP0ToRuntimeBlocks } from "../runtime/map-authoring-p0-runtime";
 import { collectFlowsRecursive } from "../schema/utils/object-utils";
+import { createPortId } from "../schema/utils/port-utils";
 import { EMPTY_MICROFLOW_METADATA_CATALOG } from "../metadata/metadata-catalog";
 import { buildVariableIndex as buildVariableIndexV2 } from "../variables/variable-index";
 
@@ -1182,7 +1183,7 @@ export function toEditorGraph(schema: MicroflowAuthoringSchema): MicroflowEditor
       position: entry.object.relativeMiddlePoint,
       size: entry.object.size,
       ports: portsForObject(entry.object).map((port, index) => ({
-        id: `${entry.object.id}:${port.id}`,
+        id: createPortId(entry.object.id, port.kind, index),
         objectId: entry.object.id,
         label: port.label,
         direction: port.direction,
@@ -1214,6 +1215,8 @@ export function toEditorGraph(schema: MicroflowAuthoringSchema): MicroflowEditor
       const targetPort = flow.kind === "annotation"
         ? targetPorts.find(port => port.kind === "annotation" && port.direction === "input") ?? targetPorts[flow.destinationConnectionIndex ?? 0]
         : targetPorts[flow.destinationConnectionIndex ?? 0] ?? targetPorts.find(port => port.direction === "input");
+      const sourceConnectionIndex = sourcePort ? sourcePorts.indexOf(sourcePort) : flow.originConnectionIndex ?? 0;
+      const targetConnectionIndex = targetPort ? targetPorts.indexOf(targetPort) : flow.destinationConnectionIndex ?? 0;
       return {
         id: `edge-${flow.id}`,
         flowId: flow.id,
@@ -1222,8 +1225,8 @@ export function toEditorGraph(schema: MicroflowAuthoringSchema): MicroflowEditor
         sourceObjectId: flow.originObjectId,
         targetNodeId: `node-${flow.destinationObjectId}`,
         targetObjectId: flow.destinationObjectId,
-        sourcePortId: `${flow.originObjectId}:${sourcePort?.id ?? "out"}`,
-        targetPortId: `${flow.destinationObjectId}:${targetPort?.id ?? "in"}`,
+        sourcePortId: createPortId(flow.originObjectId, sourcePort?.kind ?? "sequenceOut", sourceConnectionIndex),
+        targetPortId: createPortId(flow.destinationObjectId, targetPort?.kind ?? "sequenceIn", targetConnectionIndex),
         edgeKind: flow.kind === "annotation" ? "annotation" : flow.editor.edgeKind,
         label: flow.kind === "annotation" ? flow.editor.label : flow.editor.label,
         style: {
@@ -1379,7 +1382,7 @@ export function toRuntimeDto(schema: MicroflowAuthoringSchema): MicroflowRuntime
     returnType: schema.returnType,
     parameters: schema.parameters,
     objectCollection: schema.objectCollection,
-    flows: schema.flows,
+    flows: schema.flows.filter(flow => flow.kind === "sequence"),
     variables: hasExistingVariables && existingVariables ? existingVariables : buildVariableIndexV2(schema, EMPTY_MICROFLOW_METADATA_CATALOG),
     p0RuntimeActionBlocks: mapAuthoringP0ToRuntimeBlocks(schema)
   };

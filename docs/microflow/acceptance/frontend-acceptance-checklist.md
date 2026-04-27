@@ -32,6 +32,11 @@
 28. **Validator mode**：edit/save/publish/testRun 四种模式下 severity 差异符合 `validation-contract.md`，testRun 对 modeledOnly 报 error。
 29. **P0 表达式字段**：Retrieve custom range、REST form body、LogMessage arguments、CallMicroflow mappings 均进入统一 `validateExpressions`。
 30. **ProblemPanel 联动**：点击 issue 选中 object/flow；字段错误通过稳定 `fieldPath` 在属性面板显示。
+31. **FlowGram port 协议**：保存/刷新后 edge 仍连接同一端口，`sourcePortID`/`targetPortID` 可由 `{objectId}:{portKind}:{connectionIndex}` 解析。
+32. **Edge 协议**：Decision/ObjectType/ErrorHandler/AnnotationFlow 的 `caseValues`、`isErrorHandler`、`label`、`branchOrder` 在保存、校验、AutoLayout 后不丢失。
+33. **Loop 边界**：root → loop internal、loop internal → root 被拒绝；同一 loop internal collection 内部可连；Break/Continue 无出边。
+34. **Runtime edge**：`toRuntimeDto().flows` 与 `toExecutionPlan().flows` 不包含 AnnotationFlow，且 plan 提供 normal/decision/errorHandler flow 分组。
+35. **AutoLayout 语义**：AutoLayout 前后 flow semantic hash 一致，case/errorHandler/annotation 类型不变化。
 
 ## 自动化补充
 

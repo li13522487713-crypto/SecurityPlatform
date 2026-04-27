@@ -6,6 +6,9 @@
 - `AnnotationFlow` 不参与执行图。
 - `ErrorHandlerFlow` 不参与 normal graph，只参与 error handler scope 与运行时异常跳转。
 - Loop collection 独立建图，外部变量可进入 Loop，Loop 内变量默认不回流外部主路径。
+- Runtime DTO / ExecutionPlan 必须保留 `caseValues` 与 `isErrorHandler`，但不得依赖 FlowGram JSON 或视觉顺序执行。
+- ExecutionPlan 将 control flow 分为 `normalFlows`、`decisionFlows`、`errorHandlerFlows`；AnnotationFlow 可用于编辑器导出元数据，但不进入这些分组。
+- AutoLayout 只能改对象坐标/容器尺寸/可视 routing，必须保持 flow semantic hash 不变：origin、destination、connectionIndex、edgeKind、caseValues、isErrorHandler、kind 不可改变。
 
 ## 变量语义
 
@@ -25,3 +28,4 @@
 - RestCall error handler 额外暴露 `$latestHttpResponse`。
 - WebService error handler 额外暴露 `$latestSoapFault`。
 - Error handler 中声明的变量默认不回流 normal path。
+- P0 每个 source object 最多一个 error handler flow；rollback/continue/custom 模式与 error flow 的一致性由 Validator 阻断。

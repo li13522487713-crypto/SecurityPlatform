@@ -1,6 +1,7 @@
 import { collectRuntimeFlows, collectRuntimeObjects, getStartEvent } from "@atlas/microflow/debug/trace-utils";
 import { toRuntimeDto } from "@atlas/microflow/adapters/runtime";
 import { tryMapP0ActionToDiscriminatedDto } from "@atlas/microflow/runtime";
+import { findFlowWithCollection } from "@atlas/microflow/schema";
 import type {
   MicroflowAction,
   MicroflowAnnotationFlow,
@@ -91,7 +92,8 @@ function mapFlowKind(f: MicroflowSequenceFlow | MicroflowAnnotationFlow, isError
   return "sequence";
 }
 
-function toExecutionFlow(f: MicroflowSequenceFlow | MicroflowAnnotationFlow): MicroflowExecutionFlow {
+function toExecutionFlow(navigation: { objectCollection: MicroflowRuntimeDto["objectCollection"]; flows: MicroflowRuntimeDto["flows"] }, f: MicroflowSequenceFlow | MicroflowAnnotationFlow): MicroflowExecutionFlow {
+  const location = findFlowWithCollection(navigation, f.id);
   if (f.kind === "annotation") {
     return {
       flowId: f.id,
@@ -100,7 +102,11 @@ function toExecutionFlow(f: MicroflowSequenceFlow | MicroflowAnnotationFlow): Mi
       originObjectId: f.originObjectId,
       destinationObjectId: f.destinationObjectId,
       caseValues: f.caseValues ?? [],
-      isErrorHandler: false
+      isErrorHandler: false,
+      originConnectionIndex: f.originConnectionIndex,
+      destinationConnectionIndex: f.destinationConnectionIndex,
+      collectionId: location?.collectionId,
+      parentLoopObjectId: location?.parentLoopObjectId
     };
   }
   const isErrorHandler = f.isErrorHandler;
@@ -111,7 +117,11 @@ function toExecutionFlow(f: MicroflowSequenceFlow | MicroflowAnnotationFlow): Mi
     originObjectId: f.originObjectId,
     destinationObjectId: f.destinationObjectId,
     caseValues: f.caseValues,
-    isErrorHandler
+    isErrorHandler,
+    originConnectionIndex: f.originConnectionIndex,
+    destinationConnectionIndex: f.destinationConnectionIndex,
+    collectionId: location?.collectionId,
+    parentLoopObjectId: location?.parentLoopObjectId
   };
 }
 
@@ -232,7 +242,12 @@ export function toExecutionPlan(
 ): MicroflowExecutionPlan {
   const navigation = { flows: dto.flows, objectCollection: dto.objectCollection };
   const allObjects = collectRuntimeObjects(dto.objectCollection);
-  const allFlows = collectRuntimeFlows(navigation).map(toExecutionFlow);
+  const allFlows = collectRuntimeFlows(navigation)
+    .filter(flow => flow.kind === "sequence")
+    .map(flow => toExecutionFlow(navigation, flow));
+  const normalFlows = allFlows.filter(flow => flow.edgeKind === "sequence");
+  const decisionFlows = allFlows.filter(flow => flow.edgeKind === "decisionCondition" || flow.edgeKind === "objectTypeCondition");
+  const errorHandlerFlows = allFlows.filter(flow => flow.edgeKind === "errorHandler" || flow.isErrorHandler);
   const start = getStartEvent(navigation);
   const endNodeIds = allObjects.filter(o => o.kind === "endEvent").map(o => o.id);
 
@@ -267,6 +282,9 @@ export function toExecutionPlan(
     variableDiagnostics: dto.variables.diagnostics ?? [],
     nodes,
     flows: allFlows,
+    normalFlows,
+    decisionFlows,
+    errorHandlerFlows,
     startNodeId: start?.id ?? "missing-start",
     endNodeIds,
     metadataRefs,

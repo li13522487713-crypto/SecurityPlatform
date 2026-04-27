@@ -602,7 +602,10 @@ export function createAnnotationFlow(input: {
     destinationObjectId: input.destinationObjectId,
     originConnectionIndex: 0,
     destinationConnectionIndex: 0,
-    line: defaultMicroflowLine(),
+    line: {
+      ...defaultMicroflowLine(),
+      style: { strokeType: "dashed", strokeWidth: 2, arrow: "none" },
+    },
     editor: {
       label: input.label,
       description: input.description,

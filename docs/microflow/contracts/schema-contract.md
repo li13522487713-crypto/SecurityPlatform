@@ -70,3 +70,12 @@ TypeScript 定义见 `@atlas/microflow`（`schema/types.ts`）中的 `MicroflowA
 - 表达式 P0 子集见 `runtime-expression-contract.md`，不声明支持完整 Mendix 表达式语言。
 - Validator 必须显式接收 MetadataCatalog 和 VariableIndex，不得从 schema 内部或 app-web 回落 mock。
 - `ValidationIssue.fieldPath` 必须使用 AuthoringSchema 字段路径，与 PropertyPanel `FieldError` 对齐。
+
+## 第 29 轮 Flow / Port 协议
+
+- `portId` 冻结为 `{objectId}:{portKind}:{connectionIndex}`，必须可由 `parsePortId` 反解；旧 `{objectId}:in/out/error/...` 仅作为兼容解析输入。
+- `originConnectionIndex` / `destinationConnectionIndex` 是 AuthoringSchema 的持久化端口锚点；FlowGram `sourcePortID` / `targetPortID` 必须由它们派生，不得随机生成。
+- `SequenceFlow` 承载 `sequence`、`decisionCondition`、`objectTypeCondition`、`errorHandler` 四类执行/错误边；`errorHandler` 必须由 `isErrorHandler=true` 与 `editor.edgeKind="errorHandler"` 同时表达。
+- `decisionCondition` / `objectTypeCondition` 使用 `caseValues` 表达分支；普通 `sequence` 与 `errorHandler` 不得保留业务 case。
+- `AnnotationFlow` 必须是 `Microflows$AnnotationFlow`，至少一端为 Annotation；P0 不支持 Annotation 到 Edge attachment，不参与 Runtime control flow。
+- Loop 内部 flow 必须写入对应 `objectCollection.flows`，root 与 Loop internal object 之间禁止直接连线；LoopedActivity 本身仍作为 root collection 节点参与 root flow。

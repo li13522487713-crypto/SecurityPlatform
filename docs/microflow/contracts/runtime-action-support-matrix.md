@@ -7,6 +7,8 @@
 
 校验：`MF_ACTION_P0_MUST_BE_STRONGLY_TYPED` 在 P0 kind 但结构不合法时触发。
 
+Flow 协议：P0 action execution 只跟随 `sequence` / `decisionCondition` / `objectTypeCondition` / `errorHandler` control flows；`AnnotationFlow`、FlowGram JSON、port label 与视觉 branch order 不作为 Runtime 执行依据。
+
 ## 第 26 轮属性面板支持
 
 | actionKind | 属性面板核心控件 | 输出变量 |

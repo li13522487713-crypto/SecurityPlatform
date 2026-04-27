@@ -8,6 +8,8 @@
 ## 内容
 
 - 含 `microflowId`、`schemaVersion`、`name`、`returnType`、`parameters`、**objectCollection**、**flows**、**variables**（VariableIndex）。
+- `flows` 是 Runtime control-flow 列表，只包含 `SequenceFlow` 语义：`sequence`、`decisionCondition`、`objectTypeCondition`、`errorHandler`；`AnnotationFlow` 不进入该列表。
+- decision/object type flow 必须保留 `caseValues`；error handler flow 必须保留 `isErrorHandler=true`、origin/destination 与 connectionIndex。
 - 含 **`p0RuntimeActionBlocks`**：与 P0 动作一一对应的强类型块（`MicroflowDiscriminatedRuntimeP0ActionDto`），无 `editor` / 设计器元数据；解析失败时含 `supportLevel: "error"` 与 `MF_P0_MALFORMED` 语义。
 - **不含** FlowGram / WorkflowJSON。
 - 第 27 轮起，`variables.all` 是后端 Runtime 静态变量声明的权威来源；若 AuthoringSchema 上只有旧 buckets 而无 `all`，`toRuntimeDto` 会重新构建 v2 VariableIndex。
@@ -26,6 +28,7 @@ retrieve、createObject、changeMembers、commit、delete、rollback、createVar
 - 每个变量包含 `name`、`displayName`、`kind`、`dataType`、`source`、`scope`、`visibility`、`readonly`、`availableFromObjectId`、`availableInCollectionId`、branch/loop/error handler 标识与 diagnostics。
 - `visibility` 取值为 `definite` / `maybe` / `unavailable`；Runtime 执行前可用该字段生成后端变量槽位和发布期 warning。
 - ExecutionPlan 会从 DTO.variables 派生 `variableDeclarations`、`actionOutputs`、`loopVariables`、`systemVariables`、`errorContextVariables`、`variableScopes`、`variableDiagnostics`。
+- 第 29 轮起，ExecutionPlan 同时提供 `normalFlows`、`decisionFlows`、`errorHandlerFlows` 分组；`flows` 仍为 control-flow 超集，不含 AnnotationFlow。
 
 ## 第 26 轮字段对齐
 

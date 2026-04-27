@@ -16,9 +16,26 @@ export type MicroflowEditorEdgeKind = MicroflowDerivedEdgeKind;
 
 export interface MicroflowConnectionCheckResult {
   allowed: boolean;
+  edgeKind?: MicroflowEditorEdgeKind;
   reasonCode?: string;
   message?: string;
+  severity?: "error" | "warning" | "info";
   suggestedEdgeKind?: MicroflowEditorEdgeKind;
+}
+
+export interface MicroflowCanConnectPortsInput {
+  schema: MicroflowSchema;
+  sourceObjectId: string;
+  sourcePortId: string;
+  sourcePortKind: MicroflowEditorPort["kind"];
+  sourceConnectionIndex: number;
+  sourceCollectionId?: string;
+  targetObjectId: string;
+  targetPortId: string;
+  targetPortKind: MicroflowEditorPort["kind"];
+  targetConnectionIndex: number;
+  targetCollectionId?: string;
+  mode: "create" | "reconnect" | "validate";
 }
 
 export interface MicroflowPortConnection {
@@ -237,11 +254,11 @@ function flattenObjects(collection: MicroflowObjectCollection): MicroflowObject[
 }
 
 function fail(reasonCode: string, message: string, suggestedEdgeKind?: MicroflowEditorEdgeKind): MicroflowConnectionCheckResult {
-  return { allowed: false, reasonCode, message, suggestedEdgeKind };
+  return { allowed: false, reasonCode, message, suggestedEdgeKind, edgeKind: suggestedEdgeKind, severity: "error" };
 }
 
 function ok(suggestedEdgeKind: MicroflowEditorEdgeKind): MicroflowConnectionCheckResult {
-  return { allowed: true, suggestedEdgeKind };
+  return { allowed: true, suggestedEdgeKind, edgeKind: suggestedEdgeKind };
 }
 
 function isTerminalObject(object: MicroflowObject): boolean {
@@ -258,6 +275,10 @@ function hasIncoming(schema: MicroflowSchema, port: MicroflowEditorPort): boolea
 
 function hasOutgoing(schema: MicroflowSchema, port: MicroflowEditorPort): boolean {
   return collectFlowsRecursive(schema).some(flow => flow.originObjectId === port.objectId && (flow.originConnectionIndex ?? 0) === port.connectionIndex);
+}
+
+function hasErrorHandlerFlow(schema: MicroflowSchema, sourceObjectId: string): boolean {
+  return collectFlowsRecursive(schema).some(flow => flow.kind === "sequence" && flow.originObjectId === sourceObjectId && flow.isErrorHandler);
 }
 
 function hasDecisionCase(schema: MicroflowSchema, sourceObjectId: string, value: boolean): boolean {
@@ -295,6 +316,41 @@ export function inferEdgeKindFromPorts(sourceObject: MicroflowObject, targetObje
 }
 
 export function canConnectPorts(schema: MicroflowSchema, sourcePort: MicroflowEditorPort, targetPort: MicroflowEditorPort): MicroflowConnectionCheckResult {
+  return canConnectPortsV2({
+    schema,
+    sourceObjectId: sourcePort.objectId,
+    sourcePortId: sourcePort.id,
+    sourcePortKind: sourcePort.kind,
+    sourceConnectionIndex: sourcePort.connectionIndex,
+    targetObjectId: targetPort.objectId,
+    targetPortId: targetPort.id,
+    targetPortKind: targetPort.kind,
+    targetConnectionIndex: targetPort.connectionIndex,
+    mode: "create",
+  }, sourcePort, targetPort);
+}
+
+export function canConnectPortsV2(input: MicroflowCanConnectPortsInput, sourcePortOverride?: MicroflowEditorPort, targetPortOverride?: MicroflowEditorPort): MicroflowConnectionCheckResult {
+  const sourcePort: MicroflowEditorPort = sourcePortOverride ?? {
+    id: input.sourcePortId,
+    objectId: input.sourceObjectId,
+    label: input.sourcePortKind,
+    direction: "output",
+    kind: input.sourcePortKind,
+    connectionIndex: input.sourceConnectionIndex,
+    cardinality: "zeroOrMore",
+    edgeTypes: [],
+  };
+  const targetPort: MicroflowEditorPort = targetPortOverride ?? {
+    id: input.targetPortId,
+    objectId: input.targetObjectId,
+    label: input.targetPortKind,
+    direction: "input",
+    kind: input.targetPortKind,
+    connectionIndex: input.targetConnectionIndex,
+    cardinality: "zeroOrMore",
+    edgeTypes: [],
+  };
   if (sourcePort.direction !== "output") {
     return fail("MF_CONNECT_SOURCE_DIRECTION", "Source port must be an output port.");
   }
@@ -304,6 +360,7 @@ export function canConnectPorts(schema: MicroflowSchema, sourcePort: MicroflowEd
   if (sourcePort.id === targetPort.id || sourcePort.objectId === targetPort.objectId) {
     return fail("MF_CONNECT_SELF_LOOP", "Self connections are not supported yet.");
   }
+  const schema = input.schema;
   const objects = objectById(schema);
   const source = objects.get(sourcePort.objectId);
   const target = objects.get(targetPort.objectId);
@@ -343,6 +400,15 @@ export function canConnectPorts(schema: MicroflowSchema, sourcePort: MicroflowEd
   }
   if (edgeKind === "errorHandler" && !supportsErrorFlow(source)) {
     return fail("MF_CONNECT_ERROR_UNSUPPORTED", "Source object does not support custom error handling.", edgeKind);
+  }
+  if (edgeKind === "errorHandler" && input.mode === "create" && hasErrorHandlerFlow(input.schema, source.id)) {
+    return fail("MF_CONNECT_ERROR_DUPLICATED", "Each source object can define at most one error handler flow in P0.", edgeKind);
+  }
+  if (edgeKind === "decisionCondition" && source.kind !== "exclusiveSplit") {
+    return fail("MF_CONNECT_DECISION_SOURCE", "Decision condition flow must start from ExclusiveSplit.", edgeKind);
+  }
+  if (edgeKind === "objectTypeCondition" && source.kind !== "inheritanceSplit") {
+    return fail("MF_CONNECT_OBJECT_TYPE_SOURCE", "Object type condition flow must start from InheritanceSplit.", edgeKind);
   }
   if (sourcePort.cardinality === "one" && hasOutgoing(schema, sourcePort)) {
     return fail("MF_CONNECT_SOURCE_CARDINALITY", "Source port already has an outgoing flow.", edgeKind);

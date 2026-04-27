@@ -4,6 +4,14 @@ import { objectLocationMap, objectMap, issue } from "./shared";
 import { findEnumeration, getEnumerationValueKeys } from "../metadata";
 import { caseValueKey, getAllowedSpecializations } from "../flowgram/adapters/flowgram-case-options";
 import type { MicroflowValidatorContext } from "./validator-types";
+import { getDefaultSourcePortForEdgeKind, getDefaultTargetPortForEdgeKind, portsForObject } from "../schema/utils/port-utils";
+
+function flowEdgeKind(flow: { kind: string; isErrorHandler?: boolean; editor: { edgeKind?: string } }): "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler" | "annotation" {
+  if (flow.kind === "annotation") {
+    return "annotation";
+  }
+  return flow.isErrorHandler ? "errorHandler" : (flow.editor.edgeKind as "sequence" | "decisionCondition" | "objectTypeCondition" | "errorHandler");
+}
 
 export function validateFlows(schema: MicroflowSchema, context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const { metadata } = context;
@@ -32,8 +40,46 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
       }
       continue;
     }
+    const edgeKind = flowEdgeKind(flow);
+    if (flow.editor.edgeKind === "errorHandler" && !flow.isErrorHandler) {
+      issues.push(issue("MF_FLOW_ERROR_KIND_MISMATCH", "edgeKind=errorHandler requires isErrorHandler=true.", { flowId: flow.id, fieldPath: "editor.edgeKind", collectionId: flowCollectionId }));
+    }
+    if (flow.isErrorHandler && flow.editor.edgeKind !== "errorHandler") {
+      issues.push(issue("MF_FLOW_ERROR_KIND_MISMATCH", "isErrorHandler=true requires editor.edgeKind=errorHandler.", { flowId: flow.id, fieldPath: "isErrorHandler", collectionId: flowCollectionId }));
+    }
+    if (edgeKind === "sequence" && flow.caseValues.length > 0) {
+      issues.push(issue("MF_FLOW_SEQUENCE_CASE_VALUES", "Plain sequence flow must not define caseValues.", { flowId: flow.id, fieldPath: "caseValues", collectionId: flowCollectionId }));
+    }
+    if (edgeKind === "errorHandler" && flow.caseValues.length > 0) {
+      issues.push(issue("MF_FLOW_ERROR_CASE_VALUES", "Error handler flow must not define caseValues.", { flowId: flow.id, fieldPath: "caseValues", collectionId: flowCollectionId }));
+    }
+    const sourcePorts = source ? portsForObject(source) : [];
+    const targetPorts = target ? portsForObject(target) : [];
+    const sourcePort = sourcePorts.find((port, index) => port.kind === getDefaultSourcePortForEdgeKind(edgeKind) && index === flow.originConnectionIndex) ?? sourcePorts[flow.originConnectionIndex];
+    const targetPort = targetPorts.find((port, index) => port.kind === getDefaultTargetPortForEdgeKind(edgeKind) && index === flow.destinationConnectionIndex) ?? targetPorts[flow.destinationConnectionIndex];
+    if (source && !sourcePort) {
+      issues.push(issue("MF_FLOW_ORIGIN_PORT_MISSING", "originConnectionIndex must resolve to a source port.", { flowId: flow.id, objectId: source.id, fieldPath: "originConnectionIndex", collectionId: flowCollectionId }));
+    }
+    if (target && !targetPort) {
+      issues.push(issue("MF_FLOW_DESTINATION_PORT_MISSING", "destinationConnectionIndex must resolve to a target port.", { flowId: flow.id, objectId: target.id, fieldPath: "destinationConnectionIndex", collectionId: flowCollectionId }));
+    }
+    if (sourcePort && sourcePort.direction !== "output") {
+      issues.push(issue("MF_FLOW_ORIGIN_PORT_DIRECTION", "originConnectionIndex must reference an output port.", { flowId: flow.id, fieldPath: "originConnectionIndex", collectionId: flowCollectionId }));
+    }
+    if (targetPort && targetPort.direction !== "input") {
+      issues.push(issue("MF_FLOW_DESTINATION_PORT_DIRECTION", "destinationConnectionIndex must reference an input port.", { flowId: flow.id, fieldPath: "destinationConnectionIndex", collectionId: flowCollectionId }));
+    }
+    if (edgeKind === "decisionCondition" && source?.kind !== "exclusiveSplit") {
+      issues.push(issue("MF_DECISION_FLOW_SOURCE", "decisionCondition flow must start from ExclusiveSplit.", { flowId: flow.id, fieldPath: "editor.edgeKind", collectionId: flowCollectionId }));
+    }
+    if (edgeKind === "objectTypeCondition" && source?.kind !== "inheritanceSplit") {
+      issues.push(issue("MF_OBJECT_TYPE_FLOW_SOURCE", "objectTypeCondition flow must start from InheritanceSplit.", { flowId: flow.id, fieldPath: "editor.edgeKind", collectionId: flowCollectionId }));
+    }
     if (sourceLocation && targetLocation && sourceLocation.collectionId !== targetLocation.collectionId) {
       issues.push(issue("MF_FLOW_LOOP_BOUNDARY", "SequenceFlow cannot directly cross Loop objectCollection boundaries.", { flowId: flow.id, collectionId: flowCollectionId }));
+    }
+    if (flowCollectionId && sourceLocation && targetLocation && sourceLocation.collectionId === targetLocation.collectionId && flowCollectionId !== sourceLocation.collectionId) {
+      issues.push(issue("MF_FLOW_COLLECTION_MISMATCH", "Flow must be stored in the same objectCollection as its endpoints.", { flowId: flow.id, collectionId: flowCollectionId }));
     }
     if (source?.kind === "startEvent" && flow.isErrorHandler) {
       issues.push(issue("MF_START_ERROR_HANDLER", "StartEvent cannot create an error handler flow.", { flowId: flow.id, objectId: source.id }));
@@ -58,6 +104,13 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
         issues.push(issue("MF_DECISION_CASE_MISSING", "Decision condition flow must define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
       }
       for (const caseValue of flow.caseValues) {
+        if (caseValue.kind === "noCase") {
+          issues.push(issue("MF_DECISION_CASE_NO_CASE", "Decision condition case is not configured.", {
+            flowId: flow.id,
+            objectId: source.id,
+            fieldPath: "caseValues",
+          }, context.mode === "edit" ? "warning" : "error"));
+        }
         const key = caseValueKey(caseValue);
         const perSource = outgoingCaseKeys.get(source.id) ?? new Map<string, string>();
         if (perSource.has(key)) {
@@ -100,6 +153,13 @@ export function validateFlows(schema: MicroflowSchema, context: MicroflowValidat
         issues.push(issue("MF_OBJECT_TYPE_CASE_MISSING", "Object type condition flow must define a case value.", { flowId: flow.id, objectId: source.id, fieldPath: "caseValues" }));
       }
       for (const caseValue of flow.caseValues) {
+        if (caseValue.kind === "noCase") {
+          issues.push(issue("MF_OBJECT_TYPE_CASE_NO_CASE", "Object type condition case is not configured.", {
+            flowId: flow.id,
+            objectId: source.id,
+            fieldPath: "caseValues",
+          }, context.mode === "edit" ? "warning" : "error"));
+        }
         const key = caseValueKey(caseValue);
         const perSource = outgoingCaseKeys.get(source.id) ?? new Map<string, string>();
         if (perSource.has(key)) {

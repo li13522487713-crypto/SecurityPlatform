@@ -3,6 +3,18 @@ import { collectFlowsRecursive } from "../schema/utils/object-utils";
 import { objectMap, issue } from "./shared";
 import type { MicroflowValidatorContext } from "./validator-types";
 
+export function getErrorHandlerFlowForObject(schema: MicroflowSchema, objectId: string) {
+  return collectFlowsRecursive(schema).find(flow => flow.kind === "sequence" && flow.isErrorHandler && flow.originObjectId === objectId);
+}
+
+export function hasErrorHandlerFlow(schema: MicroflowSchema, objectId: string): boolean {
+  return Boolean(getErrorHandlerFlowForObject(schema, objectId));
+}
+
+function supportsErrorHandlerSource(objectKind: string | undefined): boolean {
+  return Boolean(objectKind && ["actionActivity", "loopedActivity", "exclusiveSplit", "inheritanceSplit"].includes(objectKind));
+}
+
 export function validateErrorHandling(schema: MicroflowSchema, _context: MicroflowValidatorContext): MicroflowValidationIssue[] {
   const issues: MicroflowValidationIssue[] = [];
   const objects = objectMap(schema);
@@ -10,6 +22,9 @@ export function validateErrorHandling(schema: MicroflowSchema, _context: Microfl
   for (const flow of errorFlows) {
     const source = objects.get(flow.originObjectId);
     const target = objects.get(flow.destinationObjectId);
+    if (!supportsErrorHandlerSource(source?.kind)) {
+      issues.push(issue("MF_ERROR_HANDLER_SOURCE_UNSUPPORTED", "Error handler flow source must support error handling.", { objectId: source?.id, flowId: flow.id }));
+    }
     if (!target || target.kind === "annotation" || target.kind === "parameterObject" || target.kind === "startEvent") {
       issues.push(issue("MF_ERROR_HANDLER_TARGET_INVALID", "Error handler flow target must be an executable object.", { objectId: source?.id, flowId: flow.id }));
     }

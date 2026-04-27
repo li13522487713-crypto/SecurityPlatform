@@ -1,5 +1,6 @@
 import { defaultMicroflowObjectNodeRegistry, objectKindFromRegistryItem } from "../../node-registry";
 import type { MicroflowEditorPort, MicroflowObjectKind, MicroflowPort } from "../../schema";
+import { getConnectionIndexFromPortId } from "../../schema/utils/port-utils";
 
 export interface FlowGramPortDescriptor {
   type: "input" | "output";
@@ -37,15 +38,5 @@ export function flowGramPortsForObjectKind(kind: MicroflowObjectKind): FlowGramP
 }
 
 export function connectionIndexFromPortId(portId?: string): number {
-  if (!portId) {
-    return 0;
-  }
-  if (portId.endsWith(":error")) {
-    return 1;
-  }
-  const match = portId.match(/:(?:case|type)-(\d+)$/);
-  if (match?.[1]) {
-    return Number(match[1]);
-  }
-  return 0;
+  return getConnectionIndexFromPortId(portId);
 }

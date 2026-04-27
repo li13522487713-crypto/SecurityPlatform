@@ -78,6 +78,10 @@ P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`actio
 - `loopSource.iteratorVariableName`
 - `loopSource.expression`
 - `caseValues`
+- `originConnectionIndex`
+- `destinationConnectionIndex`
+- `editor.edgeKind`
+- `isErrorHandler`
 
 ## 第 28 轮规则
 
@@ -85,6 +89,14 @@ P0 字段路径使用 AuthoringSchema 路径，数组使用点号下标：`actio
 - P0 Action 校验覆盖必填字段、metadata 引用、变量类型、表达式 expectedType、ErrorHandling 和 Reachability。
 - ErrorHandler 校验要求 custom handler 有 error flow、rollback 不应有 error flow、每个 source 最多一个 error handler flow。
 - Reachability 校验不把 Annotation/ParameterObject 作为可执行对象；ErrorHandlerFlow 不参与 normal path。
+
+## 第 29 轮 Flow / Edge 规则
+
+- `validateFlows` 必须校验 origin/destination 存在、端口方向和 connectionIndex 可解析、edgeKind 与 source kind 匹配、`isErrorHandler` 与 `editor.edgeKind` 一致。
+- `decisionCondition` 只能来自 ExclusiveSplit；boolean/enum/empty/noCase case 与 source 类型匹配，重复 case 报错，`noCase` 在 edit 为 warning、save/publish/testRun 为 error。
+- `objectTypeCondition` 只能来自 InheritanceSplit；inheritance/empty/fallback/noCase case 与 specialization 匹配，重复 specialization/empty/fallback 报错。
+- `AnnotationFlow` 至少一端为 Annotation；`SequenceFlow` 不得连接 Annotation 或 ParameterObject。
+- root 与 Loop internal collection 禁止直接互连；flow 必须存放在端点所在的同一 `objectCollection`。
 
 ## 后端建议
 

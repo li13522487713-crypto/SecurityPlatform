@@ -4,10 +4,11 @@ import { getDefaultMockMetadataCatalog } from "@atlas/microflow/metadata";
 import { isMicroflowP0ActionStronglyTyped } from "@atlas/microflow/schema/authoring";
 import { normalizeMicroflowSchema } from "@atlas/microflow/schema/legacy";
 import type { MicroflowAction } from "@atlas/microflow/schema/types";
-import { collectObjectsRecursive } from "@atlas/microflow/schema/utils";
+import { collectFlowsRecursive, collectObjectsRecursive, parsePortId } from "@atlas/microflow/schema/utils";
 import { validateMicroflowSchema } from "@atlas/microflow/validators";
 import { buildVariableIndex, getVariablesAfterObject, getVariablesBeforeObject } from "@atlas/microflow/variables";
 import { inferExpressionType, parseExpression, validateExpression } from "@atlas/microflow/expressions";
+import { getFlowSemanticHashForSchema } from "@atlas/microflow/layout";
 
 import { toExecutionPlan, toExecutionPlanFromSchema } from "./runtime-semantics";
 import { microflowSampleManifest } from "./sample-manifest";
@@ -143,12 +144,37 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       if (typeof fg !== "object" || fg == null) {
         errors.push(`${item.key}: authoringToFlowGram 未返回对象`);
       }
+      for (const edge of fg.edges ?? []) {
+        if (!edge.data?.flowId || edge.id !== edge.data.flowId) {
+          errors.push(`${item.key}: FlowGram edge.id / data.flowId 不稳定`);
+        }
+        if (!parsePortId(String(edge.sourcePortID ?? "")) || !parsePortId(String(edge.targetPortID ?? ""))) {
+          errors.push(`${item.key}: FlowGram edge portId 不可 parse`);
+        }
+      }
       const dto = toRuntimeDto(schema);
       if (dto.microflowId !== schema.id) {
         errors.push(`${item.key}: toRuntimeDto.microflowId 与 schema.id 不一致`);
       }
       if (!dto.objectCollection || !Array.isArray(dto.flows)) {
         errors.push(`${item.key}: toRuntimeDto 缺少 objectCollection 或 flows`);
+      }
+      if (dto.flows.some(flow => flow.kind === "annotation")) {
+        errors.push(`${item.key}: toRuntimeDto control flows 不应包含 AnnotationFlow`);
+      }
+      const authoringFlows = collectFlowsRecursive(schema);
+      for (const flow of authoringFlows.filter(flow => flow.kind === "sequence")) {
+        const dtoFlow = dto.flows.find(candidate => candidate.id === flow.id);
+        if (!dtoFlow) {
+          errors.push(`${item.key}: Runtime DTO 缺少 SequenceFlow ${flow.id}`);
+          continue;
+        }
+        if (flow.editor.edgeKind !== "sequence" && JSON.stringify(dtoFlow.caseValues) !== JSON.stringify(flow.caseValues)) {
+          errors.push(`${item.key}: Runtime DTO 丢失 caseValues ${flow.id}`);
+        }
+        if (flow.isErrorHandler && !dtoFlow.isErrorHandler) {
+          errors.push(`${item.key}: Runtime DTO 丢失 isErrorHandler ${flow.id}`);
+        }
       }
       if (!Array.isArray((dto as { p0RuntimeActionBlocks?: unknown }).p0RuntimeActionBlocks)) {
         errors.push(`${item.key}: toRuntimeDto 缺少 p0RuntimeActionBlocks 数组`);
@@ -185,6 +211,15 @@ export function verifyMicroflowContracts(): MicroflowContractVerificationResult 
       }
       if (JSON.stringify(plan).includes("flowGram") || JSON.stringify(plan).toLowerCase().includes("flowgram")) {
         errors.push(`${item.key}: execution plan 不应包含 FlowGram 关键字`);
+      }
+      if (plan.flows.some(flow => flow.kind === "annotation" || flow.edgeKind === "annotation")) {
+        errors.push(`${item.key}: ExecutionPlan control flows 不应包含 AnnotationFlow`);
+      }
+      if (!Array.isArray(plan.normalFlows) || !Array.isArray(plan.decisionFlows) || !Array.isArray(plan.errorHandlerFlows)) {
+        errors.push(`${item.key}: ExecutionPlan 缺少 flow 分组`);
+      }
+      if (getFlowSemanticHashForSchema(schema) !== getFlowSemanticHashForSchema(schema)) {
+        errors.push(`${item.key}: flow semantic hash 不稳定`);
       }
       const plan2 = toExecutionPlanFromSchema(schema);
       if (plan2.startNodeId !== plan.startNodeId) {

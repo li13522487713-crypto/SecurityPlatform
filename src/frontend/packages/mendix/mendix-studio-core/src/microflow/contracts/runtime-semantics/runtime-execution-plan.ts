@@ -28,6 +28,9 @@ export interface MicroflowExecutionPlan {
   variableDiagnostics: MicroflowVariableDiagnostic[];
   nodes: MicroflowExecutionNode[];
   flows: MicroflowExecutionFlow[];
+  normalFlows: MicroflowExecutionFlow[];
+  decisionFlows: MicroflowExecutionFlow[];
+  errorHandlerFlows: MicroflowExecutionFlow[];
   startNodeId: string;
   endNodeIds: string[];
   metadataRefs: MicroflowRuntimeMetadataRefDto[];
@@ -98,6 +101,10 @@ export interface MicroflowExecutionFlow {
   destinationObjectId: string;
   caseValues: MicroflowCaseValue[];
   isErrorHandler: boolean;
+  originConnectionIndex?: number;
+  destinationConnectionIndex?: number;
+  collectionId?: string;
+  parentLoopObjectId?: string;
 }
 
 export type MicroflowUnsupportedActionReason =

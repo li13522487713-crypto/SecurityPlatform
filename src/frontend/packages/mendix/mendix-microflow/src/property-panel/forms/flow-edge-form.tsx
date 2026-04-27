@@ -101,6 +101,15 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         <ValidationIssueList issues={issues} />
         {activeTab === "properties" ? (
           <>
+        <Field label="Flow ID">
+          <Input value={flow.id} disabled />
+        </Field>
+        <Field label="Flow Kind">
+          <Input value={flow.kind} disabled />
+        </Field>
+        <Field label="Official Type">
+          <Input value={flow.officialType} disabled />
+        </Field>
         <Field label="Origin Object">
           <Input value={objectName(props.schema, flow.originObjectId)} disabled />
         </Field>
@@ -111,10 +120,10 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
           <Input value={flow.kind === "annotation" ? "annotationOnly" : flow.kind === "sequence" && flow.isErrorHandler ? "errorFlow" : "controlFlow"} disabled />
         </Field>
         <Field label="Origin Connection Index">
-          <InputNumber value={flow.originConnectionIndex ?? 0} disabled={props.readonly} onChange={originConnectionIndex => patch(flowPatch(flow, { originConnectionIndex: Number(originConnectionIndex) }))} />
+          <InputNumber value={flow.originConnectionIndex ?? 0} disabled />
         </Field>
         <Field label="Destination Connection Index">
-          <InputNumber value={flow.destinationConnectionIndex ?? 0} disabled={props.readonly} onChange={destinationConnectionIndex => patch(flowPatch(flow, { destinationConnectionIndex: Number(destinationConnectionIndex) }))} />
+          <InputNumber value={flow.destinationConnectionIndex ?? 0} disabled />
         </Field>
         <Field label="Line Routing">
           <Select
@@ -128,13 +137,7 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
         {flow.kind === "sequence" ? (
           <>
             <Field label="Editor Edge Kind">
-              <Select
-                value={flow.editor.edgeKind}
-                disabled={props.readonly}
-                style={{ width: "100%" }}
-                onChange={edgeKind => patch(flowPatch(flow, { editor: { ...flow.editor, edgeKind: String(edgeKind) as MicroflowSequenceFlow["editor"]["edgeKind"] } }))}
-                optionList={["sequence", "decisionCondition", "objectTypeCondition", "errorHandler"].map(value => ({ label: value, value }))}
-              />
+              <Input value={flow.editor.edgeKind} disabled />
             </Field>
             <Field label="Error Handler">
               <Switch checked={flow.isErrorHandler} disabled={props.readonly} onChange={isErrorHandler => patch(flowPatch(flow, { isErrorHandler, editor: { ...flow.editor, edgeKind: isErrorHandler ? "errorHandler" : flow.editor.edgeKind } }))} />
@@ -161,6 +164,9 @@ export function FlowEdgeForm(props: MicroflowPropertyPanelProps) {
             </Field>
             <Field label="Label">
               <Input value={flow.editor.label ?? ""} disabled={props.readonly} onChange={label => patch(flowPatch(flow, { editor: { ...flow.editor, label } } as MicroflowEdgePatch))} />
+            </Field>
+            <Field label="Description">
+              <TextArea value={flow.editor.description ?? ""} autosize disabled={props.readonly} onChange={description => patch(flowPatch(flow, { editor: { ...flow.editor, description } } as MicroflowEdgePatch))} />
             </Field>
           </>
         ) : (

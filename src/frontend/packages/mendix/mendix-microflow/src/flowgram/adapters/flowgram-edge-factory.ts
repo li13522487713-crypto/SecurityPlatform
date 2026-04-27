@@ -7,12 +7,18 @@ import type {
   MicroflowObject,
   MicroflowSchema,
 } from "../../schema";
-import { booleanCaseValue, fallbackCaseValue, inheritanceCaseValue } from "./flowgram-case-options";
+import { booleanCaseValue, fallbackCaseValue, inheritanceCaseValue, noCaseValue } from "./flowgram-case-options";
 
 export function defaultCaseValuesForPorts(sourcePort: MicroflowEditorPort, source?: MicroflowObject): MicroflowCaseValue[] {
+  if (source?.kind === "exclusiveSplit" && source.splitCondition.resultType === "enumeration") {
+    return [noCaseValue()];
+  }
   if (sourcePort.kind === "decisionOut") {
     const value = sourcePort.label !== "false";
     return [booleanCaseValue(value)];
+  }
+  if (source?.kind === "inheritanceSplit") {
+    return [noCaseValue()];
   }
   if (sourcePort.kind === "objectTypeOut") {
     const value = sourcePort.label ?? "fallback";

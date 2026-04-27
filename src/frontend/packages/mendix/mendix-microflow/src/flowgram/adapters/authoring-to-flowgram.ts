@@ -232,6 +232,8 @@ export function authoringToFlowGram(
       caseValues: flow?.kind === "sequence" ? flow.caseValues : [],
       label: flow ? flowCaseLabel(flow) : edge.label,
       description: flow?.editor.description,
+      branchOrder: flow?.kind === "sequence" ? flow.editor.branchOrder : undefined,
+      showInExport: flow?.kind === "annotation" ? flow.editor.showInExport : undefined,
       runtimeState: runtimeStateForFlow(flow, trace),
       validationState: validationStateFromIssues(flowIssues),
     };

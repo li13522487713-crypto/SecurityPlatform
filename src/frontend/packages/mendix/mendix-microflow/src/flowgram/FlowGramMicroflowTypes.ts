@@ -52,6 +52,8 @@ export interface FlowGramMicroflowEdgeData {
   caseValues: MicroflowCaseValue[];
   label?: string;
   description?: string;
+  branchOrder?: number;
+  showInExport?: boolean;
   runtimeState?: "idle" | "visited" | "failed" | "skipped" | "errorHandlerVisited" | "selectedCase";
   validationState: "valid" | "warning" | "error";
 }

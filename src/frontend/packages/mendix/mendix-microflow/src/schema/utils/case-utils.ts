@@ -1,4 +1,6 @@
-import type { MicroflowCaseValue, MicroflowObject, MicroflowSchema } from "../types";
+import type { MicroflowCaseValue, MicroflowFlow, MicroflowObject, MicroflowObjectCollection, MicroflowSchema } from "../types";
+import type { MicroflowMetadataCatalog } from "../../metadata";
+import { collectFlowsRecursive } from "./object-utils";
 
 function simpleName(value: string): string {
   return value.split(".").at(-1) ?? value;
@@ -28,7 +30,11 @@ export function createNoCaseValue(): MicroflowCaseValue {
   return { kind: "noCase", officialType: "Microflows$NoCase" };
 }
 
-export function getCaseDisplayLabel(caseValue: MicroflowCaseValue): string {
+export function getCaseValueKey(caseValue: MicroflowCaseValue): string {
+  return caseValueIdentity(caseValue);
+}
+
+export function getCaseDisplayLabel(caseValue: MicroflowCaseValue, _metadata?: MicroflowMetadataCatalog): string {
   if (caseValue.kind === "boolean") {
     return caseValue.value ? "是" : "否";
   }
@@ -60,10 +66,43 @@ export function caseValueIdentity(caseValue: MicroflowCaseValue): string {
   return caseValue.kind;
 }
 
+export function isSameCaseValue(left: MicroflowCaseValue, right: MicroflowCaseValue): boolean {
+  return caseValueIdentity(left) === caseValueIdentity(right);
+}
+
+export function isCaseValueCompatibleWithSource(caseValue: MicroflowCaseValue, sourceObject: MicroflowObject | undefined): boolean {
+  if (!sourceObject) {
+    return false;
+  }
+  if (sourceObject.kind === "exclusiveSplit") {
+    return sourceObject.splitCondition.kind === "expression" && sourceObject.splitCondition.resultType === "boolean"
+      ? caseValue.kind === "boolean" || caseValue.kind === "noCase"
+      : caseValue.kind === "enumeration" || caseValue.kind === "empty" || caseValue.kind === "noCase";
+  }
+  if (sourceObject.kind === "inheritanceSplit") {
+    return caseValue.kind === "inheritance" || caseValue.kind === "empty" || caseValue.kind === "fallback" || caseValue.kind === "noCase";
+  }
+  return caseValue.kind === "noCase";
+}
+
 export function getUsedCaseValues(schema: MicroflowSchema, sourceObjectId: string, excludeFlowId?: string): MicroflowCaseValue[] {
-  return schema.flows
+  return collectFlowsRecursive(schema)
     .filter(flow => flow.kind === "sequence" && flow.originObjectId === sourceObjectId && flow.id !== excludeFlowId && !flow.isErrorHandler)
     .flatMap(flow => flow.kind === "sequence" ? flow.caseValues : []);
+}
+
+export function validateDuplicateCaseValues(schema: MicroflowSchema, sourceObjectId: string, excludeFlowId?: string): Array<{ key: string; flowIds: string[] }> {
+  const byKey = new Map<string, string[]>();
+  for (const flow of collectFlowsRecursive(schema)) {
+    if (flow.kind !== "sequence" || flow.originObjectId !== sourceObjectId || flow.id === excludeFlowId || flow.isErrorHandler) {
+      continue;
+    }
+    for (const caseValue of flow.caseValues) {
+      const key = caseValueIdentity(caseValue);
+      byKey.set(key, [...(byKey.get(key) ?? []), flow.id]);
+    }
+  }
+  return [...byKey.entries()].filter(([, flowIds]) => flowIds.length > 1).map(([key, flowIds]) => ({ key, flowIds }));
 }
 
 export function isCaseValueDuplicate(
@@ -87,21 +126,34 @@ export function inferCaseEditorType(sourceObject: MicroflowObject | undefined): 
 }
 
 export function updateFlowCaseValue(schema: MicroflowSchema, flowId: string, nextCaseValue: MicroflowCaseValue): MicroflowSchema {
+  const updateFlows = (flows: MicroflowFlow[] | undefined): MicroflowFlow[] | undefined => flows?.map(flow => {
+    if (flow.id !== flowId || flow.kind !== "sequence") {
+      return flow;
+    }
+    return {
+      ...flow,
+      caseValues: [nextCaseValue],
+      editor: {
+        ...flow.editor,
+        label: getCaseDisplayLabel(nextCaseValue),
+      },
+    };
+  });
+  const updateCollection = (collection: MicroflowObjectCollection): MicroflowObjectCollection => ({
+    ...collection,
+    flows: updateFlows(collection.flows),
+    objects: collection.objects.map(object => object.kind === "loopedActivity"
+      ? { ...object, objectCollection: updateCollection(object.objectCollection) }
+      : object),
+  });
   return {
     ...schema,
-    flows: schema.flows.map(flow => {
-      if (flow.id !== flowId || flow.kind !== "sequence") {
-        return flow;
-      }
-      return {
-        ...flow,
-        caseValues: [nextCaseValue],
-        editor: {
-          ...flow.editor,
-          label: getCaseDisplayLabel(nextCaseValue),
-        },
-      };
-    }),
+    flows: updateFlows(schema.flows) ?? schema.flows,
+    objectCollection: updateCollection(schema.objectCollection),
   };
+}
+
+export function clearFlowCaseValue(schema: MicroflowSchema, flowId: string): MicroflowSchema {
+  return updateFlowCaseValue(schema, flowId, createNoCaseValue());
 }
 
