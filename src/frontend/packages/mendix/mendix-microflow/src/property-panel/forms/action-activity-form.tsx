@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Button, Input, InputNumber, Select, Space, Switch, Tag, TextArea, Typography } from "@douyinfe/semi-ui";
 import type { MicroflowAction, MicroflowActionActivity, MicroflowDataType, MicroflowDatabaseRetrieveSource, MicroflowExpression, MicroflowSortItem } from "../../schema";
 import { EMPTY_MICROFLOW_METADATA_CATALOG, getAssociationByQualifiedName, getAttributeByQualifiedName, getMicroflowById, getTargetEntityByAssociation, useMetadataStatus, useMicroflowMetadataCatalog, type MicroflowMetadataCatalog } from "../../metadata";
-import { buildVariableIndex, getObjectEntityQualifiedName, resolveVariableReferenceFromIndex } from "../../variables";
+import { buildVariableIndex, getObjectEntityQualifiedName, getVariableNameConflicts, getVariableReferences, resolveVariableReferenceFromIndex } from "../../variables";
 import { ErrorHandlingEditor, FieldError, FieldRow, OutputVariableEditor, VariableNameInput } from "../common";
 import { ExpressionEditor } from "../expression";
 import { AssociationSelector, AttributeSelector, DataTypeSelector, EntitySelector, MicroflowSelector, VariableSelector } from "../selectors";
@@ -64,6 +64,8 @@ export function ActionActivityForm({
   const [memberEntity, setMemberEntity] = useState<string | undefined>(inferredMemberEntity ?? firstMemberEntity);
   const selectedMicroflow = action.kind === "callMicroflow" ? getMicroflowById(effectiveCatalog, action.targetMicroflowId) : undefined;
   const restFormBody = action.kind === "restCall" && action.request.body.kind === "form" ? action.request.body : undefined;
+  const createVariableConflicts = action.kind === "createVariable" ? getVariableNameConflicts(schema, action.variableName, action.id) : [];
+  const createVariableReferences = action.kind === "createVariable" ? getVariableReferences(schema, action.id).filter(reference => reference.objectId !== object.id || reference.fieldPath !== "action.initialValue") : [];
   const patchObject = (next: MicroflowActionActivity) => onPatch({ object: next });
   return (
     <Space vertical align="start" style={{ width: "100%" }}>
@@ -865,13 +867,22 @@ export function ActionActivityForm({
               issues={getIssuesForField(issues, "action.variableName")}
               onChange={variableName => patchObject(updateAction(object, { variableName: variableName ?? "" }))}
             />
+            {createVariableConflicts.length ? <Text type="warning" size="small">{createVariableConflicts.join(" ")}</Text> : null}
+            <Text type="tertiary" size="small">Renaming a variable does not rewrite existing expressions.</Text>
+            {createVariableReferences.length ? <Text type="warning" size="small">Existing expressions or Change Variable targets may reference this variable.</Text> : null}
           </FieldRow>
+          <Field label="Variable ID">
+            <Input value={action.id} disabled />
+          </Field>
           <Field label="Read only">
             <Switch checked={action.readonly} disabled={readonly} onChange={readOnly => patchObject(updateAction(object, { readonly: readOnly }))} />
           </Field>
           <Field label="Data Type">
-            <DataTypeSelector value={action.dataType} disabled={readonly} onChange={dataType => patchObject(updateAction(object, { dataType }))} />
+            <DataTypeSelector value={action.dataType} disabled={readonly} allowVoid={false} onChange={dataType => patchObject(updateAction(object, { dataType }))} />
             <FieldError issues={getIssuesForField(issues, "action.dataType")} />
+            {action.dataType.kind === "object" || action.dataType.kind === "list" ? (
+              <Text type="warning" size="small">Entity metadata will be connected in Stage 19.</Text>
+            ) : null}
           </Field>
           <Field label="Initial Value">
             <ExpressionEditor
@@ -886,6 +897,10 @@ export function ActionActivityForm({
               readonly={readonly}
               onChange={initialValue => patchObject(updateAction(object, { initialValue }))}
             />
+            <Text type="tertiary" size="small">Stage 13 stores the expression text only; it does not evaluate expressions.</Text>
+          </Field>
+          <Field label="Description">
+            <TextArea value={action.documentation ?? ""} autosize disabled={readonly} onChange={documentation => patchObject(updateAction(object, { documentation }))} />
           </Field>
         </>
       ) : null}
@@ -902,6 +917,7 @@ export function ActionActivityForm({
               disabled={readonly}
               includeSystem={false}
               includeReadonly={false}
+              scopeMode="index"
               onChange={targetVariableName => patchObject(updateAction(object, { targetVariableName: targetVariableName ?? "" }))}
             />
             <FieldError issues={getIssuesForField(issues, "action.targetVariableName")} />
@@ -921,6 +937,7 @@ export function ActionActivityForm({
               readonly={readonly}
               onChange={newValueExpression => patchObject(updateAction(object, { newValueExpression }))}
             />
+            <Text type="tertiary" size="small">Available variables are computed from the current microflow schema only.</Text>
           </Field>
         </>
       ) : null}

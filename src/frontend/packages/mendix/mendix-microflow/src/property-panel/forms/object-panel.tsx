@@ -124,7 +124,7 @@ export function ObjectPanel(props: MicroflowPropertyPanelProps) {
             {object.kind === "actionActivity" ? (
               <ActionActivityForm schema={props.schema} object={object} issues={issues} readonly={props.readonly} onPatch={payload => props.onObjectChange(object.id, payload)} />
             ) : null}
-            <ParameterObjectForm props={props} object={object} issues={issues} parameter={parameter as MicroflowParameter | undefined} patch={patch} />
+            <ParameterObjectForm props={props} object={object} issues={issues} parameter={parameter as MicroflowParameter | undefined} />
             <AnnotationObjectForm object={object} readonly={props.readonly} patch={patch} />
           </>
         ) : null}

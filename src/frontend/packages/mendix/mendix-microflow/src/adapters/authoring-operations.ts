@@ -153,16 +153,40 @@ function nextDuplicateCaption(caption: string | undefined, fallback: string): st
   return `${base} Copy`;
 }
 
-function nextParameterName(schema: MicroflowSchema): string {
-  const names = new Set(schema.parameters.map(parameter => parameter.name));
-  if (!names.has("parameter")) {
-    return "parameter";
+function nextParameterCopyName(schema: MicroflowSchema, sourceName: string | undefined): string {
+  const names = new Set(schema.parameters.map(parameter => parameter.name.toLocaleLowerCase()));
+  const base = `${sourceName?.trim() || "parameter"}_Copy`;
+  if (!names.has(base.toLocaleLowerCase())) {
+    return base;
   }
-  let index = 1;
-  while (names.has(`parameter${index}`)) {
+  let index = 2;
+  while (names.has(`${base}${index}`.toLocaleLowerCase())) {
     index += 1;
   }
-  return `parameter${index}`;
+  return `${base}${index}`;
+}
+
+function collectVariableNames(schema: MicroflowSchema): Set<string> {
+  const names = new Set(schema.parameters.map(parameter => parameter.name.toLocaleLowerCase()));
+  for (const object of flattenObjectCollection(schema.objectCollection)) {
+    if (object.kind === "actionActivity" && object.action.kind === "createVariable") {
+      names.add(object.action.variableName.toLocaleLowerCase());
+    }
+  }
+  return names;
+}
+
+function nextVariableCopyName(schema: MicroflowSchema, sourceName: string | undefined): string {
+  const names = collectVariableNames(schema);
+  const base = `${sourceName?.trim() || "variable"}_Copy`;
+  if (!names.has(base.toLocaleLowerCase())) {
+    return base;
+  }
+  let index = 2;
+  while (names.has(`${base}${index}`.toLocaleLowerCase())) {
+    index += 1;
+  }
+  return `${base}${index}`;
 }
 
 function appendObjectToLoop(collection: MicroflowObjectCollection, loopObjectId: string, object: MicroflowObject): MicroflowObjectCollection {
@@ -260,12 +284,15 @@ export function duplicateObject(schema: MicroflowSchema, objectId: string): Micr
   let parameters = schema.parameters;
   if (copy.kind === "actionActivity") {
     copy.action = { ...copy.action, id: uniqueSchemaId(schema, `action-${copy.action.kind}-copy`) } as MicroflowAction;
+    if (copy.action.kind === "createVariable" && object.kind === "actionActivity" && object.action.kind === "createVariable") {
+      copy.action.variableName = nextVariableCopyName(schema, object.action.variableName);
+    }
   }
   if (copy.kind === "parameterObject") {
     const sourceParameterId = object.kind === "parameterObject" ? object.parameterId : undefined;
     const parameter = schema.parameters.find(item => item.id === sourceParameterId);
     const parameterId = uniqueSchemaId(schema, "param-copy");
-    const parameterName = nextParameterName(schema);
+    const parameterName = nextParameterCopyName(schema, parameter?.name ?? copy.parameterName ?? copy.caption);
     copy.parameterId = parameterId;
     copy.parameterName = parameterName;
     copy.caption = parameterName;
@@ -665,8 +692,8 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "createVariable",
       officialType: "Microflows$CreateVariableAction",
-      variableName: String(config.variableName ?? "variable"),
-      dataType: { kind: "unknown", reason: "defaultActionFromRegistry" },
+      variableName: String(config.variableName ?? "newVariable"),
+      dataType: { kind: "string" },
       initialValue: undefined,
       readonly: false
     } as MicroflowAction;
@@ -676,7 +703,7 @@ function defaultActionFromRegistry(entry: MicroflowNodeRegistryEntry, objectId: 
       ...base,
       kind: "changeVariable",
       officialType: "Microflows$ChangeVariableAction",
-      targetVariableName: String(config.variableName ?? "variable"),
+      targetVariableName: String(config.variableName ?? ""),
       newValueExpression: expression("")
     } as MicroflowAction;
   }

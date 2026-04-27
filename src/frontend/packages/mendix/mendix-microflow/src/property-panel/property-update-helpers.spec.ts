@@ -42,7 +42,7 @@ describe("property panel schema-bound update helpers", () => {
   });
 
   it("updates action config without injecting demo metadata", () => {
-    const activity = createObjectFromRegistry(registry("activity:restCall"), { x: 0, y: 0 }, "property-rest");
+    const activity = createObjectFromRegistry(registry("activity:callRest"), { x: 0, y: 0 }, "property-rest");
     if (activity.kind !== "actionActivity" || activity.action.kind !== "restCall") {
       throw new Error("Expected restCall action activity.");
     }
@@ -89,8 +89,8 @@ describe("property panel schema-bound update helpers", () => {
 
   it("updates flow label and nested loop flow cases", () => {
     const loop = createObjectFromRegistry(registry("loop"), { x: 0, y: 0 }, "property-loop");
-    const first = createObjectFromRegistry(registry("activity:createVariable"), { x: 40, y: 40 }, "loop-first");
-    const second = createObjectFromRegistry(registry("activity:changeVariable"), { x: 240, y: 40 }, "loop-second");
+    const first = createObjectFromRegistry(registry("activity:variableCreate"), { x: 40, y: 40 }, "loop-first");
+    const second = createObjectFromRegistry(registry("activity:variableChange"), { x: 240, y: 40 }, "loop-second");
     if (loop.kind !== "loopedActivity") {
       throw new Error("Expected loop object.");
     }

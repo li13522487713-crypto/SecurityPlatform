@@ -5,6 +5,7 @@ import type { MicroflowAuthoringSchema, MicroflowDataType } from "../../schema";
 import {
   buildVariableIndex,
   getAvailableVariablesAtField,
+  getVariableSymbols,
   resolveVariableReferenceFromIndex,
 } from "../../variables";
 import { VariableOptionLabel } from "./VariableOptionLabel";
@@ -28,6 +29,7 @@ export function VariableSelector({
   writableOnly = false,
   disabled,
   placeholder = "Select variable",
+  scopeMode = "available",
 }: {
   schema: MicroflowAuthoringSchema;
   objectId?: string;
@@ -45,15 +47,16 @@ export function VariableSelector({
   writableOnly?: boolean;
   disabled?: boolean;
   placeholder?: string;
+  scopeMode?: "available" | "index";
 }) {
   const { catalog, loading, error, version } = useMicroflowMetadata();
   const effectiveCatalog = catalog ?? EMPTY_MICROFLOW_METADATA_CATALOG;
   const variableIndex = useMemo(() => buildVariableIndex(schema, effectiveCatalog), [schema, effectiveCatalog, version]);
   const variables = useMemo(() => {
-    if (!objectId) {
-      return [];
-    }
-    return getAvailableVariablesAtField(schema, variableIndex, objectId, fieldPath, {
+    const sourceVariables = scopeMode === "index"
+      ? getVariableSymbols(variableIndex)
+      : objectId
+        ? getAvailableVariablesAtField(schema, variableIndex, objectId, fieldPath, {
       allowedTypeKinds,
       allowedTypes,
       collectionId,
@@ -61,10 +64,22 @@ export function VariableSelector({
       includeMaybe,
       includeSystem,
       writableOnly: writableOnly || !includeReadonly,
-    });
-  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, variableIndex, writableOnly]);
-  const current = value && objectId
-    ? resolveVariableReferenceFromIndex(schema, variableIndex, { objectId, actionId, fieldPath, collectionId }, value)
+        })
+        : [];
+    return sourceVariables
+      .filter(symbol => includeSystem ? true : symbol.kind !== "system")
+      .filter(symbol => includeErrorContext ? true : symbol.kind !== "errorContext" && symbol.kind !== "restResponse" && symbol.kind !== "soapFault")
+      .filter(symbol => includeReadonly ? true : !symbol.readonly)
+      .filter(symbol => writableOnly ? !symbol.readonly : true)
+      .filter(symbol => !allowedTypeKinds?.length || allowedTypeKinds.includes(symbol.dataType.kind))
+      .filter(symbol => !allowedTypes?.length || allowedTypes.some(type => type.kind === symbol.dataType.kind));
+  }, [allowedTypeKinds, allowedTypes, collectionId, fieldPath, includeErrorContext, includeMaybe, includeReadonly, includeSystem, objectId, schema, scopeMode, variableIndex, writableOnly]);
+  const current = value
+    ? scopeMode === "index"
+      ? variables.find(symbol => symbol.name === value)
+      : objectId
+        ? resolveVariableReferenceFromIndex(schema, variableIndex, { objectId, actionId, fieldPath, collectionId }, value)
+        : null
     : null;
   const currentVisible = !value || Boolean(current);
   if (error) {
@@ -91,6 +106,7 @@ export function VariableSelector({
           render: () => <VariableOptionLabel symbol={symbol} />,
         }))}
       />
+      {variables.length === 0 ? <Text size="small" type="tertiary">No variables available. Add a Create Variable node or Parameter first.</Text> : null}
       {!currentVisible ? <Text size="small" type="danger">Current variable is not available in this scope.</Text> : null}
     </div>
   );

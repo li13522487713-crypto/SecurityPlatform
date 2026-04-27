@@ -55,7 +55,7 @@ export function VariableNameInput({
   const localIssues = validateOutputVariableName(required || value ? value ?? "" : "")
     .map((issue, index) => toIssue(issue.message, fieldPath, index));
   const duplicateIssues = (variableIndex.diagnostics ?? [])
-    .filter(issue => issue.variableName === value && (issue.fieldPath === fieldPath || issue.code === "MF_VARIABLE_DUPLICATED"))
+    .filter(issue => issue.variableName === value && (issue.fieldPath === fieldPath || issue.code === "MF_VARIABLE_DUPLICATED" || issue.code === "MF_VARIABLE_PARAMETER_CONFLICT"))
     .map((issue, index) => toIssue(issue.message, fieldPath, index + localIssues.length));
   const allIssues = [...issues, ...localIssues, ...duplicateIssues];
 

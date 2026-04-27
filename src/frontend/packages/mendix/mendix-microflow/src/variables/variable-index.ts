@@ -588,18 +588,29 @@ function finalizeDiagnostics(index: MicroflowVariableIndex): void {
     }
     return "action.outputVariableName";
   };
-  for (const [name, symbols] of Object.entries(index.byName ?? {})) {
+  const groups = new Map<string, MicroflowVariableSymbol[]>();
+  for (const symbols of Object.values(index.byName ?? {})) {
+    for (const symbol of symbols) {
+      if (symbol.name.startsWith("$")) {
+        continue;
+      }
+      const normalized = symbol.name.trim().toLocaleLowerCase();
+      groups.set(normalized, [...(groups.get(normalized) ?? []), symbol]);
+    }
+  }
+  for (const symbols of groups.values()) {
     const userSymbols = symbols.filter(symbol => !symbol.name.startsWith("$"));
     if (userSymbols.length > 1) {
       for (const symbol of userSymbols) {
+        const hasParameterConflict = userSymbols.some(item => item.source.kind === "parameter") && symbol.source.kind !== "parameter";
         addDiagnostic(index, {
-          severity: "error",
-          code: "MF_VARIABLE_DUPLICATED",
-          message: `Variable "${name}" is duplicated in the current microflow scope.`,
+          severity: hasParameterConflict ? "warning" : "error",
+          code: hasParameterConflict ? "MF_VARIABLE_PARAMETER_CONFLICT" : "MF_VARIABLE_DUPLICATED",
+          message: hasParameterConflict ? `Variable "${symbol.name}" conflicts with a parameter name in the current microflow.` : `Variable "${symbol.name}" is duplicated in the current microflow scope.`,
           objectId: "objectId" in symbol.source ? symbol.source.objectId : undefined,
           actionId: "actionId" in symbol.source ? symbol.source.actionId : undefined,
           fieldPath: fieldPathForSymbol(symbol),
-          variableName: name,
+          variableName: symbol.name,
         });
       }
     }

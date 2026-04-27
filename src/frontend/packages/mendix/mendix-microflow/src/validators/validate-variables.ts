@@ -29,9 +29,12 @@ function checkVariableReference(input: {
   label: string;
   issues: MicroflowValidationIssue[];
   writable?: boolean;
+  scopeMode?: "available" | "index";
 }) {
   const index = buildVariableIndex(input.schema, input.metadata);
-  const symbol = resolveVariableReferenceFromIndex(input.schema, index, { objectId: input.objectId, actionId: input.actionId, fieldPath: input.fieldPath }, input.value);
+  const symbol = input.scopeMode === "index"
+    ? (index.all ?? []).find(item => item.name === input.value)
+    : resolveVariableReferenceFromIndex(input.schema, index, { objectId: input.objectId, actionId: input.actionId, fieldPath: input.fieldPath }, input.value);
   if (!input.value.trim()) {
     input.issues.push(variableIssue("MF_VARIABLE_REFERENCE_REQUIRED", `${input.label} variable is required.`, input.objectId, input.actionId, input.fieldPath));
     return;
@@ -142,6 +145,7 @@ export function validateVariables(schema: MicroflowSchema, context: MicroflowVal
         label: "Change variable",
         issues,
         writable: true,
+        scopeMode: "index",
       });
     }
   }

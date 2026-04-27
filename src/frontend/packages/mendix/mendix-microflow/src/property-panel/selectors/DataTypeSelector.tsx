@@ -24,18 +24,20 @@ function defaultType(kind: MicroflowDataType["kind"]): MicroflowDataType {
   return { kind };
 }
 
-export function DataTypeSelector({ value, onChange, disabled }: {
+export function DataTypeSelector({ value, onChange, disabled, allowVoid }: {
   value: MicroflowDataType;
   onChange: (value: MicroflowDataType) => void;
   disabled?: boolean;
+  allowVoid?: boolean;
 }) {
+  const optionKinds = disabled ? primitiveKinds : primitiveKinds.filter(kind => allowVoid !== false || kind !== "void");
   return (
     <Space vertical align="start" spacing={6} style={{ width: "100%" }}>
       <Select
         disabled={disabled}
         value={value.kind}
         style={{ width: "100%" }}
-        optionList={primitiveKinds.map(kind => ({ label: kind, value: kind }))}
+        optionList={optionKinds.map(kind => ({ label: kind, value: kind }))}
         onChange={kind => onChange(defaultType(String(kind) as MicroflowDataType["kind"]))}
       />
       {value.kind === "enumeration" ? (

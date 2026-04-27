@@ -7,6 +7,12 @@ import type {
   MicroflowParameter,
   MicroflowAuthoringSchema,
 } from "../../schema";
+import {
+  renameMicroflowParameter,
+  syncParameterDefinitionToObject,
+  updateMicroflowParameterType,
+  upsertMicroflowParameter,
+} from "../../schema/utils";
 
 function mapObjectCollection(
   collection: MicroflowObjectCollection,
@@ -122,10 +128,25 @@ export function updateParameter(
   parameterId: string,
   patch: Partial<MicroflowParameter>,
 ): MicroflowAuthoringSchema {
-  return {
-    ...schema,
-    parameters: schema.parameters.map(parameter => parameter.id === parameterId ? { ...parameter, ...patch } : parameter),
-  };
+  const current = schema.parameters.find(parameter => parameter.id === parameterId);
+  if (!current) {
+    return schema;
+  }
+  let nextSchema = schema;
+  if (patch.name !== undefined) {
+    nextSchema = renameMicroflowParameter(nextSchema, parameterId, patch.name);
+  }
+  if (patch.dataType !== undefined) {
+    nextSchema = updateMicroflowParameterType(nextSchema, parameterId, patch.dataType);
+  }
+  const remainingPatch = { ...patch };
+  delete remainingPatch.name;
+  delete remainingPatch.dataType;
+  if (Object.keys(remainingPatch).length > 0) {
+    const latest = nextSchema.parameters.find(parameter => parameter.id === parameterId) ?? current;
+    nextSchema = upsertMicroflowParameter(nextSchema, { ...latest, ...remainingPatch });
+  }
+  return syncParameterDefinitionToObject(nextSchema, parameterId);
 }
 
 export function updateLoopObjectCollection(

@@ -446,8 +446,8 @@ function createConcreteAction(item: MicroflowActionRegistryItem, id: string, con
       kind: "createVariable",
       officialType: "Microflows$CreateVariableAction",
       variableName: String(config.variableName ?? "newVariable"),
-      dataType: { kind: "unknown", reason: "registry default" },
-      initialValue: expression("", { kind: "unknown", reason: "registry default" }),
+      dataType: { kind: "string" },
+      initialValue: expression("", { kind: "string" }),
       readonly: false
     };
   }

@@ -150,10 +150,10 @@ export function addParameter(schema: MicroflowSchema, parameter: MicroflowParame
   return addParameterInternal(schema, parameter, position);
 }
 
-export function renameParameter(schema: MicroflowSchema, parameterId: string, nextName: string): MicroflowSchema {
+export function renameParameter(schema: MicroflowSchema, parameterId: string, nextName: string, options: { rewriteExpressions?: boolean } = {}): MicroflowSchema {
   const parameter = schema.parameters.find(item => item.id === parameterId);
   const renamed = renameParameterInternal(schema, parameterId, nextName);
-  const withExpressions = parameter ? renameExpressions(renamed, parameter.name, nextName) : renamed;
+  const withExpressions = parameter && options.rewriteExpressions ? renameExpressions(renamed, parameter.name, nextName) : renamed;
   return refreshDerivedState(withExpressions);
 }
 
