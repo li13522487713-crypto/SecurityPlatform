@@ -53,3 +53,11 @@
 - HTTP RuntimeAdapter 不回退前端 mock runner；`testRunMicroflow` 之后回读 `GET /runs/{runId}` 与 `/trace`。
 - DebugPanel 展示后端 RunSession / TraceFrame / RuntimeLog / VariableSnapshot / RuntimeError，Cancel Run 后再次回读持久化状态。
 - FlowGram runtime highlight 使用后端 `objectId/outgoingFlowId/selectedCaseValue/loopIteration/errorHandlerVisited`，不修改 AuthoringSchema 或 dirty。
+
+## 第 48 轮 ExecutionPlanLoader
+
+- 后端新增 `IMicroflowExecutionPlanLoader` / `MicroflowExecutionPlanLoader`，支持 current resource、version snapshot、inline schema 三种来源。
+- TestRunService 仅预热 `LoadFromSchemaAsync(..., mode=testRun)`，失败不改变现有 Mock Runtime 行为；MockRuntimeRunner 仍沿用第 42～47 轮 trace/result。
+- ExecutionPlanLoader 只读 AuthoringSchema，输出 plan/diagnostics，不执行 FlowNavigator、VariableStore、ExpressionEvaluator、CRUD、REST 或事务。
+- 后端可通过 `scripts/verify-microflow-execution-plan-loader.ts`、`MicroflowBackend.http` 的 Runtime ExecutionPlanLoader 段落检查 `startNodeId`、flow 分类、loop collection、metadataRefs、variableDeclarations、unsupportedActions 与 failOnUnsupported。
+- 下一轮建议：第 49 轮 FlowNavigator，以本轮 plan 的 `normalFlows`、`decisionFlows`、`objectTypeFlows`、`errorHandlerFlows` 和 loop collection 为导航输入。

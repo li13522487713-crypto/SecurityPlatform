@@ -25,6 +25,11 @@ public static class MicroflowApplicationServiceCollectionExtensions
         services.TryAddScoped<IMicroflowPublishImpactService, MicroflowPublishImpactService>();
         services.TryAddScoped<IMicroflowPublishService, MicroflowPublishService>();
         services.TryAddScoped<IMicroflowVersionService, MicroflowVersionService>();
+        services.TryAddScoped<IMicroflowActionSupportMatrix, MicroflowActionSupportMatrix>();
+        services.TryAddScoped<IMicroflowRuntimeDtoBuilder, MicroflowRuntimeDtoBuilder>();
+        services.TryAddScoped<IMicroflowExecutionPlanValidator, MicroflowExecutionPlanValidator>();
+        services.TryAddScoped<IMicroflowExecutionPlanBuilder, MicroflowExecutionPlanBuilder>();
+        services.TryAddScoped<IMicroflowExecutionPlanLoader, MicroflowExecutionPlanLoader>();
 
         return services;
     }

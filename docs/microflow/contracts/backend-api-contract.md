@@ -69,6 +69,18 @@
 - Decision/ObjectType trace 写入 `selectedCaseValue`，Loop trace 写入 `loopIteration`，RestCall 可通过 `simulateRestError=true` 进入 error handler mock path。
 - `Resource.LastRunStatus` / `LastRunAt` 会更新；TestRun 不修改 `CurrentSchemaSnapshotId`、dirty/publishStatus 或 AuthoringSchema。
 
+## Runtime Plan Inspection
+
+第 48 轮新增只读 ExecutionPlanLoader 诊断 API：
+
+| 方法 | 路径 | 请求 | 响应 `data` |
+|------|------|------|-------------|
+| POST | `/api/microflows/runtime/plan` | `{ schema, options }` | `MicroflowExecutionPlan` |
+| GET | `/api/microflows/{id}/runtime/plan?mode=&failOnUnsupported=` | query | `MicroflowExecutionPlan` |
+| GET | `/api/microflows/{id}/versions/{versionId}/runtime/plan?mode=&failOnUnsupported=` | query | `MicroflowExecutionPlan` |
+
+该 API 只执行 `AuthoringSchema -> RuntimeDto -> ExecutionPlan` 转换和校验，不执行 plan、不保存 plan、不访问业务数据和外部 REST。`failOnUnsupported=true` 时 unsupported/modeledOnly action 会返回 `MICROFLOW_VALIDATION_FAILED`。
+
 ## 发布
 
 - `POST /api/microflows/{id}/publish` — `PublishMicroflowApiRequest` → `MicroflowPublishResult`。

@@ -55,6 +55,15 @@
 - `POST /duplicate` 从历史版本复制为新草稿资源，不复制运行记录、trace、log 或 references。
 - `GET /compare-current` 与 `GET /impact` 使用基础 JSON diff：参数删除/类型变更、返回类型变更、暴露 URL path 变更、对象/flow 增删。
 
+第 48 轮已补充 Runtime ExecutionPlanLoader：
+
+- 新增 `IMicroflowExecutionPlanLoader`、`MicroflowRuntimeDtoBuilder`、`MicroflowExecutionPlanBuilder`、`MicroflowExecutionPlanValidator`、`MicroflowActionSupportMatrix`。
+- 支持从 current resource、version snapshot、inline schema 生成 `MicroflowExecutionPlan`。
+- 诊断 API 为 `POST /api/microflows/runtime/plan`、`GET /api/microflows/{id}/runtime/plan`、`GET /api/microflows/{id}/versions/{versionId}/runtime/plan`。
+- TestRunService 仅预热 plan loader，不改变既有 MockRuntimeRunner 行为。
+- 本轮仍不实现真实 Runtime 执行器、真实 CRUD、真实 REST、完整表达式、事务引擎或 FlowNavigator。
+- 自动化回归入口：`scripts/verify-microflow-execution-plan-loader.ts`。
+
 第 39 轮已补充 Metadata API：
 
 - `GET /api/microflow-metadata` 返回完整 `MicroflowMetadataCatalog`，支持 `workspaceId`、`moduleId`、`includeSystem`、`includeArchived`。

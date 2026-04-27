@@ -25,3 +25,14 @@
 2. DebugPanel 必须显示 trace sequence、object/action/flow、selectedCaseValue、loopIteration、variablesSnapshot、logs 与 errors。
 3. FlowGram runtime highlight 使用后端 trace，error handler flow 由 `errorHandlerVisited` 标识。
 4. `scripts/verify-microflow-publish-version-references-testrun-debug-integration.ts` 作为真实 HTTP 综合回归入口。
+
+## 第 48 轮 ExecutionPlanLoader 场景
+
+1. `POST /api/microflows/runtime/plan` 可从 inline AuthoringSchema 生成 plan。
+2. `GET /api/microflows/{id}/runtime/plan` 可从 current schema snapshot 生成 plan。
+3. `GET /api/microflows/{id}/versions/{versionId}/runtime/plan` 可从 version schema snapshot 生成 plan。
+4. plan 必须包含 start/end、normal/decision/objectType/errorHandler/ignored flows、loopCollections、variableDeclarations、metadataRefs、unsupportedActions。
+5. AnnotationFlow 必须进入 `ignoredFlows`，不得进入控制流分组。
+6. modeledOnly / unknown action 必须进入 `unsupportedActions`；`failOnUnsupported=true` 返回验证失败 envelope。
+7. invalid flow origin/destination 必须产生 diagnostic。
+8. 自动化入口：`scripts/verify-microflow-execution-plan-loader.ts`。

@@ -38,3 +38,18 @@ retrieve、createObject、changeMembers、commit、delete、rollback、createVar
 - `callMicroflow` DTO 保留 target、metadata 驱动的 `parameterMappings`、`returnValue`、`callMode`。
 - `restCall` DTO 保留 request method/url/headers/query/body、response handling/status/headers、timeoutSeconds。
 - `logMessage` DTO 保留 level、logNodeName、template.text、template.arguments、includeContextVariables、includeTraceId。
+
+## 第 48 轮后端 RuntimeDtoBuilder
+
+后端新增 `MicroflowRuntimeDtoBuilder`，输入为 `JsonElement` AuthoringSchema，并依赖 `MicroflowSchemaReader` 读取 parameters、objects、nested loop collections、flows、action raw、caseValues 与 `isErrorHandler`。该 DTO 是后端内部中间形态，不保存，不作为第二套 API 契约。
+
+输出字段包括 `id`、`schemaId`、`resourceId`、`version`、`schemaVersion`、`parameters`、`nodes`、`flows`、`variables`、`metadataRefs`、`unsupportedActions`、`loopCollections`、`startNodeId`、`endNodeIds`、`diagnostics`、`createdAt`。
+
+转换规则：
+
+- P0 action 标记 `supportLevel=supported`。
+- P1/P2 / Generic action 标记 `modeledOnly` 并进入 `unsupportedActions`。
+- connector action 在 capabilities 未开启时标记 `requiresConnector`。
+- nanoflow-only action 标记 `nanoflowOnly`。
+- `AnnotationFlow` 标记为 ignored flow，只用于 plan inspection。
+- 变量声明先覆盖 parameters、action outputs、REST response/error context、system `$currentUser`，完整作用域算法留给第 50 轮 VariableStore。

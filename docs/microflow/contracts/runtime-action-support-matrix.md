@@ -11,6 +11,18 @@ Flow 协议：P0 action execution 只跟随 `sequence` / `decisionCondition` / `
 
 第 30 轮：ExecutionPlan 的 `unsupportedActions` 是 Runtime 支持级权威列表。Mock Runner 执行到 modeledOnly / unsupported / requiresConnector 节点时，分别产生 `RUNTIME_UNSUPPORTED_ACTION` 或 `RUNTIME_CONNECTOR_REQUIRED`，并生成 failed trace。
 
+## 第 48 轮后端矩阵
+
+后端新增 `MicroflowActionSupportMatrix`，供 RuntimeDtoBuilder / ExecutionPlanBuilder 复用，不写在 Controller 中。
+
+- `supported`：retrieve、createObject、changeMembers、commit、delete、rollback、createVariable、changeVariable、callMicroflow、restCall、logMessage，以及 Start/End/Error/Break/Continue/Split/Merge/Loop 这类 control object。
+- `modeledOnly`：listOperation、aggregateList、createList、changeList、webServiceCall、importXml、exportXml、showPage、showMessage、validationFeedback、workflow、metrics、mlModelCall 与 GenericAction。
+- `requiresConnector`：externalObject / connectorCall 类 action，未显式启用 connector capability 时不视为 supported。
+- `nanoflowOnly`：JavaScriptAction、NanoflowCallAction、nanoflow-only synchronize。
+- 未识别 actionKind 默认 `unsupported`。
+
+`failOnUnsupported=false` 时这些 descriptor 以 warning diagnostic 返回；`failOnUnsupported=true` 时 API 返回 `MICROFLOW_VALIDATION_FAILED`。
+
 ## 第 26 轮属性面板支持
 
 | actionKind | 属性面板核心控件 | 输出变量 |

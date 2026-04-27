@@ -1260,3 +1260,199 @@ X-Trace-Id: {{traceId}}
 {
   "input": {}
 }
+
+### ============================================================
+### Runtime ExecutionPlanLoader Round 48
+### ============================================================
+
+### Runtime plan from inline AuthoringSchema
+POST {{host}}/api/microflows/runtime/plan
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": {
+    "mode": "validateOnly",
+    "includeDiagnostics": true,
+    "failOnUnsupported": false
+  },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "inline-runtime-plan-demo",
+    "name": "InlineRuntimePlanDemo",
+    "parameters": [
+      { "id": "p-user", "name": "userId", "type": { "kind": "string" }, "required": true }
+    ],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "retrieve",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": {
+            "id": "retrieve-action",
+            "kind": "retrieve",
+            "officialType": "Microflows$RetrieveAction",
+            "retrieveSource": { "kind": "database", "entityQualifiedName": "Sales.Order" },
+            "outputVariableName": "orders"
+          }
+        },
+        {
+          "id": "decision",
+          "kind": "exclusiveSplit",
+          "officialType": "Microflows$ExclusiveSplit"
+        },
+        {
+          "id": "rest",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": {
+            "id": "rest-action",
+            "kind": "restCall",
+            "officialType": "Microflows$RestCallAction",
+            "importMappingQualifiedName": "Api.OrderResponse",
+            "outputVariableName": "restResponse",
+            "errorHandlingType": "customWithoutRollback"
+          }
+        },
+        { "id": "error", "kind": "errorEvent", "officialType": "Microflows$ErrorEvent" },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" },
+        { "id": "note", "kind": "annotation", "officialType": "Microflows$Annotation" }
+      ],
+      "flows": [
+        { "id": "f-start-retrieve", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "retrieve" },
+        { "id": "f-retrieve-decision", "kind": "sequence", "originObjectId": "retrieve", "destinationObjectId": "decision" },
+        { "id": "f-decision-rest", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "rest", "editor": { "edgeKind": "decisionCondition", "branchOrder": 0 }, "caseValues": [{ "kind": "boolean", "value": true }] },
+        { "id": "f-decision-end", "kind": "sequence", "originObjectId": "decision", "destinationObjectId": "end", "editor": { "edgeKind": "decisionCondition", "branchOrder": 1 }, "caseValues": [{ "kind": "boolean", "value": false }] },
+        { "id": "f-rest-end", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "end" },
+        { "id": "f-rest-error", "kind": "sequence", "originObjectId": "rest", "destinationObjectId": "error", "isErrorHandler": true, "editor": { "edgeKind": "errorHandler" } },
+        { "id": "f-note", "kind": "annotation", "originObjectId": "note", "destinationObjectId": "decision", "edgeKind": "annotation" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime plan from current resource
+GET {{host}}/api/microflows/{{microflowId}}/runtime/plan?mode=validateOnly&failOnUnsupported=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Runtime plan from version snapshot
+GET {{host}}/api/microflows/{{microflowId}}/versions/{{versionId}}/runtime/plan?mode=publishedRun&failOnUnsupported=false
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+### Runtime plan modeledOnly unsupported descriptor
+POST {{host}}/api/microflows/runtime/plan
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "validateOnly", "includeDiagnostics": true, "failOnUnsupported": false },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "modeled-only-plan-demo",
+    "name": "ModeledOnlyPlanDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "showPage",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": { "id": "showPageAction", "kind": "showPage", "officialType": "Microflows$ShowPageAction" }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f1", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "showPage" },
+        { "id": "f2", "kind": "sequence", "originObjectId": "showPage", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime plan failOnUnsupported returns validation envelope
+POST {{host}}/api/microflows/runtime/plan
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "validateOnly", "includeDiagnostics": true, "failOnUnsupported": true },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "fail-unsupported-plan-demo",
+    "name": "FailUnsupportedPlanDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        {
+          "id": "generic",
+          "kind": "actionActivity",
+          "officialType": "Microflows$ActionActivity",
+          "action": { "id": "genericAction", "kind": "unknownAction", "officialType": "Microflows$GenericAction" }
+        },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f1", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "generic" },
+        { "id": "f2", "kind": "sequence", "originObjectId": "generic", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+
+### Runtime plan invalid flow diagnostics
+POST {{host}}/api/microflows/runtime/plan
+Content-Type: application/json
+X-Workspace-Id: {{workspaceId}}
+X-Tenant-Id: {{tenantId}}
+X-User-Id: {{userId}}
+X-Trace-Id: {{traceId}}
+
+{
+  "options": { "mode": "validateOnly", "includeDiagnostics": true, "failOnUnsupported": false },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "invalid-flow-plan-demo",
+    "name": "InvalidFlowPlanDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent", "officialType": "Microflows$StartEvent" },
+        { "id": "end", "kind": "endEvent", "officialType": "Microflows$EndEvent" }
+      ],
+      "flows": [
+        { "id": "f-invalid", "kind": "sequence", "originObjectId": "missing", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}

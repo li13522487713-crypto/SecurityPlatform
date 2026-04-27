@@ -50,6 +50,43 @@ Content-Type: application/json
 
 第 43 轮前端编辑器保存会把最近加载资源的 `schemaId` 作为 `baseVersion` 传入；保存成功后重新读取资源并更新标题、`updatedAt` 与 dirty 状态。若返回 `MICROFLOW_VERSION_CONFLICT`，前端必须保留本地 dirty schema，不覆盖为远端版本。
 
+## Runtime ExecutionPlan inspection
+
+```http
+POST /api/microflows/runtime/plan
+Content-Type: application/json
+```
+
+```json
+{
+  "options": {
+    "mode": "validateOnly",
+    "includeDiagnostics": true,
+    "failOnUnsupported": false
+  },
+  "schema": {
+    "schemaVersion": "1.0.0",
+    "id": "mf-plan",
+    "name": "PlanDemo",
+    "parameters": [],
+    "returnType": { "kind": "void" },
+    "objectCollection": {
+      "id": "root-collection",
+      "objects": [
+        { "id": "start", "kind": "startEvent" },
+        { "id": "end", "kind": "endEvent" }
+      ],
+      "flows": [
+        { "id": "f1", "kind": "sequence", "originObjectId": "start", "destinationObjectId": "end" }
+      ]
+    },
+    "flows": []
+  }
+}
+```
+
+响应 `data` 至少包含 `startNodeId`、`endNodeIds`、`nodes`、`flows`、`normalFlows`、`decisionFlows`、`objectTypeFlows`、`errorHandlerFlows`、`ignoredFlows`、`loopCollections`、`variableDeclarations`、`metadataRefs`、`unsupportedActions`、`diagnostics`、`validation`。响应不包含 FlowGram `edges`。
+
 ```json
 {
   "baseVersion": "current-schema-snapshot-id",

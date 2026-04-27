@@ -20,6 +20,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowMetadataService _metadataService;
     private readonly IMicroflowMockRuntimeRunner _runner;
+    private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowRequestContextAccessor _requestContextAccessor;
     private readonly IMicroflowClock _clock;
 
@@ -31,6 +32,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         IMicroflowValidationService validationService,
         IMicroflowMetadataService metadataService,
         IMicroflowMockRuntimeRunner runner,
+        IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowRequestContextAccessor requestContextAccessor,
         IMicroflowClock clock)
     {
@@ -41,6 +43,7 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
         _validationService = validationService;
         _metadataService = metadataService;
         _runner = runner;
+        _executionPlanLoader = executionPlanLoader;
         _requestContextAccessor = requestContextAccessor;
         _clock = clock;
     }
@@ -73,6 +76,8 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
                 422,
                 validationIssues: validation.Issues);
         }
+
+        await TryPreloadExecutionPlanAsync(resource, schema, cancellationToken);
 
         var metadata = await _metadataService.GetCatalogAsync(
             new GetMicroflowMetadataRequestDto
@@ -169,6 +174,35 @@ public sealed class MicroflowTestRunService : IMicroflowTestRunService
             Trace = frames.Select(ToFrameDto).ToArray(),
             Logs = logs.Select(ToLogDto).ToArray()
         };
+    }
+
+    private async Task TryPreloadExecutionPlanAsync(MicroflowResourceEntity resource, JsonElement schema, CancellationToken cancellationToken)
+    {
+        try
+        {
+            _ = await _executionPlanLoader.LoadFromSchemaAsync(
+                schema,
+                new MicroflowExecutionPlanLoadOptions
+                {
+                    ResourceId = resource.Id,
+                    Version = resource.Version,
+                    Mode = MicroflowExecutionPlanMode.TestRun,
+                    IncludeDiagnostics = true,
+                    FailOnUnsupported = false,
+                    WorkspaceId = resource.WorkspaceId,
+                    TenantId = _requestContextAccessor.Current.TenantId,
+                    UserId = _requestContextAccessor.Current.UserId
+                },
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // 第 48 轮只做只读 ExecutionPlan 预热，不能改变既有 Mock TestRun 行为。
+        }
     }
 
     private async Task<(JsonElement Schema, string SchemaId)> ResolveSchemaAsync(

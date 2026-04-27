@@ -17,6 +17,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
     private readonly IMicroflowValidationService _validationService;
     private readonly IMicroflowReferenceService _referenceService;
     private readonly IMicroflowTestRunService _testRunService;
+    private readonly IMicroflowExecutionPlanLoader _executionPlanLoader;
     private readonly IMicroflowStorageDiagnosticsService _storageDiagnosticsService;
 
     public MicroflowResourceController(
@@ -26,6 +27,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         IMicroflowValidationService validationService,
         IMicroflowReferenceService referenceService,
         IMicroflowTestRunService testRunService,
+        IMicroflowExecutionPlanLoader executionPlanLoader,
         IMicroflowStorageDiagnosticsService storageDiagnosticsService,
         IMicroflowRequestContextAccessor requestContextAccessor)
         : base(requestContextAccessor)
@@ -36,6 +38,7 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         _validationService = validationService;
         _referenceService = referenceService;
         _testRunService = testRunService;
+        _executionPlanLoader = executionPlanLoader;
         _storageDiagnosticsService = storageDiagnosticsService;
     }
 
@@ -97,6 +100,36 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         return MicroflowOk(result);
     }
 
+    [HttpPost("runtime/plan")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowExecutionPlan>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowExecutionPlan>>> BuildRuntimePlan(
+        [FromBody] LoadMicroflowExecutionPlanRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var options = request.Options ?? new MicroflowExecutionPlanLoadOptions();
+        var result = await _executionPlanLoader.LoadFromSchemaAsync(request.Schema, options, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/runtime/plan")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowExecutionPlan>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowExecutionPlan>>> GetCurrentRuntimePlan(
+        string id,
+        [FromQuery] string? mode = null,
+        [FromQuery] bool failOnUnsupported = false,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _executionPlanLoader.LoadCurrentAsync(
+            id,
+            new MicroflowExecutionPlanLoadOptions
+            {
+                Mode = string.IsNullOrWhiteSpace(mode) ? MicroflowExecutionPlanMode.ValidateOnly : mode!,
+                FailOnUnsupported = failOnUnsupported
+            },
+            cancellationToken);
+        return MicroflowOk(result);
+    }
+
     [HttpGet("{id}/versions")]
     [ProducesResponseType(typeof(MicroflowApiResponse<IReadOnlyList<MicroflowVersionSummaryDto>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<MicroflowApiResponse<IReadOnlyList<MicroflowVersionSummaryDto>>>> ListVersions(
@@ -115,6 +148,27 @@ public sealed class MicroflowResourceController : MicroflowApiControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _versionService.GetVersionDetailAsync(id, versionId, cancellationToken);
+        return MicroflowOk(result);
+    }
+
+    [HttpGet("{id}/versions/{versionId}/runtime/plan")]
+    [ProducesResponseType(typeof(MicroflowApiResponse<MicroflowExecutionPlan>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MicroflowApiResponse<MicroflowExecutionPlan>>> GetVersionRuntimePlan(
+        string id,
+        string versionId,
+        [FromQuery] string? mode = null,
+        [FromQuery] bool failOnUnsupported = false,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _executionPlanLoader.LoadVersionAsync(
+            id,
+            versionId,
+            new MicroflowExecutionPlanLoadOptions
+            {
+                Mode = string.IsNullOrWhiteSpace(mode) ? MicroflowExecutionPlanMode.ValidateOnly : mode!,
+                FailOnUnsupported = failOnUnsupported
+            },
+            cancellationToken);
         return MicroflowOk(result);
     }
 
